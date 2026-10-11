@@ -1,0 +1,122 @@
+#pragma once
+/* Minimal GL ES 2.0 loader: no system GL headers needed (works with ANGLE, desktop GL 2.x, Windows opengl32 and vitaGL). */
+#define X(r, n, a) extern r (*p_##n) a;
+#include "rs_gl_funcs.h"
+#undef X
+#define X(r, n, a) /* mapped to pointers below */
+#undef X
+#define glCreateShader p_glCreateShader
+#define glShaderSource p_glShaderSource
+#define glCompileShader p_glCompileShader
+#define glGetShaderiv p_glGetShaderiv
+#define glGetShaderInfoLog p_glGetShaderInfoLog
+#define glCreateProgram p_glCreateProgram
+#define glAttachShader p_glAttachShader
+#define glBindAttribLocation p_glBindAttribLocation
+#define glLinkProgram p_glLinkProgram
+#define glGetProgramiv p_glGetProgramiv
+#define glGetProgramInfoLog p_glGetProgramInfoLog
+#define glUseProgram p_glUseProgram
+#define glGetUniformLocation p_glGetUniformLocation
+#define glUniform1i p_glUniform1i
+#define glUniform1f p_glUniform1f
+#define glUniform4f p_glUniform4f
+#define glUniform4fv p_glUniform4fv
+#define glEnableVertexAttribArray p_glEnableVertexAttribArray
+#define glDisableVertexAttribArray p_glDisableVertexAttribArray
+#define glVertexAttribPointer p_glVertexAttribPointer
+#define glDrawArrays p_glDrawArrays
+#define glGenTextures p_glGenTextures
+#define glDeleteTextures p_glDeleteTextures
+#define glBindTexture p_glBindTexture
+#define glActiveTexture p_glActiveTexture
+#define glTexImage2D p_glTexImage2D
+#define glTexSubImage2D p_glTexSubImage2D
+#define glTexParameteri p_glTexParameteri
+#define glCopyTexSubImage2D p_glCopyTexSubImage2D
+#define glGenFramebuffers p_glGenFramebuffers
+#define glBindFramebuffer p_glBindFramebuffer
+#define glFramebufferTexture2D p_glFramebufferTexture2D
+#define glGenRenderbuffers p_glGenRenderbuffers
+#define glDeleteRenderbuffers p_glDeleteRenderbuffers
+#define glDeleteFramebuffers p_glDeleteFramebuffers
+#define glClearStencil p_glClearStencil
+#define glStencilFunc p_glStencilFunc
+#define glStencilOp p_glStencilOp
+#define glStencilMask p_glStencilMask
+#define glBindRenderbuffer p_glBindRenderbuffer
+#define glRenderbufferStorage p_glRenderbufferStorage
+#define glFramebufferRenderbuffer p_glFramebufferRenderbuffer
+#define glCheckFramebufferStatus p_glCheckFramebufferStatus
+#define glViewport p_glViewport
+#define glScissor p_glScissor
+#define glEnable p_glEnable
+#define glDisable p_glDisable
+#define glDepthFunc p_glDepthFunc
+#define glDepthMask p_glDepthMask
+#define glColorMask p_glColorMask
+#define glCullFace p_glCullFace
+#define glFrontFace p_glFrontFace
+#define glBlendFuncSeparate p_glBlendFuncSeparate
+#define glBlendEquation p_glBlendEquation
+#define glBlendColor p_glBlendColor
+#define glClear p_glClear
+#define glClearColor p_glClearColor
+#define glReadPixels p_glReadPixels
+#define glPixelStorei p_glPixelStorei
+#define glGetError p_glGetError
+#define glGenerateMipmap p_glGenerateMipmap
+#define GL_LINEAR_MIPMAP_LINEAR 0x2703
+void rs_gl_clear_depth(float d);
+
+#define GL_FALSE 0
+#define GL_TRUE 1
+#define GL_TRIANGLES 4
+#define GL_TRIANGLE_STRIP 5
+#define GL_DEPTH_BUFFER_BIT 0x100
+#define GL_COLOR_BUFFER_BIT 0x4000
+#define GL_CULL_FACE 0x0B44
+#define GL_DEPTH_TEST 0x0B71
+#define GL_BLEND 0x0BE2
+#define GL_SCISSOR_TEST 0x0C11
+#define GL_FRONT 0x404
+#define GL_BACK 0x405
+#define GL_CCW 0x901
+#define GL_UNSIGNED_BYTE 0x1401
+#define GL_FLOAT 0x1406
+#define GL_RGBA 0x1908
+#define GL_TEXTURE_2D 0x0DE1
+#define GL_TEXTURE0 0x84C0
+#define GL_TEXTURE_MAG_FILTER 0x2800
+#define GL_TEXTURE_MIN_FILTER 0x2801
+#define GL_TEXTURE_WRAP_S 0x2802
+#define GL_TEXTURE_WRAP_T 0x2803
+#define GL_NEAREST 0x2600
+#define GL_LINEAR 0x2601
+#define GL_REPEAT 0x2901
+#define GL_CLAMP_TO_EDGE 0x812F
+#define GL_FRAMEBUFFER 0x8D40
+#define GL_RENDERBUFFER 0x8D41
+#define GL_COLOR_ATTACHMENT0 0x8CE0
+#define GL_DEPTH_ATTACHMENT 0x8D00
+#define GL_DEPTH_COMPONENT16 0x81A5
+#define GL_DEPTH24_STENCIL8_OES 0x88F0
+#define GL_STENCIL_INDEX8 0x8D48
+#define GL_STENCIL_ATTACHMENT 0x8D20
+#define GL_STENCIL_BUFFER_BIT 0x00000400
+#define GL_STENCIL_TEST 0x0B90
+#define GL_FRAMEBUFFER_COMPLETE 0x8CD5
+#define GL_FRAGMENT_SHADER 0x8B30
+#define GL_VERTEX_SHADER 0x8B31
+#define GL_COMPILE_STATUS 0x8B81
+#define GL_LINK_STATUS 0x8B82
+#define GL_UNPACK_ALIGNMENT 0x0CF5
+#define GL_FUNC_ADD 0x8006
+#define GL_FUNC_SUBTRACT 0x800A
+#define GL_FUNC_REVERSE_SUBTRACT 0x800B
+#define GL_ZERO 0
+#define GL_ONE 1
+
+/* Load every entry point through getproc(name). Returns the number of missing REQUIRED functions (0 = ok). */
+int rs_gl_load(void *(*getproc)(const char *name));
+#define GL_LESS 0x0201

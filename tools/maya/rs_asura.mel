@@ -1,0 +1,60 @@
+// Renegade Squadron (PSP / Asura engine) tools for Maya 2020.
+//
+// Install:
+//   1. Copy the whole "maya" folder of the mod kit (rs_asura.mel, rs_maya.py and the "asura" folder) to
+//      Documents/maya/2020/scripts/            (Windows)   or   ~/maya/2020/scripts/   (macOS / Linux)
+//   2. In Maya: Script Editor > MEL tab:   source "rs_asura.mel"; rsAsuraMenu();
+//      (or add those two lines to Documents/maya/2020/scripts/userSetup.mel to get the menu every start)
+//   3. Renegade Squadron > Settings...: point "Game folder" at the extracted game (the folder that contains PSP_GAME) and pick a mod folder.
+//
+// Menu:
+//   Import Model...          a character / vehicle / prop from a level file (.PSP): mesh + joints + rigid skin + PBR material
+//   Import Level Geometry... the level ('Env') of a .PSP: terrain / buildings, vertex colours, one material per game material
+//   Export Selected          model(s): written into every level that contains them (all LODs), plus their textures
+//                            level geometry: positions, UVs, vertex colours (topology must stay the same)
+//   Export Textures Only     the colour / _mr / _n maps of the selected objects' materials
+//   Settings...
+
+global proc rsAsuraPy(string $cmd)
+{
+    python("import rs_maya");
+    python("rs_maya." + $cmd);
+}
+
+global proc rsAsuraImportModel()      { rsAsuraPy("import_model()"); }
+global proc rsAsuraImportModelLods()  { rsAsuraPy("import_model(lods=True)"); }
+global proc rsAsuraImportLevel()      { rsAsuraPy("import_level()"); }
+global proc rsAsuraExportSelected()
+{
+    int $all = `optionVar -q rsExportAllLevels`;
+    int $lods = `optionVar -q rsExportLods`;
+    rsAsuraPy("export_selected(all_levels=" + ($all ? "True" : "False") + ", lods=" + ($lods ? "True" : "False") + ")");
+}
+global proc rsAsuraExportTextures()   { rsAsuraPy("export_textures_only()"); }
+global proc rsAsuraSettings()         { rsAsuraPy("settings()"); }
+global proc rsAsuraReload()           { python("import rs_maya\ntry:\n    reload(rs_maya)\nexcept NameError:\n    import importlib; importlib.reload(rs_maya)"); print("rs_maya reloaded\n"); }
+
+global proc rsAsuraToggle(string $var)
+{
+    optionVar -iv $var (1 - `optionVar -q $var`);
+}
+
+global proc rsAsuraMenu()
+{
+    global string $gMainWindow;
+    if (!`optionVar -exists rsExportAllLevels`) optionVar -iv rsExportAllLevels 1;
+    if (!`optionVar -exists rsExportLods`) optionVar -iv rsExportLods 1;
+    if (`menu -exists rsAsuraMainMenu`) deleteUI rsAsuraMainMenu;
+    menu -p $gMainWindow -l "Renegade Squadron" -tearOff true rsAsuraMainMenu;
+        menuItem -l "Import Model..." -c "rsAsuraImportModel";
+        menuItem -l "Import Model (show LODs)..." -c "rsAsuraImportModelLods";
+        menuItem -l "Import Level Geometry..." -c "rsAsuraImportLevel";
+        menuItem -divider true;
+        menuItem -l "Export Selected" -c "rsAsuraExportSelected";
+        menuItem -l "Export Textures Only" -c "rsAsuraExportTextures";
+        menuItem -l "Export: into every level that has the model" -cb (`optionVar -q rsExportAllLevels`) -c "rsAsuraToggle rsExportAllLevels";
+        menuItem -l "Export: replace all LODs" -cb (`optionVar -q rsExportLods`) -c "rsAsuraToggle rsExportLods";
+        menuItem -divider true;
+        menuItem -l "Settings..." -c "rsAsuraSettings";
+        menuItem -l "Reload Scripts" -c "rsAsuraReload";
+}
