@@ -11,6 +11,6 @@ out.append('const rc_stub_t rc_stubs[] = {' + ','.join('{0,"%s",0x%s}' % (lib, n
 out.append('const int RC_NSTUBS = %d;' % len(ents))
 for k, (ret, name, lib, nid) in enumerate(ents):
     rv = '(u64)c.r[2]|((u64)c.r[3]<<32)' if ret == 'u64' else 'c.r[2]'
-    out.append('%s %s(u32 a0,u32 a1,u32 a2,u32 a3,u32 t0,u32 t1,u32 t2,u32 t3){ sdkcall_t c; memset(&c,0,sizeof c); c.r[4]=a0;c.r[5]=a1;c.r[6]=a2;c.r[7]=a3;c.r[8]=t0;c.r[9]=t1;c.r[10]=t2;c.r[11]=t3; hle_call(&c,%d); return %s; }' % (ret, name, k, rv))
+    out.append('%s psp_%s(u32 a0,u32 a1,u32 a2,u32 a3,u32 t0,u32 t1,u32 t2,u32 t3){ sdkcall_t c; memset(&c,0,sizeof c); c.r[4]=a0;c.r[5]=a1;c.r[6]=a2;c.r[7]=a3;c.r[8]=t0;c.r[9]=t1;c.r[10]=t2;c.r[11]=t3; hle_call(&c,%d); return %s; }' % (ret, name, k, rv))
 open(sys.argv[2], 'w').write('\n'.join(out) + '\n')
 print(len(ents), 'SDK entry points')

@@ -494,6 +494,9 @@ class Gen:
             for a in sorted(s.sym_used): fo.write('#define D_%08X ((u32)(uintptr_t)(rs_image + 0x%X))\n' % (a, a - BASE))
         with open(os.path.join(out, 'psp_sdk.h'), 'w') as fo:
             fo.write('/* PSP firmware API used by the game (implemented by the platform layer). Generated. */\n#pragma once\n#include "rs_base.h"\n')
+            fo.write('/* The functions keep their PSP SDK names in the source but are linked as psp_<name>: native SDKs use some of the same\n'
+                     ' * names for their own, different functions (the PS Vita has sceKernelCreateSema, sceIoOpen, sceCtrlReadBufferPositive, ...). */\n')
+            for n in sorted(s.stub_used): fo.write('#define %s psp_%s\n' % (n, n))
             for n, (lib, nid) in sorted(s.stub_used.items()):
                 fo.write('%s %s(u32, u32, u32, u32, u32, u32, u32, u32);   /* %s 0x%08X */\n' % ('u64' if n in SDK64 else 'u32', n, lib, nid))
         print('functions', len(funcs), 'files', len(files), 'data symbols', len(s.sym_used), 'SDK imports used', len(s.stub_used),
