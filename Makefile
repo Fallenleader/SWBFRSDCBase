@@ -7,32 +7,59 @@
 # The game code (src/game) is plain C for any 32-bit target; a target port supplies the PSP SDK interface
 # (src/game/psp_sdk.h) and the support symbols in src/game/rs_base.h.  See README.md.
 
+#   make linux_test EBOOT=... LAYOUT=high             the same with all memory above 0x80000000 and the per-thread state in one
+#                                                     block (RS_TLS_STRUCT): the PS Vita's memory layout, on Linux
+#   make vita EBOOT=... [RENDERER=VITAGL] [DOCKER=1]  PS Vita VPK (VitaSDK, or the vitasdk/vitasdk Docker image; platform/vita/README.md)
+
 EBOOT ?= EBOOT.BIN
 GAME_SRC := $(wildcard src/game/game_*.c)
-GAME_OBJ := $(patsubst src/game/%.c,build/game/%.o,$(GAME_SRC)) build/game/data.o
+ifeq ($(LAYOUT),high)
+B := build/linux_high
+XFLAGS := -DRS_TLS_STRUCT -DRS_HIGH_LAYOUT
+XLD := -Wl,-Ttext-segment=0x81000000
+else
+B := build
+XFLAGS :=
+XLD :=
+endif
+GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
-T_SRC := $(T)/main.c $(T)/hle.c $(T)/ge.c $(T)/gfx_gl.c $(T)/audio.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c $(T)/harness_patches.c
-T_OBJ := $(patsubst $(T)/%.c,build/linux_test/%.o,$(T_SRC)) build/linux_test/glue.o
-AT3_OBJ := $(patsubst $(T)/ext/at3/%.cpp,build/linux_test/at3_%.o,$(wildcard $(T)/ext/at3/*.cpp))
+C := platform/common
+T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
+C_SRC := $(C)/hle.c $(C)/ge.c $(C)/audio.c $(C)/settings.c
+T_OBJ := $(patsubst $(T)/%.c,$(B)/linux_test/%.o,$(T_SRC)) $(patsubst $(C)/%.c,$(B)/linux_test/c_%.o,$(C_SRC)) $(B)/linux_test/glue.o
+AT3_OBJ := $(patsubst $(C)/ext/at3/%.cpp,$(B)/linux_test/at3_%.o,$(wildcard $(C)/ext/at3/*.cpp))
 
-CC32 := gcc -m32 -msse2 -mfpmath=sse
+CC32 := gcc -m32 -msse2 -mfpmath=sse $(XFLAGS)
 GAME_CFLAGS ?= -O1
 GAME_FLAGS := $(GAME_CFLAGS) -w -fno-strict-aliasing -ffp-contract=off -Isrc/game
 
-.PHONY: all data regen linux_test clean
+.PHONY: all data regen linux_test vita clean
 all: linux_test
 data: build/data.c
 build/data.c: ; mkdir -p build && python3 tools/dc/mkdata.py $(EBOOT) $@
 regen: ; python3 tools/dc/gen.py src/game $(EBOOT)
 
-build/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p build/game; $(CC32) $(GAME_FLAGS) -c $< -o $@
-build/game/data.o: build/data.c ; @mkdir -p build/game; $(CC32) $(GAME_FLAGS) -c $< -o $@
+$(B)/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p $(B)/game; $(CC32) $(GAME_FLAGS) -c $< -o $@
+$(B)/game/data.o: build/data.c ; @mkdir -p $(B)/game; $(CC32) $(GAME_FLAGS) -c $< -o $@
 
-build/linux_test/glue.c: src/game/psp_sdk.h ; @mkdir -p build/linux_test; python3 $(T)/mkglue.py $< $@
-build/linux_test/glue.o: build/linux_test/glue.c ; $(CC32) -O1 -w -I$(T) -c $< -o $@
-build/linux_test/%.o: $(T)/%.c ; @mkdir -p build/linux_test; $(CC32) -O1 -w -DHOST_BUILD -I$(T) -c $< -o $@
-build/linux_test/at3_%.o: $(T)/ext/at3/%.cpp ; @mkdir -p build/linux_test; g++ -m32 -msse2 -mfpmath=sse -O2 -I$(T)/ext/at3 -c $< -o $@
-linux_test: build/rs_linux_test
-build/rs_linux_test: $(GAME_OBJ) $(T_OBJ) $(AT3_OBJ) ; g++ -m32 -no-pie -o $@ $^ -lm -lpthread -ldl
+$(B)/linux_test/glue.c: src/game/psp_sdk.h ; @mkdir -p $(B)/linux_test; python3 $(C)/mkglue.py $< $@
+$(B)/linux_test/glue.o: $(B)/linux_test/glue.c ; $(CC32) -O1 -w -I$(C) -I src/game -c $< -o $@
+$(B)/linux_test/%.o: $(T)/%.c ; @mkdir -p $(B)/linux_test; $(CC32) -O1 -w -DHOST_BUILD -I$(T) -I$(C) -I src/game -c $< -o $@
+$(B)/linux_test/c_%.o: $(C)/%.c ; @mkdir -p $(B)/linux_test; $(CC32) -O1 -w -DHOST_BUILD -I$(C) -I src/game -c $< -o $@
+$(B)/linux_test/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $(B)/linux_test; g++ -m32 -msse2 -mfpmath=sse -O2 -I$(C)/ext/at3 -c $< -o $@
+linux_test: $(B)/rs_linux_test
+$(B)/rs_linux_test: $(GAME_OBJ) $(T_OBJ) $(AT3_OBJ) ; g++ -m32 -no-pie $(XLD) -o $@ $^ -lm -lpthread -ldl
+
+# ---- PS Vita (platform/vita) ----
+RENDERER ?= GXM
+VITA_B := $(if $(filter VITAGL,$(RENDERER)),build/vita_vgl,build/vita)
+VITA_CMAKE := cmake -S platform/vita -B $(VITA_B) -DRS_DATA_C=$(CURDIR)/build/data.c -DRS_RENDERER=$(RENDERER) && cmake --build $(VITA_B) -j$$(nproc)
+vita: build/data.c
+ifeq ($(DOCKER),1)
+	docker run --rm -v "$(CURDIR)":"$(CURDIR)" -w "$(CURDIR)" vitasdk/vitasdk sh -c '$(VITA_CMAKE)'
+else
+	$(VITA_CMAKE)
+endif
 
 clean: ; rm -rf build

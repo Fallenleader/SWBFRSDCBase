@@ -83,8 +83,11 @@ v0/v1 and f0.
     a load/store base.
   * Pointers: 3 sites in game code and 1 in libgu `sceGuStart`.
   * Flag bits: all other sites, which accumulate flags such as 0x20000000/0x02000000 into flag words.
-* **Cache-mode bits:** `ins` of a pointer into the constant 0x40000000 (Sony's VFPU memcpy/memset) and `& 0x5FFFFFFF`
-  (cache-mode bits) both become the plain pointer.
+* **Cache-mode bits:** `ins` of a pointer into the constant 0x40000000 (Sony's VFPU memcpy/memset), `& 0x5FFFFFFF`
+  (cache-mode bits) and `ins p, $zero, 29, 3` (= `p & 0x1FFFFFFF`, the cached address; 2 sites, both libgu: `sceGuInit`'s
+  list handed to `sceGeListEnQueue` and the matrix-stack base of the context setup) all become the plain pointer.
+* **Scratchpad:** the PSP's 16 KB scratchpad RAM sits at the fixed address 0x00010000. The game reaches it through one
+  accessor (`func_088F7660`, `lui v0, 1` in a return delay slot); it becomes the support symbol `rs_scratchpad`.
 * **`$k0` (3 newlib functions):** becomes the per-thread `psp_k0` block that the platform provides.
 * **Weak symbol:** a call to address 0 (weak `_Jv_RegisterClasses`, behind a test that is always false) becomes a trap.
 
@@ -110,6 +113,15 @@ below 0x10000000:
 
 Runs with the same scripted input as the earlier recompiled build reach the same screens and play the same matches.
 
+**High memory layout (`make linux_test LAYOUT=high`).** Native targets such as the PS Vita place user memory above
+0x80000000, where pointers are negative as signed integers and no longer fit the PSP's 28-bit GPU addresses. This
+build links the executable at 0x81000000 and maps VRAM, the game heap and the thread stacks at 0x86000000-0x9E000000.
+The GPU-visible blocks are registered as regions, and `GADDR` (platform/common/psp_impl.h) translates the 28-bit
+addresses in GPU command lists back to them. It also keeps the game's per-thread processor state in one block
+(`RS_TLS_STRUCT`). Two decompiler issues were found this way and fixed in `tools/dc/gen.py`, both described above: the
+KSEG-clearing `ins` sites and the scratchpad accessor. With both fixed, this build runs the front end and the Endor and
+Hoth Conquest matches (300 s each), as the low-memory build does.
+
 ## Limitations (known, not hidden)
 
 * **Conservative signatures:**
@@ -117,6 +129,9 @@ Runs with the same scripted input as the earlier recompiled build reach the same
   * Many address-taken functions return `rv_t`.
   * This affects performance and readability, not correctness.
 * **Unexecuted paths:** paths the tests never ran are covered only by the static checks above.
+* **Pointer tagging:** a few sites clear or set bits 30-31 of values (`ins` at bit 30/31). The ones read so far
+  operate on flags, hashes or floats, not pointers. A site that tags a pointer's top bits would misbehave with memory
+  above 0x80000000. None did in the high-layout runs.
 * **Unidentified library code:** libgu functions are only partly identified by name (tools/dc/gu_match.py matches
   GE-command fingerprints against PSPSDK's libgu). newlib, libm and libsupc++ are not named.
 * **32-bit only:** asset files and in-memory structures hold 32-bit pointers. A 64-bit port needs every pointer field

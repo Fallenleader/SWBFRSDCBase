@@ -36,6 +36,10 @@ UNCACHED_OR = {
     0x0890A668: 'uncached alias of the output buffer argument (used as a store base below)',
     0x08A97400: 'libgu sceGuStart: display list written through its uncached mirror',
 }   # SDK functions returning a 64-bit value (v0:v1)
+# The PSP's 16 KB scratchpad RAM at the fixed address 0x00010000.  The game reaches it through one accessor (func_088F7660:
+# "lui v0, 1" in the delay slot of its return), found by running with all memory above 0x80000000 (Makefile LAYOUT=high).
+# Natively it is the support symbol rs_scratchpad.
+SCRATCHPAD_LUI = {0x088F7664: 'PSP scratchpad (0x00010000)'}
 
 
 def R(n): return '0' if n == 0 else ('psp_k0' if n == 26 else GPRN[n])   # $k0: per-thread block provided by the platform
@@ -170,7 +174,11 @@ class Gen:
         if op == 12: return set_(rt, '%s & 0x%x' % (A, imm))
         if op == 13: return set_(rt, ('%s | 0x%x' % (A, imm)) if rs else '0x%x' % imm)
         if op == 14: return set_(rt, '%s ^ 0x%x' % (A, imm))
-        if op == 15: return set_(rt, '0x%xu' % (imm << 16))
+        if op == 15:
+            if pc in SCRATCHPAD_LUI:
+                if imm != 1: raise SystemExit('SCRATCHPAD_LUI site %08x is not lui 1' % pc)
+                return set_(rt, '(u32)(uintptr_t)rs_scratchpad /* %s */' % SCRATCHPAD_LUI[pc])
+            return set_(rt, '0x%xu' % (imm << 16))
         if op == 0x1f:
             if fn == 0:
                 size = rd + 1; mask = (1 << size) - 1 if size < 32 else 0xFFFFFFFF
@@ -180,6 +188,10 @@ class Gen:
                 if sa == 0 and size == 29 and s.const_before(pc, rt) == 0x40000000:
                     # PSP idiom: 0x40000000 | (p & 0x1FFFFFFF) = uncached mirror of pointer p; natively the same memory
                     return set_(rt, '%s /* uncached alias (PSP memory map) */' % A)
+                if rs == 0 and sa == 29 and size == 3:
+                    # PSP idiom: p & 0x1FFFFFFF = the cached (KSEG-free) address of pointer p (2 sites, both libgu: sceGuInit's
+                    # list handed to sceGeListEnQueue and the matrix-stack base of the context setup); natively p itself
+                    return [] if rt == 0 else ['/* %s: cached address (PSP memory map), natively unchanged */' % R(rt)]
                 return [] if rt == 0 else ['%s = (%s & ~(0x%xu << %d)) | ((%s & 0x%x) << %d);' % (R(rt), R(rt), mask, sa, A, mask, sa)]
             if fn == 0x20:
                 if sa == 2: return set_(rd, 'WSBH(%s)' % B)

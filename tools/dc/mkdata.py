@@ -42,6 +42,7 @@ def main(eboot, out):
         f.write('u32 rs_image_w[%d] __attribute__((aligned(64))) = {\n' % nw)
         for i, e in words: f.write('[%d]=%s,\n' % (i, e))
         f.write('};\n')
+        f.write('const u32 rs_image_size = sizeof rs_image_w;   /* GPU-visible region (see platform/common/psp_impl.h) */\n')
     print('image words', nw, 'initialised', len(words), 'function pointers', len(used_funcs))
 
 

@@ -72,7 +72,13 @@ void gfx_wake_init(void);
 void gfx_shadow_frame(void);                             /* GL thread: end of a guest frame -> render the shadow map */
 
 /* ---- shared helpers ---- */
-static inline u32 gfx_vram(u32 a){ if ((a >> 24) == 0) a |= 0x04000000u; return a; }
+/* canonical form of a GPU address: VRAM as 0x04000000 + offset (whether the game gave a VRAM-relative offset or a native VRAM
+ * pointer), everything else as its low 28 bits (what GE commands carry) */
+static inline u32 gfx_vram(u32 a){
+    u32 l = a & 0x0FFFFFFFu;
+    if ((l >> 24) == 0) return 0x04000000u | l;
+    { u32 o = (l - (rs_vram_base & 0x0FFFFFFFu)) & 0x0FFFFFFFu; if (o < rs_vram_size) return 0x04000000u | o; }
+    return l; }
 static inline u8 *gfx_gp(u32 a){ return g_mem + GADDR(gfx_vram(a)); }
 static inline u32 gfx_px_read(const u8 *p, int fmt){            /* PSP pixel -> 0xAABBGGRR */
     if (fmt == 3) { u32 v; memcpy(&v, p, 4); return v; }

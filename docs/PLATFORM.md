@@ -12,6 +12,11 @@ memcpy/memset, newlib, libsupc++), because they were part of the executable. A p
 | `__thread u32 vfpu_cc` | vector condition flags, per thread |
 | `__thread u32 psp_k0` | per-thread block pointer the PSP firmware keeps in `$k0`. newlib reads it; give every thread its own zeroed block (256 bytes) |
 | `void rs_break(u32 code, u32 where)` | trap: `break` instruction or an unreachable `switch` value |
+| `u8 rs_scratchpad[0x4000]` | the PSP's 16 KB scratchpad RAM (fixed address 0x00010000 on the PSP) |
+
+On targets where `__thread` is emulated by a library call per access (the PS Vita), define `RS_TLS_STRUCT` when
+compiling the game. The four per-thread values then live in one `rs_tls_t` block, and the platform supplies
+`rs_tls_t *rs_tls(void)`, which returns the calling thread's block. It is declared `const`, so each function calls it once.
 
 ## 2. PSP SDK functions (`src/game/psp_sdk.h`, 224)
 
@@ -29,8 +34,9 @@ returns `u64`. Pointer arguments are native addresses. Groups:
     `sceGeListSync`, `sceGeDrawSync`, `sceGeSetCallback`, `sceGeEdramGetAddr` (VRAM base).
   * The game writes these lists through libgu and directly (model display lists), so the graphics layer interprets PSP
     GE commands.
-  * GE addresses are 28-bit (BASE + 24-bit), so GPU-visible memory must lie in one 256 MB-aligned window. Otherwise the
-    port must translate the addresses.
+  * GE addresses are 28-bit (BASE + 24-bit). A port registers the memory blocks the game can hand to the GPU (data
+    image, scratchpad, game heap, thread stacks) with `rs_region_add`. `GADDR` then translates a 28-bit address back to
+    its block. The blocks' low 28 bits must not overlap; `platform/vita/main.c` re-allocates a block that would clash.
 * **Audio:** `sceAudioOutput2*` (stereo output), `__sceSas*` (32-voice ADPCM mixer), `sceAtrac*` (ATRAC3plus music
   and speech).
 * **Input:** `sceCtrlReadBufferPositive` and sampling setup.
@@ -39,7 +45,8 @@ returns `u64`. Pointer arguments are native addresses. Groups:
 * **Video:** `sceMpeg*` / `scePsmf*`, used for the intro and cutscene movies.
 * **Misc:** `sceRtc*`, `sceUmd*`, `scePower*`, `sceKernelLibcTime`.
 
-`platform/linux_test` implements all of these for validation. The audio mixer and ATRAC3plus decoder there are complete.
+`platform/common` implements all of these on POSIX threads and files. `platform/linux_test` (validation) and
+`platform/vita` (PS Vita) add memory setup, input, audio output and a renderer for the GPU command lists. The audio mixer and ATRAC3plus decoder there are complete.
 The video and network functions are stubs, as they were in the earlier builds.
 
 ## 3. Entry

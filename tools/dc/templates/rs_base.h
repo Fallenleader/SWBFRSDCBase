@@ -62,14 +62,29 @@ static inline int FCMP(float a, float b, int cond){
 /* ---- processor state that is shared between functions ----
  * FPU control/status word (rounding mode for cvt.w.s) and the vector unit's 128 registers + condition flags.
  * The game keeps vectors/matrices in vector registers across calls, so they are per-thread globals. */
+/* $k0 in user code: pointer to a per-thread block the firmware provides (newlib keeps its per-thread data there) */
+#ifndef RS_TLS_STRUCT
 extern __thread u32 fpu_csr;
 extern __thread float vfpu_v[128];
 extern __thread u32 vfpu_cc;
-/* $k0 in user code: pointer to a per-thread block the firmware provides (newlib keeps its per-thread data there) */
 extern __thread u32 psp_k0;
+#else
+/* Targets whose thread-local storage is emulated (a library call per access, e.g. the PS Vita) define RS_TLS_STRUCT: the
+ * per-thread state is one block, and rs_tls() returns the calling thread's block.  rs_tls() is declared const, so the
+ * compiler calls it once per function and keeps the pointer in a register. */
+typedef struct { u32 fpu_csr; u32 vfpu_cc; u32 psp_k0; u32 pad; float vfpu_v[128]; } rs_tls_t;
+rs_tls_t *rs_tls(void) __attribute__((const));
+#define fpu_csr (rs_tls()->fpu_csr)
+#define vfpu_v  (rs_tls()->vfpu_v)
+#define vfpu_cc (rs_tls()->vfpu_cc)
+#define psp_k0  (rs_tls()->psp_k0)
+#endif
 
 /* runtime-sized stack allocation (the game's alloca) */
 #define RS_ALLOCA(n) __builtin_alloca(n)
+
+/* the PSP's 16 KB scratchpad RAM (fixed address 0x00010000 on the PSP), provided by the platform */
+extern u8 rs_scratchpad[0x4000];
 
 /* ---- traps ---- */
 void rs_break(u32 code, u32 where);

@@ -148,7 +148,7 @@ static void *thread_main(void *p){
 static void h_StartThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t || t->started) { V0 = 0x800201A6u; return; }
     fprintf(stderr, "[HLE] StartThread '%s' from ra=%08x fn=%08x arg=%08x\n", t->name, c->r[31], A2 ? LW(A2) : 0, A2 ? LW(A2 + 4) : 0); if (strstr(t->name, "Atrac")) { extern void rc_dump_stack(sdkcall_t *, const char *); rc_dump_stack(c, "atrac start"); }
     t->started = 1; t->argc = A1 > 256 ? 256 : A1; t->argp = A2; if (t->argc) memcpy(t->argbuf, g_mem + GADDR(A2), t->argc); g_alive_threads++;
-    pthread_attr_t at; pthread_attr_init(&at); { extern void rs_harness_stack(pthread_attr_t *); rs_harness_stack(&at); }
+    pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32 psp_stack); rs_thread_attr(&at, t->stacksize); }
     pthread_create(&t->th, &at, thread_main, t); V0 = 0; }
 static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; g_alive_threads--; pthread_cond_broadcast(&gcv); pthread_mutex_unlock(&big); pthread_exit(0); } }
 static void h_DeleteThread(sdkcall_t *c){ V0 = 0; }
@@ -248,7 +248,9 @@ static int mod_uid = 0x2000;
 static void h_LoadModule(sdkcall_t *c){ fprintf(stderr, "[MOD] LoadModule %s\n", gstr(A0)); V0 = mod_uid++; }
 static void h_StartModule(sdkcall_t *c){ if (A3) SW(A3, 0); V0 = 0; }
 static void h_ModuleIdByAddr(sdkcall_t *c){ V0 = 0x1F00; }
-static void h_VolLock(sdkcall_t *c){ if (A1) SW(A1, 0x08400000u); if (A2) SW(A2, 0x3FC000u); V0 = 0; }
+/* PSP "volatile" memory (4 MB the firmware lends to the game): the top 4 MB of the platform's game heap range */
+static u32 vol_base;
+static void h_VolLock(sdkcall_t *c){ if (A1) SW(A1, vol_base); if (A2) SW(A2, 0x3FC000u); V0 = 0; }
 static void h_SysParamString(sdkcall_t *c){ const char *s = "Player"; if (A1 && A2) { u32 n = 0; while (s[n] && n + 1 < A2) { SB(A1 + n, s[n]); n++; } SB(A1 + n, 0); } V0 = 0; }
 
 
@@ -362,7 +364,10 @@ static void bench_tick(void){
     static int from = -2; static u64 t0, c0; static unsigned f0;
     if (from == -2) from = getenv("RS_BENCH_FROM") ? atoi(getenv("RS_BENCH_FROM")) : -1;
     if (from < 0 || (int)g_frames < from) return;
-    struct timespec ts; clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts); u64 cpu = (u64)ts.tv_sec * 1000000ull + ts.tv_nsec / 1000;
+    u64 cpu = 0;
+#ifdef CLOCK_THREAD_CPUTIME_ID
+    { struct timespec ts; clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts); cpu = (u64)ts.tv_sec * 1000000ull + ts.tv_nsec / 1000; }
+#endif
     if (!rs_bench_active) { extern volatile int rs_prof_on; rs_prof_on = 1; rs_bench_active = 1; t0 = now_us(); c0 = cpu; f0 = g_frames; return; }
     if ((g_frames - f0) % 300 == 0) { u64 t = now_us(); fprintf(stderr, "[BENCH] %u frames: %.3f ms/frame wall, %.3f ms/frame main-thread CPU, %.1f fps\n",
         g_frames - f0, (t - t0) / 1000.0 / (g_frames - f0), (cpu - c0) / 1000.0 / (g_frames - f0), (g_frames - f0) * 1e6 / (double)(t - t0)); }
@@ -379,9 +384,7 @@ static void pace_frame(void){
 static void h_WaitVblank(sdkcall_t *c){ static int fast = -1; if (fast < 0) fast = getenv("RS_FAST") != 0; if (fast) { rs_patch_apply_fps_cap(); yield_big(); } else pace_frame(); rs_patch_vblank(); g_frames++; gfx_frame_ready(); perf_report();
     if (getenv("RS_FRAMELOG")) { fl_vb++; fl_note_ra(c->r[31]); if (fl_vb >= 600) { fprintf(stderr, "[FRAME] %d vblank waits, %d frame-buffer flips, %d SystemTimeLow + %d RtcTick queries; vblank callers:", fl_vb, fl_fb, fl_tick2, fl_rtc);
         for (int i = 0; i < 8 && fl_ran[i]; i++) fprintf(stderr, " %08x x%d", fl_ra[i], fl_ran[i]);
-        { u32 b = LW(0x08B30000u - 31292); float gf; memcpy(&gf, &b, 4); { u32 m = LW(0x08B30000u - 31296), v = LW(0x08B30000u - 31304); float mf, vf; memcpy(&mf, &m, 4); memcpy(&vf, &v, 4); fprintf(stderr, "; min-frame-time var %g (0x%08x), vblank-period var %g", mf, m, vf);
-          u32 kk = LW(0x08B30000u - 31320), dd = LW(0x08B30000u - 31332), ff = LW(0x08B30000u - 31340); float k2, d2, f2; memcpy(&k2, &kk, 4); memcpy(&d2, &dd, 4); memcpy(&f2, &ff, 4); fprintf(stderr, "; K %g dt %g raw-fps %g", k2, d2, f2); }
-        fprintf(stderr, "; game-measured fps %.1f (cap %u); time callers:", gf, rs_patch_fps()); for (int i = 0; i < 8 && tl_n[i]; i++) fprintf(stderr, " %08x x%d", tl_ra[i], tl_n[i]); memset(tl_n, 0, sizeof tl_n); } fprintf(stderr, "\n"); fl_vb = fl_fb = fl_tick = fl_tick2 = fl_rtc = 0; memset(fl_ran, 0, sizeof fl_ran); } }
+        fprintf(stderr, "; time callers:"); for (int i = 0; i < 8 && tl_n[i]; i++) fprintf(stderr, " %08x x%d", tl_ra[i], tl_n[i]); memset(tl_n, 0, sizeof tl_n); fprintf(stderr, "\n"); fl_vb = fl_fb = fl_tick = fl_tick2 = fl_rtc = 0; memset(fl_ran, 0, sizeof fl_ran); } }
     const char *d = getenv("RS_DUMP_DIR"); if (d) { int every = getenv("RS_DUMP_EVERY") ? atoi(getenv("RS_DUMP_EVERY")) : 60; static int from = -1, to; if (from < 0) { from = getenv("RS_DUMP_FROM") ? atoi(getenv("RS_DUMP_FROM")) : 0; to = getenv("RS_DUMP_TO") ? atoi(getenv("RS_DUMP_TO")) : 1 << 30; }
         if (every > 0 && g_frames % every == 0 && g_frames >= from && g_frames <= to) dump_frame(d, g_frames); }
     V0 = 0; }
@@ -397,7 +400,7 @@ void rs_ge_finish_hook(int id){
 static void h_GeSetCallback(sdkcall_t *c){ if (A0) { rs_ge_cb_finish_func = LW(A0 + 8); rs_ge_cb_finish_arg = LW(A0 + 12); fprintf(stderr, "[GE] finish callback %08x arg=%08x\n", rs_ge_cb_finish_func, rs_ge_cb_finish_arg); } V0 = 0; }
 static void h_GeUpdateStall(sdkcall_t *c){ rs_ge_update_stall(A0 - 0x100, A1); V0 = 0; }
 static void h_GeEnqueue(sdkcall_t *c){ g_ge_lists++; V0 = 0x100 + rs_ge_enqueue(A0, A1); }
-static void h_GeEdramAddr(sdkcall_t *c){ V0 = 0x04000000u; }
+static void h_GeEdramAddr(sdkcall_t *c){ V0 = rs_vram_base; }
 static void h_Zero(sdkcall_t *c){ V0 = 0; }
 static void h_RotateQueue(sdkcall_t *c){ unlocked_sleep(200); V0 = 0; }
 static void h_Dopen(sdkcall_t *c){ char full[1500]; const char *p = gstr(A0); resolve_ci(strip_dev(p), full, sizeof full); DIR *d = opendir(full);
@@ -463,7 +466,7 @@ static const hle_t tbl[] = {
 static const hle_t *handlers[512]; static unsigned char seen[512]; static unsigned long ncalls[512];
 static const char *hname(int i){ return handlers[i] ? handlers[i]->name : "?"; }
 void hle_init(const char *root, u32 heap_lo, u32 heap_hi){
-    if (root) strncpy(g_root, root, sizeof g_root - 1); hle_heap_lo = heap_lo; hle_heap_hi = heap_hi; heap_init(); rs_ge_reset(); trace_all = getenv("RS_TRACE") != 0;
+    if (root) strncpy(g_root, root, sizeof g_root - 1); { extern u8 rs_scratchpad[]; rs_region_add((u32)(uintptr_t)rs_scratchpad, 0x4000); } vol_base = heap_hi - 0x400000u; hle_heap_lo = heap_lo; hle_heap_hi = vol_base; heap_init(); rs_ge_reset(); trace_all = getenv("RS_TRACE") != 0;
     for (int i = 0; i < RC_NSTUBS; i++) for (int k = 0; k < NTBL; k++) if (tbl[k].nid == rc_stubs[i].nid) handlers[i] = &tbl[k];
     pthread_mutex_lock(&big);
 }

@@ -30549,7 +30549,7 @@ u32 func_088F7660(void)
 {
     u32 v0 = 0;
 L_088F7660:;
-    v0 = 0x10000u;
+    v0 = (u32)(uintptr_t)rs_scratchpad /* PSP scratchpad (0x00010000) */;
     return v0;
 }
 

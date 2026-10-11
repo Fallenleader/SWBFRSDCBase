@@ -34354,7 +34354,7 @@ L_08A972CC:;
 L_08A972FC:;
     v0 = D_08AE9D00 - (-25344);
     a0 = v0 - 25344;
-    a0 = (a0 & ~(0x7u << 29)) | ((0 & 0x7) << 29);
+    /* a0: cached address (PSP memory map), natively unchanged */
     a1 = 0 + 0;
     a2 = (u32)-1;
     a3 = 0 + 0;
@@ -38412,7 +38412,7 @@ void func_08A9A038(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
     int cnd_;
 L_08A9A038:;
     t2 = a1 << 6;
-    a0 = (a0 & ~(0x7u << 29)) | ((0 & 0x7) << 29);
+    /* a0: cached address (PSP memory map), natively unchanged */
     t7 = a0 + t2;
     t3 = a2 << 6;
     t2 = t7 + t3;
