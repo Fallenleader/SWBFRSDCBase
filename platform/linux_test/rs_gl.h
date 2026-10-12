@@ -66,6 +66,10 @@
 #define glPixelStorei p_glPixelStorei
 #define glGetError p_glGetError
 #define glGenerateMipmap p_glGenerateMipmap
+#define glDrawElements p_glDrawElements
+#define glBindBuffer p_glBindBuffer
+#define GL_ARRAY_BUFFER 0x8892
+#define GL_ELEMENT_ARRAY_BUFFER 0x8893
 #define GL_LINEAR_MIPMAP_LINEAR 0x2703
 void rs_gl_clear_depth(float d);
 

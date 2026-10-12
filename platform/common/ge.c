@@ -314,6 +314,11 @@ static void do_prim(u32 data){
             if (fabsf(det) > 1e-12f) { float r = 1.0f / det; for (int j = 0; j < 3; j++) t[j] = (e1[j] * dv2 - e2[j] * dv1) * r; }
             for (int j = 0; j < 3; j++) { gfx_hvtx_t *o = &ho[i + j]; o->tx = t[0]; o->ty = t[1]; o->tz = t[2]; } }
         gfx_draw_hw(&hst, &h, ho, n); return; }
+    if (through && !(R[0xD3] & 1) && ptype >= 3 && ptype <= 5) {     /* native 2D (through-mode) draw: screen-space vertices read by the GPU as they are */
+        gfx_state_t tst; build_state(&tst, 1, 0); static gfx_hw_t th; memset(&th, 0, sizeof th);
+        th.uvt[0] = tst.tex ? 1.0f / (float)(1 << (R[0xB8] & 15)) : 1.0f; th.uvt[1] = tst.tex ? 1.0f / (float)(1 << ((R[0xB8] >> 8) & 15)) : 1.0f;
+        gfx_native_t nv = {vt, vsz, count, ptype, idxf, g_mem + GADDR(vb), idxf ? g_mem + GADDR(ib) : 0, {defc[0] / 255.0f, defc[1] / 255.0f, defc[2] / 255.0f, defc[3] / 255.0f}, {off[0], off[1], off[2], off[3], off[4]}};
+        if (gfx_draw_native(&tst, &th, &nv)) { rs_perf.vtx_us += rs_perf_us() - t_v; ge_stats_prims++; ge_stats_tris += (u32)(ptype == 3 ? count / 3 : (count > 2 ? count - 2 : 0)); return; } }
     pk_t pkc; if (!through) { prim_consts(&pkc); pk = &pkc; if (lit) light_consts(); }
     for (int i = 0; i < count; i++) {
         u32 idx = i; if (idxf) { u8 *ip = g_mem + GADDR(ib) + (idxf == 1 ? i : (idxf == 2 ? i * 2 : i * 4)); idx = idxf == 1 ? *ip : (idxf == 2 ? (u32)(ip[0] | ip[1] << 8) : (u32)(ip[0] | ip[1] << 8 | ip[2] << 16 | (u32)ip[3] << 24)); }

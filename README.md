@@ -24,9 +24,8 @@ What is **verified** (details and evidence in `docs/DECOMP.md`):
   (`make linux_test LAYOUT=high`): front end, Endor and Hoth Conquest matches, 300 s each.
 * **Undefined symbols when linked alone:** exactly the platform interface, i.e. 224 PSP SDK functions plus 6 support
   symbols. Nothing else is needed.
-* **PS Vita build:** `platform/vita` compiles the game for the Vita (ARM, VitaSDK) into a VPK with a native GXM renderer,
-  plus a fallback VPK that renders through vitaGL. Both build and link; **neither has run on a Vita yet**
-  (`platform/vita/README.md`).
+* **PS Vita build:** `platform/vita` compiles the game for the Vita (ARM, VitaSDK) into a VPK that renders through
+  vitaGL. It runs on a Vita and plays matches (`platform/vita/README.md`).
 
 What is **not done / not known** (see `docs/DECOMP.md`, *Limitations*):
 
@@ -47,7 +46,7 @@ What is **not done / not known** (see `docs/DECOMP.md`, *Limitations*):
 | `tools/dc/` | the decompiler: program model, CFG, ABI/stack/signature analyses, code generator, data-segment generator |
 | `platform/common/` | the PSP SDK interface on POSIX threads and files: kernel, I/O, audio mixer and ATRAC3plus decoder, and the interpreter for the GPU command lists the game builds (`ge.c`) |
 | `platform/linux_test/` | **test harness only**: Linux 32-bit frontend and GL ES 2.0 renderer, used to validate the decompilation |
-| `platform/vita/` | PS Vita port: frontend, GXM renderer (`gfx_gxm.c`), vitaGL fallback, CMake/VPK build |
+| `platform/vita/` | PS Vita port: frontend, vitaGL glue (the renderer is `platform/linux_test/gfx_gl.c`), CMake/VPK build |
 | `tools/asura/`, `tools/maya/` | asset-format tools from the mod kit (Asura containers, textures, models, skeletons, sounds; Maya import/export) |
 | `docs/` | `DECOMP.md`: method, evidence and limitations; `PLATFORM.md`: what a target port has to provide |
 
@@ -61,7 +60,7 @@ Requirements: Python 3, GCC (32-bit: `gcc-multilib`), your decrypted `EBOOT.BIN`
 
 PS Vita (VitaSDK, or `DOCKER=1` for the `vitasdk/vitasdk` image):
 
-    make vita EBOOT=/path/to/EBOOT.BIN [RENDERER=VITAGL] [DOCKER=1]    # build/vita/swbfrs.vpk
+    make vita EBOOT=/path/to/EBOOT.BIN [DOCKER=1]    # build/vita/swbfrs.vpk
 
 `make regen EBOOT=...` regenerates `src/game` with the decompiler. The output is deterministic, so regenerating from the
 same executable gives byte-identical files.

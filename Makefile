@@ -9,7 +9,7 @@
 
 #   make linux_test EBOOT=... LAYOUT=high             the same with all memory above 0x80000000 and the per-thread state in one
 #                                                     block (RS_TLS_STRUCT): the PS Vita's memory layout, on Linux
-#   make vita EBOOT=... [RENDERER=VITAGL] [DOCKER=1]  PS Vita VPK (VitaSDK, or the vitasdk/vitasdk Docker image; platform/vita/README.md)
+#   make vita EBOOT=... [DOCKER=1]                   PS Vita VPK (VitaSDK, or the vitasdk/vitasdk Docker image; platform/vita/README.md)
 
 EBOOT ?= EBOOT.BIN
 GAME_SRC := $(wildcard src/game/game_*.c)
@@ -52,9 +52,8 @@ linux_test: $(B)/rs_linux_test
 $(B)/rs_linux_test: $(GAME_OBJ) $(T_OBJ) $(AT3_OBJ) ; g++ -m32 -no-pie $(XLD) -o $@ $^ -lm -lpthread -ldl
 
 # ---- PS Vita (platform/vita) ----
-RENDERER ?= GXM
-VITA_B := $(if $(filter VITAGL,$(RENDERER)),build/vita_vgl,build/vita)
-VITA_CMAKE := cmake -S platform/vita -B $(VITA_B) -DRS_DATA_C=$(CURDIR)/build/data.c -DRS_RENDERER=$(RENDERER) && cmake --build $(VITA_B) -j$$(nproc)
+VITA_B := build/vita
+VITA_CMAKE := cmake -S platform/vita -B $(VITA_B) -DRS_DATA_C=$(CURDIR)/build/data.c && cmake --build $(VITA_B) -j$$(nproc)
 vita: build/data.c
 ifeq ($(DOCKER),1)
 	docker run --rm -v "$(CURDIR)":"$(CURDIR)" -w "$(CURDIR)" vitasdk/vitasdk sh -c '$(VITA_CMAKE)'

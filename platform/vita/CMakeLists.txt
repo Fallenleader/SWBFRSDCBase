@@ -1,6 +1,6 @@
 # PS Vita build of the decompiled game (VitaSDK).  See platform/vita/README.md.
 #
-#   cmake -S platform/vita -B build/vita -DRS_DATA_C=build/data.c [-DRS_RENDERER=GXM|VITAGL] && cmake --build build/vita
+#   cmake -S platform/vita -B build/vita -DRS_DATA_C=build/data.c && cmake --build build/vita
 #
 # RS_DATA_C is the data image extracted from your EBOOT.BIN (make data EBOOT=...).
 cmake_minimum_required(VERSION 3.10)
@@ -16,15 +16,10 @@ include("$ENV{VITASDK}/share/vita.cmake" REQUIRED)
 
 get_filename_component(ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 set(RS_DATA_C "${ROOT}/build/data.c" CACHE FILEPATH "data image generated from your EBOOT.BIN (make data)")
-set(RS_RENDERER "GXM" CACHE STRING "GXM (native, default) or VITAGL (fallback through vitaGL)")
 set(RS_GAME_OPT "-O2" CACHE STRING "optimisation level of the decompiled game code")
 set(VITA_APP_NAME "SWBF Renegade Squadron")
-set(VITA_TITLEID "SWBR00001")
+set(VITA_TITLEID "SWBR00002")              # the title ID the vitaGL test builds used, so this installs over them
 set(VITA_VERSION "01.00")
-if(RS_RENDERER STREQUAL "VITAGL")
-  set(VITA_TITLEID "SWBR00002")
-  set(VITA_APP_NAME "SWBF Renegade Squadron (vitaGL)")
-endif()
 
 if(NOT EXISTS "${RS_DATA_C}")
   message(FATAL_ERROR "${RS_DATA_C} not found: run 'make data EBOOT=/path/to/EBOOT.BIN' first")
@@ -43,12 +38,8 @@ endif()
 file(GLOB GAME_SRC "${ROOT}/src/game/game_*.c")
 file(GLOB AT3_SRC "${ROOT}/platform/common/ext/at3/*.cpp")
 set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/ge.c" "${ROOT}/platform/common/audio.c" "${ROOT}/platform/common/settings.c" "${ROOT}/platform/common/vfs.c" "${ROOT}/platform/common/gfx_jobs.c")
-set(VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/main.c")
-if(RS_RENDERER STREQUAL "VITAGL")
-  list(APPEND VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/gfx_vgl.c" "${ROOT}/platform/linux_test/gfx_gl.c" "${ROOT}/platform/linux_test/texrep.c")
-else()
-  list(APPEND VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/gfx_gxm.c")
-endif()
+# renderer: the GL ES 2.0 back end (platform/linux_test/gfx_gl.c, Cg shaders on the Vita) on top of vitaGL
+set(VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/main.c" "${CMAKE_CURRENT_SOURCE_DIR}/gfx_vgl.c" "${ROOT}/platform/linux_test/gfx_gl.c" "${ROOT}/platform/linux_test/texrep.c")
 
 add_executable(swbfrs ${GAME_SRC} "${RS_DATA_C}" ${COMMON_SRC} "${GLUE_C}" ${VITA_SRC} ${AT3_SRC})
 target_include_directories(swbfrs PRIVATE "${ROOT}/src/game" "${ROOT}/platform/common" "${ROOT}/platform/linux_test" "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/platform/common/ext/at3")
@@ -59,12 +50,10 @@ set_source_files_properties(${GAME_SRC} "${RS_DATA_C}" PROPERTIES COMPILE_OPTION
 set_source_files_properties(${COMMON_SRC} "${GLUE_C}" ${VITA_SRC} PROPERTIES COMPILE_OPTIONS "-O2")
 set_source_files_properties(${AT3_SRC} PROPERTIES COMPILE_OPTIONS "-O2;-ffast-math")
 
-set(RS_LIBS SceGxm_stub SceDisplay_stub SceCtrl_stub SceAudio_stub ScePower_stub SceSysmodule_stub SceAppMgr_stub SceAppUtil_stub SceCommonDialog_stub
+target_compile_definitions(swbfrs PRIVATE RS_VITAGL)
+set(RS_LIBS vitaGL mathneon SceKernelDmacMgr_stub SceTouch_stub SceHid_stub SceMotion_stub SceAudioIn_stub
+            SceGxm_stub SceDisplay_stub SceCtrl_stub SceAudio_stub ScePower_stub SceSysmodule_stub SceAppMgr_stub SceAppUtil_stub SceCommonDialog_stub
             SceIofilemgr_stub vitashark SceShaccCg_stub SceShaccCgExt taihen_stub)
-if(RS_RENDERER STREQUAL "VITAGL")
-  target_compile_definitions(swbfrs PRIVATE RS_VITAGL)
-  set(RS_LIBS vitaGL mathneon SceKernelDmacMgr_stub SceTouch_stub SceHid_stub SceMotion_stub SceAudioIn_stub SceAppUtil_stub ${RS_LIBS})
-endif()
 target_link_libraries(swbfrs ${RS_LIBS} stdc++ pthread m)
 
 vita_create_self(eboot.bin swbfrs UNSAFE)      # unsafe: loads ur0:data/libshacccg.suprx (the system Cg compiler) at run time
