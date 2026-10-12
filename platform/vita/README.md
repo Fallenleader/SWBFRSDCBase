@@ -58,13 +58,14 @@ artwork in `sce_sys/` comes from the game itself.
 | `RS_RES_SCALE` | 2 | internal resolution: 2 = 960x544 (Vita screen), 4 = 1920x1088 (2x Vita, supersampled to the screen); 1 = 480x272 (PSP) |
 | `RS_FXAA` | 0 | 1 = FXAA on the final picture (mostly useful at `RS_RES_SCALE=2`) |
 | `RS_NATIVE_GE` | 1 | 0 = decode vertices and textures on the CPU as the earlier builds did (for comparison only) |
+| `RS_NATIVE_BATCH` | 1 | 1 = consecutive PSP primitives with identical state are drawn as one GPU draw call (about 4x fewer draw calls in a Hoth match); 0 = one draw call per PSP primitive (for comparison) |
 | `RS_HW_TL` | 1 | vertex transform and lighting on the GPU (0 = on the CPU) |
 | `RS_FPS` | 30 | frame rate: 30 or 60 (the game's own 20 fps limit is removed; gameplay speed follows the frame time) |
 | `RS_AUDIO` | 1 | 0 = no sound |
 | `RS_HUD` | 0 | 1 = frame-rate / load overlay |
 | `RS_VSYNC` | 1 | wait for vertical blank when showing a frame |
 | `RS_LOG_MB` | 4 | size limit of `ux0:data/SWBFRS/log.txt` |
-| `RS_PERF_LOG` | 0 | 1 = profiler lines every 600 frames to `ux0:data/SWBFRS/perf.log` |
+| `RS_PERF_LOG` | 0 | 1 = profiler lines every 600 frames to `ux0:data/SWBFRS/perf.log`; the `GE:` line splits the renderer's time into list interpretation, GE state to draw state, back-end setup and draw calls |
 | `RS_GE_ASYNC` | 1 | GPU command lists run while the game goes on (as on the PSP); 0 = the game waits for each list |
 | `RS_GE_PIPELINE` | 0 | 1 = experimental: the game builds the next frame while the renderer still draws the previous one (more frames per second when the renderer is the slower side; possible flicker of objects the game rewrites in place) |
 

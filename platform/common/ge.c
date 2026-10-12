@@ -290,6 +290,7 @@ static void do_prim(u32 data){
         gfx_state_t hst; build_state(&hst, 0, 0);
         {   /* native: the raw PSP vertices go to the GPU, which reads the PSP vertex formats itself (Vita GXM back end) */
             gfx_native_t nv = {vt, vsz, count, ptype, idxf, g_mem + GADDR(vb), idxf ? g_mem + GADDR(ib) : 0, {defc[0] / 255.0f, defc[1] / 255.0f, defc[2] / 255.0f, defc[3] / 255.0f}, {off[0], off[1], off[2], off[3], off[4]}};
+            rs_perf.prep_us += rs_perf_us() - t_v;
             if (gfx_draw_native(&hst, &h, &nv)) { rs_perf.vtx_us += rs_perf_us() - t_v; ge_stats_prims++; ge_stats_tris += (u32)(ptype == 3 ? count / 3 : (count > 2 ? count - 2 : 0)); return; } }
         static gfx_hvtx_t *hv, *ho; static int hcap, hocap;
         if (hcap < count) { hcap = count + 64; hv = realloc(hv, (size_t)hcap * sizeof *hv); }
@@ -319,6 +320,7 @@ static void do_prim(u32 data){
         gfx_state_t tst; build_state(&tst, 1, 0); static gfx_hw_t th; memset(&th, 0, sizeof th);
         th.uvt[0] = tst.tex ? 1.0f / (float)(1 << (R[0xB8] & 15)) : 1.0f; th.uvt[1] = tst.tex ? 1.0f / (float)(1 << ((R[0xB8] >> 8) & 15)) : 1.0f;
         gfx_native_t nv = {vt, vsz, count, ptype, idxf, g_mem + GADDR(vb), idxf ? g_mem + GADDR(ib) : 0, {defc[0] / 255.0f, defc[1] / 255.0f, defc[2] / 255.0f, defc[3] / 255.0f}, {off[0], off[1], off[2], off[3], off[4]}};
+        rs_perf.prep_us += rs_perf_us() - t_v;
         if (gfx_draw_native(&tst, &th, &nv)) { rs_perf.vtx_us += rs_perf_us() - t_v; ge_stats_prims++; ge_stats_tris += (u32)(ptype == 3 ? count / 3 : (count > 2 ? count - 2 : 0)); return; } }
     pk_t pkc; if (!through) { prim_consts(&pkc); pk = &pkc; if (lit) light_consts(); }
     for (int i = 0; i < count; i++) {
@@ -377,7 +379,9 @@ static ge_list_t lists[64];
 u32 rs_ge_cb_finish_func, rs_ge_cb_finish_arg;
 void rs_ge_finish_hook(int id);       /* implemented in hle.c: runs the guest finish callback (on the calling guest thread) */
 
-static void ge_run(int id){
+static void ge_run_(int id);
+static void ge_run(int id){ u64 t = rs_perf_us(); u32 c0 = ge_stats_cmds; ge_run_(id); rs_perf.ge_us += rs_perf_us() - t; rs_perf.cmds += ge_stats_cmds - c0; }
+static void ge_run_(int id){
     ge_list_t *L = &lists[id]; int guard = 0;
     while (!L->done) {
         if (L->stall && (L->pc & 0x0FFFFFFF) == (L->stall & 0x0FFFFFFF)) return;

@@ -72,6 +72,7 @@ typedef struct {
     u64 batches, draw_us, present_n, present_us, readback_n, copy_n, copy_us, cpu_disp_n;
     u64 yields, yield_us, sleeps, sleep_us; /* guest-side scheduling */
     u64 shadow_draws, shadow_us;            /* real-time shadow depth pass */
+    u64 ge_us, cmds, prep_us, setup_us;     /* GE: time in the list interpreter (incl. prims), commands; per prim: GE state -> draw state, back-end setup before the draw call */
 } rs_perf_t;
 extern rs_perf_t rs_perf;
 u64 rs_perf_us(void);

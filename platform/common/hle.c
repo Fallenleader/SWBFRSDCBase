@@ -95,6 +95,9 @@ static void perf_report(void){
         p.hash_n / fr, p.hash_us / fr / 1000, p.up_n / fr, p.up_us / fr / 1000, p.copy_n / fr, p.copy_us / fr / 1000, p.cpu_disp_n / fr, p.readback_n / fr,
         p.present_n ? p.present_us / (double)p.present_n / 1000 : 0.0, p.present_n / fr, p.yields / fr, p.yield_us / fr / 1000, p.sleeps / fr, p.sleep_us / fr / 1000, p.shadow_draws / fr, p.shadow_us / fr / 1000);
     rs_perf_write(b);
+    snprintf(b, sizeof b, "[PERF]   GE: %.0f commands, interpreter %.2f ms (prims included); per prim: GE state -> draw state %.2f ms, back-end setup %.2f ms, draw calls %.2f ms (per frame)\n",
+        p.cmds / fr, p.ge_us / fr / 1000, p.prep_us / fr / 1000, p.setup_us / fr / 1000, p.draw_us / fr / 1000);
+    rs_perf_write(b);
     { extern void rs_perf_extra(char *, int); char e[512]; e[0] = 0; rs_perf_extra(e, sizeof e); if (e[0]) rs_perf_write(e); }
     perf_threads(fr, ms);
     { int o = snprintf(b, sizeof b, "[PERF]   waits:"); extern void perf_sema_report(char *, int, double); perf_sema_report(b + o, (int)(sizeof b - o - 2), fr); strcat(b, "\n"); rs_perf_write(b); } }

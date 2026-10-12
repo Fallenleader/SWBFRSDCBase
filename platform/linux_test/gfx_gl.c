@@ -560,6 +560,7 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
     if (e && e->epoch == rs_gfx_epoch) { e->stamp = ++tc_stamp; TEX_RET(e); }
     u64 t_h = rs_perf_us(); u32 h = src->hash(src->ud); rs_perf.hash_n++; rs_perf.hash_us += rs_perf_us() - t_h;
     if (e && e->hash == h) { e->epoch = rs_gfx_epoch; e->stamp = ++tc_stamp; TEX_RET(e); }
+    flush_batch();                                     /* a texture is about to be created, evicted or rewritten: draw what may use it first */
     long need = (long)k->w * k->h * 4;
     if (!e) {
         /* GPU memory budget for decoded textures (vitaGL spills to slow RAM when CDRAM runs out): evict least-recently-used entries */
@@ -669,8 +670,10 @@ static surf_t *target_for(const gfx_state_t *s){
     surf_t *t = surf_find(s->fbaddr); if (!t) t = surf_create(s->fbaddr, s->fbfmt, s->fbstride);
     t->stamp = ++surf_stamp; t->drawn = 1; t->fmt = s->fbfmt; t->psz = s->fbfmt == 3 ? 4 : 2; if (s->fbstride) t->stride = s->fbstride; return t; }
 
+static void flush_native(void);
 static void flush_batch(void){
     if (!bactive) return; bactive = 0;
+    if (bkind == 2) { flush_native(); return; }
     if (bn <= 0) { bn = 0; return; }
     surf_t *t = target_for(&bst); raw_bind(t);
     if (bkind == 1) {
@@ -832,23 +835,20 @@ static const prog_t *native_prog(u32 vt, int lit){
     fprintf(stderr, "[GL] native program for %s (%.1f ms)\n", nm, (rs_perf_us() - t0) / 1000.0);
     e->state = 1; return &e->P; }
 
-int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t *nv){
-    if (native_on < 0) { extern int rs_setting_int(const char *, int); native_on = rs_setting_int("RS_NATIVE_GE", 1); }
-    if (native_on == 2 && (rs_gfx_epoch & 1)) return 0;                        /* RS_NATIVE_GE=2 (test): native draws on every other frame only, to compare */
-    if (!native_on || nv->count <= 0 || nv->vsz <= 0 || nv->off[4] < 0) return 0;
-    int n = nv->count; if (n < 3) return 1;                                     /* nothing to draw */
-    u32 vt = nv->vt, lo = 0, hi = (u32)n - 1;
-    static u16 *ix; static int ixcap;
-    if (nv->idxf) {                                                             /* the vertices the indices use; indices rebased to them, 16-bit */
-        const u8 *ip = nv->idata; lo = 0xFFFFFFFFu; hi = 0;
-        if (ixcap < n) { ixcap = n + 1024; ix = realloc(ix, sizeof *ix * (size_t)ixcap); }
-        for (int i = 0; i < n; i++) { u32 x = nv->idxf == 1 ? ip[i] : (nv->idxf == 2 ? ((u32)ip[i * 2] | (u32)ip[i * 2 + 1] << 8) : ((u32)ip[i * 4] | (u32)ip[i * 4 + 1] << 8 | (u32)ip[i * 4 + 2] << 16 | (u32)ip[i * 4 + 3] << 24));
-            if (x < lo) lo = x; if (x > hi) hi = x; ix[i] = (u16)x; }
-        if (hi - lo >= 65535u) return 0;
-        if (lo) for (int i = 0; i < n; i++) ix[i] = (u16)(ix[i] - lo); }
-    const prog_t *P = native_prog(vt, h->lit); if (!P) return 0;
-    flush_batch();
-    surf_t *t = target_for(st); raw_bind(t); st_draws++;
+/* Native draws are merged: the PSP GE was built for many small primitives, a Vita GPU driver call costs far more than a GE PRIM.
+ * Consecutive draws with the same program, render state, uniforms and PSP vertex layout become one indexed triangle list: their vertex
+ * bytes are copied (at the moment the GE reads them) into one buffer and their triangles listed in order, with strips and fans expanded
+ * to the triangles GL would form from them (same vertex order, so the same facing).  The GPU draws a call's triangles in order, so blending
+ * and depth give the same picture as separate draws.  The batch is drawn before anything else touches GL (flush_batch).
+ * RS_NATIVE_BATCH=0 draws every PSP primitive on its own (as before). */
+static struct { const prog_t *P; gfx_state_t st; gfx_hw_t h; u32 vt; int vsz, off[5]; float defc[4];
+                u8 *vb; size_t vcap; int nv; u16 *ib; int icap, ni, draws; } nb;
+static int nb_on = -1;
+static void flush_native(void){
+    if (nb.ni <= 0) { nb.nv = nb.ni = nb.draws = 0; return; }
+    u64 t_s = rs_perf_us();
+    const prog_t *P = nb.P; const gfx_state_t *st = &nb.st; const gfx_hw_t *h = &nb.h; u32 vt = nb.vt;
+    surf_t *t = target_for(st); raw_bind(t);
     apply_state(st, P);
     if (!((vt >> 23) & 1)) {
         u_set(P, U_MVP, P->mvp, 4, h->mvp); u_set(P, U_WVZ, P->wvz, 1, h->wvz); u_set(P, U_WLD, P->wld, 3, h->wld);
@@ -857,27 +857,66 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
         if (h->lit) { u_set(P, U_LFL, P->lfl, 1, h->lfl); u_set(P, U_MAMB, P->mamb, 1, h->mamb); u_set(P, U_MDIF, P->mdif, 1, h->mdif); u_set(P, U_MEMI, P->memi, 1, h->memi); u_set(P, U_MSCA, P->msca, 1, h->msca);
             u_set(P, U_LPOS, P->lpos, 4, h->lpos); u_set(P, U_LATT, P->latt, 4, h->latt); u_set(P, U_LSPOT, P->lspot, 4, h->lspot); u_set(P, U_LA, P->la, 4, h->la); u_set(P, U_LD, P->ld, 4, h->ld); } }
     u_set(P, U_UVT, P->uvt, 1, h->uvt);
-    u_set(P, U_DEFC, P->defc, 1, nv->defc);
-    /* attributes straight from the game's vertex buffer */
+    u_set(P, U_DEFC, P->defc, 1, nb.defc);
+    /* attributes: the PSP vertex bytes as the game wrote them */
     int tf = vt & 3, cf = (vt >> 2) & 7, nf = (vt >> 5) & 3, pf = (vt >> 7) & 3, wf = (vt >> 9) & 3, nw = ((vt >> 14) & 7) + 1, thr = (vt >> 23) & 1;
     static const unsigned sty[4] = {GL_FLOAT, 0x1400 /*GL_BYTE*/, 0x1402 /*GL_SHORT*/, GL_FLOAT}, uty[4] = {GL_FLOAT, GL_UNSIGNED_BYTE, 0x1403 /*GL_UNSIGNED_SHORT*/, GL_FLOAT};
     static const int fs[4] = {0, 1, 2, 4};
-    const u8 *base = nv->vdata + (size_t)lo * (size_t)nv->vsz; int stride = nv->vsz;
-    int am = 1 | ((nf && !thr && nv->off[3] >= 0) ? 2 : 0) | ((tf && nv->off[1] >= 0) ? 4 : 0) | ((cf && nv->off[2] >= 0) ? 8 : 0) | ((wf && !thr && nv->off[0] >= 0) ? (nw > 4 ? 0x30 : 0x10) : 0);
+    const u8 *base = nb.vb; int stride = nb.vsz; const int *off = nb.off;
+    int am = 1 | ((nf && !thr && off[3] >= 0) ? 2 : 0) | ((tf && off[1] >= 0) ? 4 : 0) | ((cf && off[2] >= 0) ? 8 : 0) | ((wf && !thr && off[0] >= 0) ? (nw > 4 ? 0x30 : 0x10) : 0);
     gs_attribs(am);
-    glVertexAttribPointer(0, 3, sty[pf], 0, stride, base + nv->off[4]);
-    if (nf && !thr && nv->off[3] >= 0) { glVertexAttribPointer(1, 3, sty[nf], 0, stride, base + nv->off[3]); }
-    if (tf && nv->off[1] >= 0) { glVertexAttribPointer(2, 2, uty[tf], 0, stride, base + nv->off[1]); }
-    if (cf && nv->off[2] >= 0) { if (cf == 7) glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, 1, stride, base + nv->off[2]); else glVertexAttribPointer(3, 1, 0x1403, 0, stride, base + nv->off[2]); }
-    if (wf && !thr && nv->off[0] >= 0) { glVertexAttribPointer(4, nw > 4 ? 4 : nw, uty[wf], 0, stride, base + nv->off[0]);
-        if (nw > 4) { glVertexAttribPointer(5, nw - 4, uty[wf], 0, stride, base + nv->off[0] + 4 * fs[wf]); } }
-    unsigned mode = nv->ptype == 3 ? GL_TRIANGLES : (nv->ptype == 4 ? GL_TRIANGLE_STRIP : 0x0006 /*GL_TRIANGLE_FAN*/);
-    if (nv->ptype == 3) n -= n % 3;
-    u64 t_d = rs_perf_us();
-    if (nv->idxf) glDrawElements(mode, n, 0x1403 /*GL_UNSIGNED_SHORT*/, ix); else glDrawArrays(mode, 0, n);
-    rs_perf.draw_us += rs_perf_us() - t_d; rs_perf.batches++; st_batches++; st_tris += (unsigned)(nv->ptype == 3 ? n / 3 : n - 2);
+    glVertexAttribPointer(0, 3, sty[pf], 0, stride, base + off[4]);
+    if (nf && !thr && off[3] >= 0) { glVertexAttribPointer(1, 3, sty[nf], 0, stride, base + off[3]); }
+    if (tf && off[1] >= 0) { glVertexAttribPointer(2, 2, uty[tf], 0, stride, base + off[1]); }
+    if (cf && off[2] >= 0) { if (cf == 7) glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, 1, stride, base + off[2]); else glVertexAttribPointer(3, 1, 0x1403, 0, stride, base + off[2]); }
+    if (wf && !thr && off[0] >= 0) { glVertexAttribPointer(4, nw > 4 ? 4 : nw, uty[wf], 0, stride, base + off[0]);
+        if (nw > 4) { glVertexAttribPointer(5, nw - 4, uty[wf], 0, stride, base + off[0] + 4 * fs[wf]); } }
+    u64 t_d = rs_perf_us(); rs_perf.setup_us += t_d - t_s;
+    glDrawElements(GL_TRIANGLES, nb.ni, 0x1403 /*GL_UNSIGNED_SHORT*/, nb.ib);
+    rs_perf.draw_us += rs_perf_us() - t_d; rs_perf.batches++; st_batches++; st_tris += (unsigned)(nb.ni / 3);
     static int dbg = -1; if (dbg < 0) dbg = getenv("RS_GL_DEBUG") != 0;
-    if (dbg) { unsigned e = glGetError(); if (e) fprintf(stderr, "[GL] error 0x%x after native draw (vertex type %06x, %d vertices)\n", e, vt, n); }
+    if (dbg) { unsigned e = glGetError(); if (e) fprintf(stderr, "[GL] error 0x%x after native draw (vertex type %06x, %d indices, %d PSP primitives)\n", e, vt, nb.ni, nb.draws); }
+    nb.nv = nb.ni = nb.draws = 0; }
+
+int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t *nv){
+    if (native_on < 0) { extern int rs_setting_int(const char *, int); native_on = rs_setting_int("RS_NATIVE_GE", 1); }
+    if (nb_on < 0) { extern int rs_setting_int(const char *, int); nb_on = rs_setting_int("RS_NATIVE_BATCH", 1); }
+    if (native_on == 2 && (rs_gfx_epoch & 1)) return 0;                        /* RS_NATIVE_GE=2 (test): native draws on every other frame only, to compare */
+    if (!native_on || nv->count <= 0 || nv->vsz <= 0 || nv->off[4] < 0) return 0;
+    int n = nv->count; if (n < 3) return 1;                                     /* nothing to draw */
+    if (nv->ptype == 3) n -= n % 3;
+    u64 t_s = rs_perf_us();
+    u32 vt = nv->vt, lo = 0, hi = (u32)n - 1;
+    static u16 *ix; static int ixcap;
+    if (ixcap < n) { ixcap = n + 1024; ix = realloc(ix, sizeof *ix * (size_t)ixcap); }
+    if (nv->idxf) {                                                             /* the vertices the indices use; indices rebased to them */
+        const u8 *ip = nv->idata; lo = 0xFFFFFFFFu; hi = 0;
+        for (int i = 0; i < n; i++) { u32 x = nv->idxf == 1 ? ip[i] : (nv->idxf == 2 ? ((u32)ip[i * 2] | (u32)ip[i * 2 + 1] << 8) : ((u32)ip[i * 4] | (u32)ip[i * 4 + 1] << 8 | (u32)ip[i * 4 + 2] << 16 | (u32)ip[i * 4 + 3] << 24));
+            if (x < lo) lo = x; if (x > hi) hi = x; ix[i] = (u16)x; }
+        if (hi - lo >= 65535u) return 0;
+        if (lo) for (int i = 0; i < n; i++) ix[i] = (u16)(ix[i] - lo); }
+    else for (int i = 0; i < n; i++) ix[i] = (u16)i;
+    const prog_t *P = native_prog(vt, h->lit); if (!P) return 0;
+    int nvert = (int)(hi - lo + 1), ntri = nv->ptype == 3 ? n / 3 : n - 2;
+    /* same draw as the open batch, and room for it? */
+    int same = bactive && bkind == 2 && nb_on && nb.P == P && nb.vt == vt && nb.vsz == nv->vsz && nb.nv + nvert <= 65535 &&
+               !memcmp(nb.off, nv->off, sizeof nb.off) && !memcmp(nb.defc, nv->defc, sizeof nb.defc) && !memcmp(&nb.st, st, sizeof *st) && !memcmp(&nb.h, h, sizeof *h);
+    if (!same) {
+        { u64 t_f = rs_perf_us(); flush_batch(); t_s += rs_perf_us() - t_f; }   /* (flush_native accounts its own time) */
+        nb.P = P; nb.st = *st; nb.h = *h; nb.vt = vt; nb.vsz = nv->vsz; memcpy(nb.off, nv->off, sizeof nb.off); memcpy(nb.defc, nv->defc, sizeof nb.defc);
+        nb.nv = nb.ni = nb.draws = 0; bactive = 1; bkind = 2; }
+    size_t vbytes = (size_t)nvert * (size_t)nv->vsz, at = (size_t)nb.nv * (size_t)nb.vsz;
+    if (at + vbytes > nb.vcap) { nb.vcap = (at + vbytes) * 2 + 65536; nb.vb = realloc(nb.vb, nb.vcap); }
+    memcpy(nb.vb + at, nv->vdata + (size_t)lo * (size_t)nv->vsz, vbytes);
+    if (nb.ni + ntri * 3 > nb.icap) { nb.icap = (nb.ni + ntri * 3) * 2 + 4096; nb.ib = realloc(nb.ib, sizeof *nb.ib * (size_t)nb.icap); }
+    u16 *o = nb.ib + nb.ni; u16 b = (u16)nb.nv;
+    switch (nv->ptype) {                                                        /* the triangles GL forms from each primitive type, in order */
+    case 3: for (int i = 0; i < n; i++) o[i] = (u16)(ix[i] + b); break;
+    case 4: for (int i = 0; i + 2 < n; i++) { u16 *q = o + i * 3; if (i & 1) { q[0] = (u16)(ix[i + 1] + b); q[1] = (u16)(ix[i] + b); } else { q[0] = (u16)(ix[i] + b); q[1] = (u16)(ix[i + 1] + b); } q[2] = (u16)(ix[i + 2] + b); } break;
+    default: for (int i = 1; i + 1 < n; i++) { u16 *q = o + (i - 1) * 3; q[0] = (u16)(ix[0] + b); q[1] = (u16)(ix[i] + b); q[2] = (u16)(ix[i + 1] + b); } break; }
+    nb.ni += ntri * 3; nb.nv += nvert; nb.draws++; st_draws++;
+    rs_perf.setup_us += rs_perf_us() - t_s;
+    if (!nb_on) flush_batch();
     return 1; }
 
 
