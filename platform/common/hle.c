@@ -149,8 +149,10 @@ static void h_CreateThread(sdkcall_t *c){
     kthread_t *t = calloc(1, sizeof *t); t->uid = next_uid++; strncpy(t->name, gstr(A0), 31); t->entry = A1; t->prio = A2; t->stacksize = A3 ? A3 : 0x4000;
     t->blk = heap_alloc(t->stacksize, 1, 256); blk_t *b = blk_find(t->blk); t->stack = b ? b->addr : 0; threads[nthreads++] = t; V0 = t->uid;
     fprintf(stderr, "[HLE] CreateThread '%s' entry=%08x prio=%d stack=%x\n", t->name, t->entry, t->prio, t->stacksize); }
+/* CPU core placement of each thread (platform hook; the Vita build pins threads to its 3 application cores) */
+__attribute__((weak)) void rs_thread_cores(const char *name){ (void)name; }
 static void *thread_main(void *p){
-    kthread_t *t = p; pthread_once(&key_once, mk_keys); pthread_setspecific(k_cur, t); big_lock(); sdkcall_t *c = &t->cpu; memset(c, 0, sizeof *c); c->thread = t; { extern void rs_thread_init(void); rs_thread_init(); }
+    kthread_t *t = p; pthread_once(&key_once, mk_keys); pthread_setspecific(k_cur, t); big_lock(); sdkcall_t *c = &t->cpu; memset(c, 0, sizeof *c); c->thread = t; { extern void rs_thread_init(void); rs_thread_init(); } rs_thread_cores(t->name);
     u32 sp = t->stack + t->stacksize - 64; if (t->argc) { sp -= (t->argc + 15) & ~15u; memcpy(g_mem + GADDR(sp), t->argbuf, t->argc); c->r[5] = sp; }
     fprintf(stderr, "[HLE] thread '%s' start: arglen=%u argp=%08x sp=%08x\n", t->name, t->argc, t->argp, sp);
     c->r[4] = t->argc; c->r[29] = sp; c->r[28] = 0; c->r[31] = 0;
@@ -453,14 +455,20 @@ static pthread_mutex_t gi_m = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t g
 static int gi_q[256]; static unsigned gi_h, gi_t, gi_running;
 void rs_ge_signal_finish(int id){ pthread_mutex_lock(&gi_m); if (gi_h - gi_t < 256) gi_q[gi_h++ % 256] = id; pthread_cond_broadcast(&gi_c); pthread_mutex_unlock(&gi_m); }
 static void *ge_intr_thread(void *u){ (void)u;
-    pthread_once(&key_once, mk_keys); static sdkcall_t ctx; pthread_setspecific(k_cpu, &ctx); { extern void rs_thread_init(void); rs_thread_init(); }
+    pthread_once(&key_once, mk_keys); static sdkcall_t ctx; pthread_setspecific(k_cpu, &ctx); { extern void rs_thread_init(void); rs_thread_init(); } rs_thread_cores("GE interrupt");
     for (;;) { pthread_mutex_lock(&gi_m); while (gi_h == gi_t) pthread_cond_wait(&gi_c, &gi_m); int id = gi_q[gi_t % 256]; gi_running = 1; pthread_mutex_unlock(&gi_m);
         big_lock(); rs_ge_finish_hook(id); pthread_cond_broadcast(&gcv); pthread_mutex_unlock(&big);
         pthread_mutex_lock(&gi_m); gi_t++; gi_running = 0; pthread_cond_broadcast(&gi_c); pthread_mutex_unlock(&gi_m); } return 0; }
 static void ge_intr_start(void){ pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32); rs_thread_attr(&at, 0x10000); } pthread_t t; pthread_create(&t, &at, ge_intr_thread, 0); }
 int rs_ge_busy(void); void rs_ge_wait_idle(void);
+unsigned rs_ge_posted(void); int rs_ge_done_upto(unsigned mark);
 static void ge_sync(sdkcall_t *c){
     if (A0 == 1) { V0 = rs_ge_busy() ? 2 : 0; return; }                      /* peek: 2 = drawing */
+    /* RS_GE_PIPELINE=1 (experimental): the game may build frame N+1 while frame N is still being drawn - a sync waits for the lists
+     * queued before the previous sync, not for the ones just queued.  The game double-buffers its display lists, but data it rewrites
+     * in place every frame could be read by the renderer one frame late (visible as flicker), so it is off by default. */
+    static int pipe = -1; if (pipe < 0) { extern int rs_setting_int(const char *, int); pipe = rs_setting_int("RS_GE_PIPELINE", 0); }
+    if (pipe) { static unsigned prev; unsigned mark = prev; prev = rs_ge_posted(); while (!rs_ge_done_upto(mark)) unlocked_sleep(200); V0 = 0; return; }
     rs_ge_wait_idle();                                                        /* every queued list executed ... */
     pthread_mutex_unlock(&big); pthread_mutex_lock(&gi_m); while (gi_h != gi_t || gi_running) pthread_cond_wait(&gi_c, &gi_m); pthread_mutex_unlock(&gi_m); big_lock();   /* ... and its callback delivered */
     V0 = 0; }

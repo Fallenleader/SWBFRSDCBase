@@ -17,6 +17,7 @@
 #include <psp2/kernel/processmgr.h>
 #include <psp2/kernel/sysmem.h>
 #include <psp2/kernel/threadmgr.h>
+#include <psp2/kernel/cpu.h>
 #include <psp2/io/stat.h>
 #include <psp2/ctrl.h>
 #include <psp2/audioout.h>
@@ -104,6 +105,16 @@ void rs_thread_init(void){
     if (sceKernelGetThreadInfo(sceKernelGetThreadId(), &ti) >= 0 && ti.stack && ti.stackSize > 0) {
         u32 b = (u32)(uintptr_t)ti.stack, sz = (u32)ti.stackSize;
         if (!low28_clash(b, sz) && rs_nregions < RS_MAX_REGIONS) rs_region_add(b, sz); } }
+/* CPU cores.  The Vita gives an application 3 cores:
+ *   core 0  this thread: the frontend and all GPU work (GE list processing, vitaGL)
+ *   core 1  the game's main thread (user_main: game logic, building the GPU lists)
+ *   core 2  the game's other threads (audio mixing and ATRAC decoding run outside the big lock there), the GE interrupt thread, the
+ *           audio output thread
+ * so game logic, rendering and audio run at the same time instead of sharing cores the kernel picks. */
+void rs_thread_cores(const char *name){
+    int mask = !strcmp(name, "frontend") ? SCE_KERNEL_CPU_MASK_USER_0 : (!strcmp(name, "user_main") ? SCE_KERNEL_CPU_MASK_USER_1 : SCE_KERNEL_CPU_MASK_USER_2);
+    SceUID me = sceKernelGetThreadId(); int before = sceKernelGetThreadCpuAffinityMask(me); int r = sceKernelChangeThreadCpuAffinityMask(me, mask);
+    fprintf(stderr, "[VITA] thread '%s': CPU affinity %06x -> %06x%s\n", name, (unsigned)before, (unsigned)mask, r < 0 ? " FAILED" : ""); }
 void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ (void)psp_stack; pthread_attr_setstacksize(at, 1024 * 1024); }
 
 void rs_break(u32 code, u32 where){
@@ -244,6 +255,7 @@ int main(void){
     STEP("data image %p, VRAM %p, heap %p", (void *)rs_regions[0].base, vram, heap);
 
     /* renderer (this thread owns the GPU) */
+    rs_thread_cores("frontend");
     { extern int rs_renderer_start(void); if (rs_renderer_start() != 0) fatal("renderer initialisation failed (see the lines above)"); }
     gfx_wake_init(); gfx_thread_register();
     STEP("renderer ready");

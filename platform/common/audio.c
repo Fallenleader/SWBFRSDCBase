@@ -35,7 +35,7 @@ __attribute__((weak)) int rs_audio_host_open(int rate){ (void)rate; return 0; }
 __attribute__((weak)) void rs_audio_host_write(const s16 *stereo, int frames){ (void)stereo; (void)frames; }
 
 static void *host_thread(void *u){
-    (void)u; static s16 buf[1024 * 2];
+    (void)u; static s16 buf[1024 * 2]; { void rs_thread_cores(const char *); rs_thread_cores("audio output"); }
     for (;;) {
         pthread_mutex_lock(&r_mx);
         unsigned avail = r_head - r_tail, n = avail > 1024 ? 1024 : avail;

@@ -66,6 +66,7 @@ artwork in `sce_sys/` comes from the game itself.
 | `RS_LOG_MB` | 4 | size limit of `ux0:data/SWBFRS/log.txt` |
 | `RS_PERF_LOG` | 0 | 1 = profiler lines every 600 frames to `ux0:data/SWBFRS/perf.log` |
 | `RS_GE_ASYNC` | 1 | GPU command lists run while the game goes on (as on the PSP); 0 = the game waits for each list |
+| `RS_GE_PIPELINE` | 0 | 1 = experimental: the game builds the next frame while the renderer still draws the previous one (more frames per second when the renderer is the slower side; possible flicker of objects the game rewrites in place) |
 
 ## Controls
 

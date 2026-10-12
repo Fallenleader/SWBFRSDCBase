@@ -493,12 +493,20 @@ static surf_t *surf_for_addr(u32 a, int *y0, int *x0){        /* any pixel-align
     return 0; }
 
 /* ------------------------------------------------------------------ texture cache */
-#define TC_N 256
-typedef struct { gtex_key_t k; u32 hash; unsigned id, epoch, stamp, mr, nrm; long bytes; int used, hd; } tent_t;
+#define TC_N 1024                      /* texture cache entries (the game uses more than 256 different textures in a battle: 256 were always full) */
+typedef struct { gtex_key_t k; u32 hash; unsigned id, epoch, stamp, mr, nrm; long bytes; int used, hd, hnext; } tent_t;
 static tent_t tc[TC_N]; static unsigned tc_stamp; static u32 *scratch; static long tc_bytes;
 static unsigned last_mr, last_nrm; static int last_hd;
 void gfx_tex_maps(unsigned *mr, unsigned *nrm, int *hd){ *mr = last_mr; *nrm = last_nrm; *hd = last_hd; }
-static void tent_free(tent_t *e){ if (!e->used) return; tp_forget(e->id); glDeleteTextures(1, &e->id); if (e->mr) glDeleteTextures(1, &e->mr); if (e->nrm) glDeleteTextures(1, &e->nrm); tc_bytes -= e->bytes; memset(e, 0, sizeof *e); }
+/* key -> entry hash (chained, 1-based indices): a lookup per textured draw instead of a scan of the whole cache */
+#define TC_HB 4096
+static int tc_head[TC_HB];
+static u32 tk_hash(const gtex_key_t *k){ u32 h = k->addr * 2654435761u ^ (u32)k->w * 40503u ^ (u32)k->h * 9973u ^ (u32)k->fmt * 131u ^ (u32)k->swz ^ (u32)k->bufw * 7919u ^ k->clut * 2246822519u; return (h ^ (h >> 15)) & (TC_HB - 1); }
+static int tk_eq(const gtex_key_t *a, const gtex_key_t *b){ return a->addr == b->addr && a->w == b->w && a->h == b->h && a->fmt == b->fmt && a->swz == b->swz && a->bufw == b->bufw && a->clut == b->clut; }
+static void tc_link(tent_t *e){ u32 h = tk_hash(&e->k); e->hnext = tc_head[h]; tc_head[h] = (int)(e - tc) + 1; }
+static void tc_unlink(tent_t *e){ u32 h = tk_hash(&e->k); int me = (int)(e - tc) + 1; int *pp = &tc_head[h];
+    while (*pp) { if (*pp == me) { *pp = e->hnext; break; } pp = &tc[*pp - 1].hnext; } e->hnext = 0; }
+static void tent_free(tent_t *e){ if (!e->used) return; tc_unlink(e); tp_forget(e->id); glDeleteTextures(1, &e->id); if (e->mr) glDeleteTextures(1, &e->mr); if (e->nrm) glDeleteTextures(1, &e->nrm); tc_bytes -= e->bytes; memset(e, 0, sizeof *e); }
 
 /* ---- mod texture replacement (runtime/texrep.c finds the files) ---- */
 extern int rs_texrep_active(void); extern int rs_texrep_find(u32 key, u32 pal, const char *paths[3]); extern int rs_texrep_dumping(void); extern void rs_texrep_dump(u32 key, u32 pal, int w, int h, const u32 *rgba); extern u8 *rs_png_load(const char *path, int *w, int *h); extern u32 rs_crc32(const u8 *p, size_t n);
@@ -546,9 +554,8 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
     { static int lg = -1, n; if (lg < 0) lg = getenv("RS_FB_LOG") != 0; u32 a = akey(k->addr); if (lg && n < 30 && a >= akey(0x04000000) && a < akey(0x04110000)) { n++; fprintf(stderr, "[FB] texture from frame-buffer memory %08x %dx%d fmt %d bufw %d -> %s (x0=%d y0=%d)\n", k->addr, k->w, k->h, k->fmt, k->bufw, s ? "surface" : "RAM", s ? x0 : -1, s ? y0 : -1); } }
     if (s) { if (s == cur_target) return 0; flush_batch(); uvs[0] = (float)k->w / SZ; uvs[1] = (float)k->h / SURF_H; uvs[2] = (float)y0 / SURF_H; uvs[3] = (float)x0 / SZ; return s->tex; }
     tent_t *e = 0, *old = &tc[0];
-    for (int i = 0; i < TC_N; i++) { tent_t *t = &tc[i];
-        if (t->used && t->k.addr == k->addr && t->k.w == k->w && t->k.h == k->h && t->k.fmt == k->fmt && t->k.swz == k->swz && t->k.bufw == k->bufw && t->k.clut == k->clut) { e = t; break; }
-        if (!t->used || t->stamp < old->stamp) old = t; }
+    for (int i = tc_head[tk_hash(k)]; i; i = tc[i - 1].hnext) if (tk_eq(&tc[i - 1].k, k)) { e = &tc[i - 1]; break; }
+    if (!e) for (int i = 0; i < TC_N; i++) { tent_t *t = &tc[i]; if (!t->used) { old = t; break; } if (t->stamp < old->stamp) old = t; }   /* a miss: a free or the least recently used entry */
 #define TEX_RET(e) do { last_mr = (e)->mr; last_nrm = (e)->nrm; last_hd = (e)->hd; return (e)->id; } while (0)
     if (e && e->epoch == rs_gfx_epoch) { e->stamp = ++tc_stamp; TEX_RET(e); }
     u64 t_h = rs_perf_us(); u32 h = src->hash(src->ud); rs_perf.hash_n++; rs_perf.hash_us += rs_perf_us() - t_h;
@@ -559,9 +566,9 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
         static long budget = -1; if (budget < 0) { extern int rs_patch_tex_budget_mb(void); budget = (long)rs_patch_tex_budget_mb() * 1048576L; }
         while (tc_bytes + need > budget) { tent_t *v = 0; for (int i = 0; i < TC_N; i++) if (tc[i].used && tc[i].epoch != rs_gfx_epoch && (!v || tc[i].stamp < v->stamp)) v = &tc[i];
             if (!v) break; tent_free(v); old = v; }
-        e = old; tent_free(e); glGenTextures(1, &e->id); e->k = *k; e->used = 1; e->bytes = need; tc_bytes += need; }
+        e = old; tent_free(e); glGenTextures(1, &e->id); e->k = *k; e->used = 1; e->bytes = need; tc_bytes += need; tc_link(e); }
     else if (e->hd) {                                         /* contents changed under a replaced texture: back to a plain one, look up again */
-        long b = e->bytes; unsigned id = 0; tent_t keep = *e; keep.bytes = 0; (void)b; tent_free(e); *e = keep; e->hd = 0; e->mr = e->nrm = 0; glGenTextures(1, &id); e->id = id; e->bytes = need; tc_bytes += need; }
+        long b = e->bytes; unsigned id = 0; tent_t keep = *e; keep.bytes = 0; (void)b; tent_free(e); *e = keep; e->hnext = 0; e->hd = 0; e->mr = e->nrm = 0; glGenTextures(1, &id); e->id = id; e->bytes = need; tc_bytes += need; tc_link(e); }
     e->hash = h; e->epoch = rs_gfx_epoch; e->stamp = ++tc_stamp;
     gs_reset(); tp_forget(e->id);                      /* uploads bind the texture and may reset its parameters */
     if (try_replace(e, k)) { st_texup++; tp_forget(e->id); TEX_RET(e); }

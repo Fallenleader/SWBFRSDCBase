@@ -480,6 +480,8 @@ void rs_ge_update_stall(int id, u32 stall){ if (rs_bench_active) return;
 /* sceGeListSync / sceGeDrawSync: wait (mode 0) or ask (mode 1) whether the queued lists are done */
 static void ge_noop(void *p){ (void)p; }
 int rs_ge_busy(void){ return ge_async() && ge_done != ge_posted; }
+unsigned rs_ge_posted(void){ return ge_posted; }
+int rs_ge_done_upto(unsigned mark){ return (int)(ge_done - mark) >= 0; }
 void rs_ge_wait_idle(void){ if (!ge_async()) return; rs_big_unlock(); gfx_run(ge_noop, 0); rs_big_lock(); }
 void rs_ge_reset(void){ memset(R, 0, sizeof R); float I3[12] = {1,0,0,0,1,0,0,0,1,0,0,0}; memcpy(M_world, I3, sizeof I3); memcpy(M_view, I3, sizeof I3); memset(M_proj, 0, sizeof M_proj); }
 
