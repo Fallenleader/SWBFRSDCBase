@@ -381,7 +381,8 @@ static unsigned prog_main, prog_pres, prog_fxaa, prog_fill; static int use_fxaa,
 static int u_ptex;
 /* a draw program and its uniform locations (main = pre-transformed CPU vertices; hw[skin | lit << 1] = GPU transform & lighting) */
 typedef struct { unsigned id; int tex, cfg0, cfg1, env, uvs, fog, mul;
-                 int mvp, wvz, wld, b, vp0, vp1, vp2, uvt, fogp, mamb, mdif, memi, msca, lfl, lpos, latt, lspot, la, ld, shm, sht, shp, wvm, mr, nm, pbr, sun, sunc, defc; } prog_t;
+                 int mvp, wvz, wld, b, vp0, vp1, vp2, uvt, fogp, mamb, mdif, memi, msca, lfl, lpos, latt, lspot, la, ld, shm, sht, shp, wvm, mr, nm, pbr, sun, sunc, defc;
+                 float *ucv[32]; unsigned char ucok[32]; int tex_set; } prog_t;      /* ucv/ucok: last uploaded value per uniform (see u_set) */
 static prog_t P_main, P_hw[4], P_hwp[4]; static int hw_ok, pbr_ok; static float pbr_sunc[3] = {1, 0.95f, 0.85f}, pbr_spec = 1;
 static void prog_locs(prog_t *P){ unsigned p = P->id;
 #define L(f, n) P->f = glGetUniformLocation(p, n);
@@ -391,6 +392,27 @@ static void prog_locs(prog_t *P){ unsigned p = P->id;
 #undef L
 }
 int gfx_hw_ok(void){ return hw_ok; }
+
+/* ---- redundant-call filter.  vitaGL does work for every GL call even when nothing changes (state bits, re-patched fragment
+ * programs, uniform copies), and a 3D draw used to make ~60 of them.  Uniforms are uploaded only when their value changed (per
+ * program: GL keeps uniform values per program), render state only when it differs from what was last set.  Code that sets GL
+ * state directly (clears, present, HUD, transfers, uploads) calls gs_reset() afterwards: everything is set again on the next draw. */
+enum { U_CFG0, U_CFG1, U_ENV, U_UVS, U_MUL, U_FOG, U_MVP, U_WVZ, U_WLD, U_WVM, U_VP0, U_VP1, U_VP2, U_UVT, U_FOGP, U_B, U_LFL, U_MAMB, U_MDIF, U_MEMI,
+       U_MSCA, U_LPOS, U_LATT, U_LSPOT, U_LA, U_LD, U_DEFC, U_N };
+static void u_set(const prog_t *cp, int slot, int loc, int n4, const float *v){
+    prog_t *P = (prog_t *)cp; if (loc == -1) return;
+    size_t nb = (size_t)n4 * 16;
+    if (P->ucok[slot] && !memcmp(P->ucv[slot], v, nb)) return;
+    if (!P->ucv[slot]) { P->ucv[slot] = malloc(16 * 24); if (!P->ucv[slot]) { glUniform4fv(loc, n4, v); return; } }
+    glUniform4fv(loc, n4, v); memcpy(P->ucv[slot], v, nb); P->ucok[slot] = 1; }
+static void u_set4(const prog_t *P, int slot, int loc, float a, float b, float c, float d){ float v[4] = {a, b, c, d}; u_set(P, slot, loc, 1, v); }
+static struct { int ok; unsigned prog, tex0, dfunc, cullf, bf[4], beq, sf, sref, smask, so[3], swm; int en[4], dmask, cm[4], attrs, attrs_ok; } gs;
+static void gs_reset(void){ gs.ok = 0; gs.attrs_ok = 0; }
+static void gs_cap(int i, unsigned cap, int on){ if (!gs.ok || gs.en[i] != on) { if (on) glEnable(cap); else glDisable(cap); gs.en[i] = on; } }
+static void gs_attribs(int mask){ for (int a = 0; a < 7; a++) { int on = (mask >> a) & 1; if (!gs.attrs_ok || ((gs.attrs >> a) & 1) != on) { if (on) glEnableVertexAttribArray((unsigned)a); else glDisableVertexAttribArray((unsigned)a); } } gs.attrs = mask; gs.attrs_ok = 1; }
+/* texture parameters per texture (direct-mapped by id); an upload into a texture forgets its entry */
+static struct { unsigned id; int ws, wt, flt; } tp[512];
+static void tp_forget(unsigned id){ tp[id & 511].id = 0; }
 
 /* ---- shadow state ---- */
 static int sh_on, sh_res = 1024; static float sh_range = 40.0f, sh_strength = 0.45f, sh_sun[3] = {0, 1, 0};
@@ -442,14 +464,15 @@ static void scissor_psp(int x1, int y1, int x2, int y2){                        
 static void raw_bind(surf_t *s){ if (cur_target == s) return; glBindFramebuffer(GL_FRAMEBUFFER, s->fbo); cur_target = s; sc_r[2] = -1; }
 static surf_t *surf_find(u32 addr){ addr = akey(addr); for (int i = 0; i < SURF_N; i++) if (surfs[i].used && surfs[i].addr == addr) return &surfs[i]; return 0; }
 static surf_t *surf_create(u32 addr, int fmt, int stride){
+    gs_reset();
     { static int lg = -1, n; if (lg < 0) lg = getenv("RS_FB_LOG") != 0; if (lg && n++ < 40) fprintf(stderr, "[FB] new surface %08x fmt %d stride %d\n", addr, fmt, stride); }
     addr = akey(addr); surf_t *s = 0, *old = &surfs[0];
     for (int i = 0; i < SURF_N; i++) { if (!surfs[i].used) { s = &surfs[i]; break; } if (surfs[i].stamp < old->stamp) old = &surfs[i]; }
-    if (!s) { s = old; if (cur_target == s) cur_target = 0; glDeleteTextures(1, &s->tex); unsigned f = s->fbo; (void)f; /* FBO objects are re-used below */ }
+    if (!s) { s = old; if (cur_target == s) cur_target = 0; tp_forget(s->tex); glDeleteTextures(1, &s->tex); unsigned f = s->fbo; (void)f; /* FBO objects are re-used below */ }
     else { memset(s, 0, sizeof *s); }
     int fresh = s->fbo == 0;
     if (fresh) glGenFramebuffers(1, &s->fbo);
-    glGenTextures(1, &s->tex); glBindTexture(GL_TEXTURE_2D, s->tex);
+    glGenTextures(1, &s->tex); tp_forget(s->tex); glBindTexture(GL_TEXTURE_2D, s->tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PX, PXH, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
@@ -475,7 +498,7 @@ typedef struct { gtex_key_t k; u32 hash; unsigned id, epoch, stamp, mr, nrm; lon
 static tent_t tc[TC_N]; static unsigned tc_stamp; static u32 *scratch; static long tc_bytes;
 static unsigned last_mr, last_nrm; static int last_hd;
 void gfx_tex_maps(unsigned *mr, unsigned *nrm, int *hd){ *mr = last_mr; *nrm = last_nrm; *hd = last_hd; }
-static void tent_free(tent_t *e){ if (!e->used) return; glDeleteTextures(1, &e->id); if (e->mr) glDeleteTextures(1, &e->mr); if (e->nrm) glDeleteTextures(1, &e->nrm); tc_bytes -= e->bytes; memset(e, 0, sizeof *e); }
+static void tent_free(tent_t *e){ if (!e->used) return; tp_forget(e->id); glDeleteTextures(1, &e->id); if (e->mr) glDeleteTextures(1, &e->mr); if (e->nrm) glDeleteTextures(1, &e->nrm); tc_bytes -= e->bytes; memset(e, 0, sizeof *e); }
 
 /* ---- mod texture replacement (runtime/texrep.c finds the files) ---- */
 extern int rs_texrep_active(void); extern int rs_texrep_find(u32 key, u32 pal, const char *paths[3]); extern int rs_texrep_dumping(void); extern void rs_texrep_dump(u32 key, u32 pal, int w, int h, const u32 *rgba); extern u8 *rs_png_load(const char *path, int *w, int *h); extern u32 rs_crc32(const u8 *p, size_t n);
@@ -540,7 +563,8 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
     else if (e->hd) {                                         /* contents changed under a replaced texture: back to a plain one, look up again */
         long b = e->bytes; unsigned id = 0; tent_t keep = *e; keep.bytes = 0; (void)b; tent_free(e); *e = keep; e->hd = 0; e->mr = e->nrm = 0; glGenTextures(1, &id); e->id = id; e->bytes = need; tc_bytes += need; }
     e->hash = h; e->epoch = rs_gfx_epoch; e->stamp = ++tc_stamp;
-    if (try_replace(e, k)) { st_texup++; TEX_RET(e); }
+    gs_reset(); tp_forget(e->id);                      /* uploads bind the texture and may reset its parameters */
+    if (try_replace(e, k)) { st_texup++; tp_forget(e->id); TEX_RET(e); }
 #ifdef RS_VITAGL
     {   /* the PSP texel data as it is, in a GXM format that reads it (platform/vita/gfx_vgl.c); other formats are decoded below */
         static int nat = -1; if (nat < 0) { extern int rs_setting_int(const char *, int); nat = rs_setting_int("RS_NATIVE_GE", 1); }
@@ -581,12 +605,18 @@ static unsigned bfactor(int f, int is_src, int fix_is_dst_of_src, u32 fix, int f
         return 0x8001; } }
 
 static void apply_state(const gfx_state_t *s, const prog_t *P){
-    glViewport(0, 0, PX, PX);
+    int all = !gs.ok;
+    if (all) glViewport(0, 0, PX, PX);
     int x1 = s->sx1 < 0 ? 0 : s->sx1, y1 = s->sy1 < 0 ? 0 : s->sy1, x2 = s->sx2 > SZ - 1 ? SZ - 1 : s->sx2, y2 = s->sy2 > SZ - 1 ? SZ - 1 : s->sy2;
     scissor_psp(x1, y1, x2, y2);
-    if (s->ztest) { glEnable(GL_DEPTH_TEST); glDepthFunc(dfunc[s->zfunc & 7]); glDepthMask(s->zwrite ? 1 : 0); } else { glDisable(GL_DEPTH_TEST); glDepthMask(0); }
-    if (s->cull_en) { glEnable(GL_CULL_FACE); glFrontFace(GL_CCW); glCullFace(s->cull_mode == 1 ? GL_BACK : GL_FRONT); } else glDisable(GL_CULL_FACE);
+    gs_cap(1, GL_DEPTH_TEST, s->ztest != 0);
+    { unsigned df = s->ztest ? dfunc[s->zfunc & 7] : 0; int dm = s->ztest && s->zwrite;
+      if (s->ztest && (all || gs.dfunc != df)) { glDepthFunc(df); gs.dfunc = df; }
+      if (all || gs.dmask != dm) { glDepthMask(dm ? 1 : 0); gs.dmask = dm; } }
+    gs_cap(2, GL_CULL_FACE, s->cull_en != 0);
+    if (s->cull_en) { unsigned cf = s->cull_mode == 1 ? GL_BACK : GL_FRONT; if (all || gs.cullf != cf) { glFrontFace(GL_CCW); glCullFace(cf); gs.cullf = cf; } }
     float mul[3] = {1, 1, 1};
+    gs_cap(0, GL_BLEND, s->blend != 0);
     if (s->blend) {
         float bc[4] = {0, 0, 0, 0}; int uc = 0; int fb565 = s->fbfmt == 0;
         unsigned sf = bfactor(s->bsrc, 1, 0, s->bfixa, fb565, bc, &uc), df = bfactor(s->bdst, 0, 0, s->bfixb, fb565, bc, &uc);
@@ -595,28 +625,38 @@ static void apply_state(const gfx_state_t *s, const prog_t *P){
                 if (sf == 0x8002) { r = 1 - r; g = 1 - g; b = 1 - b; } mul[0] = r; mul[1] = g; mul[2] = b; sf = GL_ONE; }
             if (df == 0x8001 || df == 0x8002) { u32 k = s->bfixb; float l = ((k & 255) + ((k >> 8) & 255) + ((k >> 16) & 255)) / 765.0f; df = l >= 0.5f ? GL_ONE : GL_ZERO; }
             uc = 0; }
-        glEnable(GL_BLEND); glBlendFuncSeparate(sf, df, sf == 0x306 || sf == 0x307 ? GL_ONE : sf, df == 0x300 || df == 0x301 ? GL_ONE : df);
+        unsigned bf[4] = {sf, df, sf == 0x306 || sf == 0x307 ? GL_ONE : sf, df == 0x300 || df == 0x301 ? GL_ONE : df};
+        if (all || memcmp(bf, gs.bf, sizeof bf)) { glBlendFuncSeparate(bf[0], bf[1], bf[2], bf[3]); memcpy(gs.bf, bf, sizeof bf); }
         if (uc) glBlendColor(bc[0], bc[1], bc[2], 1.0f);
-        glBlendEquation(s->beq == 1 ? GL_FUNC_SUBTRACT : (s->beq == 2 ? GL_FUNC_REVERSE_SUBTRACT : GL_FUNC_ADD));
-    } else glDisable(GL_BLEND);
-    glColorMask(s->cmr, s->cmg, s->cmb, s->cma);
-    if (s->sten && has_stencil) {
+        unsigned eq = s->beq == 1 ? GL_FUNC_SUBTRACT : (s->beq == 2 ? GL_FUNC_REVERSE_SUBTRACT : GL_FUNC_ADD);
+        if (all || gs.beq != eq) { glBlendEquation(eq); gs.beq = eq; } }
+    { int cm[4] = {s->cmr != 0, s->cmg != 0, s->cmb != 0, s->cma != 0};
+      if (all || memcmp(cm, gs.cm, sizeof cm)) { glColorMask(cm[0], cm[1], cm[2], cm[3]); memcpy(gs.cm, cm, sizeof cm); } }
+    int st = s->sten && has_stencil; gs_cap(3, GL_STENCIL_TEST, st);
+    if (st) {
         static const unsigned sop[8] = {0x1E00 /*KEEP*/, 0 /*ZERO*/, 0x1E01 /*REPLACE*/, 0x150A /*INVERT*/, 0x1E02 /*INCR*/, 0x1E03 /*DECR*/, 0x1E00, 0x1E00};
-        glEnable(GL_STENCIL_TEST); glStencilFunc(dfunc[s->sfunc & 7], s->sref, (unsigned)s->smask); glStencilOp(sop[s->sfail & 7], sop[s->szfail & 7], sop[s->szpass & 7]); glStencilMask((unsigned)s->swmask);
-    } else glDisable(GL_STENCIL_TEST);
-    glUseProgram(P->id);
+        unsigned f = dfunc[s->sfunc & 7], so[3] = {sop[s->sfail & 7], sop[s->szfail & 7], sop[s->szpass & 7]};
+        if (all || gs.sf != f || gs.sref != (unsigned)s->sref || gs.smask != (unsigned)s->smask) { glStencilFunc(f, s->sref, (unsigned)s->smask); gs.sf = f; gs.sref = (unsigned)s->sref; gs.smask = (unsigned)s->smask; }
+        if (all || memcmp(so, gs.so, sizeof so)) { glStencilOp(so[0], so[1], so[2]); memcpy(gs.so, so, sizeof so); }
+        if (all || gs.swm != (unsigned)s->swmask) { glStencilMask((unsigned)s->swmask); gs.swm = (unsigned)s->swmask; } }
+    if (all || gs.prog != P->id) { glUseProgram(P->id); gs.prog = P->id; }
+    gs.ok = 1;
     int use = s->tex && s->texid;
-    glUniform4f(P->cfg0, use ? 1.0f : 0.0f, (float)s->tfunc, (float)s->trgba, (float)s->tdbl);
-    glUniform4f(P->cfg1, s->atest ? (float)s->afunc : 1.0f, (float)s->aref, 0, 0);
-    glUniform4f(P->env, (s->tenv & 255) / 255.0f, ((s->tenv >> 8) & 255) / 255.0f, ((s->tenv >> 16) & 255) / 255.0f, 1.0f);
-    glUniform4f(P->uvs, s->uvs[0], s->uvs[1], s->uvs[2], s->uvs[3]);
-    glUniform4f(P->mul, mul[0], mul[1], mul[2], 1.0f);
-    glUniform4f(P->fog, (s->fogcol & 255) / 255.0f, ((s->fogcol >> 8) & 255) / 255.0f, ((s->fogcol >> 16) & 255) / 255.0f, s->fog ? 1.0f : 0.0f);
-    glUniform1i(P->tex, 0);
+    u_set4(P, U_CFG0, P->cfg0, use ? 1.0f : 0.0f, (float)s->tfunc, (float)s->trgba, (float)s->tdbl);
+    u_set4(P, U_CFG1, P->cfg1, s->atest ? (float)s->afunc : 1.0f, (float)s->aref, 0, 0);
+    u_set4(P, U_ENV, P->env, (s->tenv & 255) / 255.0f, ((s->tenv >> 8) & 255) / 255.0f, ((s->tenv >> 16) & 255) / 255.0f, 1.0f);
+    u_set(P, U_UVS, P->uvs, 1, s->uvs);
+    u_set4(P, U_MUL, P->mul, mul[0], mul[1], mul[2], 1.0f);
+    u_set4(P, U_FOG, P->fog, (s->fogcol & 255) / 255.0f, ((s->fogcol >> 8) & 255) / 255.0f, ((s->fogcol >> 16) & 255) / 255.0f, s->fog ? 1.0f : 0.0f);
+    if (!P->tex_set) { glUniform1i(P->tex, 0); ((prog_t *)P)->tex_set = 1; }
     if (use) {
-        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, s->texid);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, s->tclampu ? GL_CLAMP_TO_EDGE : GL_REPEAT); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, s->tclampv ? GL_CLAMP_TO_EDGE : GL_REPEAT);
-        if (!s->texhd) { int lin = s->tfilter ? GL_LINEAR : GL_NEAREST; glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, lin); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, lin); } } }
+        if (all || gs.tex0 != s->texid) { glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, s->texid); gs.tex0 = s->texid; }
+        int ws = s->tclampu ? GL_CLAMP_TO_EDGE : GL_REPEAT, wt = s->tclampv ? GL_CLAMP_TO_EDGE : GL_REPEAT, flt = s->texhd ? -1 : (s->tfilter ? GL_LINEAR : GL_NEAREST);
+        typeof(tp[0]) *e = &tp[s->texid & 511];
+        if (e->id != s->texid || e->ws != ws || e->wt != wt || e->flt != flt) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, ws); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wt);
+            if (flt >= 0) { glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, flt); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, flt); }
+            e->id = s->texid; e->ws = ws; e->wt = wt; e->flt = flt; } } }
 
 static surf_t *target_for(const gfx_state_t *s){
     surf_t *t = surf_find(s->fbaddr); if (!t) t = surf_create(s->fbaddr, s->fbfmt, s->fbstride);
@@ -630,25 +670,23 @@ static void flush_batch(void){
         const gfx_hw_t *h = &bhw; int pbr = pbr_ok && (bst.texmr || bst.texn) && h->lfl[3] > 0.5f && bst.tex;
         const prog_t *P = pbr ? &P_hwp[h->skin | (h->lit << 1)] : &P_hw[h->skin | (h->lit << 1)];
         apply_state(&bst, P);
-        glUniform4fv(P->mvp, 4, h->mvp); glUniform4fv(P->wvz, 1, h->wvz); glUniform4fv(P->wld, 3, h->wld);
-        glUniform4fv(P->wvm, 3, h->wv); glUniform4fv(P->vp0, 1, h->vp0); glUniform4fv(P->vp1, 1, h->vp1); glUniform4fv(P->vp2, 1, h->vp2); glUniform4fv(P->uvt, 1, h->uvt); glUniform4fv(P->fogp, 1, h->fogp);
-        if (h->skin) glUniform4fv(P->b, 24, h->bone);
-        glUniform4fv(P->lfl, 1, h->lfl);
-        if (h->lit) { glUniform4fv(P->mamb, 1, h->mamb); glUniform4fv(P->mdif, 1, h->mdif); glUniform4fv(P->memi, 1, h->memi); glUniform4fv(P->msca, 1, h->msca);
-            glUniform4fv(P->lpos, 4, h->lpos); glUniform4fv(P->latt, 4, h->latt); glUniform4fv(P->lspot, 4, h->lspot); glUniform4fv(P->la, 4, h->la); glUniform4fv(P->ld, 4, h->ld); }
+        u_set(P, U_MVP, P->mvp, 4, h->mvp); u_set(P, U_WVZ, P->wvz, 1, h->wvz); u_set(P, U_WLD, P->wld, 3, h->wld);
+        u_set(P, U_WVM, P->wvm, 3, h->wv); u_set(P, U_VP0, P->vp0, 1, h->vp0); u_set(P, U_VP1, P->vp1, 1, h->vp1); u_set(P, U_VP2, P->vp2, 1, h->vp2); u_set(P, U_UVT, P->uvt, 1, h->uvt); u_set(P, U_FOGP, P->fogp, 1, h->fogp);
+        if (h->skin) u_set(P, U_B, P->b, 24, h->bone);
+        u_set(P, U_LFL, P->lfl, 1, h->lfl);
+        if (h->lit) { u_set(P, U_MAMB, P->mamb, 1, h->mamb); u_set(P, U_MDIF, P->mdif, 1, h->mdif); u_set(P, U_MEMI, P->memi, 1, h->memi); u_set(P, U_MSCA, P->msca, 1, h->msca);
+            u_set(P, U_LPOS, P->lpos, 4, h->lpos); u_set(P, U_LATT, P->latt, 4, h->latt); u_set(P, U_LSPOT, P->lspot, 4, h->lspot); u_set(P, U_LA, P->la, 4, h->la); u_set(P, U_LD, P->ld, 4, h->ld); }
         { static int rl = -1, nrl; if (rl < 0) rl = getenv("RS_SHADOW_RCVLOG") != 0; if (rl && nrl++ < 400) fprintf(stderr, "[RCV] n=%d skin=%d lit=%d nrm=%.0f z=%d/%d blend=%d atest=%d fb=%08x tex=%d\n", bn, h->skin, h->lit, h->lfl[3], bst.ztest, bst.zwrite, bst.blend, bst.atest, bst.fbaddr, bst.tex); }
         { static const float z16[16]; int rcv = sh_on && sh_valid && bst.ztest && !bst.blend;
           glUniform4fv(P->shm, 4, rcv ? sh_mat : z16);
           { static int vis = -1; if (vis < 0) vis = getenv("RS_SHADOW_VIS") != 0; if (P->shp != -1) glUniform4f(P->shp, 1.0f / (float)sh_res, 1.0f / (3.0f * (float)sh_res), sh_strength, rcv ? (vis ? 3.0f : 1.0f) : 0.0f); }
           if (P->sht != -1 && sh_on) { glUniform1i(P->sht, 1); glActiveTexture(GL_TEXTURE0 + 1); glBindTexture(GL_TEXTURE_2D, sh_tex); glActiveTexture(GL_TEXTURE0); } }
-        glEnableVertexAttribArray(0); glEnableVertexAttribArray(1); glEnableVertexAttribArray(2); glEnableVertexAttribArray(3);
+        gs_attribs(0x0F | (h->skin ? 0x30 : 0) | (pbr ? 0x40 : 0));
         glVertexAttribPointer(0, 3, GL_FLOAT, 0, sizeof(gfx_hvtx_t), &bhv[0].x);
         glVertexAttribPointer(1, 3, GL_FLOAT, 0, sizeof(gfx_hvtx_t), &bhv[0].nx);
         glVertexAttribPointer(2, 2, GL_FLOAT, 0, sizeof(gfx_hvtx_t), &bhv[0].u);
         glVertexAttribPointer(3, 4, GL_FLOAT, 0, sizeof(gfx_hvtx_t), &bhv[0].r);
-        if (h->skin) { glEnableVertexAttribArray(4); glEnableVertexAttribArray(5);
-            glVertexAttribPointer(4, 4, GL_FLOAT, 0, sizeof(gfx_hvtx_t), &bhv[0].w[0]); glVertexAttribPointer(5, 4, GL_FLOAT, 0, sizeof(gfx_hvtx_t), &bhv[0].w[4]); }
-        else { glDisableVertexAttribArray(4); glDisableVertexAttribArray(5); }
+        if (h->skin) { glVertexAttribPointer(4, 4, GL_FLOAT, 0, sizeof(gfx_hvtx_t), &bhv[0].w[0]); glVertexAttribPointer(5, 4, GL_FLOAT, 0, sizeof(gfx_hvtx_t), &bhv[0].w[4]); }
         if (pbr) {
             float sv[3]; const float *V = sh_view; static const float I12[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}; if (!sh_view_any) V = I12;
             for (int c = 0; c < 3; c++) sv[c] = sh_sun[0] * V[c] + sh_sun[1] * V[3 + c] + sh_sun[2] * V[6 + c]; norm3(sv);
@@ -656,17 +694,15 @@ static void flush_batch(void){
             glUniform1i(P->mr, 2); glUniform1i(P->nm, 3);
             glActiveTexture(GL_TEXTURE0 + 2); glBindTexture(GL_TEXTURE_2D, bst.texmr ? bst.texmr : bst.texid);
             glActiveTexture(GL_TEXTURE0 + 3); glBindTexture(GL_TEXTURE_2D, bst.texn ? bst.texn : bst.texid); glActiveTexture(GL_TEXTURE0);
-            glEnableVertexAttribArray(6); glVertexAttribPointer(6, 3, GL_FLOAT, 0, sizeof(gfx_hvtx_t), &bhv[0].tx); }
-        else glDisableVertexAttribArray(6);
+            glVertexAttribPointer(6, 3, GL_FLOAT, 0, sizeof(gfx_hvtx_t), &bhv[0].tx); }
     } else {
     apply_state(&bst, &P_main);
-    glDisableVertexAttribArray(4); glDisableVertexAttribArray(5); glDisableVertexAttribArray(6);
-    glEnableVertexAttribArray(0); glEnableVertexAttribArray(1); glEnableVertexAttribArray(2); glEnableVertexAttribArray(3);
+    gs_attribs(0x0F);
     glVertexAttribPointer(0, 4, GL_FLOAT, 0, sizeof(gfx_vtx_t), &bv[0].x);
     glVertexAttribPointer(1, 2, GL_FLOAT, 0, sizeof(gfx_vtx_t), &bv[0].u);
     glVertexAttribPointer(2, 4, GL_FLOAT, 0, sizeof(gfx_vtx_t), &bv[0].r);
     glVertexAttribPointer(3, 1, GL_FLOAT, 0, sizeof(gfx_vtx_t), &bv[0].f); }
-    { u64 t_d = rs_perf_us(); glDrawArrays(GL_TRIANGLES, 0, bn); rs_perf.draw_us += rs_perf_us() - t_d; rs_perf.batches++; } if (bkind == 1 && pbr_ok) glDisableVertexAttribArray(6); st_batches++; st_tris += bn / 3;
+    { u64 t_d = rs_perf_us(); glDrawArrays(GL_TRIANGLES, 0, bn); rs_perf.draw_us += rs_perf_us() - t_d; rs_perf.batches++; } st_batches++; st_tris += bn / 3;
     static int dbg = -1; if (dbg < 0) dbg = getenv("RS_GL_DEBUG") != 0;
     if (dbg) { unsigned e = glGetError(); if (e) fprintf(stderr, "[GL] error 0x%x after batch of %d verts\n", e, bn); }
     bn = 0; }
@@ -808,26 +844,26 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
     surf_t *t = target_for(st); raw_bind(t); st_draws++;
     apply_state(st, P);
     if (!((vt >> 23) & 1)) {
-        glUniform4fv(P->mvp, 4, h->mvp); glUniform4fv(P->wvz, 1, h->wvz); glUniform4fv(P->wld, 3, h->wld);
-        glUniform4fv(P->vp0, 1, h->vp0); glUniform4fv(P->vp1, 1, h->vp1); glUniform4fv(P->vp2, 1, h->vp2); glUniform4fv(P->fogp, 1, h->fogp);
-        if (h->skin) glUniform4fv(P->b, 24, h->bone);
-        if (h->lit) { glUniform4fv(P->lfl, 1, h->lfl); glUniform4fv(P->mamb, 1, h->mamb); glUniform4fv(P->mdif, 1, h->mdif); glUniform4fv(P->memi, 1, h->memi); glUniform4fv(P->msca, 1, h->msca);
-            glUniform4fv(P->lpos, 4, h->lpos); glUniform4fv(P->latt, 4, h->latt); glUniform4fv(P->lspot, 4, h->lspot); glUniform4fv(P->la, 4, h->la); glUniform4fv(P->ld, 4, h->ld); } }
-    glUniform4fv(P->uvt, 1, h->uvt);
-    if (P->defc != -1) glUniform4fv(P->defc, 1, nv->defc);
+        u_set(P, U_MVP, P->mvp, 4, h->mvp); u_set(P, U_WVZ, P->wvz, 1, h->wvz); u_set(P, U_WLD, P->wld, 3, h->wld);
+        u_set(P, U_VP0, P->vp0, 1, h->vp0); u_set(P, U_VP1, P->vp1, 1, h->vp1); u_set(P, U_VP2, P->vp2, 1, h->vp2); u_set(P, U_FOGP, P->fogp, 1, h->fogp);
+        if (h->skin) u_set(P, U_B, P->b, 24, h->bone);
+        if (h->lit) { u_set(P, U_LFL, P->lfl, 1, h->lfl); u_set(P, U_MAMB, P->mamb, 1, h->mamb); u_set(P, U_MDIF, P->mdif, 1, h->mdif); u_set(P, U_MEMI, P->memi, 1, h->memi); u_set(P, U_MSCA, P->msca, 1, h->msca);
+            u_set(P, U_LPOS, P->lpos, 4, h->lpos); u_set(P, U_LATT, P->latt, 4, h->latt); u_set(P, U_LSPOT, P->lspot, 4, h->lspot); u_set(P, U_LA, P->la, 4, h->la); u_set(P, U_LD, P->ld, 4, h->ld); } }
+    u_set(P, U_UVT, P->uvt, 1, h->uvt);
+    u_set(P, U_DEFC, P->defc, 1, nv->defc);
     /* attributes straight from the game's vertex buffer */
     int tf = vt & 3, cf = (vt >> 2) & 7, nf = (vt >> 5) & 3, pf = (vt >> 7) & 3, wf = (vt >> 9) & 3, nw = ((vt >> 14) & 7) + 1, thr = (vt >> 23) & 1;
     static const unsigned sty[4] = {GL_FLOAT, 0x1400 /*GL_BYTE*/, 0x1402 /*GL_SHORT*/, GL_FLOAT}, uty[4] = {GL_FLOAT, GL_UNSIGNED_BYTE, 0x1403 /*GL_UNSIGNED_SHORT*/, GL_FLOAT};
     static const int fs[4] = {0, 1, 2, 4};
     const u8 *base = nv->vdata + (size_t)lo * (size_t)nv->vsz; int stride = nv->vsz;
-    for (int a = 0; a < 7; a++) glDisableVertexAttribArray(a);
-    glBindBuffer(GL_ARRAY_BUFFER, 0); glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    glEnableVertexAttribArray(0); glVertexAttribPointer(0, 3, sty[pf], 0, stride, base + nv->off[4]);
-    if (nf && !thr && nv->off[3] >= 0) { glEnableVertexAttribArray(1); glVertexAttribPointer(1, 3, sty[nf], 0, stride, base + nv->off[3]); }
-    if (tf && nv->off[1] >= 0) { glEnableVertexAttribArray(2); glVertexAttribPointer(2, 2, uty[tf], 0, stride, base + nv->off[1]); }
-    if (cf && nv->off[2] >= 0) { glEnableVertexAttribArray(3); if (cf == 7) glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, 1, stride, base + nv->off[2]); else glVertexAttribPointer(3, 1, 0x1403, 0, stride, base + nv->off[2]); }
-    if (wf && !thr && nv->off[0] >= 0) { glEnableVertexAttribArray(4); glVertexAttribPointer(4, nw > 4 ? 4 : nw, uty[wf], 0, stride, base + nv->off[0]);
-        if (nw > 4) { glEnableVertexAttribArray(5); glVertexAttribPointer(5, nw - 4, uty[wf], 0, stride, base + nv->off[0] + 4 * fs[wf]); } }
+    int am = 1 | ((nf && !thr && nv->off[3] >= 0) ? 2 : 0) | ((tf && nv->off[1] >= 0) ? 4 : 0) | ((cf && nv->off[2] >= 0) ? 8 : 0) | ((wf && !thr && nv->off[0] >= 0) ? (nw > 4 ? 0x30 : 0x10) : 0);
+    gs_attribs(am);
+    glVertexAttribPointer(0, 3, sty[pf], 0, stride, base + nv->off[4]);
+    if (nf && !thr && nv->off[3] >= 0) { glVertexAttribPointer(1, 3, sty[nf], 0, stride, base + nv->off[3]); }
+    if (tf && nv->off[1] >= 0) { glVertexAttribPointer(2, 2, uty[tf], 0, stride, base + nv->off[1]); }
+    if (cf && nv->off[2] >= 0) { if (cf == 7) glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, 1, stride, base + nv->off[2]); else glVertexAttribPointer(3, 1, 0x1403, 0, stride, base + nv->off[2]); }
+    if (wf && !thr && nv->off[0] >= 0) { glVertexAttribPointer(4, nw > 4 ? 4 : nw, uty[wf], 0, stride, base + nv->off[0]);
+        if (nw > 4) { glVertexAttribPointer(5, nw - 4, uty[wf], 0, stride, base + nv->off[0] + 4 * fs[wf]); } }
     unsigned mode = nv->ptype == 3 ? GL_TRIANGLES : (nv->ptype == 4 ? GL_TRIANGLE_STRIP : 0x0006 /*GL_TRIANGLE_FAN*/);
     if (nv->ptype == 3) n -= n % 3;
     u64 t_d = rs_perf_us();
@@ -835,7 +871,6 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
     rs_perf.draw_us += rs_perf_us() - t_d; rs_perf.batches++; st_batches++; st_tris += (unsigned)(nv->ptype == 3 ? n / 3 : n - 2);
     static int dbg = -1; if (dbg < 0) dbg = getenv("RS_GL_DEBUG") != 0;
     if (dbg) { unsigned e = glGetError(); if (e) fprintf(stderr, "[GL] error 0x%x after native draw (vertex type %06x, %d vertices)\n", e, vt, n); }
-    for (int a = 0; a < 7; a++) glDisableVertexAttribArray(a);
     return 1; }
 
 
@@ -854,7 +889,7 @@ void gfx_draw(const gfx_state_t *st, const gfx_vtx_t *v, int n){
     memcpy(&bv[bn], v, sizeof(gfx_vtx_t) * (size_t)n); bn += n; }
 
 void gfx_clear(const gfx_state_t *st, int x0, int y0, int x1, int y1, const float rgba[4], float depth, int cc, int ca, int cz){
-    flush_batch(); surf_t *t = target_for(st); raw_bind(t); st_clears++;
+    flush_batch(); gs_reset(); surf_t *t = target_for(st); raw_bind(t); st_clears++;
     { static int lg = -1, n; if (lg < 0) lg = getenv("RS_FB_LOG") != 0; if (lg && n++ < 20) fprintf(stderr, "[FB] clear %08x rect %d,%d-%d,%d colour=%d alpha/stencil=%d depth=%d z=%.4f rgba=%.2f,%.2f,%.2f,%.2f\n", st->fbaddr, x0, y0, x1, y1, cc, ca, cz, depth, rgba[0], rgba[1], rgba[2], rgba[3]); }
     if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0; if (x1 > SZ - 1) x1 = SZ - 1; if (y1 > SZ - 1) y1 = SZ - 1;
     int sx1 = st->sx1 > x0 ? st->sx1 : x0, sy1 = st->sy1 > y0 ? st->sy1 : y0, sx2 = st->sx2 < x1 ? st->sx2 : x1, sy2 = st->sy2 < y1 ? st->sy2 : y1;
@@ -875,7 +910,7 @@ void gfx_clear(const gfx_state_t *st, int x0, int y0, int x1, int y1, const floa
 /* ------------------------------------------------------------------ transfers (sceGuCopyImage) */
 void gfx_transfer(u32 src, int sbw, int sx, int sy, u32 dst, int dbw, int dx, int dy, int w, int h, int bpp){
     (void)sbw;
-    flush_batch();
+    flush_batch(); gs_reset();
     int ys = 0, yd = 0, xs = 0, xd = 0; surf_t *ss = surf_for_addr(src, &ys, &xs), *ds = surf_for_addr(dst, &yd, &xd);
     { static int lg = -1, n; if (lg < 0) lg = getenv("RS_FB_LOG") != 0; if (lg && n++ < 60) fprintf(stderr, "[FB] transfer %08x(%d,%d bw%d) -> %08x(%d,%d bw%d) %dx%d bpp%d  src_surf=%d dst_surf=%d\n", src, sx, sy, sbw, dst, dx, dy, dbw, w, h, bpp, ss != 0, ds != 0); }
     if (w <= 0 || h <= 0 || w > SZ || h > SZ) return;
@@ -920,7 +955,7 @@ u32 *gfx_read_display_full(int *w, int *h){
     raw_bind(s); glPixelStorei(0x0D05, 4); glReadPixels(0, 0, *w, *h, GL_RGBA, GL_UNSIGNED_BYTE, b); return b; }
 
 static void present_to(unsigned fbo, int ww, int wh){
-    flush_batch(); if (ww <= 0 || wh <= 0) return;
+    flush_batch(); gs_reset(); if (ww <= 0 || wh <= 0) return;
     surf_t *s = disp_surface(); unsigned tex = 0;
     if (s) tex = s->tex;
     else if (disp_addr) {
@@ -941,7 +976,7 @@ static void present_to(unsigned fbo, int ww, int wh){
         glUseProgram(prog_fxaa); glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, tex); glUniform1i(u_ftex, 0);
         glUniform4f(u_ftexel, 1.0f / PX, 1.0f / PXH, (480.0f * RS_S - 0.5f) / PX, (272.0f * RS_S - 0.5f) / PXH);
     } else { glUseProgram(prog_pres); glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, tex); glUniform1i(u_ptex, 0); }
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    tp_forget(tex); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glDisableVertexAttribArray(2); glDisableVertexAttribArray(3); glDisableVertexAttribArray(4); glDisableVertexAttribArray(5); glEnableVertexAttribArray(0); glEnableVertexAttribArray(1);
     glVertexAttribPointer(0, 2, GL_FLOAT, 0, 16, &q[0]); glVertexAttribPointer(1, 2, GL_FLOAT, 0, 16, &q[2]);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); }
@@ -965,7 +1000,7 @@ static void norm3(float *v){ float l = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * 
 static void shadow_pass(void){
     if (!sh_on || !sh_fbo) { shr_n = shv_n = 0; return; }
     if (!sh_cam_ok || !shr_n) { sh_valid = 0; shr_n = shv_n = 0; return; }
-    flush_batch();
+    flush_batch(); gs_reset();
     /* Every 3D draw's world*view lands in the camera ("view") space, so the shadow map is built there.  The real world orientation (for a
      * fixed sun and texel snapping) comes from the frame's GE view matrix; without one the sun simply stays fixed relative to the camera. */
     static const float I12[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}; const float *V = sh_view_ok ? sh_view : I12;
@@ -1094,7 +1129,7 @@ void gfx_hud(const char *const *lines, int n, int ww, int wh){
     int need = 6 * 2 * (maxw * 35 * n + 1); if (need > cap) { cap = need; v = realloc(v, sizeof(float) * (size_t)cap); if (!v) { cap = 0; return; } }
 #define HQ(x0, y0, x1, y1) do { float a = (x0) * 2.0f / ww - 1, b = 1 - (y0) * 2.0f / wh, c = (x1) * 2.0f / ww - 1, d = 1 - (y1) * 2.0f / wh; \
         float q[12] = {a, b, c, b, a, d, c, b, c, d, a, d}; memcpy(v + nv * 2, q, sizeof q); nv += 6; } while (0)
-    flush_batch(); glBindFramebuffer(GL_FRAMEBUFFER, 0); cur_target = 0; glViewport(0, 0, ww, wh);
+    flush_batch(); gs_reset(); glBindFramebuffer(GL_FRAMEBUFFER, 0); cur_target = 0; glViewport(0, 0, ww, wh);
     scissor_off(); glDisable(GL_DEPTH_TEST); glDepthMask(0); glDisable(GL_STENCIL_TEST); glDisable(GL_CULL_FACE); glColorMask(1, 1, 1, 1);
     glUseProgram(prog_fill); for (int a = 1; a < 7; a++) glDisableVertexAttribArray(a); glEnableVertexAttribArray(0);
     HQ(X0 - 4, Y0 - 4, X0 + maxw * CW + 2, Y0 + n * LH + 2);

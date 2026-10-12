@@ -45,7 +45,7 @@ add_executable(swbfrs ${GAME_SRC} "${RS_DATA_C}" ${COMMON_SRC} "${GLUE_C}" ${VIT
 target_include_directories(swbfrs PRIVATE "${ROOT}/src/game" "${ROOT}/platform/common" "${ROOT}/platform/linux_test" "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/platform/common/ext/at3")
 # RS_TLS_STRUCT: the Vita's thread-local storage is emulated (a call per access); the game's per-thread state is one block instead
 target_compile_definitions(swbfrs PRIVATE RS_TLS_STRUCT HOST_BUILD _GNU_SOURCE)
-target_compile_options(swbfrs PRIVATE -fsigned-char -fno-strict-aliasing -ffp-contract=off -w)
+target_compile_options(swbfrs PRIVATE -fsigned-char -fno-strict-aliasing -ffp-contract=off -fno-math-errno -w)   # no-math-errno: sqrtf stays one instruction
 set_source_files_properties(${GAME_SRC} "${RS_DATA_C}" PROPERTIES COMPILE_OPTIONS "${RS_GAME_OPT}")
 set_source_files_properties(${COMMON_SRC} "${GLUE_C}" ${VITA_SRC} PROPERTIES COMPILE_OPTIONS "-O2")
 set_source_files_properties(${AT3_SRC} PROPERTIES COMPILE_OPTIONS "-O2;-ffast-math")

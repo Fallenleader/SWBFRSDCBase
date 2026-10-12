@@ -32,6 +32,18 @@
 
 static pthread_mutex_t big = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t gcv = PTHREAD_COND_INITIALIZER;
+/* Per-thread guest state (FPU control word, vector registers, $k0) with RS_TLS_STRUCT: guest code reaches it through the global
+ * rs_tls_cur instead of thread-local storage (emulated on the Vita: a library call per access, ~5000 per frame in battles).  Only one
+ * guest thread runs at a time - the one holding the big lock - so every acquisition of the big lock points rs_tls_cur at the
+ * acquiring thread's own block. */
+#ifdef RS_TLS_STRUCT
+rs_tls_t *rs_tls_cur;
+#define TLS_RESUME() (rs_tls_cur = rs_tls())
+#else
+#define TLS_RESUME() ((void)0)
+#endif
+static inline void big_lock(void){ pthread_mutex_lock(&big); TLS_RESUME(); }
+static inline void big_wait(pthread_cond_t *cv){ pthread_cond_wait(cv, &big); TLS_RESUME(); }
 static char g_root[1024] = ".";
 u32 hle_heap_lo, hle_heap_hi;
 volatile int g_ge_lists, g_alive_threads;
@@ -49,10 +61,10 @@ static u64 now_us(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); 
     if (!on) { if (g_frames >= from) { on = 1; base_game = real; base_real = real; } else return real; }
     return base_game + (u64)((double)(real - base_real) * scale); }
 #include "gfx.h"
-static void unlocked_sleep(unsigned us){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); usleep(us); pthread_mutex_lock(&big); rs_perf.sleeps++; rs_perf.sleep_us += rs_perf_us() - t; }
-static void yield_big(void){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); sched_yield(); pthread_mutex_lock(&big); rs_perf.yields++; rs_perf.yield_us += rs_perf_us() - t; }
+static void unlocked_sleep(unsigned us){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); usleep(us); big_lock(); rs_perf.sleeps++; rs_perf.sleep_us += rs_perf_us() - t; }
+static void yield_big(void){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); sched_yield(); big_lock(); rs_perf.yields++; rs_perf.yield_us += rs_perf_us() - t; }
 void rs_big_unlock(void){ pthread_mutex_unlock(&big); }
-void rs_big_lock(void){ pthread_mutex_lock(&big); }
+void rs_big_lock(void){ big_lock(); }
 /* profiler report, every 600 vblanks.  Weak: the Vita frontend replaces rs_perf_write with a file on the memory card. */
 __attribute__((weak)) void rs_perf_mem(char *b, int n){ (void)b; (void)n; }
 void rs_perf_extra(char *b, int n){ extern void gfx_cache_stats(char *, int); char m[200] = "", g[200] = ""; rs_perf_mem(m, sizeof m); gfx_cache_stats(g, sizeof g);
@@ -138,7 +150,7 @@ static void h_CreateThread(sdkcall_t *c){
     t->blk = heap_alloc(t->stacksize, 1, 256); blk_t *b = blk_find(t->blk); t->stack = b ? b->addr : 0; threads[nthreads++] = t; V0 = t->uid;
     fprintf(stderr, "[HLE] CreateThread '%s' entry=%08x prio=%d stack=%x\n", t->name, t->entry, t->prio, t->stacksize); }
 static void *thread_main(void *p){
-    kthread_t *t = p; pthread_once(&key_once, mk_keys); pthread_setspecific(k_cur, t); pthread_mutex_lock(&big); sdkcall_t *c = &t->cpu; memset(c, 0, sizeof *c); c->thread = t; { extern void rs_thread_init(void); rs_thread_init(); }
+    kthread_t *t = p; pthread_once(&key_once, mk_keys); pthread_setspecific(k_cur, t); big_lock(); sdkcall_t *c = &t->cpu; memset(c, 0, sizeof *c); c->thread = t; { extern void rs_thread_init(void); rs_thread_init(); }
     u32 sp = t->stack + t->stacksize - 64; if (t->argc) { sp -= (t->argc + 15) & ~15u; memcpy(g_mem + GADDR(sp), t->argbuf, t->argc); c->r[5] = sp; }
     fprintf(stderr, "[HLE] thread '%s' start: arglen=%u argp=%08x sp=%08x\n", t->name, t->argc, t->argp, sp);
     c->r[4] = t->argc; c->r[29] = sp; c->r[28] = 0; c->r[31] = 0;
@@ -152,7 +164,7 @@ static void h_StartThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t || 
     pthread_create(&t->th, &at, thread_main, t); V0 = 0; }
 static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; g_alive_threads--; pthread_cond_broadcast(&gcv); pthread_mutex_unlock(&big); pthread_exit(0); } }
 static void h_DeleteThread(sdkcall_t *c){ V0 = 0; }
-static void h_WaitThreadEnd(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t) { V0 = 0x800201A5u; return; } while (!t->exited) pthread_cond_wait(&gcv, &big); V0 = t->status; }
+static void h_WaitThreadEnd(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t) { V0 = 0x800201A5u; return; } while (!t->exited) big_wait(&gcv); V0 = t->status; }
 static void h_Delay(sdkcall_t *c){ unsigned us = A0; if (us == 1000000) fprintf(stderr, "[DBG] 1s poll: s0(r16)=%08x ra=%08x\n", c->r[16], c->r[31]); if (us < 500) { yield_big(); } else unlocked_sleep(us > 200000 ? 200000 : us); V0 = 0; }
 static void h_GetThreadId(sdkcall_t *c){ V0 = cur_thread ? cur_thread->uid : 0x1; }
 static void h_GetThreadPrio(sdkcall_t *c){ V0 = cur_thread ? cur_thread->prio : 32; }
@@ -179,7 +191,7 @@ void perf_sema_report(char *b, int n, double fr){ int o = 0;
         s->wait_us = 0; s->waits = 0; if (o > n - 120) break; }
     for (int i = 0; i < nsema; i++) semas[i].wait_us = semas[i].waits = 0; }
 static void h_SignalSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } if (s->owner && s->max == 1) { kthread_t *o = s->owner; o->hold_us += rs_perf_us() - s->t_acq; o->holds++; s->owner = 0; } s->count += A1; s->sig_th = cur_thread; s->sig_prev = cur_thread ? cur_thread->prev : 0; pthread_cond_broadcast(&gcv); V0 = 0; }
-static void h_WaitSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } u64 t = rs_perf_us(); while (s->count < (int)A1) pthread_cond_wait(&gcv, &big); s->count -= A1; s->wait_us += rs_perf_us() - t; s->waits++; s->owner = cur_thread; s->t_acq = rs_perf_us(); V0 = 0; }
+static void h_WaitSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } u64 t = rs_perf_us(); while (s->count < (int)A1) big_wait(&gcv); s->count -= A1; s->wait_us += rs_perf_us() - t; s->waits++; s->owner = cur_thread; s->t_acq = rs_perf_us(); V0 = 0; }
 static void h_PollSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } if (s->count >= (int)A1) { s->count -= A1; s->owner = cur_thread; s->t_acq = rs_perf_us(); V0 = 0; } else V0 = ERR_SEMA_ZERO; yield_big(); }
 
 /* event flags */
@@ -194,7 +206,7 @@ static void h_WaitEvf(sdkcall_t *c){ evf_t *e = evf_find(A0); u32 bits = A1, mod
     if (evlog++ < 80) fprintf(stderr, "[EVF] WAIT  uid=%x bits=%x mode=%x pat=%x by '%s' ra=%08x\n", A0, bits, mode, e->pat, cur_thread ? cur_thread->name : "?", c->r[31]);
     for (;;) { int ok = (mode & 1) ? ((e->pat & bits) != 0) : ((e->pat & bits) == bits);
         if (ok) { if (A3) SW(A3, e->pat); if (mode & 0x10) e->pat = 0; if (mode & 0x20) e->pat &= ~bits; V0 = 0; return; }
-        pthread_cond_wait(&gcv, &big); } }
+        big_wait(&gcv); } }
 
 
 /* fixed-length pools (the game builds its main heap from one big FPL block) */
@@ -305,7 +317,7 @@ HS(ha_SetDataAndGetID) HS(ha_DecodeData) HS(ha_GetSoundSample) HS(ha_GetStreamDa
  * for the audio thread's mixing whenever it makes a system call. */
 static pthread_mutex_t snd_mx = PTHREAD_MUTEX_INITIALIZER;
 #define HSW(n) static void w_##n(sdkcall_t *c){ pthread_mutex_lock(&snd_mx); n(c); pthread_mutex_unlock(&snd_mx); }
-#define HSH(n) static void w_##n(sdkcall_t *c){ pthread_mutex_unlock(&big); pthread_mutex_lock(&snd_mx); n(c); pthread_mutex_unlock(&snd_mx); pthread_mutex_lock(&big); }
+#define HSH(n) static void w_##n(sdkcall_t *c){ pthread_mutex_unlock(&big); pthread_mutex_lock(&snd_mx); n(c); pthread_mutex_unlock(&snd_mx); big_lock(); }
 HSW(hs_SasInit) HSH(hs_SasCore) HSH(hs_SasCoreWithMix) HSW(hs_SasGetEndFlag) HSW(hs_SasSetVoice) HSW(hs_SasSetVolume) HSW(hs_SasSetPitch) HSW(hs_SasSetKeyOn) HSW(hs_SasSetKeyOff)
 HSW(hs_SasSetNoise) HSW(hs_SasSetSL) HSW(hs_SasSetADSR) HSW(hs_SasSetADSRmode) HSW(hs_SasSetSimpleADSR) HSW(hs_SasGetEnvelopeHeight) HSW(hs_SasGetPauseFlag) HSW(hs_SasSetPause)
 HSW(hs_SasGetGrain) HSW(hs_SasSetGrain) HSW(hs_SasGetOutputmode) HSW(hs_SasSetOutputmode)
@@ -443,14 +455,14 @@ void rs_ge_signal_finish(int id){ pthread_mutex_lock(&gi_m); if (gi_h - gi_t < 2
 static void *ge_intr_thread(void *u){ (void)u;
     pthread_once(&key_once, mk_keys); static sdkcall_t ctx; pthread_setspecific(k_cpu, &ctx); { extern void rs_thread_init(void); rs_thread_init(); }
     for (;;) { pthread_mutex_lock(&gi_m); while (gi_h == gi_t) pthread_cond_wait(&gi_c, &gi_m); int id = gi_q[gi_t % 256]; gi_running = 1; pthread_mutex_unlock(&gi_m);
-        pthread_mutex_lock(&big); rs_ge_finish_hook(id); pthread_cond_broadcast(&gcv); pthread_mutex_unlock(&big);
+        big_lock(); rs_ge_finish_hook(id); pthread_cond_broadcast(&gcv); pthread_mutex_unlock(&big);
         pthread_mutex_lock(&gi_m); gi_t++; gi_running = 0; pthread_cond_broadcast(&gi_c); pthread_mutex_unlock(&gi_m); } return 0; }
 static void ge_intr_start(void){ pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32); rs_thread_attr(&at, 0x10000); } pthread_t t; pthread_create(&t, &at, ge_intr_thread, 0); }
 int rs_ge_busy(void); void rs_ge_wait_idle(void);
 static void ge_sync(sdkcall_t *c){
     if (A0 == 1) { V0 = rs_ge_busy() ? 2 : 0; return; }                      /* peek: 2 = drawing */
     rs_ge_wait_idle();                                                        /* every queued list executed ... */
-    pthread_mutex_unlock(&big); pthread_mutex_lock(&gi_m); while (gi_h != gi_t || gi_running) pthread_cond_wait(&gi_c, &gi_m); pthread_mutex_unlock(&gi_m); pthread_mutex_lock(&big);   /* ... and its callback delivered */
+    pthread_mutex_unlock(&big); pthread_mutex_lock(&gi_m); while (gi_h != gi_t || gi_running) pthread_cond_wait(&gi_c, &gi_m); pthread_mutex_unlock(&gi_m); big_lock();   /* ... and its callback delivered */
     V0 = 0; }
 static void h_GeListSync(sdkcall_t *c){ c->r[4] = c->r[5]; ge_sync(c); }       /* (list id, mode) */
 static void h_GeDrawSync(sdkcall_t *c){ ge_sync(c); }                        /* (mode) */
@@ -524,10 +536,10 @@ static const char *hname(int i){ return handlers[i] ? handlers[i]->name : "?"; }
 void hle_init(const char *root, u32 heap_lo, u32 heap_hi){
     if (root) strncpy(g_root, root, sizeof g_root - 1); { extern u8 rs_scratchpad[]; rs_region_add((u32)(uintptr_t)rs_scratchpad, 0x4000); } vol_base = heap_hi - 0x400000u; hle_heap_lo = heap_lo; hle_heap_hi = vol_base; heap_init(); rs_ge_reset(); ge_intr_start(); trace_all = getenv("RS_TRACE") != 0;
     for (int i = 0; i < RC_NSTUBS; i++) for (int k = 0; k < NTBL; k++) if (tbl[k].nid == rc_stubs[i].nid) handlers[i] = &tbl[k];
-    pthread_mutex_lock(&big);
+    big_lock();
 }
 void hle_lock_release_for_main(void){ pthread_mutex_unlock(&big); }
-void hle_wait_all_threads(void){ while (g_alive_threads > 0) pthread_cond_wait(&gcv, &big); }
+void hle_wait_all_threads(void){ while (g_alive_threads > 0) big_wait(&gcv); }
 void rs_ge_summary(void);
 void hle_report(void){ rs_ge_summary();
     { extern void rs_audio_summary(void); rs_audio_summary(); } fprintf(stderr, "\n==== RUN SUMMARY ====\nframes(vblank waits)=%d  GE lists queued=%d  live threads=%d\n", g_frames, g_ge_lists, g_alive_threads);

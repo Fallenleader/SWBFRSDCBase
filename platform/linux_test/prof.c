@@ -1,6 +1,6 @@
 /* RS_PROF=<file>: SIGPROF sampling profiler for the host build (all threads).  Writes "<pc hex>" per sample plus the
- * process memory map; resolve with tools/prof_report.py.  Linux x86-64 only. */
-#if defined(HOST_BUILD) && defined(__linux__) && defined(__x86_64__)
+ * process memory map; resolve with tools/prof_report.py.  Linux x86 (32/64-bit). */
+#if defined(HOST_BUILD) && defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
 #define _GNU_SOURCE
 #include <signal.h>
 #include <sys/time.h>
@@ -10,7 +10,13 @@
 #include <string.h>
 #define NS (1 << 22)
 static unsigned long *smp; static volatile int ns; volatile int rs_prof_on = 1;
-static void on_prof(int sig, siginfo_t *si, void *uc){ (void)sig; (void)si; if (!rs_prof_on) return; int i = __sync_fetch_and_add(&ns, 1); if (i < NS) smp[i] = (unsigned long)((ucontext_t *)uc)->uc_mcontext.gregs[REG_RIP]; }
+static void on_prof(int sig, siginfo_t *si, void *uc){ (void)sig; (void)si; if (!rs_prof_on) return; int i = __sync_fetch_and_add(&ns, 1); if (i < NS) smp[i] = (unsigned long)((ucontext_t *)uc)->uc_mcontext.gregs[
+#ifdef __x86_64__
+REG_RIP
+#else
+REG_EIP
+#endif
+]; }
 static const char *outp;
 static void dump(void){
     FILE *f = fopen(outp, "w"); if (!f) return; int n = ns < NS ? ns : NS;

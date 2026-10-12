@@ -46,13 +46,22 @@ static inline u32 BITREV(u32 x){ u32 r = 0; for (int i = 0; i < 32; i++) { r = (
 static inline float SAT0(float f){ return f < 0 ? 0 : (f > 1 ? 1 : f); }
 static inline float SAT1(float f){ return f < -1 ? -1 : (f > 1 ? 1 : f); }
 /* float -> int with the four rounding modes (0 nearest, 1 truncate, 2 ceil, 3 floor), saturating as the FPU does */
+/* float -> int as the PSP FPU does it (round.w / trunc.w / ceil.w / floor.w / cvt.w with the FCR31 mode): out-of-range values and NaN
+ * saturate to 0x7FFFFFFF / 0x80000000.  Done with the CPU's own truncating conversion and a correction step - no library rounding calls
+ * (on the Vita's VFPv3 those are out-of-line software routines). */
 static inline u32 F2I(float f, int mode){
-    if (isnan(f)) return 0x7FFFFFFFu;
-    double d = f;
-    switch (mode) { case 0: d = nearbyint(d); break; case 1: d = trunc(d); break; case 2: d = ceil(d); break; default: d = floor(d); }
-    if (d >= 2147483648.0) return 0x7FFFFFFFu;
-    if (d < -2147483648.0) return 0x80000000u;
-    return (u32)(s32)d; }
+    if (!(f == f) || f >= 2147483648.0f) return 0x7FFFFFFFu;
+    if (f < -2147483648.0f) return 0x80000000u;
+    s32 i = (s32)f;                                   /* truncation; exact range checked above */
+    float r = f - (float)i;                           /* exact: f and i are within 1 of each other (or f is integral) */
+    switch (mode) {
+    case 1: break;                                    /* toward zero */
+    case 2: if (r > 0.0f) i++; break;                 /* up */
+    case 3: if (r < 0.0f) i--; break;                 /* down */
+    default:                                          /* nearest, ties to even */
+        if (r > 0.5f || (r == 0.5f && (i & 1))) i++;
+        else if (r < -0.5f || (r == -0.5f && (i & 1))) i--; }
+    return (u32)i; }
 static inline int FCMP(float a, float b, int cond){
     int un = isnan(a) || isnan(b);
     switch (cond & 7) {
@@ -70,14 +79,14 @@ extern __thread u32 vfpu_cc;
 extern __thread u32 psp_k0;
 #else
 /* Targets whose thread-local storage is emulated (a library call per access, e.g. the PS Vita) define RS_TLS_STRUCT: the
- * per-thread state is one block, and rs_tls() returns the calling thread's block.  rs_tls() is declared const, so the
- * compiler calls it once per function and keeps the pointer in a register. */
+ * per-thread state is one block per thread, and rs_tls_cur points at the block of the guest thread that is running (the platform
+ * layer runs one guest thread at a time and re-points rs_tls_cur whenever a thread takes over), so an access is a plain load. */
 typedef struct { u32 fpu_csr; u32 vfpu_cc; u32 psp_k0; u32 pad; float vfpu_v[128]; } rs_tls_t;
-rs_tls_t *rs_tls(void) __attribute__((const));
-#define fpu_csr (rs_tls()->fpu_csr)
-#define vfpu_v  (rs_tls()->vfpu_v)
-#define vfpu_cc (rs_tls()->vfpu_cc)
-#define psp_k0  (rs_tls()->psp_k0)
+extern rs_tls_t *rs_tls_cur;
+#define fpu_csr (rs_tls_cur->fpu_csr)
+#define vfpu_v  (rs_tls_cur->vfpu_v)
+#define vfpu_cc (rs_tls_cur->vfpu_cc)
+#define psp_k0  (rs_tls_cur->psp_k0)
 #endif
 
 /* runtime-sized stack allocation (the game's alloca) */
