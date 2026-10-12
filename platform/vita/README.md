@@ -10,8 +10,10 @@ instead (`gfx_vgl.c` + `platform/linux_test/gfx_gl.c`).
 * HENkaku/Enso (the app is an unsafe homebrew: it loads the system Cg compiler).
 * `ur0:data/libshacccg.suprx`: the system shader compiler, extracted with **ShaRKF00D**. The shaders are compiled from Cg
   source when the app starts.
-* The game files: extract **your** UMD image so that `ux0:data/RS/disc/PSP_GAME/` exists (`PSP_GAME/SYSDIR`,
-  `PSP_GAME/USRDIR`, ...). No game data is part of this repository or of the VPK.
+* The game files, from **your** UMD, either way (no game data is part of this repository or of the VPK):
+  * the image itself as `ux0:data/SWBFRS/game.iso` (ISO 9660, as UMD images are dumped), or
+  * the image's contents extracted to `ux0:data/SWBFRS/GAME/` (so that `ux0:data/SWBFRS/GAME/PSP_GAME/SYSDIR` exists).
+  The extracted folder is used when it is present; otherwise the ISO.
 
 ## Building
 
@@ -33,7 +35,7 @@ Without a local VitaSDK, the official Docker image works too (`make vita DOCKER=
 
 The two VPKs have different title IDs (`SWBR00001` GXM, `SWBR00002` vitaGL), so both can be installed at once.
 
-## Settings: `ux0:data/RS/settings.txt`
+## Settings: `ux0:data/SWBFRS/settings.txt`
 
 `KEY=VALUE` lines, all optional:
 
@@ -48,8 +50,9 @@ The two VPKs have different title IDs (`SWBR00001` GXM, `SWBR00002` vitaGL), so 
 | `RS_CULL_FLIP` | 0 | 1 = swap the back-face culling direction (if models show their inside, report it) |
 | `RS_TEXTURE_POOL_MB` | 32 | GPU memory for textures |
 | `RS_VERTEX_RING_MB` | 16 | GPU memory for vertices in flight |
-| `RS_LOG_MB` | 4 | size limit of `ux0:data/RS/log.txt` |
-| `RS_PERF_LOG` | 0 | 1 = profiler lines every 600 frames to `ux0:data/RS/perf.log` |
+| `RS_LOG_MB` | 4 | size limit of `ux0:data/SWBFRS/log.txt` |
+| `RS_PERF_LOG` | 0 | 1 = profiler lines every 600 frames to `ux0:data/SWBFRS/perf.log` |
+| `RS_GE_ASYNC` | 1 | GPU command lists run while the game goes on (as on the PSP); 0 = the game waits for each list |
 
 ## Controls
 
@@ -69,4 +72,4 @@ which places everything above 0x80000000 as on the Vita.
 * **Builds:** the GXM and vitaGL VPKs build with VitaSDK (GCC 15.2). See the top-level README for the build check.
 * **Not yet run on hardware.** The decompiled game, the SDK layer and the GE interpreter are the same code that runs on the
   Linux validation build (`make linux_test`, also with `LAYOUT=high`), but the GXM renderer and the Vita frontend have
-  only been compiled. The log `ux0:data/RS/log.txt` records start-up and errors.
+  only been compiled. The log `ux0:data/SWBFRS/log.txt` records start-up and errors.

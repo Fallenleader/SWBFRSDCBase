@@ -220,9 +220,10 @@ void *rs_at3_alloc(int ch, int ba, const u8 *extra, int extra_size); int rs_at3_
 
 typedef struct { char path[600]; u32 size; u8 head[512]; int n; } at3file_t;
 static at3file_t files[16]; static int nfile;
+#include "vfs.h"
 void rs_atrac_note_file(const char *host_path){
     size_t l = strlen(host_path); if (l < 4 || strcasecmp(host_path + l - 4, ".at3")) return;
-    FILE *f = fopen(host_path, "rb"); if (!f) return;
+    FILE *f = vfs_fopen(host_path, "rb"); if (!f) return;
     at3file_t *e = &files[nfile++ % 16]; memset(e, 0, sizeof *e); strncpy(e->path, host_path, sizeof e->path - 1);
     e->n = (int)fread(e->head, 1, sizeof e->head, f); fseek(f, 0, SEEK_END); e->size = (u32)ftell(f); fclose(f); }
 
@@ -259,7 +260,7 @@ void ha_SetDataAndGetID(sdkcall_t *c){
     int cmp = size < 512 ? (int)size : 512; const char *match = 0;
     for (int k = 0; k < 16 && !match; k++) { at3file_t *e = &files[(nfile - 1 - k + 64) % 16]; if (!e->path[0]) continue;
         if (e->size == riff_total && e->n >= cmp && !memcmp(e->head, b, (size_t)cmp)) match = e->path; }
-    if (match) a->f = fopen(match, "rb");
+    if (match) a->f = vfs_fopen(match, "rb");
     if (!a->f) { if (size >= a->data_off + a->data_len) { a->mem = malloc(size); if (a->mem) memcpy(a->mem, b, size); }   /* whole file in the buffer */
         else fprintf(stderr, "[ATRAC] id %d: no source file found for a streamed buffer (%u of %u bytes) - silent\n", id, size, riff_total); }
     a->nframes = a->data_len / (u32)a->ba; if (!a->total) a->total = a->nframes * (a->codec ? 2048u : 1024u);

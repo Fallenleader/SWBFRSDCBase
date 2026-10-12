@@ -438,23 +438,44 @@ static void cap_hook(int op, int rid, u32 list, u32 stall){
         cap_state = 2; fprintf(stderr, "[CAP] saved %d GE events to %s (+ live.ppm = the live draw buffer)\n", cap_n, cap_dir); return; }
     if (cap_state == 1 && cap_n < 8192) cap_ev[cap_n++] = (cap_ev_t){op, rid, list, stall}; }
 
-/* ---- entry points: called on guest threads, executed on the GL thread ---- */
+/* ---- entry points: called on guest threads, executed on the GL thread ----
+ * Asynchronous like the PSP's GPU (RS_GE_ASYNC=1, the default): the game queues a list and goes on; sceGeListSync / sceGeDrawSync
+ * wait for the queue, and a list's finish callback runs on hle.c's GE interrupt thread when the list completes.  RS_GE_ASYNC=0: the
+ * guest thread waits for every list (the validated behaviour of the first builds). */
 typedef struct { int op; int id; u32 list, stall; int fin; u32 *out; int ret; } ge_job_t;
+extern int rs_bench_active;
+static volatile unsigned ge_posted, ge_done;                    /* asynchronous list jobs queued / executed */
+void rs_ge_signal_finish(int id);                               /* hle.c: deliver a finish callback (GE interrupt thread) */
+static int ge_async(void){ static int a = -1; if (a < 0) { extern int rs_setting_int(const char *, int); a = rs_setting_int("RS_GE_ASYNC", 1); } return a && !rs_bench_active && cap_state != 1; }
 static void ge_job(void *p){
     ge_job_t *j = p;
     switch (j->op) {
-    case 0: { int id = -1; for (int i = 0; i < 64; i++) if (!lists[i].used || lists[i].done) { id = i; break; } if (id < 0) id = 0;
+    case 0: { int id = j->id;
+        if (id < 0) { id = -1; for (int i = 0; i < 64; i++) if (!lists[i].used || lists[i].done) { id = i; break; } if (id < 0) id = 0; }
         lists[id] = (ge_list_t){1, j->list, j->stall, 0, {0}, 0, 0}; g_offset = 0; j->id = id; ge_run(id); j->fin = lists[id].done; } break;
     case 1: { int id = j->id; if (id < 0 || id >= 64 || !lists[id].used) break; int was = lists[id].done; lists[id].stall = j->stall; ge_run(id); j->fin = !was && lists[id].done; } break;
-    case 2: j->ret = gfx_read_display(j->out); break; } }
+    case 2: j->ret = gfx_read_display(j->out); break;
+    case 3: gfx_set_display(j->list, j->stall, (u32)j->ret); rs_gfx_epoch++; gfx_frame_ready(); break; } }
+static void ge_job_async(void *p){ ge_job_t *j = p; ge_job(j); if (j->op <= 1 && j->fin) rs_ge_signal_finish(j->id); __sync_synchronize(); ge_done++; }
 void rs_big_unlock(void); void rs_big_lock(void);     /* hle.c: other guest threads run while the GL thread processes the list (the real GE is asynchronous too) */
 extern int rs_bench_active;
-int rs_ge_enqueue(u32 list, u32 stall){ if (rs_bench_active) { static int bid; int id = (bid++) & 63; rs_ge_finish_hook(id); return id; } ge_job_t j = {0, -1, list, stall, 0, 0, 0}; cap_hook(0, -1, list, stall); rs_big_unlock(); gfx_run(ge_job, &j); rs_big_lock(); if (cap_state == 1 && cap_n > 0 && cap_ev[cap_n - 1].op == 0 && cap_ev[cap_n - 1].list == list) cap_ev[cap_n - 1].rid = j.id; if (j.fin) rs_ge_finish_hook(j.id); return j.id; }
-void rs_ge_update_stall(int id, u32 stall){ if (rs_bench_active) return; cap_hook(1, id, 0, stall); ge_job_t j = {1, id, 0, stall, 0, 0, 0}; rs_big_unlock(); gfx_run(ge_job, &j); rs_big_lock(); if (j.fin) rs_ge_finish_hook(id); }
+int rs_ge_enqueue(u32 list, u32 stall){ if (rs_bench_active) { static int bid; int id = (bid++) & 63; rs_ge_finish_hook(id); return id; }
+    if (ge_async()) { static int next_id; ge_job_t j = {0, next_id, list, stall, 0, 0, 0}; next_id = (next_id + 1) & 63; ge_posted++; gfx_post(ge_job_async, &j, sizeof j); return j.id; }
+    ge_job_t j = {0, -1, list, stall, 0, 0, 0}; cap_hook(0, -1, list, stall); rs_big_unlock(); gfx_run(ge_job, &j); rs_big_lock(); if (cap_state == 1 && cap_n > 0 && cap_ev[cap_n - 1].op == 0 && cap_ev[cap_n - 1].list == list) cap_ev[cap_n - 1].rid = j.id; if (j.fin) rs_ge_finish_hook(j.id); return j.id; }
+void rs_ge_update_stall(int id, u32 stall){ if (rs_bench_active) return;
+    if (ge_async()) { ge_job_t j = {1, id, 0, stall, 0, 0, 0}; ge_posted++; gfx_post(ge_job_async, &j, sizeof j); return; }
+    cap_hook(1, id, 0, stall); ge_job_t j = {1, id, 0, stall, 0, 0, 0}; rs_big_unlock(); gfx_run(ge_job, &j); rs_big_lock(); if (j.fin) rs_ge_finish_hook(id); }
+/* sceGeListSync / sceGeDrawSync: wait (mode 0) or ask (mode 1) whether the queued lists are done */
+static void ge_noop(void *p){ (void)p; }
+int rs_ge_busy(void){ return ge_async() && ge_done != ge_posted; }
+void rs_ge_wait_idle(void){ if (!ge_async()) return; rs_big_unlock(); gfx_run(ge_noop, 0); rs_big_lock(); }
 void rs_ge_reset(void){ memset(R, 0, sizeof R); float I3[12] = {1,0,0,0,1,0,0,0,1,0,0,0}; memcpy(M_world, I3, sizeof I3); memcpy(M_view, I3, sizeof I3); memset(M_proj, 0, sizeof M_proj); }
 
 /* ------------------------------------------------------------- display */
-void rs_display_set(u32 addr, u32 stride, u32 fmt){ gfx_set_display(addr, stride, fmt); rs_gfx_epoch++; }
+/* the display flip goes through the queue too, so the frame is shown after its lists have been drawn */
+void rs_display_set(u32 addr, u32 stride, u32 fmt){
+    if (ge_async()) { ge_job_t j = {3, 0, addr, stride, 0, 0, (int)fmt}; gfx_post(ge_job_async, &j, sizeof j); return; }
+    gfx_set_display(addr, stride, fmt); rs_gfx_epoch++; gfx_frame_ready(); }
 /* current display buffer as 480x272 RGBA8 (bytes R,G,B,A; row 0 = top).  Returns 0 if nothing displayed yet. */
 int rs_display_read(u32 *out){ ge_job_t j = {2, 0, 0, 0, 0, out, 0}; gfx_run(ge_job, &j); return j.ret; }
 

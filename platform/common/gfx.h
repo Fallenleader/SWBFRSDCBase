@@ -53,7 +53,11 @@ void gfx_stats(char *buf, int n);
 /* ---- cross-thread plumbing (any thread) ---- */
 void gfx_thread_register(void);                          /* called by the frontend on the thread that owns the GL context */
 int  gfx_pump(int wait_ms);   /* returns 1 if a job ran */                              /* frontend loop: run a pending job from the guest (waits up to wait_ms) */
-void gfx_run(void (*fn)(void *), void *arg);             /* run fn on the GL thread, blocking until done */
+void gfx_run(void (*fn)(void *), void *arg);             /* run fn on the GL thread after the queued jobs, blocking until done */
+#define GFX_JOB_ARG 64
+void gfx_post(void (*fn)(void *), const void *arg, size_t n);   /* queue fn(copy of arg) for the GL thread and return at once */
+unsigned gfx_frame_seq(void);                            /* number of completed guest frames (gfx_frame_ready calls) */
+void gfx_before_job(void);                               /* back end hook, GL thread: a job is about to run */
 
 /* ---- profiler (runtime/gfx_gl.c; reported every 600 vblanks by hle.c: ux0:data/RS/perf.log on the Vita, stderr with RS_PERF=1 on PC) ---- */
 typedef struct {

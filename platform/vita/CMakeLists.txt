@@ -42,7 +42,7 @@ endif()
 
 file(GLOB GAME_SRC "${ROOT}/src/game/game_*.c")
 file(GLOB AT3_SRC "${ROOT}/platform/common/ext/at3/*.cpp")
-set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/ge.c" "${ROOT}/platform/common/audio.c" "${ROOT}/platform/common/settings.c")
+set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/ge.c" "${ROOT}/platform/common/audio.c" "${ROOT}/platform/common/settings.c" "${ROOT}/platform/common/vfs.c" "${ROOT}/platform/common/gfx_jobs.c")
 set(VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/main.c")
 if(RS_RENDERER STREQUAL "VITAGL")
   list(APPEND VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/gfx_vgl.c" "${ROOT}/platform/linux_test/gfx_gl.c" "${ROOT}/platform/linux_test/texrep.c")
@@ -59,7 +59,7 @@ set_source_files_properties(${GAME_SRC} "${RS_DATA_C}" PROPERTIES COMPILE_OPTION
 set_source_files_properties(${COMMON_SRC} "${GLUE_C}" ${VITA_SRC} PROPERTIES COMPILE_OPTIONS "-O2")
 set_source_files_properties(${AT3_SRC} PROPERTIES COMPILE_OPTIONS "-O2;-ffast-math")
 
-set(RS_LIBS SceGxm_stub SceDisplay_stub SceCtrl_stub SceAudio_stub ScePower_stub SceSysmodule_stub SceAppMgr_stub SceCommonDialog_stub
+set(RS_LIBS SceGxm_stub SceDisplay_stub SceCtrl_stub SceAudio_stub ScePower_stub SceSysmodule_stub SceAppMgr_stub SceAppUtil_stub SceCommonDialog_stub
             SceIofilemgr_stub vitashark SceShaccCg_stub SceShaccCgExt taihen_stub)
 if(RS_RENDERER STREQUAL "VITAGL")
   target_compile_definitions(swbfrs PRIVATE RS_VITAGL)

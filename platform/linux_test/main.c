@@ -63,7 +63,7 @@ void rs_harness_stack(pthread_attr_t *at){
     if (stack_next + STACK_SZ > STACK_HI) { fprintf(stderr, "[HARNESS] out of thread stacks\n"); exit(2); }
     pthread_attr_setstack(at, (void *)(uintptr_t)stack_next, STACK_SZ); stack_next += STACK_SZ; }
 
-static const char *arg_root = ".";
+static const char *arg_root = ".", *arg_iso;
 static void *watchdog(void *p){ int s = (int)(long)p; sleep(s); fprintf(stderr, "[RS] time limit reached (%ds)\n", s); rs_prof_dump(); hle_report(); fflush(stderr); _exit(0); return 0; }
 static void *game_main(void *unused){
     (void)unused;
@@ -79,11 +79,14 @@ static void *game_main(void *unused){
 
 void rs_frontend_main(pthread_t th);
 int main(int argc, char **argv){
-    for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "--root") && i + 1 < argc) arg_root = argv[++i];
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--root") && i + 1 < argc) arg_root = argv[++i];
+        else if (!strcmp(argv[i], "--iso") && i + 1 < argc) arg_iso = argv[++i]; }
     map_fixed(VRAM_AT, 8u << 20, "VRAM"); rs_vram_base = VRAM_AT;
     map_fixed(HEAP_AT, 64u << 20, "game heap");
     map_fixed(STACK_LO, STACK_HI - STACK_LO, "thread stacks");
     { extern u32 rs_image_w[]; extern const u32 rs_image_size; rs_region_add((u32)(uintptr_t)rs_image_w, rs_image_size); rs_region_add(HEAP_AT, 64u << 20); rs_region_add(STACK_LO, STACK_HI - STACK_LO); }
+    if (arg_iso) { extern int vfs_iso_mount(const char *); if (vfs_iso_mount(arg_iso)) { fprintf(stderr, "[HARNESS] cannot mount %s\n", arg_iso); return 2; } }   /* after the fixed mappings (it allocates) */
     const char *t = getenv("RS_MAX_SECONDS"); pthread_t wd; if (t) pthread_create(&wd, 0, watchdog, (void *)(long)atoi(t));
     pthread_attr_t at; pthread_attr_init(&at); rs_harness_stack(&at);
     pthread_t th; pthread_create(&th, &at, game_main, 0); rs_frontend_main(th); return 0;

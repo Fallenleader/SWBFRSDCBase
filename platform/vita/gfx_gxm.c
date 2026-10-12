@@ -28,18 +28,13 @@
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/kernel/processmgr.h>
 #include <vitashark.h>
+#include <psp2/common_dialog.h>
 #include "gfx.h"
 
 volatile unsigned rs_gfx_epoch = 1;
 rs_perf_t rs_perf;
 u64 rs_perf_us(void){ return sceKernelGetProcessTimeWide(); }
-static SceUID wake_sema = -1;
-void gfx_wake_init(void){ if (wake_sema < 0) wake_sema = sceKernelCreateSema("rs_gfx_wake", 0, 0, 1 << 20, 0); }
-static void wake_gfx(void){ if (wake_sema >= 0) sceKernelSignalSema(wake_sema, 1); }
-static void wait_wake(int wait_us){ if (wake_sema >= 0) { SceUInt t = (SceUInt)wait_us; sceKernelWaitSema(wake_sema, 1, &t); } else sceKernelDelayThread(wait_us); }
-static volatile unsigned frame_seq, presented_seq;
-void gfx_frame_ready(void){ frame_seq++; wake_gfx(); }
-int gfx_present_due(void){ unsigned f = frame_seq; if (f == presented_seq) return 0; presented_seq = f; return 1; }
+/* job hand-off, frame signalling: platform/common/gfx_jobs.c */
 
 extern int rs_setting_int(const char *key, int def);
 #define ALIGN(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
@@ -277,6 +272,7 @@ static u16 *idx_buf;                            /* 0, 1, 2, ... (non-indexed dra
 #define DISP_H 544
 #define DISP_N 3
 typedef struct { void *addr; } disp_cb_t;
+static void *disp_depth;                       /* depth buffer for system dialogs drawn over the display (sceCommonDialogUpdate) */
 static void *disp_mem[DISP_N]; static SceGxmColorSurface disp_cs[DISP_N]; static SceGxmSyncObject *disp_sync[DISP_N]; static int disp_back, disp_front;
 static int vsync_on = 1;
 static void display_cb(const void *data){
@@ -616,6 +612,14 @@ void gfx_present(int ww, int wh){
     hud_draw_now();
     unsigned id = fence_next++; SceGxmNotification n = {notif, id};
     sceGxmEndScene(ctx, NULL, &n); no_fence = 0; ring_mark(id);
+    { extern volatile int rs_dialog_active;
+      if (rs_dialog_active) {                                    /* system dialog (on-screen keyboard) over the frame */
+        SceCommonDialogUpdateParam up; memset(&up, 0, sizeof up);
+        up.renderTarget.colorFormat = SCE_GXM_COLOR_FORMAT_U8U8U8U8_ABGR; up.renderTarget.surfaceType = SCE_GXM_COLOR_SURFACE_LINEAR;
+        up.renderTarget.width = DISP_W; up.renderTarget.height = DISP_H; up.renderTarget.strideInPixels = DISP_W;
+        up.renderTarget.colorSurfaceData = disp_mem[disp_back]; up.renderTarget.depthSurfaceData = disp_depth;
+        up.displaySyncObject = disp_sync[disp_back];
+        sceCommonDialogUpdate(&up); } }
     sceGxmPadHeartbeat(&disp_cs[disp_back], disp_sync[disp_back]);
     disp_cb_t cb = {disp_mem[disp_back]}; sceGxmDisplayQueueAddEntry(disp_sync[disp_front], disp_sync[disp_back], &cb);
     disp_front = disp_back; disp_back = (disp_back + 1) % DISP_N;
@@ -724,6 +728,7 @@ int gfx_init(void){
         sceGxmColorSurfaceInit(&disp_cs[i], SCE_GXM_COLOR_FORMAT_U8U8U8U8_ABGR, SCE_GXM_COLOR_SURFACE_LINEAR, SCE_GXM_COLOR_SURFACE_SCALE_NONE, SCE_GXM_OUTPUT_REGISTER_SIZE_32BIT, DISP_W, DISP_H, DISP_W, disp_mem[i]);
         sceGxmSyncObjectCreate(&disp_sync[i]); }
     disp_front = 0; disp_back = 1;
+    disp_depth = gpu_alloc(SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW, ALIGN(DISP_W, SCE_GXM_TILE_SIZEX) * ALIGN(DISP_H, SCE_GXM_TILE_SIZEY) * 4, SCE_GXM_MEMORY_ATTRIB_RW, NULL);
 
     /* index buffer, vertex ring, texture pool */
     idx_buf = gpu_alloc(SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE, 64000 * 2, SCE_GXM_MEMORY_ATTRIB_READ, NULL); if (!idx_buf) return -1;
@@ -762,24 +767,3 @@ int rs_renderer_start(void){
     return gfx_init(); }
 void rs_renderer_present(const char *const *lines, int n){ gfx_hud(lines, n, DISP_W, DISP_H); gfx_present(DISP_W, DISP_H); }
 
-/* ------------------------------------------------------------------ guest thread <-> GXM thread hand-off */
-static pthread_mutex_t jm = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t jc_done = PTHREAD_COND_INITIALIZER;
-static struct { void (*fn)(void *); void *arg; } slot; static int slot_full, gl_ready; static unsigned long posted, done_seq; static pthread_t gl_th;
-void gfx_thread_register(void){ pthread_mutex_lock(&jm); gl_th = pthread_self(); gl_ready = 1; pthread_cond_broadcast(&jc_done); pthread_mutex_unlock(&jm); }
-void gfx_run(void (*fn)(void *), void *arg){
-    if (gl_ready && pthread_equal(pthread_self(), gl_th)) { fn(arg); return; }
-    pthread_mutex_lock(&jm);
-    while (!gl_ready || slot_full) pthread_cond_wait(&jc_done, &jm);
-    u64 t0 = rs_perf_us();
-    slot.fn = fn; slot.arg = arg; slot_full = 1; unsigned long my = ++posted; wake_gfx();
-    while (done_seq < my) pthread_cond_wait(&jc_done, &jm);
-    rs_perf.run_n++; rs_perf.run_wait_us += rs_perf_us() - t0;
-    pthread_mutex_unlock(&jm); }
-int gfx_pump(int wait_ms){
-    if (wait_ms > 0) { pthread_mutex_lock(&jm); int full = slot_full; pthread_mutex_unlock(&jm); if (!full) wait_wake(wait_ms * 1000); }
-    pthread_mutex_lock(&jm);
-    int ran = slot_full;
-    if (slot_full) { void (*fn)(void *) = slot.fn; void *arg = slot.arg; pthread_mutex_unlock(&jm); u64 t0 = rs_perf_us();
-        fn(arg); gfx_flush(); rs_perf.job_us += rs_perf_us() - t0;
-        pthread_mutex_lock(&jm); slot_full = 0; done_seq++; pthread_cond_broadcast(&jc_done); }
-    pthread_mutex_unlock(&jm); return ran; }

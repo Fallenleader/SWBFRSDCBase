@@ -1,7 +1,8 @@
 /* PS Vita platform: memory, threads, settings, logging, input, audio output and the frontend loop for the decompiled game.
  *
- * Files (ux0:data/RS/):
- *   disc/            the extracted UMD (the folder that contains PSP_GAME)
+ * Files (ux0:data/SWBFRS/):
+ *   GAME/            the extracted UMD (GAME/PSP_GAME/..., the layout inside the image), or else
+ *   game.iso         the UMD image itself (used only when GAME/PSP_GAME is absent)
  *   settings.txt     optional KEY=VALUE lines (see platform/vita/README.md)
  *   log.txt          log of the last session
  *
@@ -20,13 +21,20 @@
 #include <psp2/ctrl.h>
 #include <psp2/audioout.h>
 #include <psp2/power.h>
+#include <psp2/apputil.h>
+#include <psp2/system_param.h>
+#include <psp2/common_dialog.h>
+#include <psp2/ime_dialog.h>
+#include "vfs.h"
 #include "psp_impl.h"
 #include "gfx.h"
 
 int _newlib_heap_size_user = 96 * 1024 * 1024;                 /* the platform layer's own allocations (decoders, vertex batches, ...) */
 unsigned int sceUserMainThreadStackSize = 1024 * 1024;          /* the frontend thread interprets GE command lists */
 
-#define RS_DIR "ux0:data/RS"
+#define RS_DIR "ux0:data/SWBFRS"
+#define RS_GAME RS_DIR "/GAME"                                  /* extracted UMD: GAME/PSP_GAME/... (the ISO's own layout) */
+#define RS_ISO RS_DIR "/game.iso"                               /* else the UMD image itself */
 u8 *g_mem;                                                      /* NULL: the SDK layer works on native addresses */
 volatile int rs_prof_on;
 
@@ -34,7 +42,7 @@ volatile int rs_prof_on;
 static __thread rs_tls_t tls_block;
 rs_tls_t *rs_tls(void){ return &tls_block; }
 
-/* ---------------------------------------------------------------- settings: ux0:data/RS/settings.txt */
+/* ---------------------------------------------------------------- settings: ux0:data/SWBFRS/settings.txt */
 typedef struct { char k[48], v[80]; } kv_t;
 static kv_t kv[64]; static int nkv;
 static void settings_load(void){
@@ -54,7 +62,7 @@ const char *rs_platform_setting(const char *key){
     return NULL; }
 extern int rs_setting_int(const char *k, int d);
 
-/* ---------------------------------------------------------------- logging: stderr -> ux0:data/RS/log.txt (everything up to RS_LOG_MB) */
+/* ---------------------------------------------------------------- logging: stderr -> ux0:data/SWBFRS/log.txt (everything up to RS_LOG_MB) */
 static FILE *log_file; static long log_bytes, log_cap = 4L << 20;
 static ssize_t log_write(void *ck, const char *buf, size_t n){ (void)ck;
     if (log_file && log_bytes < log_cap) { fwrite(buf, 1, n, log_file); log_bytes += (long)n; if (memchr(buf, '\n', n)) fflush(log_file); }
@@ -120,7 +128,37 @@ void rs_backend_read_pad(rs_pad_t *p){
     if (d.buttons & SCE_CTRL_CIRCLE)   b |= 0x002000;
     if (d.buttons & SCE_CTRL_CROSS)    b |= 0x004000;
     if (d.buttons & SCE_CTRL_SQUARE)   b |= 0x008000;
+    extern volatile int rs_dialog_active; if (rs_dialog_active) { b = 0; d.lx = d.ly = d.rx = d.ry = 128; }   /* the keyboard has the input */
     p->buttons = b; p->lx = dz(d.lx); p->ly = dz(d.ly); p->rx = dz(d.rx); p->ry = dz(d.ry); }
+
+/* ---------------------------------------------------------------- on-screen keyboard: the Vita's IME dialog
+ * The game thread asks (rs_osk_begin / rs_osk_poll, see hle.c); the frontend thread runs the dialog, because system dialogs are drawn
+ * by the renderer's frame loop (sceCommonDialogUpdate / vglSwapBuffers). */
+volatile int rs_dialog_active;                                   /* a system dialog is on screen: the renderer draws it */
+static volatile int osk_req;                                    /* 0 idle, 1 requested, 2 running, 3 entered, 4 cancelled */
+static SceWChar16 osk_title[128], osk_init[512], osk_buf[512]; static int osk_max;
+int rs_osk_begin(const u16 *title, const u16 *initial, int max_len){
+    if (max_len <= 0) return 0; if (max_len > 511) max_len = 511;
+    int i; for (i = 0; i < 127 && title && title[i]; i++) osk_title[i] = title[i]; osk_title[i] = 0;
+    for (i = 0; i < max_len && initial && initial[i]; i++) osk_init[i] = initial[i]; osk_init[i] = 0;
+    osk_max = max_len; __sync_synchronize(); osk_req = 1; return 1; }
+int rs_osk_poll(u16 *out, int max_len){
+    int r = osk_req;
+    if (r == 3) { int i; for (i = 0; i < max_len - 1 && osk_buf[i]; i++) out[i] = osk_buf[i]; out[i] = 0; osk_req = 0; return 1; }
+    if (r == 4) { osk_req = 0; return -1; }
+    return 0; }
+static void osk_frontend(void){
+    if (osk_req == 1) {
+        SceImeDialogParam p; sceImeDialogParamInit(&p);
+        p.supportedLanguages = 0; p.languagesForced = SCE_FALSE; p.type = SCE_IME_TYPE_DEFAULT; p.option = 0;
+        p.textBoxMode = SCE_IME_DIALOG_TEXTBOX_MODE_DEFAULT; p.title = osk_title; p.maxTextLength = (SceUInt32)osk_max;
+        p.initialText = osk_init; p.inputTextBuffer = osk_buf; memset(osk_buf, 0, sizeof osk_buf);
+        int r = sceImeDialogInit(&p);
+        if (r < 0) { fprintf(stderr, "[VITA] IME dialog failed to open: 0x%08X\n", (unsigned)r); osk_req = 4; }
+        else { osk_req = 2; rs_dialog_active = 1; } }
+    else if (osk_req == 2 && sceImeDialogGetStatus() == SCE_COMMON_DIALOG_STATUS_FINISHED) {
+        SceImeDialogResult res; memset(&res, 0, sizeof res); sceImeDialogGetResult(&res); sceImeDialogTerm(); rs_dialog_active = 0;
+        __sync_synchronize(); osk_req = res.button == SCE_IME_DIALOG_BUTTON_ENTER ? 3 : 4; } }
 
 /* ---------------------------------------------------------------- audio: one BGM port, 44.1 kHz stereo, 1024 frames per write (blocking = paced) */
 static int aport = -1;
@@ -130,7 +168,7 @@ int rs_audio_host_open(int rate){
     int vol[2] = {SCE_AUDIO_VOLUME_0DB, SCE_AUDIO_VOLUME_0DB}; sceAudioOutSetVolume(aport, (SceAudioOutChannelFlag)(SCE_AUDIO_VOLUME_FLAG_L_CH | SCE_AUDIO_VOLUME_FLAG_R_CH), vol); return 1; }
 void rs_audio_host_write(const s16 *stereo, int frames){ (void)frames; if (aport >= 0) sceAudioOutOutput(aport, stereo); }
 
-/* ---------------------------------------------------------------- profiler output (RS_PERF_LOG=1 -> ux0:data/RS/perf.log) */
+/* ---------------------------------------------------------------- profiler output (RS_PERF_LOG=1 -> ux0:data/SWBFRS/perf.log) */
 void rs_perf_write(const char *line){ static FILE *f; static int on = -1; if (on < 0) on = rs_setting_int("RS_PERF_LOG", 0); if (!on) return;
     if (!f) { f = fopen(RS_DIR "/perf.log", "a"); if (f) fputs("==== new session ====\n", f); } if (f) { fputs(line, f); fflush(f); } }
 void rs_perf_mem(char *b, int n){ struct mallinfo mi = mallinfo(); SceKernelFreeMemorySizeInfo fm; memset(&fm, 0, sizeof fm); fm.size = sizeof fm; sceKernelGetFreeMemorySize(&fm);
@@ -165,7 +203,7 @@ static u32 heap_base;
 static void *game_main(void *unused){
     (void)unused;
     rs_thread_init();
-    hle_init(RS_DIR "/disc", heap_base, heap_base + HEAP_SIZE);
+    hle_init(RS_GAME, heap_base, heap_base + HEAP_SIZE);
     const char *path = "disc0:/PSP_GAME/SYSDIR/EBOOT.BIN";
     static char argbuf[64]; strcpy(argbuf, path);
     fprintf(stderr, "[RS] decompiled game: module_start\n");
@@ -184,7 +222,17 @@ int main(void){
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
     { SceKernelFreeMemorySizeInfo mi; memset(&mi, 0, sizeof mi); mi.size = sizeof mi; sceKernelGetFreeMemorySize(&mi);
       STEP("free memory: user %d KB, CDRAM %d KB, phycont %d KB", mi.size_user / 1024, mi.size_cdram / 1024, mi.size_phycont / 1024); }
-    { SceIoStat st; if (sceIoGetstat(RS_DIR "/disc/PSP_GAME/SYSDIR", &st) < 0) fatal("game files not found: extract the UMD so that ux0:data/RS/disc/PSP_GAME exists"); }
+    {   /* game files: the extracted folder if present, else the ISO image */
+        SceIoStat st;
+        if (sceIoGetstat(RS_GAME "/PSP_GAME/SYSDIR", &st) >= 0) STEP("game files: " RS_GAME);
+        else if (sceIoGetstat(RS_ISO, &st) >= 0) { if (vfs_iso_mount(RS_ISO) != 0) fatal(RS_ISO " is not a readable ISO 9660 image"); STEP("game files: " RS_ISO); }
+        else fatal("game files not found: extract the UMD so that " RS_GAME "/PSP_GAME exists, or copy the UMD image to " RS_ISO); }
+    {   /* system dialogs (the on-screen keyboard) */
+        SceAppUtilInitParam ip; SceAppUtilBootParam bp; memset(&ip, 0, sizeof ip); memset(&bp, 0, sizeof bp); sceAppUtilInit(&ip, &bp);
+        SceCommonDialogConfigParam cp; sceCommonDialogConfigParamInit(&cp);
+        int v = 0; sceAppUtilSystemParamGetInt(SCE_SYSTEM_PARAM_ID_LANG, &v); cp.language = (SceSystemParamLang)v;
+        v = 0; sceAppUtilSystemParamGetInt(SCE_SYSTEM_PARAM_ID_ENTER_BUTTON, &v); cp.enterButtonAssign = (SceSystemParamEnterButtonAssign)v;
+        sceCommonDialogSetConfigParam(&cp); }
 
     /* GPU-visible memory: the data image (in this executable), the scratchpad, the VRAM image, the game heap */
     { extern u32 rs_image_w[]; extern const u32 rs_image_size; rs_region_add((u32)(uintptr_t)rs_image_w, rs_image_size); }
@@ -206,7 +254,8 @@ int main(void){
     u64 last = 0, frames = 0;
     for (;;) {
         u64 now = sceKernelGetProcessTimeWide();
-        if (gfx_present_due() || now - last >= 250000) {          /* present once per completed game frame (or 4x a second while it loads) */
+        osk_frontend();
+        if (gfx_present_due() || now - last >= 250000 || (rs_dialog_active && now - last >= 16000)) {          /* present once per completed game frame (or 4x a second while it loads) */
             last = now;
             rs_pad_t p; rs_backend_read_pad(&p);
             if ((p.buttons & 0x30B) == 0x30B) { STEP("exit requested (L+R+START+SELECT)"); sceKernelExitProcess(0); }

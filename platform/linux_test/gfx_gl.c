@@ -20,20 +20,11 @@ volatile unsigned rs_gfx_epoch = 1;
 rs_perf_t rs_perf;
 #ifdef __vita__
 #include <psp2/kernel/processmgr.h>
-#include <psp2/kernel/threadmgr.h>
 u64 rs_perf_us(void){ return sceKernelGetProcessTimeWide(); }
-static SceUID wake_sema = -1;                    /* guest -> GL thread wake-up (newlib's timed condition waits are not trusted on the Vita) */
-void gfx_wake_init(void){ if (wake_sema < 0) wake_sema = sceKernelCreateSema("rs_gl_wake", 0, 0, 1 << 20, 0); }
-static void wake_gl(void){ if (wake_sema >= 0) sceKernelSignalSema(wake_sema, 1); }
-static void wait_wake(int wait_us){ if (wake_sema >= 0) { SceUInt t = (SceUInt)wait_us; sceKernelWaitSema(wake_sema, 1, &t); } else sceKernelDelayThread(wait_us); }
 #else
 u64 rs_perf_us(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (u64)t.tv_sec * 1000000ull + (u64)t.tv_nsec / 1000; }
-void gfx_wake_init(void){}
-static void wake_gl(void){}
 #endif
-static volatile unsigned frame_seq, presented_seq;
-void gfx_frame_ready(void){ frame_seq++; wake_gl(); }
-int gfx_present_due(void){ unsigned f = frame_seq; if (f == presented_seq) return 0; presented_seq = f; return 1; }
+/* job hand-off, frame signalling: platform/common/gfx_jobs.c */
 
 /* ------------------------------------------------------------------ function loader */
 #define X(r, n, a) r (*p_##n) a;
@@ -930,28 +921,5 @@ void gfx_hud(const char *const *lines, int n, int ww, int wh){
 #undef HQ
     if (nv) { glUniform4f(u_fcol, 1, 1, 0.6f, 1); glVertexAttribPointer(0, 2, GL_FLOAT, 0, 8, v); glDrawArrays(GL_TRIANGLES, 0, nv); } }
 
-/* ------------------------------------------------------------------ guest thread <-> GL thread hand-off */
-static pthread_mutex_t jm = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t jc_post = PTHREAD_COND_INITIALIZER, jc_done = PTHREAD_COND_INITIALIZER;
-static struct { void (*fn)(void *); void *arg; } slot; static int slot_full, gl_ready; static unsigned long posted, done_seq; static pthread_t gl_th;
-void gfx_thread_register(void){ pthread_mutex_lock(&jm); gl_th = pthread_self(); gl_ready = 1; pthread_cond_broadcast(&jc_done); pthread_mutex_unlock(&jm); }
-void gfx_run(void (*fn)(void *), void *arg){
-    if (gl_ready && pthread_equal(pthread_self(), gl_th)) { fn(arg); return; }
-    pthread_mutex_lock(&jm);
-    while (!gl_ready || slot_full) pthread_cond_wait(&jc_done, &jm);
-    u64 t0 = rs_perf_us();
-    slot.fn = fn; slot.arg = arg; slot_full = 1; unsigned long my = ++posted; pthread_cond_signal(&jc_post); wake_gl();
-    while (done_seq < my) pthread_cond_wait(&jc_done, &jm);
-    rs_perf.run_n++; rs_perf.run_wait_us += rs_perf_us() - t0;
-    pthread_mutex_unlock(&jm); }
-int gfx_pump(int wait_ms){
-#ifdef __vita__
-    if (wait_ms > 0) { pthread_mutex_lock(&jm); int full = slot_full; pthread_mutex_unlock(&jm); if (!full) wait_wake(wait_ms * 1000); wait_ms = 0; }
-#endif
-    pthread_mutex_lock(&jm);
-    if (!slot_full && wait_ms > 0) { struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts); ts.tv_nsec += (long)wait_ms * 1000000L; ts.tv_sec += ts.tv_nsec / 1000000000L; ts.tv_nsec %= 1000000000L; pthread_cond_timedwait(&jc_post, &jm, &ts); }
-    int ran = slot_full;
-    if (slot_full) { void (*fn)(void *) = slot.fn; void *arg = slot.arg; pthread_mutex_unlock(&jm); u64 t0 = rs_perf_us();
-        if (sh_on && sh_frame != frame_seq) { sh_frame = frame_seq; shadow_pass(); }      /* first GE job of a new guest frame */
-        fn(arg); gfx_flush(); rs_perf.job_us += rs_perf_us() - t0;
-        pthread_mutex_lock(&jm); slot_full = 0; done_seq++; pthread_cond_broadcast(&jc_done); }
-    pthread_mutex_unlock(&jm); return ran; }
+/* ------------------------------------------------------------------ job hook (platform/common/gfx_jobs.c) */
+void gfx_before_job(void){ unsigned f = gfx_frame_seq(); if (sh_on && sh_frame != f) { sh_frame = f; shadow_pass(); } }      /* first GE job of a new guest frame */

@@ -26,4 +26,5 @@ int rs_renderer_start(void){
     glClearColor(0, 0, 0, 1); glClear(GL_COLOR_BUFFER_BIT); vglSwapBuffers(GL_FALSE);
     return gfx_init(); }
 void rs_renderer_present(const char *const *lines, int n){
-    gfx_present(960, 544); if (lines && n > 0) gfx_hud(lines, n, 960, 544); vglSwapBuffers(GL_FALSE); }
+    extern volatile int rs_dialog_active;
+    gfx_present(960, 544); if (lines && n > 0) gfx_hud(lines, n, 960, 544); vglSwapBuffers(rs_dialog_active ? GL_TRUE : GL_FALSE); }

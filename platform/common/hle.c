@@ -159,7 +159,7 @@ static void h_GetThreadPrio(sdkcall_t *c){ V0 = cur_thread ? cur_thread->prio : 
 static void h_ChangePrio(sdkcall_t *c){ kthread_t *t = A0 ? thr_find(A0) : cur_thread; if (t) t->prio = A1; V0 = 0; }
 static int fl_tick2, fl_rtc; static u32 tl_ra[8]; static int tl_n[8];
 static void h_SysTimeLow(sdkcall_t *c){ V0 = (u32)now_us(); { static unsigned k; if ((++k & 31) == 0) yield_big(); } fl_tick2++;   /* yielding on every call cost ~85 us each (x100/frame in big battles) */
-    static int lg = -1; if (lg < 0) lg = getenv("RS_FRAMELOG") != 0; if (lg) { u32 ra = LW(c->r[29]); /* return address saved by the f_088f8d44 wrapper = who asked for the time */ int i; for (i = 0; i < 8; i++) { if (tl_n[i] && tl_ra[i] == ra) { tl_n[i]++; break; } if (!tl_n[i]) { tl_ra[i] = ra; tl_n[i] = 1; break; } } } }
+    }
 static void h_SleepThread(sdkcall_t *c){ for (;;) unlocked_sleep(100000); }
 
 /* semaphores */
@@ -233,16 +233,34 @@ static void h_UmdRegCb(sdkcall_t *c){ cb_notify(A0, 0x32); V0 = 0; }
 
 
 /* ---------------- utility dialogs, modules, misc (NIDs identified by SHA-1 of the SDK function name) ---------------- */
-static int osk_state; static u32 osk_params; static int osk_polls;
-static void osk_finish(sdkcall_t *c){
-    u32 data = LW(osk_params + 60); (void)c;
+/* On-screen keyboard.  A platform with a native keyboard implements rs_osk_begin/rs_osk_poll (the PS Vita: its IME dialog); without
+ * one the text the game proposes is accepted as typed. */
+__attribute__((weak)) int rs_osk_begin(const u16 *title, const u16 *initial, int max_len){ (void)title; (void)initial; (void)max_len; return 0; }
+__attribute__((weak)) int rs_osk_poll(u16 *out, int max_len){ (void)out; (void)max_len; return -1; }   /* 0 running, 1 entered, -1 cancelled */
+static int osk_state; static u32 osk_params; static int osk_polls, osk_native;
+static u32 osk_data(void){ return LW(osk_params + 60); }
+static int ustrcpy_in(u16 *dst, u32 src, int max){ int n = 0; if (src) while (n < max - 1 && LH(src + n * 2)) { dst[n] = LH(src + n * 2); n++; } dst[n] = 0; return n; }
+static void osk_finish(const u16 *text, int result){         /* result: 0 unchanged, 1 cancelled, 2 changed (PSP_UTILITY_OSK_RESULT_*) */
+    u32 data = osk_data();
     if (data) { u32 in = LW(data + 32), out = LW(data + 40), lim = LW(data + 48); int n = 0;
-        if (out && lim) { if (in) while (n < (int)lim - 1 && LH(in + n * 2)) { SH(out + n * 2, LH(in + n * 2)); n++; } SH(out + n * 2, 0); }
-        SW(data + 36, n); SW(data + 44, 2); }
+        if (out && lim) { if (text) while (n < (int)lim - 1 && text[n]) { SH(out + n * 2, text[n]); n++; }
+                          else if (in) while (n < (int)lim - 1 && LH(in + n * 2)) { SH(out + n * 2, LH(in + n * 2)); n++; }
+                          SH(out + n * 2, 0); }
+        SW(data + 36, n); SW(data + 44, (u32)result); }
     SW(osk_params + 28, 0); }
-static void h_OskInit(sdkcall_t *c){ osk_params = A0; osk_state = 2; osk_polls = 0; fprintf(stderr, "[UTIL] OSK start params=%08x\n", A0); V0 = 0; }
-static void h_OskStatus(sdkcall_t *c){ if (osk_state == 2 && ++osk_polls > 6) { osk_finish(c); osk_state = 3; } V0 = osk_state; yield_big(); }
-static void h_OskUpdate(sdkcall_t *c){ if (osk_state == 2) { osk_finish(c); osk_state = 3; } V0 = 0; }
+static void h_OskInit(sdkcall_t *c){ osk_params = A0; osk_state = 2; osk_polls = 0; osk_native = 0; fprintf(stderr, "[UTIL] OSK start params=%08x\n", A0);
+    u32 data = osk_data();
+    if (data) { static u16 title[128], init[512]; int lim = (int)LW(data + 48); if (lim <= 0 || lim > 512) lim = 512;
+        ustrcpy_in(title, LW(data + 28), 128); ustrcpy_in(init, LW(data + 32), 512); osk_native = rs_osk_begin(title, init, lim - 1); }
+    V0 = 0; }
+static void osk_step(void){
+    if (osk_state != 2) return;
+    if (!osk_native) { if (++osk_polls > 6) { osk_finish(0, 2); osk_state = 3; } return; }
+    static u16 out[512]; u32 data = osk_data(); int lim = data ? (int)LW(data + 48) : 512; if (lim <= 0 || lim > 512) lim = 512;
+    int r = rs_osk_poll(out, lim);
+    if (r > 0) { osk_finish(out, 2); osk_state = 3; } else if (r < 0) { osk_finish(0, 1); osk_state = 3; } }
+static void h_OskStatus(sdkcall_t *c){ osk_step(); V0 = osk_state; yield_big(); }
+static void h_OskUpdate(sdkcall_t *c){ osk_step(); V0 = 0; }
 static void h_OskShutdown(sdkcall_t *c){ osk_state = 0; V0 = 0; }
 static int mod_uid = 0x2000;
 static void h_LoadModule(sdkcall_t *c){ fprintf(stderr, "[MOD] LoadModule %s\n", gstr(A0)); V0 = mod_uid++; }
@@ -285,8 +303,10 @@ HS(ha_SetDataAndGetID) HS(ha_DecodeData) HS(ha_GetSoundSample) HS(ha_GetStreamDa
 void rs_atrac_note_file(const char *host_path);
 
 /* ---------------- file IO ---------------- */
-typedef struct { FILE *f; DIR *d; int used; char path[1400]; } fd_t; static fd_t fds[128];
+#include "vfs.h"
+typedef struct { FILE *f; void *d; int used; char path[1400]; } fd_t; static fd_t fds[128];
 static int resolve_ci(const char *rel, char *out, size_t cap){   /* case-insensitive path walk under g_root */
+    if (vfs_iso_active()) return vfs_iso_resolve(rel, out, cap);        /* game files from an ISO image (vfs.c) */
     char cur[1024]; strncpy(cur, g_root, sizeof cur); char tmp[1024]; strncpy(tmp, rel, sizeof tmp); char *save = 0;
     for (char *tok = strtok_r(tmp, "/\\", &save); tok; tok = strtok_r(0, "/\\", &save)) {
         char probe[1400]; snprintf(probe, sizeof probe, "%s/%s", cur, tok); struct stat st;
@@ -305,6 +325,7 @@ static u32 lbn_for(const char *full, u32 size){
 static const char *lbn_lookup(u32 lbn){ for (int i = 0; i < nlbn; i++) if (lbn >= lbns[i].lbn && lbn < lbns[i].lbn + lbns[i].sectors) return lbns[i].path; return 0; }
 /* size the game should see for a file: a mod / override replacement may be larger or smaller than the disc file */
 static u32 eff_size(const char *full, u32 base){
+    if (vfs_iso_active()) return base;
     size_t rl = strlen(g_root); if (strncmp(full, g_root, rl)) return base;
     const char *alt = rs_patch_file(full + rl, full); struct stat st; if (alt && stat(alt, &st) == 0) return (u32)st.st_size; return base; }
 static const char *strip_dev(const char *p){ const char *q = strchr(p, ':'); return q ? q + 1 : p; }
@@ -313,21 +334,21 @@ static void h_IoOpen(sdkcall_t *c){
     if (sscanf(strip_dev(p), "/sce_lbn0x%x_size0x%x", &lb, &lsz) == 2 || sscanf(strip_dev(p), "sce_lbn0x%x_size0x%x", &lb, &lsz) == 2) {
         const char *lp = lbn_lookup(lb); if (!lp) { fprintf(stderr, "[IO] unknown raw sector open %s\n", p); V0 = ERR_NOENT; return; } strncpy(full, lp, sizeof full - 1); full[sizeof full - 1] = 0; }
     else resolve_ci(strip_dev(p), full, sizeof full);
-    if ((fl & 3) == 1) { size_t rl = strlen(g_root); const char *rel = strncmp(full, g_root, rl) ? strip_dev(p) : full + rl;
+    if ((fl & 3) == 1 && !vfs_iso_active()) { size_t rl = strlen(g_root); const char *rel = strncmp(full, g_root, rl) ? strip_dev(p) : full + rl;
         const char *alt = rs_patch_file(rel, full); if (alt) { strncpy(full, alt, sizeof full - 1); full[sizeof full - 1] = 0; } }   /* mods / data patches (read-only opens) */
     const char *mode = (fl & 3) == 1 ? "rb" : ((fl & 3) == 2 ? ((fl & 0x400) ? "wb" : "r+b") : "r+b");
-    if (fl & 0x200 && !(fl & 0x400)) { FILE *t = fopen(full, "ab"); if (t) fclose(t); }
-    FILE *f = fopen(full, mode); if (!f && (fl & 3) == 3) f = fopen(full, "rb");
+    if (fl & 0x200 && !(fl & 0x400) && !vfs_iso_active()) { FILE *t = fopen(full, "ab"); if (t) fclose(t); }
+    FILE *f = vfs_fopen(full, mode); if (!f && (fl & 3) == 3) f = vfs_fopen(full, "rb");
     if (!f) { V0 = ERR_NOENT; fprintf(stderr, "[IO] open FAILED %s\n", p); return; }
     fprintf(stderr, "[IO] open %s\n", p); rs_atrac_note_file(full);
     for (int i = 3; i < 128; i++) if (!fds[i].used) { fds[i] = (fd_t){f, 0, 1, {0}}; V0 = i; return; } fclose(f); V0 = 0x80010018u; }
-static void h_IoClose(sdkcall_t *c){ if (A0 < 128 && fds[A0].used) { if (fds[A0].f) fclose(fds[A0].f); if (fds[A0].d) closedir(fds[A0].d); fds[A0].used = 0; } V0 = 0; }
+static void h_IoClose(sdkcall_t *c){ if (A0 < 128 && fds[A0].used) { if (fds[A0].f) fclose(fds[A0].f); if (fds[A0].d) vfs_closedir(fds[A0].d); fds[A0].used = 0; } V0 = 0; }
 static void h_IoRead(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; return; } { static int dl = -1, df; if (dl < 0) { dl = getenv("RS_IO_DELAY_US") ? atoi(getenv("RS_IO_DELAY_US")) : 0; df = getenv("RS_IO_DELAY_FROM") ? atoi(getenv("RS_IO_DELAY_FROM")) : 0; } if (dl && g_frames >= df) unlocked_sleep((unsigned)dl); } u32 n = A2; u8 *dst = g_mem + GADDR(A1); V0 = (u32)fread(dst, 1, n, fds[A0].f); }
 static void h_IoWrite(sdkcall_t *c){ if (A0 == 1 || A0 == 2) { fwrite(g_mem + GADDR(A1), 1, A2, stderr); V0 = A2; return; } if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; return; } V0 = (u32)fwrite(g_mem + GADDR(A1), 1, A2, fds[A0].f); }
 static void h_IoLseek(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; V1 = 0xFFFFFFFFu; return; }
     s64 off = (s64)(((u64)A3 << 32) | A2); int wh = T0; fseeko(fds[A0].f, off, wh == 0 ? SEEK_SET : (wh == 1 ? SEEK_CUR : SEEK_END)); s64 pos = ftello(fds[A0].f); V0 = (u32)pos; V1 = (u32)((u64)pos >> 32); }
-static void h_IoGetstat(sdkcall_t *c){ char full[1500]; struct stat st; resolve_ci(strip_dev(gstr(A0)), full, sizeof full);
-    if (stat(full, &st) != 0) { fprintf(stderr, "[IO] getstat MISSING %s\n", gstr(A0)); V0 = ERR_NOENT; return; } memset(g_mem + GADDR(A1), 0, 88); SW(A1, S_ISDIR(st.st_mode) ? 0x1000 : 0x2000); u32 esz = S_ISDIR(st.st_mode) ? (u32)st.st_size : eff_size(full, (u32)st.st_size); SW(A1 + 8, esz); SW(A1 + 12, 0); if (!S_ISDIR(st.st_mode)) SW(A1 + 0x40, lbn_for(full, esz)); V0 = 0; }
+static void h_IoGetstat(sdkcall_t *c){ char full[1500]; int isdir; unsigned sz; resolve_ci(strip_dev(gstr(A0)), full, sizeof full);
+    if (vfs_stat(full, &isdir, &sz) != 0) { fprintf(stderr, "[IO] getstat MISSING %s\n", gstr(A0)); V0 = ERR_NOENT; return; } memset(g_mem + GADDR(A1), 0, 88); SW(A1, isdir ? 0x1000 : 0x2000); u32 esz = isdir ? (u32)sz : eff_size(full, (u32)sz); SW(A1 + 8, esz); SW(A1 + 12, 0); if (!isdir) SW(A1 + 0x40, lbn_for(full, esz)); V0 = 0; }
 
 /* ---------------- misc ---------------- */
 /* Platform backends supply pad state. Defaults below are used by the headless host build. */
@@ -372,6 +393,7 @@ static void bench_tick(void){
     if ((g_frames - f0) % 300 == 0) { u64 t = now_us(); fprintf(stderr, "[BENCH] %u frames: %.3f ms/frame wall, %.3f ms/frame main-thread CPU, %.1f fps\n",
         g_frames - f0, (t - t0) / 1000.0 / (g_frames - f0), (cpu - c0) / 1000.0 / (g_frames - f0), (g_frames - f0) * 1e6 / (double)(t - t0)); }
 }
+static int since_flip;                   /* vblanks since the game last flipped the display buffer */
 static void pace_frame(void){
     static u64 epoch; bench_tick(); int fps = rs_bench_active ? 0 : (int)rs_patch_fps(); rs_patch_apply_fps_cap();
     if (fps <= 0) { yield_big(); static u64 last, work; static int n; u64 t = now_us(); if (last) work += t - last; last = t;
@@ -381,7 +403,7 @@ static void pace_frame(void){
     unlocked_sleep((unsigned)(next - now));
     { static u64 req, act, last, work; static int n; u64 t = now_us(); req += next - now; act += t - now; if (last) work += now - last; last = t;
       if (getenv("RS_FRAMELOG") && ++n == 600) { fprintf(stderr, "[PACE] per frame: work %.2f ms, sleep requested %.2f ms, slept %.2f ms\n", work / 600e3, req / 600e3, act / 600e3); n = 0; req = act = work = 0; } } }
-static void h_WaitVblank(sdkcall_t *c){ static int fast = -1; if (fast < 0) fast = getenv("RS_FAST") != 0; if (fast) { rs_patch_apply_fps_cap(); yield_big(); } else pace_frame(); rs_patch_vblank(); g_frames++; gfx_frame_ready(); perf_report();
+static void h_WaitVblank(sdkcall_t *c){ static int fast = -1; if (fast < 0) fast = getenv("RS_FAST") != 0; if (fast) { rs_patch_apply_fps_cap(); yield_big(); } else pace_frame(); rs_patch_vblank(); g_frames++; if (++since_flip >= 30) { since_flip = 0; gfx_frame_ready(); } perf_report();   /* no flip for half a second: show what there is */
     if (getenv("RS_FRAMELOG")) { fl_vb++; fl_note_ra(c->r[31]); if (fl_vb >= 600) { fprintf(stderr, "[FRAME] %d vblank waits, %d frame-buffer flips, %d SystemTimeLow + %d RtcTick queries; vblank callers:", fl_vb, fl_fb, fl_tick2, fl_rtc);
         for (int i = 0; i < 8 && fl_ran[i]; i++) fprintf(stderr, " %08x x%d", fl_ra[i], fl_ran[i]);
         fprintf(stderr, "; time callers:"); for (int i = 0; i < 8 && tl_n[i]; i++) fprintf(stderr, " %08x x%d", tl_ra[i], tl_n[i]); memset(tl_n, 0, sizeof tl_n); fprintf(stderr, "\n"); fl_vb = fl_fb = fl_tick = fl_tick2 = fl_rtc = 0; memset(fl_ran, 0, sizeof fl_ran); } }
@@ -391,26 +413,45 @@ static void h_WaitVblank(sdkcall_t *c){ static int fast = -1; if (fast < 0) fast
 void rs_display_set(u32, u32, u32); int rs_display_read(u32 *); int rs_ge_enqueue(u32, u32); void rs_ge_update_stall(int, u32); void rs_ge_reset(void);
 extern u32 rs_ge_cb_finish_func, rs_ge_cb_finish_arg;
 static sdkcall_t *tl_get(void){ pthread_once(&key_once, mk_keys); return (sdkcall_t *)pthread_getspecific(k_cpu); }
-static void h_SetFrameBuf(sdkcall_t *c){ rs_display_set(A0, A1, A2); V0 = 0; fl_fb++; }
+/* A new frame is shown when the game flips the display buffer, not at every vertical blank: presenting (and waiting for the target's
+ * own display flip) once per vblank kept the renderer thread blocked while the game waited for it to run its GPU lists. */
+static void h_SetFrameBuf(sdkcall_t *c){ rs_display_set(A0, A1, A2); V0 = 0; fl_fb++; since_flip = 0; }   /* rs_display_set signals the new frame once drawn */
 void rs_ge_finish_hook(int id){
     sdkcall_t *c = tl_get(); if (!c || !rs_ge_cb_finish_func) return;
     u32 save[32], hi = c->hi, lo = c->lo; memcpy(save, c->r, sizeof save);
     c->r[4] = id; c->r[5] = rs_ge_cb_finish_arg; c->r[6] = 0; c->r[31] = 0; CALLDYN(c, rs_ge_cb_finish_func);
     memcpy(c->r, save, sizeof save); c->hi = hi; c->lo = lo; }
+/* GE interrupt: list-finish callbacks of asynchronously executed lists run here, as on the PSP (not on the thread that queued the list) */
+static pthread_mutex_t gi_m = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t gi_c = PTHREAD_COND_INITIALIZER;
+static int gi_q[256]; static unsigned gi_h, gi_t, gi_running;
+void rs_ge_signal_finish(int id){ pthread_mutex_lock(&gi_m); if (gi_h - gi_t < 256) gi_q[gi_h++ % 256] = id; pthread_cond_broadcast(&gi_c); pthread_mutex_unlock(&gi_m); }
+static void *ge_intr_thread(void *u){ (void)u;
+    pthread_once(&key_once, mk_keys); static sdkcall_t ctx; pthread_setspecific(k_cpu, &ctx); { extern void rs_thread_init(void); rs_thread_init(); }
+    for (;;) { pthread_mutex_lock(&gi_m); while (gi_h == gi_t) pthread_cond_wait(&gi_c, &gi_m); int id = gi_q[gi_t % 256]; gi_running = 1; pthread_mutex_unlock(&gi_m);
+        pthread_mutex_lock(&big); rs_ge_finish_hook(id); pthread_cond_broadcast(&gcv); pthread_mutex_unlock(&big);
+        pthread_mutex_lock(&gi_m); gi_t++; gi_running = 0; pthread_cond_broadcast(&gi_c); pthread_mutex_unlock(&gi_m); } return 0; }
+static void ge_intr_start(void){ pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32); rs_thread_attr(&at, 0x10000); } pthread_t t; pthread_create(&t, &at, ge_intr_thread, 0); }
+int rs_ge_busy(void); void rs_ge_wait_idle(void);
+static void ge_sync(sdkcall_t *c){
+    if (A0 == 1) { V0 = rs_ge_busy() ? 2 : 0; return; }                      /* peek: 2 = drawing */
+    rs_ge_wait_idle();                                                        /* every queued list executed ... */
+    pthread_mutex_unlock(&big); pthread_mutex_lock(&gi_m); while (gi_h != gi_t || gi_running) pthread_cond_wait(&gi_c, &gi_m); pthread_mutex_unlock(&gi_m); pthread_mutex_lock(&big);   /* ... and its callback delivered */
+    V0 = 0; }
+static void h_GeListSync(sdkcall_t *c){ c->r[4] = c->r[5]; ge_sync(c); }       /* (list id, mode) */
+static void h_GeDrawSync(sdkcall_t *c){ ge_sync(c); }                        /* (mode) */
 static void h_GeSetCallback(sdkcall_t *c){ if (A0) { rs_ge_cb_finish_func = LW(A0 + 8); rs_ge_cb_finish_arg = LW(A0 + 12); fprintf(stderr, "[GE] finish callback %08x arg=%08x\n", rs_ge_cb_finish_func, rs_ge_cb_finish_arg); } V0 = 0; }
 static void h_GeUpdateStall(sdkcall_t *c){ rs_ge_update_stall(A0 - 0x100, A1); V0 = 0; }
 static void h_GeEnqueue(sdkcall_t *c){ g_ge_lists++; V0 = 0x100 + rs_ge_enqueue(A0, A1); }
 static void h_GeEdramAddr(sdkcall_t *c){ V0 = rs_vram_base; }
 static void h_Zero(sdkcall_t *c){ V0 = 0; }
 static void h_RotateQueue(sdkcall_t *c){ unlocked_sleep(200); V0 = 0; }
-static void h_Dopen(sdkcall_t *c){ char full[1500]; const char *p = gstr(A0); resolve_ci(strip_dev(p), full, sizeof full); DIR *d = opendir(full);
+static void h_Dopen(sdkcall_t *c){ char full[1500]; const char *p = gstr(A0); resolve_ci(strip_dev(p), full, sizeof full); void *d = vfs_opendir(full);
     if (!d) { fprintf(stderr, "[IO] dopen FAILED %s\n", p); V0 = ERR_NOENT; return; }
-    for (int i = 3; i < 128; i++) if (!fds[i].used) { fds[i] = (fd_t){0, d, 1, {0}}; strncpy(fds[i].path, full, sizeof fds[i].path - 1); V0 = i; return; } closedir(d); V0 = 0x80010018u; }
+    for (int i = 3; i < 128; i++) if (!fds[i].used) { fds[i] = (fd_t){0, d, 1, {0}}; strncpy(fds[i].path, full, sizeof fds[i].path - 1); V0 = i; return; } vfs_closedir(d); V0 = 0x80010018u; }
 static void h_Dread(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used || !fds[A0].d) { V0 = 0x80010009u; return; }
-    struct dirent *e; while ((e = readdir(fds[A0].d)) && (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))) ;
-    if (!e) { V0 = 0; return; } memset(g_mem + GADDR(A1), 0, 0x160);
-    char full[2000]; struct stat st; int isdir = 0; snprintf(full, sizeof full, "%s/%s", fds[A0].path, e->d_name); if (stat(full, &st) == 0) isdir = S_ISDIR(st.st_mode) ? 1 : 0;
-    SW(A1, isdir ? 0x1000 : 0x2000); if (!isdir) { u32 sz = eff_size(full, (u32)st.st_size); SW(A1 + 8, sz); SW(A1 + 0x40, lbn_for(full, sz)); } strncpy((char *)(g_mem + GADDR(A1 + 0x58)), e->d_name, 255); V0 = 1; }
+    char name[256], full[2000]; if (!vfs_readdir(fds[A0].d, name, sizeof name, full, sizeof full)) { V0 = 0; return; } memset(g_mem + GADDR(A1), 0, 0x160);
+    int isdir = 0; unsigned fsz = 0; vfs_stat(full, &isdir, &fsz);
+    SW(A1, isdir ? 0x1000 : 0x2000); if (!isdir) { u32 sz = eff_size(full, (u32)fsz); SW(A1 + 8, sz); SW(A1 + 0x40, lbn_for(full, sz)); } strncpy((char *)(g_mem + GADDR(A1 + 0x58)), name, 255); V0 = 1; }
 static void h_One(sdkcall_t *c){ V0 = 1; }
 static void h_UmdStat(sdkcall_t *c){ V0 = 0x32; }
 static void h_ExitGame(sdkcall_t *c){ fprintf(stderr, "[HLE] sceKernelExitGame called\n"); fflush(stderr); _exit(0); }
@@ -435,7 +476,7 @@ static const hle_t tbl[] = {
  {0x1F803938,"sceCtrlReadBufferPositive",h_CtrlRead},{0x1F4011E6,"sceCtrlSetSamplingMode",h_Zero},{0x6A2774F3,"sceCtrlSetSamplingCycle",h_Zero},
  {0x984C27E7,"sceDisplayWaitVblankStart",h_WaitVblank},{0x46F186C3,"sceDisplayWaitVblankStartCB",h_WaitVblank},{0x289D82FE,"sceDisplaySetFrameBuf",h_SetFrameBuf},{0x0E20F177,"sceDisplaySetMode",h_Zero},
  {0xAB49E76A,"sceGeListEnQueue",h_GeEnqueue},{0x1C0D95A6,"sceGeListEnQueueHead",h_GeEnqueue},{0xE47E40E4,"sceGeEdramGetAddr",h_GeEdramAddr},
- {0x03444EB4,"sceGeListSync",h_Zero},{0xB287BD61,"sceGeDrawSync",h_Zero},{0xE0D68148,"sceGeListUpdateStallAddr",h_GeUpdateStall},{0xA4FC06A4,"sceGeSetCallback",h_GeSetCallback},
+ {0x03444EB4,"sceGeListSync",h_GeListSync},{0xB287BD61,"sceGeDrawSync",h_GeDrawSync},{0xE0D68148,"sceGeListUpdateStallAddr",h_GeUpdateStall},{0xA4FC06A4,"sceGeSetCallback",h_GeSetCallback},
  {0x46EBB729,"sceUmdCheckMedium",h_One},{0x6B4A146C,"sceUmdGetDriveStat",h_UmdStat},{0x8EF08FCE,"sceUmdWaitDriveStat",h_UmdStat},{0x4A9E5E29,"sceUmdWaitDriveStatCB",h_UmdStat},{0xC6183D47,"sceUmdActivate",h_Zero},
  {0x05572A5F,"sceKernelExitGame",h_ExitGame},{0xA5DA2406,"sceUtilityGetSystemParamInt",h_UtilParam},{0x3F7AD767,"sceRtcGetCurrentTick",h_RtcTick},
  {0x172D316E,"sceKernelStdout",h_Zero},
@@ -466,7 +507,7 @@ static const hle_t tbl[] = {
 static const hle_t *handlers[512]; static unsigned char seen[512]; static unsigned long ncalls[512];
 static const char *hname(int i){ return handlers[i] ? handlers[i]->name : "?"; }
 void hle_init(const char *root, u32 heap_lo, u32 heap_hi){
-    if (root) strncpy(g_root, root, sizeof g_root - 1); { extern u8 rs_scratchpad[]; rs_region_add((u32)(uintptr_t)rs_scratchpad, 0x4000); } vol_base = heap_hi - 0x400000u; hle_heap_lo = heap_lo; hle_heap_hi = vol_base; heap_init(); rs_ge_reset(); trace_all = getenv("RS_TRACE") != 0;
+    if (root) strncpy(g_root, root, sizeof g_root - 1); { extern u8 rs_scratchpad[]; rs_region_add((u32)(uintptr_t)rs_scratchpad, 0x4000); } vol_base = heap_hi - 0x400000u; hle_heap_lo = heap_lo; hle_heap_hi = vol_base; heap_init(); rs_ge_reset(); ge_intr_start(); trace_all = getenv("RS_TRACE") != 0;
     for (int i = 0; i < RC_NSTUBS; i++) for (int k = 0; k < NTBL; k++) if (tbl[k].nid == rc_stubs[i].nid) handlers[i] = &tbl[k];
     pthread_mutex_lock(&big);
 }
