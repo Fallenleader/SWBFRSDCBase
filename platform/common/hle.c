@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <errno.h>
 #include <unistd.h>
 #include <time.h>
 #include <sched.h>
@@ -31,7 +32,44 @@
 #define ERR_TIMEOUT 0x800201A8u
 
 static pthread_mutex_t big = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t gcv = PTHREAD_COND_INITIALIZER;
+/* Condition variables for waits between threads (always used as "while (!condition) wait").
+ * On the Vita they are built on a kernel semaphore instead of the pthread library's condition variables: a 3-core build froze with the
+ * GE interrupt thread and the game's main thread both waiting on one pthread condition variable whose condition had become true
+ * (hang.txt: a list-finish callback queued but never picked up).  Here a broadcast posts one token per waiting thread that has none
+ * yet (tokens == the semaphore's count, kept under the mutex), so no wake-up is lost, and every wait also gives up after 50 ms and
+ * re-checks its condition, so even a lost wake-up would cost 50 ms instead of a freeze. */
+#if defined(__vita__) || defined(RS_SEMCOND)
+#ifdef __vita__
+#include <psp2/kernel/threadmgr.h>
+typedef SceUID rs_sem_t;
+static void rs_sem_new(rs_sem_t *s){ *s = sceKernelCreateSema("rs_cond", 0, 0, 1 << 20, NULL); }
+static int rs_sem_wait(rs_sem_t *s, unsigned us){ SceUInt to = us; return sceKernelWaitSema(*s, 1, &to) >= 0; }
+static void rs_sem_post(rs_sem_t *s, int n){ sceKernelSignalSema(*s, n); }
+#else                                                                   /* RS_SEMCOND: the same on Linux (POSIX semaphores), for testing */
+#include <semaphore.h>
+typedef struct { sem_t s; } rs_sem_t;
+static void rs_sem_new(rs_sem_t *s){ sem_init(&s->s, 0, 0); }
+static int rs_sem_wait(rs_sem_t *s, unsigned us){ struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts); ts.tv_nsec += (long)us * 1000; ts.tv_sec += ts.tv_nsec / 1000000000L; ts.tv_nsec %= 1000000000L;
+    while (sem_timedwait(&s->s, &ts) != 0) if (errno != EINTR) return 0; return 1; }
+static void rs_sem_post(rs_sem_t *s, int n){ while (n-- > 0) sem_post(&s->s); }
+#endif
+typedef struct { rs_sem_t sem; int made, waiters, tokens; } rs_cond_t;
+#define RS_COND_INIT {0}
+static void rc_wait(rs_cond_t *cv, pthread_mutex_t *m){                  /* m held */
+    if (!cv->made) { rs_sem_new(&cv->sem); cv->made = 1; }
+    cv->waiters++; pthread_mutex_unlock(m);
+    int got = rs_sem_wait(&cv->sem, 50000);
+    pthread_mutex_lock(m); cv->waiters--; if (got) cv->tokens--; }
+static void rc_broadcast(rs_cond_t *cv){                                 /* m held */
+    if (!cv->made) { rs_sem_new(&cv->sem); cv->made = 1; }
+    int n = cv->waiters - cv->tokens; if (n > 0) { cv->tokens += n; rs_sem_post(&cv->sem, n); } }
+#else
+typedef struct { pthread_cond_t c; } rs_cond_t;
+#define RS_COND_INIT {PTHREAD_COND_INITIALIZER}
+static void rc_wait(rs_cond_t *cv, pthread_mutex_t *m){ pthread_cond_wait(&cv->c, m); }
+static void rc_broadcast(rs_cond_t *cv){ pthread_cond_broadcast(&cv->c); }
+#endif
+static rs_cond_t gcv = RS_COND_INIT;
 /* Per-thread guest state (FPU control word, vector registers, $k0) with RS_TLS_STRUCT: guest code reaches it through the global
  * rs_tls_cur instead of thread-local storage (emulated on the Vita: a library call per access, ~5000 per frame in battles).  Only one
  * guest thread runs at a time - the one holding the big lock - so every acquisition of the big lock points rs_tls_cur at the
@@ -44,7 +82,7 @@ rs_tls_t *rs_tls_cur;
 #endif
 static volatile pthread_t big_owner;                 /* last thread to take the big lock (hang reports) */
 static inline void big_lock(void){ pthread_mutex_lock(&big); big_owner = pthread_self(); TLS_RESUME(); }
-static inline void big_wait(pthread_cond_t *cv){ pthread_cond_wait(cv, &big); big_owner = pthread_self(); TLS_RESUME(); }
+static inline void big_wait(rs_cond_t *cv){ rc_wait(cv, &big); big_owner = pthread_self(); TLS_RESUME(); }
 static char g_root[1024] = ".";
 u32 hle_heap_lo, hle_heap_hi;
 volatile int g_ge_lists, g_alive_threads;
@@ -166,13 +204,13 @@ static void *thread_main(void *p){
     c->r[4] = t->argc; c->r[29] = sp; c->r[28] = 0; c->r[31] = 0;
     CALLDYN(c, t->entry);
     t->status = c->r[2]; t->exited = 1; g_alive_threads--; fprintf(stderr, "[HLE] thread '%s' returned %d\n", t->name, t->status);
-    pthread_cond_broadcast(&gcv); pthread_mutex_unlock(&big); return 0; }
+    rc_broadcast(&gcv); pthread_mutex_unlock(&big); return 0; }
 static void h_StartThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t || t->started) { V0 = 0x800201A6u; return; }
     fprintf(stderr, "[HLE] StartThread '%s' from ra=%08x fn=%08x arg=%08x\n", t->name, c->r[31], A2 ? LW(A2) : 0, A2 ? LW(A2 + 4) : 0); if (strstr(t->name, "Atrac")) { extern void rc_dump_stack(sdkcall_t *, const char *); rc_dump_stack(c, "atrac start"); }
     t->started = 1; t->argc = A1 > 256 ? 256 : A1; t->argp = A2; if (t->argc) memcpy(t->argbuf, g_mem + GADDR(A2), t->argc); g_alive_threads++;
     pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32 psp_stack); rs_thread_attr(&at, t->stacksize); }
     pthread_create(&t->th, &at, thread_main, t); V0 = 0; }
-static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; g_alive_threads--; pthread_cond_broadcast(&gcv); pthread_mutex_unlock(&big); pthread_exit(0); } }
+static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; g_alive_threads--; rc_broadcast(&gcv); pthread_mutex_unlock(&big); pthread_exit(0); } }
 static void h_DeleteThread(sdkcall_t *c){ V0 = 0; }
 static void h_WaitThreadEnd(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t) { V0 = 0x800201A5u; return; } while (!t->exited) big_wait(&gcv); V0 = t->status; }
 static void h_Delay(sdkcall_t *c){ unsigned us = A0; if (us == 1000000) fprintf(stderr, "[DBG] 1s poll: s0(r16)=%08x ra=%08x\n", c->r[16], c->r[31]); if (us < 500) { yield_big(); } else unlocked_sleep(us > 200000 ? 200000 : us); V0 = 0; }
@@ -200,7 +238,7 @@ void perf_sema_report(char *b, int n, double fr){ int o = 0;
         kthread_t *t = s->sig_th; o += snprintf(b + o, n - o, " | sema '%s' %x waits %.1f %.2f ms, signalled by '%s' after %s", s->name, s->uid, s->waits / fr, s->wait_us / fr / 1000, t ? t->name : "?", s->sig_prev > 0 ? hname(s->sig_prev - 1) : "-");
         s->wait_us = 0; s->waits = 0; if (o > n - 120) break; }
     for (int i = 0; i < nsema; i++) semas[i].wait_us = semas[i].waits = 0; }
-static void h_SignalSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } if (s->owner && s->max == 1) { kthread_t *o = s->owner; o->hold_us += rs_perf_us() - s->t_acq; o->holds++; s->owner = 0; } s->count += A1; s->sig_th = cur_thread; s->sig_prev = cur_thread ? cur_thread->prev : 0; pthread_cond_broadcast(&gcv); V0 = 0; }
+static void h_SignalSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } if (s->owner && s->max == 1) { kthread_t *o = s->owner; o->hold_us += rs_perf_us() - s->t_acq; o->holds++; s->owner = 0; } s->count += A1; s->sig_th = cur_thread; s->sig_prev = cur_thread ? cur_thread->prev : 0; rc_broadcast(&gcv); V0 = 0; }
 static void h_WaitSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } u64 t = rs_perf_us(); while (s->count < (int)A1) big_wait(&gcv); s->count -= A1; s->wait_us += rs_perf_us() - t; s->waits++; s->owner = cur_thread; s->t_acq = rs_perf_us(); V0 = 0; }
 static void h_PollSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } if (s->count >= (int)A1) { s->count -= A1; s->owner = cur_thread; s->t_acq = rs_perf_us(); V0 = 0; } else V0 = ERR_SEMA_ZERO; yield_big(); }
 
@@ -209,7 +247,7 @@ typedef struct { int uid; u32 pat; } evf_t; static evf_t evfs[256]; static int n
 static evf_t *evf_find(int uid){ for (int i = 0; i < nevf; i++) if (evfs[i].uid == uid) return &evfs[i]; return 0; }
 static void h_CreateEvf(sdkcall_t *c){ evf_t *e = &evfs[nevf++]; e->uid = next_uid++; e->pat = A2; fprintf(stderr, "[EVF] CREATE '%s' uid=%x pat=%x by '%s' ra=%08x\n", gstr(A0), e->uid, e->pat, cur_thread ? cur_thread->name : "?", c->r[31]); V0 = e->uid; }
 static int evlog;
-static void h_SetEvf(sdkcall_t *c){ evf_t *e = evf_find(A0); if (evlog++ < 80) fprintf(stderr, "[EVF] SET   uid=%x bits=%x by '%s' ra=%08x\n", A0, A1, cur_thread ? cur_thread->name : "?", c->r[31]); if (!e) { V0 = 0x80020 | 0x80000000u; return; } e->pat |= A1; pthread_cond_broadcast(&gcv); V0 = 0; }
+static void h_SetEvf(sdkcall_t *c){ evf_t *e = evf_find(A0); if (evlog++ < 80) fprintf(stderr, "[EVF] SET   uid=%x bits=%x by '%s' ra=%08x\n", A0, A1, cur_thread ? cur_thread->name : "?", c->r[31]); if (!e) { V0 = 0x80020 | 0x80000000u; return; } e->pat |= A1; rc_broadcast(&gcv); V0 = 0; }
 static void h_ClearEvf(sdkcall_t *c){ evf_t *e = evf_find(A0); if (e) e->pat &= A1; V0 = 0; }
 static void h_WaitEvf(sdkcall_t *c){ evf_t *e = evf_find(A0); u32 bits = A1, mode = A2;
     if (!e) { V0 = 0x80020000u; return; }
@@ -459,14 +497,14 @@ void rs_ge_finish_hook(int id){
     c->r[4] = id; c->r[5] = rs_ge_cb_finish_arg; c->r[6] = 0; c->r[31] = 0; CALLDYN(c, rs_ge_cb_finish_func);
     memcpy(c->r, save, sizeof save); c->hi = hi; c->lo = lo; }
 /* GE interrupt: list-finish callbacks of asynchronously executed lists run here, as on the PSP (not on the thread that queued the list) */
-static pthread_mutex_t gi_m = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t gi_c = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t gi_m = PTHREAD_MUTEX_INITIALIZER; static rs_cond_t gi_work = RS_COND_INIT, gi_done = RS_COND_INIT;   /* work for the GE thread / a callback delivered */
 static int gi_q[256]; static unsigned gi_h, gi_t, gi_running; static pthread_t gi_th; static int gi_th_ok;
-void rs_ge_signal_finish(int id){ pthread_mutex_lock(&gi_m); if (gi_h - gi_t < 256) gi_q[gi_h++ % 256] = id; pthread_cond_broadcast(&gi_c); pthread_mutex_unlock(&gi_m); }
+void rs_ge_signal_finish(int id){ pthread_mutex_lock(&gi_m); if (gi_h - gi_t < 256) gi_q[gi_h++ % 256] = id; rc_broadcast(&gi_work); pthread_mutex_unlock(&gi_m); }
 static void *ge_intr_thread(void *u){ (void)u; gi_th = pthread_self(); gi_th_ok = 1;
     pthread_once(&key_once, mk_keys); static sdkcall_t ctx; pthread_setspecific(k_cpu, &ctx); { extern void rs_thread_init(void); rs_thread_init(); } rs_thread_cores("GE interrupt");
-    for (;;) { pthread_mutex_lock(&gi_m); while (gi_h == gi_t) pthread_cond_wait(&gi_c, &gi_m); int id = gi_q[gi_t % 256]; gi_running = 1; pthread_mutex_unlock(&gi_m);
-        big_lock(); rs_ge_finish_hook(id); pthread_cond_broadcast(&gcv); pthread_mutex_unlock(&big);
-        pthread_mutex_lock(&gi_m); gi_t++; gi_running = 0; pthread_cond_broadcast(&gi_c); pthread_mutex_unlock(&gi_m); } return 0; }
+    for (;;) { pthread_mutex_lock(&gi_m); while (gi_h == gi_t) rc_wait(&gi_work, &gi_m); int id = gi_q[gi_t % 256]; gi_running = 1; pthread_mutex_unlock(&gi_m);
+        big_lock(); rs_ge_finish_hook(id); rc_broadcast(&gcv); pthread_mutex_unlock(&big);
+        pthread_mutex_lock(&gi_m); gi_t++; gi_running = 0; rc_broadcast(&gi_done); pthread_mutex_unlock(&gi_m); } return 0; }
 static void ge_intr_start(void){ pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32); rs_thread_attr(&at, 0x10000); } pthread_t t; pthread_create(&t, &at, ge_intr_thread, 0); }
 int rs_ge_busy(void); void rs_ge_wait_idle(void);
 unsigned rs_ge_posted(void); int rs_ge_done_upto(unsigned mark);
@@ -478,7 +516,7 @@ static void ge_sync(sdkcall_t *c){
     static int pipe = -1; if (pipe < 0) { extern int rs_setting_int(const char *, int); pipe = rs_setting_int("RS_GE_PIPELINE", 0); }
     if (pipe) { static unsigned prev; unsigned mark = prev; prev = rs_ge_posted(); while (!rs_ge_done_upto(mark)) unlocked_sleep(200); V0 = 0; return; }
     rs_ge_wait_idle();                                                        /* every queued list executed ... */
-    pthread_mutex_unlock(&big); pthread_mutex_lock(&gi_m); while (gi_h != gi_t || gi_running) pthread_cond_wait(&gi_c, &gi_m); pthread_mutex_unlock(&gi_m); big_lock();   /* ... and its callback delivered */
+    pthread_mutex_unlock(&big); pthread_mutex_lock(&gi_m); while (gi_h != gi_t || gi_running) rc_wait(&gi_done, &gi_m); pthread_mutex_unlock(&gi_m); big_lock();   /* ... and its callback delivered */
     V0 = 0; }
 static void h_GeListSync(sdkcall_t *c){ c->r[4] = c->r[5]; ge_sync(c); }       /* (list id, mode) */
 static void h_GeDrawSync(sdkcall_t *c){ ge_sync(c); }                        /* (mode) */
