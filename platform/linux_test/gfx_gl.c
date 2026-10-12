@@ -363,6 +363,7 @@ static unsigned compile(unsigned type, const char *src, const char *what){
 #if defined(__vita__) && !defined(RS_VITA_GLSL)
     /* vitaGL treats GL_VERTEX/FRAGMENT_SHADER as GLSL (translated and compiled late, in glLinkProgram); Cg source needs its own types */
     type = (type == GL_VERTEX_SHADER) ? 0x890E /* GL_CG_VERTEX_SHADER_EXT */ : 0x890F /* GL_CG_FRAGMENT_SHADER_EXT */;
+    { extern unsigned rs_vgl_compile_cached(unsigned type, const char *src, const char *what); return rs_vgl_compile_cached(type, src, what); }   /* platform/vita/gfx_vgl.c: compiled-shader cache */
 #endif
     unsigned s = glCreateShader(type); glShaderSource(s, 1, &src, 0); glCompileShader(s);
     int ok = 0; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);

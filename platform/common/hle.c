@@ -300,6 +300,18 @@ HS(hs_SasSetNoise) HS(hs_SasSetSL) HS(hs_SasSetADSR) HS(hs_SasSetADSRmode) HS(hs
 HS(hs_SasGetGrain) HS(hs_SasSetGrain) HS(hs_SasGetOutputmode) HS(hs_SasSetOutputmode)
 HS(ha_SetDataAndGetID) HS(ha_DecodeData) HS(ha_GetSoundSample) HS(ha_GetStreamDataInfo) HS(ha_AddStreamData) HS(ha_Release)
 #undef HS
+/* SAS / ATRAC calls run under their own lock (snd_mx).  Mixing and decoding (about 8 ms per frame together in battles) also let go
+ * of the big guest lock while they work, as the PSP's Media Engine works next to the main CPU: the game's main thread no longer waits
+ * for the audio thread's mixing whenever it makes a system call. */
+static pthread_mutex_t snd_mx = PTHREAD_MUTEX_INITIALIZER;
+#define HSW(n) static void w_##n(sdkcall_t *c){ pthread_mutex_lock(&snd_mx); n(c); pthread_mutex_unlock(&snd_mx); }
+#define HSH(n) static void w_##n(sdkcall_t *c){ pthread_mutex_unlock(&big); pthread_mutex_lock(&snd_mx); n(c); pthread_mutex_unlock(&snd_mx); pthread_mutex_lock(&big); }
+HSW(hs_SasInit) HSH(hs_SasCore) HSH(hs_SasCoreWithMix) HSW(hs_SasGetEndFlag) HSW(hs_SasSetVoice) HSW(hs_SasSetVolume) HSW(hs_SasSetPitch) HSW(hs_SasSetKeyOn) HSW(hs_SasSetKeyOff)
+HSW(hs_SasSetNoise) HSW(hs_SasSetSL) HSW(hs_SasSetADSR) HSW(hs_SasSetADSRmode) HSW(hs_SasSetSimpleADSR) HSW(hs_SasGetEnvelopeHeight) HSW(hs_SasGetPauseFlag) HSW(hs_SasSetPause)
+HSW(hs_SasGetGrain) HSW(hs_SasSetGrain) HSW(hs_SasGetOutputmode) HSW(hs_SasSetOutputmode)
+HSW(ha_SetDataAndGetID) HSH(ha_DecodeData) HSW(ha_GetSoundSample) HSW(ha_GetStreamDataInfo) HSW(ha_AddStreamData) HSW(ha_Release)
+#undef HSW
+#undef HSH
 void rs_atrac_note_file(const char *host_path);
 
 /* ---------------- file IO ---------------- */
@@ -399,8 +411,11 @@ static void pace_frame(void){
     if (fps <= 0) { yield_big(); static u64 last, work; static int n; u64 t = now_us(); if (last) work += t - last; last = t;
         if (getenv("RS_FRAMELOG") && ++n == 600) { fprintf(stderr, "[PACE] unlocked: %.2f ms per frame\n", work / 600e3); n = 0; work = 0; } return; }
     u64 period = 1000000ull / (u64)fps, now = now_us(); if (!epoch) epoch = now;
-    u64 next = epoch + ((now - epoch) / period + 1) * period;
-    unlocked_sleep((unsigned)(next - now));
+    /* at most fps frames per second.  A frame that took longer than the period is not held back to the next period boundary (that
+     * turned ~37 ms frames into 50 ms ones at 60 fps); the next deadline then counts from now. */
+    u64 next = epoch + period;
+    if (now >= next) { next = now; epoch = now; yield_big(); }
+    else { unlocked_sleep((unsigned)(next - now)); epoch = next; }
     { static u64 req, act, last, work; static int n; u64 t = now_us(); req += next - now; act += t - now; if (last) work += now - last; last = t;
       if (getenv("RS_FRAMELOG") && ++n == 600) { fprintf(stderr, "[PACE] per frame: work %.2f ms, sleep requested %.2f ms, slept %.2f ms\n", work / 600e3, req / 600e3, act / 600e3); n = 0; req = act = work = 0; } } }
 static void h_WaitVblank(sdkcall_t *c){ static int fast = -1; if (fast < 0) fast = getenv("RS_FAST") != 0; if (fast) { rs_patch_apply_fps_cap(); yield_big(); } else pace_frame(); rs_patch_vblank(); g_frames++; if (++since_flip >= 30) { since_flip = 0; gfx_frame_ready(); } perf_report();   /* no flip for half a second: show what there is */
@@ -489,15 +504,15 @@ static const hle_t tbl[] = {
  {0xB29DDF9C,"sceIoDopen",h_Dopen},{0xE3EB004C,"sceIoDread",h_Dread},{0xEB092469,"sceIoDclose",h_IoClose},
  {0x01562BA3,"sceAudioOutput2Reserve",h_Au2Reserve},{0x43196845,"sceAudioOutput2Release",h_Au2Release},{0x2D53F36E,"sceAudioOutput2OutputBlocking",h_Au2Output},
  {0x5EC81C55,"sceAudioChReserve",h_AuChReserve},{0x6FC46853,"sceAudioChRelease",h_Zero},{0x136CAF51,"sceAudioOutputBlocking",h_AuOutBlocking},{0x13F592BC,"sceAudioOutputPannedBlocking",h_AuOutBlocking},
- {0x42778A9F,"__sceSasInit",hs_SasInit},{0xA3589D81,"__sceSasCore",hs_SasCore},{0x50A14DFC,"__sceSasCoreWithMix",hs_SasCoreWithMix},{0x68A46B95,"__sceSasGetEndFlag",hs_SasGetEndFlag},
- {0x440CA7D8,"__sceSasSetVolume",hs_SasSetVolume},{0xAD84D37F,"__sceSasSetPitch",hs_SasSetPitch},{0x99944089,"__sceSasSetVoice",hs_SasSetVoice},{0x019B25EB,"__sceSasSetADSR",hs_SasSetADSR},
- {0x76F01ACA,"__sceSasSetKeyOn",hs_SasSetKeyOn},{0xA0CF2FA4,"__sceSasSetKeyOff",hs_SasSetKeyOff},{0x787D04D5,"__sceSasSetPause",hs_SasSetPause},{0xE175EF66,"__sceSasGetOutputmode",hs_SasGetOutputmode},
+ {0x42778A9F,"__sceSasInit",w_hs_SasInit},{0xA3589D81,"__sceSasCore",w_hs_SasCore},{0x50A14DFC,"__sceSasCoreWithMix",w_hs_SasCoreWithMix},{0x68A46B95,"__sceSasGetEndFlag",w_hs_SasGetEndFlag},
+ {0x440CA7D8,"__sceSasSetVolume",w_hs_SasSetVolume},{0xAD84D37F,"__sceSasSetPitch",w_hs_SasSetPitch},{0x99944089,"__sceSasSetVoice",w_hs_SasSetVoice},{0x019B25EB,"__sceSasSetADSR",w_hs_SasSetADSR},
+ {0x76F01ACA,"__sceSasSetKeyOn",w_hs_SasSetKeyOn},{0xA0CF2FA4,"__sceSasSetKeyOff",w_hs_SasSetKeyOff},{0x787D04D5,"__sceSasSetPause",w_hs_SasSetPause},{0xE175EF66,"__sceSasGetOutputmode",w_hs_SasGetOutputmode},
  {0xF983B186,"__sceSasRevVON",h_Zero},{0xD5A229C9,"__sceSasRevEVOL",h_Zero},{0x33D4AB37,"__sceSasRevType",h_Zero},{0x267A6DD2,"__sceSasRevParam",h_Zero},
- {0x9EC3676A,"__sceSasSetADSRmode",hs_SasSetADSRmode},{0x5F9529F6,"__sceSasSetSL",hs_SasSetSL},{0xCBCD4F79,"__sceSasSetSimpleADSR",hs_SasSetSimpleADSR},{0xB7660A23,"__sceSasSetNoise",hs_SasSetNoise},
- {0xE855BF76,"__sceSasSetOutputmode",hs_SasSetOutputmode},{0xD1E0A01E,"__sceSasSetGrain",hs_SasSetGrain},{0xBD11B7C2,"__sceSasGetGrain",hs_SasGetGrain},{0x2C8E6AB3,"__sceSasGetPauseFlag",hs_SasGetPauseFlag},
- {0x74AE582A,"__sceSasGetEnvelopeHeight",hs_SasGetEnvelopeHeight},
- {0x7A20E7AF,"sceAtracSetDataAndGetID",ha_SetDataAndGetID},{0x6A8C3CD5,"sceAtracDecodeData",ha_DecodeData},{0xA2BBA8BE,"sceAtracGetSoundSample",ha_GetSoundSample},
- {0x5D268707,"sceAtracGetStreamDataInfo",ha_GetStreamDataInfo},{0x7DB31251,"sceAtracAddStreamData",ha_AddStreamData},{0x61EB33F5,"sceAtracReleaseAtracID",ha_Release},
+ {0x9EC3676A,"__sceSasSetADSRmode",w_hs_SasSetADSRmode},{0x5F9529F6,"__sceSasSetSL",w_hs_SasSetSL},{0xCBCD4F79,"__sceSasSetSimpleADSR",w_hs_SasSetSimpleADSR},{0xB7660A23,"__sceSasSetNoise",w_hs_SasSetNoise},
+ {0xE855BF76,"__sceSasSetOutputmode",w_hs_SasSetOutputmode},{0xD1E0A01E,"__sceSasSetGrain",w_hs_SasSetGrain},{0xBD11B7C2,"__sceSasGetGrain",w_hs_SasGetGrain},{0x2C8E6AB3,"__sceSasGetPauseFlag",w_hs_SasGetPauseFlag},
+ {0x74AE582A,"__sceSasGetEnvelopeHeight",w_hs_SasGetEnvelopeHeight},
+ {0x7A20E7AF,"sceAtracSetDataAndGetID",w_ha_SetDataAndGetID},{0x6A8C3CD5,"sceAtracDecodeData",w_ha_DecodeData},{0xA2BBA8BE,"sceAtracGetSoundSample",w_ha_GetSoundSample},
+ {0x5D268707,"sceAtracGetStreamDataInfo",w_ha_GetStreamDataInfo},{0x7DB31251,"sceAtracAddStreamData",w_ha_AddStreamData},{0x61EB33F5,"sceAtracReleaseAtracID",w_ha_Release},
 
  {0xC07BB470,"sceKernelCreateFpl",h_CreateFpl},{0x623AE665,"sceKernelAllocateFpl",h_AllocateFpl},{0xF6414A71,"sceKernelFreeFpl",h_FreeFpl},
  {0x68DA9E36,"sceKernelDelayThreadCB",h_DelayCB},{0xE81CAF8F,"sceKernelCreateCallback",h_CreateCallback},{0x54F5FB11,"sceIoDevctl",h_Devctl},{0xAEE7404D,"sceUmdRegisterUMDCallBack",h_UmdRegCb},{0x6AD345D7,"sceKernelSetGPO",h_Zero},{0x092968F4,"sceKernelCpuSuspendIntr",h_Zero},{0x5F10D406,"sceKernelCpuResumeIntr",h_Zero},

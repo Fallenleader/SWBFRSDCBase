@@ -28,6 +28,38 @@ void rs_renderer_present(const char *const *lines, int n){
     extern volatile int rs_dialog_active;
     gfx_present(960, 544); if (lines && n > 0) gfx_hud(lines, n, 960, 544); vglSwapBuffers(rs_dialog_active ? GL_TRUE : GL_FALSE); }
 
+/* ---- compiled shader cache (called by gfx_gl.c's compile()) ----
+ * The system Cg compiler takes 1-3.5 s per program on the Vita (13 s at start-up for the fixed programs, plus each vertex-type program
+ * the first time it is drawn).  Compiled shaders are kept in ux0:data/SWBFRS/shaders/<hash of the source>.bin (vitaGL's serialised
+ * form: vglGetShaderBinary / glShaderBinary) and loaded from there on later runs.  Delete the folder to force a recompile. */
+#include <stdlib.h>
+#define RS_SHADER_DIR "ux0:data/SWBFRS/shaders"
+#define RS_SHADER_VER "vitaGL 2026-09 / cache 1"           /* change when the vitaGL library changes: its serialised format is its own */
+unsigned rs_vgl_compile_cached(unsigned type, const char *src, const char *what){
+    unsigned long long h = 1469598103934665603ULL;
+    for (const char *p = RS_SHADER_VER; *p; p++) h = (h ^ (unsigned char)*p) * 1099511628211ULL;
+    h = (h ^ type) * 1099511628211ULL;
+    for (const char *p = src; *p; p++) h = (h ^ (unsigned char)*p) * 1099511628211ULL;
+    char path[160]; snprintf(path, sizeof path, RS_SHADER_DIR "/%016llx.bin", h);
+    GLuint s = glCreateShader(type);
+    FILE *f = fopen(path, "rb");
+    if (f) {
+        fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+        unsigned char *b = (n > 16 && n < (1 << 20)) ? malloc((size_t)n) : NULL; int good = 0;
+        if (b && fread(b, 1, (size_t)n, f) == (size_t)n)
+            for (long i = 0; i + 4 <= n && i < 2048; i++) if (!memcmp(b + i, "GXP\0", 4)) { good = 1; break; }   /* the GXP program inside */
+        fclose(f);
+        if (good) { glShaderBinary(1, &s, 0, b, (GLsizei)n); free(b); return s; }
+        free(b); fprintf(stderr, "[GL] %s: cached shader %s unreadable, compiling\n", what, path); }
+    glShaderSource(s, 1, &src, 0); glCompileShader(s);
+    GLint ok = 0; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+    if (!ok) { char log[1024] = ""; glGetShaderInfoLog(s, sizeof log - 1, 0, log); fprintf(stderr, "[GL] %s shader compile failed:\n%s\n", what, log); return 0; }
+    enum { CAP = 512 * 1024 }; static void *bin; if (!bin) bin = malloc(CAP);
+    GLsizei len = 0; if (bin) vglGetShaderBinary(s, CAP, &len, bin);
+    if (len > 0 && len < CAP) { static int dir; if (!dir) { sceIoMkdir(RS_SHADER_DIR, 0777); dir = 1; }
+        FILE *o = fopen(path, "wb"); if (o) { fwrite(bin, 1, (size_t)len, o); fclose(o); } }
+    return s; }
+
 /* ---- native texture upload (called by gfx_gl.c's texture cache) ----
  * The PSP texel data goes into the GL texture in a GXM format that reads it as it is, through vitaGL's hooks for setting a texture's
  * GXM descriptor and memory (vglGetGxmTexture, vglOverloadTexDataPointer; the memory comes from vitaGL's pools, so vitaGL frees it
