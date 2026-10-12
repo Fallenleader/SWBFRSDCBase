@@ -862,17 +862,21 @@ static void flush_native(void){
     int tf = vt & 3, cf = (vt >> 2) & 7, nf = (vt >> 5) & 3, pf = (vt >> 7) & 3, wf = (vt >> 9) & 3, nw = ((vt >> 14) & 7) + 1, thr = (vt >> 23) & 1;
     static const unsigned sty[4] = {GL_FLOAT, 0x1400 /*GL_BYTE*/, 0x1402 /*GL_SHORT*/, GL_FLOAT}, uty[4] = {GL_FLOAT, GL_UNSIGNED_BYTE, 0x1403 /*GL_UNSIGNED_SHORT*/, GL_FLOAT};
     static const int fs[4] = {0, 1, 2, 4};
-    const u8 *base = nb.vb; int stride = nb.vsz; const int *off = nb.off;
+    /* the vertex bytes go to the GPU once, as one buffer: with client-side arrays vitaGL copies the whole vertex range once per attribute */
+    static unsigned vbo; if (!vbo) glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo); glBufferData(GL_ARRAY_BUFFER, nb.nv * nb.vsz, nb.vb, GL_STREAM_DRAW);
+    uintptr_t base = 0; int stride = nb.vsz; const int *off = nb.off;
     int am = 1 | ((nf && !thr && off[3] >= 0) ? 2 : 0) | ((tf && off[1] >= 0) ? 4 : 0) | ((cf && off[2] >= 0) ? 8 : 0) | ((wf && !thr && off[0] >= 0) ? (nw > 4 ? 0x30 : 0x10) : 0);
     gs_attribs(am);
-    glVertexAttribPointer(0, 3, sty[pf], 0, stride, base + off[4]);
-    if (nf && !thr && off[3] >= 0) { glVertexAttribPointer(1, 3, sty[nf], 0, stride, base + off[3]); }
-    if (tf && off[1] >= 0) { glVertexAttribPointer(2, 2, uty[tf], 0, stride, base + off[1]); }
-    if (cf && off[2] >= 0) { if (cf == 7) glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, 1, stride, base + off[2]); else glVertexAttribPointer(3, 1, 0x1403, 0, stride, base + off[2]); }
-    if (wf && !thr && off[0] >= 0) { glVertexAttribPointer(4, nw > 4 ? 4 : nw, uty[wf], 0, stride, base + off[0]);
-        if (nw > 4) { glVertexAttribPointer(5, nw - 4, uty[wf], 0, stride, base + off[0] + 4 * fs[wf]); } }
+    glVertexAttribPointer(0, 3, sty[pf], 0, stride, (const void *)(base + off[4]));
+    if (nf && !thr && off[3] >= 0) { glVertexAttribPointer(1, 3, sty[nf], 0, stride, (const void *)(base + off[3])); }
+    if (tf && off[1] >= 0) { glVertexAttribPointer(2, 2, uty[tf], 0, stride, (const void *)(base + off[1])); }
+    if (cf && off[2] >= 0) { if (cf == 7) glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, 1, stride, (const void *)(base + off[2])); else glVertexAttribPointer(3, 1, 0x1403, 0, stride, (const void *)(base + off[2])); }
+    if (wf && !thr && off[0] >= 0) { glVertexAttribPointer(4, nw > 4 ? 4 : nw, uty[wf], 0, stride, (const void *)(base + off[0]));
+        if (nw > 4) { glVertexAttribPointer(5, nw - 4, uty[wf], 0, stride, (const void *)(base + off[0] + 4 * fs[wf])); } }
     u64 t_d = rs_perf_us(); rs_perf.setup_us += t_d - t_s;
     glDrawElements(GL_TRIANGLES, nb.ni, 0x1403 /*GL_UNSIGNED_SHORT*/, nb.ib);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);                                          /* the other draw paths use client-side arrays */
     rs_perf.draw_us += rs_perf_us() - t_d; rs_perf.batches++; st_batches++; st_tris += (unsigned)(nb.ni / 3);
     static int dbg = -1; if (dbg < 0) dbg = getenv("RS_GL_DEBUG") != 0;
     if (dbg) { unsigned e = glGetError(); if (e) fprintf(stderr, "[GL] error 0x%x after native draw (vertex type %06x, %d indices, %d PSP primitives)\n", e, vt, nb.ni, nb.draws); }

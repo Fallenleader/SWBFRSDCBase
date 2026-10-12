@@ -82,8 +82,13 @@ static u32 tex_hash_cb(void *ud){
     else { int bpp = (f == 3 || f == 7) ? 32 : (f == 4 ? 4 : (f == 5 ? 8 : 16)); bytes = (size_t)k->bufw * k->h * bpp / 8; }
     size_t base = GADDR(vram_addr(k->addr)); if (base >= GMEM_SIZE) return 0; if (bytes > GMEM_SIZE - base) bytes = GMEM_SIZE - base;
     size_t words = bytes / 4; const u32 *p = (const u32 *)(g_mem + base);
-    size_t step = words > 4096 ? (words / 1024 > 7 ? words / 1024 : 7) : 1;     /* big textures: about 1000 sampled words (each texture is re-checked once per frame) */
-    return fnv_words(p, words, step); }
+    /* Each texture in use is re-checked once per displayed frame.  Up to 16 KB: every word.  Bigger: about 256 words spread over it
+     * plus its first and last 32 bytes - each sample of a big texture is a cache miss (~0.1 us on the Vita; 1000 samples made the
+     * per-frame checks cost ~5 ms in battles).  A texture whose contents are replaced changes almost every sample. */
+    if (words <= 4096) return fnv_words(p, words, 1);
+    size_t step = words / 256; u32 h = fnv_words(p, words, step);
+    for (size_t i = 0; i < 8; i++) h = (h ^ p[i] ^ (p[words - 1 - i] * 31u)) * 16777619u;
+    return h; }
 static void tex_decode_cb(u32 *dst, void *ud){
     const gtex_key_t *k = ud;
     for (int y = 0; y < k->h; y++) for (int x = 0; x < k->w; x++) dst[y * k->w + x] = tex_fetch(x, y, k->addr, k->bufw, k->fmt, k->swz);

@@ -32,6 +32,7 @@
 #define ERR_TIMEOUT 0x800201A8u
 
 static pthread_mutex_t big = PTHREAD_MUTEX_INITIALIZER;
+static volatile int big_waiting;                     /* threads blocked taking the big lock (yield_big hands it over only to them) */
 /* Condition variables for waits between threads (always used as "while (!condition) wait").
  * On the Vita they are built on a kernel semaphore instead of the pthread library's condition variables: a 3-core build froze with the
  * GE interrupt thread and the game's main thread both waiting on one pthread condition variable whose condition had become true
@@ -59,7 +60,9 @@ static void rc_wait(rs_cond_t *cv, pthread_mutex_t *m){                  /* m he
     if (!cv->made) { rs_sem_new(&cv->sem); cv->made = 1; }
     cv->waiters++; pthread_mutex_unlock(m);
     int got = rs_sem_wait(&cv->sem, 50000);
-    pthread_mutex_lock(m); cv->waiters--; if (got) cv->tokens--; }
+    if (m == &big) __sync_add_and_fetch(&big_waiting, 1);
+    pthread_mutex_lock(m); if (m == &big) __sync_sub_and_fetch(&big_waiting, 1);
+    cv->waiters--; if (got) cv->tokens--; }
 static void rc_broadcast(rs_cond_t *cv){                                 /* m held */
     if (!cv->made) { rs_sem_new(&cv->sem); cv->made = 1; }
     int n = cv->waiters - cv->tokens; if (n > 0) { cv->tokens += n; rs_sem_post(&cv->sem, n); } }
@@ -81,7 +84,7 @@ rs_tls_t *rs_tls_cur;
 #define TLS_RESUME() ((void)0)
 #endif
 static volatile pthread_t big_owner;                 /* last thread to take the big lock (hang reports) */
-static inline void big_lock(void){ pthread_mutex_lock(&big); big_owner = pthread_self(); TLS_RESUME(); }
+static inline void big_lock(void){ __sync_add_and_fetch(&big_waiting, 1); pthread_mutex_lock(&big); __sync_sub_and_fetch(&big_waiting, 1); big_owner = pthread_self(); TLS_RESUME(); }
 static inline void big_wait(rs_cond_t *cv){ rc_wait(cv, &big); big_owner = pthread_self(); TLS_RESUME(); }
 static char g_root[1024] = ".";
 u32 hle_heap_lo, hle_heap_hi;
@@ -105,7 +108,21 @@ static u64 guest_us(void){ static int vc = -1; static u64 reads; if (vc < 0) vc 
     return vc ? (u64)g_frames * 16667ull + ++reads : now_us(); }
 #include "gfx.h"
 static void unlocked_sleep(unsigned us){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); usleep(us); big_lock(); rs_perf.sleeps++; rs_perf.sleep_us += rs_perf_us() - t; }
-static void yield_big(void){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); sched_yield(); big_lock(); rs_perf.yields++; rs_perf.yield_us += rs_perf_us() - t; }
+/* Let another guest thread run.  On the Vita sched_yield() is a 1 ms sleep (pthread-embedded: pte_osThreadSleep(1)), which cost the
+ * game's main thread ~5 ms per frame (it yields when it reads the pad, when a frame is late and every 32 clock reads).  There the
+ * big lock is handed over instead: nothing happens when no thread is waiting for it; otherwise the lock is released and this thread
+ * waits (up to 0.3 ms, spinning - the waiter runs on another core) until a waiter has taken it, then queues for it again; if no
+ * waiter took it by then (one on this same core cannot run while this thread spins), it sleeps 1 ms as before. */
+static void yield_big(void){ u64 t = rs_perf_us();
+#if defined(__vita__) || defined(RS_SEMCOND)                       /* RS_SEMCOND: the Vita behaviour on Linux, for testing */
+    if (!big_waiting) { rs_perf.yields++; return; }
+    pthread_t me = pthread_self(); pthread_mutex_unlock(&big);
+    while (pthread_equal(big_owner, me) && rs_perf_us() - t < 300) { }
+    if (pthread_equal(big_owner, me)) sched_yield();     /* not taken: the waiter may share this core - give it the old 1 ms */
+#else
+    pthread_mutex_unlock(&big); sched_yield();
+#endif
+    big_lock(); rs_perf.yields++; rs_perf.yield_us += rs_perf_us() - t; }
 void rs_big_unlock(void){ pthread_mutex_unlock(&big); }
 void rs_big_lock(void){ big_lock(); }
 /* profiler report, every 600 vblanks.  Weak: the Vita frontend replaces rs_perf_write with a file on the memory card. */

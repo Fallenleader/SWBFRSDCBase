@@ -23,6 +23,8 @@ X(void, glVertexAttribPointer, (unsigned i, int sz, unsigned t, unsigned char no
 X(void, glDrawArrays, (unsigned mode, int first, int count))
 X(void, glDrawElements, (unsigned mode, int count, unsigned type, const void *idx))
 X(void, glBindBuffer, (unsigned tg, unsigned b))
+X(void, glGenBuffers, (int n, unsigned *b))
+X(void, glBufferData, (unsigned tg, int size, const void *data, unsigned usage))
 X(void, glGenTextures, (int n, unsigned *t))
 X(void, glDeleteTextures, (int n, const unsigned *t))
 X(void, glBindTexture, (unsigned tg, unsigned t))

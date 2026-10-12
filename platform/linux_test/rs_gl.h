@@ -68,6 +68,9 @@
 #define glGenerateMipmap p_glGenerateMipmap
 #define glDrawElements p_glDrawElements
 #define glBindBuffer p_glBindBuffer
+#define glGenBuffers p_glGenBuffers
+#define glBufferData p_glBufferData
+#define GL_STREAM_DRAW 0x88E0
 #define GL_ARRAY_BUFFER 0x8892
 #define GL_ELEMENT_ARRAY_BUFFER 0x8893
 #define GL_LINEAR_MIPMAP_LINEAR 0x2703
