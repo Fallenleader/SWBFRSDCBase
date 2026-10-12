@@ -58,6 +58,7 @@ artwork in `sce_sys/` comes from the game itself.
 | `RS_RES_SCALE` | 2 | internal resolution: 2 = 960x544 (Vita screen), 4 = 1920x1088 (2x Vita, supersampled to the screen); 1 = 480x272 (PSP) |
 | `RS_FXAA` | 0 | 1 = FXAA on the final picture (mostly useful at `RS_RES_SCALE=2`) |
 | `RS_NATIVE_GE` | 1 | 0 = decode vertices and textures on the CPU as the earlier builds did (for comparison only) |
+| `RS_CPU_PIN` | 1 | 1 = renderer on core 0, game main thread on core 1, other game threads on core 2; 0 = the kernel places every thread (as before the 3-core build) |
 | `RS_NATIVE_BATCH` | 1 | 1 = consecutive PSP primitives with identical state are drawn as one GPU draw call (about 4x fewer draw calls in a Hoth match); 0 = one draw call per PSP primitive (for comparison) |
 | `RS_HW_TL` | 1 | vertex transform and lighting on the GPU (0 = on the CPU) |
 | `RS_FPS` | 30 | frame rate: 30 or 60 (the game's own 20 fps limit is removed; gameplay speed follows the frame time) |
@@ -91,3 +92,8 @@ which places everything above 0x80000000 as on the Vita.
   scale-4 surfaces render correctly on the Linux validation build; the native texture upload was checked offline
   against the game's own texture decoder for every format it handles. The log `ux0:data/SWBFRS/log.txt` records each
   vertex program built, texture formats that fell back to the CPU, and errors.
+
+## When the game freezes
+
+If the game stops reaching vertical blanks for 8 seconds, `ux0:data/SWBFRS/hang.txt` gets a report of what every game thread, the
+big lock, the GE and the renderer are doing (again every 15 seconds while it stays frozen, 5 reports at most). Send it with `log.txt`.

@@ -42,8 +42,9 @@ rs_tls_t *rs_tls_cur;
 #else
 #define TLS_RESUME() ((void)0)
 #endif
-static inline void big_lock(void){ pthread_mutex_lock(&big); TLS_RESUME(); }
-static inline void big_wait(pthread_cond_t *cv){ pthread_cond_wait(cv, &big); TLS_RESUME(); }
+static volatile pthread_t big_owner;                 /* last thread to take the big lock (hang reports) */
+static inline void big_lock(void){ pthread_mutex_lock(&big); big_owner = pthread_self(); TLS_RESUME(); }
+static inline void big_wait(pthread_cond_t *cv){ pthread_cond_wait(cv, &big); big_owner = pthread_self(); TLS_RESUME(); }
 static char g_root[1024] = ".";
 u32 hle_heap_lo, hle_heap_hi;
 volatile int g_ge_lists, g_alive_threads;
@@ -146,7 +147,7 @@ static void h_MaxFreeMemSize(sdkcall_t *c){ V0 = heap_free_max(); }
 static void h_TotalFreeMemSize(sdkcall_t *c){ V0 = heap_free_total(); }
 
 /* ---------------- threads ---------------- */
-typedef struct kthread { int uid; u32 entry, stack, stacksize, prio; char name[32]; pthread_t th; sdkcall_t cpu; int started, exited, status, blk, last, prev; u64 *p_us, *p_n, p_hle, hold_us, holds; unsigned long ncalls_t; u32 last_ra, last_a0; u32 argc, argp; u8 argbuf[256]; } kthread_t;
+typedef struct kthread { int uid; u32 entry, stack, stacksize, prio; char name[32]; pthread_t th; sdkcall_t cpu; int started, exited, status, blk, last, prev; u64 *p_us, *p_n, p_hle, hold_us, holds; unsigned long ncalls_t; u32 last_ra, last_a0; u32 argc, argp; u8 argbuf[256]; volatile int in; } kthread_t;      /* in: 1 + index of the firmware call it is inside (0 = guest code) */
 static kthread_t *threads[256]; static int nthreads;
 static pthread_key_t k_cur, k_cpu; static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 static void mk_keys(void){ pthread_key_create(&k_cur, 0); pthread_key_create(&k_cpu, 0); }
@@ -459,9 +460,9 @@ void rs_ge_finish_hook(int id){
     memcpy(c->r, save, sizeof save); c->hi = hi; c->lo = lo; }
 /* GE interrupt: list-finish callbacks of asynchronously executed lists run here, as on the PSP (not on the thread that queued the list) */
 static pthread_mutex_t gi_m = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t gi_c = PTHREAD_COND_INITIALIZER;
-static int gi_q[256]; static unsigned gi_h, gi_t, gi_running;
+static int gi_q[256]; static unsigned gi_h, gi_t, gi_running; static pthread_t gi_th; static int gi_th_ok;
 void rs_ge_signal_finish(int id){ pthread_mutex_lock(&gi_m); if (gi_h - gi_t < 256) gi_q[gi_h++ % 256] = id; pthread_cond_broadcast(&gi_c); pthread_mutex_unlock(&gi_m); }
-static void *ge_intr_thread(void *u){ (void)u;
+static void *ge_intr_thread(void *u){ (void)u; gi_th = pthread_self(); gi_th_ok = 1;
     pthread_once(&key_once, mk_keys); static sdkcall_t ctx; pthread_setspecific(k_cpu, &ctx); { extern void rs_thread_init(void); rs_thread_init(); } rs_thread_cores("GE interrupt");
     for (;;) { pthread_mutex_lock(&gi_m); while (gi_h == gi_t) pthread_cond_wait(&gi_c, &gi_m); int id = gi_q[gi_t % 256]; gi_running = 1; pthread_mutex_unlock(&gi_m);
         big_lock(); rs_ge_finish_hook(id); pthread_cond_broadcast(&gcv); pthread_mutex_unlock(&big);
@@ -570,10 +571,28 @@ void hle_call(sdkcall_t *c, int idx){
     const hle_t *h = handlers[idx];
     if (!seen[idx]) { seen[idx] = 1; fprintf(stderr, "[HLE] first call: %s %s (%08X) a0=%x a1=%x a2=%x a3=%x\n", rc_stubs[idx].lib, h ? h->name : "<UNIMPLEMENTED>", rc_stubs[idx].nid, A0, A1, A2, A3); }
     else if (trace_all) fprintf(stderr, "[HLE] %s %08X\n", rc_stubs[idx].lib, rc_stubs[idx].nid);
-    if (h) { kthread_t *me = cur_thread; if (perf_on && me) { if (!me->p_us) { me->p_us = calloc(RC_NSTUBS, 8); me->p_n = calloc(RC_NSTUBS, 8); }
-            u64 t = rs_perf_us(); h->fn(c); t = rs_perf_us() - t; me->p_us[idx] += t; me->p_n[idx]++; me->p_hle += t; } else h->fn(c); return; }
+    if (h) { kthread_t *me = cur_thread; if (me) me->in = idx + 1;
+        if (perf_on && me) { if (!me->p_us) { me->p_us = calloc(RC_NSTUBS, 8); me->p_n = calloc(RC_NSTUBS, 8); }
+            u64 t = rs_perf_us(); h->fn(c); t = rs_perf_us() - t; me->p_us[idx] += t; me->p_n[idx]++; me->p_hle += t; } else h->fn(c);
+        if (me) me->in = 0; return; }
     V0 = 0; V1 = 0;
     /* Unimplemented calls must never become a busy loop that starves the other guest threads. */
     if (!strncmp(rc_stubs[idx].lib, "sceSas", 6)) return;                 /* voice parameter writes: never sleep (see the audio section) */
     unlocked_sleep(150);
 }
+
+/* ---------------- hang report (platform watchdog; read without the big lock: a snapshot for diagnosis, not exact) ---------------- */
+int rs_hang_report(char *b, int n){
+    int o = 0; extern volatile int g_frames;
+#define HP(...) do { if (o < n) o += snprintf(b + o, (size_t)(n - o), __VA_ARGS__); } while (0)
+    int held = pthread_mutex_trylock(&big) != 0; if (!held) pthread_mutex_unlock(&big);
+    pthread_t ow = big_owner; const char *own = "a host thread (frontend / game start-up / audio)";
+    for (int i = 0; i < nthreads; i++) if (threads[i] && pthread_equal(threads[i]->th, ow)) own = threads[i]->name;
+    if (gi_th_ok && pthread_equal(gi_th, ow)) own = "GE interrupt";
+    HP("vblanks %d | big lock %s, last taken by '%s'\n", g_frames, held ? "HELD" : "free", own);
+    HP("GE: lists posted %u, finish callbacks queued %u delivered %u (running %u)\n", rs_ge_posted(), gi_h, gi_t, gi_running);
+    for (int i = 0; i < nthreads; i++) { kthread_t *t = threads[i]; if (!t) continue; int in = t->in, l = t->last - 1;
+        HP("  %-24s %s  %s%s  last call %s  ra=%08x a0=%x calls=%lu\n", t->name, t->exited ? "exited" : (t->started ? "alive " : "new   "),
+           in ? "INSIDE " : "guest code", in ? hname(in - 1) : "", l < 0 ? "-" : hname(l), t->last_ra, t->last_a0, t->ncalls_t); }
+#undef HP
+    return o; }

@@ -57,7 +57,13 @@ void gfx_run(void (*fn)(void *), void *arg){
     while (done_seq < my) pthread_cond_wait(&jc_done, &jm);
     rs_perf.run_n++; rs_perf.run_wait_us += rs_perf_us() - t0;
     pthread_mutex_unlock(&jm); }
-static void run_one(job_t *j){ u64 t0 = rs_perf_us(); gfx_before_job(); j->fn(j->sync ? j->ptr : (void *)j->arg); gfx_flush(); rs_perf.job_us += rs_perf_us() - t0; }
+static void (*volatile running_fn)(void *); static volatile u64 running_since;            /* the job the renderer is in (hang reports) */
+static void run_one(job_t *j){ u64 t0 = rs_perf_us(); running_since = t0; running_fn = j->fn; gfx_before_job(); j->fn(j->sync ? j->ptr : (void *)j->arg); gfx_flush(); running_fn = 0; rs_perf.job_us += rs_perf_us() - t0; }
+int gfx_jobs_report(char *b, int n){                            /* unlocked snapshot */
+    void (*f)(void *) = running_fn; u64 since = running_since, now = rs_perf_us();
+    if (f) return snprintf(b, (size_t)n, "renderer: in job %p for %.1f s; jobs queued %u, started %u, done %lu; guest frames %u, presented %u\n",
+                           (void *)f, (double)(now - since) / 1e6, q_head, q_tail, done_seq, frame_seq, presented_seq);
+    return snprintf(b, (size_t)n, "renderer: idle; jobs queued %u, started %u, done %lu; guest frames %u, presented %u\n", q_head, q_tail, done_seq, frame_seq, presented_seq); }
 /* renderer thread: run every queued job */
 static void run_queue_here(void){
     pthread_mutex_lock(&jm);

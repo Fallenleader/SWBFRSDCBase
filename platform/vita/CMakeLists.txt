@@ -39,7 +39,7 @@ file(GLOB GAME_SRC "${ROOT}/src/game/game_*.c")
 file(GLOB AT3_SRC "${ROOT}/platform/common/ext/at3/*.cpp")
 set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/ge.c" "${ROOT}/platform/common/audio.c" "${ROOT}/platform/common/settings.c" "${ROOT}/platform/common/vfs.c" "${ROOT}/platform/common/gfx_jobs.c")
 # renderer: the GL ES 2.0 back end (platform/linux_test/gfx_gl.c, Cg shaders on the Vita) on top of vitaGL
-set(VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/main.c" "${CMAKE_CURRENT_SOURCE_DIR}/gfx_vgl.c" "${ROOT}/platform/linux_test/gfx_gl.c" "${ROOT}/platform/linux_test/texrep.c")
+set(VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/main.c" "${CMAKE_CURRENT_SOURCE_DIR}/stdio_lock.c" "${CMAKE_CURRENT_SOURCE_DIR}/gfx_vgl.c" "${ROOT}/platform/linux_test/gfx_gl.c" "${ROOT}/platform/linux_test/texrep.c")
 
 add_executable(swbfrs ${GAME_SRC} "${RS_DATA_C}" ${COMMON_SRC} "${GLUE_C}" ${VITA_SRC} ${AT3_SRC})
 target_include_directories(swbfrs PRIVATE "${ROOT}/src/game" "${ROOT}/platform/common" "${ROOT}/platform/linux_test" "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/platform/common/ext/at3")
@@ -55,6 +55,11 @@ set(RS_LIBS vitaGL mathneon SceKernelDmacMgr_stub SceTouch_stub SceHid_stub SceM
             SceGxm_stub SceDisplay_stub SceCtrl_stub SceAudio_stub ScePower_stub SceSysmodule_stub SceAppMgr_stub SceAppUtil_stub SceCommonDialog_stub
             SceIofilemgr_stub vitashark SceShaccCg_stub SceShaccCgExt taihen_stub)
 target_link_libraries(swbfrs ${RS_LIBS} stdc++ pthread m)
+# newlib's FILE functions are not thread-safe in VitaSDK: route them through one lock (stdio_lock.c)
+target_link_libraries(swbfrs "-Wl,-T,${CMAKE_CURRENT_SOURCE_DIR}/segment_gap.ld")    # room for vita-elf-create's data after the code
+foreach(f fopen fopencookie fclose fflush fwrite fread fputs fputc fgets fseek ftell setvbuf vfprintf fprintf printf puts)
+  target_link_libraries(swbfrs "-Wl,--wrap=${f}")
+endforeach()
 
 vita_create_self(eboot.bin swbfrs UNSAFE)      # unsafe: loads ur0:data/libshacccg.suprx (the system Cg compiler) at run time
 vita_create_vpk(swbfrs.vpk ${VITA_TITLEID} eboot.bin

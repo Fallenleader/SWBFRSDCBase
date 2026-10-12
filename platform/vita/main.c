@@ -19,6 +19,7 @@
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/kernel/cpu.h>
 #include <psp2/io/stat.h>
+#include <psp2/io/fcntl.h>
 #include <psp2/ctrl.h>
 #include <psp2/audioout.h>
 #include <psp2/power.h>
@@ -112,6 +113,8 @@ void rs_thread_init(void){
  *           audio output thread
  * so game logic, rendering and audio run at the same time instead of sharing cores the kernel picks. */
 void rs_thread_cores(const char *name){
+    static int pin = -1; if (pin < 0) pin = rs_setting_int("RS_CPU_PIN", 1);
+    if (!pin) { fprintf(stderr, "[VITA] thread '%s': CPU affinity left to the kernel (RS_CPU_PIN=0)\n", name); return; }
     int mask = !strcmp(name, "frontend") ? SCE_KERNEL_CPU_MASK_USER_0 : (!strcmp(name, "user_main") ? SCE_KERNEL_CPU_MASK_USER_1 : SCE_KERNEL_CPU_MASK_USER_2);
     SceUID me = sceKernelGetThreadId(); int before = sceKernelGetThreadCpuAffinityMask(me); int r = sceKernelChangeThreadCpuAffinityMask(me, mask);
     fprintf(stderr, "[VITA] thread '%s': CPU affinity %06x -> %06x%s\n", name, (unsigned)before, (unsigned)mask, r < 0 ? " FAILED" : ""); }
@@ -222,9 +225,37 @@ static void *game_main(void *unused){
     fprintf(stderr, "[RS] module_start returned %d; waiting for game threads\n", (int)r.v0);
     hle_wait_all_threads(); hle_report(); sceKernelExitProcess(0); return 0; }
 
+/* ---------------------------------------------------------------- hang watchdog: ux0:data/SWBFRS/hang.txt
+ * When the game stops reaching vertical blanks for 8 s (after it has started), writes what every game thread, the big lock, the GE and
+ * the renderer are doing, then again every 15 s while it stays stuck (5 reports at most).  Written with sceIo only: a stuck thread may
+ * hold the C library's FILE lock. */
+static volatile unsigned fe_beat, fe_stage;                    /* frontend loop: iterations, and where it is (1 dialogs, 2 present, 3 GE jobs) */
+static int wd_entry(SceSize args, void *argp){
+    (void)args; (void)argp; extern int rs_hang_report(char *, int); extern int gfx_jobs_report(char *, int);
+    static char b[8192]; int last_fr = -1, stall = 0, reports = 0; unsigned last_beat = 0;
+    for (;;) {
+        sceKernelDelayThread(1000000);
+        int fr = g_frames; unsigned beat = fe_beat;
+        if (fr != last_fr || fr == 0) { last_fr = fr; stall = 0; last_beat = beat; continue; }
+        stall++;
+        if (stall < 8 || reports >= 5 || (stall - 8) % 15) continue;
+        reports++;
+        int o = snprintf(b, sizeof b, "==== no vertical blank for %d s (report %d) ====\nfrontend: %u loop iterations in that time, now in %s\n", stall, reports, beat - last_beat,
+                         fe_stage == 1 ? "system dialogs" : fe_stage == 2 ? "present" : fe_stage == 3 ? "GE jobs (gfx_pump)" : "?");
+        o += gfx_jobs_report(b + o, (int)sizeof b - o);
+        if (o < (int)sizeof b) o += rs_hang_report(b + o, (int)sizeof b - o);
+        if (o > (int)sizeof b - 1) o = (int)sizeof b - 1;
+        SceUID fd = sceIoOpen(RS_DIR "/hang.txt", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0666);
+        if (fd >= 0) { sceIoWrite(fd, b, (SceSize)o); sceIoClose(fd); } } }
+static void watchdog_start(void){
+    SceUID t = sceKernelCreateThread("rs_watchdog", wd_entry, 0x10000100 - 16, 0x4000, 0, SCE_KERNEL_CPU_MASK_USER_ALL, NULL);
+    if (t < 0) t = sceKernelCreateThread("rs_watchdog", wd_entry, 0x10000100, 0x4000, 0, SCE_KERNEL_CPU_MASK_USER_ALL, NULL);
+    if (t >= 0) sceKernelStartThread(t, 0, NULL); else fprintf(stderr, "[VITA] no watchdog thread: 0x%08X\n", (unsigned)t); }
+
 static void fatal(const char *msg){ fprintf(stderr, "[VITA] FATAL: %s\n", msg); fflush(stderr); sceKernelDelayThread(500000); sceKernelExitProcess(1); }
 
 int main(void){
+    { extern void rs_stdio_lock_init(void); rs_stdio_lock_init(); }      /* before anything opens a file or another thread exists */
     settings_load(); log_init();
     u64 t0 = sceKernelGetProcessTimeWide();
 #define STEP(...) do { fprintf(stderr, "[VITA] %7.3fs ", (sceKernelGetProcessTimeWide() - t0) / 1e6); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } while (0)
@@ -261,12 +292,13 @@ int main(void){
     STEP("renderer ready");
 
     pthread_attr_t at; pthread_attr_init(&at); pthread_attr_setstacksize(&at, 1024 * 1024);
+    watchdog_start();
     pthread_t th; if (pthread_create(&th, &at, game_main, 0) != 0) fatal("cannot create the game thread");
 
     u64 last = 0, frames = 0;
     for (;;) {
-        u64 now = sceKernelGetProcessTimeWide();
-        osk_frontend();
+        u64 now = sceKernelGetProcessTimeWide(); fe_beat++;
+        fe_stage = 1; osk_frontend(); fe_stage = 2;
         if (gfx_present_due() || now - last >= 250000 || (rs_dialog_active && now - last >= 16000)) {          /* present once per completed game frame (or 4x a second while it loads) */
             last = now;
             rs_pad_t p; rs_backend_read_pad(&p);
@@ -274,5 +306,5 @@ int main(void){
             { extern void rs_renderer_present(const char *const *lines, int n); int n = 0; const char *const *l = hud_update(&n); rs_renderer_present(l, n); } hud_presented++;
             if (++frames == 1 || frames % 1800 == 0) STEP("presented %llu frames", (unsigned long long)frames);
             continue; }
-        gfx_pump(4); }
+        fe_stage = 3; gfx_pump(4); }
     return 0; }
