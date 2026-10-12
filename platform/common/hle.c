@@ -60,6 +60,10 @@ static u64 now_us(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); 
     if (!on && from_sec > 0 && real - base_real >= (u64)from_sec * 1000000ull) { on = 1; base_game = real; base_real = real; }
     if (!on) { if (g_frames >= from) { on = 1; base_game = real; base_real = real; } else return real; }
     return base_game + (u64)((double)(real - base_real) * scale); }
+/* the clock the game reads.  RS_VCLOCK=1 (testing, with RS_FAST=1 and a frame-numbered RS_SCRIPT): it advances 1/60 s per vertical
+ * blank plus 1 us per read, independent of the host's speed, so two runs of different builds can be compared frame by frame. */
+static u64 guest_us(void){ static int vc = -1; static u64 reads; if (vc < 0) vc = getenv("RS_VCLOCK") != 0;
+    return vc ? (u64)g_frames * 16667ull + ++reads : now_us(); }
 #include "gfx.h"
 static void unlocked_sleep(unsigned us){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); usleep(us); big_lock(); rs_perf.sleeps++; rs_perf.sleep_us += rs_perf_us() - t; }
 static void yield_big(void){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); sched_yield(); big_lock(); rs_perf.yields++; rs_perf.yield_us += rs_perf_us() - t; }
@@ -172,7 +176,7 @@ static void h_GetThreadId(sdkcall_t *c){ V0 = cur_thread ? cur_thread->uid : 0x1
 static void h_GetThreadPrio(sdkcall_t *c){ V0 = cur_thread ? cur_thread->prio : 32; }
 static void h_ChangePrio(sdkcall_t *c){ kthread_t *t = A0 ? thr_find(A0) : cur_thread; if (t) t->prio = A1; V0 = 0; }
 static int fl_tick2, fl_rtc; static u32 tl_ra[8]; static int tl_n[8];
-static void h_SysTimeLow(sdkcall_t *c){ V0 = (u32)now_us(); { static unsigned k; if ((++k & 31) == 0) yield_big(); } fl_tick2++;   /* yielding on every call cost ~85 us each (x100/frame in big battles) */
+static void h_SysTimeLow(sdkcall_t *c){ V0 = (u32)guest_us(); { static unsigned k; if ((++k & 31) == 0) yield_big(); } fl_tick2++;   /* yielding on every call cost ~85 us each (x100/frame in big battles) */
     }
 static void h_SleepThread(sdkcall_t *c){ for (;;) unlocked_sleep(100000); }
 
@@ -394,7 +398,7 @@ extern volatile int rs_turn_x, rs_turn_y;   /* right-stick turning, consumed by 
 volatile int rs_turn_x, rs_turn_y;
 static void h_CtrlRead(sdkcall_t *c){ rs_pad_t p; rs_backend_read_pad(&p); u32 b = A0;
     /* PSP has ONE analog stick: the left Vita stick drives it (move + strafe). The right stick is exported for turning. */
-    SW(b, (u32)now_us()); SW(b + 4, p.buttons); SB(b + 8, p.lx); SB(b + 9, p.ly);
+    SW(b, (u32)guest_us()); SW(b + 4, p.buttons); SB(b + 8, p.lx); SB(b + 9, p.ly);
     rs_turn_x = (int)p.rx - 128; rs_turn_y = (int)p.ry - 128; V0 = 1; yield_big(); }
 static void dump_frame(const char *dir, int n){
     static u32 buf[480 * 272]; if (!rs_display_read(buf)) return; char p[600]; snprintf(p, sizeof p, "%s/frame_%05d.ppm", dir, n); FILE *f = fopen(p, "wb"); if (!f) return;
@@ -491,7 +495,7 @@ static void h_One(sdkcall_t *c){ V0 = 1; }
 static void h_UmdStat(sdkcall_t *c){ V0 = 0x32; }
 static void h_ExitGame(sdkcall_t *c){ fprintf(stderr, "[HLE] sceKernelExitGame called\n"); fflush(stderr); _exit(0); }
 static void h_UtilParam(sdkcall_t *c){ if (A0 == 7) SW(A1, 1); else if (A0 == 8) SW(A1, 1); else SW(A1, 0); V0 = 0; }
-static void h_RtcTick(sdkcall_t *c){ fl_rtc++; u64 us = now_us() + 62135596800000000ull; SW(A0, (u32)us); SW(A0 + 4, (u32)(us >> 32)); V0 = 0; }
+static void h_RtcTick(sdkcall_t *c){ fl_rtc++; u64 us = guest_us() + 62135596800000000ull; SW(A0, (u32)us); SW(A0 + 4, (u32)(us >> 32)); V0 = 0; }
 static void h_Printf(sdkcall_t *c){ fprintf(stderr, "[GAME] %s\n", gstr(A0)); V0 = 0; }
 
 typedef struct { u32 nid; const char *name; void (*fn)(sdkcall_t *); } hle_t;

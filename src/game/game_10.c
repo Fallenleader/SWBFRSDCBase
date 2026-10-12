@@ -3350,7 +3350,7 @@ rv_t func_088E4564(u32 a0, u32 a1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t4 = 0, t5 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0;
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr20 = v[20], vr21 = v[21], vr22 = v[22], vr32 = v[32], vr33 = v[33], vr34 = v[34], vr35 = v[35], vr48 = v[48], vr49 = v[49], vr50 = v[50], vr51 = v[51], vr52 = v[52], vr53 = v[53], vr54 = v[54], vr55 = v[55];
     u8 stack_[176] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 176);
 L_088E4564:;
@@ -3426,43 +3426,43 @@ L_088E4638:;
 L_088E4648:;
     v1 = LD32(t0+152);
     v0 = LD32(a2+4);
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[48]=d0;v[49]=d1;v[50]=d2;v[51]=d3;}
-    {v[48]=BITSF(v1);}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr48=d0;vr49=d1;vr50=d2;vr51=d3;}
+    {vr48=BITSF(v1);}
     v1 = LD32(a2+8);
-    {v[49]=BITSF(v0);}
-    {v[50]=BITSF(v1);}
+    {vr49=BITSF(v0);}
+    {vr50=BITSF(v1);}
     v1 = LD32(a2+12);
-    {u32 a_=sp+(96);ST32(a_+0,FBITS(v[48]));ST32(a_+4,FBITS(v[49]));ST32(a_+8,FBITS(v[50]));ST32(a_+12,FBITS(v[51]));}
+    {u32 a_=sp+(96);ST32(a_+0,FBITS(vr48));ST32(a_+4,FBITS(vr49));ST32(a_+8,FBITS(vr50));ST32(a_+12,FBITS(vr51));}
     v0 = LD32(a2+16);
-    {u32 a_=sp+(144);v[32]=BITSF(LD32(a_+0));v[33]=BITSF(LD32(a_+4));v[34]=BITSF(LD32(a_+8));v[35]=BITSF(LD32(a_+12));}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[48]=d0;v[49]=d1;v[50]=d2;v[51]=d3;}
-    {v[48]=BITSF(v1);}
+    {u32 a_=sp+(144);vr32=BITSF(LD32(a_+0));vr33=BITSF(LD32(a_+4));vr34=BITSF(LD32(a_+8));vr35=BITSF(LD32(a_+12));}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr48=d0;vr49=d1;vr50=d2;vr51=d3;}
+    {vr48=BITSF(v1);}
     v1 = LD32(a2+20);
-    {v[49]=BITSF(v0);}
-    {v[50]=BITSF(v1);}
+    {vr49=BITSF(v0);}
+    {vr50=BITSF(v1);}
     v1 = LD32(a2+24);
-    {u32 a_=sp+(112);ST32(a_+0,FBITS(v[48]));ST32(a_+4,FBITS(v[49]));ST32(a_+8,FBITS(v[50]));ST32(a_+12,FBITS(v[51]));}
+    {u32 a_=sp+(112);ST32(a_+0,FBITS(vr48));ST32(a_+4,FBITS(vr49));ST32(a_+8,FBITS(vr50));ST32(a_+12,FBITS(vr51));}
     v0 = LD32(a2+28);
-    {float s0=v[32];float s1=v[33];float s2=v[34];float s3=v[35];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
+    {float s0=vr32;float s1=vr33;float s2=vr34;float s3=vr35;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
     a1 = t1 + 52;
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[32]=d0;v[33]=d1;v[34]=d2;v[35]=d3;}
-    {v[32]=BITSF(v1);}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr32=d0;vr33=d1;vr34=d2;vr35=d3;}
+    {vr32=BITSF(v1);}
     v1 = LD32(a2+32);
-    {v[33]=BITSF(v0);}
-    {v[34]=BITSF(v1);}
-    {float s0=v[32];float s1=v[33];float s2=v[34];float s3=v[35];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
-    {u32 a_=sp+(128);ST32(a_+0,FBITS(v[32]));ST32(a_+4,FBITS(v[33]));ST32(a_+8,FBITS(v[34]));ST32(a_+12,FBITS(v[35]));}
-    {u32 a_=sp+(96);v[32]=BITSF(LD32(a_+0));v[33]=BITSF(LD32(a_+4));v[34]=BITSF(LD32(a_+8));v[35]=BITSF(LD32(a_+12));}
+    {vr33=BITSF(v0);}
+    {vr34=BITSF(v1);}
+    {float s0=vr32;float s1=vr33;float s2=vr34;float s3=vr35;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
+    {u32 a_=sp+(128);ST32(a_+0,FBITS(vr32));ST32(a_+4,FBITS(vr33));ST32(a_+8,FBITS(vr34));ST32(a_+12,FBITS(vr35));}
+    {u32 a_=sp+(96);vr32=BITSF(LD32(a_+0));vr33=BITSF(LD32(a_+4));vr34=BITSF(LD32(a_+8));vr35=BITSF(LD32(a_+12));}
     v0 = LD32(t1+52);
     v1 = LD32(a1+4);
     a0 = LD32(a1+8);
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[20]=d0;v[21]=d1;v[22]=d2;v[23]=d3;}
-    {float s0=v[32];float s1=v[33];float s2=v[34];float s3=v[35];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {v[20]=BITSF(v0);}
-    {v[21]=BITSF(v1);}
-    {v[22]=BITSF(a0);}
-    {float t0=v[20];float t1=v[21];float t2=v[22];float o0=0;o0+=v[0]*t0;o0+=v[1]*t1;o0+=v[2]*t2;float o1=0;o1+=v[4]*t0;o1+=v[5]*t1;o1+=v[6]*t2;float o2=0;o2+=v[8]*t0;o2+=v[9]*t1;o2+=v[10]*t2;v[16]=o0;v[17]=o1;v[18]=o2;}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr20=d0;vr21=d1;vr22=d2;v[23]=d3;}
+    {float s0=vr32;float s1=vr33;float s2=vr34;float s3=vr35;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
+    {vr20=BITSF(v0);}
+    {vr21=BITSF(v1);}
+    {vr22=BITSF(a0);}
+    {float t0=vr20;float t1=vr21;float t2=vr22;float o0=0;o0+=v[0]*t0;o0+=v[1]*t1;o0+=v[2]*t2;float o1=0;o1+=v[4]*t0;o1+=v[5]*t1;o1+=v[6]*t2;float o2=0;o2+=v[8]*t0;o2+=v[9]*t1;o2+=v[10]*t2;v[16]=o0;v[17]=o1;v[18]=o2;}
     {v1=FBITS(v[18]);}
     f3 = BITSF(v1);
     {v1=FBITS(v[16]);}
@@ -3490,11 +3490,11 @@ L_088E4724:;
     goto L_088E4738;
 L_088E4738:;
     a0 = t0 + 0;
-    { rv_t r_ = func_088E5398(a0, a1, t1, t2, t3); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ({ v[20]=vr20;v[21]=vr21;v[22]=vr22;v[32]=vr32;v[33]=vr33;v[34]=vr34;v[35]=vr35;v[48]=vr48;v[49]=vr49;v[50]=vr50;v[51]=vr51;__auto_type vr_t_ = func_088E5398(a0, a1, t1, t2, t3); vr20=v[20];vr21=v[21];vr22=v[22];vr32=v[32];vr33=v[33];vr34=v[34];vr35=v[35];vr48=v[48];vr49=v[49];vr50=v[50];vr51=v[51];vr52=v[52];vr53=v[53];vr54=v[54];vr55=v[55];vr_t_; }); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_088E4740;
 L_088E4740:;
     sp = sp + 176;
-    return (rv_t){ v0, v1, f0 };
+    { v[20]=vr20;v[21]=vr21;v[22]=vr22;v[32]=vr32;v[33]=vr33;v[34]=vr34;v[35]=vr35;v[48]=vr48;v[49]=vr49;v[50]=vr50;v[51]=vr51;return (rv_t){ v0, v1, f0 }; }
 L_088E474C:;
     v1 = LD32(t0+152);
     v0 = LD32(a2+4);
@@ -3502,36 +3502,36 @@ L_088E474C:;
     f5 = BITSF(LD32(t4+4));
     f6 = BITSF(LD32(t4+8));
     a0 = LD32(a1+8);
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[48]=d0;v[49]=d1;v[50]=d2;v[51]=d3;}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr48=d0;vr49=d1;vr50=d2;vr51=d3;}
     {float s0=v[76];float s1=v[77];float s2=v[78];float s3=v[79];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
-    {v[48]=BITSF(v1);}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[32]=d0;v[33]=d1;v[34]=d2;v[35]=d3;}
+    {vr48=BITSF(v1);}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr32=d0;vr33=d1;vr34=d2;vr35=d3;}
     v1 = LD32(a2+8);
-    {v[49]=BITSF(v0);}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[20]=d0;v[21]=d1;v[22]=d2;v[23]=d3;}
+    {vr49=BITSF(v0);}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr20=d0;vr21=d1;vr22=d2;v[23]=d3;}
     v0 = LD32(a2+16);
-    {v[50]=BITSF(v1);}
+    {vr50=BITSF(v1);}
     v1 = LD32(a2+12);
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[48]=d0;v[49]=d1;v[50]=d2;v[51]=d3;}
-    {v[48]=BITSF(v1);}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr48=d0;vr49=d1;vr50=d2;vr51=d3;}
+    {vr48=BITSF(v1);}
     v1 = LD32(a2+20);
-    {v[49]=BITSF(v0);}
+    {vr49=BITSF(v0);}
     v0 = LD32(a2+28);
-    {v[50]=BITSF(v1);}
+    {vr50=BITSF(v1);}
     v1 = LD32(a2+24);
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
-    {v[32]=BITSF(v1);}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
+    {vr32=BITSF(v1);}
     v1 = LD32(a2+32);
-    {v[33]=BITSF(v0);}
+    {vr33=BITSF(v0);}
     v0 = LD32(t1+4);
-    {v[34]=BITSF(v1);}
-    {v[20]=BITSF(v0);}
+    {vr34=BITSF(v1);}
+    {vr20=BITSF(v0);}
     v1 = LD32(a1+4);
-    {float s0=v[32];float s1=v[33];float s2=v[34];float s3=v[35];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
-    {v[21]=BITSF(v1);}
-    {v[22]=BITSF(a0);}
-    {float t0=v[20];float t1=v[21];float t2=v[22];float o0=0;o0+=v[0]*t0;o0+=v[1]*t1;o0+=v[2]*t2;float o1=0;o1+=v[4]*t0;o1+=v[5]*t1;o1+=v[6]*t2;float o2=0;o2+=v[8]*t0;o2+=v[9]*t1;o2+=v[10]*t2;v[16]=o0;v[17]=o1;v[18]=o2;}
+    {float s0=vr32;float s1=vr33;float s2=vr34;float s3=vr35;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
+    {vr21=BITSF(v1);}
+    {vr22=BITSF(a0);}
+    {float t0=vr20;float t1=vr21;float t2=vr22;float o0=0;o0+=v[0]*t0;o0+=v[1]*t1;o0+=v[2]*t2;float o1=0;o1+=v[4]*t0;o1+=v[5]*t1;o1+=v[6]*t2;float o2=0;o2+=v[8]*t0;o2+=v[9]*t1;o2+=v[10]*t2;v[16]=o0;v[17]=o1;v[18]=o2;}
     {v0=FBITS(v[18]);}
     f3 = BITSF(v0);
     {v0=FBITS(v[16]);}
@@ -3602,6 +3602,7 @@ L_088E474C:;
     ST32(v0+24, FBITS(f1));
     ST32(v0+28, FBITS(f0));
     goto L_088E461C;
+    v[20]=vr20;v[21]=vr21;v[22]=vr22;v[32]=vr32;v[33]=vr33;v[34]=vr34;v[35]=vr35;v[48]=vr48;v[49]=vr49;v[50]=vr50;v[51]=vr51;
 }
 
 /* 088E48F4 */
@@ -13753,7 +13754,7 @@ void func_088EB81C(u32 a0, u32 a1, u32 a2)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr3 = v[3], vr8 = v[8], vr9 = v[9], vr10 = v[10], vr12 = v[12];
     u8 stack_[16] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 16);
 L_088EB81C:;
@@ -13762,7 +13763,7 @@ L_088EB81C:;
     f0 = BITSF(LD32(a1+8));
     v0 = a0 + 44;
     ST32(v0+4, FBITS(f1));
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr8=d0;vr9=d1;vr10=d2;v[11]=d3;}
     f6 = BITSF(0);
     ST32(v0+8, FBITS(f0));
     sp = sp - 16;
@@ -13778,18 +13779,18 @@ L_088EB81C:;
     f4 = f4 - f5;
     f2 = f2 - f1;
     v1 = FBITS(f3);
-    {v[8]=BITSF(v1);}
+    {vr8=BITSF(v1);}
     v1 = FBITS(f2);
-    {v[9]=BITSF(v1);}
+    {vr9=BITSF(v1);}
     v1 = FBITS(f4);
-    {v[10]=BITSF(v1);}
-    {float s0=v[8];float s1=v[9];float s2=v[10];float t0=v[8];float t1=v[9];float t2=v[10];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v1=FBITS(v[0]);}
+    {vr10=BITSF(v1);}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float t0=vr8;float t1=vr9;float t2=vr10;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v1=FBITS(vr0);}
     f0 = BITSF(v1);
     ST32(sp+4, FBITS(f2));
     fcc = FCMP(f0, f6, 2);
     ST32(sp+8, FBITS(f4));
-    {float s0=v[0];float d0=sqrtf(s0);v[12]=d0;}
+    {float s0=vr0;float d0=sqrtf(s0);vr12=d0;}
     ST32(sp, FBITS(f3));
     ST32(a0+56, FBITS(f3));
     ST32(v0+4, FBITS(f2));
@@ -13798,18 +13799,18 @@ L_088EB81C:;
     if (cnd_) { goto L_088EB8F8; }
     goto L_088EB8B4;
 L_088EB8B4:;
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[12];float d0=s0/t0;v[0]=d0;}
-    {v1=FBITS(v[12]);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
+    {float s0=v[4];float t0=vr12;float d0=s0/t0;vr0=d0;}
+    {v1=FBITS(vr12);}
     f4 = BITSF(v1);
     f6 = f4;
-    {float s0=v[8];float s1=v[9];float s2=v[10];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v1=FBITS(v[2]);}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v1=FBITS(vr2);}
     f3 = BITSF(v1);
-    {v1=FBITS(v[0]);}
+    {v1=FBITS(vr0);}
     f2 = BITSF(v1);
     ST32(v0+8, FBITS(f3));
-    {v1=FBITS(v[1]);}
+    {v1=FBITS(vr1);}
     ST32(sp, FBITS(f2));
     ST32(sp+4, v1);
     ST32(sp+8, FBITS(f3));
@@ -13819,7 +13820,8 @@ L_088EB8B4:;
 L_088EB8F8:;
     ST32(a0+68, FBITS(f6));
     sp = sp + 16;
-    return;
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[12]=vr12;return; }
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[12]=vr12;
 }
 
 /* 088EB904 */
@@ -15337,7 +15339,7 @@ rv_t func_088EC870(u32 a0, u32 a1, u32 a2, u32 a3, float f12)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0, f11 = 0, f13 = 0, f14 = 0, f15 = 0, f16 = 0, f17 = 0, f18 = 0, f19 = 0, f20 = 0, f21 = 0, f22 = 0, f23 = 0, f24 = 0, f25 = 0, f26 = 0, f27 = 0, f28 = 0, f29 = 0, f30 = 0, f31 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr4 = v[4], vr5 = v[5], vr6 = v[6], vr12 = v[12], vr13 = v[13], vr14 = v[14], vr15 = v[15];
     u8 stack_[1104] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 1104);
 L_088EC870:;
@@ -15518,15 +15520,15 @@ L_088ECB14:;
     f0 = f0 + f2;
     f1 = f1 + f7;
     f2 = BITSF(LD32(sp+68));
-    {u32 a_=sp+(752);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(752);vr12=BITSF(LD32(a_+0));vr13=BITSF(LD32(a_+4));vr14=BITSF(LD32(a_+8));vr15=BITSF(LD32(a_+12));}
     v1 = LD32(sp+4);
-    {v[12]=BITSF(v0);}
+    {vr12=BITSF(v0);}
     f7 = BITSF(0);
     v0 = LD32(sp+8);
-    {v[13]=BITSF(v1);}
-    {v[14]=BITSF(v0);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr13=BITSF(v1);}
+    {vr14=BITSF(v0);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f6 = BITSF(v0);
     f5 = f5 + f8;
     f2 = f2 + f8;
@@ -15541,16 +15543,16 @@ L_088ECB14:;
     if (cnd_) { goto L_088ECBD8; }
     goto L_088ECB9C;
 L_088ECB9C:;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v0=FBITS(v[2]);}
+    {float s0=vr0;float d0=sqrtf(s0);v[8]=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=v[3];vr4=(float)1;vr5=(float)1;vr6=(float)1;v[7]=(float)1;}
+    {float s0=vr4;float t0=v[8];float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v0=FBITS(vr2);}
     f3 = BITSF(v0);
-    {v0=FBITS(v[0]);}
+    {v0=FBITS(vr0);}
     f2 = BITSF(v0);
     ST32(sp+232, FBITS(f3));
-    {v0=FBITS(v[1]);}
+    {v0=FBITS(vr1);}
     ST32(sp+224, FBITS(f2));
     ST32(sp+228, v0);
     ST32(sp, FBITS(f2));
@@ -15559,15 +15561,15 @@ L_088ECB9C:;
     goto L_088ECBD8;
 L_088ECBD8:;
     v0 = LD32(sp+16);
-    {u32 a_=sp+(768);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(768);vr12=BITSF(LD32(a_+0));vr13=BITSF(LD32(a_+4));vr14=BITSF(LD32(a_+8));vr15=BITSF(LD32(a_+12));}
     v1 = LD32(sp+20);
-    {v[12]=BITSF(v0);}
+    {vr12=BITSF(v0);}
     f0 = BITSF(0);
     v0 = LD32(sp+24);
-    {v[13]=BITSF(v1);}
-    {v[14]=BITSF(v0);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr13=BITSF(v1);}
+    {vr14=BITSF(v0);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f1 = BITSF(v0);
     fcc = FCMP(f1, f0, 2);
     cnd_ = fcc;
@@ -15575,16 +15577,16 @@ L_088ECBD8:;
     if (cnd_) { goto L_088ECC54; }
     goto L_088ECC14;
 L_088ECC14:;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v0=FBITS(v[2]);}
+    {float s0=vr0;float d0=sqrtf(s0);v[8]=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=v[3];vr4=(float)1;vr5=(float)1;vr6=(float)1;v[7]=(float)1;}
+    {float s0=vr4;float t0=v[8];float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v0=FBITS(vr2);}
     f3 = BITSF(v0);
-    {v0=FBITS(v[0]);}
+    {v0=FBITS(vr0);}
     f2 = BITSF(v0);
     ST32(sp+232, FBITS(f3));
-    {v0=FBITS(v[1]);}
+    {v0=FBITS(vr1);}
     ST32(sp+224, FBITS(f2));
     ST32(sp+228, v0);
     ST32(sp+16, FBITS(f2));
@@ -15593,15 +15595,15 @@ L_088ECC14:;
     v0 = LD32(sp+32);
     goto L_088ECC54;
 L_088ECC54:;
-    {u32 a_=sp+(784);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(784);vr12=BITSF(LD32(a_+0));vr13=BITSF(LD32(a_+4));vr14=BITSF(LD32(a_+8));vr15=BITSF(LD32(a_+12));}
     v1 = LD32(sp+36);
-    {v[12]=BITSF(v0);}
+    {vr12=BITSF(v0);}
     f0 = BITSF(0);
     v0 = LD32(sp+40);
-    {v[13]=BITSF(v1);}
-    {v[14]=BITSF(v0);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr13=BITSF(v1);}
+    {vr14=BITSF(v0);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f1 = BITSF(v0);
     fcc = FCMP(f1, f0, 2);
     cnd_ = fcc;
@@ -15609,16 +15611,16 @@ L_088ECC54:;
     if (cnd_) { goto L_088ECCCC; }
     goto L_088ECC8C;
 L_088ECC8C:;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v0=FBITS(v[2]);}
+    {float s0=vr0;float d0=sqrtf(s0);v[8]=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=v[3];vr4=(float)1;vr5=(float)1;vr6=(float)1;v[7]=(float)1;}
+    {float s0=vr4;float t0=v[8];float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v0=FBITS(vr2);}
     f3 = BITSF(v0);
-    {v0=FBITS(v[0]);}
+    {v0=FBITS(vr0);}
     f2 = BITSF(v0);
     ST32(sp+232, FBITS(f3));
-    {v0=FBITS(v[1]);}
+    {v0=FBITS(vr1);}
     ST32(sp+224, FBITS(f2));
     ST32(sp+228, v0);
     ST32(sp+32, FBITS(f2));
@@ -15642,7 +15644,7 @@ L_088ECCDC:;
     a0 = sp + 240;
     v0 = v0 | v1;
     ST32(sp+276, v0);
-    { rv_t r_ = func_088B8958(a0, a1, 0, 0, 0, f12); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[15]=vr15;__auto_type vr_t_ = func_088B8958(a0, a1, 0, 0, 0, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr4=v[4];vr5=v[5];vr6=v[6];vr12=v[12];vr13=v[13];vr14=v[14];vr15=v[15];vr_t_; }); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_088ECD04;
 L_088ECD04:;
     s0 = LD32(sp+264);
@@ -15690,34 +15692,34 @@ L_088ECD20:;
     a3 = t0 + a1;
     t2 = t0 + a0;
     v0 = v0 << 1;
-    {u32 a_=a3+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {u32 a_=t2+(0);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
+    {u32 a_=a3+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=t2+(0);vr12=BITSF(LD32(a_+0));vr13=BITSF(LD32(a_+4));vr14=BITSF(LD32(a_+8));vr15=BITSF(LD32(a_+12));}
     v0 = v0 + t1;
     v1 = LD_U16(v0);
-    {float s0=v[12];float s1=v[13];float s2=v[14];float s3=v[15];float t0=v[0];float t1=v[1];float t2=v[2];float t3=v[3];float d0=s0-t0;float d1=s1-t1;float d2=s2-t2;float d3=s3-t3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float s3=vr15;float t0=vr0;float t1=vr1;float t2=vr2;float t3=v[3];float d0=s0-t0;float d1=s1-t1;float d2=s2-t2;float d3=s3-t3;vr12=d0;vr13=d1;vr14=d2;vr15=d3;}
     f1 = BITSF(0);
     a2 = a2 + v1;
     a2 = a2 << 4;
     t0 = t0 + a2;
-    {u32 a_=sp+(304);ST32(a_+0,FBITS(v[12]));ST32(a_+4,FBITS(v[13]));ST32(a_+8,FBITS(v[14]));ST32(a_+12,FBITS(v[15]));}
-    {u32 a_=t0+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {u32 a_=a3+(0);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float t0=v[4];float t1=v[5];float t2=v[6];float t3=v[7];float d0=s0-t0;float d1=s1-t1;float d2=s2-t2;float d3=s3-t3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];float t1=v[1];float t2=v[2];float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;v[8]=d0;v[9]=d1;v[10]=d2;}
-    {u32 a_=sp+(320);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(800);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(304);ST32(a_+0,FBITS(vr12));ST32(a_+4,FBITS(vr13));ST32(a_+8,FBITS(vr14));ST32(a_+12,FBITS(vr15));}
+    {u32 a_=t0+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=a3+(0);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=v[3];float t0=vr4;float t1=vr5;float t2=vr6;float t3=v[7];float d0=s0-t0;float d1=s1-t1;float d2=s2-t2;float d3=s3-t3;vr0=d0;vr1=d1;vr2=d2;v[3]=d3;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;float t1=vr1;float t2=vr2;float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;v[8]=d0;v[9]=d1;v[10]=d2;}
+    {u32 a_=sp+(320);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(v[3]));}
+    {u32 a_=sp+(800);vr12=BITSF(LD32(a_+0));vr13=BITSF(LD32(a_+4));vr14=BITSF(LD32(a_+8));vr15=BITSF(LD32(a_+12));}
     {u32 a_=sp+(288);ST32(a_+0,FBITS(v[8]));ST32(a_+4,FBITS(v[9]));ST32(a_+8,FBITS(v[10]));ST32(a_+12,FBITS(v[11]));}
     f5 = BITSF(LD32(sp+288));
     f4 = BITSF(LD32(sp+292));
     f3 = BITSF(LD32(sp+296));
     v0 = FBITS(f5);
-    {v[12]=BITSF(v0);}
+    {vr12=BITSF(v0);}
     v0 = FBITS(f4);
-    {v[13]=BITSF(v0);}
+    {vr13=BITSF(v0);}
     v0 = FBITS(f3);
-    {v[14]=BITSF(v0);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr14=BITSF(v0);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     ST32(sp+224, FBITS(f5));
     fcc = FCMP(f0, f1, 2);
@@ -15727,16 +15729,16 @@ L_088ECD20:;
     if (cnd_) { goto L_088ECE68; }
     goto L_088ECE2C;
 L_088ECE2C:;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v0=FBITS(v[2]);}
+    {float s0=vr0;float d0=sqrtf(s0);v[8]=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=v[3];vr4=(float)1;vr5=(float)1;vr6=(float)1;v[7]=(float)1;}
+    {float s0=vr4;float t0=v[8];float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v0=FBITS(vr2);}
     f3 = BITSF(v0);
-    {v0=FBITS(v[0]);}
+    {v0=FBITS(vr0);}
     f2 = BITSF(v0);
     ST32(sp+216, FBITS(f3));
-    {v0=FBITS(v[1]);}
+    {v0=FBITS(vr1);}
     ST32(sp+208, FBITS(f2));
     ST32(sp+212, v0);
     ST32(sp+224, FBITS(f2));
@@ -15748,20 +15750,20 @@ L_088ECE68:;
     f2 = BITSF(LD32(v0-12724));
     v1 = LD32(s1+4);
     v0 = LD32(s1);
-    {u32 a_=sp+(816);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(832);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {v[4]=BITSF(v0);}
+    {u32 a_=sp+(816);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(832);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {vr4=BITSF(v0);}
     v0 = LD32(s1+8);
-    {v[5]=BITSF(v1);}
+    {vr5=BITSF(v1);}
     v1 = LD32(sp+224);
-    {v[6]=BITSF(v0);}
-    {v[0]=BITSF(v1);}
+    {vr6=BITSF(v0);}
+    {vr0=BITSF(v1);}
     v0 = LD32(sp+228);
     v1 = LD32(sp+232);
-    {v[1]=BITSF(v0);}
-    {v[2]=BITSF(v1);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {vr1=BITSF(v0);}
+    {vr2=BITSF(v1);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f0 = BITSF(v0);
     fcc = FCMP(f0, f2, 14);
     cnd_ = !fcc;
@@ -15780,41 +15782,41 @@ L_088ECED0:;
     goto L_088ECED8;
 L_088ECED8:;
     sp = sp + 1104;
-    return (rv_t){ v0, v1, f0 };
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[15]=vr15;return (rv_t){ v0, v1, f0 }; }
 L_088ECF38:;
     v0 = LD32(s3);
-    {u32 a_=sp+(848);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(848);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
     ST32(sp+336, FBITS(f0));
-    {v[4]=BITSF(v0);}
-    {u32 a_=sp+(864);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {vr4=BITSF(v0);}
+    {u32 a_=sp+(864);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
     f0 = BITSF(LD32(a3+4));
     v0 = LD32(s3+4);
-    {v[5]=BITSF(v0);}
+    {vr5=BITSF(v0);}
     ST32(sp+340, FBITS(f0));
     s4 = sp + 336;
     s5 = sp + 528;
     f0 = BITSF(LD32(a3+8));
     v0 = LD32(s3+8);
-    {v[6]=BITSF(v0);}
+    {vr6=BITSF(v0);}
     ST32(sp+344, FBITS(f0));
     a0 = s4 + 0;
     a1 = 3;
     f0 = BITSF(LD32(t2));
     v0 = LD32(sp);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     ST32(sp+356, FBITS(f0));
     a2 = s5 + 0;
     a3 = sp + 0;
     f1 = BITSF(LD32(t2+4));
     v0 = LD32(sp+4);
-    {v[1]=BITSF(v0);}
+    {vr1=BITSF(v0);}
     ST32(sp+360, FBITS(f1));
     f0 = BITSF(LD32(t2+8));
     v0 = LD32(sp+8);
-    {v[2]=BITSF(v0);}
+    {vr2=BITSF(v0);}
     ST32(sp+364, FBITS(f0));
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f2 = BITSF(LD32(t0));
     f0 = BITSF(LD32(sp+740));
     f20 = BITSF(v0);
@@ -15824,7 +15826,7 @@ L_088ECF38:;
     ST32(sp+380, FBITS(f1));
     f0 = BITSF(LD32(t0+8));
     ST32(sp+384, FBITS(f0));
-    v0 = func_088ED400(a0, a1, a2, a3, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;__auto_type vr_t_ = func_088ED400(a0, a1, a2, a3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr4=v[4];vr5=v[5];vr6=v[6];vr_t_; });
     goto L_088ECFE4;
 L_088ECFE4:;
     cnd_ = v0 == 0;
@@ -15846,7 +15848,7 @@ L_088ECFEC:;
     ST32(sp+208, FBITS(f2));
     ST32(sp+212, FBITS(f1));
     ST32(sp+216, FBITS(f0));
-    v0 = func_088ED400(a0, a1, a2, a3, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;__auto_type vr_t_ = func_088ED400(a0, a1, a2, a3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr4=v[4];vr5=v[5];vr6=v[6];vr_t_; });
     goto L_088ED02C;
 L_088ED02C:;
     cnd_ = v0 == 0;
@@ -15856,28 +15858,28 @@ L_088ED02C:;
 L_088ED034:;
     v0 = LD32(s3);
     v1 = LD32(s3+4);
-    {u32 a_=sp+(880);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(896);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {v[4]=BITSF(v0);}
+    {u32 a_=sp+(880);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(896);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {vr4=BITSF(v0);}
     f0 = BITSF(LD32(sp+736));
-    {v[5]=BITSF(v1);}
+    {vr5=BITSF(v1);}
     v0 = LD32(s3+8);
     v1 = LD32(sp+16);
-    {v[6]=BITSF(v0);}
-    {v[0]=BITSF(v1);}
+    {vr6=BITSF(v0);}
+    {vr0=BITSF(v1);}
     v0 = LD32(sp+20);
     v1 = LD32(sp+24);
-    {v[1]=BITSF(v0);}
-    {v[2]=BITSF(v1);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {vr1=BITSF(v0);}
+    {vr2=BITSF(v1);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f20 = BITSF(v0);
     a1 = s2 + 0;
     a0 = s4 + 0;
     f12 = f0 - f20;
     a2 = s5 + 0;
     a3 = sp + 16;
-    v0 = func_088ED400(a0, a1, a2, a3, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;__auto_type vr_t_ = func_088ED400(a0, a1, a2, a3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr4=v[4];vr5=v[5];vr6=v[6];vr_t_; });
     goto L_088ED094;
 L_088ED094:;
     cnd_ = v0 == 0;
@@ -15902,7 +15904,7 @@ L_088ED09C:;
     ST32(sp+192, FBITS(f2));
     ST32(sp+196, FBITS(f1));
     ST32(sp+200, FBITS(f0));
-    v0 = func_088ED400(a0, a1, a2, a3, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;__auto_type vr_t_ = func_088ED400(a0, a1, a2, a3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr4=v[4];vr5=v[5];vr6=v[6];vr_t_; });
     goto L_088ED0E8;
 L_088ED0E8:;
     cnd_ = v0 == 0;
@@ -15912,28 +15914,28 @@ L_088ED0E8:;
 L_088ED0F0:;
     v0 = LD32(s3);
     v1 = LD32(s3+4);
-    {u32 a_=sp+(912);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(928);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {v[4]=BITSF(v0);}
+    {u32 a_=sp+(912);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(928);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {vr4=BITSF(v0);}
     f0 = BITSF(LD32(sp+744));
-    {v[5]=BITSF(v1);}
+    {vr5=BITSF(v1);}
     v0 = LD32(s3+8);
     v1 = LD32(sp+32);
-    {v[6]=BITSF(v0);}
-    {v[0]=BITSF(v1);}
+    {vr6=BITSF(v0);}
+    {vr0=BITSF(v1);}
     v0 = LD32(sp+36);
     v1 = LD32(sp+40);
-    {v[1]=BITSF(v0);}
-    {v[2]=BITSF(v1);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {vr1=BITSF(v0);}
+    {vr2=BITSF(v1);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f20 = BITSF(v0);
     a1 = s2 + 0;
     a0 = s4 + 0;
     f12 = f0 - f20;
     a2 = s5 + 0;
     a3 = sp + 32;
-    v0 = func_088ED400(a0, a1, a2, a3, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;__auto_type vr_t_ = func_088ED400(a0, a1, a2, a3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr4=v[4];vr5=v[5];vr6=v[6];vr_t_; });
     goto L_088ED150;
 L_088ED150:;
     cnd_ = v0 == 0;
@@ -15958,7 +15960,7 @@ L_088ED158:;
     ST32(sp+192, FBITS(f1));
     ST32(sp+196, FBITS(f2));
     ST32(sp+200, FBITS(f0));
-    v0 = func_088ED400(a0, a1, a2, a3, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;__auto_type vr_t_ = func_088ED400(a0, a1, a2, a3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr4=v[4];vr5=v[5];vr6=v[6];vr_t_; });
     goto L_088ED1A4;
 L_088ED1A4:;
     cnd_ = v0 == 0;
@@ -16009,27 +16011,27 @@ L_088ED210:;
     f2 = f2 - f8;
     f3 = f3 - f10;
     v1 = LD32(sp+4);
-    {u32 a_=sp+(944);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(944);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
     v0 = FBITS(f2);
-    {u32 a_=sp+(960);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {v[4]=BITSF(v0);}
+    {u32 a_=sp+(960);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {vr4=BITSF(v0);}
     v0 = FBITS(f3);
-    {v[5]=BITSF(v0);}
+    {vr5=BITSF(v0);}
     v0 = FBITS(f4);
-    {v[6]=BITSF(v0);}
+    {vr6=BITSF(v0);}
     v0 = LD32(sp);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     v0 = LD32(sp+8);
-    {v[1]=BITSF(v1);}
-    {v[2]=BITSF(v0);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {vr1=BITSF(v1);}
+    {vr2=BITSF(v0);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f1 = BITSF(v0);
     ST32(sp+192, FBITS(f2));
-    {u32 a_=sp+(976);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(976);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
     f0 = f1 * f5;
     ST32(sp+196, FBITS(f3));
-    {u32 a_=sp+(992);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(992);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
     a1 = a1 + 1;
     f0 = f0 * f6;
     ST32(sp+200, FBITS(f4));
@@ -16041,18 +16043,18 @@ L_088ED210:;
     ST32(a2+348, FBITS(f0));
     v0 = LD32(sp+192);
     v1 = LD32(sp+196);
-    {v[4]=BITSF(v0);}
+    {vr4=BITSF(v0);}
     v0 = LD32(sp+200);
-    {v[5]=BITSF(v1);}
+    {vr5=BITSF(v1);}
     v1 = LD32(sp+16);
-    {v[6]=BITSF(v0);}
-    {v[0]=BITSF(v1);}
+    {vr6=BITSF(v0);}
+    {vr0=BITSF(v1);}
     v0 = LD32(sp+20);
     v1 = LD32(sp+24);
-    {v[1]=BITSF(v0);}
-    {v[2]=BITSF(v1);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {vr1=BITSF(v0);}
+    {vr2=BITSF(v1);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f1 = BITSF(v0);
     f0 = f1 * f5;
     f0 = f0 * f7;
@@ -16125,7 +16127,7 @@ L_088ED3BC:;
     a2 = s2 + 0;
     a3 = sp + 720;
     t0 = s7 + 0;
-    func_089152A4(a0, a1, a2, t0, 0, 0, 0);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[15]=vr15;func_089152A4(a0, a1, a2, t0, 0, 0, 0); vr0=v[0];vr1=v[1];vr2=v[2];vr4=v[4];vr5=v[5];vr6=v[6];vr12=v[12];vr13=v[13];vr14=v[14];vr15=v[15];});
     goto L_088ED3D8;
 L_088ED3D8:;
     s0 = LD32(s0+12);
@@ -16136,11 +16138,12 @@ L_088ED3E0:;
     a2 = s3 + 0;
     a3 = s1 + 0;
     t0 = 0 + 0;
-    func_0889BDFC(a0, a1, a2, a3, t0);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[15]=vr15;func_0889BDFC(a0, a1, a2, a3, t0); vr0=v[0];vr1=v[1];vr2=v[2];vr4=v[4];});
     goto L_088ED3F8;
 L_088ED3F8:;
     ST32(sp+732, FBITS(f21));
     goto L_088ED1CC;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[15]=vr15;
 }
 
 /* 088ED400 */
@@ -16150,7 +16153,7 @@ u32 func_088ED400(u32 a0, u32 a1, u32 a2, u32 a3, float f12)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr3 = v[3], vr4 = v[4], vr5 = v[5], vr6 = v[6], vr7 = v[7], vr8 = v[8], vr9 = v[9], vr10 = v[10], vr11 = v[11];
     u8 stack_[96] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 96);
 L_088ED400:;
@@ -16167,23 +16170,23 @@ L_088ED418:;
     t0 = a0 + 0;
     t1 = sp + 0;
     v0 = LD32(a3);
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr4=d0;vr5=d1;vr6=d2;vr7=d3;}
     v1 = LD32(a3+4);
-    {v[4]=BITSF(v0);}
+    {vr4=BITSF(v0);}
     v0 = LD32(a3+8);
-    {v[5]=BITSF(v1);}
-    {v[6]=BITSF(v0);}
+    {vr5=BITSF(v1);}
+    {vr6=BITSF(v0);}
     v0 = LD32(t0);
     goto L_088ED444;
 L_088ED444:;
     v1 = LD32(t0+4);
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {v[0]=BITSF(v0);}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
+    {vr0=BITSF(v0);}
     v0 = LD32(t0+8);
-    {v[1]=BITSF(v1);}
-    {v[2]=BITSF(v0);}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[4];float t1=v[5];float t2=v[6];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr1=BITSF(v1);}
+    {vr2=BITSF(v0);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr4;float t1=vr5;float t2=vr6;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     t2 = t2 + 1;
     v0 = t2 < a1;
@@ -16211,7 +16214,7 @@ L_088ED49C:;
     goto L_088ED4A0;
 L_088ED4A0:;
     sp = sp + 96;
-    return v0;
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;return v0; }
 L_088ED4A8:;
     cnd_ = t4 == 0;
     t2 = 0 + 0;
@@ -16258,23 +16261,23 @@ L_088ED50C:;
     f6 = f7 - f0;
     f5 = f4 - f1;
     f2 = f9 - f2;
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr4=d0;vr5=d1;vr6=d2;vr7=d3;}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
     ST32(sp+52, FBITS(f6));
     v0 = FBITS(f2);
-    {v[4]=BITSF(v0);}
+    {vr4=BITSF(v0);}
     v0 = LD32(a3);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     v0 = FBITS(f6);
-    {v[5]=BITSF(v0);}
+    {vr5=BITSF(v0);}
     v0 = LD32(a3+4);
-    {v[1]=BITSF(v0);}
+    {vr1=BITSF(v0);}
     v0 = FBITS(f5);
-    {v[6]=BITSF(v0);}
+    {vr6=BITSF(v0);}
     v0 = LD32(a3+8);
-    {v[2]=BITSF(v0);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {vr2=BITSF(v0);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f0 = BITSF(v0);
     ST32(sp+48, FBITS(f2));
     f1 = f10 / f0;
@@ -16343,22 +16346,22 @@ L_088ED634:;
     f6 = f9 - f1;
     f7 = f3 - f0;
     f4 = f5 - f2;
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr4=d0;vr5=d1;vr6=d2;vr7=d3;}
     v0 = FBITS(f6);
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {v[4]=BITSF(v0);}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
+    {vr4=BITSF(v0);}
     v0 = LD32(a3);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     v0 = FBITS(f7);
-    {v[5]=BITSF(v0);}
+    {vr5=BITSF(v0);}
     v0 = LD32(a3+4);
-    {v[1]=BITSF(v0);}
+    {vr1=BITSF(v0);}
     v0 = FBITS(f4);
-    {v[6]=BITSF(v0);}
+    {vr6=BITSF(v0);}
     v0 = LD32(a3+8);
-    {v[2]=BITSF(v0);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {vr2=BITSF(v0);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f0 = BITSF(v0);
     ST32(sp+80, FBITS(f6));
     f1 = f10 / f0;
@@ -16404,6 +16407,7 @@ L_088ED728:;
     ST32(a2+8, FBITS(f2));
     a2 = a2 + 20;
     goto L_088ED5FC;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;
 }
 
 /* 088ED748 */
@@ -17392,7 +17396,7 @@ rv_t func_088EE080(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0, f11 = 0, f20 = 0, f21 = 0, f22 = 0, f23 = 0, f24 = 0, f25 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr12 = v[12], vr13 = v[13], vr14 = v[14], vr32 = v[32], vr33 = v[33], vr34 = v[34], vr35 = v[35], vr48 = v[48], vr49 = v[49], vr50 = v[50], vr51 = v[51];
     u8 stack_[464] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 464);
 L_088EE080:;
@@ -17452,7 +17456,7 @@ L_088EE160:;
     goto L_088EE164;
 L_088EE164:;
     sp = sp + 464;
-    return (rv_t){ v0, v1, f0 };
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[32]=vr32;v[33]=vr33;v[34]=vr34;v[35]=vr35;v[48]=vr48;v[49]=vr49;v[50]=vr50;v[51]=vr51;return (rv_t){ v0, v1, f0 }; }
 L_088EE1A8:;
     s6 = 0 + 0;
     cnd_ = (s32)v0 <= 0;
@@ -17593,33 +17597,33 @@ L_088EE2EC:;
     goto L_088EE380;
 L_088EE380:;
     ST32(sp+56, FBITS(f3));
-    {float s0=v[76];float s1=v[77];float s2=v[78];float s3=v[79];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
-    {u32 a_=sp+(192);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
+    {float s0=v[76];float s1=v[77];float s2=v[78];float s3=v[79];float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr12=d0;vr13=d1;vr14=d2;v[15]=d3;}
+    {u32 a_=sp+(192);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
     f4 = BITSF(LD32(s4));
     f5 = BITSF(LD32(s4+4));
     f6 = BITSF(LD32(s4+8));
-    {v[48]=BITSF(t1);}
+    {vr48=BITSF(t1);}
     {u32 a_=sp+(208);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {v[49]=BITSF(t3);}
+    {vr49=BITSF(t3);}
     {v[52]=BITSF(a1);}
-    {v[50]=BITSF(t2);}
+    {vr50=BITSF(t2);}
     {v[53]=BITSF(a2);}
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;v[3]=d3;}
     {v[54]=BITSF(t0);}
     a2 = FBITS(f7);
-    {u32 a_=sp+(224);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(224);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
     {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
-    {v[48]=BITSF(v0);}
-    {u32 a_=sp+(176);v[32]=BITSF(LD32(a_+0));v[33]=BITSF(LD32(a_+4));v[34]=BITSF(LD32(a_+8));v[35]=BITSF(LD32(a_+12));}
+    {vr48=BITSF(v0);}
+    {u32 a_=sp+(176);vr32=BITSF(LD32(a_+0));vr33=BITSF(LD32(a_+4));vr34=BITSF(LD32(a_+8));vr35=BITSF(LD32(a_+12));}
     v0 = FBITS(f9);
-    {v[49]=BITSF(a0);}
-    {v[32]=BITSF(v0);}
-    {v[50]=BITSF(v1);}
+    {vr49=BITSF(a0);}
+    {vr32=BITSF(v0);}
+    {vr50=BITSF(v1);}
     v1 = FBITS(f8);
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
-    {v[33]=BITSF(v1);}
-    {v[34]=BITSF(a2);}
-    {float t0=v[32];float t1=v[33];float t2=v[34];float o0=0;o0+=v[0]*t0;o0+=v[1]*t1;o0+=v[2]*t2;float o1=0;o1+=v[4]*t0;o1+=v[5]*t1;o1+=v[6]*t2;float o2=0;o2+=v[8]*t0;o2+=v[9]*t1;o2+=v[10]*t2;v[16]=o0;v[17]=o1;v[18]=o2;}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
+    {vr33=BITSF(v1);}
+    {vr34=BITSF(a2);}
+    {float t0=vr32;float t1=vr33;float t2=vr34;float o0=0;o0+=vr0*t0;o0+=vr1*t1;o0+=vr2*t2;float o1=0;o1+=v[4]*t0;o1+=v[5]*t1;o1+=v[6]*t2;float o2=0;o2+=v[8]*t0;o2+=v[9]*t1;o2+=v[10]*t2;v[16]=o0;v[17]=o1;v[18]=o2;}
     {v1=FBITS(v[17]);}
     {v0=FBITS(v[16]);}
     {a3=FBITS(v[18]);}
@@ -17641,10 +17645,10 @@ L_088EE380:;
     {u32 a_=sp+(352);ST32(a_+0,FBITS(v[88]));ST32(a_+4,FBITS(v[89]));ST32(a_+8,FBITS(v[90]));ST32(a_+12,FBITS(v[91]));}
     {u32 a_=sp+(368);ST32(a_+0,FBITS(v[92]));ST32(a_+4,FBITS(v[93]));ST32(a_+8,FBITS(v[94]));ST32(a_+12,FBITS(v[95]));}
     ST32(sp, FBITS(f4));
-    {u32 a_=sp+(256);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
+    {u32 a_=sp+(256);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(v[3]));}
     {u32 a_=sp+(272);ST32(a_+0,FBITS(v[52]));ST32(a_+4,FBITS(v[53]));ST32(a_+8,FBITS(v[54]));ST32(a_+12,FBITS(v[55]));}
     ST32(sp+4, FBITS(f5));
-    {u32 a_=sp+(288);ST32(a_+0,FBITS(v[48]));ST32(a_+4,FBITS(v[49]));ST32(a_+8,FBITS(v[50]));ST32(a_+12,FBITS(v[51]));}
+    {u32 a_=sp+(288);ST32(a_+0,FBITS(vr48));ST32(a_+4,FBITS(vr49));ST32(a_+8,FBITS(vr50));ST32(a_+12,FBITS(vr51));}
     s6 = s6 + 1;
     ST32(sp+8, FBITS(f6));
     ST32(sp+64, v0);
@@ -17654,7 +17658,7 @@ L_088EE380:;
     ST32(sp+48, FBITS(f4));
     ST32(sp+52, FBITS(f5));
     ST32(sp+56, FBITS(f6));
-    f0 = func_08984498(a0, a1, a2, a3, t1, t2, t3);
+    f0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[32]=vr32;v[33]=vr33;v[34]=vr34;v[35]=vr35;v[48]=vr48;v[49]=vr49;v[50]=vr50;v[51]=vr51;__auto_type vr_t_ = func_08984498(a0, a1, a2, a3, t1, t2, t3); vr0=v[0];vr1=v[1];vr2=v[2];vr12=v[12];vr13=v[13];vr14=v[14];vr32=v[32];vr33=v[33];vr34=v[34];vr35=v[35];vr48=v[48];vr49=v[49];vr50=v[50];vr51=v[51];vr_t_; });
     goto L_088EE47C;
 L_088EE47C:;
     {u32 a_=sp+(304);v[76]=BITSF(LD32(a_+0));v[77]=BITSF(LD32(a_+4));v[78]=BITSF(LD32(a_+8));v[79]=BITSF(LD32(a_+12));}
@@ -17761,39 +17765,39 @@ L_088EE508:;
     a0 = LD32(s0+28);
     v1 = LD32(s0+32);
     a3 = FBITS(f6);
-    {float s0=v[92];float s1=v[93];float s2=v[94];float s3=v[95];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
-    {u32 a_=sp+(128);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(144);v[32]=BITSF(LD32(a_+0));v[33]=BITSF(LD32(a_+4));v[34]=BITSF(LD32(a_+8));v[35]=BITSF(LD32(a_+12));}
-    {v[48]=BITSF(t1);}
-    {v[32]=BITSF(a1);}
-    {v[49]=BITSF(t3);}
-    {v[33]=BITSF(a2);}
-    {v[50]=BITSF(t2);}
-    {v[34]=BITSF(t0);}
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {float s0=v[32];float s1=v[33];float s2=v[34];float s3=v[35];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
-    {float s0=v[32];float s1=v[33];float s2=v[34];float s3=v[35];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[84]=d0;v[85]=d1;v[86]=d2;v[87]=d3;}
+    {float s0=v[92];float s1=v[93];float s2=v[94];float s3=v[95];float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr12=d0;vr13=d1;vr14=d2;v[15]=d3;}
+    {u32 a_=sp+(128);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(144);vr32=BITSF(LD32(a_+0));vr33=BITSF(LD32(a_+4));vr34=BITSF(LD32(a_+8));vr35=BITSF(LD32(a_+12));}
+    {vr48=BITSF(t1);}
+    {vr32=BITSF(a1);}
+    {vr49=BITSF(t3);}
+    {vr33=BITSF(a2);}
+    {vr50=BITSF(t2);}
+    {vr34=BITSF(t0);}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;v[3]=d3;}
+    {float s0=vr32;float s1=vr33;float s2=vr34;float s3=vr35;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
+    {float s0=vr32;float s1=vr33;float s2=vr34;float s3=vr35;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[84]=d0;v[85]=d1;v[86]=d2;v[87]=d3;}
     {u32 a_=sp+(112);v[20]=BITSF(LD32(a_+0));v[21]=BITSF(LD32(a_+4));v[22]=BITSF(LD32(a_+8));v[23]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(160);v[32]=BITSF(LD32(a_+0));v[33]=BITSF(LD32(a_+4));v[34]=BITSF(LD32(a_+8));v[35]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(160);vr32=BITSF(LD32(a_+0));vr33=BITSF(LD32(a_+4));vr34=BITSF(LD32(a_+8));vr35=BITSF(LD32(a_+12));}
     {v[20]=BITSF(a3);}
-    {v[32]=BITSF(v0);}
+    {vr32=BITSF(v0);}
     a3 = FBITS(f10);
-    {v[33]=BITSF(a0);}
+    {vr33=BITSF(a0);}
     {v[21]=BITSF(a3);}
-    {v[34]=BITSF(v1);}
+    {vr34=BITSF(v1);}
     a3 = FBITS(f11);
-    {float s0=v[32];float s1=v[33];float s2=v[34];float s3=v[35];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
+    {float s0=vr32;float s1=vr33;float s2=vr34;float s3=vr35;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
     {v[22]=BITSF(a3);}
-    {float t0=v[20];float t1=v[21];float t2=v[22];float o0=0;o0+=v[0]*t0;o0+=v[1]*t1;o0+=v[2]*t2;float o1=0;o1+=v[4]*t0;o1+=v[5]*t1;o1+=v[6]*t2;float o2=0;o2+=v[8]*t0;o2+=v[9]*t1;o2+=v[10]*t2;v[16]=o0;v[17]=o1;v[18]=o2;}
+    {float t0=v[20];float t1=v[21];float t2=v[22];float o0=0;o0+=vr0*t0;o0+=vr1*t1;o0+=vr2*t2;float o1=0;o1+=v[4]*t0;o1+=v[5]*t1;o1+=v[6]*t2;float o2=0;o2+=v[8]*t0;o2+=v[9]*t1;o2+=v[10]*t2;v[16]=o0;v[17]=o1;v[18]=o2;}
     {a3=FBITS(v[18]);}
     f3 = BITSF(a3);
     {a3=FBITS(v[16]);}
     f2 = BITSF(a3);
     ST32(sp+16, FBITS(f6));
     {a3=FBITS(v[17]);}
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[80]=d0;v[81]=d1;v[82]=d2;v[83]=d3;}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[80]=d0;v[81]=d1;v[82]=d2;v[83]=d3;}
     ST32(sp+16, FBITS(f2));
-    {float s0=v[32];float s1=v[33];float s2=v[34];float s3=v[35];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[88]=d0;v[89]=d1;v[90]=d2;v[91]=d3;}
+    {float s0=vr32;float s1=vr33;float s2=vr34;float s3=vr35;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[88]=d0;v[89]=d1;v[90]=d2;v[91]=d3;}
     ST32(sp+20, a3);
     ST32(sp+24, FBITS(f3));
     ST32(sp+32, FBITS(f2));
@@ -17810,29 +17814,29 @@ L_088EE684:;
     goto L_088EE688;
 L_088EE688:;
     f11 = BITSF(LD32(sp+24));
-    {u32 a_=sp+(96);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(96);vr12=BITSF(LD32(a_+0));vr13=BITSF(LD32(a_+4));vr14=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
     a2 = FBITS(f6);
     a3 = FBITS(f10);
-    {v[12]=BITSF(a2);}
+    {vr12=BITSF(a2);}
     v0 = FBITS(f11);
-    {v[13]=BITSF(a3);}
+    {vr13=BITSF(a3);}
     f1 = BITSF(0);
-    {v[14]=BITSF(v0);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v1=FBITS(v[0]);}
+    {vr14=BITSF(v0);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v1=FBITS(vr0);}
     f0 = BITSF(v1);
     fcc = FCMP(f0, f1, 2);
     cnd_ = fcc;
     if (cnd_) { v1 = LD32(s5+23232); goto L_088EE508; }
     goto L_088EE6C8;
 L_088EE6C8:;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {a2=FBITS(v[2]);}
-    {a3=FBITS(v[0]);}
-    {v0=FBITS(v[1]);}
+    {float s0=vr0;float d0=sqrtf(s0);v[8]=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
+    {float s0=v[4];float t0=v[8];float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {a2=FBITS(vr2);}
+    {a3=FBITS(vr0);}
+    {v0=FBITS(vr1);}
     f11 = BITSF(a2);
     f6 = BITSF(a3);
     f10 = BITSF(v0);
@@ -17947,10 +17951,11 @@ L_088EE87C:;
     a2 = a1 + 0;
     a3 = s0 + 0;
     a1 = a0 + 0;
-    { rv_t r_ = func_08984530(a0, a1, a2, a3, t1, t2, t3); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[32]=vr32;v[33]=vr33;v[34]=vr34;v[35]=vr35;v[48]=vr48;v[49]=vr49;v[50]=vr50;v[51]=vr51;__auto_type vr_t_ = func_08984530(a0, a1, a2, a3, t1, t2, t3); vr0=v[0];vr1=v[1];vr2=v[2];vr12=v[12];vr13=v[13];vr14=v[14];vr32=v[32];vr33=v[33];vr34=v[34];vr35=v[35];vr48=v[48];vr49=v[49];vr50=v[50];vr51=v[51];vr_t_; }); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_088EE890;
 L_088EE890:;
     goto L_088EE164;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[32]=vr32;v[33]=vr33;v[34]=vr34;v[35]=vr35;v[48]=vr48;v[49]=vr49;v[50]=vr50;v[51]=vr51;
 }
 
 /* 088EE898 */
@@ -19383,7 +19388,7 @@ void func_088EF8AC(u32 a0, u32 a1, u32 a2)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0, f11 = 0, f12 = 0, f20 = 0, f21 = 0, f22 = 0, f23 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr3 = v[3], vr4 = v[4], vr5 = v[5], vr6 = v[6], vr7 = v[7], vr12 = v[12], vr13 = v[13], vr14 = v[14], vr15 = v[15], vr16 = v[16], vr17 = v[17], vr18 = v[18], vr19 = v[19], vr20 = v[20], vr21 = v[21], vr22 = v[22], vr23 = v[23], vr24 = v[24], vr25 = v[25], vr26 = v[26], vr27 = v[27], vr28 = v[28], vr29 = v[29], vr30 = v[30], vr31 = v[31], vr36 = v[36], vr37 = v[37], vr38 = v[38], vr39 = v[39], vr40 = v[40], vr41 = v[41], vr42 = v[42], vr43 = v[43], vr44 = v[44], vr45 = v[45], vr46 = v[46], vr47 = v[47], vr48 = v[48], vr49 = v[49], vr50 = v[50], vr51 = v[51], vr52 = v[52], vr53 = v[53], vr54 = v[54], vr55 = v[55], vr56 = v[56], vr57 = v[57], vr58 = v[58];
     u8 stack_[2064] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 2064);
 L_088EF8AC:;
@@ -19538,12 +19543,12 @@ L_088EFAC0:;
     v0 = FBITS(f1);
     ST32(sp+84, FBITS(f1));
     v1 = FBITS(f2);
-    {v[0]=BITSF(v1);}
+    {vr0=BITSF(v1);}
     v1 = FBITS(f4);
-    {v[1]=BITSF(v0);}
-    {v[2]=BITSF(v1);}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr1=BITSF(v0);}
+    {vr2=BITSF(v1);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f3 = BITSF(v0);
     v0 = D_08AECF04 - (-12540);
     f0 = BITSF(LD32(v0-12540));
@@ -19571,7 +19576,7 @@ L_088EFB8C:;
     goto L_088EFB90;
 L_088EFB90:;
     sp = sp + 2064;
-    return;
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[15]=vr15;v[16]=vr16;v[17]=vr17;v[18]=vr18;v[19]=vr19;v[20]=vr20;v[21]=vr21;v[22]=vr22;v[23]=vr23;v[24]=vr24;v[25]=vr25;v[26]=vr26;v[27]=vr27;v[28]=vr28;v[29]=vr29;v[30]=vr30;v[31]=vr31;v[36]=vr36;v[37]=vr37;v[38]=vr38;v[39]=vr39;v[40]=vr40;v[41]=vr41;v[42]=vr42;v[43]=vr43;v[44]=vr44;v[45]=vr45;v[46]=vr46;v[47]=vr47;v[48]=vr48;v[49]=vr49;v[50]=vr50;v[51]=vr51;v[52]=vr52;v[53]=vr53;v[54]=vr54;v[55]=vr55;v[56]=vr56;v[57]=vr57;v[58]=vr58;return; }
 L_088EFBCC:;
     v0 = D_08AECF14 - (-12524);
     f6 = BITSF(LD32(v0-12524));
@@ -19698,73 +19703,73 @@ L_088EFD34:;
     f1 = f1 + f5;
     f3 = f3 + f7;
     f5 = BITSF(LD32(v0-12516));
-    {u32 a_=sp+(848);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(848);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
     v0 = D_08AECF20 - (-12512);
     t0 = LD32(s2+4);
     t1 = LD32(s2+8);
     a0 = LD32(s3+48);
     f7 = BITSF(LD32(sp+64));
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
-    {u32 a_=sp+(864);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1072);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
+    {u32 a_=sp+(864);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1072);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
     ST32(sp+116, FBITS(f0));
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[20]=d0;v[21]=d1;v[22]=d2;v[23]=d3;}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr12=d0;vr13=d1;vr14=d2;vr15=d3;}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr20=d0;vr21=d1;vr22=d2;vr23=d3;}
     f0 = BITSF(LD32(v0-12512));
-    {u32 a_=sp+(1088);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1104);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[24]=d0;v[25]=d1;v[26]=d2;v[27]=d3;}
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[28]=d0;v[29]=d1;v[30]=d2;v[31]=d3;}
-    {u32 a_=sp+(1376);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1392);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1088);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1104);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr24=d0;vr25=d1;vr26=d2;vr27=d3;}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr28=d0;vr29=d1;vr30=d2;vr31=d3;}
+    {u32 a_=sp+(1376);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1392);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
     v1 = FBITS(f7);
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[40]=d0;v[41]=d1;v[42]=d2;v[43]=d3;}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[36]=d0;v[37]=d1;v[38]=d2;v[39]=d3;}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr40=d0;vr41=d1;vr42=d2;vr43=d3;}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr36=d0;vr37=d1;vr38=d2;vr39=d3;}
     ST32(sp+112, FBITS(f2));
-    {u32 a_=sp+(1408);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1424);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1408);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1424);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
     ST32(sp+124, FBITS(f1));
-    {v[48]=BITSF(v1);}
+    {vr48=BITSF(v1);}
     a2 = s3 + 48;
     ST32(sp+120, FBITS(f4));
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[44]=d0;v[45]=d1;v[46]=d2;v[47]=d3;}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr44=d0;vr45=d1;vr46=d2;vr47=d3;}
     t2 = s2 + 32;
     ST32(sp+132, FBITS(f3));
     a3 = 0 + 0;
     t3 = 0xbf800000u;
     ST32(sp+128, FBITS(f6));
-    {float s0=v[40];float s1=v[41];float s2=v[42];float s3=v[43];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[88]=d0;v[89]=d1;v[90]=d2;v[91]=d3;}
-    {float s0=v[44];float s1=v[45];float s2=v[46];float s3=v[47];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[92]=d0;v[93]=d1;v[94]=d2;v[95]=d3;}
+    {float s0=vr40;float s1=vr41;float s2=vr42;float s3=vr43;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[88]=d0;v[89]=d1;v[90]=d2;v[91]=d3;}
+    {float s0=vr44;float s1=vr45;float s2=vr46;float s3=vr47;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[92]=d0;v[93]=d1;v[94]=d2;v[95]=d3;}
     ST32(sp+328, FBITS(f0));
-    {float s0=v[28];float s1=v[29];float s2=v[30];float s3=v[31];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[124]=d0;v[125]=d1;v[126]=d2;v[127]=d3;}
-    {float s0=v[24];float s1=v[25];float s2=v[26];float s3=v[27];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[120]=d0;v[121]=d1;v[122]=d2;v[123]=d3;}
+    {float s0=vr28;float s1=vr29;float s2=vr30;float s3=vr31;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[124]=d0;v[125]=d1;v[126]=d2;v[127]=d3;}
+    {float s0=vr24;float s1=vr25;float s2=vr26;float s3=vr27;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[120]=d0;v[121]=d1;v[122]=d2;v[123]=d3;}
     ST32(sp+308, FBITS(f5));
-    {u32 a_=sp+(1440);ST32(a_+0,FBITS(v[48]));ST32(a_+4,FBITS(v[49]));ST32(a_+8,FBITS(v[50]));ST32(a_+12,FBITS(v[51]));}
-    {u32 a_=sp+(880);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1440);ST32(a_+0,FBITS(vr48));ST32(a_+4,FBITS(vr49));ST32(a_+8,FBITS(vr50));ST32(a_+12,FBITS(vr51));}
+    {u32 a_=sp+(880);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
     ST32(sp+68, t0);
-    {v[52]=BITSF(v1);}
-    {u32 a_=sp+(1120);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
+    {vr52=BITSF(v1);}
+    {u32 a_=sp+(1120);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
     ST32(sp+72, t1);
-    {v[48]=BITSF(v1);}
-    {u32 a_=sp+(1024);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {vr48=BITSF(v1);}
+    {u32 a_=sp+(1024);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     ST32(sp+336, FBITS(f5));
-    {v[0]=BITSF(a3);}
-    {u32 a_=sp+(1328);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {vr0=BITSF(a3);}
+    {u32 a_=sp+(1328);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
     ST32(sp+352, FBITS(f7));
-    {v[4]=BITSF(a3);}
-    {u32 a_=sp+(1040);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
+    {vr4=BITSF(a3);}
+    {u32 a_=sp+(1040);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
     ST32(sp+64, a0);
-    {u32 a_=sp+(1344);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
-    {u32 a_=sp+(784);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1344);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
+    {u32 a_=sp+(784);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     ST32(sp+312, FBITS(f20));
-    {v[0]=BITSF(t3);}
-    {u32 a_=sp+(1456);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {vr0=BITSF(t3);}
+    {u32 a_=sp+(1456);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
     ST32(sp+340, FBITS(f20));
-    {u32 a_=sp+(800);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(912);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(800);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(912);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     ST32(sp+344, FBITS(f20));
-    {u32 a_=sp+(896);ST32(a_+0,FBITS(v[52]));ST32(a_+4,FBITS(v[53]));ST32(a_+8,FBITS(v[54]));ST32(a_+12,FBITS(v[55]));}
-    {u32 a_=sp+(1136);ST32(a_+0,FBITS(v[48]));ST32(a_+4,FBITS(v[49]));ST32(a_+8,FBITS(v[50]));ST32(a_+12,FBITS(v[51]));}
+    {u32 a_=sp+(896);ST32(a_+0,FBITS(vr52));ST32(a_+4,FBITS(vr53));ST32(a_+8,FBITS(vr54));ST32(a_+12,FBITS(vr55));}
+    {u32 a_=sp+(1136);ST32(a_+0,FBITS(vr48));ST32(a_+4,FBITS(vr49));ST32(a_+8,FBITS(vr50));ST32(a_+12,FBITS(vr51));}
     ST32(sp+320, FBITS(f20));
     a1 = s0 + 0;
     ST32(sp+324, FBITS(f20));
@@ -19775,55 +19780,55 @@ L_088EFD34:;
     f5 = BITSF(LD32(sp+72));
     ST32(sp+68, v1);
     v0 = FBITS(f3);
-    {v[4]=BITSF(v0);}
+    {vr4=BITSF(v0);}
     ST32(sp+72, a0);
-    {v[0]=BITSF(v0);}
-    {u32 a_=sp+(1536);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
+    {vr0=BITSF(v0);}
+    {u32 a_=sp+(1536);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
     a0 = LD32(t2+8);
     v1 = LD32(s3+68);
-    {u32 a_=sp+(1152);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {v[4]=BITSF(v0);}
+    {u32 a_=sp+(1152);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {vr4=BITSF(v0);}
     v0 = LD32(s3+64);
     f1 = BITSF(LD32(sp+64));
-    {u32 a_=sp+(928);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(1168);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
+    {u32 a_=sp+(928);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(1168);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
     ST32(sp+64, v0);
     v0 = FBITS(f1);
-    {u32 a_=sp+(1440);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1440);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     f2 = BITSF(LD32(sp+68));
     f7 = BITSF(LD32(sp+72));
     ST32(sp+68, v1);
-    {u32 a_=sp+(896);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {v[1]=BITSF(v0);}
+    {u32 a_=sp+(896);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {vr1=BITSF(v0);}
     ST32(sp+72, a0);
-    {u32 a_=sp+(1440);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {v[5]=BITSF(v0);}
+    {u32 a_=sp+(1440);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {vr5=BITSF(v0);}
     f0 = BITSF(LD32(sp+64));
     a0 = LD32(t2+4);
     t0 = LD32(t2+12);
     v1 = LD32(s2+32);
     f4 = BITSF(LD32(sp+68));
     f6 = BITSF(LD32(sp+72));
-    {u32 a_=sp+(896);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
-    {u32 a_=sp+(1136);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {v[1]=BITSF(v0);}
-    {u32 a_=sp+(1136);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
+    {u32 a_=sp+(896);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
+    {u32 a_=sp+(1136);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {vr1=BITSF(v0);}
+    {u32 a_=sp+(1136);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
     v0 = FBITS(f0);
-    {u32 a_=sp+(1440);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(896);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {v[6]=BITSF(v0);}
-    {v[2]=BITSF(v0);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float s3=v[7];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[80]=d0;v[81]=d1;v[82]=d2;v[83]=d3;}
-    {u32 a_=sp+(1440);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
-    {u32 a_=sp+(1136);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {v[6]=BITSF(v0);}
+    {u32 a_=sp+(1440);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(896);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {vr6=BITSF(v0);}
+    {vr2=BITSF(v0);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float s3=vr7;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[80]=d0;v[81]=d1;v[82]=d2;v[83]=d3;}
+    {u32 a_=sp+(1440);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
+    {u32 a_=sp+(1136);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {vr6=BITSF(v0);}
     v0 = 2;
     ST32(sp+64, v1);
-    {u32 a_=sp+(896);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(1136);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
+    {u32 a_=sp+(896);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(1136);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
     ST32(sp+68, a0);
-    {u32 a_=sp+(816);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(1056);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
+    {u32 a_=sp+(816);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(1056);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
     ST32(sp+76, t0);
     {u32 a_=sp+(1360);ST32(a_+0,FBITS(v[80]));ST32(a_+4,FBITS(v[81]));ST32(a_+8,FBITS(v[82]));ST32(a_+12,FBITS(v[83]));}
     a2 = FBITS(f2);
@@ -19835,186 +19840,186 @@ L_088EFD34:;
     ST32(sp+368, FBITS(f2));
     ST32(sp+372, FBITS(f4));
     ST32(sp+376, FBITS(f5));
-    {u32 a_=sp+(1056);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[112]=d0;v[113]=d1;v[114]=d2;v[115]=d3;}
+    {u32 a_=sp+(1056);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[112]=d0;v[113]=d1;v[114]=d2;v[115]=d3;}
     ST32(sp+380, FBITS(f7));
-    {u32 a_=sp+(1360);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1472);ST32(a_+0,FBITS(v[52]));ST32(a_+4,FBITS(v[53]));ST32(a_+8,FBITS(v[54]));ST32(a_+12,FBITS(v[55]));}
+    {u32 a_=sp+(1360);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1472);ST32(a_+0,FBITS(vr52));ST32(a_+4,FBITS(vr53));ST32(a_+8,FBITS(vr54));ST32(a_+12,FBITS(vr55));}
     ST32(sp+384, FBITS(f6));
-    {u32 a_=sp+(832);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1488);ST32(a_+0,FBITS(v[36]));ST32(a_+4,FBITS(v[37]));ST32(a_+8,FBITS(v[38]));ST32(a_+12,FBITS(v[39]));}
+    {u32 a_=sp+(832);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1488);ST32(a_+0,FBITS(vr36));ST32(a_+4,FBITS(vr37));ST32(a_+8,FBITS(vr38));ST32(a_+12,FBITS(vr39));}
     ST16(s1+36, v0);
-    {u32 a_=sp+(816);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(816);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
     v0 = FBITS(f4);
     v1 = LD32(s1+36);
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[100]=d0;v[101]=d1;v[102]=d2;v[103]=d3;}
-    {u32 a_=sp+(928);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
-    {v[49]=BITSF(a2);}
-    {v[50]=BITSF(v0);}
-    {u32 a_=sp+(928);ST32(a_+0,FBITS(v[48]));ST32(a_+4,FBITS(v[49]));ST32(a_+8,FBITS(v[50]));ST32(a_+12,FBITS(v[51]));}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float s3=v[7];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[96]=d0;v[97]=d1;v[98]=d2;v[99]=d3;}
-    {u32 a_=sp+(928);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1536);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {v[5]=BITSF(a2);}
-    {v[6]=BITSF(v0);}
-    {u32 a_=sp+(1536);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
-    {u32 a_=sp+(1168);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {v[5]=BITSF(a2);}
-    {v[6]=BITSF(v0);}
-    {u32 a_=sp+(1168);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[100]=d0;v[101]=d1;v[102]=d2;v[103]=d3;}
+    {u32 a_=sp+(928);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
+    {vr49=BITSF(a2);}
+    {vr50=BITSF(v0);}
+    {u32 a_=sp+(928);ST32(a_+0,FBITS(vr48));ST32(a_+4,FBITS(vr49));ST32(a_+8,FBITS(vr50));ST32(a_+12,FBITS(vr51));}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float s3=vr7;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[96]=d0;v[97]=d1;v[98]=d2;v[99]=d3;}
+    {u32 a_=sp+(928);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1536);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {vr5=BITSF(a2);}
+    {vr6=BITSF(v0);}
+    {u32 a_=sp+(1536);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
+    {u32 a_=sp+(1168);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {vr5=BITSF(a2);}
+    {vr6=BITSF(v0);}
+    {u32 a_=sp+(1168);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
     {u32 a_=sp+(960);ST32(a_+0,FBITS(v[100]));ST32(a_+4,FBITS(v[101]));ST32(a_+8,FBITS(v[102]));ST32(a_+12,FBITS(v[103]));}
-    {u32 a_=sp+(1472);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(960);ST32(a_+0,FBITS(v[52]));ST32(a_+4,FBITS(v[53]));ST32(a_+8,FBITS(v[54]));ST32(a_+12,FBITS(v[55]));}
-    {u32 a_=sp+(1168);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1504);ST32(a_+0,FBITS(v[40]));ST32(a_+4,FBITS(v[41]));ST32(a_+8,FBITS(v[42]));ST32(a_+12,FBITS(v[43]));}
-    {u32 a_=sp+(1520);ST32(a_+0,FBITS(v[44]));ST32(a_+4,FBITS(v[45]));ST32(a_+8,FBITS(v[46]));ST32(a_+12,FBITS(v[47]));}
+    {u32 a_=sp+(1472);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(960);ST32(a_+0,FBITS(vr52));ST32(a_+4,FBITS(vr53));ST32(a_+8,FBITS(vr54));ST32(a_+12,FBITS(vr55));}
+    {u32 a_=sp+(1168);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1504);ST32(a_+0,FBITS(vr40));ST32(a_+4,FBITS(vr41));ST32(a_+8,FBITS(vr42));ST32(a_+12,FBITS(vr43));}
+    {u32 a_=sp+(1520);ST32(a_+0,FBITS(vr44));ST32(a_+4,FBITS(vr45));ST32(a_+8,FBITS(vr46));ST32(a_+12,FBITS(vr47));}
     {u32 a_=sp+(944);ST32(a_+0,FBITS(v[96]));ST32(a_+4,FBITS(v[97]));ST32(a_+8,FBITS(v[98]));ST32(a_+12,FBITS(v[99]));}
     {u32 a_=sp+(976);ST32(a_+0,FBITS(v[8]));ST32(a_+4,FBITS(v[9]));ST32(a_+8,FBITS(v[10]));ST32(a_+12,FBITS(v[11]));}
-    {u32 a_=sp+(992);ST32(a_+0,FBITS(v[12]));ST32(a_+4,FBITS(v[13]));ST32(a_+8,FBITS(v[14]));ST32(a_+12,FBITS(v[15]));}
+    {u32 a_=sp+(992);ST32(a_+0,FBITS(vr12));ST32(a_+4,FBITS(vr13));ST32(a_+8,FBITS(vr14));ST32(a_+12,FBITS(vr15));}
     {u32 a_=sp+(1184);ST32(a_+0,FBITS(v[112]));ST32(a_+4,FBITS(v[113]));ST32(a_+8,FBITS(v[114]));ST32(a_+12,FBITS(v[115]));}
-    {u32 a_=sp+(1552);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
-    {u32 a_=sp+(1200);ST32(a_+0,FBITS(v[20]));ST32(a_+4,FBITS(v[21]));ST32(a_+8,FBITS(v[22]));ST32(a_+12,FBITS(v[23]));}
-    {u32 a_=sp+(1568);ST32(a_+0,FBITS(v[36]));ST32(a_+4,FBITS(v[37]));ST32(a_+8,FBITS(v[38]));ST32(a_+12,FBITS(v[39]));}
-    {u32 a_=sp+(1216);ST32(a_+0,FBITS(v[24]));ST32(a_+4,FBITS(v[25]));ST32(a_+8,FBITS(v[26]));ST32(a_+12,FBITS(v[27]));}
-    {u32 a_=sp+(1232);ST32(a_+0,FBITS(v[28]));ST32(a_+4,FBITS(v[29]));ST32(a_+8,FBITS(v[30]));ST32(a_+12,FBITS(v[31]));}
-    {u32 a_=sp+(1584);ST32(a_+0,FBITS(v[40]));ST32(a_+4,FBITS(v[41]));ST32(a_+8,FBITS(v[42]));ST32(a_+12,FBITS(v[43]));}
-    {u32 a_=sp+(1600);ST32(a_+0,FBITS(v[44]));ST32(a_+4,FBITS(v[45]));ST32(a_+8,FBITS(v[46]));ST32(a_+12,FBITS(v[47]));}
-    {u32 a_=sp+(1200);ST32(a_+0,FBITS(v[52]));ST32(a_+4,FBITS(v[53]));ST32(a_+8,FBITS(v[54]));ST32(a_+12,FBITS(v[55]));}
-    {u32 a_=sp+(928);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1536);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(832);ST32(a_+0,FBITS(v[48]));ST32(a_+4,FBITS(v[49]));ST32(a_+8,FBITS(v[50]));ST32(a_+12,FBITS(v[51]));}
-    {u32 a_=sp+(1536);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1376);ST32(a_+0,FBITS(v[48]));ST32(a_+4,FBITS(v[49]));ST32(a_+8,FBITS(v[50]));ST32(a_+12,FBITS(v[51]));}
-    {u32 a_=sp+(816);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1056);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1568);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
+    {u32 a_=sp+(1552);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
+    {u32 a_=sp+(1200);ST32(a_+0,FBITS(vr20));ST32(a_+4,FBITS(vr21));ST32(a_+8,FBITS(vr22));ST32(a_+12,FBITS(vr23));}
+    {u32 a_=sp+(1568);ST32(a_+0,FBITS(vr36));ST32(a_+4,FBITS(vr37));ST32(a_+8,FBITS(vr38));ST32(a_+12,FBITS(vr39));}
+    {u32 a_=sp+(1216);ST32(a_+0,FBITS(vr24));ST32(a_+4,FBITS(vr25));ST32(a_+8,FBITS(vr26));ST32(a_+12,FBITS(vr27));}
+    {u32 a_=sp+(1232);ST32(a_+0,FBITS(vr28));ST32(a_+4,FBITS(vr29));ST32(a_+8,FBITS(vr30));ST32(a_+12,FBITS(vr31));}
+    {u32 a_=sp+(1584);ST32(a_+0,FBITS(vr40));ST32(a_+4,FBITS(vr41));ST32(a_+8,FBITS(vr42));ST32(a_+12,FBITS(vr43));}
+    {u32 a_=sp+(1600);ST32(a_+0,FBITS(vr44));ST32(a_+4,FBITS(vr45));ST32(a_+8,FBITS(vr46));ST32(a_+12,FBITS(vr47));}
+    {u32 a_=sp+(1200);ST32(a_+0,FBITS(vr52));ST32(a_+4,FBITS(vr53));ST32(a_+8,FBITS(vr54));ST32(a_+12,FBITS(vr55));}
+    {u32 a_=sp+(928);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1536);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(832);ST32(a_+0,FBITS(vr48));ST32(a_+4,FBITS(vr49));ST32(a_+8,FBITS(vr50));ST32(a_+12,FBITS(vr51));}
+    {u32 a_=sp+(1536);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1376);ST32(a_+0,FBITS(vr48));ST32(a_+4,FBITS(vr49));ST32(a_+8,FBITS(vr50));ST32(a_+12,FBITS(vr51));}
+    {u32 a_=sp+(816);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1056);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1568);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
     v0 = 0x10000u;
-    {u32 a_=sp+(1168);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1936);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
-    {u32 a_=sp+(832);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1360);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1168);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1936);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
+    {u32 a_=sp+(832);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1360);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
     v1 = v1 | v0;
-    {u32 a_=sp+(1072);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[32]=d0;v[33]=d1;v[34]=d2;v[35]=d3;}
-    {u32 a_=sp+(1376);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1952);ST32(a_+0,FBITS(v[52]));ST32(a_+4,FBITS(v[53]));ST32(a_+8,FBITS(v[54]));ST32(a_+12,FBITS(v[55]));}
-    {u32 a_=sp+(1072);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1984);ST32(a_+0,FBITS(v[12]));ST32(a_+4,FBITS(v[13]));ST32(a_+8,FBITS(v[14]));ST32(a_+12,FBITS(v[15]));}
-    {u32 a_=sp+(1632);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
-    {u32 a_=sp+(1648);ST32(a_+0,FBITS(v[48]));ST32(a_+4,FBITS(v[49]));ST32(a_+8,FBITS(v[50]));ST32(a_+12,FBITS(v[51]));}
+    {u32 a_=sp+(1072);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[32]=d0;v[33]=d1;v[34]=d2;v[35]=d3;}
+    {u32 a_=sp+(1376);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1952);ST32(a_+0,FBITS(vr52));ST32(a_+4,FBITS(vr53));ST32(a_+8,FBITS(vr54));ST32(a_+12,FBITS(vr55));}
+    {u32 a_=sp+(1072);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1984);ST32(a_+0,FBITS(vr12));ST32(a_+4,FBITS(vr13));ST32(a_+8,FBITS(vr14));ST32(a_+12,FBITS(vr15));}
+    {u32 a_=sp+(1632);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
+    {u32 a_=sp+(1648);ST32(a_+0,FBITS(vr48));ST32(a_+4,FBITS(vr49));ST32(a_+8,FBITS(vr50));ST32(a_+12,FBITS(vr51));}
     {u32 a_=sp+(1968);ST32(a_+0,FBITS(v[8]));ST32(a_+4,FBITS(v[9]));ST32(a_+8,FBITS(v[10]));ST32(a_+12,FBITS(v[11]));}
     {u32 a_=sp+(1664);ST32(a_+0,FBITS(v[88]));ST32(a_+4,FBITS(v[89]));ST32(a_+8,FBITS(v[90]));ST32(a_+12,FBITS(v[91]));}
     {u32 a_=sp+(1680);ST32(a_+0,FBITS(v[92]));ST32(a_+4,FBITS(v[93]));ST32(a_+8,FBITS(v[94]));ST32(a_+12,FBITS(v[95]));}
-    {u32 a_=sp+(1616);v[56]=BITSF(LD32(a_+0));v[57]=BITSF(LD32(a_+4));v[58]=BITSF(LD32(a_+8));v[59]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1616);vr56=BITSF(LD32(a_+0));vr57=BITSF(LD32(a_+4));vr58=BITSF(LD32(a_+8));v[59]=BITSF(LD32(a_+12));}
     ST32(s1+36, v1);
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[36]=d0;v[37]=d1;v[38]=d2;v[39]=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr36=d0;vr37=d1;vr38=d2;vr39=d3;}
     {u32 a_=sp+(1264);ST32(a_+0,FBITS(v[32]));ST32(a_+4,FBITS(v[33]));ST32(a_+8,FBITS(v[34]));ST32(a_+12,FBITS(v[35]));}
-    {u32 a_=sp+(1952);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[20]=d0;v[21]=d1;v[22]=d2;v[23]=d3;}
-    {u32 a_=sp+(1984);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[28]=d0;v[29]=d1;v[30]=d2;v[31]=d3;}
-    {u32 a_=sp+(1632);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1696);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(1648);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1936);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1008);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1248);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1280);ST32(a_+0,FBITS(v[36]));ST32(a_+4,FBITS(v[37]));ST32(a_+8,FBITS(v[38]));ST32(a_+12,FBITS(v[39]));}
-    {u32 a_=sp+(1712);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(1664);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float s3=v[7];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[16]=d0;v[17]=d1;v[18]=d2;v[19]=d3;}
-    {u32 a_=sp+(1728);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(1680);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1344);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {v[1]=BITSF(t3);}
-    {u32 a_=sp+(1344);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(1264);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1952);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr20=d0;vr21=d1;vr22=d2;vr23=d3;}
+    {u32 a_=sp+(1984);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr28=d0;vr29=d1;vr30=d2;vr31=d3;}
+    {u32 a_=sp+(1632);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1696);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(1648);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1936);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1008);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1248);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1280);ST32(a_+0,FBITS(vr36));ST32(a_+4,FBITS(vr37));ST32(a_+8,FBITS(vr38));ST32(a_+12,FBITS(vr39));}
+    {u32 a_=sp+(1712);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(1664);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float s3=vr7;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr16=d0;vr17=d1;vr18=d2;vr19=d3;}
+    {u32 a_=sp+(1728);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(1680);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1344);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {vr1=BITSF(t3);}
+    {u32 a_=sp+(1344);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(1264);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     v0 = FBITS(f7);
     v1 = FBITS(f6);
     {u32 a_=sp+(1296);ST32(a_+0,FBITS(v[120]));ST32(a_+4,FBITS(v[121]));ST32(a_+8,FBITS(v[122]));ST32(a_+12,FBITS(v[123]));}
-    {u32 a_=sp+(816);ST32(a_+0,FBITS(v[16]));ST32(a_+4,FBITS(v[17]));ST32(a_+8,FBITS(v[18]));ST32(a_+12,FBITS(v[19]));}
-    {u32 a_=sp+(1056);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {v[56]=BITSF(t1);}
-    {v[48]=BITSF(t1);}
-    {v[52]=BITSF(t1);}
-    {v[57]=BITSF(v0);}
-    {v[49]=BITSF(v0);}
-    {v[53]=BITSF(v0);}
-    {u32 a_=sp+(1744);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
-    {v[54]=BITSF(v1);}
+    {u32 a_=sp+(816);ST32(a_+0,FBITS(vr16));ST32(a_+4,FBITS(vr17));ST32(a_+8,FBITS(vr18));ST32(a_+12,FBITS(vr19));}
+    {u32 a_=sp+(1056);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {vr56=BITSF(t1);}
+    {vr48=BITSF(t1);}
+    {vr52=BITSF(t1);}
+    {vr57=BITSF(v0);}
+    {vr49=BITSF(v0);}
+    {vr53=BITSF(v0);}
+    {u32 a_=sp+(1744);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
+    {vr54=BITSF(v1);}
     v0 = D_08AECF24 - (-12508);
-    {u32 a_=sp+(1088);ST32(a_+0,FBITS(v[52]));ST32(a_+4,FBITS(v[53]));ST32(a_+8,FBITS(v[54]));ST32(a_+12,FBITS(v[55]));}
-    {u32 a_=sp+(1296);ST32(a_+0,FBITS(v[52]));ST32(a_+4,FBITS(v[53]));ST32(a_+8,FBITS(v[54]));ST32(a_+12,FBITS(v[55]));}
-    {u32 a_=sp+(1696);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {v[50]=BITSF(v1);}
-    {u32 a_=sp+(1360);ST32(a_+0,FBITS(v[52]));ST32(a_+4,FBITS(v[53]));ST32(a_+8,FBITS(v[54]));ST32(a_+12,FBITS(v[55]));}
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[24]=d0;v[25]=d1;v[26]=d2;v[27]=d3;}
-    {u32 a_=sp+(1712);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1744);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1344);v[16]=BITSF(LD32(a_+0));v[17]=BITSF(LD32(a_+4));v[18]=BITSF(LD32(a_+8));v[19]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1088);ST32(a_+0,FBITS(vr52));ST32(a_+4,FBITS(vr53));ST32(a_+8,FBITS(vr54));ST32(a_+12,FBITS(vr55));}
+    {u32 a_=sp+(1296);ST32(a_+0,FBITS(vr52));ST32(a_+4,FBITS(vr53));ST32(a_+8,FBITS(vr54));ST32(a_+12,FBITS(vr55));}
+    {u32 a_=sp+(1696);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {vr50=BITSF(v1);}
+    {u32 a_=sp+(1360);ST32(a_+0,FBITS(vr52));ST32(a_+4,FBITS(vr53));ST32(a_+8,FBITS(vr54));ST32(a_+12,FBITS(vr55));}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr24=d0;vr25=d1;vr26=d2;vr27=d3;}
+    {u32 a_=sp+(1712);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1744);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1344);vr16=BITSF(LD32(a_+0));vr17=BITSF(LD32(a_+4));vr18=BITSF(LD32(a_+8));vr19=BITSF(LD32(a_+12));}
     f12 = BITSF(LD32(v0-12508));
-    {v[18]=BITSF(a3);}
-    {u32 a_=sp+(1040);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1344);ST32(a_+0,FBITS(v[16]));ST32(a_+4,FBITS(v[17]));ST32(a_+8,FBITS(v[18]));ST32(a_+12,FBITS(v[19]));}
-    {u32 a_=sp+(848);ST32(a_+0,FBITS(v[48]));ST32(a_+4,FBITS(v[49]));ST32(a_+8,FBITS(v[50]));ST32(a_+12,FBITS(v[51]));}
-    {u32 a_=sp+(816);v[16]=BITSF(LD32(a_+0));v[17]=BITSF(LD32(a_+4));v[18]=BITSF(LD32(a_+8));v[19]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(800);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
-    {v[53]=BITSF(a3);}
-    {v[49]=BITSF(a3);}
+    {vr18=BITSF(a3);}
+    {u32 a_=sp+(1040);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1344);ST32(a_+0,FBITS(vr16));ST32(a_+4,FBITS(vr17));ST32(a_+8,FBITS(vr18));ST32(a_+12,FBITS(vr19));}
+    {u32 a_=sp+(848);ST32(a_+0,FBITS(vr48));ST32(a_+4,FBITS(vr49));ST32(a_+8,FBITS(vr50));ST32(a_+12,FBITS(vr51));}
+    {u32 a_=sp+(816);vr16=BITSF(LD32(a_+0));vr17=BITSF(LD32(a_+4));vr18=BITSF(LD32(a_+8));vr19=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(800);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
+    {vr53=BITSF(a3);}
+    {vr49=BITSF(a3);}
     v0 = 0x3f800000u;
-    {v[50]=BITSF(a3);}
-    {v[54]=BITSF(v0);}
-    {u32 a_=sp+(800);ST32(a_+0,FBITS(v[48]));ST32(a_+4,FBITS(v[49]));ST32(a_+8,FBITS(v[50]));ST32(a_+12,FBITS(v[51]));}
-    {u32 a_=sp+(1040);ST32(a_+0,FBITS(v[52]));ST32(a_+4,FBITS(v[53]));ST32(a_+8,FBITS(v[54]));ST32(a_+12,FBITS(v[55]));}
-    {u32 a_=sp+(1056);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {v[58]=BITSF(v1);}
-    {u32 a_=sp+(1376);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(1408);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {float s0=v[20];float s1=v[21];float s2=v[22];float s3=v[23];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[16]=d0;v[17]=d1;v[18]=d2;v[19]=d3;}
-    {float s0=v[24];float s1=v[25];float s2=v[26];float s3=v[27];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
-    {float s0=v[28];float s1=v[29];float s2=v[30];float s3=v[31];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
-    {u32 a_=sp+(800);v[52]=BITSF(LD32(a_+0));v[53]=BITSF(LD32(a_+4));v[54]=BITSF(LD32(a_+8));v[55]=BITSF(LD32(a_+12));}
-    {float t0=v[52];float t1=v[53];float t2=v[54];float o0=0;o0+=v[0]*t0;o0+=v[1]*t1;o0+=v[2]*t2;float o1=0;o1+=v[4]*t0;o1+=v[5]*t1;o1+=v[6]*t2;float o2=0;o2+=v[8]*t0;o2+=v[9]*t1;o2+=v[10]*t2;v[48]=o0;v[49]=o1;v[50]=o2;}
-    {u32 a_=sp+(1360);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {v0=FBITS(v[50]);}
-    {v1=FBITS(v[48]);}
+    {vr50=BITSF(a3);}
+    {vr54=BITSF(v0);}
+    {u32 a_=sp+(800);ST32(a_+0,FBITS(vr48));ST32(a_+4,FBITS(vr49));ST32(a_+8,FBITS(vr50));ST32(a_+12,FBITS(vr51));}
+    {u32 a_=sp+(1040);ST32(a_+0,FBITS(vr52));ST32(a_+4,FBITS(vr53));ST32(a_+8,FBITS(vr54));ST32(a_+12,FBITS(vr55));}
+    {u32 a_=sp+(1056);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {vr58=BITSF(v1);}
+    {u32 a_=sp+(1376);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(1408);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
+    {float s0=vr20;float s1=vr21;float s2=vr22;float s3=vr23;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr4=d0;vr5=d1;vr6=d2;vr7=d3;}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr16=d0;vr17=d1;vr18=d2;vr19=d3;}
+    {float s0=vr24;float s1=vr25;float s2=vr26;float s3=vr27;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
+    {float s0=vr28;float s1=vr29;float s2=vr30;float s3=vr31;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr12=d0;vr13=d1;vr14=d2;vr15=d3;}
+    {u32 a_=sp+(800);vr52=BITSF(LD32(a_+0));vr53=BITSF(LD32(a_+4));vr54=BITSF(LD32(a_+8));vr55=BITSF(LD32(a_+12));}
+    {float t0=vr52;float t1=vr53;float t2=vr54;float o0=0;o0+=vr0*t0;o0+=vr1*t1;o0+=vr2*t2;float o1=0;o1+=vr4*t0;o1+=vr5*t1;o1+=vr6*t2;float o2=0;o2+=v[8]*t0;o2+=v[9]*t1;o2+=v[10]*t2;vr48=o0;vr49=o1;vr50=o2;}
+    {u32 a_=sp+(1360);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {v0=FBITS(vr50);}
+    {v1=FBITS(vr48);}
     f9 = BITSF(v0);
-    {v0=FBITS(v[49]);}
-    {u32 a_=sp+(1088);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
+    {v0=FBITS(vr49);}
+    {u32 a_=sp+(1088);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
     f8 = BITSF(v1);
     f6 = BITSF(v0);
-    {float s0=v[4];float s1=v[5];float s2=v[6];float s3=v[7];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[32]=d0;v[33]=d1;v[34]=d2;v[35]=d3;}
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[24]=d0;v[25]=d1;v[26]=d2;v[27]=d3;}
-    {u32 a_=sp+(1040);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(832);ST32(a_+0,FBITS(v[20]));ST32(a_+4,FBITS(v[21]));ST32(a_+8,FBITS(v[22]));ST32(a_+12,FBITS(v[23]));}
-    {u32 a_=sp+(864);ST32(a_+0,FBITS(v[28]));ST32(a_+4,FBITS(v[29]));ST32(a_+8,FBITS(v[30]));ST32(a_+12,FBITS(v[31]));}
-    {float s0=v[36];float s1=v[37];float s2=v[38];float s3=v[39];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[20]=d0;v[21]=d1;v[22]=d2;v[23]=d3;}
-    {float s0=v[124];float s1=v[125];float s2=v[126];float s3=v[127];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[28]=d0;v[29]=d1;v[30]=d2;v[31]=d3;}
-    {float t0=v[4];float t1=v[5];float t2=v[6];float o0=0;o0+=v[16]*t0;o0+=v[17]*t1;o0+=v[18]*t2;float o1=0;o1+=v[20]*t0;o1+=v[21]*t1;o1+=v[22]*t2;float o2=0;o2+=v[24]*t0;o2+=v[25]*t1;o2+=v[26]*t2;v[0]=o0;v[1]=o1;v[2]=o2;}
-    {u32 a_=sp+(1408);v[16]=BITSF(LD32(a_+0));v[17]=BITSF(LD32(a_+4));v[18]=BITSF(LD32(a_+8));v[19]=BITSF(LD32(a_+12));}
-    {v0=FBITS(v[2]);}
-    {v1=FBITS(v[0]);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float s3=vr7;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[32]=d0;v[33]=d1;v[34]=d2;v[35]=d3;}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr24=d0;vr25=d1;vr26=d2;vr27=d3;}
+    {u32 a_=sp+(1040);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(832);ST32(a_+0,FBITS(vr20));ST32(a_+4,FBITS(vr21));ST32(a_+8,FBITS(vr22));ST32(a_+12,FBITS(vr23));}
+    {u32 a_=sp+(864);ST32(a_+0,FBITS(vr28));ST32(a_+4,FBITS(vr29));ST32(a_+8,FBITS(vr30));ST32(a_+12,FBITS(vr31));}
+    {float s0=vr36;float s1=vr37;float s2=vr38;float s3=vr39;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr20=d0;vr21=d1;vr22=d2;vr23=d3;}
+    {float s0=v[124];float s1=v[125];float s2=v[126];float s3=v[127];float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr28=d0;vr29=d1;vr30=d2;vr31=d3;}
+    {float t0=vr4;float t1=vr5;float t2=vr6;float o0=0;o0+=vr16*t0;o0+=vr17*t1;o0+=vr18*t2;float o1=0;o1+=vr20*t0;o1+=vr21*t1;o1+=vr22*t2;float o2=0;o2+=vr24*t0;o2+=vr25*t1;o2+=vr26*t2;vr0=o0;vr1=o1;vr2=o2;}
+    {u32 a_=sp+(1408);vr16=BITSF(LD32(a_+0));vr17=BITSF(LD32(a_+4));vr18=BITSF(LD32(a_+8));vr19=BITSF(LD32(a_+12));}
+    {v0=FBITS(vr2);}
+    {v1=FBITS(vr0);}
     f7 = BITSF(v0);
-    {v0=FBITS(v[1]);}
-    {u32 a_=sp+(1376);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {v0=FBITS(vr1);}
+    {u32 a_=sp+(1376);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     f4 = BITSF(v1);
     f3 = BITSF(v0);
-    {u32 a_=sp+(1344);v[48]=BITSF(LD32(a_+0));v[49]=BITSF(LD32(a_+4));v[50]=BITSF(LD32(a_+8));v[51]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1072);ST32(a_+0,FBITS(v[36]));ST32(a_+4,FBITS(v[37]));ST32(a_+8,FBITS(v[38]));ST32(a_+12,FBITS(v[39]));}
-    {float s0=v[56];float s1=v[57];float s2=v[58];float s3=v[59];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[40]=d0;v[41]=d1;v[42]=d2;v[43]=d3;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[36]=d0;v[37]=d1;v[38]=d2;v[39]=d3;}
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[44]=d0;v[45]=d1;v[46]=d2;v[47]=d3;}
-    {float t0=v[48];float t1=v[49];float t2=v[50];float o0=0;o0+=v[32]*t0;o0+=v[33]*t1;o0+=v[34]*t2;float o1=0;o1+=v[36]*t0;o1+=v[37]*t1;o1+=v[38]*t2;float o2=0;o2+=v[40]*t0;o2+=v[41]*t1;o2+=v[42]*t2;v[0]=o0;v[1]=o1;v[2]=o2;}
-    {v0=FBITS(v[2]);}
+    {u32 a_=sp+(1344);vr48=BITSF(LD32(a_+0));vr49=BITSF(LD32(a_+4));vr50=BITSF(LD32(a_+8));vr51=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1072);ST32(a_+0,FBITS(vr36));ST32(a_+4,FBITS(vr37));ST32(a_+8,FBITS(vr38));ST32(a_+12,FBITS(vr39));}
+    {float s0=vr56;float s1=vr57;float s2=vr58;float s3=v[59];float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr40=d0;vr41=d1;vr42=d2;vr43=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr36=d0;vr37=d1;vr38=d2;vr39=d3;}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr44=d0;vr45=d1;vr46=d2;vr47=d3;}
+    {float t0=vr48;float t1=vr49;float t2=vr50;float o0=0;o0+=v[32]*t0;o0+=v[33]*t1;o0+=v[34]*t2;float o1=0;o1+=vr36*t0;o1+=vr37*t1;o1+=vr38*t2;float o2=0;o2+=vr40*t0;o2+=vr41*t1;o2+=vr42*t2;vr0=o0;vr1=o1;vr2=o2;}
+    {v0=FBITS(vr2);}
     f5 = BITSF(v0);
-    {v1=FBITS(v[0]);}
-    {v0=FBITS(v[1]);}
+    {v1=FBITS(vr0);}
+    {v0=FBITS(vr1);}
     {u32 a_=sp+(1312);ST32(a_+0,FBITS(v[124]));ST32(a_+4,FBITS(v[125]));ST32(a_+8,FBITS(v[126]));ST32(a_+12,FBITS(v[127]));}
-    {u32 a_=sp+(1728);ST32(a_+0,FBITS(v[56]));ST32(a_+4,FBITS(v[57]));ST32(a_+8,FBITS(v[58]));ST32(a_+12,FBITS(v[59]));}
+    {u32 a_=sp+(1728);ST32(a_+0,FBITS(vr56));ST32(a_+4,FBITS(vr57));ST32(a_+8,FBITS(vr58));ST32(a_+12,FBITS(v[59]));}
     {u32 a_=sp+(1104);ST32(a_+0,FBITS(v[124]));ST32(a_+4,FBITS(v[125]));ST32(a_+8,FBITS(v[126]));ST32(a_+12,FBITS(v[127]));}
-    {u32 a_=sp+(1392);ST32(a_+0,FBITS(v[56]));ST32(a_+4,FBITS(v[57]));ST32(a_+8,FBITS(v[58]));ST32(a_+12,FBITS(v[59]));}
+    {u32 a_=sp+(1392);ST32(a_+0,FBITS(vr56));ST32(a_+4,FBITS(vr57));ST32(a_+8,FBITS(vr58));ST32(a_+12,FBITS(v[59]));}
     ST32(sp+336, FBITS(f8));
     ST32(sp+340, FBITS(f6));
     ST32(sp+344, FBITS(f9));
@@ -20030,7 +20035,7 @@ L_088EFD34:;
     ST32(sp+288, v1);
     ST32(sp+292, v0);
     ST32(sp+296, FBITS(f5));
-    { rv_t r_ = func_088B8958(a0, a1, t1, t2, t3, f12); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[15]=vr15;v[16]=vr16;v[17]=vr17;v[18]=vr18;v[19]=vr19;v[20]=vr20;v[21]=vr21;v[22]=vr22;v[23]=vr23;v[24]=vr24;v[25]=vr25;v[26]=vr26;v[27]=vr27;v[28]=vr28;v[29]=vr29;v[30]=vr30;v[31]=vr31;v[36]=vr36;v[37]=vr37;v[38]=vr38;v[39]=vr39;v[40]=vr40;v[41]=vr41;v[42]=vr42;v[43]=vr43;v[44]=vr44;v[45]=vr45;v[46]=vr46;v[47]=vr47;v[48]=vr48;v[49]=vr49;v[50]=vr50;v[51]=vr51;v[52]=vr52;v[53]=vr53;v[54]=vr54;v[55]=vr55;v[56]=vr56;v[57]=vr57;v[58]=vr58;__auto_type vr_t_ = func_088B8958(a0, a1, t1, t2, t3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr12=v[12];vr13=v[13];vr14=v[14];vr15=v[15];vr16=v[16];vr17=v[17];vr18=v[18];vr19=v[19];vr20=v[20];vr21=v[21];vr22=v[22];vr23=v[23];vr24=v[24];vr25=v[25];vr26=v[26];vr27=v[27];vr28=v[28];vr29=v[29];vr30=v[30];vr31=v[31];vr36=v[36];vr37=v[37];vr38=v[38];vr39=v[39];vr40=v[40];vr41=v[41];vr42=v[42];vr43=v[43];vr44=v[44];vr45=v[45];vr46=v[46];vr47=v[47];vr48=v[48];vr49=v[49];vr50=v[50];vr51=v[51];vr52=v[52];vr53=v[53];vr54=v[54];vr55=v[55];vr56=v[56];vr57=v[57];vr58=v[58];vr_t_; }); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_088F02B4;
 L_088F02B4:;
     s1 = LD32(s1+24);
@@ -20077,34 +20082,34 @@ L_088F02CC:;
     a1 = t0 + a1;
     t2 = t0 + a0;
     v0 = v0 << 1;
-    {u32 a_=a1+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {u32 a_=t2+(0);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
+    {u32 a_=a1+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {u32 a_=t2+(0);vr12=BITSF(LD32(a_+0));vr13=BITSF(LD32(a_+4));vr14=BITSF(LD32(a_+8));vr15=BITSF(LD32(a_+12));}
     v0 = v0 + t1;
     v1 = LD_U16(v0);
-    {float s0=v[12];float s1=v[13];float s2=v[14];float s3=v[15];float t0=v[0];float t1=v[1];float t2=v[2];float t3=v[3];float d0=s0-t0;float d1=s1-t1;float d2=s2-t2;float d3=s3-t3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float s3=vr15;float t0=vr0;float t1=vr1;float t2=vr2;float t3=vr3;float d0=s0-t0;float d1=s1-t1;float d2=s2-t2;float d3=s3-t3;vr12=d0;vr13=d1;vr14=d2;vr15=d3;}
     f1 = BITSF(0);
     a2 = a2 + v1;
     a2 = a2 << 4;
     t0 = t0 + a2;
-    {u32 a_=sp+(48);ST32(a_+0,FBITS(v[12]));ST32(a_+4,FBITS(v[13]));ST32(a_+8,FBITS(v[14]));ST32(a_+12,FBITS(v[15]));}
-    {u32 a_=t0+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {u32 a_=a1+(0);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float t0=v[4];float t1=v[5];float t2=v[6];float t3=v[7];float d0=s0-t0;float d1=s1-t1;float d2=s2-t2;float d3=s3-t3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];float t1=v[1];float t2=v[2];float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;v[8]=d0;v[9]=d1;v[10]=d2;}
-    {u32 a_=sp+(32);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(1760);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(48);ST32(a_+0,FBITS(vr12));ST32(a_+4,FBITS(vr13));ST32(a_+8,FBITS(vr14));ST32(a_+12,FBITS(vr15));}
+    {u32 a_=t0+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {u32 a_=a1+(0);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float t0=vr4;float t1=vr5;float t2=vr6;float t3=vr7;float d0=s0-t0;float d1=s1-t1;float d2=s2-t2;float d3=s3-t3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;float t1=vr1;float t2=vr2;float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;v[8]=d0;v[9]=d1;v[10]=d2;}
+    {u32 a_=sp+(32);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(1760);vr12=BITSF(LD32(a_+0));vr13=BITSF(LD32(a_+4));vr14=BITSF(LD32(a_+8));vr15=BITSF(LD32(a_+12));}
     {u32 a_=sp+(64);ST32(a_+0,FBITS(v[8]));ST32(a_+4,FBITS(v[9]));ST32(a_+8,FBITS(v[10]));ST32(a_+12,FBITS(v[11]));}
     f5 = BITSF(LD32(sp+64));
     f4 = BITSF(LD32(sp+68));
     f3 = BITSF(LD32(sp+72));
     v1 = FBITS(f5);
     v0 = FBITS(f4);
-    {v[12]=BITSF(v1);}
+    {vr12=BITSF(v1);}
     v1 = FBITS(f3);
-    {v[13]=BITSF(v0);}
-    {v[14]=BITSF(v1);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr13=BITSF(v0);}
+    {vr14=BITSF(v1);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     ST32(sp+288, FBITS(f5));
     fcc = FCMP(f0, f1, 2);
@@ -20114,14 +20119,14 @@ L_088F02CC:;
     if (cnd_) { goto L_088F0410; }
     goto L_088F03D8;
 L_088F03D8:;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v1=FBITS(v[2]);}
+    {float s0=vr0;float d0=sqrtf(s0);v[8]=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;vr4=(float)1;vr5=(float)1;vr6=(float)1;vr7=(float)1;}
+    {float s0=vr4;float t0=v[8];float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v1=FBITS(vr2);}
     f3 = BITSF(v1);
-    {v0=FBITS(v[0]);}
-    {v1=FBITS(v[1]);}
+    {v0=FBITS(vr0);}
+    {v1=FBITS(vr1);}
     ST32(sp+272, v0);
     ST32(sp+276, v1);
     ST32(sp+280, FBITS(f3));
@@ -20151,39 +20156,39 @@ L_088F0440:;
     v0 = LD32(sp+96);
     ST32(sp+400, FBITS(f1));
     f22 = f0 + f0;
-    {u32 a_=sp+(1776);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1776);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
     f0 = BITSF(LD32(a1+4));
-    {v[4]=BITSF(v0);}
-    {u32 a_=sp+(1792);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {vr4=BITSF(v0);}
+    {u32 a_=sp+(1792);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     ST32(sp+404, FBITS(f0));
     s0 = sp + 400;
     s2 = sp + 592;
     f0 = BITSF(LD32(a1+8));
     v0 = LD32(sp+100);
-    {v[5]=BITSF(v0);}
+    {vr5=BITSF(v0);}
     ST32(sp+408, FBITS(f0));
     a1 = 3;
     a0 = s0 + 0;
     f0 = BITSF(LD32(t2));
     v0 = LD32(sp+104);
-    {v[6]=BITSF(v0);}
+    {vr6=BITSF(v0);}
     ST32(sp+420, FBITS(f0));
     a2 = s2 + 0;
     a3 = sp + 336;
     f0 = BITSF(LD32(t2+4));
     v0 = LD32(sp+336);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     ST32(sp+424, FBITS(f0));
     f1 = BITSF(LD32(t2+8));
     v0 = LD32(sp+340);
-    {v[1]=BITSF(v0);}
+    {vr1=BITSF(v0);}
     ST32(sp+428, FBITS(f1));
     f2 = BITSF(LD32(t0));
     v0 = LD32(sp+344);
-    {v[2]=BITSF(v0);}
+    {vr2=BITSF(v0);}
     ST32(sp+440, FBITS(f2));
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f1 = BITSF(LD32(t0+4));
     f0 = BITSF(v0);
     f20 = BITSF(v0);
@@ -20191,7 +20196,7 @@ L_088F0440:;
     f12 = f22 - f0;
     f0 = BITSF(LD32(t0+8));
     ST32(sp+448, FBITS(f0));
-    v0 = func_088F0884(a0, a1, a2, a3, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;__auto_type vr_t_ = func_088F0884(a0, a1, a2, a3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr_t_; });
     goto L_088F04F4;
 L_088F04F4:;
     cnd_ = v0 == 0;
@@ -20212,7 +20217,7 @@ L_088F04FC:;
     ST32(sp+272, FBITS(f2));
     ST32(sp+276, FBITS(f1));
     ST32(sp+280, FBITS(f0));
-    v0 = func_088F0884(a0, a1, a2, a3, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;__auto_type vr_t_ = func_088F0884(a0, a1, a2, a3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr_t_; });
     goto L_088F0534;
 L_088F0534:;
     cnd_ = v0 == 0;
@@ -20222,27 +20227,27 @@ L_088F0534:;
 L_088F053C:;
     v0 = LD32(sp+96);
     v1 = LD32(sp+100);
-    {u32 a_=sp+(1808);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1824);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {v[4]=BITSF(v0);}
+    {u32 a_=sp+(1808);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1824);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {vr4=BITSF(v0);}
     v0 = LD32(sp+104);
-    {v[5]=BITSF(v1);}
+    {vr5=BITSF(v1);}
     v1 = LD32(sp+320);
-    {v[6]=BITSF(v0);}
-    {v[0]=BITSF(v1);}
+    {vr6=BITSF(v0);}
+    {vr0=BITSF(v1);}
     v0 = LD32(sp+324);
     v1 = LD32(sp+328);
-    {v[1]=BITSF(v0);}
-    {v[2]=BITSF(v1);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v1=FBITS(v[4]);}
+    {vr1=BITSF(v0);}
+    {vr2=BITSF(v1);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v1=FBITS(vr4);}
     f0 = BITSF(v1);
     a0 = s0 + 0;
     a2 = s2 + 0;
     f12 = f21 - f0;
     f20 = BITSF(v1);
     a3 = fp + 0;
-    v0 = func_088F0884(a0, a1, a2, a3, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;__auto_type vr_t_ = func_088F0884(a0, a1, a2, a3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr_t_; });
     goto L_088F0598;
 L_088F0598:;
     cnd_ = v0 == 0;
@@ -20266,7 +20271,7 @@ L_088F05A0:;
     ST32(sp+256, FBITS(f2));
     ST32(sp+260, FBITS(f1));
     ST32(sp+264, FBITS(f0));
-    v0 = func_088F0884(a0, a1, a2, a3, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;__auto_type vr_t_ = func_088F0884(a0, a1, a2, a3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr_t_; });
     goto L_088F05E4;
 L_088F05E4:;
     cnd_ = v0 == 0;
@@ -20278,27 +20283,27 @@ L_088F05EC:;
     f23 = BITSF(LD32(v1-12536));
     v0 = LD32(sp+96);
     v1 = LD32(sp+100);
-    {u32 a_=sp+(1840);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(1856);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {v[4]=BITSF(v0);}
+    {u32 a_=sp+(1840);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1856);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {vr4=BITSF(v0);}
     v0 = LD32(sp+104);
-    {v[5]=BITSF(v1);}
+    {vr5=BITSF(v1);}
     v1 = LD32(sp+304);
-    {v[6]=BITSF(v0);}
-    {v[0]=BITSF(v1);}
+    {vr6=BITSF(v0);}
+    {vr0=BITSF(v1);}
     v0 = LD32(sp+308);
     v1 = LD32(sp+312);
-    {v[1]=BITSF(v0);}
-    {v[2]=BITSF(v1);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {vr1=BITSF(v0);}
+    {vr2=BITSF(v1);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f0 = BITSF(v0);
     a0 = s0 + 0;
     a2 = s2 + 0;
     f12 = f23 - f0;
     f20 = BITSF(v0);
     a3 = sp + 304;
-    v0 = func_088F0884(a0, a1, a2, a3, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;__auto_type vr_t_ = func_088F0884(a0, a1, a2, a3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr_t_; });
     goto L_088F0650;
 L_088F0650:;
     cnd_ = v0 == 0;
@@ -20322,7 +20327,7 @@ L_088F0658:;
     ST32(sp+256, FBITS(f2));
     ST32(sp+260, FBITS(f1));
     ST32(sp+264, FBITS(f0));
-    v0 = func_088F0884(a0, a1, a2, a3, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;__auto_type vr_t_ = func_088F0884(a0, a1, a2, a3, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr_t_; });
     goto L_088F069C;
 L_088F069C:;
     cnd_ = v0 == 0;
@@ -20354,29 +20359,29 @@ L_088F06CC:;
     f2 = f2 - f0;
     f0 = BITSF(LD32(sp+104));
     f3 = f3 - f1;
-    {u32 a_=sp+(1872);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1872);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
     f4 = f4 - f0;
     v1 = FBITS(f2);
     v0 = FBITS(f3);
-    {v[4]=BITSF(v1);}
-    {u32 a_=sp+(1888);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {v[5]=BITSF(v0);}
+    {vr4=BITSF(v1);}
+    {u32 a_=sp+(1888);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {vr5=BITSF(v0);}
     v1 = FBITS(f4);
     v0 = LD32(sp+336);
-    {v[6]=BITSF(v1);}
-    {v[0]=BITSF(v0);}
+    {vr6=BITSF(v1);}
+    {vr0=BITSF(v0);}
     v1 = LD32(sp+340);
     v0 = LD32(sp+344);
-    {v[1]=BITSF(v1);}
-    {v[2]=BITSF(v0);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {vr1=BITSF(v1);}
+    {vr2=BITSF(v0);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f1 = BITSF(v0);
     ST32(sp+256, FBITS(f2));
-    {u32 a_=sp+(1904);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1904);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
     f0 = f1 * f5;
     ST32(sp+260, FBITS(f3));
-    {u32 a_=sp+(1920);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(1920);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     t0 = t0 + 1;
     f0 = f0 * f12;
     ST32(sp+264, FBITS(f4));
@@ -20386,18 +20391,18 @@ L_088F06CC:;
     ST32(a2+412, FBITS(f0));
     v0 = LD32(sp+256);
     v1 = LD32(sp+260);
-    {v[4]=BITSF(v0);}
+    {vr4=BITSF(v0);}
     v0 = LD32(sp+264);
-    {v[5]=BITSF(v1);}
+    {vr5=BITSF(v1);}
     v1 = LD32(sp+320);
-    {v[6]=BITSF(v0);}
-    {v[0]=BITSF(v1);}
+    {vr6=BITSF(v0);}
+    {vr0=BITSF(v1);}
     v0 = LD32(sp+324);
     v1 = LD32(sp+328);
-    {v[1]=BITSF(v0);}
-    {v[2]=BITSF(v1);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v1=FBITS(v[4]);}
+    {vr1=BITSF(v0);}
+    {vr2=BITSF(v1);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v1=FBITS(vr4);}
     f1 = BITSF(v1);
     f0 = f1 * f5;
     f0 = f0 * f6;
@@ -20468,6 +20473,7 @@ L_088F0874:;
 L_088F087C:;
     s1 = LD32(s1+12);
     goto L_088F0430;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[15]=vr15;v[16]=vr16;v[17]=vr17;v[18]=vr18;v[19]=vr19;v[20]=vr20;v[21]=vr21;v[22]=vr22;v[23]=vr23;v[24]=vr24;v[25]=vr25;v[26]=vr26;v[27]=vr27;v[28]=vr28;v[29]=vr29;v[30]=vr30;v[31]=vr31;v[36]=vr36;v[37]=vr37;v[38]=vr38;v[39]=vr39;v[40]=vr40;v[41]=vr41;v[42]=vr42;v[43]=vr43;v[44]=vr44;v[45]=vr45;v[46]=vr46;v[47]=vr47;v[48]=vr48;v[49]=vr49;v[50]=vr50;v[51]=vr51;v[52]=vr52;v[53]=vr53;v[54]=vr54;v[55]=vr55;v[56]=vr56;v[57]=vr57;v[58]=vr58;
 }
 
 /* 088F0884 */
@@ -20477,7 +20483,7 @@ u32 func_088F0884(u32 a0, u32 a1, u32 a2, u32 a3, float f12)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr3 = v[3], vr4 = v[4], vr5 = v[5], vr6 = v[6], vr7 = v[7], vr8 = v[8], vr9 = v[9], vr10 = v[10], vr11 = v[11];
     u8 stack_[96] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 96);
 L_088F0884:;
@@ -20494,23 +20500,23 @@ L_088F089C:;
     t0 = a0 + 0;
     t1 = sp + 0;
     v0 = LD32(a3);
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr4=d0;vr5=d1;vr6=d2;vr7=d3;}
     v1 = LD32(a3+4);
-    {v[4]=BITSF(v0);}
+    {vr4=BITSF(v0);}
     v0 = LD32(a3+8);
-    {v[5]=BITSF(v1);}
-    {v[6]=BITSF(v0);}
+    {vr5=BITSF(v1);}
+    {vr6=BITSF(v0);}
     v0 = LD32(t0);
     goto L_088F08C8;
 L_088F08C8:;
     v1 = LD32(t0+4);
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {v[0]=BITSF(v0);}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
+    {vr0=BITSF(v0);}
     v0 = LD32(t0+8);
-    {v[1]=BITSF(v1);}
-    {v[2]=BITSF(v0);}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[4];float t1=v[5];float t2=v[6];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr1=BITSF(v1);}
+    {vr2=BITSF(v0);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr4;float t1=vr5;float t2=vr6;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     t2 = t2 + 1;
     v0 = t2 < a1;
@@ -20538,7 +20544,7 @@ L_088F0920:;
     goto L_088F0924;
 L_088F0924:;
     sp = sp + 96;
-    return v0;
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;return v0; }
 L_088F092C:;
     cnd_ = t4 == 0;
     t2 = 0 + 0;
@@ -20585,23 +20591,23 @@ L_088F0990:;
     f6 = f7 - f0;
     f5 = f4 - f1;
     f2 = f9 - f2;
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr4=d0;vr5=d1;vr6=d2;vr7=d3;}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
     ST32(sp+52, FBITS(f6));
     v0 = FBITS(f2);
-    {v[4]=BITSF(v0);}
+    {vr4=BITSF(v0);}
     v0 = LD32(a3);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     v0 = FBITS(f6);
-    {v[5]=BITSF(v0);}
+    {vr5=BITSF(v0);}
     v0 = LD32(a3+4);
-    {v[1]=BITSF(v0);}
+    {vr1=BITSF(v0);}
     v0 = FBITS(f5);
-    {v[6]=BITSF(v0);}
+    {vr6=BITSF(v0);}
     v0 = LD32(a3+8);
-    {v[2]=BITSF(v0);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {vr2=BITSF(v0);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f0 = BITSF(v0);
     ST32(sp+48, FBITS(f2));
     f1 = f10 / f0;
@@ -20670,22 +20676,22 @@ L_088F0AB8:;
     f6 = f9 - f1;
     f7 = f3 - f0;
     f4 = f5 - f2;
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr4=d0;vr5=d1;vr6=d2;vr7=d3;}
     v0 = FBITS(f6);
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {v[4]=BITSF(v0);}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
+    {vr4=BITSF(v0);}
     v0 = LD32(a3);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     v0 = FBITS(f7);
-    {v[5]=BITSF(v0);}
+    {vr5=BITSF(v0);}
     v0 = LD32(a3+4);
-    {v[1]=BITSF(v0);}
+    {vr1=BITSF(v0);}
     v0 = FBITS(f4);
-    {v[6]=BITSF(v0);}
+    {vr6=BITSF(v0);}
     v0 = LD32(a3+8);
-    {v[2]=BITSF(v0);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {vr2=BITSF(v0);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f0 = BITSF(v0);
     ST32(sp+80, FBITS(f6));
     f1 = f10 / f0;
@@ -20731,6 +20737,7 @@ L_088F0BAC:;
     ST32(a2+8, FBITS(f2));
     a2 = a2 + 20;
     goto L_088F0A80;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;
 }
 
 /* 088F0BCC */
@@ -22019,7 +22026,7 @@ void func_088F1828(void)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0, f11 = 0, f12 = 0, f13 = 0, f14 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr4 = v[4], vr16 = v[16];
 L_088F1828:;
     a1 = D_08AECF40 - (-12480);
     a2 = D_08AECF44 - (-12476);
@@ -22038,7 +22045,7 @@ L_088F1828:;
     goto L_088F185C;
 L_088F185C:;
     v0 = D_08AECF48 - (-12472);
-    {v[16]=0.63661977236f;}
+    {vr16=0.63661977236f;}
     f14 = BITSF(LD32(v0-12472));
     v0 = D_08AECF4C - (-12468);
     f13 = f1;
@@ -22053,14 +22060,14 @@ L_088F187C:;
     f5 = f12;
     v0 = FBITS(f0);
     {v[24]=BITSF(v0);}
-    {float s0=v[24];float t0=v[16];float d0=s0*t0;v[0]=d0;}
+    {float s0=v[24];float t0=vr16;float d0=s0*t0;vr0=d0;}
     {v[20]=BITSF(v0);}
-    {float s0=v[20];float t0=v[16];float d0=s0*t0;v[4]=d0;}
-    {float s0=v[0];float d0=sinf(s0*1.57079632679f);v[0]=d0;}
-    {v0=FBITS(v[0]);}
+    {float s0=v[20];float t0=vr16;float d0=s0*t0;vr4=d0;}
+    {float s0=vr0;float d0=sinf(s0*1.57079632679f);vr0=d0;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
-    {float s0=v[4];float d0=cosf(s0*1.57079632679f);v[4]=d0;}
-    {v0=FBITS(v[4]);}
+    {float s0=vr4;float d0=cosf(s0*1.57079632679f);vr4=d0;}
+    {v0=FBITS(vr4);}
     ST32(v1, FBITS(f0));
     f4 = f0;
     f6 = BITSF(v0);
@@ -22083,13 +22090,13 @@ L_088F18D8:;
     v0 = FBITS(f0);
     {v[12]=BITSF(v0);}
     {v[8]=BITSF(v0);}
-    {float s0=v[12];float t0=v[16];float d0=s0*t0;v[0]=d0;}
-    {float s0=v[8];float t0=v[16];float d0=s0*t0;v[4]=d0;}
-    {float s0=v[0];float d0=sinf(s0*1.57079632679f);v[0]=d0;}
-    {float s0=v[4];float d0=cosf(s0*1.57079632679f);v[4]=d0;}
-    {v0=FBITS(v[0]);}
+    {float s0=v[12];float t0=vr16;float d0=s0*t0;vr0=d0;}
+    {float s0=v[8];float t0=vr16;float d0=s0*t0;vr4=d0;}
+    {float s0=vr0;float d0=sinf(s0*1.57079632679f);vr0=d0;}
+    {float s0=vr4;float d0=cosf(s0*1.57079632679f);vr4=d0;}
+    {v0=FBITS(vr0);}
     f2 = BITSF(v0);
-    {v0=FBITS(v[4]);}
+    {v0=FBITS(vr4);}
     f3 = BITSF(v0);
     f1 = f2 * f4;
     f0 = f3 * f4;
@@ -22126,7 +22133,7 @@ L_088F1954:;
 L_088F1970:;
     v0 = D_08AECF48 - (-12472);
     f7 = BITSF(LD32(v0-12472));
-    {v[16]=0.63661977236f;}
+    {vr16=0.63661977236f;}
     f6 = f1;
     f4 = f0;
     goto L_088F1984;
@@ -22136,15 +22143,15 @@ L_088F1984:;
     ST32(v1+8, 0);
     v0 = FBITS(f0);
     {v[32]=BITSF(v0);}
-    {float s0=v[32];float t0=v[16];float d0=s0*t0;v[0]=d0;}
+    {float s0=v[32];float t0=vr16;float d0=s0*t0;vr0=d0;}
     {v[28]=BITSF(v0);}
-    {float s0=v[28];float t0=v[16];float d0=s0*t0;v[4]=d0;}
+    {float s0=v[28];float t0=vr16;float d0=s0*t0;vr4=d0;}
     fcc = FCMP(f5, f6, 12);
-    {float s0=v[0];float d0=sinf(s0*1.57079632679f);v[0]=d0;}
-    {v0=FBITS(v[0]);}
+    {float s0=vr0;float d0=sinf(s0*1.57079632679f);vr0=d0;}
+    {v0=FBITS(vr0);}
     f1 = BITSF(v0);
-    {float s0=v[4];float d0=cosf(s0*1.57079632679f);v[4]=d0;}
-    {v0=FBITS(v[4]);}
+    {float s0=vr4;float d0=cosf(s0*1.57079632679f);vr4=d0;}
+    {v0=FBITS(vr4);}
     ST32(v1+4, FBITS(f1));
     ST32(v1, v0);
     cnd_ = fcc;
@@ -22156,7 +22163,8 @@ L_088F19CC:;
     ST32(v1+8, 0);
     ST32(v1+4, FBITS(f0));
     ST32(v1, 0);
-    return;
+    { v[0]=vr0;v[4]=vr4;v[16]=vr16;return; }
+    v[0]=vr0;v[4]=vr4;v[16]=vr16;
 }
 
 /* 088F19E0 */
@@ -23617,7 +23625,7 @@ rv_t func_088F2870(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u32 t_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr96 = v[96], vr97 = v[97], vr98 = v[98];
     u8 stack_[64] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 64);
 L_088F2870:;
@@ -23682,25 +23690,25 @@ L_088F2904:;
     {v[114]=BITSF(LD32(s1+(8)));}
     {v[115]=BITSF(LD32(s1+(12)));}
     {float s0=v[0];v[120]=(float)1;}
-    {float s0=v[112];float s1=v[113];float s2=v[114];float s3=v[115];float t0=v[112];float t1=v[113];float t2=v[114];float t3=v[115];float d0=s0+t0;float d1=s1+t1;float d2=s2+t2;float d3=s3+t3;v[96]=d0;v[97]=d1;v[98]=d2;v[99]=d3;}
-    {float s0=v[96];float s1=v[97];float s2=v[98];float s3=v[99];float t0=v[112];v[80]=s0*t0;v[81]=s1*t0;v[82]=s2*t0;v[83]=s3*t0;}
-    {float s0=v[96];float s1=v[97];float s2=v[98];float s3=v[99];float t0=v[113];v[84]=s0*t0;v[85]=s1*t0;v[86]=s2*t0;v[87]=s3*t0;}
-    {float s0=v[96];float s1=v[97];float s2=v[98];float s3=v[99];float t0=v[114];v[88]=s0*t0;v[89]=s1*t0;v[90]=s2*t0;v[91]=s3*t0;}
-    {float s0=v[96];float s1=v[97];float s2=v[98];float s3=v[99];float t0=v[115];v[92]=s0*t0;v[93]=s1*t0;v[94]=s2*t0;v[95]=s3*t0;}
-    {float s0=v[120];float t0=v[85];float d0=s0-t0;v[96]=d0;}
+    {float s0=v[112];float s1=v[113];float s2=v[114];float s3=v[115];float t0=v[112];float t1=v[113];float t2=v[114];float t3=v[115];float d0=s0+t0;float d1=s1+t1;float d2=s2+t2;float d3=s3+t3;vr96=d0;vr97=d1;vr98=d2;v[99]=d3;}
+    {float s0=vr96;float s1=vr97;float s2=vr98;float s3=v[99];float t0=v[112];v[80]=s0*t0;v[81]=s1*t0;v[82]=s2*t0;v[83]=s3*t0;}
+    {float s0=vr96;float s1=vr97;float s2=vr98;float s3=v[99];float t0=v[113];v[84]=s0*t0;v[85]=s1*t0;v[86]=s2*t0;v[87]=s3*t0;}
+    {float s0=vr96;float s1=vr97;float s2=vr98;float s3=v[99];float t0=v[114];v[88]=s0*t0;v[89]=s1*t0;v[90]=s2*t0;v[91]=s3*t0;}
+    {float s0=vr96;float s1=vr97;float s2=vr98;float s3=v[99];float t0=v[115];v[92]=s0*t0;v[93]=s1*t0;v[94]=s2*t0;v[95]=s3*t0;}
+    {float s0=v[120];float t0=v[85];float d0=s0-t0;vr96=d0;}
     {float s0=v[120];float t0=v[80];float d0=s0-t0;v[106]=d0;}
     {float s0=v[81];float t0=v[91];float d0=s0+t0;v[100]=d0;}
     {float s0=v[82];float t0=v[87];float d0=s0-t0;v[104]=d0;}
-    {float s0=v[96];float t0=v[90];float d0=s0-t0;v[96]=d0;}
-    {float s0=v[81];float t0=v[91];float d0=s0-t0;v[97]=d0;}
+    {float s0=vr96;float t0=v[90];float d0=s0-t0;vr96=d0;}
+    {float s0=v[81];float t0=v[91];float d0=s0-t0;vr97=d0;}
     {float s0=v[86];float t0=v[83];float d0=s0+t0;v[105]=d0;}
     {float s0=v[106];float t0=v[90];float d0=s0-t0;v[101]=d0;}
-    {float s0=v[82];float t0=v[87];float d0=s0+t0;v[98]=d0;}
+    {float s0=v[82];float t0=v[87];float d0=s0+t0;vr98=d0;}
     {float s0=v[86];float t0=v[83];float d0=s0-t0;v[102]=d0;}
     {float s0=v[106];float t0=v[85];float d0=s0-t0;v[106]=d0;}
-    {ST32(sp+(0),FBITS(v[96]));}
-    {ST32(sp+(4),FBITS(v[97]));}
-    {ST32(sp+(8),FBITS(v[98]));}
+    {ST32(sp+(0),FBITS(vr96));}
+    {ST32(sp+(4),FBITS(vr97));}
+    {ST32(sp+(8),FBITS(vr98));}
     {ST32(sp+(12),FBITS(v[100]));}
     {ST32(sp+(16),FBITS(v[101]));}
     {ST32(sp+(20),FBITS(v[102]));}
@@ -23713,13 +23721,13 @@ L_088F2904:;
     v1 = LD32(v0+52);
     t_ = v1;
     a3 = 1;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ({ v[96]=vr96;v[97]=vr97;v[98]=vr98;__auto_type vr_t_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); vr96=v[96];vr97=v[97];vr98=v[98];vr_t_; }); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_088F2994;
 L_088F2994:;
     goto L_088F2998;
 L_088F2998:;
     sp = sp + 64;
-    return (rv_t){ v0, v1, f0 };
+    { v[96]=vr96;v[97]=vr97;v[98]=vr98;return (rv_t){ v0, v1, f0 }; }
 L_088F29AC:;
     v0 = v0 & 0x1;
     cnd_ = v0 != 0;
@@ -23734,7 +23742,7 @@ L_088F29C4:;
     goto L_088F28FC;
 L_088F29CC:;
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ({ v[96]=vr96;v[97]=vr97;v[98]=vr98;__auto_type vr_t_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); vr96=v[96];vr97=v[97];vr98=v[98];vr_t_; }); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_088F29D4;
 L_088F29D4:;
     cnd_ = v0 != 0;
@@ -23743,6 +23751,7 @@ L_088F29D4:;
 L_088F29DC:;
     a0 = D_08B28EF4 - (-28940);
     goto L_088F28A0;
+    v[96]=vr96;v[97]=vr97;v[98]=vr98;
 }
 
 /* 088F29E4 */
@@ -24572,7 +24581,7 @@ void func_088F33C8(u32 a0, u32 a1, u32 a2, u32 t0, u32 t1)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f12 = 0, f20 = 0, f21 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr3 = v[3], vr4 = v[4], vr5 = v[5], vr6 = v[6], vr7 = v[7], vr8 = v[8], vr9 = v[9], vr10 = v[10], vr11 = v[11];
     u8 stack_[640] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 640);
 L_088F33C8:;
@@ -24595,7 +24604,7 @@ L_088F3414:;
 L_088F342C:;
     a0 = sp + 32;
     a1 = 0 + 0;
-    func_088198E0(a0, a1);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;func_088198E0(a0, a1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];});
     goto L_088F3438;
 L_088F3438:;
     v0 = D_08B21180 - (4480);
@@ -24653,7 +24662,7 @@ L_088F34A4:;
 L_088F34D0:;
     a1 = LD32(s0+23036);
     a0 = a1 + 12;
-    func_08905D64(a0, a1);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_08905D64(a0, a1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F34DC;
 L_088F34DC:;
     v0 = LD32(s0+23036);
@@ -24665,21 +24674,21 @@ L_088F34DC:;
     f2 = f2 - f0;
     f0 = BITSF(LD32(sp+40));
     f3 = f3 - f1;
-    {u32 a_=sp+(368);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(368);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     f4 = f4 - f0;
     v1 = FBITS(f2);
     v0 = FBITS(f3);
-    {v[0]=BITSF(v1);}
+    {vr0=BITSF(v1);}
     v1 = FBITS(f4);
-    {v[1]=BITSF(v0);}
-    {v[2]=BITSF(v1);}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
+    {vr1=BITSF(v0);}
+    {vr2=BITSF(v1);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
     v0 = D_08B21184 - (4484);
     a0 = LD32(v0+4484);
     ST32(sp+48, FBITS(f2));
     ST32(sp+52, FBITS(f3));
-    {float s0=v[0];float d0=sqrtf(s0);v[0]=d0;}
-    {v1=FBITS(v[0]);}
+    {float s0=vr0;float d0=sqrtf(s0);vr0=d0;}
+    {v1=FBITS(vr0);}
     f12 = BITSF(v1);
     ST32(sp+56, FBITS(f4));
     v0 = func_0881794C(a0, f12);
@@ -24688,7 +24697,7 @@ L_088F3548:;
     a1 = v0 + 0;
     a0 = s4 + 0;
     s3 = v0 + 0;
-    func_08905A4C(a1);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_08905A4C(a1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F3558;
 L_088F3558:;
     cnd_ = fp == 0;
@@ -24728,20 +24737,20 @@ L_088F35AC:;
     s0 = v1 + 4544;
     goto L_088F35B4;
 L_088F35B4:;
-    {u32 a_=s0+(48);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(16);v[8]=BITSF(LD32(a_+0));v[9]=BITSF(LD32(a_+4));v[10]=BITSF(LD32(a_+8));v[11]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float t0=v[4];float t1=v[5];float t2=v[6];float t3=v[7];float d0=(s0>t0?s0:t0);float d1=(s1>t1?s1:t1);float d2=(s2>t2?s2:t2);float d3=(s3>t3?s3:t3);v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float t0=v[4];float t1=v[5];float t2=v[6];float t3=v[7];float d0=(s0<t0?s0:t0);float d1=(s1<t1?s1:t1);float d2=(s2<t2?s2:t2);float d3=(s3<t3?s3:t3);v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
+    {u32 a_=s0+(48);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(16);vr8=BITSF(LD32(a_+0));vr9=BITSF(LD32(a_+4));vr10=BITSF(LD32(a_+8));vr11=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float t0=vr4;float t1=vr5;float t2=vr6;float t3=vr7;float d0=(s0>t0?s0:t0);float d1=(s1>t1?s1:t1);float d2=(s2>t2?s2:t2);float d3=(s3>t3?s3:t3);vr8=d0;vr9=d1;vr10=d2;vr11=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float t0=vr4;float t1=vr5;float t2=vr6;float t3=vr7;float d0=(s0<t0?s0:t0);float d1=(s1<t1?s1:t1);float d2=(s2<t2?s2:t2);float d3=(s3<t3?s3:t3);vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
     a2 = s1 + 0;
     a3 = s0 + 0;
     a0 = s4 + 0;
     a1 = s3 + 0;
     t0 = s6 + 0;
     t1 = s5 + 0;
-    {u32 a_=sp+(0);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(16);ST32(a_+0,FBITS(v[8]));ST32(a_+4,FBITS(v[9]));ST32(a_+8,FBITS(v[10]));ST32(a_+12,FBITS(v[11]));}
-    func_08905E90(a0, a1, a2, a3, t0, t1);
+    {u32 a_=sp+(0);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(16);ST32(a_+0,FBITS(vr8));ST32(a_+4,FBITS(vr9));ST32(a_+8,FBITS(vr10));ST32(a_+12,FBITS(vr11));}
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_08905E90(a0, a1, a2, a3, t0, t1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F35EC;
 L_088F35EC:;
     v0 = D_08B21184 - (4484);
@@ -24804,16 +24813,16 @@ L_088F3694:;
     f3 = f3 - f0;
     f4 = f4 - f1;
     f5 = f5 - f2;
-    {u32 a_=sp+(400);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(400);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     v0 = FBITS(f3);
     v1 = FBITS(f4);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     f1 = BITSF(0);
-    {v[1]=BITSF(v1);}
+    {vr1=BITSF(v1);}
     v0 = FBITS(f5);
-    {v[2]=BITSF(v0);}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v1=FBITS(v[0]);}
+    {vr2=BITSF(v0);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v1=FBITS(vr0);}
     f0 = BITSF(v1);
     ST32(sp+48, FBITS(f3));
     fcc = FCMP(f0, f1, 2);
@@ -24880,19 +24889,19 @@ L_088F377C:;
     {u32 a_=sp+(464);v[80]=BITSF(LD32(a_+0));v[81]=BITSF(LD32(a_+4));v[82]=BITSF(LD32(a_+8));v[83]=BITSF(LD32(a_+12));}
     f3 = f3 + f0;
     f4 = f4 * f1;
-    {float s0=v[80];float s1=v[81];float s2=v[82];float s3=v[83];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
+    {float s0=v[80];float s1=v[81];float s2=v[82];float s3=v[83];float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr8=d0;vr9=d1;vr10=d2;vr11=d3;}
     {u32 a_=sp+(480);v[80]=BITSF(LD32(a_+0));v[81]=BITSF(LD32(a_+4));v[82]=BITSF(LD32(a_+8));v[83]=BITSF(LD32(a_+12));}
     f3 = f3 * f1;
     {float s0=v[80];float s1=v[81];float s2=v[82];float s3=v[83];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
     ST32(sp+160, FBITS(f2));
-    {u32 a_=sp+(416);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(416);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     v1 = FBITS(f1);
     ST32(sp+164, FBITS(f4));
-    {v[0]=BITSF(v1);}
-    {float s0=v[0];float s1=v[0];float s2=v[0];float s3=v[0];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {u32 a_=sp+(416);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
+    {vr0=BITSF(v1);}
+    {float s0=vr0;float s1=vr0;float s2=vr0;float s3=vr0;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
+    {u32 a_=sp+(416);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
     ST32(sp+168, FBITS(f3));
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[20]=d0;v[21]=d1;v[22]=d2;v[23]=d3;}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[20]=d0;v[21]=d1;v[22]=d2;v[23]=d3;}
     {float s0=v[12];float s1=v[13];float s2=v[14];float s3=v[15];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[28]=d0;v[29]=d1;v[30]=d2;v[31]=d3;}
     ST32(sp+48, FBITS(f2));
     a3 = sp + 256;
@@ -24904,7 +24913,7 @@ L_088F377C:;
     {v[113]=BITSF(LD32(s4+(296)));}
     {v[114]=BITSF(LD32(s4+(300)));}
     {v[115]=BITSF(LD32(s4+(304)));}
-    {float s0=v[0];v[120]=(float)1;}
+    {float s0=vr0;v[120]=(float)1;}
     {float s0=v[112];float s1=v[113];float s2=v[114];float s3=v[115];float t0=v[112];float t1=v[113];float t2=v[114];float t3=v[115];float d0=s0+t0;float d1=s1+t1;float d2=s2+t2;float d3=s3+t3;v[96]=d0;v[97]=d1;v[98]=d2;v[99]=d3;}
     {float s0=v[96];float s1=v[97];float s2=v[98];float s3=v[99];float t0=v[112];v[80]=s0*t0;v[81]=s1*t0;v[82]=s2*t0;v[83]=s3*t0;}
     {float s0=v[96];float s1=v[97];float s2=v[98];float s3=v[99];float t0=v[113];v[84]=s0*t0;v[85]=s1*t0;v[86]=s2*t0;v[87]=s3*t0;}
@@ -24948,37 +24957,37 @@ L_088F377C:;
     v0 = LD32(sp+312);
     ST32(sp+228, v1);
     ST32(sp+232, v0);
-    {u32 a_=sp+(416);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(208);v[8]=BITSF(LD32(a_+0));v[9]=BITSF(LD32(a_+4));v[10]=BITSF(LD32(a_+8));v[11]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(416);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(208);vr8=BITSF(LD32(a_+0));vr9=BITSF(LD32(a_+4));vr10=BITSF(LD32(a_+8));vr11=BITSF(LD32(a_+12));}
     v1 = LD32(sp+316);
     ST32(sp+320, FBITS(f8));
     {u32 a_=sp+(528);ST32(a_+0,FBITS(v[20]));ST32(a_+4,FBITS(v[21]));ST32(a_+8,FBITS(v[22]));ST32(a_+12,FBITS(v[23]));}
     {u32 a_=sp+(480);ST32(a_+0,FBITS(v[12]));ST32(a_+4,FBITS(v[13]));ST32(a_+8,FBITS(v[14]));ST32(a_+12,FBITS(v[15]));}
     ST32(sp+236, v1);
     {u32 a_=sp+(544);ST32(a_+0,FBITS(v[12]));ST32(a_+4,FBITS(v[13]));ST32(a_+8,FBITS(v[14]));ST32(a_+12,FBITS(v[15]));}
-    {u32 a_=sp+(464);ST32(a_+0,FBITS(v[8]));ST32(a_+4,FBITS(v[9]));ST32(a_+8,FBITS(v[10]));ST32(a_+12,FBITS(v[11]));}
-    {u32 a_=sp+(224);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[4];float t1=v[5];float t2=v[6];float d0=s0*t0;float d1=s1*t1;float d2=s2*t2;v[0]=d0;v[1]=d1;v[2]=d2;}
+    {u32 a_=sp+(464);ST32(a_+0,FBITS(vr8));ST32(a_+4,FBITS(vr9));ST32(a_+8,FBITS(vr10));ST32(a_+12,FBITS(vr11));}
+    {u32 a_=sp+(224);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr4;float t1=vr5;float t2=vr6;float d0=s0*t0;float d1=s1*t1;float d2=s2*t2;vr0=d0;vr1=d1;vr2=d2;}
     ST32(sp+324, FBITS(f6));
-    {u32 a_=sp+(176);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(432);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
+    {u32 a_=sp+(176);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(432);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
     ST32(sp+328, FBITS(f7));
-    {u32 a_=sp+(224);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(192);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[52]=d0;v[53]=d1;v[54]=d2;v[55]=d3;}
-    {u32 a_=sp+(448);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float s3=v[7];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[24]=d0;v[25]=d1;v[26]=d2;v[27]=d3;}
-    {u32 a_=sp+(496);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
+    {u32 a_=sp+(224);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(192);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[52]=d0;v[53]=d1;v[54]=d2;v[55]=d3;}
+    {u32 a_=sp+(448);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float s3=vr7;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[24]=d0;v[25]=d1;v[26]=d2;v[27]=d3;}
+    {u32 a_=sp+(496);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
     {float s0=v[24];float s1=v[25];float s2=v[26];float s3=v[27];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[16]=d0;v[17]=d1;v[18]=d2;v[19]=d3;}
-    {u32 a_=sp+(320);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(320);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
     {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[20]=d0;v[21]=d1;v[22]=d2;v[23]=d3;}
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[24]=d0;v[25]=d1;v[26]=d2;v[27]=d3;}
-    {float t0=v[4];float t1=v[5];float t2=v[6];float o0=0;o0+=v[16]*t0;o0+=v[20]*t1;o0+=v[24]*t2;float o1=0;o1+=v[17]*t0;o1+=v[21]*t1;o1+=v[25]*t2;float o2=0;o2+=v[18]*t0;o2+=v[22]*t1;o2+=v[26]*t2;v[0]=o0;v[1]=o1;v[2]=o2;}
-    {u32 a_=sp+(304);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[24]=d0;v[25]=d1;v[26]=d2;v[27]=d3;}
+    {float t0=vr4;float t1=vr5;float t2=vr6;float o0=0;o0+=v[16]*t0;o0+=v[20]*t1;o0+=v[24]*t2;float o1=0;o1+=v[17]*t0;o1+=v[21]*t1;o1+=v[25]*t2;float o2=0;o2+=v[18]*t0;o2+=v[22]*t1;o2+=v[26]*t2;vr0=o0;vr1=o1;vr2=o2;}
+    {u32 a_=sp+(304);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
     v0 = LD32(sp+304);
     v1 = LD32(sp+308);
-    {u32 a_=sp+(160);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(160);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
     ST32(sp+240, v0);
     {u32 a_=sp+(512);ST32(a_+0,FBITS(v[52]));ST32(a_+4,FBITS(v[53]));ST32(a_+8,FBITS(v[54]));ST32(a_+12,FBITS(v[55]));}
     ST32(sp+244, v1);
@@ -24987,10 +24996,10 @@ L_088F377C:;
     ST32(sp+48, FBITS(f8));
     ST32(sp+248, v0);
     ST32(sp+252, v1);
-    {u32 a_=sp+(240);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[4];float t1=v[5];float t2=v[6];float d0=s0+t0;float d1=s1+t1;float d2=s2+t2;v[0]=d0;v[1]=d1;v[2]=d2;}
+    {u32 a_=sp+(240);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr4;float t1=vr5;float t2=vr6;float d0=s0+t0;float d1=s1+t1;float d2=s2+t2;vr0=d0;vr1=d1;vr2=d2;}
     ST32(sp+52, FBITS(f6));
-    {u32 a_=sp+(240);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
+    {u32 a_=sp+(240);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
     ST32(sp+56, FBITS(f7));
     goto L_088F3978;
 L_088F3978:;
@@ -25018,7 +25027,7 @@ L_088F39A4:;
     v1 = LD32(sp+172);
     ST32(sp+248, v0);
     ST32(sp+252, v1);
-    func_088EF7DC(a0, a1, 0, 0);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_088EF7DC(a0, a1, 0, 0); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F39D0;
 L_088F39D0:;
     goto L_088F39D4;
@@ -25026,7 +25035,7 @@ L_088F39D4:;
     goto L_088F39D8;
 L_088F39D8:;
     sp = sp + 640;
-    return;
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;return; }
 L_088F3A08:;
     v0 = D_08B21184 - (4484);
     v1 = LD32(v0+4484);
@@ -25040,19 +25049,19 @@ L_088F3A1C:;
     v0 = D_08B211C0 - (4544);
     s1 = v1 + 8640;
     s0 = v0 + 4544;
-    {u32 a_=s0+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=s0+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     goto L_088F3A30;
 L_088F3A30:;
-    {u32 a_=s0+(16);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=s0+(32);v[8]=BITSF(LD32(a_+0));v[9]=BITSF(LD32(a_+4));v[10]=BITSF(LD32(a_+8));v[11]=BITSF(LD32(a_+12));}
+    {u32 a_=s0+(16);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=s0+(32);vr8=BITSF(LD32(a_+0));vr9=BITSF(LD32(a_+4));vr10=BITSF(LD32(a_+8));vr11=BITSF(LD32(a_+12));}
     {u32 a_=s0+(48);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(0);v[16]=BITSF(LD32(a_+0));v[17]=BITSF(LD32(a_+4));v[18]=BITSF(LD32(a_+8));v[19]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(16);v[20]=BITSF(LD32(a_+0));v[21]=BITSF(LD32(a_+4));v[22]=BITSF(LD32(a_+8));v[23]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(32);v[24]=BITSF(LD32(a_+0));v[25]=BITSF(LD32(a_+4));v[26]=BITSF(LD32(a_+8));v[27]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(48);v[28]=BITSF(LD32(a_+0));v[29]=BITSF(LD32(a_+4));v[30]=BITSF(LD32(a_+8));v[31]=BITSF(LD32(a_+12));}
-    {float m00=0;m00+=v[16]*v[0];m00+=v[20]*v[1];m00+=v[24]*v[2];m00+=v[28]*v[3];float m01=0;m01+=v[17]*v[0];m01+=v[21]*v[1];m01+=v[25]*v[2];m01+=v[29]*v[3];float m02=0;m02+=v[18]*v[0];m02+=v[22]*v[1];m02+=v[26]*v[2];m02+=v[30]*v[3];float m03=0;m03+=v[19]*v[0];m03+=v[23]*v[1];m03+=v[27]*v[2];m03+=v[31]*v[3];float m10=0;m10+=v[16]*v[4];m10+=v[20]*v[5];m10+=v[24]*v[6];m10+=v[28]*v[7];float m11=0;m11+=v[17]*v[4];m11+=v[21]*v[5];m11+=v[25]*v[6];m11+=v[29]*v[7];float m12=0;m12+=v[18]*v[4];m12+=v[22]*v[5];m12+=v[26]*v[6];m12+=v[30]*v[7];float m13=0;m13+=v[19]*v[4];m13+=v[23]*v[5];m13+=v[27]*v[6];m13+=v[31]*v[7];float m20=0;m20+=v[16]*v[8];m20+=v[20]*v[9];m20+=v[24]*v[10];m20+=v[28]*v[11];float m21=0;m21+=v[17]*v[8];m21+=v[21]*v[9];m21+=v[25]*v[10];m21+=v[29]*v[11];float m22=0;m22+=v[18]*v[8];m22+=v[22]*v[9];m22+=v[26]*v[10];m22+=v[30]*v[11];float m23=0;m23+=v[19]*v[8];m23+=v[23]*v[9];m23+=v[27]*v[10];m23+=v[31]*v[11];float m30=0;m30+=v[16]*v[12];m30+=v[20]*v[13];m30+=v[24]*v[14];m30+=v[28]*v[15];float m31=0;m31+=v[17]*v[12];m31+=v[21]*v[13];m31+=v[25]*v[14];m31+=v[29]*v[15];float m32=0;m32+=v[18]*v[12];m32+=v[22]*v[13];m32+=v[26]*v[14];m32+=v[30]*v[15];float m33=0;m33+=v[19]*v[12];m33+=v[23]*v[13];m33+=v[27]*v[14];m33+=v[31]*v[15];v[32]=m00;v[33]=m01;v[34]=m02;v[35]=m03;v[36]=m10;v[37]=m11;v[38]=m12;v[39]=m13;v[40]=m20;v[41]=m21;v[42]=m22;v[43]=m23;v[44]=m30;v[45]=m31;v[46]=m32;v[47]=m33;}
-    {u32 a_=sp+(16);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {float m00=0;m00+=v[16]*vr0;m00+=v[20]*vr1;m00+=v[24]*vr2;m00+=v[28]*vr3;float m01=0;m01+=v[17]*vr0;m01+=v[21]*vr1;m01+=v[25]*vr2;m01+=v[29]*vr3;float m02=0;m02+=v[18]*vr0;m02+=v[22]*vr1;m02+=v[26]*vr2;m02+=v[30]*vr3;float m03=0;m03+=v[19]*vr0;m03+=v[23]*vr1;m03+=v[27]*vr2;m03+=v[31]*vr3;float m10=0;m10+=v[16]*vr4;m10+=v[20]*vr5;m10+=v[24]*vr6;m10+=v[28]*vr7;float m11=0;m11+=v[17]*vr4;m11+=v[21]*vr5;m11+=v[25]*vr6;m11+=v[29]*vr7;float m12=0;m12+=v[18]*vr4;m12+=v[22]*vr5;m12+=v[26]*vr6;m12+=v[30]*vr7;float m13=0;m13+=v[19]*vr4;m13+=v[23]*vr5;m13+=v[27]*vr6;m13+=v[31]*vr7;float m20=0;m20+=v[16]*vr8;m20+=v[20]*vr9;m20+=v[24]*vr10;m20+=v[28]*vr11;float m21=0;m21+=v[17]*vr8;m21+=v[21]*vr9;m21+=v[25]*vr10;m21+=v[29]*vr11;float m22=0;m22+=v[18]*vr8;m22+=v[22]*vr9;m22+=v[26]*vr10;m22+=v[30]*vr11;float m23=0;m23+=v[19]*vr8;m23+=v[23]*vr9;m23+=v[27]*vr10;m23+=v[31]*vr11;float m30=0;m30+=v[16]*v[12];m30+=v[20]*v[13];m30+=v[24]*v[14];m30+=v[28]*v[15];float m31=0;m31+=v[17]*v[12];m31+=v[21]*v[13];m31+=v[25]*v[14];m31+=v[29]*v[15];float m32=0;m32+=v[18]*v[12];m32+=v[22]*v[13];m32+=v[26]*v[14];m32+=v[30]*v[15];float m33=0;m33+=v[19]*v[12];m33+=v[23]*v[13];m33+=v[27]*v[14];m33+=v[31]*v[15];v[32]=m00;v[33]=m01;v[34]=m02;v[35]=m03;v[36]=m10;v[37]=m11;v[38]=m12;v[39]=m13;v[40]=m20;v[41]=m21;v[42]=m22;v[43]=m23;v[44]=m30;v[45]=m31;v[46]=m32;v[47]=m33;}
+    {u32 a_=sp+(16);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     a2 = s2 + 0;
     a0 = s4 + 0;
     a1 = s3 + 0;
@@ -25061,15 +25070,15 @@ L_088F3A30:;
     t1 = s5 + 0;
     s2 = s2 + 1;
     s0 = s0 + 64;
-    {float s0=v[4];float s1=v[5];float s2=v[6];float s3=v[7];float t0=v[44];float t1=v[45];float t2=v[46];float t3=v[47];float d0=(s0>t0?s0:t0);float d1=(s1>t1?s1:t1);float d2=(s2>t2?s2:t2);float d3=(s3>t3?s3:t3);v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float t0=v[44];float t1=v[45];float t2=v[46];float t3=v[47];float d0=(s0<t0?s0:t0);float d1=(s1<t1?s1:t1);float d2=(s2<t2?s2:t2);float d3=(s3<t3?s3:t3);v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float s3=vr7;float t0=v[44];float t1=v[45];float t2=v[46];float t3=v[47];float d0=(s0>t0?s0:t0);float d1=(s1>t1?s1:t1);float d2=(s2>t2?s2:t2);float d3=(s3>t3?s3:t3);vr4=d0;vr5=d1;vr6=d2;vr7=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float t0=v[44];float t1=v[45];float t2=v[46];float t3=v[47];float d0=(s0<t0?s0:t0);float d1=(s1<t1?s1:t1);float d2=(s2<t2?s2:t2);float d3=(s3<t3?s3:t3);vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
     {u32 a_=sp+(64);ST32(a_+0,FBITS(v[32]));ST32(a_+4,FBITS(v[33]));ST32(a_+8,FBITS(v[34]));ST32(a_+12,FBITS(v[35]));}
-    {u32 a_=sp+(16);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
-    {u32 a_=sp+(0);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
+    {u32 a_=sp+(16);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
+    {u32 a_=sp+(0);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
     {u32 a_=sp+(80);ST32(a_+0,FBITS(v[36]));ST32(a_+4,FBITS(v[37]));ST32(a_+8,FBITS(v[38]));ST32(a_+12,FBITS(v[39]));}
     {u32 a_=sp+(96);ST32(a_+0,FBITS(v[40]));ST32(a_+4,FBITS(v[41]));ST32(a_+8,FBITS(v[42]));ST32(a_+12,FBITS(v[43]));}
     {u32 a_=sp+(112);ST32(a_+0,FBITS(v[44]));ST32(a_+4,FBITS(v[45]));ST32(a_+8,FBITS(v[46]));ST32(a_+12,FBITS(v[47]));}
-    func_08905E90(a0, a1, a2, a3, t0, t1);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_08905E90(a0, a1, a2, a3, t0, t1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F3A9C;
 L_088F3A9C:;
     v0 = D_08B21184 - (4484);
@@ -25077,7 +25086,7 @@ L_088F3A9C:;
     v0 = LD32(v1+4);
     v0 = s2 < v0;
     cnd_ = v0 != 0;
-    if (cnd_) { {u32 a_=s0+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));} goto L_088F3A30; }
+    if (cnd_) { {u32 a_=s0+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));} goto L_088F3A30; }
     goto L_088F3AB4;
 L_088F3AB4:;
     goto L_088F3608;
@@ -25107,7 +25116,7 @@ L_088F3AE0:;
     a1 = s3 + 0;
     t0 = s6 + 0;
     t1 = s5 + 0;
-    func_08905E90(a0, a1, a2, a3, t0, t1);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_08905E90(a0, a1, a2, a3, t0, t1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F3AFC;
 L_088F3AFC:;
     v0 = D_08B21184 - (4484);
@@ -25133,17 +25142,17 @@ L_088F3B30:;
     v0 = D_08B211C0 - (4544);
     s1 = v1 + 8640;
     s0 = v0 + 4544;
-    {u32 a_=s0+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=s0+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     goto L_088F3B44;
 L_088F3B44:;
-    {u32 a_=s0+(16);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=s0+(32);v[8]=BITSF(LD32(a_+0));v[9]=BITSF(LD32(a_+4));v[10]=BITSF(LD32(a_+8));v[11]=BITSF(LD32(a_+12));}
+    {u32 a_=s0+(16);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=s0+(32);vr8=BITSF(LD32(a_+0));vr9=BITSF(LD32(a_+4));vr10=BITSF(LD32(a_+8));vr11=BITSF(LD32(a_+12));}
     {u32 a_=s0+(48);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(0);v[16]=BITSF(LD32(a_+0));v[17]=BITSF(LD32(a_+4));v[18]=BITSF(LD32(a_+8));v[19]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(16);v[20]=BITSF(LD32(a_+0));v[21]=BITSF(LD32(a_+4));v[22]=BITSF(LD32(a_+8));v[23]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(32);v[24]=BITSF(LD32(a_+0));v[25]=BITSF(LD32(a_+4));v[26]=BITSF(LD32(a_+8));v[27]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(48);v[28]=BITSF(LD32(a_+0));v[29]=BITSF(LD32(a_+4));v[30]=BITSF(LD32(a_+8));v[31]=BITSF(LD32(a_+12));}
-    {float m00=0;m00+=v[16]*v[0];m00+=v[20]*v[1];m00+=v[24]*v[2];m00+=v[28]*v[3];float m01=0;m01+=v[17]*v[0];m01+=v[21]*v[1];m01+=v[25]*v[2];m01+=v[29]*v[3];float m02=0;m02+=v[18]*v[0];m02+=v[22]*v[1];m02+=v[26]*v[2];m02+=v[30]*v[3];float m03=0;m03+=v[19]*v[0];m03+=v[23]*v[1];m03+=v[27]*v[2];m03+=v[31]*v[3];float m10=0;m10+=v[16]*v[4];m10+=v[20]*v[5];m10+=v[24]*v[6];m10+=v[28]*v[7];float m11=0;m11+=v[17]*v[4];m11+=v[21]*v[5];m11+=v[25]*v[6];m11+=v[29]*v[7];float m12=0;m12+=v[18]*v[4];m12+=v[22]*v[5];m12+=v[26]*v[6];m12+=v[30]*v[7];float m13=0;m13+=v[19]*v[4];m13+=v[23]*v[5];m13+=v[27]*v[6];m13+=v[31]*v[7];float m20=0;m20+=v[16]*v[8];m20+=v[20]*v[9];m20+=v[24]*v[10];m20+=v[28]*v[11];float m21=0;m21+=v[17]*v[8];m21+=v[21]*v[9];m21+=v[25]*v[10];m21+=v[29]*v[11];float m22=0;m22+=v[18]*v[8];m22+=v[22]*v[9];m22+=v[26]*v[10];m22+=v[30]*v[11];float m23=0;m23+=v[19]*v[8];m23+=v[23]*v[9];m23+=v[27]*v[10];m23+=v[31]*v[11];float m30=0;m30+=v[16]*v[12];m30+=v[20]*v[13];m30+=v[24]*v[14];m30+=v[28]*v[15];float m31=0;m31+=v[17]*v[12];m31+=v[21]*v[13];m31+=v[25]*v[14];m31+=v[29]*v[15];float m32=0;m32+=v[18]*v[12];m32+=v[22]*v[13];m32+=v[26]*v[14];m32+=v[30]*v[15];float m33=0;m33+=v[19]*v[12];m33+=v[23]*v[13];m33+=v[27]*v[14];m33+=v[31]*v[15];v[32]=m00;v[33]=m01;v[34]=m02;v[35]=m03;v[36]=m10;v[37]=m11;v[38]=m12;v[39]=m13;v[40]=m20;v[41]=m21;v[42]=m22;v[43]=m23;v[44]=m30;v[45]=m31;v[46]=m32;v[47]=m33;}
+    {float m00=0;m00+=v[16]*vr0;m00+=v[20]*vr1;m00+=v[24]*vr2;m00+=v[28]*vr3;float m01=0;m01+=v[17]*vr0;m01+=v[21]*vr1;m01+=v[25]*vr2;m01+=v[29]*vr3;float m02=0;m02+=v[18]*vr0;m02+=v[22]*vr1;m02+=v[26]*vr2;m02+=v[30]*vr3;float m03=0;m03+=v[19]*vr0;m03+=v[23]*vr1;m03+=v[27]*vr2;m03+=v[31]*vr3;float m10=0;m10+=v[16]*vr4;m10+=v[20]*vr5;m10+=v[24]*vr6;m10+=v[28]*vr7;float m11=0;m11+=v[17]*vr4;m11+=v[21]*vr5;m11+=v[25]*vr6;m11+=v[29]*vr7;float m12=0;m12+=v[18]*vr4;m12+=v[22]*vr5;m12+=v[26]*vr6;m12+=v[30]*vr7;float m13=0;m13+=v[19]*vr4;m13+=v[23]*vr5;m13+=v[27]*vr6;m13+=v[31]*vr7;float m20=0;m20+=v[16]*vr8;m20+=v[20]*vr9;m20+=v[24]*vr10;m20+=v[28]*vr11;float m21=0;m21+=v[17]*vr8;m21+=v[21]*vr9;m21+=v[25]*vr10;m21+=v[29]*vr11;float m22=0;m22+=v[18]*vr8;m22+=v[22]*vr9;m22+=v[26]*vr10;m22+=v[30]*vr11;float m23=0;m23+=v[19]*vr8;m23+=v[23]*vr9;m23+=v[27]*vr10;m23+=v[31]*vr11;float m30=0;m30+=v[16]*v[12];m30+=v[20]*v[13];m30+=v[24]*v[14];m30+=v[28]*v[15];float m31=0;m31+=v[17]*v[12];m31+=v[21]*v[13];m31+=v[25]*v[14];m31+=v[29]*v[15];float m32=0;m32+=v[18]*v[12];m32+=v[22]*v[13];m32+=v[26]*v[14];m32+=v[30]*v[15];float m33=0;m33+=v[19]*v[12];m33+=v[23]*v[13];m33+=v[27]*v[14];m33+=v[31]*v[15];v[32]=m00;v[33]=m01;v[34]=m02;v[35]=m03;v[36]=m10;v[37]=m11;v[38]=m12;v[39]=m13;v[40]=m20;v[41]=m21;v[42]=m22;v[43]=m23;v[44]=m30;v[45]=m31;v[46]=m32;v[47]=m33;}
     a2 = s2 + 0;
     a0 = s4 + 0;
     a1 = s3 + 0;
@@ -25156,7 +25165,7 @@ L_088F3B44:;
     {u32 a_=sp+(64);ST32(a_+0,FBITS(v[32]));ST32(a_+4,FBITS(v[33]));ST32(a_+8,FBITS(v[34]));ST32(a_+12,FBITS(v[35]));}
     {u32 a_=sp+(80);ST32(a_+0,FBITS(v[36]));ST32(a_+4,FBITS(v[37]));ST32(a_+8,FBITS(v[38]));ST32(a_+12,FBITS(v[39]));}
     {u32 a_=sp+(96);ST32(a_+0,FBITS(v[40]));ST32(a_+4,FBITS(v[41]));ST32(a_+8,FBITS(v[42]));ST32(a_+12,FBITS(v[43]));}
-    func_08905E90(a0, a1, a2, a3, t0, t1);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_08905E90(a0, a1, a2, a3, t0, t1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F3B98;
 L_088F3B98:;
     v0 = D_08B21184 - (4484);
@@ -25164,7 +25173,7 @@ L_088F3B98:;
     v0 = LD32(v1+4);
     v0 = s2 < v0;
     cnd_ = v0 != 0;
-    if (cnd_) { {u32 a_=s0+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));} goto L_088F3B44; }
+    if (cnd_) { {u32 a_=s0+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));} goto L_088F3B44; }
     goto L_088F3BB0;
 L_088F3BB0:;
     goto L_088F3608;
@@ -25179,21 +25188,21 @@ L_088F3BB8:;
     f2 = f2 - f0;
     f0 = BITSF(LD32(sp+40));
     f3 = f3 - f1;
-    {u32 a_=sp+(352);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(352);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     f4 = f4 - f0;
     v0 = FBITS(f2);
     v1 = FBITS(f3);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     v0 = FBITS(f4);
-    {v[1]=BITSF(v1);}
-    {v[2]=BITSF(v0);}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
+    {vr1=BITSF(v1);}
+    {vr2=BITSF(v0);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
     v1 = D_08B21184 - (4484);
     a0 = LD32(v1+4484);
     ST32(sp+48, FBITS(f2));
     ST32(sp+52, FBITS(f3));
-    {float s0=v[0];float d0=sqrtf(s0);v[0]=d0;}
-    {v0=FBITS(v[0]);}
+    {float s0=vr0;float d0=sqrtf(s0);vr0=d0;}
+    {v0=FBITS(vr0);}
     f12 = BITSF(v0);
     ST32(sp+56, FBITS(f4));
     v0 = func_0881794C(a0, f12);
@@ -25202,12 +25211,12 @@ L_088F3C28:;
     a1 = LD32(s0+23036);
     s3 = v0 + 0;
     a0 = a1 + 12;
-    func_089022FC(a0, a1);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_089022FC(a0, a1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F3C38;
 L_088F3C38:;
     a0 = s4 + 0;
     a1 = s3 + 0;
-    func_08905A4C(a1);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_08905A4C(a1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F3C44;
 L_088F3C44:;
     cnd_ = fp == 0;
@@ -25253,20 +25262,20 @@ L_088F3CB0:;
     s0 = v0 + 4544;
     goto L_088F3CB8;
 L_088F3CB8:;
-    {u32 a_=s0+(48);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(16);v[8]=BITSF(LD32(a_+0));v[9]=BITSF(LD32(a_+4));v[10]=BITSF(LD32(a_+8));v[11]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {float s0=v[8];float s1=v[9];float s2=v[10];float s3=v[11];float t0=v[4];float t1=v[5];float t2=v[6];float t3=v[7];float d0=(s0>t0?s0:t0);float d1=(s1>t1?s1:t1);float d2=(s2>t2?s2:t2);float d3=(s3>t3?s3:t3);v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float t0=v[4];float t1=v[5];float t2=v[6];float t3=v[7];float d0=(s0<t0?s0:t0);float d1=(s1<t1?s1:t1);float d2=(s2<t2?s2:t2);float d3=(s3<t3?s3:t3);v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
+    {u32 a_=s0+(48);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(16);vr8=BITSF(LD32(a_+0));vr9=BITSF(LD32(a_+4));vr10=BITSF(LD32(a_+8));vr11=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
+    {float s0=vr8;float s1=vr9;float s2=vr10;float s3=vr11;float t0=vr4;float t1=vr5;float t2=vr6;float t3=vr7;float d0=(s0>t0?s0:t0);float d1=(s1>t1?s1:t1);float d2=(s2>t2?s2:t2);float d3=(s3>t3?s3:t3);vr8=d0;vr9=d1;vr10=d2;vr11=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float t0=vr4;float t1=vr5;float t2=vr6;float t3=vr7;float d0=(s0<t0?s0:t0);float d1=(s1<t1?s1:t1);float d2=(s2<t2?s2:t2);float d3=(s3<t3?s3:t3);vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
     a2 = s1 + 0;
     a3 = s0 + 0;
     a0 = s4 + 0;
     a1 = s3 + 0;
     t0 = s6 + 0;
     t1 = s5 + 0;
-    {u32 a_=sp+(0);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {u32 a_=sp+(16);ST32(a_+0,FBITS(v[8]));ST32(a_+4,FBITS(v[9]));ST32(a_+8,FBITS(v[10]));ST32(a_+12,FBITS(v[11]));}
-    func_08905E90(a0, a1, a2, a3, t0, t1);
+    {u32 a_=sp+(0);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
+    {u32 a_=sp+(16);ST32(a_+0,FBITS(vr8));ST32(a_+4,FBITS(vr9));ST32(a_+8,FBITS(vr10));ST32(a_+12,FBITS(vr11));}
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_08905E90(a0, a1, a2, a3, t0, t1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F3CF0;
 L_088F3CF0:;
     v0 = D_08B21184 - (4484);
@@ -25296,19 +25305,19 @@ L_088F3D30:;
     s1 = D_08B221C0 - (8640);
     s1 = s1 + 8640;
     s0 = v0 + 4544;
-    {u32 a_=s0+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=s0+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     goto L_088F3D44;
 L_088F3D44:;
-    {u32 a_=s0+(16);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=s0+(32);v[8]=BITSF(LD32(a_+0));v[9]=BITSF(LD32(a_+4));v[10]=BITSF(LD32(a_+8));v[11]=BITSF(LD32(a_+12));}
+    {u32 a_=s0+(16);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=s0+(32);vr8=BITSF(LD32(a_+0));vr9=BITSF(LD32(a_+4));vr10=BITSF(LD32(a_+8));vr11=BITSF(LD32(a_+12));}
     {u32 a_=s0+(48);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(0);v[16]=BITSF(LD32(a_+0));v[17]=BITSF(LD32(a_+4));v[18]=BITSF(LD32(a_+8));v[19]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(16);v[20]=BITSF(LD32(a_+0));v[21]=BITSF(LD32(a_+4));v[22]=BITSF(LD32(a_+8));v[23]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(32);v[24]=BITSF(LD32(a_+0));v[25]=BITSF(LD32(a_+4));v[26]=BITSF(LD32(a_+8));v[27]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(48);v[28]=BITSF(LD32(a_+0));v[29]=BITSF(LD32(a_+4));v[30]=BITSF(LD32(a_+8));v[31]=BITSF(LD32(a_+12));}
-    {float m00=0;m00+=v[16]*v[0];m00+=v[20]*v[1];m00+=v[24]*v[2];m00+=v[28]*v[3];float m01=0;m01+=v[17]*v[0];m01+=v[21]*v[1];m01+=v[25]*v[2];m01+=v[29]*v[3];float m02=0;m02+=v[18]*v[0];m02+=v[22]*v[1];m02+=v[26]*v[2];m02+=v[30]*v[3];float m03=0;m03+=v[19]*v[0];m03+=v[23]*v[1];m03+=v[27]*v[2];m03+=v[31]*v[3];float m10=0;m10+=v[16]*v[4];m10+=v[20]*v[5];m10+=v[24]*v[6];m10+=v[28]*v[7];float m11=0;m11+=v[17]*v[4];m11+=v[21]*v[5];m11+=v[25]*v[6];m11+=v[29]*v[7];float m12=0;m12+=v[18]*v[4];m12+=v[22]*v[5];m12+=v[26]*v[6];m12+=v[30]*v[7];float m13=0;m13+=v[19]*v[4];m13+=v[23]*v[5];m13+=v[27]*v[6];m13+=v[31]*v[7];float m20=0;m20+=v[16]*v[8];m20+=v[20]*v[9];m20+=v[24]*v[10];m20+=v[28]*v[11];float m21=0;m21+=v[17]*v[8];m21+=v[21]*v[9];m21+=v[25]*v[10];m21+=v[29]*v[11];float m22=0;m22+=v[18]*v[8];m22+=v[22]*v[9];m22+=v[26]*v[10];m22+=v[30]*v[11];float m23=0;m23+=v[19]*v[8];m23+=v[23]*v[9];m23+=v[27]*v[10];m23+=v[31]*v[11];float m30=0;m30+=v[16]*v[12];m30+=v[20]*v[13];m30+=v[24]*v[14];m30+=v[28]*v[15];float m31=0;m31+=v[17]*v[12];m31+=v[21]*v[13];m31+=v[25]*v[14];m31+=v[29]*v[15];float m32=0;m32+=v[18]*v[12];m32+=v[22]*v[13];m32+=v[26]*v[14];m32+=v[30]*v[15];float m33=0;m33+=v[19]*v[12];m33+=v[23]*v[13];m33+=v[27]*v[14];m33+=v[31]*v[15];v[32]=m00;v[33]=m01;v[34]=m02;v[35]=m03;v[36]=m10;v[37]=m11;v[38]=m12;v[39]=m13;v[40]=m20;v[41]=m21;v[42]=m22;v[43]=m23;v[44]=m30;v[45]=m31;v[46]=m32;v[47]=m33;}
-    {u32 a_=sp+(16);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {float m00=0;m00+=v[16]*vr0;m00+=v[20]*vr1;m00+=v[24]*vr2;m00+=v[28]*vr3;float m01=0;m01+=v[17]*vr0;m01+=v[21]*vr1;m01+=v[25]*vr2;m01+=v[29]*vr3;float m02=0;m02+=v[18]*vr0;m02+=v[22]*vr1;m02+=v[26]*vr2;m02+=v[30]*vr3;float m03=0;m03+=v[19]*vr0;m03+=v[23]*vr1;m03+=v[27]*vr2;m03+=v[31]*vr3;float m10=0;m10+=v[16]*vr4;m10+=v[20]*vr5;m10+=v[24]*vr6;m10+=v[28]*vr7;float m11=0;m11+=v[17]*vr4;m11+=v[21]*vr5;m11+=v[25]*vr6;m11+=v[29]*vr7;float m12=0;m12+=v[18]*vr4;m12+=v[22]*vr5;m12+=v[26]*vr6;m12+=v[30]*vr7;float m13=0;m13+=v[19]*vr4;m13+=v[23]*vr5;m13+=v[27]*vr6;m13+=v[31]*vr7;float m20=0;m20+=v[16]*vr8;m20+=v[20]*vr9;m20+=v[24]*vr10;m20+=v[28]*vr11;float m21=0;m21+=v[17]*vr8;m21+=v[21]*vr9;m21+=v[25]*vr10;m21+=v[29]*vr11;float m22=0;m22+=v[18]*vr8;m22+=v[22]*vr9;m22+=v[26]*vr10;m22+=v[30]*vr11;float m23=0;m23+=v[19]*vr8;m23+=v[23]*vr9;m23+=v[27]*vr10;m23+=v[31]*vr11;float m30=0;m30+=v[16]*v[12];m30+=v[20]*v[13];m30+=v[24]*v[14];m30+=v[28]*v[15];float m31=0;m31+=v[17]*v[12];m31+=v[21]*v[13];m31+=v[25]*v[14];m31+=v[29]*v[15];float m32=0;m32+=v[18]*v[12];m32+=v[22]*v[13];m32+=v[26]*v[14];m32+=v[30]*v[15];float m33=0;m33+=v[19]*v[12];m33+=v[23]*v[13];m33+=v[27]*v[14];m33+=v[31]*v[15];v[32]=m00;v[33]=m01;v[34]=m02;v[35]=m03;v[36]=m10;v[37]=m11;v[38]=m12;v[39]=m13;v[40]=m20;v[41]=m21;v[42]=m22;v[43]=m23;v[44]=m30;v[45]=m31;v[46]=m32;v[47]=m33;}
+    {u32 a_=sp+(16);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     a2 = s2 + 0;
     a0 = s4 + 0;
     a1 = s3 + 0;
@@ -25317,15 +25326,15 @@ L_088F3D44:;
     t1 = s5 + 0;
     s2 = s2 + 1;
     s0 = s0 + 64;
-    {float s0=v[4];float s1=v[5];float s2=v[6];float s3=v[7];float t0=v[44];float t1=v[45];float t2=v[46];float t3=v[47];float d0=(s0>t0?s0:t0);float d1=(s1>t1?s1:t1);float d2=(s2>t2?s2:t2);float d3=(s3>t3?s3:t3);v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float t0=v[44];float t1=v[45];float t2=v[46];float t3=v[47];float d0=(s0<t0?s0:t0);float d1=(s1<t1?s1:t1);float d2=(s2<t2?s2:t2);float d3=(s3<t3?s3:t3);v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float s3=vr7;float t0=v[44];float t1=v[45];float t2=v[46];float t3=v[47];float d0=(s0>t0?s0:t0);float d1=(s1>t1?s1:t1);float d2=(s2>t2?s2:t2);float d3=(s3>t3?s3:t3);vr4=d0;vr5=d1;vr6=d2;vr7=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float t0=v[44];float t1=v[45];float t2=v[46];float t3=v[47];float d0=(s0<t0?s0:t0);float d1=(s1<t1?s1:t1);float d2=(s2<t2?s2:t2);float d3=(s3<t3?s3:t3);vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
     {u32 a_=sp+(64);ST32(a_+0,FBITS(v[32]));ST32(a_+4,FBITS(v[33]));ST32(a_+8,FBITS(v[34]));ST32(a_+12,FBITS(v[35]));}
-    {u32 a_=sp+(16);ST32(a_+0,FBITS(v[4]));ST32(a_+4,FBITS(v[5]));ST32(a_+8,FBITS(v[6]));ST32(a_+12,FBITS(v[7]));}
-    {u32 a_=sp+(0);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
+    {u32 a_=sp+(16);ST32(a_+0,FBITS(vr4));ST32(a_+4,FBITS(vr5));ST32(a_+8,FBITS(vr6));ST32(a_+12,FBITS(vr7));}
+    {u32 a_=sp+(0);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(vr1));ST32(a_+8,FBITS(vr2));ST32(a_+12,FBITS(vr3));}
     {u32 a_=sp+(80);ST32(a_+0,FBITS(v[36]));ST32(a_+4,FBITS(v[37]));ST32(a_+8,FBITS(v[38]));ST32(a_+12,FBITS(v[39]));}
     {u32 a_=sp+(96);ST32(a_+0,FBITS(v[40]));ST32(a_+4,FBITS(v[41]));ST32(a_+8,FBITS(v[42]));ST32(a_+12,FBITS(v[43]));}
     {u32 a_=sp+(112);ST32(a_+0,FBITS(v[44]));ST32(a_+4,FBITS(v[45]));ST32(a_+8,FBITS(v[46]));ST32(a_+12,FBITS(v[47]));}
-    func_08905E90(a0, a1, a2, a3, t0, t1);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_08905E90(a0, a1, a2, a3, t0, t1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F3DB0;
 L_088F3DB0:;
     v0 = D_08B21184 - (4484);
@@ -25333,7 +25342,7 @@ L_088F3DB0:;
     v0 = LD32(v1+4);
     v0 = s2 < v0;
     cnd_ = v0 != 0;
-    if (cnd_) { {u32 a_=s0+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));} goto L_088F3D44; }
+    if (cnd_) { {u32 a_=s0+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));} goto L_088F3D44; }
     goto L_088F3DC8;
 L_088F3DC8:;
     goto L_088F3D0C;
@@ -25361,7 +25370,7 @@ L_088F3DF4:;
     a1 = s3 + 0;
     t0 = s6 + 0;
     t1 = s5 + 0;
-    func_08905E90(a0, a1, a2, a3, t0, t1);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_08905E90(a0, a1, a2, a3, t0, t1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F3E10;
 L_088F3E10:;
     v0 = D_08B21184 - (4484);
@@ -25387,17 +25396,17 @@ L_088F3E44:;
     v1 = D_08B211C0 - (4544);
     s1 = v0 + 8640;
     s0 = v1 + 4544;
-    {u32 a_=s0+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=s0+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     goto L_088F3E58;
 L_088F3E58:;
-    {u32 a_=s0+(16);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {u32 a_=s0+(32);v[8]=BITSF(LD32(a_+0));v[9]=BITSF(LD32(a_+4));v[10]=BITSF(LD32(a_+8));v[11]=BITSF(LD32(a_+12));}
+    {u32 a_=s0+(16);vr4=BITSF(LD32(a_+0));vr5=BITSF(LD32(a_+4));vr6=BITSF(LD32(a_+8));vr7=BITSF(LD32(a_+12));}
+    {u32 a_=s0+(32);vr8=BITSF(LD32(a_+0));vr9=BITSF(LD32(a_+4));vr10=BITSF(LD32(a_+8));vr11=BITSF(LD32(a_+12));}
     {u32 a_=s0+(48);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(0);v[16]=BITSF(LD32(a_+0));v[17]=BITSF(LD32(a_+4));v[18]=BITSF(LD32(a_+8));v[19]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(16);v[20]=BITSF(LD32(a_+0));v[21]=BITSF(LD32(a_+4));v[22]=BITSF(LD32(a_+8));v[23]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(32);v[24]=BITSF(LD32(a_+0));v[25]=BITSF(LD32(a_+4));v[26]=BITSF(LD32(a_+8));v[27]=BITSF(LD32(a_+12));}
     {u32 a_=s1+(48);v[28]=BITSF(LD32(a_+0));v[29]=BITSF(LD32(a_+4));v[30]=BITSF(LD32(a_+8));v[31]=BITSF(LD32(a_+12));}
-    {float m00=0;m00+=v[16]*v[0];m00+=v[20]*v[1];m00+=v[24]*v[2];m00+=v[28]*v[3];float m01=0;m01+=v[17]*v[0];m01+=v[21]*v[1];m01+=v[25]*v[2];m01+=v[29]*v[3];float m02=0;m02+=v[18]*v[0];m02+=v[22]*v[1];m02+=v[26]*v[2];m02+=v[30]*v[3];float m03=0;m03+=v[19]*v[0];m03+=v[23]*v[1];m03+=v[27]*v[2];m03+=v[31]*v[3];float m10=0;m10+=v[16]*v[4];m10+=v[20]*v[5];m10+=v[24]*v[6];m10+=v[28]*v[7];float m11=0;m11+=v[17]*v[4];m11+=v[21]*v[5];m11+=v[25]*v[6];m11+=v[29]*v[7];float m12=0;m12+=v[18]*v[4];m12+=v[22]*v[5];m12+=v[26]*v[6];m12+=v[30]*v[7];float m13=0;m13+=v[19]*v[4];m13+=v[23]*v[5];m13+=v[27]*v[6];m13+=v[31]*v[7];float m20=0;m20+=v[16]*v[8];m20+=v[20]*v[9];m20+=v[24]*v[10];m20+=v[28]*v[11];float m21=0;m21+=v[17]*v[8];m21+=v[21]*v[9];m21+=v[25]*v[10];m21+=v[29]*v[11];float m22=0;m22+=v[18]*v[8];m22+=v[22]*v[9];m22+=v[26]*v[10];m22+=v[30]*v[11];float m23=0;m23+=v[19]*v[8];m23+=v[23]*v[9];m23+=v[27]*v[10];m23+=v[31]*v[11];float m30=0;m30+=v[16]*v[12];m30+=v[20]*v[13];m30+=v[24]*v[14];m30+=v[28]*v[15];float m31=0;m31+=v[17]*v[12];m31+=v[21]*v[13];m31+=v[25]*v[14];m31+=v[29]*v[15];float m32=0;m32+=v[18]*v[12];m32+=v[22]*v[13];m32+=v[26]*v[14];m32+=v[30]*v[15];float m33=0;m33+=v[19]*v[12];m33+=v[23]*v[13];m33+=v[27]*v[14];m33+=v[31]*v[15];v[32]=m00;v[33]=m01;v[34]=m02;v[35]=m03;v[36]=m10;v[37]=m11;v[38]=m12;v[39]=m13;v[40]=m20;v[41]=m21;v[42]=m22;v[43]=m23;v[44]=m30;v[45]=m31;v[46]=m32;v[47]=m33;}
+    {float m00=0;m00+=v[16]*vr0;m00+=v[20]*vr1;m00+=v[24]*vr2;m00+=v[28]*vr3;float m01=0;m01+=v[17]*vr0;m01+=v[21]*vr1;m01+=v[25]*vr2;m01+=v[29]*vr3;float m02=0;m02+=v[18]*vr0;m02+=v[22]*vr1;m02+=v[26]*vr2;m02+=v[30]*vr3;float m03=0;m03+=v[19]*vr0;m03+=v[23]*vr1;m03+=v[27]*vr2;m03+=v[31]*vr3;float m10=0;m10+=v[16]*vr4;m10+=v[20]*vr5;m10+=v[24]*vr6;m10+=v[28]*vr7;float m11=0;m11+=v[17]*vr4;m11+=v[21]*vr5;m11+=v[25]*vr6;m11+=v[29]*vr7;float m12=0;m12+=v[18]*vr4;m12+=v[22]*vr5;m12+=v[26]*vr6;m12+=v[30]*vr7;float m13=0;m13+=v[19]*vr4;m13+=v[23]*vr5;m13+=v[27]*vr6;m13+=v[31]*vr7;float m20=0;m20+=v[16]*vr8;m20+=v[20]*vr9;m20+=v[24]*vr10;m20+=v[28]*vr11;float m21=0;m21+=v[17]*vr8;m21+=v[21]*vr9;m21+=v[25]*vr10;m21+=v[29]*vr11;float m22=0;m22+=v[18]*vr8;m22+=v[22]*vr9;m22+=v[26]*vr10;m22+=v[30]*vr11;float m23=0;m23+=v[19]*vr8;m23+=v[23]*vr9;m23+=v[27]*vr10;m23+=v[31]*vr11;float m30=0;m30+=v[16]*v[12];m30+=v[20]*v[13];m30+=v[24]*v[14];m30+=v[28]*v[15];float m31=0;m31+=v[17]*v[12];m31+=v[21]*v[13];m31+=v[25]*v[14];m31+=v[29]*v[15];float m32=0;m32+=v[18]*v[12];m32+=v[22]*v[13];m32+=v[26]*v[14];m32+=v[30]*v[15];float m33=0;m33+=v[19]*v[12];m33+=v[23]*v[13];m33+=v[27]*v[14];m33+=v[31]*v[15];v[32]=m00;v[33]=m01;v[34]=m02;v[35]=m03;v[36]=m10;v[37]=m11;v[38]=m12;v[39]=m13;v[40]=m20;v[41]=m21;v[42]=m22;v[43]=m23;v[44]=m30;v[45]=m31;v[46]=m32;v[47]=m33;}
     a2 = s2 + 0;
     a0 = s4 + 0;
     a1 = s3 + 0;
@@ -25410,7 +25419,7 @@ L_088F3E58:;
     {u32 a_=sp+(64);ST32(a_+0,FBITS(v[32]));ST32(a_+4,FBITS(v[33]));ST32(a_+8,FBITS(v[34]));ST32(a_+12,FBITS(v[35]));}
     {u32 a_=sp+(80);ST32(a_+0,FBITS(v[36]));ST32(a_+4,FBITS(v[37]));ST32(a_+8,FBITS(v[38]));ST32(a_+12,FBITS(v[39]));}
     {u32 a_=sp+(96);ST32(a_+0,FBITS(v[40]));ST32(a_+4,FBITS(v[41]));ST32(a_+8,FBITS(v[42]));ST32(a_+12,FBITS(v[43]));}
-    func_08905E90(a0, a1, a2, a3, t0, t1);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;func_08905E90(a0, a1, a2, a3, t0, t1); vr0=v[0];vr1=v[1];vr2=v[2];vr3=v[3];vr4=v[4];vr5=v[5];vr6=v[6];vr7=v[7];vr8=v[8];vr9=v[9];vr10=v[10];vr11=v[11];});
     goto L_088F3EAC;
 L_088F3EAC:;
     v0 = D_08B21184 - (4484);
@@ -25418,10 +25427,11 @@ L_088F3EAC:;
     v0 = LD32(v1+4);
     v0 = s2 < v0;
     cnd_ = v0 != 0;
-    if (cnd_) { {u32 a_=s0+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));} goto L_088F3E58; }
+    if (cnd_) { {u32 a_=s0+(0);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));} goto L_088F3E58; }
     goto L_088F3EC4;
 L_088F3EC4:;
     goto L_088F3D0C;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[11]=vr11;
 }
 
 /* 088F3ECC */
@@ -26640,7 +26650,7 @@ void func_088F4B54(u32 a0, u32 a1, float f12)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0, f11 = 0, f13 = 0, f14 = 0, f20 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr8 = v[8], vr12 = v[12], vr13 = v[13], vr14 = v[14];
     u8 stack_[272] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 272);
 L_088F4B54:;
@@ -26717,14 +26727,14 @@ L_088F4BF8:;
     f4 = f4 - f12;
     f5 = BITSF(0);
     v0 = FBITS(f2);
-    {u32 a_=sp+(192);v[12]=BITSF(LD32(a_+0));v[13]=BITSF(LD32(a_+4));v[14]=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
-    {v[12]=BITSF(v0);}
+    {u32 a_=sp+(192);vr12=BITSF(LD32(a_+0));vr13=BITSF(LD32(a_+4));vr14=BITSF(LD32(a_+8));v[15]=BITSF(LD32(a_+12));}
+    {vr12=BITSF(v0);}
     v0 = FBITS(f3);
-    {v[13]=BITSF(v0);}
+    {vr13=BITSF(v0);}
     v0 = FBITS(f4);
-    {v[14]=BITSF(v0);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr14=BITSF(v0);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     ST32(sp, FBITS(f2));
     fcc = FCMP(f0, f5, 2);
@@ -26734,16 +26744,16 @@ L_088F4BF8:;
     if (cnd_) { goto L_088F4CA0; }
     goto L_088F4C64;
 L_088F4C64:;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v0=FBITS(v[2]);}
+    {float s0=vr0;float d0=sqrtf(s0);vr8=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
+    {float s0=v[4];float t0=vr8;float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v0=FBITS(vr2);}
     f3 = BITSF(v0);
-    {v0=FBITS(v[0]);}
+    {v0=FBITS(vr0);}
     f2 = BITSF(v0);
     ST32(sp+24, FBITS(f3));
-    {v0=FBITS(v[1]);}
+    {v0=FBITS(vr1);}
     ST32(sp+16, FBITS(f2));
     ST32(sp+20, v0);
     ST32(sp, FBITS(f2));
@@ -26754,17 +26764,17 @@ L_088F4CA0:;
     a0 = 0 + 0;
     v0 = LD32(sp);
     v1 = LD32(sp+4);
-    {u32 a_=sp+(208);v[8]=BITSF(LD32(a_+0));v[9]=BITSF(LD32(a_+4));v[10]=BITSF(LD32(a_+8));v[11]=BITSF(LD32(a_+12));}
-    {u32 a_=sp+(224);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
-    {v[8]=BITSF(a0);}
-    {v[0]=BITSF(v0);}
+    {u32 a_=sp+(208);vr8=BITSF(LD32(a_+0));v[9]=BITSF(LD32(a_+4));v[10]=BITSF(LD32(a_+8));v[11]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(224);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {vr8=BITSF(a0);}
+    {vr0=BITSF(v0);}
     v0 = LD32(sp+8);
-    {v[1]=BITSF(v1);}
+    {vr1=BITSF(v1);}
     v1 = 0x3f800000u;
-    {v[2]=BITSF(v0);}
+    {vr2=BITSF(v0);}
     {v[9]=BITSF(v1);}
     {v[10]=BITSF(a0);}
-    {float s0=v[8];float s1=v[9];float s2=v[10];float t0=v[0];float t1=v[1];float t2=v[2];float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;v[4]=d0;v[5]=d1;v[6]=d2;}
+    {float s0=vr8;float s1=v[9];float s2=v[10];float t0=vr0;float t1=vr1;float t2=vr2;float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;v[4]=d0;v[5]=d1;v[6]=d2;}
     {v0=FBITS(v[6]);}
     f3 = BITSF(v0);
     {v0=FBITS(v[4]);}
@@ -26905,7 +26915,7 @@ L_088F4ED4:;
     a3 = 0 + 0;
     a0 = 4;
     a1 = 483;
-    func_08A9B2EC(a0, a1, a2, a3, t0);
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[8]=vr8;v[12]=vr12;v[13]=vr13;v[14]=vr14;func_08A9B2EC(a0, a1, a2, a3, t0); vr0=v[0];vr1=v[1];vr2=v[2];vr8=v[8];vr12=v[12];vr13=v[13];vr14=v[14];});
     goto L_088F4EEC;
 L_088F4EEC:;
     a0 = D_08B2C1C4 - (-15932);
@@ -26921,13 +26931,14 @@ L_088F4EEC:;
     goto L_088F4F14;
 L_088F4F14:;
     sp = sp + 272;
-    return;
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[8]=vr8;v[12]=vr12;v[13]=vr13;v[14]=vr14;return; }
 L_088F4F30:;
     { rv_t r_ = func_0883563C(a0); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_088F4F38;
 L_088F4F38:;
     a2 = v0 + 0;
     goto L_088F4BAC;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[8]=vr8;v[12]=vr12;v[13]=vr13;v[14]=vr14;
 }
 
 /* 088F4F40 */
@@ -30637,7 +30648,7 @@ u64 func_088F7724(u32 a0, u32 a1, u32 a2, u32 a3)
     u32 v0 = 0, v1 = 0, t0 = 0, t1 = 0, t2 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0;
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0, f11 = 0, f12 = 0, f13 = 0, f14 = 0, f15 = 0, f16 = 0, f17 = 0, f18 = 0, f19 = 0, f20 = 0, f21 = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr32 = v[32], vr33 = v[33], vr34 = v[34], vr36 = v[36], vr37 = v[37], vr38 = v[38], vr48 = v[48], vr49 = v[49], vr50 = v[50], vr51 = v[51], vr52 = v[52], vr53 = v[53], vr54 = v[54], vr55 = v[55];
     u8 stack_[80] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 80);
 L_088F7724:;
@@ -30749,41 +30760,41 @@ L_088F7894:;
     goto L_088F78C4;
 L_088F78C4:;
     sp = sp + 80;
-    return (u64)v0 | ((u64)v1 << 32);
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[32]=vr32;v[33]=vr33;v[34]=vr34;v[36]=vr36;v[37]=vr37;v[38]=vr38;v[48]=vr48;v[49]=vr49;v[50]=vr50;v[51]=vr51;return (u64)v0 | ((u64)v1 << 32); }
 L_088F78D4:;
     v1 = LD32(a2);
     v0 = LD32(a2+4);
     a0 = LD32(a2+32);
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[48]=d0;v[49]=d1;v[50]=d2;v[51]=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr48=d0;vr49=d1;vr50=d2;vr51=d3;}
     {float s0=v[76];float s1=v[77];float s2=v[78];float s3=v[79];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
-    {v[48]=BITSF(v1);}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[32]=d0;v[33]=d1;v[34]=d2;v[35]=d3;}
+    {vr48=BITSF(v1);}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr32=d0;vr33=d1;vr34=d2;v[35]=d3;}
     v1 = LD32(a2+8);
-    {v[49]=BITSF(v0);}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[36]=d0;v[37]=d1;v[38]=d2;v[39]=d3;}
+    {vr49=BITSF(v0);}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr36=d0;vr37=d1;vr38=d2;v[39]=d3;}
     v0 = LD32(a2+16);
-    {v[50]=BITSF(v1);}
+    {vr50=BITSF(v1);}
     v1 = LD32(a2+12);
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[48]=d0;v[49]=d1;v[50]=d2;v[51]=d3;}
-    {v[48]=BITSF(v1);}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;v[3]=d3;}
+    {float s0=vr52;float s1=vr53;float s2=vr54;float s3=vr55;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr48=d0;vr49=d1;vr50=d2;vr51=d3;}
+    {vr48=BITSF(v1);}
     v1 = LD32(a2+20);
-    {v[49]=BITSF(v0);}
+    {vr49=BITSF(v0);}
     v0 = LD32(a2+24);
-    {v[50]=BITSF(v1);}
-    {v[32]=BITSF(v0);}
+    {vr50=BITSF(v1);}
+    {vr32=BITSF(v0);}
     v1 = LD32(a2+28);
     v0 = FBITS(f1);
-    {float s0=v[48];float s1=v[49];float s2=v[50];float s3=v[51];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
-    {v[36]=BITSF(v0);}
-    {v[33]=BITSF(v1);}
+    {float s0=vr48;float s1=vr49;float s2=vr50;float s3=vr51;float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
+    {vr36=BITSF(v0);}
+    {vr33=BITSF(v1);}
     v0 = FBITS(f2);
-    {v[34]=BITSF(a0);}
-    {v[37]=BITSF(v0);}
-    {float s0=v[32];float s1=v[33];float s2=v[34];float s3=v[35];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
+    {vr34=BITSF(a0);}
+    {vr37=BITSF(v0);}
+    {float s0=vr32;float s1=vr33;float s2=vr34;float s3=v[35];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
     v0 = FBITS(f3);
-    {v[38]=BITSF(v0);}
-    {float t0=v[36];float t1=v[37];float t2=v[38];float o0=0;o0+=v[0]*t0;o0+=v[1]*t1;o0+=v[2]*t2;float o1=0;o1+=v[4]*t0;o1+=v[5]*t1;o1+=v[6]*t2;float o2=0;o2+=v[8]*t0;o2+=v[9]*t1;o2+=v[10]*t2;v[16]=o0;v[17]=o1;v[18]=o2;}
+    {vr38=BITSF(v0);}
+    {float t0=vr36;float t1=vr37;float t2=vr38;float o0=0;o0+=vr0*t0;o0+=vr1*t1;o0+=vr2*t2;float o1=0;o1+=v[4]*t0;o1+=v[5]*t1;o1+=v[6]*t2;float o2=0;o2+=v[8]*t0;o2+=v[9]*t1;o2+=v[10]*t2;v[16]=o0;v[17]=o1;v[18]=o2;}
     {v0=FBITS(v[18]);}
     f4 = BITSF(v0);
     {v0=FBITS(v[16]);}
@@ -30810,6 +30821,7 @@ L_088F78D4:;
     ST32(sp+36, v0);
     ST32(sp+40, FBITS(f4));
     goto L_088F78C4;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[32]=vr32;v[33]=vr33;v[34]=vr34;v[36]=vr36;v[37]=vr37;v[38]=vr38;v[48]=vr48;v[49]=vr49;v[50]=vr50;v[51]=vr51;
 }
 
 /* 088F79C0 */
@@ -30819,23 +30831,23 @@ void func_088F79C0(u32 a0, u32 a1, float f12, float f13)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0, f11 = 0, f14 = 0, f15 = 0, f16 = 0, f17 = 0, f18 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr3 = v[3], vr4 = v[4], vr5 = v[5], vr6 = v[6], vr7 = v[7], vr8 = v[8], vr12 = v[12], vr13 = v[13], vr14 = v[14], vr16 = v[16], vr17 = v[17], vr18 = v[18], vr19 = v[19];
     u8 stack_[112] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 112);
 L_088F79C0:;
     f3 = BITSF(LD32(a1));
     f2 = BITSF(LD32(a1+4));
     f4 = BITSF(LD32(a1+8));
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr12=d0;vr13=d1;vr14=d2;v[15]=d3;}
     v0 = FBITS(f3);
     f5 = BITSF(0);
-    {v[12]=BITSF(v0);}
+    {vr12=BITSF(v0);}
     v1 = FBITS(f2);
     a1 = FBITS(f4);
-    {v[13]=BITSF(v1);}
-    {v[14]=BITSF(a1);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr13=BITSF(v1);}
+    {vr14=BITSF(a1);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     sp = sp - 112;
     t0 = a0 + 0;
@@ -30847,13 +30859,13 @@ L_088F79C0:;
     if (cnd_) { goto L_088F7A48; }
     goto L_088F7A14;
 L_088F7A14:;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v1=FBITS(v[2]);}
-    {a1=FBITS(v[0]);}
-    {v0=FBITS(v[1]);}
+    {float s0=vr0;float d0=sqrtf(s0);vr8=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;vr4=(float)1;vr5=(float)1;vr6=(float)1;vr7=(float)1;}
+    {float s0=vr4;float t0=vr8;float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v1=FBITS(vr2);}
+    {a1=FBITS(vr0);}
+    {v0=FBITS(vr1);}
     ST32(sp, a1);
     ST32(sp+4, v0);
     ST32(sp+8, v1);
@@ -30901,28 +30913,28 @@ L_088F7AB8:;
     f11 = BITSF(LD32(sp+4));
     f14 = BITSF(LD32(sp+8));
     v1 = FBITS(f8);
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr12=d0;vr13=d1;vr14=d2;v[15]=d3;}
     a1 = FBITS(f11);
-    {v[12]=BITSF(v1);}
+    {vr12=BITSF(v1);}
     v0 = FBITS(f14);
-    {v[13]=BITSF(a1);}
+    {vr13=BITSF(a1);}
     f1 = BITSF(0);
-    {v[14]=BITSF(v0);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v1=FBITS(v[0]);}
+    {vr14=BITSF(v0);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v1=FBITS(vr0);}
     f0 = BITSF(v1);
     fcc = FCMP(f0, f1, 2);
     cnd_ = fcc;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
+    {float s0=vr0;float d0=sqrtf(s0);vr8=d0;}
     if (cnd_) { goto L_088F7B3C; }
     goto L_088F7B00;
 L_088F7B00:;
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {a1=FBITS(v[2]);}
-    {v0=FBITS(v[0]);}
-    {v1=FBITS(v[1]);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;vr4=(float)1;vr5=(float)1;vr6=(float)1;vr7=(float)1;}
+    {float s0=vr4;float t0=vr8;float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {a1=FBITS(vr2);}
+    {v0=FBITS(vr0);}
+    {v1=FBITS(vr1);}
     f14 = BITSF(a1);
     f8 = BITSF(v0);
     f11 = BITSF(v1);
@@ -30937,21 +30949,21 @@ L_088F7B3C:;
     a1 = FBITS(f16);
     v0 = FBITS(f8);
     v1 = FBITS(f17);
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {v[4]=BITSF(a1);}
-    {v[0]=BITSF(v0);}
-    {v[5]=BITSF(v1);}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr4=d0;vr5=d1;vr6=d2;vr7=d3;}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
+    {vr4=BITSF(a1);}
+    {vr0=BITSF(v0);}
+    {vr5=BITSF(v1);}
     a1 = FBITS(f11);
     v0 = FBITS(f18);
-    {v[1]=BITSF(a1);}
-    {v[6]=BITSF(v0);}
+    {vr1=BITSF(a1);}
+    {vr6=BITSF(v0);}
     v1 = FBITS(f14);
     t3 = D_08AECFF0 - (-12304);
-    {v[2]=BITSF(v1);}
+    {vr2=BITSF(v1);}
     t2 = D_08AECFF4 - (-12300);
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;v[8]=d0;v[9]=d1;v[10]=d2;}
-    {v0=FBITS(v[8]);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;vr8=d0;v[9]=d1;v[10]=d2;}
+    {v0=FBITS(vr8);}
     {v1=FBITS(v[9]);}
     ST32(sp+16, v0);
     {a1=FBITS(v[10]);}
@@ -31025,19 +31037,19 @@ L_088F7C60:;
     v1 = FBITS(f13);
     {v[20]=BITSF(v1);}
     v1 = FBITS(f12);
-    {v[16]=BITSF(v1);}
+    {vr16=BITSF(v1);}
     v1 = v0 >> 1;
     f3 = BITSF(v1);
-    {v[0]=0.63661977236f;}
+    {vr0=0.63661977236f;}
     a0 = a0 + v0;
     ST32(a1+4, a0);
-    {float s0=v[16];float t0=v[0];float d0=s0*t0;v[4]=d0;}
-    {float s0=v[20];float t0=v[0];float d0=s0*t0;v[0]=d0;}
+    {float s0=vr16;float t0=vr0;float d0=s0*t0;vr4=d0;}
+    {float s0=v[20];float t0=vr0;float d0=s0*t0;vr0=d0;}
     ST32(t1+23232, v0);
-    {float s0=v[4];float d0=cosf(s0*1.57079632679f);v[4]=d0;}
-    {float s0=v[0];float d0=cosf(s0*1.57079632679f);v[0]=d0;}
-    {a1=FBITS(v[4]);}
-    {v1=FBITS(v[0]);}
+    {float s0=vr4;float d0=cosf(s0*1.57079632679f);vr4=d0;}
+    {float s0=vr0;float d0=cosf(s0*1.57079632679f);vr0=d0;}
+    {a1=FBITS(vr4);}
+    {v1=FBITS(vr0);}
     f4 = BITSF(a1);
     f1 = BITSF(v1);
     f0 = (float)(s32)FBITS(f3);
@@ -31106,7 +31118,7 @@ L_088F7D04:;
     goto L_088F7DAC;
 L_088F7DAC:;
     sp = sp + 112;
-    return;
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[16]=vr16;return; }
 L_088F7DB4:;
     f0 = BITSF(LD32(t3-12304));
     fcc = FCMP(f15, f0, 12);
@@ -31133,6 +31145,7 @@ L_088F7DF0:;
     ST32(sp+8, FBITS(f14));
     ST32(sp+4, FBITS(f18));
     goto L_088F7AB8;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[16]=vr16;
 }
 
 /* 088F7E04 */
@@ -31190,23 +31203,23 @@ void func_088F7EAC(u32 a0, u32 a1, float f12, float f13)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0, f11 = 0, f14 = 0, f15 = 0, f16 = 0, f17 = 0, f18 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr3 = v[3], vr4 = v[4], vr5 = v[5], vr6 = v[6], vr7 = v[7], vr8 = v[8], vr12 = v[12], vr13 = v[13], vr14 = v[14], vr16 = v[16], vr17 = v[17], vr18 = v[18], vr19 = v[19];
     u8 stack_[112] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 112);
 L_088F7EAC:;
     f3 = BITSF(LD32(a1));
     f2 = BITSF(LD32(a1+4));
     f4 = BITSF(LD32(a1+8));
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr12=d0;vr13=d1;vr14=d2;v[15]=d3;}
     v0 = FBITS(f3);
     f5 = BITSF(0);
-    {v[12]=BITSF(v0);}
+    {vr12=BITSF(v0);}
     v1 = FBITS(f2);
     a1 = FBITS(f4);
-    {v[13]=BITSF(v1);}
-    {v[14]=BITSF(a1);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr13=BITSF(v1);}
+    {vr14=BITSF(a1);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     sp = sp - 112;
     t0 = a0 + 0;
@@ -31218,13 +31231,13 @@ L_088F7EAC:;
     if (cnd_) { goto L_088F7F34; }
     goto L_088F7F00;
 L_088F7F00:;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v1=FBITS(v[2]);}
-    {a1=FBITS(v[0]);}
-    {v0=FBITS(v[1]);}
+    {float s0=vr0;float d0=sqrtf(s0);vr8=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;vr4=(float)1;vr5=(float)1;vr6=(float)1;vr7=(float)1;}
+    {float s0=vr4;float t0=vr8;float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v1=FBITS(vr2);}
+    {a1=FBITS(vr0);}
+    {v0=FBITS(vr1);}
     ST32(sp, a1);
     ST32(sp+4, v0);
     ST32(sp+8, v1);
@@ -31272,28 +31285,28 @@ L_088F7FA4:;
     f11 = BITSF(LD32(sp+4));
     f14 = BITSF(LD32(sp+8));
     v1 = FBITS(f8);
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr12=d0;vr13=d1;vr14=d2;v[15]=d3;}
     a1 = FBITS(f11);
-    {v[12]=BITSF(v1);}
+    {vr12=BITSF(v1);}
     v0 = FBITS(f14);
-    {v[13]=BITSF(a1);}
+    {vr13=BITSF(a1);}
     f1 = BITSF(0);
-    {v[14]=BITSF(v0);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v1=FBITS(v[0]);}
+    {vr14=BITSF(v0);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v1=FBITS(vr0);}
     f0 = BITSF(v1);
     fcc = FCMP(f0, f1, 2);
     cnd_ = fcc;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
+    {float s0=vr0;float d0=sqrtf(s0);vr8=d0;}
     if (cnd_) { goto L_088F8028; }
     goto L_088F7FEC;
 L_088F7FEC:;
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {a1=FBITS(v[2]);}
-    {v0=FBITS(v[0]);}
-    {v1=FBITS(v[1]);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;vr4=(float)1;vr5=(float)1;vr6=(float)1;vr7=(float)1;}
+    {float s0=vr4;float t0=vr8;float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {a1=FBITS(vr2);}
+    {v0=FBITS(vr0);}
+    {v1=FBITS(vr1);}
     f14 = BITSF(a1);
     f8 = BITSF(v0);
     f11 = BITSF(v1);
@@ -31308,19 +31321,19 @@ L_088F8028:;
     a1 = FBITS(f16);
     v0 = FBITS(f8);
     v1 = FBITS(f17);
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {v[4]=BITSF(a1);}
-    {v[0]=BITSF(v0);}
-    {v[5]=BITSF(v1);}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr4=d0;vr5=d1;vr6=d2;vr7=d3;}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
+    {vr4=BITSF(a1);}
+    {vr0=BITSF(v0);}
+    {vr5=BITSF(v1);}
     a1 = FBITS(f11);
     v0 = FBITS(f18);
-    {v[1]=BITSF(a1);}
-    {v[6]=BITSF(v0);}
+    {vr1=BITSF(a1);}
+    {vr6=BITSF(v0);}
     v1 = FBITS(f14);
-    {v[2]=BITSF(v1);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;v[8]=d0;v[9]=d1;v[10]=d2;}
-    {v0=FBITS(v[8]);}
+    {vr2=BITSF(v1);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;vr8=d0;v[9]=d1;v[10]=d2;}
+    {v0=FBITS(vr8);}
     f2 = BITSF(v0);
     ST32(sp+16, v0);
     v0 = D_08B25AC8 - (23240);
@@ -31389,7 +31402,7 @@ L_088F8150:;
     f5 = sqrtf(f3);
     a1 = D_08B25AC0 - (23232);
     v0 = LD32(a1+23232);
-    {v[0]=0.63661977236f;}
+    {vr0=0.63661977236f;}
     a2 = a1 + 23232;
     v1 = (u32)((s32)v0 >> 16);
     v0 = v0 << 16;
@@ -31398,19 +31411,19 @@ L_088F8150:;
     v1 = FBITS(f13);
     {v[20]=BITSF(v1);}
     v1 = FBITS(f12);
-    {v[16]=BITSF(v1);}
-    {float s0=v[16];float t0=v[0];float d0=s0*t0;v[4]=d0;}
+    {vr16=BITSF(v1);}
+    {float s0=vr16;float t0=vr0;float d0=s0*t0;vr4=d0;}
     v0 = v0 + a0;
     v1 = v0 >> 1;
     f3 = BITSF(v1);
-    {float s0=v[20];float t0=v[0];float d0=s0*t0;v[0]=d0;}
-    {float s0=v[4];float d0=cosf(s0*1.57079632679f);v[4]=d0;}
-    {v1=FBITS(v[4]);}
+    {float s0=v[20];float t0=vr0;float d0=s0*t0;vr0=d0;}
+    {float s0=vr4;float d0=cosf(s0*1.57079632679f);vr4=d0;}
+    {v1=FBITS(vr4);}
     f0 = BITSF(v1);
     a0 = a0 + v0;
-    {float s0=v[0];float d0=cosf(s0*1.57079632679f);v[0]=d0;}
+    {float s0=vr0;float d0=cosf(s0*1.57079632679f);vr0=d0;}
     f4 = f0;
-    {v1=FBITS(v[0]);}
+    {v1=FBITS(vr0);}
     f1 = BITSF(v1);
     ST32(a2+4, a0);
     f0 = (float)(s32)FBITS(f3);
@@ -31480,7 +31493,7 @@ L_088F81FC:;
     goto L_088F82A4;
 L_088F82A4:;
     sp = sp + 112;
-    return;
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[16]=vr16;return; }
 L_088F82AC:;
     f0 = BITSF(LD32(t2-12284));
     fcc = FCMP(f15, f0, 12);
@@ -31507,6 +31520,7 @@ L_088F82E8:;
     ST32(sp+8, FBITS(f14));
     ST32(sp+4, FBITS(f18));
     goto L_088F7FA4;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[16]=vr16;
 }
 
 /* 088F82FC */
@@ -31516,23 +31530,23 @@ rv_t func_088F82FC(u32 a0, u32 a1)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0, f11 = 0, f12 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr3 = v[3], vr4 = v[4], vr5 = v[5], vr6 = v[6], vr7 = v[7], vr8 = v[8], vr9 = v[9], vr10 = v[10], vr12 = v[12], vr13 = v[13], vr14 = v[14], vr15 = v[15], vr16 = v[16], vr17 = v[17], vr18 = v[18], vr19 = v[19];
     u8 stack_[96] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 96);
 L_088F82FC:;
     f2 = BITSF(LD32(a1+8));
     f7 = BITSF(LD32(a1));
     f8 = BITSF(LD32(a1+4));
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr12=d0;vr13=d1;vr14=d2;vr15=d3;}
     v0 = FBITS(f7);
     f4 = BITSF(0);
-    {v[12]=BITSF(v0);}
+    {vr12=BITSF(v0);}
     v0 = FBITS(f8);
-    {v[13]=BITSF(v0);}
+    {vr13=BITSF(v0);}
     v0 = FBITS(f2);
-    {v[14]=BITSF(v0);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr14=BITSF(v0);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     sp = sp - 96;
     ST32(sp+32, FBITS(f7));
@@ -31543,16 +31557,16 @@ L_088F82FC:;
     if (cnd_) { goto L_088F8388; }
     goto L_088F834C;
 L_088F834C:;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v0=FBITS(v[2]);}
+    {float s0=vr0;float d0=sqrtf(s0);vr8=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;vr4=(float)1;vr5=(float)1;vr6=(float)1;vr7=(float)1;}
+    {float s0=vr4;float t0=vr8;float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v0=FBITS(vr2);}
     f2 = BITSF(v0);
-    {v0=FBITS(v[0]);}
+    {v0=FBITS(vr0);}
     f1 = BITSF(v0);
     ST32(sp+56, FBITS(f2));
-    {v0=FBITS(v[1]);}
+    {v0=FBITS(vr1);}
     ST32(sp+48, FBITS(f1));
     ST32(sp+52, v0);
     ST32(sp+32, FBITS(f1));
@@ -31575,16 +31589,16 @@ L_088F839C:;
 L_088F83AC:;
     f8 = BITSF(LD32(sp+36));
     v1 = FBITS(f7);
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr12=d0;vr13=d1;vr14=d2;vr15=d3;}
     f10 = BITSF(FBITS(f8) ^ 0x80000000u);
     ST32(sp+4, FBITS(f7));
     v0 = FBITS(f10);
-    {v[12]=BITSF(v0);}
+    {vr12=BITSF(v0);}
     v0 = 0 + 0;
-    {v[13]=BITSF(v1);}
-    {v[14]=BITSF(v0);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr13=BITSF(v1);}
+    {vr14=BITSF(v0);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     ST32(sp, FBITS(f10));
     fcc = FCMP(f0, f4, 2);
@@ -31593,16 +31607,16 @@ L_088F83AC:;
     if (cnd_) { goto L_088F8430; }
     goto L_088F83F4;
 L_088F83F4:;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v0=FBITS(v[2]);}
+    {float s0=vr0;float d0=sqrtf(s0);vr8=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;vr4=(float)1;vr5=(float)1;vr6=(float)1;vr7=(float)1;}
+    {float s0=vr4;float t0=vr8;float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v0=FBITS(vr2);}
     f11 = BITSF(v0);
-    {v0=FBITS(v[0]);}
+    {v0=FBITS(vr0);}
     f1 = BITSF(v0);
     ST32(sp+56, FBITS(f11));
-    {v0=FBITS(v[1]);}
+    {v0=FBITS(vr1);}
     ST32(sp+48, FBITS(f1));
     ST32(sp+52, v0);
     ST32(sp, FBITS(f1));
@@ -31616,26 +31630,26 @@ L_088F8430:;
     f6 = BITSF(FBITS(f10) ^ 0x80000000u);
     f5 = BITSF(FBITS(f9) ^ 0x80000000u);
     f4 = BITSF(FBITS(f11) ^ 0x80000000u);
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[8]=d0;v[9]=d1;v[10]=d2;v[11]=d3;}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr8=d0;vr9=d1;vr10=d2;v[11]=d3;}
     v0 = FBITS(f6);
-    {v[8]=BITSF(v1);}
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {v[0]=BITSF(v0);}
+    {vr8=BITSF(v1);}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
+    {vr0=BITSF(v0);}
     v0 = FBITS(f5);
-    {v[1]=BITSF(v0);}
+    {vr1=BITSF(v0);}
     v0 = FBITS(f4);
-    {v[2]=BITSF(v0);}
+    {vr2=BITSF(v0);}
     v0 = FBITS(f8);
-    {v[9]=BITSF(v0);}
+    {vr9=BITSF(v0);}
     v0 = FBITS(f12);
-    {v[10]=BITSF(v0);}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[8];float t1=v[9];float t2=v[10];float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;v[4]=d0;v[5]=d1;v[6]=d2;}
-    {v0=FBITS(v[6]);}
+    {vr10=BITSF(v0);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr8;float t1=vr9;float t2=vr10;float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;vr4=d0;vr5=d1;vr6=d2;}
+    {v0=FBITS(vr6);}
     f3 = BITSF(v0);
-    {v0=FBITS(v[4]);}
+    {v0=FBITS(vr4);}
     f2 = BITSF(v0);
     ST32(sp+24, FBITS(f3));
-    {v0=FBITS(v[5]);}
+    {v0=FBITS(vr5);}
     ST32(sp+16, FBITS(f2));
     ST32(sp+20, v0);
     ST32(sp+64, FBITS(f6));
@@ -31662,7 +31676,7 @@ L_088F84C4:;
     ST32(a0+8, FBITS(f7));
     ST32(a0+20, FBITS(f8));
     sp = sp + 96;
-    return (rv_t){ v0, v1, f0 };
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[15]=vr15;return (rv_t){ v0, v1, f0 }; }
 L_088F84FC:;
     f11 = BITSF(FBITS(f7) ^ 0x80000000u);
     goto L_088F8500;
@@ -31670,13 +31684,13 @@ L_088F8500:;
     f9 = BITSF(0);
     v0 = 0 + 0;
     v1 = FBITS(f12);
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
-    {v[12]=BITSF(v1);}
-    {v[13]=BITSF(v0);}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr12=d0;vr13=d1;vr14=d2;vr15=d3;}
+    {vr12=BITSF(v1);}
+    {vr13=BITSF(v0);}
     v0 = FBITS(f11);
-    {v[14]=BITSF(v0);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr14=BITSF(v0);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     ST32(sp, FBITS(f12));
     fcc = FCMP(f0, f9, 2);
@@ -31686,16 +31700,16 @@ L_088F8500:;
     if (cnd_) { goto L_088F8580; }
     goto L_088F8540;
 L_088F8540:;
-    {float s0=v[0];float d0=sqrtf(s0);v[8]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[4]=(float)1;v[5]=(float)1;v[6]=(float)1;v[7]=(float)1;}
-    {float s0=v[4];float t0=v[8];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v0=FBITS(v[2]);}
+    {float s0=vr0;float d0=sqrtf(s0);vr8=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;vr4=(float)1;vr5=(float)1;vr6=(float)1;vr7=(float)1;}
+    {float s0=vr4;float t0=vr8;float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v0=FBITS(vr2);}
     f11 = BITSF(v0);
-    {v0=FBITS(v[0]);}
+    {v0=FBITS(vr0);}
     f1 = BITSF(v0);
     ST32(sp+88, FBITS(f11));
-    {v0=FBITS(v[1]);}
+    {v0=FBITS(vr1);}
     f9 = BITSF(v0);
     ST32(sp+80, FBITS(f1));
     ST32(sp, FBITS(f1));
@@ -31710,26 +31724,26 @@ L_088F8580:;
     f4 = BITSF(FBITS(f10) ^ 0x80000000u);
     f5 = BITSF(FBITS(f11) ^ 0x80000000u);
     f8 = BITSF(LD32(sp+36));
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr4=d0;vr5=d1;vr6=d2;vr7=d3;}
     v0 = FBITS(f4);
-    {float s0=v[16];float s1=v[17];float s2=v[18];float s3=v[19];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[0]=d0;v[1]=d1;v[2]=d2;v[3]=d3;}
-    {v[4]=BITSF(v0);}
+    {float s0=vr16;float s1=vr17;float s2=vr18;float s3=vr19;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr0=d0;vr1=d1;vr2=d2;vr3=d3;}
+    {vr4=BITSF(v0);}
     v0 = FBITS(f7);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     v0 = FBITS(f6);
-    {v[5]=BITSF(v0);}
+    {vr5=BITSF(v0);}
     v0 = FBITS(f5);
-    {v[6]=BITSF(v0);}
+    {vr6=BITSF(v0);}
     v0 = FBITS(f8);
-    {v[1]=BITSF(v0);}
-    {v[2]=BITSF(v1);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;v[8]=d0;v[9]=d1;v[10]=d2;}
-    {v0=FBITS(v[10]);}
+    {vr1=BITSF(v0);}
+    {vr2=BITSF(v1);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float d0=s1*t2-s2*t1;float d1=s2*t0-s0*t2;float d2=s0*t1-s1*t0;vr8=d0;vr9=d1;vr10=d2;}
+    {v0=FBITS(vr10);}
     f3 = BITSF(v0);
-    {v0=FBITS(v[8]);}
+    {v0=FBITS(vr8);}
     f2 = BITSF(v0);
     ST32(sp+24, FBITS(f3));
-    {v0=FBITS(v[9]);}
+    {v0=FBITS(vr9);}
     ST32(sp+16, FBITS(f2));
     ST32(sp+20, v0);
     ST32(sp+64, FBITS(f4));
@@ -31742,6 +31756,7 @@ L_088F8580:;
     ST32(sp+84, v0);
     ST32(sp+88, FBITS(f3));
     goto L_088F84C4;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[7]=vr7;v[8]=vr8;v[9]=vr9;v[10]=vr10;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[15]=vr15;
 }
 
 /* 088F8618 */

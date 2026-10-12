@@ -27295,7 +27295,7 @@ float func_08A46CA4(float f12, float f13)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0];
     u8 stack_[32] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 32);
 L_08A46CA4:;
@@ -27310,19 +27310,19 @@ L_08A46CA4:;
 L_08A46CC4:;
     v0 = D_08AEFD10 - (-752);
     f1 = BITSF(LD32(v0-752));
-    {u32 a_=sp+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(0);vr0=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
     f3 = BITSF(0);
     f0 = f0 * f1;
     v0 = FBITS(f0);
-    {v[0]=BITSF(v0);}
-    {u32 a_=sp+(0);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {v[0]=0.63661977236f;}
+    {vr0=BITSF(v0);}
+    {u32 a_=sp+(0);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
+    {vr0=0.63661977236f;}
     {u32 a_=sp+(0);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
     v0 = D_08AEFD14 - (-748);
-    {float s0=v[4];float t0=v[0];float d0=s0*t0;v[0]=d0;}
+    {float s0=v[4];float t0=vr0;float d0=s0*t0;vr0=d0;}
     f2 = BITSF(LD32(v0-748));
-    {float s0=v[0];float d0=sinf(s0*1.57079632679f);v[0]=d0;}
-    {v0=FBITS(v[0]);}
+    {float s0=vr0;float d0=sinf(s0*1.57079632679f);vr0=d0;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     v0 = D_08AEFD18 - (-744);
     f1 = f0 + f2;
@@ -27339,7 +27339,8 @@ L_08A46D24:;
     goto L_08A46D34;
 L_08A46D34:;
     sp = sp + 32;
-    return f0;
+    { v[0]=vr0;return f0; }
+    v[0]=vr0;
 }
 
 /* 08A46D40 */
@@ -35172,22 +35173,22 @@ void func_08A4C638(u32 a0)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f12 = 0, f20 = 0, f21 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr3 = v[3], vr12 = v[12], vr13 = v[13], vr14 = v[14];
     u8 stack_[80] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 80);
 L_08A4C638:;
     sp = sp - 80;
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[12]=d0;v[13]=d1;v[14]=d2;v[15]=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr12=d0;vr13=d1;vr14=d2;v[15]=d3;}
     s0 = a0 + 0;
     f20 = BITSF(0);
     v0 = LD32(a0);
     v1 = LD32(a0+8);
-    {v[12]=BITSF(v0);}
+    {vr12=BITSF(v0);}
     v0 = LD32(a0+4);
-    {v[13]=BITSF(v0);}
-    {v[14]=BITSF(v1);}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[12];float t1=v[13];float t2=v[14];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr13=BITSF(v0);}
+    {vr14=BITSF(v1);}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr12;float t1=vr13;float t2=vr14;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     fcc = FCMP(f0, f20, 2);
     cnd_ = fcc;
@@ -35195,18 +35196,18 @@ L_08A4C638:;
     if (cnd_) { goto L_08A4C6DC; }
     goto L_08A4C694;
 L_08A4C694:;
-    {float s0=v[0];float d0=sqrtf(s0);v[4]=d0;}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];v[8]=(float)1;v[9]=(float)1;v[10]=(float)1;v[11]=(float)1;}
+    {float s0=vr0;float d0=sqrtf(s0);v[4]=d0;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=vr3;v[8]=(float)1;v[9]=(float)1;v[10]=(float)1;v[11]=(float)1;}
     {v0=FBITS(v[4]);}
     f20 = BITSF(v0);
-    {float s0=v[8];float t0=v[4];float d0=s0/t0;v[0]=d0;}
-    {float s0=v[12];float s1=v[13];float s2=v[14];float t0=v[0];v[0]=s0*t0;v[1]=s1*t0;v[2]=s2*t0;}
-    {v0=FBITS(v[2]);}
+    {float s0=v[8];float t0=v[4];float d0=s0/t0;vr0=d0;}
+    {float s0=vr12;float s1=vr13;float s2=vr14;float t0=vr0;vr0=s0*t0;vr1=s1*t0;vr2=s2*t0;}
+    {v0=FBITS(vr2);}
     f3 = BITSF(v0);
-    {v0=FBITS(v[0]);}
+    {v0=FBITS(vr0);}
     f2 = BITSF(v0);
     ST32(sp+8, FBITS(f3));
-    {v0=FBITS(v[1]);}
+    {v0=FBITS(vr1);}
     ST32(sp, FBITS(f2));
     ST32(sp+4, v0);
     ST32(a0, FBITS(f2));
@@ -35240,17 +35241,17 @@ L_08A4C6F0:;
     goto L_08A4C72C;
 L_08A4C72C:;
     sp = sp + 80;
-    return;
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[12]=vr12;v[13]=vr13;v[14]=vr14;return; }
 L_08A4C74C:;
     s2 = D_08C2DFBC - (-8260);
     s1 = s2 - 8260;
-    func_08A4C8EC();
+    ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;func_08A4C8EC(); vr0=v[0];vr1=v[1];vr2=v[2];});
     goto L_08A4C758;
 L_08A4C758:;
     f12 = f20;
     a0 = s0 + 0;
     a1 = s1 + 0;
-    v0 = func_08A4C9D4(a0, a1, f12);
+    v0 = ({ v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;__auto_type vr_t_ = func_08A4C9D4(a0, a1, f12); vr0=v[0];vr1=v[1];vr2=v[2];vr_t_; });
     goto L_08A4C768;
 L_08A4C768:;
     cnd_ = v0 == 0;
@@ -35271,24 +35272,24 @@ L_08A4C770:;
     f4 = f4 * f1;
     f2 = f2 * f1;
     f3 = BITSF(LD32(s1+8));
-    {u32 a_=sp+(16);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(16);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     f5 = f5 + f4;
     f6 = f6 + f2;
     f3 = f3 + f7;
     ST32(sp, FBITS(f4));
     v0 = FBITS(f5);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     v0 = FBITS(f6);
-    {v[1]=BITSF(v0);}
+    {vr1=BITSF(v0);}
     v0 = FBITS(f3);
-    {v[2]=BITSF(v0);}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
+    {vr2=BITSF(v0);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
     v0 = D_08AF0074 - (116);
     f20 = BITSF(LD32(v0+116));
     ST32(sp+4, FBITS(f2));
     ST32(sp+8, FBITS(f7));
-    {float s0=v[0];float d0=sqrtf(s0);v[0]=d0;}
-    {v0=FBITS(v[0]);}
+    {float s0=vr0;float d0=sqrtf(s0);vr0=d0;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     f12 = BITSF(v0);
     ST32(s2-8260, FBITS(f5));
@@ -35329,22 +35330,22 @@ L_08A4C838:;
     f7 = f7 * f1;
     f4 = f4 * f1;
     f3 = BITSF(LD32(s1+8));
-    {u32 a_=sp+(32);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(32);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));vr3=BITSF(LD32(a_+12));}
     f5 = f5 - f7;
     f6 = f6 - f4;
     f3 = f3 - f2;
     ST32(sp+8, FBITS(f2));
     v0 = FBITS(f5);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     v0 = FBITS(f6);
-    {v[1]=BITSF(v0);}
+    {vr1=BITSF(v0);}
     v0 = FBITS(f3);
-    {v[2]=BITSF(v0);}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
+    {vr2=BITSF(v0);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
     ST32(sp, FBITS(f7));
     ST32(sp+4, FBITS(f4));
-    {float s0=v[0];float d0=sqrtf(s0);v[0]=d0;}
-    {v0=FBITS(v[0]);}
+    {float s0=vr0;float d0=sqrtf(s0);vr0=d0;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     f12 = BITSF(v0);
     ST32(s2-8260, FBITS(f5));
@@ -35366,6 +35367,7 @@ L_08A4C8D0:;
     f2 = f2 * f21;
     f1 = f1 * f21;
     goto L_08A4C828;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[3]=vr3;v[12]=vr12;v[13]=vr13;v[14]=vr14;
 }
 
 /* 08A4C8EC */
@@ -35461,23 +35463,23 @@ u32 func_08A4C9D4(u32 a0, u32 a1, float f12)
     float f0 = 0, f1 = 0, f2 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr4 = v[4], vr5 = v[5], vr6 = v[6];
 L_08A4C9D4:;
     v0 = LD32(a0);
-    {float s0=v[0];float s1=v[1];float s2=v[2];float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[4]=d0;v[5]=d1;v[6]=d2;v[7]=d3;}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float s3=v[3];float d0=s0;float d1=s1;float d2=s2;float d3=s3;vr4=d0;vr5=d1;vr6=d2;v[7]=d3;}
     v1 = LD32(a0+4);
-    {v[4]=BITSF(v0);}
+    {vr4=BITSF(v0);}
     a2 = LD32(a0+8);
-    {v[5]=BITSF(v1);}
+    {vr5=BITSF(v1);}
     v0 = LD32(a1);
     v1 = LD32(a1+4);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     a3 = LD32(a1+8);
-    {v[1]=BITSF(v1);}
-    {v[6]=BITSF(a2);}
-    {v[2]=BITSF(a3);}
-    {float s0=v[4];float s1=v[5];float s2=v[6];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[4]=sum;}
-    {v0=FBITS(v[4]);}
+    {vr1=BITSF(v1);}
+    {vr6=BITSF(a2);}
+    {vr2=BITSF(a3);}
+    {float s0=vr4;float s1=vr5;float s2=vr6;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr4=sum;}
+    {v0=FBITS(vr4);}
     f1 = BITSF(v0);
     f0 = BITSF(v0);
     f2 = f1 * f1;
@@ -35497,7 +35499,8 @@ L_08A4CA30:;
     goto L_08A4CA4C;
 L_08A4CA4C:;
     v0 = v1 + 0;
-    return v0;
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;return v0; }
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;
 }
 
 /* 08A4CA54 */
@@ -35507,7 +35510,7 @@ float func_08A4CA54(void)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2];
     u8 stack_[64] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 64);
 L_08A4CA54:;
@@ -35533,7 +35536,7 @@ L_08A4CA90:;
     goto L_08A4CA94;
 L_08A4CA94:;
     sp = sp + 64;
-    return f0;
+    { v[0]=vr0;v[1]=vr1;v[2]=vr2;return f0; }
 L_08A4CAA4:;
     fcc = FCMP(f2, f3, 12);
     cnd_ = !fcc;
@@ -35546,14 +35549,14 @@ L_08A4CAB4:;
 L_08A4CABC:;
     f2 = BITSF(LD32(s0-8080));
     v0 = LD32(sp);
-    {u32 a_=sp+(16);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(16);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
     v1 = LD32(sp+4);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     v0 = LD32(sp+8);
-    {v[1]=BITSF(v1);}
-    {v[2]=BITSF(v0);}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr1=BITSF(v1);}
+    {vr2=BITSF(v0);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f1 = BITSF(v0);
     f0 = f2 - f1;
     f0 = f0 / f2;
@@ -35565,18 +35568,19 @@ L_08A4CAF4:;
 L_08A4CAFC:;
     f2 = BITSF(LD32(s0-8080));
     v0 = LD32(sp);
-    {u32 a_=sp+(32);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(32);vr0=BITSF(LD32(a_+0));vr1=BITSF(LD32(a_+4));vr2=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
     f2 = BITSF(FBITS(f2) ^ 0x80000000u);
-    {v[0]=BITSF(v0);}
+    {vr0=BITSF(v0);}
     v1 = LD32(sp+8);
     v0 = LD32(sp+4);
-    {v[1]=BITSF(v0);}
-    {v[2]=BITSF(v1);}
-    {float s0=v[0];float s1=v[1];float s2=v[2];float t0=v[0];float t1=v[1];float t2=v[2];float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;v[0]=sum;}
-    {v0=FBITS(v[0]);}
+    {vr1=BITSF(v0);}
+    {vr2=BITSF(v1);}
+    {float s0=vr0;float s1=vr1;float s2=vr2;float t0=vr0;float t1=vr1;float t2=vr2;float sum=0;sum+=s0*t0;sum+=s1*t1;sum+=s2*t2;vr0=sum;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     f0 = f0 / f2;
     goto L_08A4CA94;
+    v[0]=vr0;v[1]=vr1;v[2]=vr2;
 }
 
 /* 08A4CB34 */
@@ -36171,7 +36175,7 @@ float func_08A4D128(void)
     float f0 = 0, f1 = 0, f2 = 0, f12 = 0, f13 = 0, f20 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0];
     u8 stack_[48] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 48);
 L_08A4D128:;
@@ -36186,17 +36190,17 @@ L_08A4D128:;
 L_08A4D14C:;
     v0 = D_08AF0098 - (152);
     f1 = BITSF(LD32(v0+152));
-    {u32 a_=sp+(0);v[0]=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
+    {u32 a_=sp+(0);vr0=BITSF(LD32(a_+0));v[1]=BITSF(LD32(a_+4));v[2]=BITSF(LD32(a_+8));v[3]=BITSF(LD32(a_+12));}
     f2 = BITSF(0);
     f0 = f0 * f1;
     v0 = FBITS(f0);
-    {v[0]=BITSF(v0);}
-    {u32 a_=sp+(0);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
-    {v[0]=0.63661977236f;}
+    {vr0=BITSF(v0);}
+    {u32 a_=sp+(0);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
+    {vr0=0.63661977236f;}
     {u32 a_=sp+(0);v[4]=BITSF(LD32(a_+0));v[5]=BITSF(LD32(a_+4));v[6]=BITSF(LD32(a_+8));v[7]=BITSF(LD32(a_+12));}
-    {float s0=v[4];float t0=v[0];float d0=s0*t0;v[0]=d0;}
-    {float s0=v[0];float d0=sinf(s0*1.57079632679f);v[0]=d0;}
-    {v0=FBITS(v[0]);}
+    {float s0=v[4];float t0=vr0;float d0=s0*t0;vr0=d0;}
+    {float s0=vr0;float d0=sinf(s0*1.57079632679f);vr0=d0;}
+    {v0=FBITS(vr0);}
     f0 = BITSF(v0);
     v0 = D_08AF009C - (156);
     f1 = f0 + f20;
@@ -36213,7 +36217,8 @@ L_08A4D1A4:;
     goto L_08A4D1B4;
 L_08A4D1B4:;
     sp = sp + 48;
-    return f0;
+    { v[0]=vr0;return f0; }
+    v[0]=vr0;
 }
 
 /* 08A4D1C4 */

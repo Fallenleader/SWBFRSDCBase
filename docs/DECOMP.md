@@ -73,6 +73,16 @@ v0/v1 and f0.
 * **Registers:** the game keeps vectors in VFPU registers across calls (380 of 684 VFPU functions read a register set
   by their caller). The register file is therefore a per-thread array `vfpu_v[128]`, with `vfpu_cc` for the
   condition bits.
+* **Registers in locals (`vfpu_locals.py`, run after generation):** inside a function, registers it accesses often
+  are kept in local variables (CPU registers) instead of the per-thread array. Memory is brought up to date exactly where
+  other code can see it: before and after calls, using each callee's register sets computed over the whole call graph
+  (indirect calls and SDK calls that can run guest code count as touching all 128 registers), and before returning.
+  A register is chosen only when the function accesses it more often than this synchronisation costs. Functions for
+  which the Vita compiler produced no smaller code are left alone (`vfpu_locals_exclude.txt`). Result: 292 functions,
+  Vita game code 1.7% smaller (19,901 fewer instructions, 5,775 fewer VFP loads/stores, static counts).
+  * Checked on Linux (both layouts) with `RS_FAST=1 RS_VCLOCK=1` and a frame-numbered script: the harness is not fully
+    deterministic (thread timing), but runs of the transformed build reproduce baseline runs frame for frame, bit-exact,
+    through the front end and into the Hoth match, wherever a baseline run followed the same thread timing.
 * **Differential test:** checked against the earlier project's VFPU interpreter. Every distinct instruction in its
   prefix context (6,406 contexts) × 200 random register/memory states gave no mismatch except NaN payload bits.
 
