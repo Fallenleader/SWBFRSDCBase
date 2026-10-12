@@ -5,6 +5,20 @@ The platform layer supplies the PSP SDK functions the game calls (`platform/comm
 game builds with **GXM**, the Vita's native graphics API (`gfx_gxm.c`). A fallback build renders through **vitaGL**
 instead (`gfx_vgl.c` + `platform/linux_test/gfx_gl.c`).
 
+### How the GXM build draws
+
+The game's render code (libgu and the engine) still writes PSP GPU commands into a list each frame; `platform/common/ge.c`
+reads those commands (about 2000 register writes per frame) to know the current state. What is drawn is native:
+
+* **3D draws:** the game's vertex buffers go to the GPU as they are. Each PSP vertex type gets its own GXM vertex program,
+  which reads the PSP component formats (8/16-bit fixed point, floats, packed colours) directly as vertex attributes and
+  does the transform, skinning, lighting and fog on the GPU. The PSP primitive (triangle list, strip, fan) is drawn as is.
+  The programs are compiled on first use and kept in `ux0:data/SWBFRS/shaders/`, so later starts don't compile again.
+* **Textures:** uploaded in their PSP formats (565, 5551, 4444, 8888; 4- and 8-bit CLUT as paletted textures; DXT1/3/5 as
+  BC1/2/3). The only work done is undoing the PSP's texture swizzle, a block copy. 16/32-bit CLUT textures are still
+  decoded on the CPU; the log says when that happens.
+* **Still on the CPU path:** 2D draws in through mode (HUD, menus), sprites and clears. These have few vertices.
+
 ## Requirements on the Vita
 
 * HENkaku/Enso (the app is an unsafe homebrew: it loads the system Cg compiler).
@@ -41,9 +55,11 @@ The two VPKs have different title IDs (`SWBR00001` GXM, `SWBR00002` vitaGL), so 
 
 | Key | Default | Meaning |
 |---|---|---|
-| `RS_RES_SCALE` | 2 | internal resolution: 1 = 480x272 (PSP), 2 = 960x544 (Vita screen), 3 = 1440x816 |
+| `RS_RES_SCALE` | 2 | internal resolution: 2 = 960x544 (Vita screen), 4 = 1920x1088 (2x Vita, supersampled to the screen); 1 = 480x272 (PSP) |
+| `RS_FXAA` | 0 | 1 = FXAA on the final picture (mostly useful at `RS_RES_SCALE=2`) |
+| `RS_NATIVE_GE` | 1 | 0 = decode 3D vertices on the CPU as the earlier builds did (for comparison only) |
 | `RS_HW_TL` | 1 | vertex transform and lighting on the GPU (0 = on the CPU) |
-| `RS_FPS` | 30 | frame-rate cap of the game's frame pacing |
+| `RS_FPS` | 30 | frame rate: 30 or 60 (the game's own 20 fps limit is removed; gameplay speed follows the frame time) |
 | `RS_AUDIO` | 1 | 0 = no sound |
 | `RS_HUD` | 0 | 1 = frame-rate / load overlay |
 | `RS_VSYNC` | 1 | wait for vertical blank when showing a frame |
@@ -70,6 +86,7 @@ which places everything above 0x80000000 as on the Vita.
 ## Status
 
 * **Builds:** the GXM and vitaGL VPKs build with VitaSDK (GCC 15.2). See the top-level README for the build check.
-* **Not yet run on hardware.** The decompiled game, the SDK layer and the GE interpreter are the same code that runs on the
-  Linux validation build (`make linux_test`, also with `LAYOUT=high`), but the GXM renderer and the Vita frontend have
-  only been compiled. The log `ux0:data/SWBFRS/log.txt` records start-up and errors.
+* **On hardware:** the vitaGL build ran at 960x544 at about 10 fps (before the asynchronous GPU lists and the native draw
+  path). The native GXM draw path, native textures, FXAA, the 2x resolution and the 30/60 fps pacing are compiled but
+  **not yet run on a Vita**. The log `ux0:data/SWBFRS/log.txt` records start-up, each vertex program built, texture
+  formats that fell back to the CPU, and errors.

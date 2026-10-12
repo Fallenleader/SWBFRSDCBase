@@ -3,17 +3,31 @@
 #include "psp_impl.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 int rs_fps_choice = 30;
 const char *rs_platform_setting(const char *key);
 static int env(const char *k, int d){ const char *e = rs_platform_setting(k); return e ? atoi(e) : d; }
-u32 rs_patch_fps(void){ return (u32)env("RS_FPS", 30); }
-void rs_patch_apply_fps_cap(void){}
+/* Frame rate.  The game caps itself at 20 fps: func_08A69140 copies the 20.0 at 0x08B1CBB8 into the cap at 0x08B285CC when the
+ * byte at 0x08B1CBBC is set, and the frame loop spins until 1/cap has passed (a cap of 0 = no wait).  Gameplay advances by the
+ * measured frame time, so other rates keep the game's speed.  The cap is cleared on every vblank and the platform layer paces
+ * frames instead (hle.c pace_frame), at RS_FPS: 30 or 60 (anything else is rounded to one of them). */
+u32 rs_patch_fps(void){ static int v = -1;
+    if (v < 0) { int f = env("RS_FPS", 30);
+#ifdef __vita__
+        f = f > 45 ? 60 : 30;                                                    /* the Vita: 30 or 60 */
+#endif
+        v = f; }
+    return (u32)v; }
+void rs_patch_apply_fps_cap(void){
+    extern u32 rs_image_w[]; u8 *img = (u8 *)rs_image_w;
+    const u32 flag = 0x08B1CBBCu - 0x08804000u, cap = 0x08B285CCu - 0x08804000u;
+    if (img[flag]) { u32 z = 0; memcpy(img + cap, &z, 4); } }
 void rs_patch_vblank(void){}
 const char *rs_patch_file(const char *rel, const char *host){ (void)rel; (void)host; return 0; }
 u32 rs_patch_heap_top(u32 t){ return t; }
 u32 rs_patch_audio(void){ return (u32)env("RS_AUDIO", 1); }
 int rs_patch_volume(void){ return 100; }
-u32 rs_patch_fxaa(void){ return 0; }
+u32 rs_patch_fxaa(void){ return (u32)env("RS_FXAA", 0); }
 u32 rs_patch_hw_transform(void){ return (u32)env("RS_HW_TL", 1); }
 u32 rs_patch_res_scale(void){ return (u32)env("RS_RES_SCALE", 1); }
 u32 rs_patch_shadows(void){ return 0; }

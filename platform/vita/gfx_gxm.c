@@ -1,8 +1,14 @@
 /* PS Vita renderer: native GXM back end for the GE command interpreter (platform/common/ge.c), implementing platform/common/gfx.h.
  *
- *  - Every PSP render target (frame buffers, render-to-texture buffers) is a 512x512 (x RS_RES_SCALE) RGBA8 linear colour surface in
- *    CDRAM, keyed by its PSP address.  Memory row 0 = PSP row 0; the viewport maps clip y = -1 to row 0, so the clip-space vertices ge.c
- *    produces for GL land the same way here.  A surface's memory is also bound as a linear texture (render-to-texture, frame-buffer reads).
+ *  - Every PSP render target (frame buffers, render-to-texture buffers) is a 512 x SURF_H PSP-pixel (x RS_RES_SCALE) RGBA8 linear colour
+ *    surface in CDRAM, keyed by its PSP address (SURF_H = 512, or 272 at the 2x-Vita supersampled scale, to fit CDRAM).  Memory row 0 = PSP
+ *    row 0; the viewport maps clip y = -1 to row 0 and clip y = +1 to PSP row 512, so the clip-space vertices of the GE maths land the same
+ *    way here.  A surface's memory is also bound as a linear texture (render-to-texture, frame-buffer reads).
+ *  - 3D draws are native: the game's PSP vertex buffers go to the GPU as they are (copied into the vertex ring, never decoded), the vertex
+ *    programs read the PSP vertex formats as GXM attributes (one program per PSP vertex type, built on first use and cached on ux0:) and
+ *    do the GE transform, skinning and lighting; the PSP primitive (triangles, strips, fans) is drawn as it is.  Textures are uploaded in
+ *    their PSP formats (565/5551/4444/8888, 4- and 8-bit CLUT as GXM paletted textures, DXT1/3/5 as BC1/2/3); only the PSP swizzle is
+ *    undone (a block copy).  Through-mode (2D) draws, sprites and clears still go through ge.c's CPU path.
  *  - One SceGxmRenderTarget serves all surfaces (same size); one D24S8 depth/stencil surface is shared by all of them (as the PSP shares
  *    its depth buffer) and is force-loaded/stored, so switching surfaces in the middle of a frame keeps depth.  One scene per surface switch.
  *  - Programs: the same Shader Model 2.0 class Cg programs as the GL back end, compiled at start-up with the system Cg compiler
@@ -20,6 +26,8 @@
 #include <string.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdarg.h>
+#include <stdint.h>
 #include <malloc.h>
 #include <pthread.h>
 #include <psp2/gxm.h>
@@ -29,6 +37,7 @@
 #include <psp2/kernel/processmgr.h>
 #include <vitashark.h>
 #include <psp2/common_dialog.h>
+#include <psp2/io/stat.h>
 #include "gfx.h"
 
 volatile unsigned rs_gfx_epoch = 1;
@@ -195,30 +204,69 @@ static const char *FILLFS_SRC = "float4 main(uniform float4 uCol) : COLOR { retu
 static const char *PVS_SRC = "void main(float2 aPos, float2 aUV, float4 out vPos : POSITION, float2 out vUV : TEXCOORD0) { vPos = float4(aPos, 0.5, 1.0); vUV = aUV; }\n";
 static const char *PFS_SRC = "float4 main(float2 vUV : TEXCOORD0, uniform sampler2D uTex) : COLOR { return float4(tex2D(uTex, vUV).rgb, 1.0); }\n";
 static const char *CFS_SRC = "float4 main(float2 vUV : TEXCOORD0, uniform sampler2D uTex) : COLOR { return tex2D(uTex, vUV); }\n";
+/* FXAA (the same filter as the GL back end) in the present pass.  uTexel: one display pixel in texture units (xy), clamp limits (zw). */
+static const char *FFS_SRC =
+    "float3 S(sampler2D t, float2 uv, float4 k) { return tex2D(t, clamp(uv, float2(0.0, 0.0), k.zw)).rgb; }\n"
+    "float4 main(float2 vUV : TEXCOORD0, uniform sampler2D uTex, uniform float4 uTexel) : COLOR {\n"
+    "  float2 px = uTexel.xy; float3 L = float3(0.299, 0.587, 0.114);\n"
+    "  float3 rNW = S(uTex, vUV + float2(-1.0, -1.0) * px, uTexel), rNE = S(uTex, vUV + float2(1.0, -1.0) * px, uTexel);\n"
+    "  float3 rSW = S(uTex, vUV + float2(-1.0, 1.0) * px, uTexel), rSE = S(uTex, vUV + float2(1.0, 1.0) * px, uTexel), rM = S(uTex, vUV, uTexel);\n"
+    "  float lNW = dot(rNW, L), lNE = dot(rNE, L), lSW = dot(rSW, L), lSE = dot(rSE, L), lM = dot(rM, L);\n"
+    "  float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE))), lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));\n"
+    "  float2 d = float2(-((lNW + lNE) - (lSW + lSE)), (lNW + lSW) - (lNE + lSE));\n"
+    "  float red = max((lNW + lNE + lSW + lSE) * (0.25 * 0.125), 1.0 / 128.0);\n"
+    "  float rcp = 1.0 / (min(abs(d.x), abs(d.y)) + red);\n"
+    "  d = clamp(d * rcp, float2(-8.0, -8.0), float2(8.0, 8.0)) * px;\n"
+    "  float3 rA = 0.5 * (S(uTex, vUV + d * (1.0 / 3.0 - 0.5), uTexel) + S(uTex, vUV + d * (2.0 / 3.0 - 0.5), uTexel));\n"
+    "  float3 rB = rA * 0.5 + 0.25 * (S(uTex, vUV + d * -0.5, uTexel) + S(uTex, vUV + d * 0.5, uTexel));\n"
+    "  float lB = dot(rB, L);\n"
+    "  return float4((lB < lMin || lB > lMax) ? rA : rB, 1.0);\n"
+    "}\n";
+static int use_fxaa; static float pres_texel[4];
 
 static void shark_log(const char *msg, shark_log_level lvl, int line){ fprintf(stderr, "[GXM] shader compiler %s (line %d): %s\n", lvl == SHARK_LOG_ERROR ? "ERROR" : (lvl == SHARK_LOG_WARNING ? "warning" : "info"), line, msg); }
+/* Compiled programs are kept in ux0:data/SWBFRS/shaders/<hash of the source>.gxp, so the Cg compiler runs once per program, not at
+ * every start (the per-vertex-type programs are built during play, the first time a vertex type is drawn). */
+#define SHADER_DIR "ux0:data/SWBFRS/shaders"
+static u32 src_hash(const char *s, int fragment){ u32 h = 2166136261u ^ (u32)fragment; for (; *s; s++) h = (h ^ (u8)*s) * 16777619u; return h; }
+static SceGxmProgram *cache_load(u32 h){
+    char path[128]; snprintf(path, sizeof path, SHADER_DIR "/%08x.gxp", (unsigned)h); FILE *f = fopen(path, "rb"); if (!f) return NULL;
+    fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+    SceGxmProgram *p = (n > 0 && n < (1 << 20)) ? malloc((size_t)n) : NULL;
+    if (p && fread(p, 1, (size_t)n, f) != (size_t)n) { free(p); p = NULL; }
+    fclose(f);
+    if (p && (sceGxmProgramCheck(p) < 0 || sceGxmProgramGetSize(p) != (unsigned)n)) { free(p); p = NULL; }
+    return p; }
+static void cache_store(u32 h, const SceGxmProgram *p, unsigned n){
+    static int dir; if (!dir) { sceIoMkdir(SHADER_DIR, 0777); dir = 1; }
+    char path[128]; snprintf(path, sizeof path, SHADER_DIR "/%08x.gxp", (unsigned)h); FILE *f = fopen(path, "wb"); if (!f) return;
+    fwrite(p, 1, n, f); fclose(f); }
 static SceGxmProgram *compile(const char *src, int fragment, const char *what){
+    u32 h = src_hash(src, fragment); SceGxmProgram *c = cache_load(h); if (c) return c;
+    u64 t0 = rs_perf_us();
     uint32_t sz = 0; SceGxmProgram *p = shark_compile_shader_extended(src, &sz, fragment ? SHARK_FRAGMENT_SHADER : SHARK_VERTEX_SHADER, SHARK_OPT_DEFAULT, SHARK_DISABLE, SHARK_DISABLE, SHARK_DISABLE);
     if (!p || !sz) { LOGG("%s %s shader: compile FAILED\n", what, fragment ? "fragment" : "vertex"); shark_clear_output(); return NULL; }
-    SceGxmProgram *c = malloc(sz); memcpy(c, p, sz); shark_clear_output(); return c; }
+    c = malloc(sz); memcpy(c, p, sz); shark_clear_output();
+    LOGG("compiled %s %s program (%u bytes, %.1f ms)\n", what, fragment ? "fragment" : "vertex", (unsigned)sz, (rs_perf_us() - t0) / 1000.0);
+    cache_store(h, c, sz); return c; }
 
 /* a vertex program + its uniform parameters (looked up by name) */
 typedef struct { SceGxmProgram *gxp; SceGxmShaderPatcherId id; SceGxmVertexProgram *vp;
-                 const SceGxmProgramParameter *mvp, *wvz, *wld, *b, *vp0, *vp1, *vp2, *uvt, *uvs, *fogp, *mamb, *mdif, *memi, *msca, *lfl, *lpos, *latt, *lspot, *la, *ld; } vprog_t;
+                 const SceGxmProgramParameter *mvp, *wvz, *wld, *b, *vp0, *vp1, *vp2, *uvt, *uvs, *fogp, *mamb, *mdif, *memi, *msca, *lfl, *lpos, *latt, *lspot, *la, *ld, *defc; } vprog_t;
 typedef struct { SceGxmProgram *gxp; SceGxmShaderPatcherId id; int tex_unit;
-                 const SceGxmProgramParameter *cfg0, *cfg1, *env, *fog, *mul, *scis, *col; } fprog_t;
+                 const SceGxmProgramParameter *cfg0, *cfg1, *env, *fog, *mul, *scis, *col, *texel; } fprog_t;
 enum { VP_MAIN, VP_HW0, VP_HW1, VP_HW2, VP_HW3, VP_FILL, VP_PRES, VP_N };
-enum { FP_MAIN, FP_FILL, FP_PRES, FP_COPY, FP_N };
+enum { FP_MAIN, FP_FILL, FP_PRES, FP_COPY, FP_FXAA, FP_N };
 static vprog_t VP[VP_N]; static fprog_t FP[FP_N]; static int hw_ok;
 int gfx_hw_ok(void){ return hw_ok; }
 
 #define PARAM(prog, n) sceGxmProgramFindParameterByName((prog), (n))
-static int make_vprog(vprog_t *v, const char *src, const char *what, const char *const *names, const u8 *ncomp, const u16 *offs, int nattr, int stride){
+static int make_vprog_f(vprog_t *v, const char *src, const char *what, const char *const *names, const u8 *ncomp, const u16 *offs, const SceGxmAttributeFormat *fmts, int nattr, int stride){
     v->gxp = compile(src, 0, what); if (!v->gxp) return 0;
     if (sceGxmShaderPatcherRegisterProgram(patcher, v->gxp, &v->id) < 0) { LOGG("%s: register failed\n", what); return 0; }
     SceGxmVertexAttribute at[8]; int na = 0;
     for (int i = 0; i < nattr; i++) { const SceGxmProgramParameter *pp = PARAM(v->gxp, names[i]); if (!pp) continue;    /* unused input (optimised out) */
-        at[na].streamIndex = 0; at[na].offset = offs[i]; at[na].format = SCE_GXM_ATTRIBUTE_FORMAT_F32; at[na].componentCount = ncomp[i];
+        at[na].streamIndex = 0; at[na].offset = offs[i]; at[na].format = fmts ? fmts[i] : SCE_GXM_ATTRIBUTE_FORMAT_F32; at[na].componentCount = ncomp[i];
         at[na].regIndex = (u16)sceGxmProgramParameterGetResourceIndex(pp); na++; }
     SceGxmVertexStream st = {(uint16_t)stride, SCE_GXM_INDEX_SOURCE_INDEX_16BIT};
     int r = sceGxmShaderPatcherCreateVertexProgram(patcher, v->id, at, (unsigned)na, &st, 1, &v->vp);
@@ -227,37 +275,40 @@ static int make_vprog(vprog_t *v, const char *src, const char *what, const char 
     v->mvp = PARAM(g, "uMVP"); v->wvz = PARAM(g, "uWVZ"); v->wld = PARAM(g, "uWld"); v->b = PARAM(g, "uB"); v->vp0 = PARAM(g, "uVP0"); v->vp1 = PARAM(g, "uVP1");
     v->vp2 = PARAM(g, "uVP2"); v->uvt = PARAM(g, "uUVT"); v->uvs = PARAM(g, "uUVS"); v->fogp = PARAM(g, "uFogP"); v->mamb = PARAM(g, "uMAmb"); v->mdif = PARAM(g, "uMDif");
     v->memi = PARAM(g, "uMEmi"); v->msca = PARAM(g, "uMSca"); v->lfl = PARAM(g, "uLFl"); v->lpos = PARAM(g, "uLPos"); v->latt = PARAM(g, "uLAtt"); v->lspot = PARAM(g, "uLSpot");
-    v->la = PARAM(g, "uLA"); v->ld = PARAM(g, "uLD");
+    v->la = PARAM(g, "uLA"); v->ld = PARAM(g, "uLD"); v->defc = PARAM(g, "uDefC");
     return 1; }
+static int make_vprog(vprog_t *v, const char *src, const char *what, const char *const *names, const u8 *ncomp, const u16 *offs, int nattr, int stride){
+    return make_vprog_f(v, src, what, names, ncomp, offs, NULL, nattr, stride); }
 static int make_fprog(fprog_t *f, const char *src, const char *what){
     f->gxp = compile(src, 1, what); if (!f->gxp) return 0;
     if (sceGxmShaderPatcherRegisterProgram(patcher, f->gxp, &f->id) < 0) { LOGG("%s: register failed\n", what); return 0; }
     const SceGxmProgram *g = f->gxp; const SceGxmProgramParameter *t = PARAM(g, "uTex"); f->tex_unit = t ? (int)sceGxmProgramParameterGetResourceIndex(t) : -1;
-    f->cfg0 = PARAM(g, "uCfg0"); f->cfg1 = PARAM(g, "uCfg1"); f->env = PARAM(g, "uEnv"); f->fog = PARAM(g, "uFog"); f->mul = PARAM(g, "uMul"); f->scis = PARAM(g, "uScis"); f->col = PARAM(g, "uCol");
+    f->cfg0 = PARAM(g, "uCfg0"); f->cfg1 = PARAM(g, "uCfg1"); f->env = PARAM(g, "uEnv"); f->fog = PARAM(g, "uFog"); f->mul = PARAM(g, "uMul"); f->scis = PARAM(g, "uScis"); f->col = PARAM(g, "uCol"); f->texel = PARAM(g, "uTexel");
     return 1; }
 
 /* fragment programs per (fragment source, vertex program, blend state) */
-typedef struct { u32 blend; u8 f, v; SceGxmFragmentProgram *fp; } fpent_t;
+typedef struct { u32 blend; u8 f; const SceGxmProgram *v; SceGxmFragmentProgram *fp; } fpent_t;
 #define FPC_N 1024
 static fpent_t fpc[FPC_N]; static int fpc_n;
-static SceGxmFragmentProgram *get_fp(int f, int v, const SceGxmBlendInfo *bi){
-    u32 b; memcpy(&b, bi, 4); u32 key = b ^ ((u32)f * 0x9E3779B1u) ^ ((u32)v * 0x85EBCA77u);
+static SceGxmFragmentProgram *get_fp(int f, const SceGxmProgram *v, const SceGxmBlendInfo *bi){
+    u32 b; memcpy(&b, bi, 4); u32 key = b ^ ((u32)f * 0x9E3779B1u) ^ ((u32)(uintptr_t)v * 0x85EBCA77u);
     u32 h = (key ^ (key >> 15) ^ (key >> 7)) & (FPC_N - 1);
     for (int i = 0; i < FPC_N; i++) { fpent_t *e = &fpc[(h + i) & (FPC_N - 1)];
         if (!e->fp) {
             if (fpc_n >= FPC_N - 8) return NULL;
             SceGxmFragmentProgram *fp = NULL;
-            int r = sceGxmShaderPatcherCreateFragmentProgram(patcher, FP[f].id, SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE, bi, VP[v].gxp, &fp);
+            int r = sceGxmShaderPatcherCreateFragmentProgram(patcher, FP[f].id, SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE, bi, v, &fp);
             if (r < 0) { LOGG("fragment program (prog %d, blend %08x) failed (0x%08X)\n", f, b, (unsigned)r); return NULL; }
-            e->blend = b; e->f = (u8)f; e->v = (u8)v; e->fp = fp; fpc_n++; return fp; }
+            e->blend = b; e->f = (u8)f; e->v = v; e->fp = fp; fpc_n++; return fp; }
         if (e->blend == b && e->f == f && e->v == v) return e->fp; }
     return NULL; }
 
 /* ------------------------------------------------------------------ surfaces (render targets) */
 #define SURF_N 12
-#define SZ 512
-static int RS_S = 1;
-#define PX (SZ * RS_S)
+#define SZ 512                                  /* PSP pixels across a surface */
+static int RS_S = 1, SURF_H = 512;                  /* internal resolution scale; PSP rows per surface */
+#define PXW (SZ * RS_S)
+#define PXH (SURF_H * RS_S)
 typedef struct { u32 addr; int stride, psz, fmt, used, drawn; unsigned stamp; u8 *data; SceGxmColorSurface cs; SceGxmTexture tex; } surf_t;
 static surf_t surfs[SURF_N]; static unsigned surf_stamp; static surf_t *cur_target; static int in_scene;
 static SceGxmRenderTarget *rt_surf, *rt_disp; static SceGxmDepthStencilSurface depth_surf;
@@ -288,8 +339,8 @@ static void end_scene(const SceGxmNotification *n){
     sceGxmEndScene(ctx, NULL, n); in_scene = 0; cur_target = NULL; }
 static void begin_scene(surf_t *s){
     sceGxmBeginScene(ctx, 0, rt_surf, NULL, NULL, NULL, &s->cs, &depth_surf); in_scene = 1; cur_target = s; st_scenes++;
-    sceGxmSetViewport(ctx, PX * 0.5f, PX * 0.5f, PX * 0.5f, PX * 0.5f, 0.5f, 0.5f);
-    sceGxmSetRegionClip(ctx, SCE_GXM_REGION_CLIP_OUTSIDE, 0, 0, PX - 1, PX - 1); }
+    sceGxmSetViewport(ctx, PXW * 0.5f, PXW * 0.5f, PXW * 0.5f, PXW * 0.5f, 0.5f, 0.5f);      /* 512 PSP pixels across both axes (y may run past the surface) */
+    sceGxmSetRegionClip(ctx, SCE_GXM_REGION_CLIP_OUTSIDE, 0, 0, PXW - 1, PXH - 1); }
 static void bind(surf_t *s){ if (cur_target == s && in_scene) return; end_scene(NULL); begin_scene(s); }
 /* fence: end the current scene with a notification (the GPU writes fence_next when it is done), restart it if one was open */
 static void fence_emit(void){
@@ -311,10 +362,10 @@ static surf_t *surf_create(u32 addr, int fmt, int stride){
     for (int i = 0; i < SURF_N; i++) { if (!surfs[i].used) { s = &surfs[i]; break; } if (surfs[i].stamp < old->stamp) old = &surfs[i]; }
     if (!s) { s = old; if (cur_target == s) end_scene(NULL); }
     if (!s->data) {
-        s->data = gpu_alloc(SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW, (unsigned)(PX * PX * 4), SCE_GXM_MEMORY_ATTRIB_RW, NULL);
+        s->data = gpu_alloc(SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW, (unsigned)(PXW * PXH * 4), SCE_GXM_MEMORY_ATTRIB_RW, NULL);
         if (!s->data) return NULL;
-        sceGxmColorSurfaceInit(&s->cs, SCE_GXM_COLOR_FORMAT_U8U8U8U8_ABGR, SCE_GXM_COLOR_SURFACE_LINEAR, SCE_GXM_COLOR_SURFACE_SCALE_NONE, SCE_GXM_OUTPUT_REGISTER_SIZE_32BIT, PX, PX, PX, s->data);
-        sceGxmTextureInitLinear(&s->tex, s->data, SCE_GXM_TEXTURE_FORMAT_U8U8U8U8_ABGR, PX, PX, 0); }
+        sceGxmColorSurfaceInit(&s->cs, SCE_GXM_COLOR_FORMAT_U8U8U8U8_ABGR, SCE_GXM_COLOR_SURFACE_LINEAR, SCE_GXM_COLOR_SURFACE_SCALE_NONE, SCE_GXM_OUTPUT_REGISTER_SIZE_32BIT, PXW, PXH, PXW, s->data);
+        sceGxmTextureInitLinear(&s->tex, s->data, SCE_GXM_TEXTURE_FORMAT_U8U8U8U8_ABGR, PXW, PXH, 0); }
     s->used = 1; s->addr = addr; s->fmt = fmt; s->stride = stride ? stride : 512; s->psz = fmt == 3 ? 4 : 2; s->drawn = 0; s->stamp = ++surf_stamp;
     { static const float black[4] = {0, 0, 0, 1}; bind(s); draw_clear_quad(s, 0, 0, SZ, SZ, 1.0f, black, SCE_GXM_COLOR_MASK_ALL, 1, 1, 0); }
     return s; }
@@ -348,11 +399,70 @@ static u8 *tex_mem(long bytes){
     flush_batch(); fence_emit(); fence_wait(fence_next - 1); pool_collect(); m = pool_try((u32)bytes); if (m) return m;
     LOGG("texture pool full (%ld KB requested)\n", bytes / 1024); return NULL; }
 
+/* ---- native texture upload: the PSP texel data in a GXM format that reads it as it is ----
+ * 565 / 5551 / 4444 / 8888 have the same bit layout in GXM's U5U6U5_BGR / U1U5U5U5_ABGR / U4U4U4U4_ABGR / U8U8U8U8_ABGR (red in the
+ * low bits).  4- and 8-bit CLUT textures become P4 / P8 textures with the CLUT as their palette (P4: first texel in the low nibble, as
+ * on the PSP).  DXT1/3/5 become BC1/2/3: same blocks, but the PSP stores the 565 end-point colours with red in the low bits, standard BC
+ * with red in the high bits, so each block's two end points get red and blue exchanged (DXT1: and the end points are put back in the
+ * order that keeps the block's 3- or 4-colour mode); BC textures are block-swizzled (GXM's layout).  The PSP's own swizzle (16-byte x
+ * 8-row tiles) is undone by copying those tiles.  Returns 1 done, 0 format not handled here, -1 no memory. */
+static u32 part1by1(u32 x){ x &= 0xFFFF; x = (x ^ (x << 8)) & 0x00FF00FF; x = (x ^ (x << 4)) & 0x0F0F0F0F; x = (x ^ (x << 2)) & 0x33333333; x = (x ^ (x << 1)) & 0x55555555; return x; }
+static u16 rb_swap(u16 v){ return (u16)((v & 0x07E0u) | (v >> 11) | ((v & 31u) << 11)); }
+static void bc_color_fix(u8 *cb, int dxt1){
+    u16 c0, c1; u32 ix; memcpy(&c0, cb, 2); memcpy(&c1, cb + 2, 2); memcpy(&ix, cb + 4, 4);
+    u16 a = rb_swap(c0), b = rb_swap(c1);
+    if (dxt1 && ((c0 > c1) != (a > b))) { u16 t = a; a = b; b = t;
+        if (c0 > c1) ix ^= 0x55555555u;                                  /* 4-colour block: 0<->1, 2<->3 */
+        else ix ^= (~ix >> 1) & 0x55555555u; }                          /* 3-colour block: 0<->1; 2 (middle) and 3 (transparent) stay */
+    memcpy(cb, &a, 2); memcpy(cb + 2, &b, 2); memcpy(cb + 4, &ix, 4); }
+static int tex_native(tent_t *e, const gtex_key_t *k){
+    int f = k->fmt, w = k->w, h = k->h, bw = k->bufw > 0 ? k->bufw : k->w;
+    size_t base = GADDR(gfx_vram(k->addr)); if (base >= GMEM_SIZE) return 0;
+    const u8 *src = g_mem + base; size_t avail = GMEM_SIZE - base;
+    if (f >= 8 && f <= 10) {
+        if (w < 4 || h < 4) return 0;
+        int bsz = f == 8 ? 8 : 16, nbx = w / 4, nby = h / 4, bpr = (bw + 3) / 4;
+        if ((size_t)bpr * (size_t)(nby - 1) * bsz + (size_t)nbx * bsz > avail) return 0;
+        long need = (long)nbx * nby * bsz; u8 *m = tex_mem(need); if (!m) return -1;
+        int tile = nbx < nby ? nbx : nby; u32 tt = (u32)tile * (u32)tile;
+        for (int by = 0; by < nby; by++) for (int bx = 0; bx < nbx; bx++) {
+            u32 d = (part1by1((u32)(bx % tile)) << 1 | part1by1((u32)(by % tile))) + (u32)(bx / tile + by / tile) * tt;
+            u8 blk[16]; memcpy(blk, src + ((size_t)by * bpr + bx) * bsz, (size_t)bsz);
+            bc_color_fix(blk + (f == 8 ? 0 : 8), f == 8);
+            memcpy(m + (size_t)d * bsz, blk, (size_t)bsz); }
+        e->mem = m; e->bytes = need;
+        sceGxmTextureInitSwizzled(&e->tex, m, f == 8 ? SCE_GXM_TEXTURE_FORMAT_UBC1_ABGR : (f == 9 ? SCE_GXM_TEXTURE_FORMAT_UBC2_ABGR : SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR), (unsigned)w, (unsigned)h, 0);
+        return 1; }
+    int bpp; SceGxmTextureFormat gf;
+    switch (f) {
+    case 0: bpp = 16; gf = SCE_GXM_TEXTURE_FORMAT_U5U6U5_BGR; break;
+    case 1: bpp = 16; gf = SCE_GXM_TEXTURE_FORMAT_U1U5U5U5_ABGR; break;
+    case 2: bpp = 16; gf = SCE_GXM_TEXTURE_FORMAT_U4U4U4U4_ABGR; break;
+    case 3: bpp = 32; gf = SCE_GXM_TEXTURE_FORMAT_U8U8U8U8_ABGR; break;
+    case 4: bpp = 4; gf = SCE_GXM_TEXTURE_FORMAT_P4_ABGR; break;
+    case 5: bpp = 8; gf = SCE_GXM_TEXTURE_FORMAT_P8_ABGR; break;
+    default: return 0; }                                                  /* 16/32-bit CLUT indices: decoded by ge.c */
+    if (bpp == 4 && w < 2) return 0;
+    size_t srow = (size_t)bw * bpp / 8, rb = (size_t)w * bpp / 8, drow = (size_t)ALIGN(w, 8) * bpp / 8;
+    if (srow * (size_t)h > avail || rb > srow) return 0;
+    if (k->swz && (srow & 15)) return 0;
+    int npal = f == 4 ? 16 : (f == 5 ? 256 : 0); size_t palsz = npal ? ALIGN((size_t)npal * 4, 256) : 0;
+    long need = (long)(palsz + drow * (size_t)h); u8 *m = tex_mem(need); if (!m) return -1;
+    u8 *dst = m + palsz;
+    if (!k->swz) for (int y = 0; y < h; y++) memcpy(dst + (size_t)y * drow, src + (size_t)y * srow, rb);
+    else { size_t tiles_row = srow >> 4;
+        for (int y = 0; y < h; y++) { const u8 *trow = src + ((size_t)(y >> 3) * tiles_row) * 128 + (size_t)(y & 7) * 16; u8 *d = dst + (size_t)y * drow;
+            for (size_t c = 0; c < rb; c += 16) memcpy(d + c, trow + (c >> 4) * 128, rb - c < 16 ? rb - c : 16); } }
+    e->mem = m; e->bytes = need;
+    sceGxmTextureInitLinear(&e->tex, dst, gf, (unsigned)w, (unsigned)h, 0);
+    if (npal) { ge_clut_palette((u32 *)m, npal); sceGxmTextureSetPalette(&e->tex, m); }
+    return 1; }
+
 unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4]){
     uvs[0] = uvs[1] = 1; uvs[2] = uvs[3] = 0;
     if (k->w <= 0 || k->h <= 0 || k->w > 1024 || k->h > 1024) return 0;
     int y0, x0; surf_t *s = surf_for_addr(k->addr, &y0, &x0);
-    if (s) { if (s == cur_target && in_scene) return 0; flush_batch(); uvs[0] = (float)k->w / SZ; uvs[1] = (float)k->h / SZ; uvs[2] = (float)y0 / SZ; uvs[3] = (float)x0 / SZ; return TID_SURF + (unsigned)(s - surfs); }
+    if (s) { if (s == cur_target && in_scene) return 0; flush_batch(); uvs[0] = (float)k->w / SZ; uvs[1] = (float)k->h / SURF_H; uvs[2] = (float)y0 / SURF_H; uvs[3] = (float)x0 / SZ; return TID_SURF + (unsigned)(s - surfs); }
     tent_t *e = 0, *old = &tc[0];
     for (int i = 0; i < TC_N; i++) { tent_t *t = &tc[i];
         if (t->used && t->k.addr == k->addr && t->k.w == k->w && t->k.h == k->h && t->k.fmt == k->fmt && t->k.swz == k->swz && t->k.bufw == k->bufw && t->k.clut == k->clut) { e = t; break; }
@@ -360,19 +470,23 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
     if (e && e->epoch == rs_gfx_epoch) { e->stamp = ++tc_stamp; return (unsigned)(e - tc) + 1; }
     u64 t_h = rs_perf_us(); u32 h = src->hash(src->ud); rs_perf.hash_n++; rs_perf.hash_us += rs_perf_us() - t_h;
     if (e && e->hash == h) { e->epoch = rs_gfx_epoch; e->stamp = ++tc_stamp; return (unsigned)(e - tc) + 1; }
-    int stride = ALIGN(k->w, 8); long need = (long)stride * k->h * 4;
     flush_batch();                                     /* a pending batch may still name this entry's old contents */
     if (!e) { if (old->used) tent_free(old); e = old; e->k = *k; }
     else { pool_free_later(e->mem, (u32)e->bytes); tc_bytes -= e->bytes; e->mem = NULL; e->bytes = 0; }   /* new contents: new memory (the GPU may still read the old) */
-    e->epoch = rs_gfx_epoch;                           /* not an eviction candidate while tex_mem makes room */
-    u8 *m = tex_mem(need);
-    if (!m) { memset(e, 0, sizeof *e); return 0; }
-    e->used = 1; e->mem = m; e->bytes = need; tc_bytes += need; e->hash = h; e->epoch = rs_gfx_epoch; e->stamp = ++tc_stamp;
+    e->k = *k; e->epoch = rs_gfx_epoch;                /* not an eviction candidate while tex_mem makes room */
     u64 t_u = rs_perf_us();
-    if (stride == k->w) src->decode((u32 *)m, src->ud);
-    else { if (!scratch) scratch = malloc(1024 * 1024 * 4); src->decode(scratch, src->ud);
-        for (int y = 0; y < k->h; y++) memcpy(m + (size_t)y * stride * 4, scratch + (size_t)y * k->w, (size_t)k->w * 4); }
-    sceGxmTextureInitLinear(&e->tex, m, SCE_GXM_TEXTURE_FORMAT_U8U8U8U8_ABGR, (unsigned)k->w, (unsigned)k->h, 0);
+    int r = tex_native(e, k);
+    if (r < 0) { memset(e, 0, sizeof *e); return 0; }
+    if (r == 0) {                                      /* formats GXM cannot read as they are: ge.c decodes them to RGBA8 */
+        static unsigned logged; if (!(logged & (1u << (k->fmt & 15)))) { logged |= 1u << (k->fmt & 15); LOGG("texture format %d (%dx%d%s) is decoded on the CPU\n", k->fmt, k->w, k->h, k->swz ? ", swizzled" : ""); }
+        int stride = ALIGN(k->w, 8); long need = (long)stride * k->h * 4;
+        u8 *m = tex_mem(need); if (!m) { memset(e, 0, sizeof *e); return 0; }
+        e->mem = m; e->bytes = need;
+        if (stride == k->w) src->decode((u32 *)m, src->ud);
+        else { if (!scratch) scratch = malloc(1024 * 1024 * 4); src->decode(scratch, src->ud);
+            for (int y = 0; y < k->h; y++) memcpy(m + (size_t)y * stride * 4, scratch + (size_t)y * k->w, (size_t)k->w * 4); }
+        sceGxmTextureInitLinear(&e->tex, m, SCE_GXM_TEXTURE_FORMAT_U8U8U8U8_ABGR, (unsigned)k->w, (unsigned)k->h, 0); }
+    e->used = 1; tc_bytes += e->bytes; e->hash = h; e->epoch = rs_gfx_epoch; e->stamp = ++tc_stamp;
     st_texup++; rs_perf.up_n++; rs_perf.up_us += rs_perf_us() - t_u;
     return (unsigned)(e - tc) + 1; }
 
@@ -464,7 +578,7 @@ static void flush_batch(void){
     bind(t);
     SceGxmBlendInfo bi; float mul[3]; blend_of(&bst, &bi, mul);
     int vpi = bkind == 1 ? VP_HW0 + (bhw.skin | (bhw.lit << 1)) : VP_MAIN;
-    SceGxmFragmentProgram *fp = get_fp(FP_MAIN, vpi, &bi); if (!fp) { bn = 0; return; }
+    SceGxmFragmentProgram *fp = get_fp(FP_MAIN, VP[vpi].gxp, &bi); if (!fp) { bn = 0; return; }
     size_t vsz = bkind == 1 ? sizeof(gfx_hvtx_t) : sizeof(gfx_vtx_t); const u8 *src = bkind == 1 ? (const u8 *)bhv : (const u8 *)bv;
     u64 t_d = rs_perf_us();
     for (int first = 0; first < bn; first += MAXV) {
@@ -498,6 +612,147 @@ void gfx_draw(const gfx_state_t *st, const gfx_vtx_t *v, int n){
     if (!bactive) { bst = *st; bactive = 1; bkind = 0; bn = 0; }
     memcpy(&bv[bn], v, sizeof(gfx_vtx_t) * (size_t)n); bn += n; }
 
+/* ------------------------------------------------------------------ native 3D draws: PSP vertex buffers read by the GPU as they are
+ * One vertex program per PSP vertex type (+ lighting on/off), generated from the vertex type: each PSP vertex component becomes a GXM
+ * vertex attribute in the PSP format (s8/s16/f32 positions and normals, u8/u16/f32 texture coordinates and weights, 8888 colours as
+ * normalised bytes, 565/5551/4444 colours as one 16-bit value unpacked in the program), with the PSP fixed-point scales applied in the
+ * program.  The maths after that is the GE transform/skinning/lighting of HWVS_SRC. */
+static const char *NV_UNIFORMS =
+    "uniform float4 uMVP[4]; uniform float4 uWVZ; uniform float4 uWld[3]; uniform float4 uB[24];\n"
+    "uniform float4 uVP0; uniform float4 uVP1; uniform float4 uVP2; uniform float4 uUVT; uniform float4 uUVS; uniform float4 uFogP; uniform float4 uDefC;\n"
+    "uniform float4 uMAmb; uniform float4 uMDif; uniform float4 uMEmi; uniform float4 uMSca; uniform float4 uLFl;\n"
+    "uniform float4 uLPos[4]; uniform float4 uLAtt[4]; uniform float4 uLSpot[4]; uniform float4 uLA[4]; uniform float4 uLD[4];\n";
+static const char *NV_LIGHT =
+    "#define LIGHT(i, ih) if (uLFl.z > ih) { float3 L = uLPos[i].xyz; float att = 1.0; if (uLPos[i].w > 0.5) { L = uLPos[i].xyz - wp; float d = length(L); if (d > 0.000001) L = L / d;"
+    " float den = uLAtt[i].x + uLAtt[i].y * d + uLAtt[i].z * d * d; att = (den > 0.000001) ? min(1.0 / den, 1.0) : 1.0;"
+    " if (uLPos[i].w > 1.5) { float cs = -dot(L, uLSpot[i].xyz); if (cs < uLSpot[i].w) att = 0.0; else if (uLAtt[i].w > 0.0) att = att * pow(max(cs, 0.0), uLAtt[i].w); } }"
+    " float ndl = max(dot(wn, L), 0.0); col += (uLA[i].rgb * amb + ndl * uLD[i].rgb * dif) * att; }\n";
+typedef struct { char *p; size_t n, cap; } sbuf_t;
+static void sb(sbuf_t *b, const char *fmt, ...){
+    va_list ap; va_start(ap, fmt); int l = vsnprintf(NULL, 0, fmt, ap); va_end(ap); if (l < 0) return;
+    if (b->n + (size_t)l + 1 > b->cap) { b->cap = (b->n + (size_t)l + 1) * 2; b->p = realloc(b->p, b->cap); }
+    va_start(ap, fmt); vsnprintf(b->p + b->n, (size_t)l + 1, fmt, ap); va_end(ap); b->n += (size_t)l; }
+static char *native_vs_src(u32 vt, int lit){
+    int tf = vt & 3, cf = (vt >> 2) & 7, nf = (vt >> 5) & 3, pf = (vt >> 7) & 3, wf = (vt >> 9) & 3, nw = ((vt >> 14) & 7) + 1;
+    static const char *sc[4] = {"1.0", "(1.0 / 128.0)", "(1.0 / 32768.0)", "1.0"};          /* PSP 8/16-bit fixed point */
+    sbuf_t b = {0}; sb(&b, "%s%s", NV_UNIFORMS, NV_LIGHT);
+    sb(&b, "void main(float3 aP");
+    if (nf) sb(&b, ", float3 aN");
+    if (tf) sb(&b, ", float2 aT");
+    if (cf == 7) sb(&b, ", float4 aC"); else if (cf) sb(&b, ", float aC");
+    if (wf) { sb(&b, ", float4 aW0"); if (nw > 4) sb(&b, ", float4 aW1"); }
+    sb(&b, ",\n  float4 out vPos : POSITION, float2 out vUV : TEXCOORD0, float4 out vCol : TEXCOORD1, float out vFog : TEXCOORD2, float out vCull : TEXCOORD3)\n{\n");
+    sb(&b, "  float3 p = aP * %s;\n", sc[pf]);
+    if (nf) sb(&b, "  float3 n = aN * %s;\n", sc[nf]); else sb(&b, "  float3 n = float3(0.0, 0.0, 1.0);\n");
+    switch (cf) {                                                                  /* as ge.c decode_vertex: 4 = 565, 5 = 5551, 7 = 8888, others 4444 */
+    case 0: sb(&b, "  float4 c = uDefC;\n"); break;
+    case 7: sb(&b, "  float4 c = aC;\n"); break;
+    case 4: sb(&b, "  float v = aC; float q1 = floor(v / 32.0), q2 = floor(v / 2048.0);\n"
+                   "  float4 c = float4((v - q1 * 32.0) / 31.0, (q1 - q2 * 64.0) / 63.0, q2 / 31.0, 1.0);\n"); break;
+    case 5: sb(&b, "  float v = aC; float q1 = floor(v / 32.0), q2 = floor(v / 1024.0), q3 = floor(v / 32768.0);\n"
+                   "  float4 c = float4((v - q1 * 32.0) / 31.0, (q1 - q2 * 32.0) / 31.0, (q2 - q3 * 32.0) / 31.0, q3);\n"); break;
+    default: sb(&b, "  float v = aC; float q1 = floor(v / 16.0), q2 = floor(v / 256.0), q3 = floor(v / 4096.0);\n"
+                    "  float4 c = float4((v - q1 * 16.0) / 15.0, (q1 - q2 * 16.0) / 15.0, (q2 - q3 * 16.0) / 15.0, q3 / 15.0);\n"); break; }
+    if (wf) {
+        sb(&b, "  float4 p4 = float4(p, 1.0); float4 n4 = float4(n, 0.0); p = float3(0.0, 0.0, 0.0); n = float3(0.0, 0.0, 0.0); float wt;\n");
+        for (int i = 0; i < nw && i < 8; i++)
+            sb(&b, "  wt = aW%d.%c * %s; p += wt * float3(dot(p4, uB[%d]), dot(p4, uB[%d]), dot(p4, uB[%d])); n += wt * float3(dot(n4, uB[%d]), dot(n4, uB[%d]), dot(n4, uB[%d]));\n",
+               i / 4, "xyzw"[i % 4], sc[wf], i * 3, i * 3 + 1, i * 3 + 2, i * 3, i * 3 + 1, i * 3 + 2); }
+    sb(&b, "  float4 q = float4(p, 1.0);\n"
+           "  float4 cl = float4(dot(q, uMVP[0]), dot(q, uMVP[1]), dot(q, uMVP[2]), dot(q, uMVP[3])); float w = cl.w;\n"
+           "  vPos = float4((cl.x * uVP0.x + uVP1.x * w) * (2.0 / 512.0) - w, (cl.y * uVP0.y + uVP1.y * w) * (2.0 / 512.0) - w, (cl.z * uVP0.z + uVP1.z * w) * (2.0 / 65535.0) - w, w);\n"
+           "  float iw = (abs(w) > 0.000001) ? 1.0 / w : 0.0;\n"
+           "  float sx = cl.x * iw * uVP0.x + uVP1.x + uVP2.x, sy = cl.y * iw * uVP0.y + uVP1.y + uVP2.y, sz = cl.z * iw * uVP0.z + uVP1.z;\n"
+           "  float inz = (w > 0.0 && sz >= 0.0 && sz <= 65535.0) ? 1.0 : 0.0;\n"
+           "  float xyout = (sx >= 0.0 && sx < 4096.0 && sy >= 0.0 && sy < 4096.0) ? 0.0 : 1.0;\n"
+           "  vCull = ((uVP2.z < 0.5 && inz < 0.5) || ((inz > 0.5 || uVP2.z < 0.5) && xyout > 0.5)) ? 1.0 : 0.0;\n"
+           "  vFog = 1.0; if (uFogP.z > 0.5) vFog = clamp((dot(q, uWVZ) + uFogP.x) * uFogP.y, 0.0, 1.0);\n");
+    if (tf) sb(&b, "  float2 t = aT * %s;\n", sc[tf]); else sb(&b, "  float2 t = float2(0.0, 0.0);\n");
+    sb(&b, "  float2 uv = float2(t.x * uUVT.x + uUVT.z, t.y * uUVT.y + uUVT.w); vUV = float2(uv.x * uUVS.x + uUVS.w, uv.y * uUVS.y + uUVS.z);\n"
+           "  vCol = c;\n");
+    if (lit) sb(&b,
+           "  float3 wp = float3(dot(q, uWld[0]), dot(q, uWld[1]), dot(q, uWld[2]));\n"
+           "  float4 nn = float4(n, 0.0); float3 wn = float3(dot(nn, uWld[0]), dot(nn, uWld[1]), dot(nn, uWld[2])); float ln = length(wn); if (ln > 0.0000001) wn = wn / ln;\n"
+           "  float3 amb = (uLFl.x > 0.5) ? c.rgb : uMAmb.rgb; float aa = (uLFl.x > 0.5) ? c.a : uMAmb.a; float3 dif = (uLFl.y > 0.5) ? c.rgb : uMDif.rgb;\n"
+           "  float3 col = uMEmi.rgb + uMSca.rgb * amb;\n"
+           "  LIGHT(0, 0.5) LIGHT(1, 1.5) LIGHT(2, 2.5) LIGHT(3, 3.5)\n"
+           "  vCol = float4(clamp(col, float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0)), clamp(aa, 0.0, 1.0));\n");
+    sb(&b, "}\n");
+    return b.p; }
+
+#define NP_N 192
+typedef struct { u32 key; int state; vprog_t v; } nprog_t;               /* state: 1 ready, -1 failed */
+static nprog_t np[NP_N]; static int np_n;
+static const vprog_t *native_prog(const gfx_native_t *nv, int lit){
+    u32 vt = nv->vt, key = (vt & 0x1C7FFu) | ((u32)(lit != 0) << 24) | 0x80000000u;   /* components + weight count; not the index/through/morph bits */
+    for (int i = 0; i < np_n; i++) if (np[i].key == key) return np[i].state > 0 ? &np[i].v : NULL;
+    if (np_n >= NP_N) return NULL;
+    nprog_t *e = &np[np_n++]; memset(e, 0, sizeof *e); e->key = key; e->state = -1;
+    int tf = vt & 3, cf = (vt >> 2) & 7, nf = (vt >> 5) & 3, pf = (vt >> 7) & 3, wf = (vt >> 9) & 3, nw = ((vt >> 14) & 7) + 1;
+    if (!pf || nv->off[4] < 0) return NULL;
+    static const SceGxmAttributeFormat sfmt[4] = {SCE_GXM_ATTRIBUTE_FORMAT_F32, SCE_GXM_ATTRIBUTE_FORMAT_S8, SCE_GXM_ATTRIBUTE_FORMAT_S16, SCE_GXM_ATTRIBUTE_FORMAT_F32};
+    static const SceGxmAttributeFormat ufmt[4] = {SCE_GXM_ATTRIBUTE_FORMAT_F32, SCE_GXM_ATTRIBUTE_FORMAT_U8, SCE_GXM_ATTRIBUTE_FORMAT_U16, SCE_GXM_ATTRIBUTE_FORMAT_F32};
+    static const int fs[4] = {0, 1, 2, 4};
+    static const char *const names[6] = {"aP", "aN", "aT", "aC", "aW0", "aW1"};
+    int na = 0; const char *nm[6]; u8 cp[6]; u16 of[6]; SceGxmAttributeFormat ff[6];
+#define ATTR(i, o, f, c) do { nm[na] = names[i]; of[na] = (u16)(o); ff[na] = (f); cp[na] = (u8)(c); na++; } while (0)
+    ATTR(0, nv->off[4], sfmt[pf], 3);
+    if (nf && nv->off[3] >= 0) ATTR(1, nv->off[3], sfmt[nf], 3);
+    if (tf && nv->off[1] >= 0) ATTR(2, nv->off[1], ufmt[tf], 2);
+    if (cf && nv->off[2] >= 0) { if (cf == 7) ATTR(3, nv->off[2], SCE_GXM_ATTRIBUTE_FORMAT_U8N, 4); else ATTR(3, nv->off[2], SCE_GXM_ATTRIBUTE_FORMAT_U16, 1); }
+    if (wf && nv->off[0] >= 0) { ATTR(4, nv->off[0], ufmt[wf], nw > 4 ? 4 : nw); if (nw > 4) ATTR(5, nv->off[0] + 4 * fs[wf], ufmt[wf], nw - 4); }
+#undef ATTR
+    char *src = native_vs_src(vt, lit); if (!src) return NULL;
+    char what[48]; snprintf(what, sizeof what, "vertex type %06x%s", (unsigned)(vt & 0x1C7FFu), lit ? " lit" : "");
+    int ok = make_vprog_f(&e->v, src, what, nm, cp, of, ff, na, nv->vsz);
+    free(src);
+    if (!ok) { LOGG("%s: no native program, this vertex type is decoded on the CPU\n", what); return NULL; }
+    LOGG("native program for %s (%d bytes per vertex, %d attributes)\n", what, nv->vsz, na);
+    e->state = 1; return &e->v; }
+
+static int native_on = 1;
+int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t *nv){
+    if (!native_on || nv->count <= 0 || nv->vsz <= 0) return 0;
+    int n = nv->count; if (n < 3) return 1;                                     /* nothing to draw */
+    u32 lo = 0, hi = (u32)n - 1;
+    if (nv->idxf) {                                                             /* the vertices the indices use */
+        lo = 0xFFFFFFFFu; hi = 0;
+        if (nv->idxf == 1) { const u8 *ip = nv->idata; for (int i = 0; i < n; i++) { u32 x = ip[i]; if (x < lo) lo = x; if (x > hi) hi = x; } }
+        else if (nv->idxf == 2) { const u8 *ip = nv->idata; for (int i = 0; i < n; i++) { u32 x = (u32)ip[i * 2] | (u32)ip[i * 2 + 1] << 8; if (x < lo) lo = x; if (x > hi) hi = x; } }
+        else { const u8 *ip = nv->idata; for (int i = 0; i < n; i++) { u32 x; memcpy(&x, ip + i * 4, 4); if (x < lo) lo = x; if (x > hi) hi = x; } }
+        if (hi - lo >= 64000u) return 0; }
+    else if (n > MAXV) return 0;
+    const vprog_t *V = native_prog(nv, h->lit); if (!V) return 0;
+    flush_batch();
+    surf_t *t = target_for(st); if (!t) return 1;
+    bind(t);
+    SceGxmBlendInfo bi; float mul[3]; blend_of(st, &bi, mul);
+    SceGxmFragmentProgram *fp = get_fp(FP_MAIN, V->gxp, &bi); if (!fp) return 1;
+    u64 t_d = rs_perf_us();
+    size_t vbytes = (size_t)(hi - lo + 1) * (size_t)nv->vsz;
+    void *vd = ring_alloc((u32)vbytes); if (!vd) return 1;
+    memcpy(vd, nv->vdata + (size_t)lo * (size_t)nv->vsz, vbytes);              /* the game's vertices, as they are */
+    const u16 *ix = idx_buf;
+    if (nv->idxf) {                                                             /* indices relative to the copied range (GXM has no 8-bit indices) */
+        u16 *o = ring_alloc((u32)n * 2); if (!o) return 1; const u8 *ip = nv->idata;
+        if (nv->idxf == 1) for (int i = 0; i < n; i++) o[i] = (u16)(ip[i] - lo);
+        else if (nv->idxf == 2) for (int i = 0; i < n; i++) o[i] = (u16)(((u32)ip[i * 2] | (u32)ip[i * 2 + 1] << 8) - lo);
+        else for (int i = 0; i < n; i++) { u32 x; memcpy(&x, ip + i * 4, 4); o[i] = (u16)(x - lo); }
+        ix = o; }
+    raster_state(st);                                                           /* after ring_alloc: a fence there restarts the scene */
+    sceGxmSetVertexProgram(ctx, V->vp); sceGxmSetFragmentProgram(ctx, fp);
+    void *vb = NULL, *fb = NULL;
+    sceGxmReserveVertexDefaultUniformBuffer(ctx, &vb); set_hw_vs_uniforms(vb, V, h, st->uvs); U4(vb, V->defc, nv->defc);
+    sceGxmReserveFragmentDefaultUniformBuffer(ctx, &fb); set_main_fs_uniforms(fb, st, mul);
+    bind_texture(st);
+    sceGxmSetVertexStream(ctx, 0, vd);
+    SceGxmPrimitiveType pt = nv->ptype == 3 ? SCE_GXM_PRIMITIVE_TRIANGLES : (nv->ptype == 4 ? SCE_GXM_PRIMITIVE_TRIANGLE_STRIP : SCE_GXM_PRIMITIVE_TRIANGLE_FAN);
+    if (nv->ptype == 3) n -= n % 3;
+    sceGxmDraw(ctx, pt, SCE_GXM_INDEX_FORMAT_U16, ix, (unsigned)n);
+    st_draws++; st_batches++; rs_perf.batches++; st_tris += (unsigned)(nv->ptype == 3 ? n / 3 : n - 2);
+    rs_perf.draw_us += rs_perf_us() - t_d;
+    return 1; }
+
 /* solid quad in PSP pixel coordinates (x0,y0)-(x1,y1) exclusive, with depth z (0..1): clears */
 static void draw_clear_quad(surf_t *t, float x0, float y0, float x1, float y1, float z, const float rgba[4], int cmask, int depth_write, int sten, int sval){
     (void)t;
@@ -506,7 +761,7 @@ static void draw_clear_quad(surf_t *t, float x0, float y0, float x1, float y1, f
     float v[12] = {X0, Y0, Z, X1, Y0, Z, X0, Y1, Z, X1, Y1, Z}; memcpy(q, v, sizeof v);
     SceGxmBlendInfo bi; memset(&bi, 0, sizeof bi); bi.colorMask = (u8)cmask; bi.colorFunc = bi.alphaFunc = SCE_GXM_BLEND_FUNC_NONE;
     bi.colorSrc = bi.alphaSrc = SCE_GXM_BLEND_FACTOR_ONE; bi.colorDst = bi.alphaDst = SCE_GXM_BLEND_FACTOR_ZERO;
-    SceGxmFragmentProgram *fp = get_fp(FP_FILL, VP_FILL, &bi); if (!fp) return;
+    SceGxmFragmentProgram *fp = get_fp(FP_FILL, VP[VP_FILL].gxp, &bi); if (!fp) return;
     sceGxmSetCullMode(ctx, SCE_GXM_CULL_NONE);
     if (sten) ds_state(SCE_GXM_DEPTH_FUNC_ALWAYS, depth_write, SCE_GXM_STENCIL_FUNC_ALWAYS, SCE_GXM_STENCIL_OP_REPLACE, SCE_GXM_STENCIL_OP_REPLACE, SCE_GXM_STENCIL_OP_REPLACE, 0xFF, 0xFF, (unsigned)sval);
     else ds_state(SCE_GXM_DEPTH_FUNC_ALWAYS, depth_write, SCE_GXM_STENCIL_FUNC_ALWAYS, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, 0xFF, 0, 0);
@@ -532,13 +787,14 @@ static void draw_tex_quad(const SceGxmTexture *tex, int fprog, float dx0, float 
     float v[16] = {X0, Y0, u0, v0, X1, Y0, u1, v0, X0, Y1, u0, v1, X1, Y1, u1, v1}; memcpy(q, v, sizeof v);
     SceGxmBlendInfo bi; memset(&bi, 0, sizeof bi); bi.colorMask = SCE_GXM_COLOR_MASK_ALL; bi.colorFunc = bi.alphaFunc = SCE_GXM_BLEND_FUNC_NONE;
     bi.colorSrc = bi.alphaSrc = SCE_GXM_BLEND_FACTOR_ONE; bi.colorDst = bi.alphaDst = SCE_GXM_BLEND_FACTOR_ZERO;
-    SceGxmFragmentProgram *fp = get_fp(fprog, VP_PRES, &bi); if (!fp) return;
+    SceGxmFragmentProgram *fp = get_fp(fprog, VP[VP_PRES].gxp, &bi); if (!fp) return;
     DS_NONE(); sceGxmSetCullMode(ctx, SCE_GXM_CULL_NONE);
     sceGxmSetVertexProgram(ctx, VP[VP_PRES].vp); sceGxmSetFragmentProgram(ctx, fp);
     SceGxmTexture t = *tex; SceGxmTextureFilter fl = linear ? SCE_GXM_TEXTURE_FILTER_LINEAR : SCE_GXM_TEXTURE_FILTER_POINT;
     sceGxmTextureSetMinFilter(&t, fl); sceGxmTextureSetMagFilter(&t, fl);
     sceGxmTextureSetUAddrMode(&t, SCE_GXM_TEXTURE_ADDR_CLAMP); sceGxmTextureSetVAddrMode(&t, SCE_GXM_TEXTURE_ADDR_CLAMP);
     if (FP[fprog].tex_unit >= 0) sceGxmSetFragmentTexture(ctx, (unsigned)FP[fprog].tex_unit, &t);
+    if (FP[fprog].texel) { void *fb = NULL; sceGxmReserveFragmentDefaultUniformBuffer(ctx, &fb); U4(fb, FP[fprog].texel, pres_texel); }
     sceGxmSetVertexStream(ctx, 0, q);
     sceGxmDraw(ctx, SCE_GXM_PRIMITIVE_TRIANGLE_STRIP, SCE_GXM_INDEX_FORMAT_U16, idx_buf, 4); }
 /* a w x h RGBA8 picture as a texture in the ring (valid for the current frame) */
@@ -558,7 +814,7 @@ void gfx_transfer(u32 src, int sbw, int sx, int sy, u32 dst, int dbw, int dx, in
         if (ds == ss) return;
         bind(ds);
         draw_tex_quad(&ss->tex, FP_COPY, (float)(dx + xd), (float)(dy + yd), (float)(dx + xd + w), (float)(dy + yd + h),
-                      (float)(sx + xs) / SZ, (float)(sy + ys) / SZ, (float)(sx + xs + w) / SZ, (float)(sy + ys + h) / SZ, 0);
+                      (float)(sx + xs) / SZ, (float)(sy + ys) / SURF_H, (float)(sx + xs + w) / SZ, (float)(sy + ys + h) / SURF_H, 0);
         ds->stamp = ++surf_stamp; rs_perf.copy_n++;
     } else if (ds) {                                         /* CPU memory -> GPU surface */
         u32 *tmp = malloc((size_t)w * h * 4); if (!tmp) return; int fmt = bpp == 4 ? 3 : (ds->psz == 2 ? ds->fmt : 1);
@@ -579,7 +835,7 @@ int gfx_read_display(u32 *out){
     flush_batch(); surf_t *s = disp_surface();
     if (!s) { cpu_display(out); return 1; }
     end_scene(NULL); sceGxmFinish(ctx); rs_perf.readback_n++;
-    for (int y = 0; y < 272; y++) for (int x = 0; x < 480; x++) { u32 v; memcpy(&v, s->data + ((size_t)(y * RS_S) * PX + (size_t)(x * RS_S)) * 4, 4); out[y * 480 + x] = v | 0xFF000000u; }
+    for (int y = 0; y < 272; y++) for (int x = 0; x < 480; x++) { u32 v; memcpy(&v, s->data + ((size_t)(y * RS_S) * PXW + (size_t)(x * RS_S)) * 4, 4); out[y * 480 + x] = v | 0xFF000000u; }
     return 1; }
 u32 *gfx_read_display_full(int *w, int *h){ (void)w; (void)h; return 0; }
 u32 *gfx_present_image(int w, int h){ (void)w; (void)h; return 0; }
@@ -603,12 +859,16 @@ void gfx_present(int ww, int wh){
         float *q = ring_alloc(12 * sizeof(float));                  /* background: black */
         if (q) { float v[12] = {-1, -1, 0.5f, 1, -1, 0.5f, -1, 1, 0.5f, 1, 1, 0.5f}; memcpy(q, v, sizeof v);
             SceGxmBlendInfo bi; memset(&bi, 0, sizeof bi); bi.colorMask = SCE_GXM_COLOR_MASK_ALL; bi.colorSrc = bi.alphaSrc = SCE_GXM_BLEND_FACTOR_ONE; bi.colorDst = bi.alphaDst = SCE_GXM_BLEND_FACTOR_ZERO;
-            SceGxmFragmentProgram *fp = get_fp(FP_FILL, VP_FILL, &bi);
+            SceGxmFragmentProgram *fp = get_fp(FP_FILL, VP[VP_FILL].gxp, &bi);
             if (fp && !have) { DS_NONE(); sceGxmSetCullMode(ctx, SCE_GXM_CULL_NONE);
                 sceGxmSetVertexProgram(ctx, VP[VP_FILL].vp); sceGxmSetFragmentProgram(ctx, fp); void *fb = NULL; sceGxmReserveFragmentDefaultUniformBuffer(ctx, &fb); U4(fb, FP[FP_FILL].col, black);
                 sceGxmSetVertexStream(ctx, 0, q); sceGxmDraw(ctx, SCE_GXM_PRIMITIVE_TRIANGLE_STRIP, SCE_GXM_INDEX_FORMAT_U16, idx_buf, 4); } }
-        if (have) { float um = s ? 480.0f / SZ : 1.0f, vm = s ? 272.0f / SZ : 1.0f;
-            draw_tex_quad(&tex, FP_PRES, 0, 0, SZ, SZ, 0, 0, um, vm, 1); } }
+        if (have) { float um = s ? 480.0f / SZ : 1.0f, vm = s ? 272.0f / SURF_H : 1.0f;
+            /* 960x544 from the 480x272 PSP screen at scale S: S = 2 is 1:1, S = 4 is 2x2 supersampling (each display pixel's bilinear
+             * sample sits on the corner of 4 internal pixels = their average) */
+            int fx = use_fxaa && FP[FP_FXAA].gxp;
+            if (fx) { pres_texel[0] = um / DISP_W; pres_texel[1] = vm / DISP_H; pres_texel[2] = um - 0.5f / (s ? PXW : 480); pres_texel[3] = vm - 0.5f / (s ? PXH : 272); }
+            draw_tex_quad(&tex, fx ? FP_FXAA : FP_PRES, 0, 0, SZ, SZ, 0, 0, um, vm, 1); } }
     hud_draw_now();
     unsigned id = fence_next++; SceGxmNotification n = {notif, id};
     sceGxmEndScene(ctx, NULL, &n); no_fence = 0; ring_mark(id);
@@ -639,7 +899,7 @@ static void hud_quads(const float rgba[4], const float *v, int nv, int blend){
     SceGxmBlendInfo bi; memset(&bi, 0, sizeof bi); bi.colorMask = SCE_GXM_COLOR_MASK_ALL;
     if (blend) { bi.colorFunc = bi.alphaFunc = SCE_GXM_BLEND_FUNC_ADD; bi.colorSrc = SCE_GXM_BLEND_FACTOR_SRC_ALPHA; bi.colorDst = SCE_GXM_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; bi.alphaSrc = SCE_GXM_BLEND_FACTOR_ONE; bi.alphaDst = SCE_GXM_BLEND_FACTOR_ZERO; }
     else { bi.colorSrc = bi.alphaSrc = SCE_GXM_BLEND_FACTOR_ONE; bi.colorDst = bi.alphaDst = SCE_GXM_BLEND_FACTOR_ZERO; }
-    SceGxmFragmentProgram *fp = get_fp(FP_FILL, VP_FILL, &bi); if (!fp) return;
+    SceGxmFragmentProgram *fp = get_fp(FP_FILL, VP[VP_FILL].gxp, &bi); if (!fp) return;
     DS_NONE(); sceGxmSetCullMode(ctx, SCE_GXM_CULL_NONE);
     sceGxmSetVertexProgram(ctx, VP[VP_FILL].vp); sceGxmSetFragmentProgram(ctx, fp);
     void *fb = NULL; sceGxmReserveFragmentDefaultUniformBuffer(ctx, &fb); U4(fb, FP[FP_FILL].col, rgba);
@@ -669,8 +929,10 @@ static void hud_draw_now(void){
 static void *patcher_host_alloc(void *ud, unsigned int size){ (void)ud; return malloc(size); }
 static void patcher_host_free(void *ud, void *mem){ (void)ud; free(mem); }
 int gfx_init(void){
-    { extern u32 rs_patch_res_scale(void); RS_S = (int)rs_patch_res_scale(); if (RS_S < 1) RS_S = 1; if (RS_S > 3) RS_S = 3; }
-    cull_flip = rs_setting_int("RS_CULL_FLIP", 0); vsync_on = rs_setting_int("RS_VSYNC", 1);
+    { extern u32 rs_patch_res_scale(void); RS_S = (int)rs_patch_res_scale(); if (RS_S < 1) RS_S = 1; if (RS_S > 4) RS_S = 4;
+      SURF_H = RS_S >= 3 ? 272 : 512;                  /* 2048x2048 surfaces would not fit CDRAM; the PSP screen is 272 rows */
+      extern u32 rs_patch_fxaa(void); use_fxaa = rs_patch_fxaa() != 0; }
+    cull_flip = rs_setting_int("RS_CULL_FLIP", 0); vsync_on = rs_setting_int("RS_VSYNC", 1); native_on = rs_setting_int("RS_NATIVE_GE", 1);
     SceGxmInitializeParams ip; memset(&ip, 0, sizeof ip);
     ip.flags = 0; ip.displayQueueMaxPendingCount = DISP_N - 1; ip.displayQueueCallback = display_cb; ip.displayQueueCallbackDataSize = sizeof(disp_cb_t);
     ip.parameterBufferSize = SCE_GXM_DEFAULT_PARAMETER_BUFFER_SIZE;
@@ -707,15 +969,15 @@ int gfx_init(void){
 
     /* render targets: one for the 512x512 (x scale) surfaces, one for the display */
     SceGxmRenderTargetParams rp; memset(&rp, 0, sizeof rp);
-    rp.width = (uint16_t)PX; rp.height = (uint16_t)PX; rp.scenesPerFrame = 8; rp.multisampleMode = SCE_GXM_MULTISAMPLE_NONE; rp.driverMemBlock = -1;
+    rp.width = (uint16_t)PXW; rp.height = (uint16_t)PXH; rp.scenesPerFrame = 8; rp.multisampleMode = SCE_GXM_MULTISAMPLE_NONE; rp.driverMemBlock = -1;
     r = sceGxmCreateRenderTarget(&rp, &rt_surf);
     if (r < 0) { rp.scenesPerFrame = 1; r = sceGxmCreateRenderTarget(&rp, &rt_surf); }
-    if (r < 0) { LOGG("render target %dx%d failed 0x%08X\n", PX, PX, (unsigned)r); return -1; }
+    if (r < 0) { LOGG("render target %dx%d failed 0x%08X\n", PXW, PXH, (unsigned)r); return -1; }
     rp.width = DISP_W; rp.height = DISP_H; rp.scenesPerFrame = 1;
     r = sceGxmCreateRenderTarget(&rp, &rt_disp); if (r < 0) { LOGG("display render target failed 0x%08X\n", (unsigned)r); return -1; }
 
     /* shared depth/stencil (D24S8, tiled), loaded and stored by every scene */
-    { unsigned w = ALIGN(PX, SCE_GXM_TILE_SIZEX), h = ALIGN(PX, SCE_GXM_TILE_SIZEY);
+    { unsigned w = ALIGN(PXW, SCE_GXM_TILE_SIZEX), h = ALIGN(PXH, SCE_GXM_TILE_SIZEY);
       void *dm = gpu_alloc(SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW, w * h * 4, SCE_GXM_MEMORY_ATTRIB_RW, NULL); if (!dm) return -1;
       sceGxmDepthStencilSurfaceInit(&depth_surf, SCE_GXM_DEPTH_STENCIL_FORMAT_S8D24, SCE_GXM_DEPTH_STENCIL_SURFACE_TILED, w, dm, NULL);
       sceGxmDepthStencilSurfaceSetForceLoadMode(&depth_surf, SCE_GXM_DEPTH_STENCIL_FORCE_LOAD_ENABLED);
@@ -747,6 +1009,7 @@ int gfx_init(void){
     { static const char *n[2] = {"aPos", "aUV"}; static const u8 c[2] = {2, 2}; static const u16 o[2] = {0, 8};
       if (!make_vprog(&VP[VP_PRES], PVS_SRC, "present", n, c, o, 2, 16)) return -1; }
     if (!make_fprog(&FP[FP_MAIN], FS_MAIN, "main") || !make_fprog(&FP[FP_FILL], FILLFS_SRC, "fill") || !make_fprog(&FP[FP_PRES], PFS_SRC, "present") || !make_fprog(&FP[FP_COPY], CFS_SRC, "copy")) return -1;
+    if (use_fxaa && !make_fprog(&FP[FP_FXAA], FFS_SRC, "fxaa")) { LOGG("FXAA program unavailable: presenting without it\n"); FP[FP_FXAA].gxp = NULL; }
     { extern u32 rs_patch_hw_transform(void); hw_ok = rs_patch_hw_transform() != 0;
       static const char *n[6] = {"aP", "aN", "aT", "aC", "aW0", "aW1"}; static const u8 c[6] = {3, 3, 2, 4, 4, 4};
       static const u16 o[6] = {offsetof(gfx_hvtx_t, x), offsetof(gfx_hvtx_t, nx), offsetof(gfx_hvtx_t, u), offsetof(gfx_hvtx_t, r), offsetof(gfx_hvtx_t, w), offsetof(gfx_hvtx_t, w) + 16};
@@ -756,7 +1019,7 @@ int gfx_init(void){
           if (!make_vprog(&VP[VP_HW0 + v], src, nm, n, c, o, 6, sizeof(gfx_hvtx_t))) hw_ok = 0;
           free(src); }
       LOGG("vertex transform & lighting: %s\n", hw_ok ? "GPU (vertex programs)" : "CPU"); }
-    LOGG("renderer ready: %dx%d surfaces (%dx internal resolution), %u MB vertex ring, %u MB texture pool\n", PX, PX, RS_S, ring_size >> 20, pool_size >> 20);
+    LOGG("renderer ready: %dx%d surfaces (scale %d: the PSP screen is drawn at %dx%d), %u MB vertex ring, %u MB texture pool, FXAA %s\n", PXW, PXH, RS_S, 480 * RS_S, 272 * RS_S, ring_size >> 20, pool_size >> 20, use_fxaa ? "on" : "off");
     return 0; }
 
 /* ------------------------------------------------------------------ frontend entry points (platform/vita/main.c) */

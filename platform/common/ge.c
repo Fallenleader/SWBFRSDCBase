@@ -34,6 +34,9 @@ static u32 clut_entry(int idx){
     case 1: r = (p & 31) * 255 / 31; g = ((p >> 5) & 31) * 255 / 31; b = ((p >> 10) & 31) * 255 / 31; a = (p & 0x8000) ? 255 : 0; break;
     default: r = (p & 15) * 17; g = ((p >> 4) & 15) * 17; b = ((p >> 8) & 15) * 17; a = ((p >> 12) & 15) * 17; }
     return r | (g << 8) | (b << 16) | (a << 24); }
+void ge_clut_palette(u32 *pal, int n){ for (int i = 0; i < n; i++) pal[i] = clut_entry(i); }
+/* back ends without a native draw path (the GL one) */
+__attribute__((weak)) int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *hw, const gfx_native_t *nv){ (void)st; (void)hw; (void)nv; return 0; }
 static u32 rgb565(u16 p){ u32 r = (p & 31) * 255 / 31, g = ((p >> 5) & 63) * 255 / 63, b = ((p >> 11) & 31) * 255 / 31; return r | (g << 8) | (b << 16) | 0xFF000000u; }
 static u32 dxt_texel(u32 base, int bufw, int x, int y, int kind){
     int bx = x >> 2, by = y >> 2, bpb = kind == 8 ? 8 : 16; int bpr = (bufw + 3) >> 2;
@@ -264,15 +267,6 @@ static void do_prim(u32 data){
     float defc[4] = {(R[0x55] & 255), ((R[0x55] >> 8) & 255), ((R[0x55] >> 16) & 255), (R[0x58] & 255)};
     u64 t_v = rs_perf_us(); rs_perf.prims++; rs_perf.verts += (u64)count;
     if (!through && !(R[0xD3] & 1) && ptype >= 3 && ptype <= 5 && gfx_hw_ok()) {       /* GPU transform & lighting */
-        static gfx_hvtx_t *hv, *ho; static int hcap, hocap;
-        if (hcap < count) { hcap = count + 64; hv = realloc(hv, (size_t)hcap * sizeof *hv); }
-        if (hocap < count * 3 + 6) { hocap = count * 3 + 64; ho = realloc(ho, (size_t)hocap * sizeof *ho); }
-        for (int i = 0; i < count; i++) {
-            u32 idx = i; if (idxf) { u8 *ip = g_mem + GADDR(ib) + (idxf == 1 ? i : (idxf == 2 ? i * 2 : i * 4)); idx = idxf == 1 ? *ip : (idxf == 2 ? (u32)(ip[0] | ip[1] << 8) : (u32)(ip[0] | ip[1] << 8 | ip[2] << 16 | (u32)ip[3] << 24)); }
-            rawv_t rv; decode_vertex(vt, g_mem + GADDR(vb) + (size_t)idx * vsz, off, &rv);
-            if (!rv.hascol) { for (int k = 0; k < 4; k++) rv.col[k] = defc[k]; }
-            gfx_hvtx_t *o = &hv[i]; o->x = rv.px; o->y = rv.py; o->z = rv.pz; o->nx = rv.nx; o->ny = rv.ny; o->nz = rv.nz; o->u = rv.u; o->v = rv.v;
-            o->r = rv.col[0] / 255.0f; o->g = rv.col[1] / 255.0f; o->b = rv.col[2] / 255.0f; o->a = rv.col[3] / 255.0f; memcpy(o->w, rv.wgt, sizeof o->w); }
         pk_t k; prim_consts(&k); static gfx_hw_t h; memset(&h, 0, sizeof h); h.skin = skin; h.lit = lit;
         for (int r = 0; r < 4; r++) for (int c = 0; c < 4; c++) h.mvp[c * 4 + r] = k.mvp[r * 4 + c];
         memcpy(h.wvz, k.wvz, sizeof h.wvz);
@@ -292,8 +286,20 @@ static void do_prim(u32 data){
             for (int j = 0; j < lk.n; j++) { const typeof(lk.L[0]) *l = &lk.L[j];
                 memcpy(&h.lpos[j * 4], l->lp, 12); h.lpos[j * 4 + 3] = (float)l->type; h.latt[j * 4] = l->k0; h.latt[j * 4 + 1] = l->k1; h.latt[j * 4 + 2] = l->k2; h.latt[j * 4 + 3] = l->ex;
                 memcpy(&h.lspot[j * 4], l->sd, 12); h.lspot[j * 4 + 3] = l->cut; memcpy(&h.la[j * 4], l->la, 12); memcpy(&h.ld[j * 4], l->ld, 12); } }
-        rs_perf.vtx_us += rs_perf_us() - t_v; ge_stats_prims++;
         gfx_state_t hst; build_state(&hst, 0, 0);
+        {   /* native: the raw PSP vertices go to the GPU, which reads the PSP vertex formats itself (Vita GXM back end) */
+            gfx_native_t nv = {vt, vsz, count, ptype, idxf, g_mem + GADDR(vb), idxf ? g_mem + GADDR(ib) : 0, {defc[0] / 255.0f, defc[1] / 255.0f, defc[2] / 255.0f, defc[3] / 255.0f}, {off[0], off[1], off[2], off[3], off[4]}};
+            if (gfx_draw_native(&hst, &h, &nv)) { rs_perf.vtx_us += rs_perf_us() - t_v; ge_stats_prims++; ge_stats_tris += (u32)(ptype == 3 ? count / 3 : (count > 2 ? count - 2 : 0)); return; } }
+        static gfx_hvtx_t *hv, *ho; static int hcap, hocap;
+        if (hcap < count) { hcap = count + 64; hv = realloc(hv, (size_t)hcap * sizeof *hv); }
+        if (hocap < count * 3 + 6) { hocap = count * 3 + 64; ho = realloc(ho, (size_t)hocap * sizeof *ho); }
+        for (int i = 0; i < count; i++) {
+            u32 idx = i; if (idxf) { u8 *ip = g_mem + GADDR(ib) + (idxf == 1 ? i : (idxf == 2 ? i * 2 : i * 4)); idx = idxf == 1 ? *ip : (idxf == 2 ? (u32)(ip[0] | ip[1] << 8) : (u32)(ip[0] | ip[1] << 8 | ip[2] << 16 | (u32)ip[3] << 24)); }
+            rawv_t rv; decode_vertex(vt, g_mem + GADDR(vb) + (size_t)idx * vsz, off, &rv);
+            if (!rv.hascol) { for (int k = 0; k < 4; k++) rv.col[k] = defc[k]; }
+            gfx_hvtx_t *o = &hv[i]; o->x = rv.px; o->y = rv.py; o->z = rv.pz; o->nx = rv.nx; o->ny = rv.ny; o->nz = rv.nz; o->u = rv.u; o->v = rv.v;
+            o->r = rv.col[0] / 255.0f; o->g = rv.col[1] / 255.0f; o->b = rv.col[2] / 255.0f; o->a = rv.col[3] / 255.0f; memcpy(o->w, rv.wgt, sizeof o->w); }
+        rs_perf.vtx_us += rs_perf_us() - t_v; ge_stats_prims++;
         int n = 0;
         switch (ptype) {
         case 3: for (int i = 0; i + 2 < count; i += 3) { ho[n++] = hv[i]; ho[n++] = hv[i + 1]; ho[n++] = hv[i + 2]; } break;
