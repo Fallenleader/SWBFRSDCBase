@@ -260,7 +260,8 @@ void ha_SetDataAndGetID(sdkcall_t *c){
     int cmp = size < 512 ? (int)size : 512; const char *match = 0;
     for (int k = 0; k < 16 && !match; k++) { at3file_t *e = &files[(nfile - 1 - k + 64) % 16]; if (!e->path[0]) continue;
         if (e->size == riff_total && e->n >= cmp && !memcmp(e->head, b, (size_t)cmp)) match = e->path; }
-    if (match) { const char *rs_convert_output_for(const char *, const char *); const char *w = rs_convert_output_for(match, ".wav");
+    if (match) { const char *rs_convert_output_for(const char *, const char *) __attribute__((weak));     /* convert.c, where linked */
+        const char *w = rs_convert_output_for ? rs_convert_output_for(match, ".wav") : 0;
         if (w) { a->pcm = fopen(w, "rb"); if (a->pcm) setvbuf(a->pcm, 0, _IOFBF, 64 * 1024); }
         if (!a->pcm) a->f = vfs_fopen(match, "rb"); }
     if (!a->f && !a->pcm) { if (size >= a->data_off + a->data_len) { a->mem = malloc(size); if (a->mem) memcpy(a->mem, b, size); }   /* whole file in the buffer */

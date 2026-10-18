@@ -22,8 +22,13 @@ static void dump(void){
     fclose(f); }
 
 __attribute__((constructor)) static void census_init(void){
-    rs_census_shadow = mmap((void *)0x50000000u, 0x10000000u, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED_NOREPLACE, -1, 0);   /* clear of the guest's low 256 MB */
-    if (rs_census_shadow == MAP_FAILED) { rs_census_shadow = 0; return; }
+    static const u32 at[] = {0x50000000u, 0x60000000u, 0x70000000u, 0x40000000u, 0x30000000u, 0x20000000u, 0x90000000u, 0xA0000000u};
+    for (unsigned i = 0; i < sizeof at / sizeof at[0]; i++) {              /* 256 MB clear of the guest's low 256 MB */
+        void *p = mmap((void *)(uintptr_t)at[i], 0x10000000u, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED_NOREPLACE, -1, 0);
+        if (p != MAP_FAILED && (uintptr_t)p == at[i]) { rs_census_shadow = p; break; }
+        if (p != MAP_FAILED) munmap(p, 0x10000000u); }
+    fprintf(stderr, "[CENSUS] shadow table %s %p\n", rs_census_shadow ? "at" : "NOT MAPPED", (void *)rs_census_shadow);
+    if (!rs_census_shadow) return;
     tab = calloc(HSIZE, sizeof *tab); atexit(dump); }
 
 static void hit(u32 pc, u32 key){

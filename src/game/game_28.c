@@ -1,4 +1,7 @@
 #include "game.h"
+#ifndef RS_GE_REFERENCE
+#include "../../platform/common/gu_native.h"   /* native GU (tools/dc/native_gu.py) */
+#endif
 
 /* 08A814A4 */
 u32 func_08A814A4(u32 a0, u32 a1)
@@ -34338,6 +34341,11 @@ L_08A972BC:;
 
 /* 08A972CC */
 void func_08A972CC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_init_sync(a0, a1, a2, a3, t0, t1, t2, t3);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0, s2 = 0;
     int cnd_;
@@ -34400,6 +34408,7 @@ L_08A97364:;
     sp = sp + 16;
     return;
 }
+#endif
 
 /* 08A97378 */
 void func_08A97378(u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3)
@@ -34431,6 +34440,11 @@ L_08A973A8:;
 
 /* 08A973B0 */
 void func_08A973B0(u32 a0, u32 a1, u32 a2)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_start(a0, a1, a2);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, s0 = 0, s1 = 0;
     int cnd_;
@@ -34515,9 +34529,15 @@ L_08A97498:;
     t1 = 0 + 0;
     goto L_08A9743C;
 }
+#endif
 
 /* 08A974A0 */
 u32 func_08A974A0(u32 t2, u32 t3)
+#ifndef RS_GE_REFERENCE
+{
+    return rgu_finish_id(0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, a0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
@@ -34531,9 +34551,15 @@ L_08A974B0:;
     sp = sp + 16;
     return v0;
 }
+#endif
 
 /* 08A974BC */
 u32 func_08A974BC(u32 a0, u32 t2, u32 t3)
+#ifndef RS_GE_REFERENCE
+{
+    return rgu_finish_id(a0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, s0 = 0, s1 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -34617,9 +34643,15 @@ L_08A9759C:;
     a0 = v1 + 0;
     goto L_08A97518;
 }
+#endif
 
 /* 08A975A4 */
 void func_08A975A4(u32 a0, u32 a1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_signal(a0, a1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0;
     int cnd_;
@@ -34697,9 +34729,15 @@ L_08A9764C:;
     a2 = a2 + 8;
     goto L_08A97620;
 }
+#endif
 
 /* 08A9765C */
 void func_08A9765C(u32 a0)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_call_list(a0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0;
     int cnd_;
@@ -34741,9 +34779,15 @@ L_08A976C8:;
     ST32(v1+4, a2);
     goto L_08A976B8;
 }
+#endif
 
 /* 08A976D4 */
 void func_08A976D4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_send_list(a0, a1, a2, a3, t0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, s0 = 0;
     int cnd_;
@@ -34804,9 +34848,15 @@ L_08A97778:;
     a1 = 2;
     goto L_08A97750;
 }
+#endif
 
 /* 08A97780 */
 void func_08A97780(u32 a3, u32 t0, u32 t1, u32 t2, u32 t3)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_update_stall();   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a0 = 0, a1 = 0, a2 = 0;
     int cnd_;
@@ -34841,9 +34891,15 @@ L_08A977BC:;
 L_08A977C4:;
     goto L_08A977A8;
 }
+#endif
 
 /* 08A977CC */
 void func_08A977CC(u32 a0, u32 a1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_sync(a0, a1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0;
     int cnd_;
@@ -34904,6 +34960,7 @@ L_08A97850:;
 L_08A97858:;
     goto L_08A97840;
 }
+#endif
 
 /* 08A97860 */
 void func_08A97860(u32 a0, u32 t2, u32 t3)
@@ -34929,6 +34986,11 @@ L_08A97888:;
 
 /* 08A9789C */
 u64 func_08A9789C(u32 a0)
+#ifndef RS_GE_REFERENCE
+{
+    return rgu_enable(a0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -35004,9 +35066,15 @@ L_08A97948:;
     a2 = a2 + 8;
     goto L_08A978D8;
 }
+#endif
 
 /* 08A97960 */
 u64 func_08A97960(u32 a0)
+#ifndef RS_GE_REFERENCE
+{
+    return rgu_disable(a0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -35082,9 +35150,15 @@ L_08A97A0C:;
     a2 = a2 + 8;
     goto L_08A979A0;
 }
+#endif
 
 /* 08A97A24 */
 void func_08A97A24(void)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_end_object();   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a0 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -35157,9 +35231,15 @@ L_08A97AD8:;
 L_08A97AE0:;
     goto L_08A97AC0;
 }
+#endif
 
 /* 08A97AE8 */
 u64 func_08A97AE8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
+#ifndef RS_GE_REFERENCE
+{
+    return rgu_draw_array(a0, a1, a2, a3, t0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -35229,9 +35309,15 @@ L_08A97BA8:;
 L_08A97BB0:;
     goto L_08A97BA0;
 }
+#endif
 
 /* 08A97BB8 */
 void func_08A97BB8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_draw_array_n(a0, a1, a2, a3, t0, t1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -35316,9 +35402,15 @@ L_08A97C98:;
 L_08A97CA4:;
     goto L_08A97C90;
 }
+#endif
 
 /* 08A97CAC */
 void func_08A97CAC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_draw_bezier(a0, a1, a2, a3, t0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -35390,9 +35482,15 @@ L_08A97D74:;
 L_08A97D7C:;
     goto L_08A97D6C;
 }
+#endif
 
 /* 08A97D84 */
 void func_08A97D84(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_draw_spline(a0, a1, a2, a3, t0, t1, t2);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -35468,9 +35566,15 @@ L_08A97E5C:;
 L_08A97E64:;
     goto L_08A97E54;
 }
+#endif
 
 /* 08A97E6C */
 void func_08A97E6C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_sprite(a0, a1, a2, a3, t0, t1, t2);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, s0 = 0, s1 = 0, s2 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -35610,6 +35714,7 @@ L_08A97FF4:;
     ST32(t6, a2);
     goto L_08A97EBC;
 }
+#endif
 
 /* 08A9802C */
 void func_08A9802C(u32 a0, u32 a1, u32 a2, u32 a3)
@@ -35657,6 +35762,11 @@ L_08A98060:;
 
 /* 08A9806C */
 void func_08A9806C(u32 a0)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_clear(a0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, s0 = 0, s1 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -35837,9 +35947,15 @@ L_08A982A8:;
     t2 = LD32(t9+16);
     goto L_08A98114;
 }
+#endif
 
 /* 08A982C0 */
 void func_08A982C0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, u32 sp_in)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_copy_image(a0, a1, a2, a3, t0, t1, t2, t3, sp_in);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, t8 = 0, t9 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
@@ -35909,6 +36025,7 @@ L_08A982C0:;
     sp = sp + 32;
     return;
 }
+#endif
 
 /* 08A983E4 */
 void func_08A983E4(u32 a0, u32 a1, u32 a2)
@@ -35948,6 +36065,11 @@ L_08A98440:;
 
 /* 08A9844C */
 void func_08A9844C(u32 a0, u32 a1, u32 a2)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_draw_buffer_list(a0, a1, a2);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0;
 L_08A9844C:;
@@ -35973,9 +36095,15 @@ L_08A9844C:;
     ST32(t3+8, a2);
     return;
 }
+#endif
 
 /* 08A984A0 */
 void func_08A984A0(u32 a0, u32 a1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_depth_buffer(a0, a1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0;
 L_08A984A0:;
@@ -36001,6 +36129,7 @@ L_08A984A0:;
     ST32(t3+4, t1);
     return;
 }
+#endif
 
 /* 08A984F4 */
 void func_08A984F4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
@@ -36135,6 +36264,11 @@ L_08A9865C:;
 
 /* 08A98670 */
 void func_08A98670(u32 a0, u32 a1, u32 a2, u32 a3)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_viewport(a0, a1, a2, a3);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0, f11 = 0;
@@ -36183,9 +36317,15 @@ L_08A98670:;
     ST32(t2+12, a0);
     return;
 }
+#endif
 
 /* 08A9871C */
 void func_08A9871C(u32 a0, u32 a1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_depth_range(a0, a1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0;
@@ -36256,6 +36396,7 @@ L_08A987BC:;
     ST32(t1+12, a1);
     return;
 }
+#endif
 
 /* 08A98808 */
 void func_08A98808(u32 a0)
@@ -36281,6 +36422,11 @@ L_08A98830:;
 
 /* 08A9883C */
 void func_08A9883C(u32 a0, u32 a1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_offset(a0, a1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0;
 L_08A9883C:;
@@ -36300,9 +36446,15 @@ L_08A9883C:;
     ST32(t0+4, a2);
     return;
 }
+#endif
 
 /* 08A98878 */
 void func_08A98878(u32 a0)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_front_face(a0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0;
 L_08A98878:;
@@ -36317,9 +36469,15 @@ L_08A98878:;
     ST32(t0, a1);
     return;
 }
+#endif
 
 /* 08A988A0 */
 void func_08A988A0(u32 a0)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_shade_model(a0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0;
 L_08A988A0:;
@@ -36333,9 +36491,15 @@ L_08A988A0:;
     ST32(t0, a1);
     return;
 }
+#endif
 
 /* 08A988C4 */
 void func_08A988C4(u32 a0)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_ambient(a0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0;
 L_08A988C4:;
@@ -36353,9 +36517,15 @@ L_08A988C4:;
     ST32(t1+4, a0);
     return;
 }
+#endif
 
 /* 08A988F8 */
 void func_08A988F8(u32 a0)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_color_material(a0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0;
 L_08A988F8:;
@@ -36369,9 +36539,15 @@ L_08A988F8:;
     ST32(t0, a1);
     return;
 }
+#endif
 
 /* 08A9891C */
 void func_08A9891C(u32 a0, u32 a1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_material(a0, a1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0;
     int cnd_;
@@ -36420,6 +36596,7 @@ L_08A9898C:;
     ST32(t3-32160, v0);
     return;
 }
+#endif
 
 /* 08A98994 */
 void func_08A98994(u32 a0)
@@ -36440,6 +36617,11 @@ L_08A989A8:;
 
 /* 08A989B4 */
 void func_08A989B4(u32 a0, u32 a1, u32 a2, u32 a3)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_light(a0, a1, a2, a3);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -36523,9 +36705,15 @@ L_08A98AD0:;
     ST32(t5-32160, t4);
     return;
 }
+#endif
 
 /* 08A98AD8 */
 void func_08A98AD8(u32 a0, float f12, float f13, float f14)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_light_att(a0, f12, f13, f14);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
 L_08A98AD8:;
@@ -36555,9 +36743,15 @@ L_08A98AD8:;
     ST32(t2+8, a3);
     return;
 }
+#endif
 
 /* 08A98B3C */
 void func_08A98B3C(u32 a0, u32 a1, u32 a2)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_light_color(a0, a1, a2);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -36671,9 +36865,15 @@ L_08A98C58:;
     t1 = t1 + 4;
     goto L_08A98C1C;
 }
+#endif
 
 /* 08A98C6C */
 void func_08A98C6C(u32 a0, float f12)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_tex_level_mode(a0, f12);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0;
     float f0 = 0, f1 = 0, f2 = 0;
@@ -36699,9 +36899,15 @@ L_08A98C6C:;
     ST32(t2, v1);
     return;
 }
+#endif
 
 /* 08A98CBC */
 void func_08A98CBC(float f12)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_tex_slope(f12);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v1 = 0, a0 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0;
 L_08A98CBC:;
@@ -36716,9 +36922,15 @@ L_08A98CBC:;
     ST32(a3, a1);
     return;
 }
+#endif
 
 /* 08A98CE4 */
 void func_08A98CE4(u32 a0, u32 a1, u32 a2, u32 a3)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_tex_mode(a0, a1, a2, a3);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t0 = 0, t1 = 0, t3 = 0;
 L_08A98CE4:;
@@ -36740,9 +36952,15 @@ L_08A98CE4:;
     ST32(t3+4, a1);
     return;
 }
+#endif
 
 /* 08A98D28 */
 void func_08A98D28(u32 a0, u32 a1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_tex_filter(a0, a1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v1 = 0, a2 = 0, a3 = 0, t1 = 0;
 L_08A98D28:;
@@ -36758,9 +36976,15 @@ L_08A98D28:;
     ST32(t1, a1);
     return;
 }
+#endif
 
 /* 08A98D54 */
 void func_08A98D54(u32 a0, u32 a1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_tex_func(a0, a1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0;
 L_08A98D54:;
@@ -36779,9 +37003,15 @@ L_08A98D54:;
     ST32(t1, a0);
     return;
 }
+#endif
 
 /* 08A98D8C */
 void func_08A98D8C(u32 a0, u32 a1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_tex_wrap(a0, a1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v1 = 0, a2 = 0, a3 = 0, t1 = 0;
 L_08A98D8C:;
@@ -36797,9 +37027,15 @@ L_08A98D8C:;
     ST32(t1, a1);
     return;
 }
+#endif
 
 /* 08A98DB8 */
 void func_08A98DB8(void)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_tex_flush();   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a0 = 0, a2 = 0;
 L_08A98DB8:;
@@ -36811,9 +37047,15 @@ L_08A98DB8:;
     ST32(a2, v0);
     return;
 }
+#endif
 
 /* 08A98DD4 */
 void func_08A98DD4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_tex_image(a0, a1, a2, a3, t0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
 L_08A98DD4:;
@@ -36853,9 +37095,15 @@ L_08A98DD4:;
     ST32(t7+8, a2);
     return;
 }
+#endif
 
 /* 08A98E60 */
 void func_08A98E60(float f12, float f13)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_tex_scale(f12, f13);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0;
 L_08A98E60:;
@@ -36875,9 +37123,15 @@ L_08A98E60:;
     ST32(t0+4, a2);
     return;
 }
+#endif
 
 /* 08A98E9C */
 void func_08A98E9C(float f12, float f13)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_tex_offset(f12, f13);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0;
 L_08A98E9C:;
@@ -36897,9 +37151,15 @@ L_08A98E9C:;
     ST32(t0+4, a2);
     return;
 }
+#endif
 
 /* 08A98ED8 */
 void func_08A98ED8(u32 a0, u32 a1, u32 a2, u32 a3)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_clut_mode(a0, a1, a2, a3);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t0 = 0, t2 = 0, t3 = 0;
 L_08A98ED8:;
@@ -36922,9 +37182,15 @@ L_08A98ED8:;
     ST32(t2, a1);
     return;
 }
+#endif
 
 /* 08A98F20 */
 void func_08A98F20(u32 a0, u32 a1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_clut_load(a0, a1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0;
 L_08A98F20:;
@@ -36948,9 +37214,15 @@ L_08A98F20:;
     ST32(t2+8, a2);
     return;
 }
+#endif
 
 /* 08A98F6C */
 void func_08A98F6C(u32 a0, float f12, float f13)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_fog(a0, f12, f13);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0;
     float f1 = 0, f2 = 0, f3 = 0, f4 = 0;
@@ -36999,9 +37271,15 @@ L_08A98FD4:;
     ST32(a1+8, a0);
     return;
 }
+#endif
 
 /* 08A98FF8 */
 void func_08A98FF8(u32 a0, u32 a1, u32 a2, u32 a3)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_scissor(a0, a1, a2, a3);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -37043,9 +37321,15 @@ L_08A99058:;
 L_08A99070:;
     return;
 }
+#endif
 
 /* 08A99078 */
 void func_08A99078(u32 a0, u32 a1, u32 a2)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_color_func(a0, a1, a2);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, a3 = 0, t0 = 0, t1 = 0, t3 = 0;
 L_08A99078:;
@@ -37067,9 +37351,15 @@ L_08A99078:;
     ST32(t3+8, a0);
     return;
 }
+#endif
 
 /* 08A990BC */
 void func_08A990BC(u32 a0, u32 a1, u32 a2)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_alpha_func(a0, a1, a2);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a3 = 0, t0 = 0, t2 = 0, t3 = 0;
 L_08A990BC:;
@@ -37089,9 +37379,15 @@ L_08A990BC:;
     ST32(t2, v1);
     return;
 }
+#endif
 
 /* 08A990F8 */
 void func_08A990F8(u32 a0, u32 a1, u32 a2)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_stencil_func(a0, a1, a2);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a3 = 0, t0 = 0, t2 = 0, t3 = 0;
 L_08A990F8:;
@@ -37111,9 +37407,15 @@ L_08A990F8:;
     ST32(t2, v1);
     return;
 }
+#endif
 
 /* 08A99134 */
 void func_08A99134(u32 a0, u32 a1, u32 a2)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_stencil_op(a0, a1, a2);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v1 = 0, a3 = 0, t0 = 0, t2 = 0;
 L_08A99134:;
@@ -37131,9 +37433,15 @@ L_08A99134:;
     ST32(t2, v1);
     return;
 }
+#endif
 
 /* 08A99168 */
 void func_08A99168(u32 a0)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_depth_func(a0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0;
 L_08A99168:;
@@ -37147,9 +37455,15 @@ L_08A99168:;
     ST32(t0, a1);
     return;
 }
+#endif
 
 /* 08A9918C */
 u32 func_08A9918C(u32 a0)
+#ifndef RS_GE_REFERENCE
+{
+    return rgu_depth_mask(a0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0;
 L_08A9918C:;
@@ -37164,9 +37478,15 @@ L_08A9918C:;
     ST32(t0, a1);
     return v0;
 }
+#endif
 
 /* 08A991B4 */
 void func_08A991B4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_blend_func(a0, a1, a2, a3, t0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v1 = 0, t1 = 0, t2 = 0, t4 = 0;
 L_08A991B4:;
@@ -37192,9 +37512,15 @@ L_08A991B4:;
     ST32(t4+8, a0);
     return;
 }
+#endif
 
 /* 08A99208 */
 void func_08A99208(u32 a0)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_pixel_mask(a0);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0;
 L_08A99208:;
@@ -37213,9 +37539,15 @@ L_08A99208:;
     ST32(t1+4, t0);
     return;
 }
+#endif
 
 /* 08A99240 */
 void func_08A99240(u32 a0, u32 a1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_bone_matrix(a0, a1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0;
 L_08A99240:;
@@ -37260,9 +37592,15 @@ L_08A99240:;
     ST32(t1-32160, v0);
     return;
 }
+#endif
 
 /* 08A992E0 */
 void func_08A992E0(u32 a0, u32 a1)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_set_matrix(a0, a1);   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0;
     int cnd_;
@@ -37356,9 +37694,15 @@ L_08A993B4:;
     a3 = a3 + 52;
     goto L_08A993AC;
 }
+#endif
 
 /* 08A99428 */
 void func_08A99428(u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3)
+#ifndef RS_GE_REFERENCE
+{
+    return;   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a0 = 0, a1 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, t8 = 0, t9 = 0;
     float f0 = 0;
@@ -37472,9 +37816,15 @@ L_08A99590:;
     a0 = LD32(s0+1432);
     goto L_08A9946C;
 }
+#endif
 
 /* 08A99598 */
 void func_08A99598(u32 a3, u32 t0, u32 t1, u32 t2, u32 t3)
+#ifndef RS_GE_REFERENCE
+{
+    return;   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a0 = 0, a1 = 0, a2 = 0, t4 = 0, t5 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
@@ -37538,9 +37888,15 @@ L_08A9963C:;
     t0 = LD32(s0+1432);
     goto L_08A995D4;
 }
+#endif
 
 /* 08A99644 */
 void func_08A99644(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3)
+#ifndef RS_GE_REFERENCE
+{
+    return;   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u8 stack_[16] __attribute__((aligned(16)));
     u32 sp = (u32)(uintptr_t)(stack_ + 16);
@@ -37552,6 +37908,7 @@ L_08A99654:;
     sp = sp + 16;
     return;
 }
+#endif
 
 /* 08A99660 */
 void func_08A99660(u32 a0, u32 t2, u32 t3)
@@ -37627,6 +37984,11 @@ L_08A99714:;
 
 /* 08A9971C */
 void func_08A9971C(void)
+#ifndef RS_GE_REFERENCE
+{
+    rgu_apply_draw_buffer();   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, a0 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
     int cnd_;
@@ -37689,6 +38051,7 @@ L_08A99738:;
 L_08A997E8:;
     return;
 }
+#endif
 
 /* 08A997F0 */
 void func_08A997F0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t3)
@@ -37866,6 +38229,11 @@ L_08A99A08:;
 
 /* 08A99A3C */
 void func_08A99A3C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3)
+#ifndef RS_GE_REFERENCE
+{
+    return;   /* native GU (tools/dc/native_gu.py) */
+}
+#else
 {
     u32 v0 = 0, v1 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0, s6 = 0, s7 = 0, t8 = 0, t9 = 0, fp = 0;
     float f0 = 0;
@@ -38295,6 +38663,7 @@ L_08A99F4C:;
     a1 = LD_U8(s4);
     goto L_08A99AA4;
 }
+#endif
 
 /* 08A99F54 */
 rv_t func_08A99F54(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)

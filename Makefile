@@ -9,6 +9,7 @@
 
 #   make linux_test EBOOT=... LAYOUT=high             the same with all memory above 0x80000000 and the per-thread state in one
 #                                                     block (RS_TLS_STRUCT): the PS Vita's memory layout, on Linux
+#   make linux_test GE_REF=1                         reference build: the original GU writing GE command lists, interpreted by ge.c
 #   make linux_test CENSUS=1                         analysis build: attributes every executed GE command to the function that wrote it
 #   make vita EBOOT=... [DOCKER=1]                   PS Vita VPK (VitaSDK, or the vitasdk/vitasdk Docker image; platform/vita/README.md)
 
@@ -26,12 +27,22 @@ endif
 ifeq ($(CENSUS),1)
 B := $(B)_census
 XFLAGS += -DRS_CENSUS
+GE_REF := 1
+endif
+ifeq ($(GE_REF),1)
+B := $(B)_geref
+XFLAGS += -DRS_GE_REFERENCE
 endif
 GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
-C_SRC := $(C)/hle.c $(C)/ge.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c
+C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c
+ifeq ($(GE_REF),1)
+C_SRC += $(C)/ge.c
+else
+C_SRC += $(C)/gu_native.c
+endif
 ifeq ($(CENSUS),1)
 C_SRC += $(C)/census.c
 endif
@@ -46,7 +57,7 @@ GAME_FLAGS := $(GAME_CFLAGS) -w -fno-strict-aliasing -ffp-contract=off -Isrc/gam
 all: linux_test
 data: build/data.c
 build/data.c: ; mkdir -p build && python3 tools/dc/mkdata.py $(EBOOT) $@
-regen: ; python3 tools/dc/gen.py src/game $(EBOOT) && python3 tools/dc/vfpu_locals.py src/game --exclude=tools/dc/vfpu_locals_exclude.txt
+regen: ; python3 tools/dc/gen.py src/game $(EBOOT) && python3 tools/dc/vfpu_locals.py src/game --exclude=tools/dc/vfpu_locals_exclude.txt && python3 tools/dc/native_gu.py src/game
 
 $(B)/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p $(B)/game; $(CC32) $(GAME_FLAGS) -c $< -o $@
 $(B)/game/data.o: build/data.c ; @mkdir -p $(B)/game; $(CC32) $(GAME_FLAGS) -c $< -o $@
