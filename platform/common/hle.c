@@ -562,8 +562,8 @@ static void h_ExitGame(sdkcall_t *c){ fprintf(stderr, "[HLE] sceKernelExitGame c
 __attribute__((weak)) const char *rs_platform_save_dir(void){ const char *e = getenv("RS_SAVEDIR"); return e ? e : "savedata"; }
 static int sd_status; static u32 sd_param;
 static void sd_dir(u32 p, char *out, size_t n, const char *save){ snprintf(out, n, "%s/%s%s", rs_platform_save_dir(), gstr(p + 0x3C), save); }
-static void sd_run(u32 p){
-    int mode = (int)LW(p + 0x30); char save[24]; snprintf(save, sizeof save, "%s", gstr(p + 0x4C));
+static int sd_exec(u32 p, int mode, const char *slot){
+    char save[24]; snprintf(save, sizeof save, "%s", slot ? slot : gstr(p + 0x4C));
     if (!save[0] && LW(p + 0x60)) snprintf(save, sizeof save, "%s", gstr(LW(p + 0x60)));          /* list modes: the first name */
     char dir[700], file[800]; sd_dir(p, dir, sizeof dir, save); snprintf(file, sizeof file, "%s/%s", dir, gstr(p + 0x64));
     u32 buf = LW(p + 0x74), cap = LW(p + 0x78), size = LW(p + 0x7C); int res = 0;
@@ -579,10 +579,20 @@ static void sd_run(u32 p){
     default: break; }
     { u32 mf = LW(p + 0x5D0); if (mf) { SW(mf, 32768); SW(mf + 4, 0x10000); SW(mf + 8, 2 * 1024 * 1024); } }   /* msFree: plenty of room */
     if (mode == 8) { u32 si = LW(p + 0x5FC); if (si) { SW(si + 16, 32768); SW(si + 20, 0x10000); SW(si + 24, 2 * 1024 * 1024); SW(si + 36, 0); SW(si + 48, 0); } }
-    SW(p + 0x1C, (u32)res);
-    fprintf(stderr, "[SAVE] mode %d %s/%s: result %08x (%u bytes)\n", mode, dir, gstr(p + 0x64), (unsigned)res, (unsigned)LW(p + 0x7C)); }
-static void h_SaveInit(sdkcall_t *c){ sd_param = A0; sd_run(A0); sd_status = 1; V0 = 0; }
-static void h_SaveStatus(sdkcall_t *c){ int s = sd_status; if (s == 1 || s == 2) sd_status++; else if (s == 4) sd_status = 0; V0 = (u32)s; }
+    fprintf(stderr, "[SAVE] mode %d %s/%s: result %08x (%u bytes)\n", mode, dir, gstr(p + 0x64), (unsigned)res, (unsigned)LW(p + 0x7C));
+    return res; }
+static void sd_run(u32 p){ SW(p + 0x1C, (u32)sd_exec(p, (int)LW(p + 0x30), NULL)); }
+int rs_savedata_op(u32 p, int mode, const char *slot){ return sd_exec(p, mode, slot); }   /* save_manager.c: one slot */
+static void h_SaveInit(sdkcall_t *c){ sd_param = A0;
+    if (getenv("RS_SAVE_LOG")) { u32 p = A0, l = LW(p + 0x60); fprintf(stderr, "[SAVEP] mode %d game '%s' save '%s' file '%s' bufsize %u size %u focus %d sfo title '%s' stitle '%s' detail '%s' list:",
+        (int)LW(p + 0x30), gstr(p + 0x3C), gstr(p + 0x4C), gstr(p + 0x64), LW(p + 0x78), LW(p + 0x7C), (int)LW(p + 0x5C8), gstr(p + 0x80), gstr(p + 0x100), gstr(p + 0x180));
+        for (int i = 0; l && i < 16; i++) { const char *s = gstr(l + 20 * i); if (!s[0]) break; fprintf(stderr, " '%s'", s); } fprintf(stderr, "\n"); }
+    { extern int rs_savemgr_begin(u32); if (rs_savemgr_begin(A0)) { sd_status = 1; V0 = 0; return; } }   /* list modes: the save manager */
+    sd_run(A0); sd_status = 1; V0 = 0; }
+static void h_SaveStatus(sdkcall_t *c){
+    { extern int rs_savemgr_busy(void); extern void rs_savemgr_poll(void);
+      if (rs_savemgr_busy()) { rs_savemgr_poll(); if (rs_savemgr_busy()) { V0 = sd_status == 1 ? 1u : 2u; sd_status = 2; return; } sd_status = 3; } }
+    int s = sd_status; if (s == 1 || s == 2) sd_status++; else if (s == 4) sd_status = 0; V0 = (u32)s; }
 static void h_SaveShutdown(sdkcall_t *c){ sd_status = 4; V0 = 0; }
 static void h_UtilParam(sdkcall_t *c){ if (A0 == 7) SW(A1, 1); else if (A0 == 8) SW(A1, 1); else SW(A1, 0); V0 = 0; }
 static void h_RtcTick(sdkcall_t *c){ fl_rtc++; u64 us = guest_us() + 62135596800000000ull; SW(A0, (u32)us); SW(A0 + 4, (u32)(us >> 32)); V0 = 0; }

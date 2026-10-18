@@ -8,3 +8,4 @@ void rs_game_var_range(uint32_t var, uint32_t *min, uint32_t *max);  /* game_pat
 void rs_picker_pad(void);                                        /* after each pad read: the picker's input (the game sees none) */
 int  rs_picker_category(uint32_t category, uint32_t query, uint32_t query2, void *rv);   /* list item accepted: colour -> picker */
 int  rs_colour_lookup(uint32_t profile, uint32_t faction, int which, uint32_t *rgba);    /* custom colour of a faction, if set */
+void rs_savemgr_pad(void);                                       /* save_manager.c: the game gets no input while the dialog is up */

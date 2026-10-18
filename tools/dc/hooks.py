@@ -10,7 +10,7 @@ import re, sys, os
 
 # address -> {'before': call, 'replace': call, 'after': call}; argument names are the decompiled parameter names
 HOOKS = {
-    '088FDCC0': {'after': 'rs_input_after_pad(), rs_picker_pad()'},          # pad read (game_11.c): twin_stick.c, colour_picker.c
+    '088FDCC0': {'after': 'rs_input_after_pad(), rs_picker_pad(), rs_savemgr_pad()'},          # pad read (game_11.c): twin_stick.c, colour_picker.c, save_manager.c
     '08A5F1A4': {'after': 'rs_input_after_scheme(a0, a1)'},                   # a control scheme's bindings built (game_26.c): twin_stick.c
     '08897814': {'before': 'rs_game_var_range(a1, &a2, &a3)'},                # a game option registered with its range (game_06.c)
     '08A359F4': {'replace': 'rs_picker_category(a0, a1, a2, &r_)'},           # Personalisation: list item accepted (game_25.c)

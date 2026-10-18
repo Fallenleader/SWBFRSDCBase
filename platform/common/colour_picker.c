@@ -26,7 +26,7 @@
 #include "psp_impl.h"
 #include "gfx.h"
 #include "game_hooks.h"
-#include "ui_font.h"
+#include "overlay_ui.h"
 
 extern u32 rs_image_w[];
 extern int rs_setting_int(const char *, int);
@@ -132,79 +132,34 @@ done:
     for (int b = 449; b <= 464; b++) B8(btn + (u32)b) = 0;           /* the game sees nothing while the picker is up */
     for (int i = 3; i <= 6; i++) F32(ax + 4u * (u32)i) = 0; }
 
-/* ---------------------------------------------------------------- drawing (renderer thread, each finished frame) */
-#define MAXV 6000
-static gfx_vtx_t vs[MAXV], vt[MAXV]; static int nvs, nvt;
-typedef struct { float r, g, b, a; } col_t;
-static col_t C(int r, int g, int b, float a){ col_t c = {r / 255.0f, g / 255.0f, b / 255.0f, a}; return c; }
-static void V(gfx_vtx_t *o, float x, float y, col_t c, float u, float v){
-    o->x = x * (2.0f / 512) - 1; o->y = y * (2.0f / 512) - 1; o->z = 0; o->w = 1; o->u = u; o->v = v; o->r = c.r; o->g = c.g; o->b = c.b; o->a = c.a; o->f = 1; }
-static void quad4(gfx_vtx_t *buf, int *n, float x0, float y0, float x1, float y1, col_t tl, col_t tr, col_t bl, col_t br, float u0, float v0, float u1, float v1){
-    if (*n + 6 > MAXV) return; gfx_vtx_t *o = buf + *n;
-    V(o, x0, y0, tl, u0, v0); V(o + 1, x1, y0, tr, u1, v0); V(o + 2, x0, y1, bl, u0, v1);
-    V(o + 3, x1, y0, tr, u1, v0); V(o + 4, x1, y1, br, u1, v1); V(o + 5, x0, y1, bl, u0, v1); *n += 6; }
-static void rect(float x0, float y0, float x1, float y1, col_t c){ quad4(vs, &nvs, x0, y0, x1, y1, c, c, c, c, 0, 0, 0, 0); }
-static void vgrad(float x0, float y0, float x1, float y1, col_t t, col_t b){ quad4(vs, &nvs, x0, y0, x1, y1, t, t, b, b, 0, 0, 0, 0); }
-static void frame(float x0, float y0, float x1, float y1, float w, col_t c){ rect(x0, y0, x1, y0 + w, c); rect(x0, y1 - w, x1, y1, c); rect(x0, y0, x0 + w, y1, c); rect(x1 - w, y0, x1, y1, c); }
-static void tri(float ax, float ay, float bx, float by, float cx, float cy, col_t c){
-    if (nvs + 3 > MAXV) return; V(vs + nvs, ax, ay, c, 0, 0); V(vs + nvs + 1, bx, by, c, 0, 0); V(vs + nvs + 2, cx, cy, c, 0, 0); nvs += 3; }
-static void ring(float cx, float cy, float r0, float r1, col_t c){
-    for (int i = 0; i < 16; i++) { float a0 = i * 6.2831853f / 16, a1 = (i + 1) * 6.2831853f / 16;
-        float x00 = cx + cosf(a0) * r0, y00 = cy + sinf(a0) * r0, x01 = cx + cosf(a0) * r1, y01 = cy + sinf(a0) * r1;
-        float x10 = cx + cosf(a1) * r0, y10 = cy + sinf(a1) * r0, x11 = cx + cosf(a1) * r1, y11 = cy + sinf(a1) * r1;
-        tri(x00, y00, x01, y01, x10, y10, c); tri(x10, y10, x01, y01, x11, y11, c); } }
-static float text_w(const char *s, float sc){ float w = 0; for (; *s; s++) { int ch = (unsigned char)*s; if (ch < 32 || ch > 126) ch = '?'; w += ui_font_glyphs[ch - 32].adv * sc; } return w; }
-static void text(float x, float y, float sc, col_t c, const char *s){
-    for (; *s; s++) { int ch = (unsigned char)*s; if (ch < 32 || ch > 126) ch = '?'; const ui_glyph_t *g = &ui_font_glyphs[ch - 32];
-        if (ch != ' ') quad4(vt, &nvt, x + g->ox * sc, y + g->oy * sc, x + (g->ox + g->w) * sc, y + (g->oy + g->h) * sc, c, c, c, c,
-                             (float)g->x / UI_FONT_W, (float)g->y / UI_FONT_H, (float)(g->x + g->w) / UI_FONT_W, (float)(g->y + g->h) / UI_FONT_H);
-        x += g->adv * sc; } }
-static u32 font_hash(void *ud){ (void)ud; return 0x5EED1234u; }
-static void font_decode(u32 *dst, void *ud){ (void)ud; for (int i = 0; i < UI_FONT_W * UI_FONT_H; i++) dst[i] = 0x00FFFFFFu | (u32)ui_font_alpha[i] << 24; }
-
-/* a list entry of the menu: dark green with grey text, or (with the cursor) the bright bar with a light border and white text */
-static void entry(float x0, float y0, float x1, float y1, const char *label, int focused){
-    if (focused) { vgrad(x0, y0, x1, y1, C(26, 182, 150, 1), C(10, 126, 92, 1)); frame(x0, y0, x1, y1, 1, C(156, 238, 186, 1)); }
-    else { vgrad(x0, y0, x1, y1, C(12, 84, 58, 1), C(9, 64, 43, 1)); frame(x0, y0, x1, y1, 1, C(8, 100, 72, 1)); }
-    float sc = 0.5f; text((x0 + x1 - text_w(label, sc)) / 2, y0 + (y1 - y0 - UI_FONT_ASC * sc) / 2 - 2, sc, focused ? C(255, 255, 255, 1) : C(150, 172, 160, 1), label); }
-
-void rs_overlay_draw(u32 addr, u32 stride, u32 fmt){
+/* ---------------------------------------------------------------- drawing (renderer thread, each finished frame: overlay_ui.c) */
+void rs_picker_draw(void){
     if (!P.active) return;
     float h = P.h, s = P.s, v = P.v; int focus = P.focus, sel = P.selected;
-    nvs = nvt = 0;
     const float px0 = 153, py0 = 24, px1 = 291, py1 = 221;          /* the swatch grid's panel (PSP pixels) */
     const float qx0 = 160, qy0 = 32, qx1 = 258, qy1 = 130;          /* saturation x value square */
     const float hx0 = 266, hx1 = 282;                                /* hue slider */
-    vgrad(px0, py0, px1, py1, C(11, 77, 53, 1), C(10, 62, 42, 1));
+    ov_vgrad(px0, py0, px1, py1, ov_c(11, 77, 53, 1), ov_c(10, 62, 42, 1));
     /* square: per-vertex HSV on a 12 x 12 grid */
     for (int j = 0; j < 12; j++) for (int i = 0; i < 12; i++) {
         float s0 = i / 12.0f, s1 = (i + 1) / 12.0f, v0 = 1 - j / 12.0f, v1 = 1 - (j + 1) / 12.0f; col_t c[4]; float r, g, b;
         hsv_rgb(h, s0, v0, &r, &g, &b); c[0] = (col_t){r, g, b, 1}; hsv_rgb(h, s1, v0, &r, &g, &b); c[1] = (col_t){r, g, b, 1};
         hsv_rgb(h, s0, v1, &r, &g, &b); c[2] = (col_t){r, g, b, 1}; hsv_rgb(h, s1, v1, &r, &g, &b); c[3] = (col_t){r, g, b, 1};
-        quad4(vs, &nvs, qx0 + (qx1 - qx0) * s0, qy0 + (qy1 - qy0) * (1 - v0), qx0 + (qx1 - qx0) * s1, qy0 + (qy1 - qy0) * (1 - v1), c[0], c[1], c[2], c[3], 0, 0, 0, 0); }
+        ov_quad( qx0 + (qx1 - qx0) * s0, qy0 + (qy1 - qy0) * (1 - v0), qx0 + (qx1 - qx0) * s1, qy0 + (qy1 - qy0) * (1 - v1), c[0], c[1], c[2], c[3], 0, 0, 0, 0); }
     /* hue: red at the top, through magenta, blue, cyan, green, yellow to red at the bottom */
     for (int k = 0; k < 6; k++) { float r0, g0, b0, r1, g1, b1; hsv_rgb(360 - k * 60.0f, 1, 1, &r0, &g0, &b0); hsv_rgb(360 - (k + 1) * 60.0f, 1, 1, &r1, &g1, &b1);
-        float y0 = qy0 + (qy1 - qy0) * k / 6, y1 = qy0 + (qy1 - qy0) * (k + 1) / 6; vgrad(hx0, y0, hx1, y1, (col_t){r0, g0, b0, 1}, (col_t){r1, g1, b1, 1}); }
+        float y0 = qy0 + (qy1 - qy0) * k / 6, y1 = qy0 + (qy1 - qy0) * (k + 1) / 6; ov_vgrad(hx0, y0, hx1, y1, (col_t){r0, g0, b0, 1}, (col_t){r1, g1, b1, 1}); }
     /* frames: the cursor's input lighter, the selected one white */
     for (int k = 0; k < 2; k++) { float x0 = k ? hx0 : qx0, x1 = k ? hx1 : qx1;
-        if (sel == k) frame(x0 - 2, qy0 - 2, x1 + 2, qy1 + 2, 2, C(255, 255, 255, 1));
-        else if (focus == k) frame(x0 - 2, qy0 - 2, x1 + 2, qy1 + 2, 1, C(156, 238, 186, 1));
-        else frame(x0 - 1, qy0 - 1, x1 + 1, qy1 + 1, 1, C(0, 0, 0, 0.6f)); }
+        if (sel == k) ov_frame(x0 - 2, qy0 - 2, x1 + 2, qy1 + 2, 2, ov_c(255, 255, 255, 1));
+        else if (focus == k) ov_frame(x0 - 2, qy0 - 2, x1 + 2, qy1 + 2, 1, ov_c(156, 238, 186, 1));
+        else ov_frame(x0 - 1, qy0 - 1, x1 + 1, qy1 + 1, 1, ov_c(0, 0, 0, 0.6f)); }
     /* square cursor (a ring) and hue markers (triangles at both sides) */
-    { float cx = qx0 + (qx1 - qx0) * s, cy = qy0 + (qy1 - qy0) * (1 - v); ring(cx, cy, 3.5f, 5.0f, C(0, 0, 0, 0.7f)); ring(cx, cy, 2.5f, 3.5f, C(255, 255, 255, 1)); }
-    { float y = qy0 + (qy1 - qy0) * (1 - h / 360.0f); tri(hx0 - 6, y - 4, hx0 - 6, y + 4, hx0 - 1, y, C(230, 230, 230, 1)); tri(hx1 + 6, y - 4, hx1 + 1, y, hx1 + 6, y + 4, C(230, 230, 230, 1)); }
-    entry(qx0, 146, hx1, 170, "Save", focus == 2 && sel < 0);
-    entry(qx0, 176, hx1, 200, "Cancel", focus == 3 && sel < 0);
+    { float cx = qx0 + (qx1 - qx0) * s, cy = qy0 + (qy1 - qy0) * (1 - v); ov_ring(cx, cy, 3.5f, 5.0f, ov_c(0, 0, 0, 0.7f)); ov_ring(cx, cy, 2.5f, 3.5f, ov_c(255, 255, 255, 1)); }
+    { float y = qy0 + (qy1 - qy0) * (1 - h / 360.0f); ov_tri(hx0 - 6, y - 4, hx0 - 6, y + 4, hx0 - 1, y, ov_c(230, 230, 230, 1)); ov_tri(hx1 + 6, y - 4, hx1 + 1, y, hx1 + 6, y + 4, ov_c(230, 230, 230, 1)); }
+    ov_entry(qx0, 146, hx1, 170, "Save", focus == 2 && sel < 0);
+    ov_entry(qx0, 176, hx1, 200, "Cancel", focus == 3 && sel < 0);
     /* swatch of the colour being picked, under the buttons */
-    { float r, g, b; hsv_rgb(h, s, v, &r, &g, &b); rect(qx0, 206, hx1, 214, (col_t){r, g, b, 1}); frame(qx0 - 1, 205, hx1 + 1, 215, 1, C(0, 0, 0, 0.6f)); }
+    { float r, g, b; hsv_rgb(h, s, v, &r, &g, &b); ov_rect(qx0, 206, hx1, 214, (col_t){r, g, b, 1}); ov_frame(qx0 - 1, 205, hx1 + 1, 215, 1, ov_c(0, 0, 0, 0.6f)); }
 
-    gfx_state_t st; memset(&st, 0, sizeof st);
-    st.fbaddr = gfx_vram(addr); st.fbfmt = (int)fmt; st.fbstride = stride ? (int)stride : 512;
-    st.sx1 = 0; st.sy1 = 0; st.sx2 = 479; st.sy2 = 271; st.cmr = st.cmg = st.cmb = 1;
-    st.blend = 1; st.bsrc = 2; st.bdst = 3; st.uvs[0] = st.uvs[1] = 1;
-    gfx_draw(&st, vs, nvs);
-    if (nvt) {
-        static gtex_key_t key = {0x0BF00000u, UI_FONT_W, UI_FONT_H, 7, 0, UI_FONT_W, 0x5F0A7u}; gtex_src_t src = {font_hash, font_decode, &key};
-        st.texid = gfx_tex_acquire(&key, &src, st.uvs); st.tex = st.texid != 0; st.trgba = 1; st.tfilter = 1; st.tclampu = st.tclampv = 1; st.tenv = 0xFFFFFF;
-        if (st.tex) gfx_draw(&st, vt, nvt); }
-    gfx_flush(); }
+}

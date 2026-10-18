@@ -116,7 +116,15 @@ The controls are rebound in the game's own input tables (`platform/common/twin_s
 ## Saving
 
 The game's profile saves (Options → Profile Management, and its autosave) are written to `ux0:data/SWBFRS/SAVEDATA/` in the
-PSP's layout (`ULUS102920000/DATA.BIN`). The PSP's save dialogs aren't shown; the save or load happens at once.
+PSP's layout (`ULUS102920000/DATA.BIN`).
+
+Where the PSP showed its save dialog, a save manager takes its place (`platform/common/save_manager.c`, experimental branch):
+* It has five profile slots, each showing the profile name and the date it was saved, or "Empty".
+* **Load Profile** (and "Yes" to loading at start-up) loads the chosen slot.
+* **Save Current Profile** saves to the chosen slot. The first empty slot is selected to start, and overwriting a used slot asks first.
+* **Delete Data** deletes the chosen slot only after you confirm "Yes" ("No" is selected to start).
+* Up/down move between slots, Cross selects, and Circle goes back.
+* `RS_SAVE_MANAGER=0` makes the save or load happen at once, without the manager.
 
 ## Personalization colours (experimental branch)
 
