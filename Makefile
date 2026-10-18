@@ -37,7 +37,7 @@ GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
-C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c
+C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c
 ifeq ($(GE_REF),1)
 C_SRC += $(C)/ge.c
 else
@@ -57,7 +57,7 @@ GAME_FLAGS := $(GAME_CFLAGS) -w -fno-strict-aliasing -ffp-contract=off -Isrc/gam
 all: linux_test
 data: build/data.c
 build/data.c: ; mkdir -p build && python3 tools/dc/mkdata.py $(EBOOT) $@
-regen: ; python3 tools/dc/gen.py src/game $(EBOOT) && python3 tools/dc/vfpu_locals.py src/game --exclude=tools/dc/vfpu_locals_exclude.txt && python3 tools/dc/native_gu.py src/game
+regen: ; python3 tools/dc/gen.py src/game $(EBOOT) && python3 tools/dc/vfpu_locals.py src/game --exclude=tools/dc/vfpu_locals_exclude.txt && python3 tools/dc/native_gu.py src/game && python3 tools/dc/hooks.py src/game
 
 $(B)/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p $(B)/game; $(CC32) $(GAME_FLAGS) -c $< -o $@
 $(B)/game/data.o: build/data.c ; @mkdir -p $(B)/game; $(CC32) $(GAME_FLAGS) -c $< -o $@

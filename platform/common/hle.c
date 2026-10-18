@@ -446,7 +446,7 @@ static void h_IoGetstat(sdkcall_t *c){ char full[1500]; int isdir; unsigned sz; 
 /* ---------------- misc ---------------- */
 /* Platform backends supply pad state. Defaults below are used by the headless host build. */
 typedef struct { u32 buttons; u8 lx, ly, rx, ry; } rs_pad_t;
-/* Headless default backend: optional script  RS_SCRIPT="frame:hexbuttons[:lx:ly];..."  (state holds from that frame on) */
+/* Headless default backend: optional script  RS_SCRIPT="frame:hexbuttons[:lx:ly[:rx:ry]];..."  (state holds from that frame on) */
 __attribute__((weak)) void rs_backend_read_pad(rs_pad_t *p){
     p->buttons = 0; p->lx = p->ly = p->rx = p->ry = 0x80;
     static char *scr; static int init; if (!init) { init = 1; const char *e = getenv("RS_SCRIPT"); if (e) scr = strdup(e); }
@@ -454,15 +454,14 @@ __attribute__((weak)) void rs_backend_read_pad(rs_pad_t *p){
     /* RS_SCRIPT_CLOCK=1: step = 50 ms of guest clock (one frame of the original 20 FPS game) instead of one vblank -> frame-rate independent */
     static int clk = -1; static u64 t0; if (clk < 0) { clk = getenv("RS_SCRIPT_CLOCK") != 0; t0 = now_us(); }
     unsigned cur = clk ? (unsigned)((now_us() - t0) / 50000ull) : (unsigned)g_frames;
-    for (char *tok = strtok_r(s, ";", &save); tok; tok = strtok_r(0, ";", &save)) { unsigned fr = 0, b = 0, lx = 128, ly = 128; int n = sscanf(tok, "%u:%x:%u:%u", &fr, &b, &lx, &ly);
-        if (n >= 2 && cur >= fr) { p->buttons = b; p->lx = n >= 3 ? lx : 128; p->ly = n >= 4 ? ly : 128; } }
+    for (char *tok = strtok_r(s, ";", &save); tok; tok = strtok_r(0, ";", &save)) { unsigned fr = 0, b = 0, lx = 128, ly = 128, rx = 128, ry = 128; int n = sscanf(tok, "%u:%x:%u:%u:%u:%u", &fr, &b, &lx, &ly, &rx, &ry);
+        if (n >= 2 && cur >= fr) { p->buttons = b; p->lx = n >= 3 ? lx : 128; p->ly = n >= 4 ? ly : 128; p->rx = n >= 5 ? rx : 128; p->ry = n >= 6 ? ry : 128; } }
     free(s); }
-extern volatile int rs_turn_x, rs_turn_y;   /* right-stick turning, consumed by the (future) camera patch */
-volatile int rs_turn_x, rs_turn_y;
+u8 rs_right_stick[2] = {128, 128};   /* the right stick (raw, as the PSP reports the left one): read by platform/common/twin_stick.c */
 static void h_CtrlRead(sdkcall_t *c){ rs_pad_t p; rs_backend_read_pad(&p); u32 b = A0;
-    /* PSP has ONE analog stick: the left Vita stick drives it (move + strafe). The right stick is exported for turning. */
+    /* The PSP has one analog stick: the left stick goes to the game as it. The right stick is kept for twin_stick.c (turn / look). */
     SW(b, (u32)guest_us()); SW(b + 4, p.buttons); SB(b + 8, p.lx); SB(b + 9, p.ly);
-    rs_turn_x = (int)p.rx - 128; rs_turn_y = (int)p.ry - 128; V0 = 1; yield_big(); }
+    rs_right_stick[0] = p.rx; rs_right_stick[1] = p.ry; V0 = 1; yield_big(); }
 static void dump_frame(const char *dir, int n){
     static u32 buf[480 * 272]; if (!rs_display_read(buf)) return; char p[600]; snprintf(p, sizeof p, "%s/frame_%05d.ppm", dir, n); FILE *f = fopen(p, "wb"); if (!f) return;
     fprintf(f, "P6\n480 272\n255\n"); for (int i = 0; i < 480 * 272; i++) { u8 rgb[3] = {buf[i] & 255, (buf[i] >> 8) & 255, (buf[i] >> 16) & 255}; fwrite(rgb, 1, 3, f); } fclose(f); }
@@ -655,3 +654,4 @@ int rs_hang_report(char *b, int n){
            in ? "INSIDE " : "guest code", in ? hname(in - 1) : "", l < 0 ? "-" : hname(l), t->last_ra, t->last_a0, t->ncalls_t); }
 #undef HP
     return o; }
+

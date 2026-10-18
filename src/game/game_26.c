@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 08A4EED4 */
 rv_t func_08A4EED4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12)
@@ -22824,7 +22825,7 @@ L_08A5F194:;
 }
 
 /* 08A5F1A4 */
-void func_08A5F1A4(u32 a0, u32 a1)
+static void func_08A5F1A4__orig(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, t0 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0;
     float f0 = 0, f12 = 0, f13 = 0, f14 = 0, f15 = 0, f20 = 0, f21 = 0, f22 = 0, f23 = 0, f24 = 0, f25 = 0, f26 = 0, f27 = 0;
@@ -23596,6 +23597,12 @@ L_08A5FAF8:;
     a2 = LD32(s3+32);
     f12 = f22;
     goto L_08A5F5D4;
+}
+
+void func_08A5F1A4(u32 a0, u32 a1)
+{
+    func_08A5F1A4__orig(a0, a1);
+    rs_input_after_scheme(a0, a1);   /* native hook (tools/dc/hooks.py) */
 }
 
 /* 08A5FB08 */

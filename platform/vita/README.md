@@ -87,6 +87,7 @@ All settings are optional `KEY=VALUE` lines:
 | `RS_TEX_POOL_MB` | 48 | video memory for textures |
 | `RS_TEX_BUDGET_MB` | 40 | texture cache size before old textures are evicted |
 | `RS_CPU_PIN` | 1 | 1 = renderer on core 0, game main thread on core 1, other game threads on core 2 |
+| `RS_TWIN_STICK` | 1 | 1 = left stick move + strafe, right stick turn + look; 0 = the PSP's one-stick controls |
 | `RS_FPS` | 30 | frame rate: 30 or 60 |
 | `RS_AUDIO` | 1 | 0 = no sound |
 | `RS_HUD` | 0 | 1 = frame-rate / load overlay |
@@ -97,8 +98,17 @@ All settings are optional `KEY=VALUE` lines:
 ## Controls
 
 * The Vita buttons map to the PSP buttons of the same name.
-* The left stick is the PSP analog stick.
+* **Twin-stick** (default):
+  * The left stick moves (forward/back) and strafes (left/right).
+  * The right stick turns (left/right) and looks up/down. Look follows the game's invert-look option.
+  * Moving, strafing, turning and looking all work at the same time. Strafing no longer needs the shoulder button.
+  * In the alternate control scheme (face buttons look), the right stick is added, and the face buttons keep working.
+  * `RS_TWIN_STICK=0` restores the PSP layout: one stick, with a shoulder button switching turn/strafe.
 * **L + R + START + SELECT** quits.
+
+The controls are rebound in the game's own input tables (`platform/common/twin_stick.c`, hooked in by `tools/dc/hooks.py`):
+* The right stick is processed by the game's own stick code, with the same dead zone and curve as the left.
+* Turning and looking use the game's tuned response for turning.
 
 ## Memory
 
