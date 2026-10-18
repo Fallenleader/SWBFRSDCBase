@@ -26,6 +26,8 @@ const SceGxmProgram *gxm_shader(const char *cg_source, int fragment);
 /* Frame: begin a scene on the next display buffer (everything cleared to clear_abgr), end it and queue it for display. */
 void gxm_begin_frame(uint32_t clear_abgr);
 void gxm_end_frame(void);
+void gxm_set_dialog(int on);                          /* a system dialog is open: draw it over each frame */
+int  gxm_frame_index(void);                           /* rotates with the display buffers (deferred frees) */
 const SceGxmColorSurface *gxm_color_surface(void);
 const SceGxmDepthStencilSurface *gxm_depth_surface(void);
 
@@ -38,6 +40,7 @@ void gxm_tex_free(gxm_tex_t *t);
 /* 2D drawing in screen pixels (0,0 top left .. 960,544).  Colours are 0xAABBGGRR. */
 void ui_quad(const gxm_tex_t *t, float x, float y, float w, float h, float u0, float v0, float u1, float v1, uint32_t abgr);
 void ui_rect(float x, float y, float w, float h, uint32_t abgr);
+void ui_quad_opaque(const gxm_tex_t *t, float x, float y, float w, float h, float u0, float v0, float u1, float v1);   /* no blending, alpha ignored */
 float ui_text(float x, float y, float scale, uint32_t abgr, const char *s);           /* returns the pen x after the text */
 float ui_text_width(const char *s, float scale);
 void ui_flush(void);

@@ -37,9 +37,13 @@ endif()
 
 file(GLOB GAME_SRC "${ROOT}/src/game/game_*.c")
 file(GLOB AT3_SRC "${ROOT}/platform/common/ext/at3/*.cpp")
-set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/ge.c" "${ROOT}/platform/common/audio.c" "${ROOT}/platform/common/settings.c" "${ROOT}/platform/common/vfs.c" "${ROOT}/platform/common/gfx_jobs.c")
-# renderer: the GL ES 2.0 back end (platform/linux_test/gfx_gl.c, Cg shaders on the Vita) on top of vitaGL
-set(VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/main.c" "${CMAKE_CURRENT_SOURCE_DIR}/stdio_lock.c" "${CMAKE_CURRENT_SOURCE_DIR}/gfx_vgl.c" "${ROOT}/platform/linux_test/gfx_gl.c" "${ROOT}/platform/linux_test/texrep.c")
+# GPU: the game's GU calls run natively (gu_native.c); ge.c (the GE command-list interpreter) is not built: it stays in the tree as the
+# reference for porting the renderer to other native APIs (Makefile GE_REF=1 on PC)
+set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/gu_native.c" "${ROOT}/platform/common/audio.c" "${ROOT}/platform/common/settings.c"
+               "${ROOT}/platform/common/vfs.c" "${ROOT}/platform/common/gfx_jobs.c" "${ROOT}/platform/common/convert.c" "${ROOT}/platform/common/asura_tex.c")
+# renderer: GXM, the Vita's native GPU API (no GL layer)
+set(VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/main.c" "${CMAKE_CURRENT_SOURCE_DIR}/stdio_lock.c" "${CMAKE_CURRENT_SOURCE_DIR}/gxm_core.c" "${CMAKE_CURRENT_SOURCE_DIR}/gfx_gxm.c"
+             "${CMAKE_CURRENT_SOURCE_DIR}/convert_screen.c")
 
 add_executable(swbfrs ${GAME_SRC} "${RS_DATA_C}" ${COMMON_SRC} "${GLUE_C}" ${VITA_SRC} ${AT3_SRC})
 target_include_directories(swbfrs PRIVATE "${ROOT}/src/game" "${ROOT}/platform/common" "${ROOT}/platform/linux_test" "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/platform/common/ext/at3")
@@ -50,8 +54,8 @@ set_source_files_properties(${GAME_SRC} "${RS_DATA_C}" PROPERTIES COMPILE_OPTION
 set_source_files_properties(${COMMON_SRC} "${GLUE_C}" ${VITA_SRC} PROPERTIES COMPILE_OPTIONS "-O2")
 set_source_files_properties(${AT3_SRC} PROPERTIES COMPILE_OPTIONS "-O2;-ffast-math")
 
-target_compile_definitions(swbfrs PRIVATE RS_VITAGL)
-set(RS_LIBS vitaGL mathneon SceKernelDmacMgr_stub SceTouch_stub SceHid_stub SceMotion_stub SceAudioIn_stub
+# media conversion (convert.c): FFmpeg from the VitaSDK (H.264 MPEG-PS -> MP4 with AAC audio)
+set(RS_LIBS avformat avcodec swresample avutil mp3lame mpg123 m SceKernelDmacMgr_stub SceTouch_stub SceHid_stub SceMotion_stub SceAudioIn_stub
             SceGxm_stub SceDisplay_stub SceCtrl_stub SceAudio_stub ScePower_stub SceSysmodule_stub SceAppMgr_stub SceAppUtil_stub SceCommonDialog_stub
             SceIofilemgr_stub vitashark SceShaccCg_stub SceShaccCgExt taihen_stub)
 target_link_libraries(swbfrs ${RS_LIBS} stdc++ pthread m)

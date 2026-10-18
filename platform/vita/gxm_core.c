@@ -5,6 +5,7 @@
 #include <psp2/kernel/sysmem.h>
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/display.h>
+#include <psp2/common_dialog.h>
 #include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
 #include <vitashark.h>
@@ -14,7 +15,7 @@
 #define NBUF 3
 #define STRIDE GXM_W
 #define ALIGN(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
-#define FRAME_SCRATCH (4u * 1024 * 1024)
+#define FRAME_SCRATCH (8u * 1024 * 1024)
 
 static char err[200];
 const char *gxm_error(void){ return err; }
@@ -24,7 +25,10 @@ static SceGxmContext *ctx; static SceGxmRenderTarget *rt; static SceGxmShaderPat
 static SceGxmColorSurface surf[NBUF]; static SceGxmSyncObject *sync[NBUF]; static void *fb[NBUF];
 static SceGxmDepthStencilSurface depth;
 static int back, front;
-static uint8_t *scratch[NBUF]; static size_t scratch_used;
+static uint8_t *scratch[NBUF]; static size_t scratch_used; static int scr;          /* frame scratch in use (rotates at gxm_end_frame) */
+static volatile unsigned *notif; static unsigned scr_fence[NBUF];                  /* GPU progress: the display scene that last used each scratch block */
+static void *depth_mem; static int dialog_on;
+void gxm_set_dialog(int on){ dialog_on = on; }
 static char cache_dir[256];
 
 SceGxmContext *gxm_ctx(void){ return ctx; }
@@ -52,7 +56,7 @@ void gxm_free(void *p){
     for (blk_t **q = &blocks; *q; q = &(*q)->next) if ((*q)->p == p) { blk_t *b = *q; *q = b->next; sceGxmUnmapMemory(p); sceKernelFreeMemBlock(b->uid); free(b); return; } }
 void *gxm_frame_alloc(size_t size, size_t align){
     size_t o = ALIGN(scratch_used, align ? align : 4); if (o + size > FRAME_SCRATCH) return NULL;
-    scratch_used = o + size; return scratch[back] + o; }
+    scratch_used = o + size; return scratch[scr] + o; }
 
 static void *usse_alloc(size_t size, int fragment, unsigned *offset){
     SceUID uid; void *p = mem_block(SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE, size, &uid); if (!p) return NULL;
@@ -96,8 +100,10 @@ static const char *ui_vs =
     "{ vPos = float4(aPos.x * uScale.x - 1.0, 1.0 - aPos.y * uScale.y, 0.5, 1.0); vUv = aUv; vCol = aCol; }\n";
 static const char *ui_fs =
     "float4 main(float2 vUv : TEXCOORD0, float4 vCol : COLOR, uniform sampler2D tex) { return tex2D(tex, vUv) * vCol; }\n";
+static const char *ui_fs_opaque =
+    "float4 main(float2 vUv : TEXCOORD0, float4 vCol : COLOR, uniform sampler2D tex) { return float4(tex2D(tex, vUv).rgb * vCol.rgb, 1.0); }\n";
 typedef struct { float x, y, u, v; uint32_t c; } uiv_t;
-static SceGxmVertexProgram *ui_vp; static SceGxmFragmentProgram *ui_fp; static const SceGxmProgramParameter *ui_scale;
+static SceGxmVertexProgram *ui_vp; static SceGxmFragmentProgram *ui_fp, *ui_fp_op; static const SceGxmProgramParameter *ui_scale;
 static uint16_t *quad_idx; static gxm_tex_t white, font;
 #define UI_MAXQ 2048
 static uiv_t *ui_v; static int ui_n; static const gxm_tex_t *ui_t;
@@ -117,18 +123,21 @@ static int ui_init(void){
     SceGxmBlendInfo bl; memset(&bl, 0, sizeof bl); bl.colorMask = SCE_GXM_COLOR_MASK_ALL; bl.colorFunc = SCE_GXM_BLEND_FUNC_ADD; bl.alphaFunc = SCE_GXM_BLEND_FUNC_ADD;
     bl.colorSrc = SCE_GXM_BLEND_FACTOR_SRC_ALPHA; bl.colorDst = SCE_GXM_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; bl.alphaSrc = SCE_GXM_BLEND_FACTOR_ONE; bl.alphaDst = SCE_GXM_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     if (sceGxmShaderPatcherCreateFragmentProgram(patcher, fid, SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE, &bl, vs, &ui_fp) < 0) FAIL("cannot create the 2D fragment program");
+    { const SceGxmProgram *fo = gxm_shader(ui_fs_opaque, 1); SceGxmShaderPatcherId oid; if (!fo || sceGxmShaderPatcherRegisterProgram(patcher, fo, &oid) < 0 ||
+        sceGxmShaderPatcherCreateFragmentProgram(patcher, oid, SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE, NULL, vs, &ui_fp_op) < 0) FAIL("cannot create the opaque 2D program"); }
     quad_idx = gxm_alloc(UI_MAXQ * 6 * 2, 16, 0); if (!quad_idx) FAIL("out of GPU memory (2D indices)");
     for (int i = 0; i < UI_MAXQ; i++) { uint16_t b = (uint16_t)(i * 4); uint16_t *q = quad_idx + i * 6; q[0] = b; q[1] = b + 1; q[2] = b + 2; q[3] = b + 2; q[4] = b + 1; q[5] = b + 3; }
     uint32_t w1[64]; for (int i = 0; i < 64; i++) w1[i] = 0xFFFFFFFFu; if (gxm_tex_rgba(&white, w1, 8, 8, 0)) return -1;
     if (gxm_tex_alpha(&font, ui_font_alpha, UI_FONT_W, UI_FONT_H)) return -1;
     return 0; }
 
+static int ui_opaque;
 void ui_flush(void){
     if (!ui_n || !ui_t) { ui_n = 0; return; }
     uiv_t *v = gxm_frame_alloc(sizeof(uiv_t) * 4 * (size_t)ui_n, 16);
     if (v) {
         memcpy(v, ui_v, sizeof(uiv_t) * 4 * (size_t)ui_n);
-        sceGxmSetVertexProgram(ctx, ui_vp); sceGxmSetFragmentProgram(ctx, ui_fp);
+        sceGxmSetVertexProgram(ctx, ui_vp); sceGxmSetFragmentProgram(ctx, ui_opaque ? ui_fp_op : ui_fp);
         void *ub; sceGxmReserveVertexDefaultUniformBuffer(ctx, &ub); float sc[4] = {2.0f / GXM_W, 2.0f / GXM_H, 0, 0}; sceGxmSetUniformDataF(ub, ui_scale, 0, 4, sc);
         sceGxmSetFragmentTexture(ctx, 0, &ui_t->tex); sceGxmSetVertexStream(ctx, 0, v);
         sceGxmDraw(ctx, SCE_GXM_PRIMITIVE_TRIANGLES, SCE_GXM_INDEX_FORMAT_U16, quad_idx, (unsigned)ui_n * 6); }
@@ -138,6 +147,8 @@ void ui_quad(const gxm_tex_t *t, float x, float y, float w, float h, float u0, f
     if (t != ui_t || ui_n >= UI_MAXQ) { ui_flush(); ui_t = t; }
     uiv_t *v = ui_v + ui_n * 4; ui_n++;
     v[0] = (uiv_t){x, y, u0, v0, c}; v[1] = (uiv_t){x + w, y, u1, v0, c}; v[2] = (uiv_t){x, y + h, u0, v1, c}; v[3] = (uiv_t){x + w, y + h, u1, v1, c}; }
+void ui_quad_opaque(const gxm_tex_t *t, float x, float y, float w, float h, float u0, float v0, float u1, float v1){
+    ui_flush(); ui_opaque = 1; ui_quad(t, x, y, w, h, u0, v0, u1, v1, 0xFFFFFFFFu); ui_flush(); ui_opaque = 0; }
 void ui_rect(float x, float y, float w, float h, uint32_t c){ ui_quad(&white, x, y, w, h, 0.5f, 0.5f, 0.5f, 0.5f, c); }
 float ui_text_width(const char *s, float sc){ float w = 0; for (; *s; s++) { int c = (unsigned char)*s; if (c < 32 || c > 126) c = '?'; w += ui_font_glyphs[c - 32].adv * sc; } return w; }
 float ui_text(float x, float y, float sc, uint32_t col, const char *s){
@@ -192,7 +203,8 @@ int gxm_init(const char *shader_cache_dir){
         if (sceGxmSyncObjectCreate(&sync[i]) < 0) FAIL("sceGxmSyncObjectCreate failed");
         scratch[i] = gxm_alloc(FRAME_SCRATCH, 16, 0); if (!scratch[i]) FAIL("out of GPU memory (frame scratch)"); }
     unsigned dw = ALIGN(GXM_W, SCE_GXM_TILE_SIZEX), dh = ALIGN(GXM_H, SCE_GXM_TILE_SIZEY);
-    void *dmem = gxm_alloc(4u * dw * dh, SCE_GXM_DEPTHSTENCIL_SURFACE_ALIGNMENT, 1); if (!dmem) FAIL("out of video memory (depth buffer)");
+    void *dmem = gxm_alloc(4u * dw * dh, SCE_GXM_DEPTHSTENCIL_SURFACE_ALIGNMENT, 1); if (!dmem) FAIL("out of video memory (depth buffer)"); depth_mem = dmem;
+    notif = sceGxmGetNotificationRegion(); notif[0] = 0;
     if (sceGxmDepthStencilSurfaceInit(&depth, SCE_GXM_DEPTH_STENCIL_FORMAT_S8D24, SCE_GXM_DEPTH_STENCIL_SURFACE_TILED, dw, dmem, NULL) < 0) FAIL("sceGxmDepthStencilSurfaceInit failed");
 
     const unsigned pbuf = 64 * 1024, pvu = 64 * 1024, pfu = 64 * 1024; unsigned voff, foff;
@@ -210,15 +222,32 @@ int gxm_init(const char *shader_cache_dir){
     return 0; }
 
 void gxm_begin_frame(uint32_t clear_abgr){
-    back = (front + 1) % NBUF; scratch_used = 0;
+    back = (front + 1) % NBUF;
     sceGxmBeginScene(ctx, 0, rt, NULL, NULL, sync[back], &surf[back], &depth);
     sceGxmSetFrontDepthFunc(ctx, SCE_GXM_DEPTH_FUNC_ALWAYS); sceGxmSetFrontDepthWriteEnable(ctx, SCE_GXM_DEPTH_WRITE_DISABLED);
+    sceGxmSetFrontStencilFunc(ctx, SCE_GXM_STENCIL_FUNC_ALWAYS, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, 0, 0);
+    sceGxmSetTwoSidedEnable(ctx, SCE_GXM_TWO_SIDED_DISABLED);
+    sceGxmSetRegionClip(ctx, SCE_GXM_REGION_CLIP_OUTSIDE, 0, 0, GXM_W - 1, GXM_H - 1);
+    sceGxmSetViewport(ctx, GXM_W / 2.0f, GXM_W / 2.0f, GXM_H / 2.0f, -GXM_H / 2.0f, 0.5f, 0.5f);
     sceGxmSetCullMode(ctx, SCE_GXM_CULL_NONE);
     ui_rect(0, 0, GXM_W, GXM_H, clear_abgr | 0xFF000000u); }
 
+static int frame_counter;
+int gxm_frame_index(void){ return frame_counter; }
 void gxm_end_frame(void){
+    frame_counter++;
     ui_flush();
-    sceGxmEndScene(ctx, NULL, NULL);
+    SceGxmNotification n; n.address = (volatile unsigned int *)notif; n.value = (unsigned)frame_counter;
+    sceGxmEndScene(ctx, NULL, &n);                     /* scenes complete in order: this one done = everything before it done */
+    if (dialog_on) {                                   /* system dialogs (on-screen keyboard) draw over the finished frame */
+        SceCommonDialogUpdateParam up; memset(&up, 0, sizeof up);
+        up.renderTarget.colorFormat = SCE_GXM_COLOR_FORMAT_A8B8G8R8; up.renderTarget.surfaceType = SCE_GXM_COLOR_SURFACE_LINEAR;
+        up.renderTarget.width = GXM_W; up.renderTarget.height = GXM_H; up.renderTarget.strideInPixels = STRIDE;
+        up.renderTarget.colorSurfaceData = fb[back]; up.renderTarget.depthSurfaceData = depth_mem; up.displaySyncObject = sync[back];
+        sceCommonDialogUpdate(&up); }
     sceGxmPadHeartbeat(&surf[back], sync[back]);
     disp_t d = {fb[back]}; sceGxmDisplayQueueAddEntry(sync[front], sync[back], &d);
-    front = back; }
+    front = back;
+    /* next frame's scratch block: wait until the GPU has finished the frame that used it last */
+    scr_fence[scr] = (unsigned)frame_counter; scr = (scr + 1) % NBUF; scratch_used = 0;
+    while (scr_fence[scr] && (int)(*notif - scr_fence[scr]) < 0) sceKernelDelayThread(100); }

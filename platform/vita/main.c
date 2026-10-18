@@ -30,6 +30,7 @@
 #include "vfs.h"
 #include "psp_impl.h"
 #include "gfx.h"
+#include "gxm_core.h"
 
 int _newlib_heap_size_user = 96 * 1024 * 1024;                 /* the platform layer's own allocations (decoders, vertex batches, ...) */
 unsigned int sceUserMainThreadStackSize = 1024 * 1024;          /* the frontend thread interprets GE command lists */
@@ -288,6 +289,12 @@ int main(void){
 
     /* renderer (this thread owns the GPU) */
     rs_thread_cores("frontend");
+    if (gxm_init(RS_DIR "/shaders") != 0) fatal(gxm_error());
+    STEP("GPU ready");
+    {   /* start-up media screen: converted audio (PCM) and video (MP4) checked every boot, anything missing converted */
+        extern int rs_convert_screen(const char *game_root, const char *out_dir);
+        int r = rs_convert_screen(vfs_iso_active() ? "iso:" : RS_GAME, RS_DIR "/converted");
+        STEP(r == 0 ? "media ready" : "media conversion skipped (%d): original media only", r); }
     { extern int rs_renderer_start(void); if (rs_renderer_start() != 0) fatal("renderer initialisation failed (see the lines above)"); }
     gfx_wake_init(); gfx_thread_register();
     STEP("renderer ready");

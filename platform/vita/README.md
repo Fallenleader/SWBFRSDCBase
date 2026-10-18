@@ -1,33 +1,65 @@
 # PS Vita port
 
 `platform/vita` builds the decompiled game (`src/game`) into a native PS Vita application. The game code runs as ARM code.
-The platform layer supplies the PSP SDK functions the game calls (`platform/common`) and renders the GPU command lists the
-game builds through **vitaGL** (`gfx_vgl.c` + the GL ES 2.0 renderer `platform/linux_test/gfx_gl.c`, with Cg shaders on
-the Vita). An earlier direct-GXM renderer was dropped: the vitaGL build is the one that runs.
+The platform layer supplies the PSP SDK functions the game calls (`platform/common`). Rendering is native **GXM**, the
+Vita's own GPU API. No GL layer is used.
 
 ### How it draws
 
-The game's render code (libgu and the engine) still writes PSP GPU commands into a list each frame; `platform/common/ge.c`
-reads those commands (about 2000 register writes per frame) to know the current state. What is drawn is native:
+The game reaches the GPU only through libgu, its statically linked GU library: 79 functions, and a census of every GE
+command executed showed that all of them come from these functions. In this build those functions are the native GU
+(`platform/common/gu_native.c`, wired in by `tools/dc/native_gu.py`):
 
-* **3D and 2D draws:** the game's vertex buffers go to the GPU as they are. Each PSP vertex type gets its own vertex
-  program, which reads the PSP component formats (8/16-bit fixed point, floats, packed colours) directly as vertex
-  attributes and does the transform, skinning, lighting and fog on the GPU. Triangle lists, strips and fans are drawn as
-  they are. The programs are compiled the first time a vertex type is drawn (the log lists them).
-* **Textures:** uploaded in their PSP formats (565, 5551, 4444, 8888; 4- and 8-bit CLUT as paletted textures; DXT1/3/5 as
-  BC1/2/3) through vitaGL's hooks for a texture's GXM descriptor. The only work done is undoing the PSP's texture
-  swizzle, a block copy. 16/32-bit CLUT textures are still decoded on the CPU; the log says when that happens.
-* **Still on the CPU path:** sprites and clears.
+* Each GU call records a typed operation (state, matrix, draw, clear, copy) on the game thread.
+* The renderer thread runs those operations against the renderer interface `platform/common/gfx.h`.
+* No GE command list is built or interpreted.
+* `platform/common/ge.c`, the GE command interpreter, stays in the tree as the reference for this conversion and for
+  porting to other native APIs. It is not built here; on PC it is built with `make GE_REF=1`.
+
+`gfx_gxm.c` implements `gfx.h` on GXM:
+
+* **Render targets:** each PSP frame buffer or render-to-texture target is a GXM colour surface at the internal
+  resolution. All of them share one depth/stencil surface, which is loaded and stored across scenes.
+* **Draws:** the game's vertex buffers go to the GPU as they are. Each PSP vertex type gets its own vertex program, which:
+  * reads the PSP component formats as vertex attributes;
+  * does transform, skinning, lighting, fog and the PSP's range culling;
+  * handles triangle lists, strips and fans natively.
+* **Fragment programs and state:**
+  * Fragment programs handle the texture function, fog and alpha test.
+  * Blend modes and colour masks are fragment program variants, created on first use.
+  * Depth, stencil, cull and scissor (region clip) are dynamic state.
+* **Textures:** PSP formats are uploaded as they are where GXM reads them:
+  * 565, 5551, 4444 and 8888;
+  * 4- and 8-bit CLUT, as paletted textures;
+  * DXT1/3/5, as BC1/2/3.
+  
+  Other formats are decoded to RGBA8. Texture memory is a sub-allocated video-RAM pool.
+* **Shaders:** compiled from Cg the first time they are needed, then cached in `ux0:data/SWBFRS/shaders/`.
+
+### Start-up media screen
+
+Every boot shows a media screen over the game's own main-menu backdrop before the game starts:
+
+* It checks the converted audio and video against `ux0:data/SWBFRS/converted/manifest.txt`. This takes well under a
+  second when everything is present.
+* It converts whatever is missing or changed, using all three cores:
+  * **AT3 audio becomes PCM WAV.** The game then plays it without decoding, sample for sample the same as the
+    original decoder.
+  * **PMF video becomes MP4** (the H.264 stream copied as it is, with AAC audio).
+* It then continues into the game.
+
+If conversion fails, for example because the memory card is full, X retries and O starts without the converted media.
 
 ## Requirements on the Vita
 
 * HENkaku/Enso (the app is an unsafe homebrew: it loads the system Cg compiler).
-* `ur0:data/libshacccg.suprx`: the system shader compiler, extracted with **ShaRKF00D**. The shaders are compiled from Cg
-  source when the app starts.
-* The game files, from **your** UMD, either way (no game data is part of this repository or of the VPK):
+* `ur0:data/libshacccg.suprx`: the system shader compiler, extracted with **ShaRKF00D**.
+* The game files, from **your** UMD (no game data is part of this repository or of the VPK), either:
   * the image itself as `ux0:data/SWBFRS/game.iso` (ISO 9660, as UMD images are dumped), or
   * the image's contents extracted to `ux0:data/SWBFRS/GAME/` (so that `ux0:data/SWBFRS/GAME/PSP_GAME/SYSDIR` exists).
+
   The extracted folder is used when it is present; otherwise the ISO.
+* Free space on ux0: for the converted media (written once).
 
 ## Building
 
@@ -37,63 +69,63 @@ You need `build/data.c`, the data image extracted from your decrypted `EBOOT.BIN
 
 With VitaSDK installed (`VITASDK` set):
 
-    make vita                     # build/vita/swbfrs.vpk  (needs vitaGL built with vitaShaRK, as in the vitasdk Docker image)
-
-Or directly with CMake:
-
     cmake -S platform/vita -B build/vita -DRS_DATA_C=$PWD/build/data.c
     cmake --build build/vita -j
 
-Without a local VitaSDK, the official Docker image works too (`make vita DOCKER=1`, uses `vitasdk/vitasdk`).
+The build produces `build/vita/swbfrs.vpk`. It links the VitaSDK's FFmpeg for the video conversion.
 
-The title ID is `SWBR00002` (the ID of the earlier vitaGL test builds, so the VPK installs over them). The LiveArea
-artwork in `sce_sys/` comes from the game itself.
+The title ID is `SWBR00002`, so the VPK installs over the earlier test builds. The LiveArea artwork in `sce_sys/` comes
+from the game itself.
 
 ## Settings: `ux0:data/SWBFRS/settings.txt`
 
-`KEY=VALUE` lines, all optional:
+All settings are optional `KEY=VALUE` lines:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `RS_RES_SCALE` | 2 | internal resolution: 2 = 960x544 (Vita screen), 4 = 1920x1088 (2x Vita, supersampled to the screen); 1 = 480x272 (PSP) |
-| `RS_FXAA` | 0 | 1 = FXAA on the final picture (mostly useful at `RS_RES_SCALE=2`) |
-| `RS_NATIVE_GE` | 1 | 0 = decode vertices and textures on the CPU as the earlier builds did (for comparison only) |
-| `RS_CPU_PIN` | 1 | 1 = renderer on core 0, game main thread on core 1, other game threads on core 2; 0 = the kernel places every thread (as before the 3-core build) |
-| `RS_NATIVE_BATCH` | 1 | 1 = consecutive PSP primitives with identical state are drawn as one GPU draw call (about 4x fewer draw calls in a Hoth match); 0 = one draw call per PSP primitive (for comparison) |
-| `RS_HW_TL` | 1 | vertex transform and lighting on the GPU (0 = on the CPU) |
-| `RS_FPS` | 30 | frame rate: 30 or 60 (the game's own 20 fps limit is removed; gameplay speed follows the frame time) |
+| `RS_RES_SCALE` | 2 | internal resolution: 2 = 960x544 (Vita screen), 1 = 480x272 (PSP) |
+| `RS_TEX_POOL_MB` | 48 | video memory for textures |
+| `RS_TEX_BUDGET_MB` | 40 | texture cache size before old textures are evicted |
+| `RS_CPU_PIN` | 1 | 1 = renderer on core 0, game main thread on core 1, other game threads on core 2 |
+| `RS_FPS` | 30 | frame rate: 30 or 60 |
 | `RS_AUDIO` | 1 | 0 = no sound |
 | `RS_HUD` | 0 | 1 = frame-rate / load overlay |
-| `RS_VSYNC` | 1 | wait for vertical blank when showing a frame |
 | `RS_LOG_MB` | 4 | size limit of `ux0:data/SWBFRS/log.txt` |
-| `RS_PERF_LOG` | 0 | 1 = profiler lines every 600 frames to `ux0:data/SWBFRS/perf.log`; the `GE:` line splits the renderer's time into list interpretation, GE state to draw state, back-end setup and draw calls |
-| `RS_GE_ASYNC` | 1 | GPU command lists run while the game goes on (as on the PSP); 0 = the game waits for each list |
-| `RS_GE_PIPELINE` | 0 | 1 = experimental: the game builds the next frame while the renderer still draws the previous one (more frames per second when the renderer is the slower side; possible flicker of objects the game rewrites in place) |
+| `RS_PERF_LOG` | 0 | 1 = profiler lines every 600 frames to `ux0:data/SWBFRS/perf.log` |
+| `RS_GU_PIPELINE` | 0 | 1 = experimental: the game does not wait for the renderer at GU sync points |
 
 ## Controls
 
-The Vita buttons map to the PSP buttons of the same name; the left stick is the PSP analog stick. **L + R + START + SELECT**
-quits.
+* The Vita buttons map to the PSP buttons of the same name.
+* The left stick is the PSP analog stick.
+* **L + R + START + SELECT** quits.
 
 ## Memory
 
-The game hands addresses to the GPU in its command lists, which carry 28 bits. The data image, the PSP scratchpad, the
-VRAM image (8 MB) and the game heap (64 MB, of which the top 4 MB are the PSP's "volatile" memory) are registered as
-GPU-visible regions and must differ in their low 28 bits. `main.c` re-allocates a block that would clash. Each game
-thread's stack is registered too when it does not clash. The layout is checked on Linux with `make linux_test LAYOUT=high`,
-which places everything above 0x80000000 as on the Vita.
+The game hands the GPU 28-bit addresses. The following are registered as GPU-visible regions and must differ in their
+low 28 bits:
+
+* the data image;
+* the PSP scratchpad;
+* the VRAM image (8 MB);
+* the game heap (64 MB, of which the top 4 MB are the PSP's "volatile" memory).
+
+`main.c` re-allocates any block that would clash.
 
 ## Status
 
-* **On hardware:** the vitaGL build (before the native draw path) runs at 960x544 and plays matches, with some lag.
-* **This build's additions are not yet run on a Vita:** native vertex and texture path, 30/60 fps pacing, FXAA, 2x
-  resolution, and fewer scissor updates (vitaGL draws a stencil mask for every scissor change; the renderer now only
-  sets the scissor when it changes and turns it off when it covers the whole screen). The native vertex path and the
-  scale-4 surfaces render correctly on the Linux validation build; the native texture upload was checked offline
-  against the game's own texture decoder for every format it handles. The log `ux0:data/SWBFRS/log.txt` records each
-  vertex program built, texture formats that fell back to the CPU, and errors.
+* **Not yet run on a Vita or in Vita3K.**
+  * The renderer port has not been run. Vita3K needs `libshacccg.suprx` to compile shaders, and it was not available
+    in the build environment.
+  * The native GU's frames were checked on the Linux build: they are bit-identical to the GE reference path.
+  * Media conversion was checked on Linux against the real game files: all audio, and all 22 videos frame-exact.
+* **Not ported yet:** the game's movie player has not been switched to the converted MP4s (Vita video player); that is
+  the next step.
+* **Most likely to need a fix on first run:** cull direction and the fixed-colour blend approximation. The log
+  `ux0:data/SWBFRS/log.txt` records each GPU program built and every GXM error.
 
 ## When the game freezes
 
-If the game stops reaching vertical blanks for 8 seconds, `ux0:data/SWBFRS/hang.txt` gets a report of what every game thread, the
-big lock, the GE and the renderer are doing (again every 15 seconds while it stays frozen, 5 reports at most). Send it with `log.txt`.
+If the game stops reaching vertical blanks for 8 seconds, it writes a report to `ux0:data/SWBFRS/hang.txt`. The report
+shows what every game thread, the big lock and the renderer are doing. It repeats every 15 seconds while the game stays
+frozen, up to 5 reports. Send it with `log.txt`.
