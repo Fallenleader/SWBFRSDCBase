@@ -9,3 +9,4 @@ build/
 data.c
 *.ppm
 __pycache__/
+build_census/

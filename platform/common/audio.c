@@ -228,7 +228,7 @@ void rs_atrac_note_file(const char *host_path){
     e->n = (int)fread(e->head, 1, sizeof e->head, f); fseek(f, 0, SEEK_END); e->size = (u32)ftell(f); fclose(f); }
 
 typedef struct {
-    int used, codec, ch, ba; void *dec; FILE *f; u8 *mem; u32 data_off, data_len, nframes, cur, total, skip; int loop_start, loop_end, done;
+    int used, codec, ch, ba; void *dec; FILE *f; u8 *mem; FILE *pcm; u32 pcm_next;   /* pcm: converted copy (convert.c), frames read instead of decoded */ u32 data_off, data_len, nframes, cur, total, skip; int loop_start, loop_end, done;
     u32 buf, bufsize;
 } atrac_t;
 static atrac_t at[8];
@@ -260,17 +260,20 @@ void ha_SetDataAndGetID(sdkcall_t *c){
     int cmp = size < 512 ? (int)size : 512; const char *match = 0;
     for (int k = 0; k < 16 && !match; k++) { at3file_t *e = &files[(nfile - 1 - k + 64) % 16]; if (!e->path[0]) continue;
         if (e->size == riff_total && e->n >= cmp && !memcmp(e->head, b, (size_t)cmp)) match = e->path; }
-    if (match) a->f = vfs_fopen(match, "rb");
-    if (!a->f) { if (size >= a->data_off + a->data_len) { a->mem = malloc(size); if (a->mem) memcpy(a->mem, b, size); }   /* whole file in the buffer */
+    if (match) { const char *rs_convert_output_for(const char *, const char *); const char *w = rs_convert_output_for(match, ".wav");
+        if (w) { a->pcm = fopen(w, "rb"); if (a->pcm) setvbuf(a->pcm, 0, _IOFBF, 64 * 1024); }
+        if (!a->pcm) a->f = vfs_fopen(match, "rb"); }
+    if (!a->f && !a->pcm) { if (size >= a->data_off + a->data_len) { a->mem = malloc(size); if (a->mem) memcpy(a->mem, b, size); }   /* whole file in the buffer */
         else fprintf(stderr, "[ATRAC] id %d: no source file found for a streamed buffer (%u of %u bytes) - silent\n", id, size, riff_total); }
     a->nframes = a->data_len / (u32)a->ba; if (!a->total) a->total = a->nframes * (a->codec ? 2048u : 1024u);
-    a->dec = a->codec ? rs_at3p_alloc(a->ch, a->ba) : rs_at3_alloc(a->ch, a->ba, el ? extra : 0, el);
+    if (!a->pcm) a->dec = a->codec ? rs_at3p_alloc(a->ch, a->ba) : rs_at3_alloc(a->ch, a->ba, el ? extra : 0, el);
     a->used = 1;
     fprintf(stderr, "[ATRAC] id %d: %s, %d ch, %u frames%s%s\n", id, a->codec ? "ATRAC3plus" : "ATRAC3", a->ch, a->nframes, match ? " <- " : "", match ? match : (a->mem ? " (from memory)" : ""));
+    if (a->pcm) fprintf(stderr, "[ATRAC] id %d: playing the converted PCM copy\n", id);
     V0_ = (u32)id; }
 static atrac_t *aid(u32 id){ return id < 8 && at[id].used ? &at[id] : 0; }
 void ha_Release(sdkcall_t *c){ atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; }
-    if (a->f) fclose(a->f); free(a->mem); if (a->dec) { if (a->codec) rs_at3p_free(a->dec); else rs_at3_free(a->dec); } memset(a, 0, sizeof *a); V0_ = 0; }
+    if (a->f) fclose(a->f); if (a->pcm) fclose(a->pcm); free(a->mem); if (a->dec) { if (a->codec) rs_at3p_free(a->dec); else rs_at3_free(a->dec); } memset(a, 0, sizeof *a); V0_ = 0; }
 void ha_GetSoundSample(sdkcall_t *c){ atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; }
     if (A1_) SW(A1_, a->total ? a->total - 1 : 0); if (A2_) SW(A2_, (u32)a->loop_start); if (A3_) SW(A3_, (u32)a->loop_end); V0_ = 0; }
 void ha_GetStreamDataInfo(sdkcall_t *c){ atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; }
@@ -280,11 +283,19 @@ void ha_DecodeData(sdkcall_t *c){
     atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; }
     u32 out = A1_, pn = A2_, pfin = A3_, prem = T0_;
     if (a->done || a->cur >= a->nframes) { a->done = 1; if (pn) SW(pn, 0); if (pfin) SW(pfin, 1); if (prem) SW(prem, (u32)-1); V0_ = ATRAC_ERR_ALL_DECODED; return; }
+    int spf = a->codec ? 2048 : 1024;
+    if (a->pcm) {                                     /* converted copy: frame k is spf stereo samples at 44 + k * spf * 4 */
+        int ns = spf; s16 *o = out ? (s16 *)(g_mem + GADDR(out)) : 0; static s16 tmp[4096 * 2];
+        if (a->pcm_next != a->cur || a->cur == 0) fseek(a->pcm, 44L + (long)a->cur * spf * 4L, SEEK_SET);
+        a->pcm_next = a->cur + 1;
+        if (fread(o ? o : tmp, 4, (size_t)ns, a->pcm) != (size_t)ns || !rs_patch_audio()) memset(o ? o : tmp, 0, (size_t)ns * 4);
+        a->cur++; int fin = a->cur >= a->nframes; if (fin) a->done = 1;
+        if (pn) SW(pn, (u32)ns); if (pfin) SW(pfin, (u32)fin); if (prem) SW(prem, (u32)-1);
+        V0_ = 0; return; }
     static u8 fb[4096]; static float L[4096], R[4096]; int ns = 0, ok = 0;
     if (a->ba <= (int)sizeof fb) {
         if (a->f) { fseek(a->f, (long)(a->data_off + a->cur * (u32)a->ba), SEEK_SET); ok = fread(fb, 1, (size_t)a->ba, a->f) == (size_t)a->ba; }
         else if (a->mem) { memcpy(fb, a->mem + a->data_off + a->cur * (u32)a->ba, (size_t)a->ba); ok = 1; } }
-    int spf = a->codec ? 2048 : 1024;
     if (ok && a->dec && rs_patch_audio()) { int r = a->codec ? rs_at3p_decode(a->dec, L, R, &ns, fb, a->ba) : rs_at3_decode(a->dec, L, R, &ns, fb, a->ba); if (r < 0) ns = 0; }
     if (ns <= 0) { ns = spf; memset(L, 0, sizeof(float) * (size_t)ns); memset(R, 0, sizeof(float) * (size_t)ns); }
     if (a->ch == 1) memcpy(R, L, sizeof(float) * (size_t)ns);

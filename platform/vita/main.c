@@ -116,6 +116,7 @@ void rs_thread_cores(const char *name){
     static int pin = -1; if (pin < 0) pin = rs_setting_int("RS_CPU_PIN", 1);
     if (!pin) { fprintf(stderr, "[VITA] thread '%s': CPU affinity left to the kernel (RS_CPU_PIN=0)\n", name); return; }
     int mask = !strcmp(name, "frontend") ? SCE_KERNEL_CPU_MASK_USER_0 : (!strcmp(name, "user_main") ? SCE_KERNEL_CPU_MASK_USER_1 : SCE_KERNEL_CPU_MASK_USER_2);
+    if (!strncmp(name, "media conversion ", 17)) mask = SCE_KERNEL_CPU_MASK_USER_0 << (atoi(name + 17) % 3);    /* one worker per core */
     SceUID me = sceKernelGetThreadId(); int before = sceKernelGetThreadCpuAffinityMask(me); int r = sceKernelChangeThreadCpuAffinityMask(me, mask);
     fprintf(stderr, "[VITA] thread '%s': CPU affinity %06x -> %06x%s\n", name, (unsigned)before, (unsigned)mask, r < 0 ? " FAILED" : ""); }
 void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ (void)psp_stack; pthread_attr_setstacksize(at, 1024 * 1024); }

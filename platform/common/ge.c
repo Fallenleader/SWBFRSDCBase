@@ -390,7 +390,11 @@ static void ge_run_(int id){
     ge_list_t *L = &lists[id]; int guard = 0;
     while (!L->done) {
         if (L->stall && (L->pc & 0x0FFFFFFF) == (L->stall & 0x0FFFFFFF)) return;
-        u32 w = LW(L->pc); u32 cmd = w >> 24, data = w & 0xFFFFFF; L->pc += 4; ge_stats_cmds++;
+        u32 w = LW(L->pc); u32 cmd = w >> 24, data = w & 0xFFFFFF;
+#ifdef RS_CENSUS
+        { void rs_census_cmd(u32 at, u32 cmd, u32 vaddr); rs_census_cmd(GADDR(L->pc), cmd, cmd == 0x04 ? GADDR(g_vaddr) : 0); }
+#endif
+        L->pc += 4; ge_stats_cmds++;
         if (++guard > 20000000) { L->done = 1; return; }
         { static int cl = -1, clo, chi; if (cl < 0) { const char *e = getenv("RS_GE_CMDLOG"); cl = e != 0; if (e && sscanf(e, "%d-%d", &clo, &chi) != 2) { clo = 0; chi = 1 << 30; } } extern int rs_ge_dump_cur; if (cl && rs_ge_dump_cur >= clo && rs_ge_dump_cur <= chi) fprintf(stderr, "[C] p%d %02x %06x\n", rs_ge_dump_cur, cmd, data); }
         switch (cmd) {

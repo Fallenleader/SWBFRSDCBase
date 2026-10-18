@@ -432,7 +432,11 @@ static void h_IoOpen(sdkcall_t *c){
     fprintf(stderr, "[IO] open %s\n", p); rs_atrac_note_file(full);
     for (int i = 3; i < 128; i++) if (!fds[i].used) { fds[i] = (fd_t){f, 0, 1, {0}}; V0 = i; return; } fclose(f); V0 = 0x80010018u; }
 static void h_IoClose(sdkcall_t *c){ if (A0 < 128 && fds[A0].used) { if (fds[A0].f) fclose(fds[A0].f); if (fds[A0].d) vfs_closedir(fds[A0].d); fds[A0].used = 0; } V0 = 0; }
-static void h_IoRead(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; return; } { static int dl = -1, df; if (dl < 0) { dl = getenv("RS_IO_DELAY_US") ? atoi(getenv("RS_IO_DELAY_US")) : 0; df = getenv("RS_IO_DELAY_FROM") ? atoi(getenv("RS_IO_DELAY_FROM")) : 0; } if (dl && g_frames >= df) unlocked_sleep((unsigned)dl); } u32 n = A2; u8 *dst = g_mem + GADDR(A1); V0 = (u32)fread(dst, 1, n, fds[A0].f); }
+static void h_IoRead(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; return; } { static int dl = -1, df; if (dl < 0) { dl = getenv("RS_IO_DELAY_US") ? atoi(getenv("RS_IO_DELAY_US")) : 0; df = getenv("RS_IO_DELAY_FROM") ? atoi(getenv("RS_IO_DELAY_FROM")) : 0; } if (dl && g_frames >= df) unlocked_sleep((unsigned)dl); } u32 n = A2; u8 *dst = g_mem + GADDR(A1); V0 = (u32)fread(dst, 1, n, fds[A0].f);
+#ifdef RS_CENSUS
+    { extern u32 *rs_census_shadow; u32 a = (u32)(uintptr_t)dst; if (rs_census_shadow) for (u32 o = 0; o < V0 && a + o < 0x10000000u; o += 4) rs_census_shadow[(a + o) >> 2] = 1; }   /* 1 = loaded from a file */
+#endif
+    }
 static void h_IoWrite(sdkcall_t *c){ if (A0 == 1 || A0 == 2) { fwrite(g_mem + GADDR(A1), 1, A2, stderr); V0 = A2; return; } if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; return; } V0 = (u32)fwrite(g_mem + GADDR(A1), 1, A2, fds[A0].f); }
 static void h_IoLseek(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; V1 = 0xFFFFFFFFu; return; }
     s64 off = (s64)(((u64)A3 << 32) | A2); int wh = T0; fseeko(fds[A0].f, off, wh == 0 ? SEEK_SET : (wh == 1 ? SEEK_CUR : SEEK_END)); s64 pos = ftello(fds[A0].f); V0 = (u32)pos; V1 = (u32)((u64)pos >> 32); }

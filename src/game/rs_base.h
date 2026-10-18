@@ -28,6 +28,18 @@ typedef rv_t (*ifn_t)(u32, u32, u32, u32, u32, u32, u32, u32, float, float, floa
 #define ST8(a, v)     (*(u8 *)PTR(a) = (u8)(v))
 #define ST16(a, v)    (*(u16 *)PTR(a) = (u16)(v))
 #define ST32(a, v)    (*(u32 *)PTR(a) = (u32)(v))
+#ifdef RS_CENSUS
+/* Analysis build only (tools/census): every store also records, per 32-bit guest word, the code location that wrote it, so the
+ * GE command interpreter can attribute each executed command to the game function that produced it. */
+extern u32 *rs_census_shadow;
+#define RS_CENSUS_TAG(a) ({ __label__ L_; L_: __attribute__((unused)); if ((u32)(a) < 0x10000000u && rs_census_shadow) rs_census_shadow[(u32)(a) >> 2] = (u32)(uintptr_t)&&L_; })
+#undef ST8
+#undef ST16
+#undef ST32
+#define ST8(a, v)     ({ u32 rs_cen_a = (u32)(a); RS_CENSUS_TAG(rs_cen_a); *(u8 *)PTR(rs_cen_a) = (u8)(v); })
+#define ST16(a, v)    ({ u32 rs_cen_a = (u32)(a); RS_CENSUS_TAG(rs_cen_a); *(u16 *)PTR(rs_cen_a) = (u16)(v); })
+#define ST32(a, v)    ({ u32 rs_cen_a = (u32)(a); RS_CENSUS_TAG(rs_cen_a); *(u32 *)PTR(rs_cen_a) = (u32)(v); })
+#endif
 static inline u32 LDU32(u32 a){ u32 v; memcpy(&v, PTR(a), 4); return v; }          /* unaligned (lwl/lwr pair) */
 static inline void STU32(u32 a, u32 v){ memcpy(PTR(a), &v, 4); }                    /* unaligned (swl/swr pair) */
 static inline u32 LWL(u32 o, u32 a){ u32 w = LD32(a & ~3u), s = a & 3; return (o & (0x00FFFFFFu >> (s * 8))) | (w << (24 - s * 8)); }
@@ -97,3 +109,11 @@ extern u8 rs_scratchpad[0x4000];
 
 /* ---- traps ---- */
 void rs_break(u32 code, u32 where);
+
+#ifdef RS_CENSUS
+/* analysis build: library copies made by game code tag their destination with the calling location */
+static inline void *rs_census_memcpy(void *d, const void *s, size_t n, u32 pc){ u32 a = (u32)(uintptr_t)d;
+    if (rs_census_shadow) for (size_t o = 0; o < n; o += 4) if (a + o < 0x10000000u) rs_census_shadow[(a + o) >> 2] = pc;
+    return __builtin_memcpy(d, s, n); }
+#define memcpy(d, s, n) ({ __label__ M_; M_: __attribute__((unused)); rs_census_memcpy((d), (s), (n), (u32)(uintptr_t)&&M_); })
+#endif

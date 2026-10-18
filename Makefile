@@ -9,6 +9,7 @@
 
 #   make linux_test EBOOT=... LAYOUT=high             the same with all memory above 0x80000000 and the per-thread state in one
 #                                                     block (RS_TLS_STRUCT): the PS Vita's memory layout, on Linux
+#   make linux_test CENSUS=1                         analysis build: attributes every executed GE command to the function that wrote it
 #   make vita EBOOT=... [DOCKER=1]                   PS Vita VPK (VitaSDK, or the vitasdk/vitasdk Docker image; platform/vita/README.md)
 
 EBOOT ?= EBOOT.BIN
@@ -22,11 +23,18 @@ B := build
 XFLAGS :=
 XLD :=
 endif
+ifeq ($(CENSUS),1)
+B := $(B)_census
+XFLAGS += -DRS_CENSUS
+endif
 GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
 C_SRC := $(C)/hle.c $(C)/ge.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c
+ifeq ($(CENSUS),1)
+C_SRC += $(C)/census.c
+endif
 T_OBJ := $(patsubst $(T)/%.c,$(B)/linux_test/%.o,$(T_SRC)) $(patsubst $(C)/%.c,$(B)/linux_test/c_%.o,$(C_SRC)) $(B)/linux_test/glue.o
 AT3_OBJ := $(patsubst $(C)/ext/at3/%.cpp,$(B)/linux_test/at3_%.o,$(wildcard $(C)/ext/at3/*.cpp))
 
