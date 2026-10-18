@@ -38,6 +38,7 @@ unsigned int sceUserMainThreadStackSize = 1024 * 1024;          /* the frontend 
 #define RS_DIR "ux0:data/SWBFRS"
 #define RS_GAME RS_DIR "/GAME"                                  /* extracted UMD: GAME/PSP_GAME/... (the ISO's own layout) */
 #define RS_ISO RS_DIR "/game.iso"                               /* else the UMD image itself */
+const char *rs_platform_save_dir(void){ return RS_DIR "/SAVEDATA"; }   /* game profiles (hle.c savedata) */
 u8 *g_mem;                                                      /* NULL: the SDK layer works on native addresses */
 volatile int rs_prof_on;
 

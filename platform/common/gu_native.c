@@ -579,7 +579,8 @@ static void exec_buffer(void *arg){
 /* ===================================================================== what the rest of the platform layer expects from the GPU side */
 #ifndef RS_GE_REFERENCE
 u32 rs_ge_cb_finish_func, rs_ge_cb_finish_arg;
-static void disp_job(void *p){ const u32 *a = p; gfx_set_display(a[0], a[1], a[2]); rs_gfx_epoch++; gfx_frame_ready(); }
+__attribute__((weak)) void rs_overlay_draw(u32 addr, u32 stride, u32 fmt){ (void)addr; (void)stride; (void)fmt; }   /* colour_picker.c: menus drawn natively over the frame */
+static void disp_job(void *p){ const u32 *a = p; rs_overlay_draw(a[0], a[1], a[2]); gfx_set_display(a[0], a[1], a[2]); rs_gfx_epoch++; gfx_frame_ready(); }
 void rs_display_set(u32 addr, u32 stride, u32 fmt){ u32 a[3] = {addr, stride, fmt}; gfx_post(disp_job, a, sizeof a); }
 typedef struct { u32 *out; int ret; } rd_t;
 static void read_job(void *p){ rd_t *r = p; r->ret = gfx_read_display(r->out); }

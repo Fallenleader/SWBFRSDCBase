@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 08A34EE4 */
 rv_t func_08A34EE4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3)
@@ -939,7 +940,7 @@ L_08A359EC:;
 }
 
 /* 08A359F4 */
-rv_t func_08A359F4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static rv_t func_08A359F4__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
@@ -1040,6 +1041,13 @@ L_08A35AF0:;
     v0 = D_08AE3F0C - (16140);
     v0 = v0 + 16140;
     goto L_08A35AD0;
+}
+
+rv_t func_08A359F4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rv_t r_ = {0, 0, 0};
+    if (rs_picker_category(a0, a1, a2, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08A359F4__orig(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
 }
 
 /* 08A35B00 */

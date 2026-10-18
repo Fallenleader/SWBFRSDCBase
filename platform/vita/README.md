@@ -113,6 +113,23 @@ The controls are rebound in the game's own input tables (`platform/common/twin_s
 * The right stick is processed by the game's own stick code, with the same dead zone and curve as the left.
 * Turning and looking use the game's tuned response for turning.
 
+## Saving
+
+The game's profile saves (Options → Profile Management, and its autosave) are written to `ux0:data/SWBFRS/SAVEDATA/` in the
+PSP's layout (`ULUS102920000/DATA.BIN`). The PSP's save dialogs aren't shown; the save or load happens at once.
+
+## Personalization colours (experimental branch)
+
+In Customization → Personalize, Color 1 and Color 2 open an HSV colour picker instead of the 15 preset swatches:
+* The picker has a saturation/value square, a hue slider, and Save and Cancel buttons.
+* The d-pad and left stick move between those four. Cross selects one.
+* With the square or the slider selected, the d-pad and left stick move its cursor. Circle leaves it.
+* Circle with nothing selected cancels. Start saves.
+* The soldier preview shows the colour as it changes.
+
+The colour is saved in the profile in place of the preset index, as 15-bit RGB. Old saves and preset colours still load as
+before. `RS_COLOUR_PICKER=0` turns the picker off and brings back the swatches.
+
 ## Memory
 
 The game hands the GPU 28-bit addresses. The following are registered as GPU-visible regions and must differ in their

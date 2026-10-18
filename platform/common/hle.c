@@ -498,7 +498,7 @@ static void pace_frame(void){
     else { unlocked_sleep((unsigned)(next - now)); epoch = next; }
     { static u64 req, act, last, work; static int n; u64 t = now_us(); req += next - now; act += t - now; if (last) work += now - last; last = t;
       if (getenv("RS_FRAMELOG") && ++n == 600) { fprintf(stderr, "[PACE] per frame: work %.2f ms, sleep requested %.2f ms, slept %.2f ms\n", work / 600e3, req / 600e3, act / 600e3); n = 0; req = act = work = 0; } } }
-static void h_WaitVblank(sdkcall_t *c){ static int fast = -1; if (fast < 0) fast = getenv("RS_FAST") != 0; if (fast) { rs_patch_apply_fps_cap(); yield_big(); } else pace_frame(); rs_patch_vblank(); g_frames++; if (++since_flip >= 30) { since_flip = 0; gfx_frame_ready(); } perf_report();   /* no flip for half a second: show what there is */
+static void h_WaitVblank(sdkcall_t *c){ static int fast = -1; if (fast < 0) fast = getenv("RS_FAST") != 0; if (fast) { rs_patch_apply_fps_cap(); yield_big(); } else pace_frame(); rs_patch_vblank(); g_frames++; { const char *md = getenv("RS_MEMDUMP"); if (md) { char b[200]; snprintf(b, sizeof b, "%s", md); for (char *s = strtok(b, ","); s; s = strtok(0, ",")) if (atoi(s) == g_frames) { extern u32 rs_image_w[]; extern const u32 rs_image_size; char p[300]; snprintf(p, sizeof p, "%s/d_%d.img", getenv("RS_MEMDIR"), g_frames); FILE *f = fopen(p, "wb"); fwrite(rs_image_w, 1, rs_image_size, f); fclose(f); snprintf(p, sizeof p, "%s/d_%d.heap", getenv("RS_MEMDIR"), g_frames); f = fopen(p, "wb"); fwrite((void *)(uintptr_t)0x0A000000u, 1, 64u << 20, f); fclose(f); } } }   /* TEMP */ if (++since_flip >= 30) { since_flip = 0; gfx_frame_ready(); } perf_report();   /* no flip for half a second: show what there is */
     if (getenv("RS_FRAMELOG")) { fl_vb++; fl_note_ra(c->r[31]); if (fl_vb >= 600) { fprintf(stderr, "[FRAME] %d vblank waits, %d frame-buffer flips, %d SystemTimeLow + %d RtcTick queries; vblank callers:", fl_vb, fl_fb, fl_tick2, fl_rtc);
         for (int i = 0; i < 8 && fl_ran[i]; i++) fprintf(stderr, " %08x x%d", fl_ra[i], fl_ran[i]);
         fprintf(stderr, "; time callers:"); for (int i = 0; i < 8 && tl_n[i]; i++) fprintf(stderr, " %08x x%d", tl_ra[i], tl_n[i]); memset(tl_n, 0, sizeof tl_n); fprintf(stderr, "\n"); fl_vb = fl_fb = fl_tick = fl_tick2 = fl_rtc = 0; memset(fl_ran, 0, sizeof fl_ran); } }
@@ -556,6 +556,34 @@ static void h_Dread(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used || !fds[A0].d)
 static void h_One(sdkcall_t *c){ V0 = 1; }
 static void h_UmdStat(sdkcall_t *c){ V0 = 0x32; }
 static void h_ExitGame(sdkcall_t *c){ fprintf(stderr, "[HLE] sceKernelExitGame called\n"); fflush(stderr); _exit(0); }
+/* ---------------- savedata (sceUtilitySavedata*): the game's profile.  The PSP's save dialog is not shown: the operation runs at once
+ * and the status goes init -> visible -> finished -> shutdown as the game polls.  Files live in rs_platform_save_dir()/<gameName><saveName>/
+ * (the PSP's layout under PSP/SAVEDATA).  Param offsets: SceUtilitySavedataParam (pspsdk psputility_savedata.h). */
+__attribute__((weak)) const char *rs_platform_save_dir(void){ const char *e = getenv("RS_SAVEDIR"); return e ? e : "savedata"; }
+static int sd_status; static u32 sd_param;
+static void sd_dir(u32 p, char *out, size_t n, const char *save){ snprintf(out, n, "%s/%s%s", rs_platform_save_dir(), gstr(p + 0x3C), save); }
+static void sd_run(u32 p){
+    int mode = (int)LW(p + 0x30); char save[24]; snprintf(save, sizeof save, "%s", gstr(p + 0x4C));
+    if (!save[0] && LW(p + 0x60)) snprintf(save, sizeof save, "%s", gstr(LW(p + 0x60)));          /* list modes: the first name */
+    char dir[700], file[800]; sd_dir(p, dir, sizeof dir, save); snprintf(file, sizeof file, "%s/%s", dir, gstr(p + 0x64));
+    u32 buf = LW(p + 0x74), cap = LW(p + 0x78), size = LW(p + 0x7C); int res = 0;
+    switch (mode) {
+    case 1: case 3: case 5: case 14: case 18: case 17: case 13: {                               /* save / write */
+        mkdir(rs_platform_save_dir(), 0777); mkdir(dir, 0777);
+        FILE *f = fopen(file, "wb"); if (f && buf) { fwrite(g_mem + GADDR(buf), 1, size, f); fclose(f); } else { if (f) fclose(f); res = (int)0x8011038Bu; }
+        break; }
+    case 0: case 2: case 4: case 15: case 16: {                                                 /* load / read */
+        FILE *f = fopen(file, "rb"); if (!f) { res = (int)0x80110307u; break; }                   /* no data */
+        u32 n = buf ? (u32)fread(g_mem + GADDR(buf), 1, cap, f) : 0; fclose(f); SW(p + 0x7C, n); break; }
+    case 7: case 10: case 21: { if (remove(file) != 0) res = (int)0x80110307u; break; }         /* delete */
+    default: break; }
+    { u32 mf = LW(p + 0x5D0); if (mf) { SW(mf, 32768); SW(mf + 4, 0x10000); SW(mf + 8, 2 * 1024 * 1024); } }   /* msFree: plenty of room */
+    if (mode == 8) { u32 si = LW(p + 0x5FC); if (si) { SW(si + 16, 32768); SW(si + 20, 0x10000); SW(si + 24, 2 * 1024 * 1024); SW(si + 36, 0); SW(si + 48, 0); } }
+    SW(p + 0x1C, (u32)res);
+    fprintf(stderr, "[SAVE] mode %d %s/%s: result %08x (%u bytes)\n", mode, dir, gstr(p + 0x64), (unsigned)res, (unsigned)LW(p + 0x7C)); }
+static void h_SaveInit(sdkcall_t *c){ sd_param = A0; sd_run(A0); sd_status = 1; V0 = 0; }
+static void h_SaveStatus(sdkcall_t *c){ int s = sd_status; if (s == 1 || s == 2) sd_status++; else if (s == 4) sd_status = 0; V0 = (u32)s; }
+static void h_SaveShutdown(sdkcall_t *c){ sd_status = 4; V0 = 0; }
 static void h_UtilParam(sdkcall_t *c){ if (A0 == 7) SW(A1, 1); else if (A0 == 8) SW(A1, 1); else SW(A1, 0); V0 = 0; }
 static void h_RtcTick(sdkcall_t *c){ fl_rtc++; u64 us = guest_us() + 62135596800000000ull; SW(A0, (u32)us); SW(A0 + 4, (u32)(us >> 32)); V0 = 0; }
 static void h_Printf(sdkcall_t *c){ fprintf(stderr, "[GAME] %s\n", gstr(A0)); V0 = 0; }
@@ -579,7 +607,7 @@ static const hle_t tbl[] = {
  {0xAB49E76A,"sceGeListEnQueue",h_GeEnqueue},{0x1C0D95A6,"sceGeListEnQueueHead",h_GeEnqueue},{0xE47E40E4,"sceGeEdramGetAddr",h_GeEdramAddr},
  {0x03444EB4,"sceGeListSync",h_GeListSync},{0xB287BD61,"sceGeDrawSync",h_GeDrawSync},{0xE0D68148,"sceGeListUpdateStallAddr",h_GeUpdateStall},{0xA4FC06A4,"sceGeSetCallback",h_GeSetCallback},
  {0x46EBB729,"sceUmdCheckMedium",h_One},{0x6B4A146C,"sceUmdGetDriveStat",h_UmdStat},{0x8EF08FCE,"sceUmdWaitDriveStat",h_UmdStat},{0x4A9E5E29,"sceUmdWaitDriveStatCB",h_UmdStat},{0xC6183D47,"sceUmdActivate",h_Zero},
- {0x05572A5F,"sceKernelExitGame",h_ExitGame},{0xA5DA2406,"sceUtilityGetSystemParamInt",h_UtilParam},{0x3F7AD767,"sceRtcGetCurrentTick",h_RtcTick},
+ {0x05572A5F,"sceKernelExitGame",h_ExitGame},{0xA5DA2406,"sceUtilityGetSystemParamInt",h_UtilParam},{0x50C4CD57,"sceUtilitySavedataInitStart",h_SaveInit},{0x8874DBE0,"sceUtilitySavedataGetStatus",h_SaveStatus},{0x9790B33C,"sceUtilitySavedataShutdownStart",h_SaveShutdown},{0x3F7AD767,"sceRtcGetCurrentTick",h_RtcTick},
  {0x172D316E,"sceKernelStdout",h_Zero},
  {0x912354A7,"sceKernelRotateThreadReadyQueue",h_RotateQueue},{0xB29DDF9C,"sceIoDopen",h_Dopen},
  {0xF6269B82,"sceUtilityOskInitStart",h_OskInit},{0xF3F76017,"sceUtilityOskGetStatus",h_OskStatus},{0x4B85C861,"sceUtilityOskUpdate",h_OskUpdate},{0x3DFAEBA9,"sceUtilityOskShutdownStart",h_OskShutdown},

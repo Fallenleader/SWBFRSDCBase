@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 0896CC34 */
 rv_t func_0896CC34(u32 a0, u32 a1)
@@ -18052,7 +18053,7 @@ L_08978424:;
 }
 
 /* 0897843C */
-u32 func_0897843C(u32 a0, u32 a1)
+static u32 func_0897843C__orig(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0;
     int cnd_;
@@ -18090,8 +18091,15 @@ L_08978484:;
     return v0;
 }
 
+u32 func_0897843C(u32 a0, u32 a1)
+{
+    u32 r_ = 0;
+    if (rs_colour_lookup(a0, a1, 0, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_0897843C__orig(a0, a1);
+}
+
 /* 0897848C */
-u32 func_0897848C(u32 a0, u32 a1)
+static u32 func_0897848C__orig(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0;
     int cnd_;
@@ -18127,6 +18135,13 @@ L_089784BC:;
 L_089784D4:;
     v0 = (u32)-1;
     return v0;
+}
+
+u32 func_0897848C(u32 a0, u32 a1)
+{
+    u32 r_ = 0;
+    if (rs_colour_lookup(a0, a1, 1, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_0897848C__orig(a0, a1);
 }
 
 /* 089784DC */
