@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 0888D408 */
 rv_t func_0888D408(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
@@ -16673,7 +16674,7 @@ L_08897808:;
 }
 
 /* 08897814 */
-void func_08897814(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1)
+static void func_08897814__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1)
 {
     u32 v0 = 0, v1 = 0, t2 = 0;
     float f0 = 0;
@@ -16696,6 +16697,12 @@ L_08897814:;
 L_08897848:;
     sp = sp + 32;
     return;
+}
+
+void func_08897814(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1)
+{
+    rs_game_var_range(a1, &a2, &a3);   /* native hook (tools/dc/hooks.py) */
+    func_08897814__orig(a0, a1, a2, a3, t0, t1);
 }
 
 /* 08897854 */

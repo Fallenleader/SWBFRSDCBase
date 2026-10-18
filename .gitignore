@@ -11,3 +11,4 @@ data.c
 __pycache__/
 build_census/
 build_geref/
+build_prof/

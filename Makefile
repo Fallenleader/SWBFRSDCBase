@@ -29,6 +29,10 @@ B := $(B)_census
 XFLAGS += -DRS_CENSUS
 GE_REF := 1
 endif
+ifeq ($(PROF),1)
+B := $(B)_prof
+GAME_CFLAGS := -O1 -finstrument-functions
+endif
 ifeq ($(GE_REF),1)
 B := $(B)_geref
 XFLAGS += -DRS_GE_REFERENCE
@@ -37,7 +41,7 @@ GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
-C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c
+C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c
 ifeq ($(GE_REF),1)
 C_SRC += $(C)/ge.c
 else
@@ -45,6 +49,9 @@ C_SRC += $(C)/gu_native.c
 endif
 ifeq ($(CENSUS),1)
 C_SRC += $(C)/census.c
+endif
+ifeq ($(PROF),1)
+C_SRC += $(C)/fnprof.c
 endif
 T_OBJ := $(patsubst $(T)/%.c,$(B)/linux_test/%.o,$(T_SRC)) $(patsubst $(C)/%.c,$(B)/linux_test/c_%.o,$(C_SRC)) $(B)/linux_test/glue.o
 AT3_OBJ := $(patsubst $(C)/ext/at3/%.cpp,$(B)/linux_test/at3_%.o,$(wildcard $(C)/ext/at3/*.cpp))

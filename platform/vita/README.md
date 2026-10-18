@@ -88,6 +88,9 @@ All settings are optional `KEY=VALUE` lines:
 | `RS_TEX_BUDGET_MB` | 40 | texture cache size before old textures are evicted |
 | `RS_CPU_PIN` | 1 | 1 = renderer on core 0, game main thread on core 1, other game threads on core 2 |
 | `RS_TWIN_STICK` | 1 | 1 = left stick move + strafe, right stick turn + look; 0 = the PSP's one-stick controls |
+| `RS_MAX_PLAYERS` | 64 | highest "Min Players (including AI)" in Game Options: bots fill both teams evenly (64 = 32 per side; the game's own limit is 16) |
+| `RS_MAX_TICKETS` | 1000 | highest "Conquest Initial Tickets" (the game's own limit is 200; the step stays the game's 5) |
+| `RS_GAME_PATCHES` | 1 | 0 = the game's original option limits |
 | `RS_FPS` | 30 | frame rate: 30 or 60 |
 | `RS_AUDIO` | 1 | 0 = no sound |
 | `RS_HUD` | 0 | 1 = frame-rate / load overlay |
