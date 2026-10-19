@@ -104,6 +104,8 @@ All settings are optional `KEY=VALUE` lines:
 | `RS_PERF_LOG` | 0 | 1 = profiler lines every 600 frames to `ux0:data/SWBFRS/perf.log` |
 | `RS_GU_PIPELINE` | 0 | 1 = experimental: the game does not wait for the renderer at GU sync points |
 
+`platform/vita/settings.txt` lists every key at its default: copy it to `ux0:data/SWBFRS/settings.txt` and edit.
+
 ## Controls
 
 * The Vita buttons map to the PSP buttons of the same name.
