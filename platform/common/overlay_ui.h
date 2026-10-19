@@ -16,3 +16,4 @@ void  ov_entry(float x0, float y0, float x1, float y1, const char *label, int fo
 /* the overlays (each draws only while it is up) */
 void rs_picker_draw(void);
 void rs_savemgr_draw(void);
+void ov_panel(float x0, float y0, float x1, float y1);   /* a panel in the Personalisation screen's green (gradient, light rim) */

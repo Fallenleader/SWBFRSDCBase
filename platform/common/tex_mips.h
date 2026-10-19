@@ -8,6 +8,9 @@
 #include <stdint.h>
 
 int rs_aniso_level(void);                                   /* 1 (off), 2, 4 or 8 */
+/* the native overlays' own textures (overlay_ui.c: the bitmap font at 0x0BF00000) get no mip chain: UI drawn close to 1:1, and the
+ * cut-out alpha rescale of the smaller levels would turn a font atlas's glyphs into solid boxes */
+static inline int rs_tex_nomip(unsigned addr){ return addr >= 0x0BF00000u && addr < 0x0C000000u; }
 int rs_mip_levels(int w, int h);                            /* levels for a w x h texture (down to 1 in the smaller side); 1 = none */
 size_t rs_mip_bytes(int w, int h, int levels, int align);   /* RGBA8, each level's rows padded to align texels, levels in sequence */
 /* src: w x h RGBA8 (bytes R,G,B,A).  Writes the levels into dst as rs_mip_bytes lays them out; returns the bytes written. */

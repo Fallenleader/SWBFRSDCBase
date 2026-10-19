@@ -297,7 +297,10 @@ static int conv_video(job_t *j, const char *tmp, uint64_t *out_size){
         if (avcodec_open2(m.enc, c, &o) < 0) { av_dict_free(&o); fclose(in); avformat_free_context(m.fc); return -6; } av_dict_free(&o);
         m.fr = av_frame_alloc(); m.fr->format = AV_SAMPLE_FMT_FLTP; m.fr->nb_samples = m.enc->frame_size; av_channel_layout_copy(&m.fr->ch_layout, &m.enc->ch_layout); m.fr->sample_rate = 44100;
         if (av_frame_get_buffer(m.fr, 0) < 0) { fclose(in); avformat_free_context(m.fc); return -6; } }
-    if (!(m.fc->oformat->flags & AVFMT_NOFILE) && avio_open(&m.fc->pb, tmp, AVIO_FLAG_WRITE) < 0) { fclose(in); avformat_free_context(m.fc); return -4; }
+    /* "file:" first: FFmpeg reads a leading "ux0:" (the Vita's device names) as a protocol name and fails with "protocol not found" */
+    { char url[1400]; snprintf(url, sizeof url, "file:%s", tmp); int r = 0;
+      if (!(m.fc->oformat->flags & AVFMT_NOFILE) && (r = avio_open(&m.fc->pb, url, AVIO_FLAG_WRITE)) < 0) {
+          char e[128]; av_strerror(r, e, sizeof e); fprintf(stderr, "[CONV] cannot write %s: %s\n", tmp, e); fclose(in); avformat_free_context(m.fc); return -4; } }
 
     /* stream the program stream */
     enum { CH = 65536 }; unsigned char *buf = malloc(CH * 2); int bl = 0; uint64_t file_pos = off; fseek(in, (long)off, SEEK_SET); int eof = 0; uint64_t since = 0;

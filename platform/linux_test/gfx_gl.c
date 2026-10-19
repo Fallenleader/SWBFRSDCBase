@@ -599,7 +599,7 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
     if (!scratch) scratch = malloc(1024 * 1024 * 4);
     u64 t_u = rs_perf_us(); src->decode(scratch, src->ud);
     glBindTexture(GL_TEXTURE_2D, e->id); glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    int levels = (rs_aniso_level() > 1 && !dynamic) ? rs_mip_levels(k->w, k->h) : 1;
+    int levels = (rs_aniso_level() > 1 && !dynamic && !rs_tex_nomip(k->addr)) ? rs_mip_levels(k->w, k->h) : 1;
     tmip[e->id & 4095].id = 0;
     if (levels > 1) {                                  /* the mip chain for anisotropic filtering */
         static u8 *mb; if (!mb) mb = malloc(rs_mip_bytes(1024, 1024, 11, 1));

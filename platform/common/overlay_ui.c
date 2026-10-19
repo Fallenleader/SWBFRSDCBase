@@ -37,6 +37,10 @@ void ov_text(float x, float y, float sc, col_t c, const char *s){
         if (ch != ' ') quad_into(vt, &nvt, x + g->ox * sc, y + g->oy * sc, x + (g->ox + g->w) * sc, y + (g->oy + g->h) * sc, c, c, c, c,
                                  (float)g->x / UI_FONT_W, (float)g->y / UI_FONT_H, (float)(g->x + g->w) / UI_FONT_W, (float)(g->y + g->h) / UI_FONT_H);
         x += g->adv * sc; } }
+/* a panel as the game's Personalisation screen draws them: teal green, darker at the top, with a light grey rim */
+void ov_panel(float x0, float y0, float x1, float y1){
+    ov_vgrad(x0, y0, x1, y1, ov_c(10, 68, 46, 1), ov_c(12, 112, 74, 1));
+    ov_frame(x0, y0, x1, y1, 1, ov_c(82, 91, 87, 1)); ov_frame(x0 - 1, y0 - 1, x1 + 1, y1 + 1, 1, ov_c(35, 35, 35, 1)); }
 /* a list entry of the game's menus: dark green with grey text, or (with the cursor) the bright bar with a light border, white text */
 void ov_entry(float x0, float y0, float x1, float y1, const char *label, int focused){
     if (focused) { ov_vgrad(x0, y0, x1, y1, ov_c(26, 182, 150, 1), ov_c(10, 126, 92, 1)); ov_frame(x0, y0, x1, y1, 1, ov_c(156, 238, 186, 1)); }
