@@ -7,6 +7,9 @@
 RS_RES_SCALE=1
 # FXAA anti-aliasing while the picture is scaled to the screen: 1 = on, 0 = off
 RS_FXAA=1
+# fog intensity, in percent of each map's own fog: 100 = the game's (set close for the PSP), above 100 closer, below farther
+# (fog distance x (2 - value/100): 25 = 75% farther away)
+RS_FOG=25
 # frame rate: 30 or 60
 RS_FPS=30
 # video memory for textures (MB), and the texture cache size before old textures are evicted (MB)
