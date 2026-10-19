@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <psp2/kernel/processmgr.h>
 #include <psp2/kernel/sysmem.h>
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/display.h>
@@ -47,7 +48,7 @@ void *gxm_alloc(size_t size, size_t align, int cdram){
     (void)align;                                                   /* blocks are page aligned, more than any GXM requirement */
     SceUID uid; SceKernelMemBlockType t = cdram ? SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW : SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE;
     void *p = mem_block(t, size, &uid);
-    if (!p && cdram) { t = SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE; p = mem_block(t, size, &uid); }   /* video RAM full: main RAM */
+    if (!p && cdram) { extern volatile unsigned gxm_ram_fallbacks; gxm_ram_fallbacks++; t = SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE; p = mem_block(t, size, &uid); }   /* video RAM full: main RAM (slow for the GPU) */
     if (!p) return NULL;
     size = t == SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW ? ALIGN(size, 256 * 1024) : ALIGN(size, 4 * 1024);
     if (sceGxmMapMemory(p, size, SCE_GXM_MEMORY_ATTRIB_READ | SCE_GXM_MEMORY_ATTRIB_WRITE) < 0) { sceKernelFreeMemBlock(uid); return NULL; }
@@ -265,6 +266,8 @@ void gxm_begin_frame(uint32_t clear_abgr){
     ui_rect(0, 0, GXM_W, GXM_H, clear_abgr | 0xFF000000u); }
 
 static int frame_counter;
+volatile uint64_t gxm_wait_us;                         /* time the renderer waited for the GPU to finish older frames (HUD) */
+volatile unsigned gxm_ram_fallbacks;                   /* GPU allocations that did not fit in video RAM (HUD) */
 int gxm_frame_index(void){ return frame_counter; }
 void gxm_end_frame(void){
     frame_counter++;
@@ -282,4 +285,6 @@ void gxm_end_frame(void){
     front = back;
     /* next frame's scratch block: wait until the GPU has finished the frame that used it last */
     scr_fence[scr] = (unsigned)frame_counter; scr = (scr + 1) % NBUF; scratch_used = 0;
-    while (scr_fence[scr] && (int)(*notif - scr_fence[scr]) < 0) sceKernelDelayThread(100); }
+    { uint64_t t0 = sceKernelGetProcessTimeWide();
+      while (scr_fence[scr] && (int)(*notif - scr_fence[scr]) < 0) sceKernelDelayThread(100);
+      gxm_wait_us += sceKernelGetProcessTimeWide() - t0; } }

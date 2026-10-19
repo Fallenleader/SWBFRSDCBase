@@ -6,8 +6,8 @@
 RS_RES_SCALE=2
 # FXAA anti-aliasing while the picture is scaled to the screen: 1 = on, 0 = off
 RS_FXAA=1
-# anisotropic filtering: 1 = off, 2, 4 or 8
-RS_ANISO=4
+# anisotropic filtering: 1 = off, 2, 4 or 8 (done in the fragment shader: up to 8 extra texture reads per pixel, expensive on the Vita GPU)
+RS_ANISO=1
 # frame rate: 30 or 60
 RS_FPS=30
 # video memory for textures (MB), and the texture cache size before old textures are evicted (MB)
@@ -49,8 +49,12 @@ RS_CREDITS=200
 # ---- sound and diagnostics
 # 0 = no sound
 RS_AUDIO=1
-# 1 = frame-rate / load overlay
-RS_HUD=0
+# 1 = frame-rate / load overlay:
+#   FPS (shown) / VBLANK (game frames); GAME CPU / GE+GPU THREAD busy; HEAP;
+#   per frame: SCENES (render-target switches), DRAWS, texture UPLOADS;
+#   GPU WAIT (% of time the renderer waits for the GPU), GPU SYNCS per second (full stalls), RT (scenes the render target allows),
+#   SLOW-RAM (GPU buffers that did not fit in video RAM)
+RS_HUD=1
 # size limit of ux0:data/SWBFRS/log.txt (MB)
 RS_LOG_MB=4
 # 1 = profiler lines every 600 frames to ux0:data/SWBFRS/perf.log

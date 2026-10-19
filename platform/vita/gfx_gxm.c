@@ -54,7 +54,8 @@ static void pool_release(void *p){
 /* frees wait until the frames that may still read the memory have been displayed */
 #define DEFER_N 1024
 static struct { void *p; int frame; } deferred[DEFER_N]; static int ndef;
-static void pool_free_later(void *p){ if (!p) return; if (ndef >= DEFER_N) { sceGxmFinish(gxm_ctx()); for (int i = 0; i < ndef; i++) pool_release(deferred[i].p); ndef = 0; }
+static unsigned st_finish;                                       /* full GPU waits (HUD) */
+static void pool_free_later(void *p){ if (!p) return; if (ndef >= DEFER_N) { st_finish++; sceGxmFinish(gxm_ctx()); for (int i = 0; i < ndef; i++) pool_release(deferred[i].p); ndef = 0; }
     deferred[ndef].p = p; deferred[ndef].frame = gxm_frame_index(); ndef++; }
 static void pool_collect(void){ int now = gxm_frame_index(), j = 0;
     for (int i = 0; i < ndef; i++) { if (now - deferred[i].frame >= 3) pool_release(deferred[i].p); else deferred[j++] = deferred[i]; } ndef = j; }
@@ -642,7 +643,7 @@ int gfx_read_display(u32 *out){
     if (!disp_addr) return 0;
     surf_t *s = disp_surface();
     if (!s) { for (int y = 0; y < 272; y++) for (int x = 0; x < 480; x++) out[y * 480 + x] = gfx_px_read(g_mem + GADDR((disp_addr + (u32)((y * disp_stride + x) * (disp_fmt == 3 ? 4 : 2))) | 0x04000000u), disp_fmt) | 0xFF000000u; return 1; }
-    end_scene(); sceGxmFinish(gxm_ctx()); rs_perf.readback_n++;
+    end_scene(); st_finish++; sceGxmFinish(gxm_ctx()); rs_perf.readback_n++;
     const u32 *m = s->mem; for (int y = 0; y < 272; y++) for (int x = 0; x < 480; x++) out[y * 480 + x] = m[(size_t)(y * RS_S + RS_S / 2) * PX + x * RS_S + RS_S / 2] | 0xFF000000u;
     return 1; }
 u32 *gfx_read_display_full(int *w, int *h){ (void)w; (void)h; return NULL; }
@@ -681,6 +682,8 @@ void rs_renderer_present(const char *const *lines, int n){
     gxm_set_dialog(rs_dialog_active); gxm_end_frame(); }
 void gfx_cache_stats(char *buf, int n){ int used = 0; for (int i = 0; i < TC_N; i++) used += tc[i].used; int ns = 0; for (int i = 0; i < SURF_N; i++) ns += surfs[i].used;
     snprintf(buf, (size_t)n, "texture cache %d/%d entries, %.1f MB; %d render surfaces", used, TC_N, tc_bytes / 1048576.0, ns); }
+int rt_scenes = 16;                                               /* scenes per frame the render target was created with */
+void gfx_vita_counters(unsigned *scenes, unsigned *draws, unsigned *uploads, unsigned *finishes, int *rts){ *scenes = st_scenes; *draws = st_draws; *uploads = st_texup; *finishes = st_finish; *rts = rt_scenes; }
 void gfx_stats(char *buf, int n){ int ns = 0; for (int i = 0; i < SURF_N; i++) ns += surfs[i].used; snprintf(buf, (size_t)n, "draws=%u tris=%u clears=%u texture-uploads=%u scenes=%u surfaces=%d", st_draws, st_tris, st_clears, st_texup, st_scenes, ns); }
 void gfx_shadow_frame(void){ }
 void gfx_before_job(void){ }
@@ -701,7 +704,8 @@ int gfx_init(void){
     {   int e = sceGxmCreateRenderTarget(&rp, &srt);                  /* short of memory: fewer scenes per frame need less driver memory */
         while (e < 0 && rp.scenesPerFrame > 4) { fprintf(stderr, "[GXM] render target with %d scenes per frame failed (%08x)\n", rp.scenesPerFrame, (unsigned)e);
             rp.scenesPerFrame /= 2; e = sceGxmCreateRenderTarget(&rp, &srt); }
-        if (e < 0) { fprintf(stderr, "[GXM] cannot create the render target (%dx%d): %08x\n", PX, PXH, (unsigned)e); return -1; } }
+        if (e < 0) { fprintf(stderr, "[GXM] cannot create the render target (%dx%d): %08x\n", PX, PXH, (unsigned)e); return -1; }
+        rt_scenes = (int)rp.scenesPerFrame; }
     unsigned dw = ALIGN(PX, SCE_GXM_TILE_SIZEX), dh = ALIGN(PXH, SCE_GXM_TILE_SIZEY);
     void *dmem = gxm_alloc((size_t)dw * dh * 4, SCE_GXM_DEPTHSTENCIL_SURFACE_ALIGNMENT, 1); if (!dmem) { fprintf(stderr, "[GXM] out of video memory (depth buffer)\n"); return -1; }
     sceGxmDepthStencilSurfaceInit(&sds, SCE_GXM_DEPTH_STENCIL_FORMAT_S8D24, SCE_GXM_DEPTH_STENCIL_SURFACE_TILED, dw, dmem, NULL);

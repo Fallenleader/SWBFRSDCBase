@@ -197,9 +197,13 @@ extern volatile int g_frames;
 static u64 hud_presented;
 static const char *const *hud_update(int *nl){
     static int on = -1; if (on < 0) on = rs_setting_int("RS_HUD", 0); *nl = 0; if (!on) return NULL;
-    static u64 t_last, pres_last, gfr_last; static rs_perf_t p_last; static char l[3][96]; static const char *lines[3] = {l[0], l[1], l[2]};
+    static u64 t_last, pres_last, gfr_last, wait_last; static rs_perf_t p_last; static char l[5][96]; static const char *lines[5] = {l[0], l[1], l[2], l[3], l[4]};
+    static unsigned sc_last, dr_last, up_last, fi_last;
+    extern void gfx_vita_counters(unsigned *, unsigned *, unsigned *, unsigned *, int *); extern volatile uint64_t gxm_wait_us; extern volatile unsigned gxm_ram_fallbacks;
+    unsigned sc, dr, up, fi; int rts; gfx_vita_counters(&sc, &dr, &up, &fi, &rts);
     u64 now = sceKernelGetProcessTimeWide();
-    if (!t_last) { t_last = now; p_last = rs_perf; pres_last = hud_presented; gfr_last = (u64)g_frames; snprintf(l[0], sizeof l[0], "RS"); l[1][0] = l[2][0] = 0; }
+    if (!t_last) { t_last = now; p_last = rs_perf; pres_last = hud_presented; gfr_last = (u64)g_frames; snprintf(l[0], sizeof l[0], "RS"); l[1][0] = l[2][0] = l[3][0] = l[4][0] = 0;
+        sc_last = sc; dr_last = dr; up_last = up; fi_last = fi; wait_last = gxm_wait_us; }
     else if (now - t_last >= 500000) {
         double dt = (double)(now - t_last); rs_perf_t p = rs_perf;
         if (p.job_us < p_last.job_us) p_last = p;
@@ -211,8 +215,12 @@ static const char *const *hud_update(int *nl){
         snprintf(l[0], sizeof l[0], "FPS %.1f  VBLANK %.1f", fps, gfps);
         snprintf(l[1], sizeof l[1], "GAME CPU %.0f%%  GE+GPU THREAD %.0f%%", cpu * 100, gl * 100);
         snprintf(l[2], sizeof l[2], "HEAP %.0f/%d MB", mi.uordblks / 1048576.0, _newlib_heap_size_user >> 20);
+        double pf = (double)(hud_presented - pres_last); if (pf < 1) pf = 1;
+        snprintf(l[3], sizeof l[3], "PER FRAME: SCENES %.1f DRAWS %.0f UPLOADS %.1f", (sc - sc_last) / pf, (dr - dr_last) / pf, (up - up_last) / pf);
+        snprintf(l[4], sizeof l[4], "GPU WAIT %.0f%%  GPU SYNCS %.1f/s  RT %d  SLOW-RAM %u", (double)(gxm_wait_us - wait_last) * 100.0 / dt, (fi - fi_last) * 1e6 / dt, rts, gxm_ram_fallbacks);
+        sc_last = sc; dr_last = dr; up_last = up; fi_last = fi; wait_last = gxm_wait_us;
         t_last = now; p_last = p; pres_last = hud_presented; gfr_last = (u64)g_frames; }
-    *nl = 3; return lines; }
+    *nl = 5; return lines; }
 
 /* ---------------------------------------------------------------- game thread */
 void hle_init(const char *root, u32 lo, u32 hi); void hle_wait_all_threads(void); void hle_report(void);
