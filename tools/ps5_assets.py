@@ -6,7 +6,9 @@
   icon0.png   512x512 (PS5 launcher icon): the game's ICON0.PNG (144x80) on its own PIC1.PNG art
   pic0.dds    3840x2160 BC7 (selected-title background): PIC1.PNG (480x272) as the game shows it on the PS5, 16:9 (one row off
   pic1.dds    the top and the bottom), scaled 8x; pic1 (launch picture): package.sh copies pic0
-  snd0.wav    SND0.AT3 decoded to 48 kHz stereo (ffmpeg), the input of the ATRAC9 encoder that writes snd0.at9
+  snd0.at9    SND0.AT3 decoded to 48 kHz stereo (ffmpeg, snd0.wav) and encoded to ATRAC9 at 144 kbps, looped, by Sony's at9tool
+              (AT9TOOL=<path to PS4_at9tool.exe>, e.g. from github.com/BMK-Studio/AT9-AT3_Converter, ATRAC folder; run with wine off
+              Windows.  Use wine's own msvcr120.dll: the one next to the tool there is a 64-bit build the 32-bit tool cannot load)
 
 Needs Pillow, numpy and etcpak (pip install etcpak: its BC7 encoder is bc7enc), and ffmpeg for the sound."""
 import os, struct, subprocess, sys
@@ -48,7 +50,13 @@ def main(disc, out):
     # the sound, decoded for the ATRAC9 encoder
     snd = os.path.join(g, 'SND0.AT3')
     if os.path.exists(snd):
-        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', snd, '-ar', '48000', '-ac', '2', '-c:a', 'pcm_s16le', os.path.join(out, 'snd0.wav')], check=True)
+        wav = os.path.join(out, 'snd0.wav')
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', snd, '-ar', '48000', '-ac', '2', '-c:a', 'pcm_s16le', wav], check=True)
+        tool = os.environ.get('AT9TOOL')
+        if tool:
+            cmd = ([] if os.name == 'nt' else ['wine']) + [tool, '-e', '-br', '144', '-wholeloop', wav, os.path.join(out, 'snd0.at9')]
+            subprocess.run(cmd, check=True, env=dict(os.environ, WINEDEBUG='-all')); os.remove(wav)
+        else: print('AT9TOOL not set: snd0.wav left for an ATRAC9 encoder')
     print('wrote', ', '.join(sorted(os.listdir(out))))
 
 if __name__ == '__main__':

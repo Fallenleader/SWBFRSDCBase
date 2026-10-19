@@ -43,6 +43,9 @@ Files the game writes to `/data/SWBFRS/`:
 
 ## Settings: `/data/SWBFRS/settings.txt`
 
+The zip has `SWBFRS/settings.txt` with every key at its PS5 default (also `platform/ps5/settings.txt`): copy it to
+`/data/SWBFRS/settings.txt` and edit.
+
 | Key | PS5 default | Meaning |
 |---|---|---|
 | `RS_RES_SCALE` | 8 | internal resolution as a multiple of 480x272: 1 to 8 (8 = 4K) |
@@ -64,10 +67,6 @@ tickets), so that it stays compatible with the PS Vita and PSP.
   sounds (ATRAC3plus, VAG) play.
 * Network play.
 * An on-screen keyboard: the profile name keeps the game's default.
-* The home-screen music (`snd0.at9`). `tools/ps5_assets.py` writes `snd0.wav` (the game's SND0.AT3 at 48 kHz); encode it with
-  [ps5-at9-converter](https://github.com/blackbearreloaded/ps5-at9-converter)
-  (`python ps5-at9-converter.pyz -i platform/ps5/sce_sys/snd0.wav -o platform/ps5/sce_sys/snd0.at9 --duration max --param-json platform/ps5/sce_sys/param.json`)
-  and `make ps5` packages it.
 
 ## How it is built
 
@@ -90,5 +89,6 @@ make ps5 PS5_BOILERPLATE=/path/to/ps5-native-app-boilerplate PS5_OPENGL=/path/to
 The result is `build/ps5/PPSA90292/` and `build/ps5/PPSA90292.zip`.
 
 Home-screen pictures and sound come from the game's own `ICON0.PNG`, `PIC1.PNG` and `SND0.AT3`
-(`platform/ps5/sce_sys/`; `python3 tools/ps5_assets.py <folder holding PSP_GAME>` makes them; it needs `pip install etcpak`).
+(`platform/ps5/sce_sys/`; `AT9TOOL=<PS4_at9tool.exe> python3 tools/ps5_assets.py <folder holding PSP_GAME>` makes them; it needs
+`pip install etcpak`, and wine off Windows for Sony's at9tool, e.g. the one in BMK-Studio/AT9-AT3_Converter's ATRAC folder).
 Compiled with `-O3 -march=znver2` (the PS5's Zen 2 CPU).

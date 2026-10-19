@@ -1,0 +1,43 @@
+# SWBF Renegade Squadron (PS5) settings: copy to /data/SWBFRS/settings.txt
+# One KEY=VALUE per line; '#' starts a comment line. Every value below is the PS5 default, so deleting a line changes nothing.
+
+# ---- picture
+# internal resolution x the PSP's 480x272: 1 to 8 (8 = 3840x2176, shown as 4K)
+RS_RES_SCALE=8
+# 1 = exactly 16:9 (one PSP row off the top and the bottom: 3840x2160 at scale 8); 0 = the whole 480x272 with thin bars
+RS_CROP_169=1
+# video output: 2160, 1440 or 1080
+RS_OUTPUT=2160
+# FXAA anti-aliasing: 1 = on, 0 = off
+RS_FXAA=1
+# anisotropic filtering: 1 = off, 2, 4, 8 or 16
+RS_ANISO=16
+# frame rate: 30 or 60
+RS_FPS=60
+# vertex transform and lighting on the GPU: 1 = on
+RS_HW_TL=1
+
+# ---- controls
+# 1 = left stick move + strafe, right stick turn + look; 0 = the PSP's one-stick controls
+RS_TWIN_STICK=1
+
+# ---- game options (offline games only; network games keep the game's 16 players and 25..200 tickets)
+# 0 = the game's original option limits
+RS_GAME_PATCHES=1
+# highest "Min Players (including AI)": bots fill both teams evenly (the game's own limit is 16)
+RS_MAX_PLAYERS=128
+# lowest and highest "Conquest Initial Tickets" (the game's own range is 25 to 200)
+RS_MIN_TICKETS=200
+RS_MAX_TICKETS=5000
+
+# ---- experimental features: 1 = on, 0 = the game's own behaviour
+RS_SAVE_MANAGER=1
+RS_ANY_HEAD=1
+RS_COLOUR_PICKER=1
+RS_ANY_SLOT=1
+# load-out credit allowance (the game's is 100)
+RS_CREDITS=200
+
+# ---- sound and diagnostics
+# 0 = no sound
+RS_AUDIO=1

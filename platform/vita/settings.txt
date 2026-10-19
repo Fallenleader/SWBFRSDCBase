@@ -1,0 +1,58 @@
+# SWBF Renegade Squadron (PS Vita) settings: copy to ux0:data/SWBFRS/settings.txt
+# One KEY=VALUE per line; '#' starts a comment line. Every value below is the default, so deleting a line changes nothing.
+
+# ---- picture
+# internal resolution x the PSP's 480x272: 1 = 480x272, 2 = 960x544 (the Vita screen), 3 = 1440x816 (supersampled; more GPU time)
+RS_RES_SCALE=2
+# FXAA anti-aliasing while the picture is scaled to the screen: 1 = on, 0 = off
+RS_FXAA=1
+# anisotropic filtering: 1 = off, 2, 4 or 8
+RS_ANISO=4
+# frame rate: 30 or 60
+RS_FPS=30
+# video memory for textures (MB), and the texture cache size before old textures are evicted (MB)
+RS_TEX_POOL_MB=48
+RS_TEX_BUDGET_MB=40
+# vertex transform and lighting on the GPU: 1 = on
+RS_HW_TL=1
+
+# ---- performance
+# 1 = renderer on core 0, game main thread on core 1, other game threads on core 2
+RS_CPU_PIN=1
+# 1 = experimental: the game does not wait for the renderer at GU sync points
+RS_GU_PIPELINE=0
+
+# ---- controls
+# 1 = left stick move + strafe, right stick turn + look; 0 = the PSP's one-stick controls
+RS_TWIN_STICK=1
+
+# ---- game options (offline games only; network games keep the game's 16 players and 25..200 tickets)
+# 0 = the game's original option limits
+RS_GAME_PATCHES=1
+# highest "Min Players (including AI)": bots fill both teams evenly (the game's own limit is 16)
+RS_MAX_PLAYERS=64
+# lowest and highest "Conquest Initial Tickets" (the game's own range is 25 to 200)
+RS_MIN_TICKETS=25
+RS_MAX_TICKETS=1000
+
+# ---- experimental features: 1 = on, 0 = the game's own behaviour
+# save manager: 5 profile slots to load, save and delete
+RS_SAVE_MANAGER=1
+# Personalisation: any head of the faction on any of its bodies
+RS_ANY_HEAD=1
+# Personalisation: HSV colour picker instead of the colour swatches
+RS_COLOUR_PICKER=1
+# Customize Load-out: any weapon in either weapon slot, explosives and special items in either slot
+RS_ANY_SLOT=1
+# load-out credit allowance (the game's is 100)
+RS_CREDITS=200
+
+# ---- sound and diagnostics
+# 0 = no sound
+RS_AUDIO=1
+# 1 = frame-rate / load overlay
+RS_HUD=0
+# size limit of ux0:data/SWBFRS/log.txt (MB)
+RS_LOG_MB=4
+# 1 = profiler lines every 600 frames to ux0:data/SWBFRS/perf.log
+RS_PERF_LOG=0

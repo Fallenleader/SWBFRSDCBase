@@ -50,6 +50,13 @@ cp "$root/platform/ps5/sce_sys/param.json" "$app/sce_sys/"
 for f in icon0.png pic0.dds pic1.dds snd0.at9; do [[ -f $root/platform/ps5/sce_sys/$f ]] && cp "$root/platform/ps5/sce_sys/$f" "$app/sce_sys/"; done
 [[ -f $app/sce_sys/pic0.dds && ! -f $app/sce_sys/pic1.dds ]] && cp "$app/sce_sys/pic0.dds" "$app/sce_sys/pic1.dds"   # the launch picture: the same art
 "$tool" self --inspect --file "$app/eboot.bin" | head -12
-(cd "$out" && rm -f "$title.zip" && python3 -c 'import shutil,sys; shutil.make_archive(sys.argv[1], "zip", ".", sys.argv[1])' "$title")
+# the zip: the title folder (-> /data/homebrew/) and SWBFRS/settings.txt (-> /data/SWBFRS/settings.txt)
+rm -rf "$out/SWBFRS"; mkdir -p "$out/SWBFRS"; cp "$root/platform/ps5/settings.txt" "$out/SWBFRS/settings.txt"
+(cd "$out" && rm -f "$title.zip" && python3 -c 'import os,sys,zipfile
+z = zipfile.ZipFile(sys.argv[1] + ".zip", "w", zipfile.ZIP_DEFLATED)
+for top in (sys.argv[1], "SWBFRS"):
+    for d, _, fs in os.walk(top):
+        for f in sorted(fs): z.write(os.path.join(d, f))
+z.close()' "$title")
 echo "title folder: $app"
 echo "zip:          $out/$title.zip"

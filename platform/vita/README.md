@@ -92,20 +92,23 @@ All settings are optional `KEY=VALUE` lines:
 | `RS_TWIN_STICK` | 1 | 1 = left stick move + strafe, right stick turn + look; 0 = the PSP's one-stick controls |
 | `RS_MAX_PLAYERS` | 64 | highest "Min Players (including AI)" in Game Options: bots fill both teams evenly (64 = 32 per side; the game's own limit is 16) |
 | `RS_MIN_TICKETS` / `RS_MAX_TICKETS` | 25 / 1000 | lowest and highest "Conquest Initial Tickets" (the game's own range is 25 to 200; the step stays the game's 5) |
-
-The player and ticket limits apply to offline games only: a network game keeps the game's own limits (16 players, 25 to 200
-tickets), so that it stays compatible with the PSP.
 | `RS_GAME_PATCHES` | 1 | 0 = the game's original option limits |
 | `RS_SAVE_MANAGER` | 1 | 0 = no save manager: saves and loads happen at once (experimental branch) |
 | `RS_ANY_HEAD` | 1 | 0 = the Head list shows only the chosen body's heads (experimental branch) |
 | `RS_ANY_SLOT` | 1 | 0 = the game's own load-out lists (experimental branch) |
 | `RS_CREDITS` | 200 | load-out credit allowance; the game's is 100 (experimental branch) |
+| `RS_COLOUR_PICKER` | 1 | 0 = the game's own colour lists in Personalisation (experimental branch) |
 | `RS_FPS` | 30 | frame rate: 30 or 60 |
 | `RS_AUDIO` | 1 | 0 = no sound |
 | `RS_HUD` | 0 | 1 = frame-rate / load overlay |
 | `RS_LOG_MB` | 4 | size limit of `ux0:data/SWBFRS/log.txt` |
 | `RS_PERF_LOG` | 0 | 1 = profiler lines every 600 frames to `ux0:data/SWBFRS/perf.log` |
 | `RS_GU_PIPELINE` | 0 | 1 = experimental: the game does not wait for the renderer at GU sync points |
+
+The player and ticket limits apply to offline games only: a network game keeps the game's own limits (16 players, 25 to 200
+tickets), so that it stays compatible with the PSP.
+
+`platform/vita/settings.txt` lists every key at its default: copy it to `ux0:data/SWBFRS/settings.txt` and edit.
 
 ## Controls
 

@@ -107,7 +107,7 @@ PS5_FLAGS := -O3 -march=znver2 -mtune=znver2 -w -fno-strict-aliasing -ffp-contra
 P5 := build/ps5
 PS5_C_SRC := $(filter-out $(C)/ge.c $(C)/census.c $(C)/fnprof.c,$(C_SRC))
 PS5_OBJ := $(patsubst src/game/%.c,$(P5)/game/%.o,$(GAME_SRC)) $(P5)/game/data.o $(P5)/game/fn_table.o \
-           $(patsubst $(C)/%.c,$(P5)/c_%.o,$(PS5_C_SRC)) $(P5)/gfx_gl.o $(P5)/texrep.o $(P5)/main.o $(P5)/glue.o $(P5)/app_heap.o \
+           $(patsubst $(C)/%.c,$(P5)/c_%.o,$(PS5_C_SRC)) $(P5)/gfx_gl.o $(P5)/texrep.o $(P5)/main.o $(P5)/dirent_ps5.o $(P5)/glue.o $(P5)/app_heap.o \
            $(patsubst $(C)/ext/at3/%.cpp,$(P5)/at3_%.o,$(wildcard $(C)/ext/at3/*.cpp))
 PS5_INC := -Isrc/game -I$(C) -I$(T) -Iplatform/ps5 -I$(PS5_OPENGL)/include
 $(P5)/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p $(P5)/game; $(PS5CC) -std=gnu11 $(PS5_FLAGS) -Isrc/game -c $< -o $@
@@ -117,6 +117,7 @@ $(P5)/glue.o: $(P5)/glue.c ; $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -c $< -
 $(P5)/c_%.o: $(C)/%.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -c $< -o $@
 $(P5)/%.o: $(T)/%.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -c $< -o $@
 $(P5)/main.o: platform/ps5/main.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -c $< -o $@
+$(P5)/dirent_ps5.o: platform/ps5/dirent_ps5.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -c $< -o $@
 $(P5)/app_heap.o: $(PS5_OPENGL)/../native-app/app_heap.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 -O3 -march=znver2 -w -c $< -o $@
 $(P5)/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $(P5); $(PS5CC) -std=c++17 -O2 -w -I$(C)/ext/at3 -c $< -o $@
 ps5: build/data.c $(PS5_OBJ) ; bash platform/ps5/package.sh "$(PS5_BOILERPLATE)" "$(PS5_OPENGL)" $(PS5_OBJ)
