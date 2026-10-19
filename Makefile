@@ -41,7 +41,7 @@ GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
-C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c
+C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c
 ifeq ($(GE_REF),1)
 C_SRC += $(C)/ge.c
 else

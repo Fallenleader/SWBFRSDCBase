@@ -44,7 +44,7 @@ set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/gu_nativ
                "${ROOT}/platform/common/vfs.c" "${ROOT}/platform/common/gfx_jobs.c" "${ROOT}/platform/common/convert.c" "${ROOT}/platform/common/asura_tex.c"
                "${ROOT}/platform/common/twin_stick.c" "${ROOT}/platform/common/game_patches.c"
                "${ROOT}/platform/common/colour_picker.c"
-               "${ROOT}/platform/common/overlay_ui.c" "${ROOT}/platform/common/save_manager.c" "${ROOT}/platform/common/parts_swap.c" "${ROOT}/platform/common/loadout_slots.c" "${ROOT}/platform/common/tex_mips.c")
+               "${ROOT}/platform/common/overlay_ui.c" "${ROOT}/platform/common/game_ui.c" "${ROOT}/platform/common/save_manager.c" "${ROOT}/platform/common/parts_swap.c" "${ROOT}/platform/common/loadout_slots.c" "${ROOT}/platform/common/tex_mips.c")
 # renderer: GXM, the Vita's native GPU API (no GL layer)
 set(VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/main.c" "${CMAKE_CURRENT_SOURCE_DIR}/stdio_lock.c" "${CMAKE_CURRENT_SOURCE_DIR}/gxm_core.c" "${CMAKE_CURRENT_SOURCE_DIR}/gfx_gxm.c"
              "${CMAKE_CURRENT_SOURCE_DIR}/convert_screen.c")

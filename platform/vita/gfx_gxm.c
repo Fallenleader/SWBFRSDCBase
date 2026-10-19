@@ -698,7 +698,10 @@ int gfx_init(void){
     SURF_H = RS_S >= 3 ? 272 : 512;
     use_fxaa = rs_setting_int("RS_FXAA", 1);
     SceGxmRenderTargetParams rp; memset(&rp, 0, sizeof rp); rp.width = PX; rp.height = PXH; rp.scenesPerFrame = 16; rp.multisampleMode = SCE_GXM_MULTISAMPLE_NONE; rp.driverMemBlock = -1;
-    if (sceGxmCreateRenderTarget(&rp, &srt) < 0) { fprintf(stderr, "[GXM] cannot create the render target (%dx%d)\n", PX, PXH); return -1; }
+    {   int e = sceGxmCreateRenderTarget(&rp, &srt);                  /* short of memory: fewer scenes per frame need less driver memory */
+        while (e < 0 && rp.scenesPerFrame > 4) { fprintf(stderr, "[GXM] render target with %d scenes per frame failed (%08x)\n", rp.scenesPerFrame, (unsigned)e);
+            rp.scenesPerFrame /= 2; e = sceGxmCreateRenderTarget(&rp, &srt); }
+        if (e < 0) { fprintf(stderr, "[GXM] cannot create the render target (%dx%d): %08x\n", PX, PXH, (unsigned)e); return -1; } }
     unsigned dw = ALIGN(PX, SCE_GXM_TILE_SIZEX), dh = ALIGN(PXH, SCE_GXM_TILE_SIZEY);
     void *dmem = gxm_alloc((size_t)dw * dh * 4, SCE_GXM_DEPTHSTENCIL_SURFACE_ALIGNMENT, 1); if (!dmem) { fprintf(stderr, "[GXM] out of video memory (depth buffer)\n"); return -1; }
     sceGxmDepthStencilSurfaceInit(&sds, SCE_GXM_DEPTH_STENCIL_FORMAT_S8D24, SCE_GXM_DEPTH_STENCIL_SURFACE_TILED, dw, dmem, NULL);

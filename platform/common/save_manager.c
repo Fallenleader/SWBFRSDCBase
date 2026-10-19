@@ -117,17 +117,18 @@ void rs_savemgr_draw(void){
     int mode = M.mode, cur = M.cursor, n = M.nslots;
     ov_rect(0, 0, 480, 272, ov_c(0, 0, 0, 0.6f));
     const float x0 = 90, y0 = 30, x1 = 390, y1 = 244;
-    ov_panel(x0, y0, x1, y1);
+    ov_box(x0, y0, x1, y1);
     const char *title = mode == MODE_LOAD ? "Load Profile" : mode == MODE_SAVE ? "Save Profile" : "Delete Profile";
     ov_text(x0 + 12, y0 + 6, 0.62f, ov_c(255, 255, 255, 1), title);
-    for (int i = 0; i < n; i++) {
-        const slot_t *s = (const slot_t *)&M.s[i]; float ey0 = y0 + 34 + i * 32, ey1 = ey0 + 28; int f = i == cur && !M.confirm;
+    for (int i = 0; i < n; i++) {                                           /* one main-menu bar per slot: "Slot 1   name   date" */
+        const slot_t *s = (const slot_t *)&M.s[i]; float ey0 = y0 + 34 + i * 30, ey1 = ey0 + 24; int f = i == cur && !M.confirm;
         ov_entry(x0 + 10, ey0, x1 - 10, ey1, "", f);
         char lab[16]; snprintf(lab, sizeof lab, "Slot %d", i + 1);
-        col_t main = f ? ov_c(255, 255, 255, 1) : ov_c(170, 190, 178, 1), dim = f ? ov_c(220, 240, 230, 1) : ov_c(120, 150, 135, 1);
-        ov_text(x0 + 18, ey0 + 2, 0.45f, dim, lab);
-        ov_text(x0 + 18, ey0 + 13, 0.5f, s->used ? main : dim, s->used ? s->name : "Empty");
-        if (s->used) ov_text(x1 - 18 - ov_text_w(s->when, 0.42f), ey0 + 14, 0.42f, dim, s->when); }
+        col_t main = f ? ov_c(255, 255, 255, 1) : ov_c(200, 214, 224, 1), dim = f ? ov_c(225, 235, 245, 1) : ov_c(140, 160, 175, 1);
+        float ty = ey0 + (24 - ov_text_h(0.45f)) / 2;
+        ov_text(x0 + 22, ty, 0.45f, dim, lab);
+        ov_text(x0 + 76, ty, 0.45f, s->used ? main : dim, s->used ? s->name : "Empty");
+        if (s->used) ov_text(x1 - 22 - ov_text_w(s->when, 0.45f), ty, 0.45f, dim, s->when); }
     char foot[64]; snprintf(foot, sizeof foot, "%s", M.note[0] ? (const char *)M.note : "");
     if (foot[0]) ov_text(x0 + 14, y1 - 20, 0.45f, ov_c(240, 200, 120, 1), foot);
     ov_text(x1 - 12 - ov_text_w("X Select   O Back", 0.45f), y1 - 20, 0.45f, ov_c(220, 230, 225, 1), "X Select   O Back");
@@ -136,7 +137,7 @@ void rs_savemgr_draw(void){
         if (mode == MODE_DELETE) snprintf(q, sizeof q, "Delete \"%s\"?", s->name); else snprintf(q, sizeof q, "Overwrite \"%s\"?", s->name);
         const float bx0 = 130, by0 = 92, bx1 = 350, by1 = 196;
         ov_rect(0, 0, 480, 272, ov_c(0, 0, 0, 0.45f));
-        ov_panel(bx0, by0, bx1, by1);
+        ov_box(bx0, by0, bx1, by1);
         ov_text((bx0 + bx1 - ov_text_w(q, 0.5f)) / 2, by0 + 10, 0.5f, ov_c(255, 255, 255, 1), q);
         const char *sub = mode == MODE_DELETE ? "This cannot be undone." : "The saved profile will be replaced.";
         ov_text((bx0 + bx1 - ov_text_w(sub, 0.42f)) / 2, by0 + 28, 0.42f, ov_c(200, 220, 210, 1), sub);
