@@ -31,13 +31,25 @@ int rs_patch_volume(void){ return 100; }
 u32 rs_patch_fxaa(void){ return (u32)env("RS_FXAA", 1); }               /* FXAA on the scaled picture */
 u32 rs_patch_hw_transform(void){ return (u32)env("RS_HW_TL", 1); }
 u32 rs_patch_res_scale(void){ return (u32)env("RS_RES_SCALE", 2); }    /* internal resolution: 1-3 x the PSP 480x272 */
+#if defined(RS_PS5) || defined(RS_GFX_FX)
+/* graphics features (gfx_fx.c): settings RS_SHADOWS / RS_PBR ..., the sun of the map being played */
+#include "gfx_fx.h"
+u32 rs_patch_shadows(void){ rs_fx_init(); return (u32)rs_fx.shadows; }
+int rs_patch_shadow_res(void){ rs_fx_init(); return rs_fx.shadow_res; }
+int rs_patch_shadow_range(void){ rs_fx_init(); return rs_fx.shadow_range; }
+int rs_patch_shadow_strength(void){ rs_fx_init(); return rs_fx.shadow_strength; }
+void rs_patch_shadow_sun(float *d){ if (!rs_fx_sun(d, 0, 0)) { d[0] = 0.35f; d[1] = 0.85f; d[2] = 0.4f; } }
+u32 rs_patch_pbr(void){ rs_fx_init(); return (u32)rs_fx.pbr; }
+void rs_patch_pbr_sun(float *c, float *spec){ float d[3]; if (!rs_fx_sun(d, c, 0)) c[0] = c[1] = c[2] = 1; if (spec) *spec = 1; }
+#else
 u32 rs_patch_shadows(void){ return 0; }
 int rs_patch_shadow_res(void){ return 1024; }
 int rs_patch_shadow_range(void){ return 40; }
 int rs_patch_shadow_strength(void){ return 45; }
 void rs_patch_shadow_sun(float *d){ d[0] = 0; d[1] = -1; d[2] = 0; }
 u32 rs_patch_pbr(void){ return 0; }
-void rs_patch_pbr_sun(float *c){ c[0] = c[1] = c[2] = 1; }
+void rs_patch_pbr_sun(float *c, float *spec){ c[0] = c[1] = c[2] = 1; if (spec) *spec = 1; }
+#endif
 int rs_patch_tex_budget_mb(void){ return 512; }
 int rs_patch_mod_tex_max(void){ return 4096; }
 int rs_setting_int(const char *k, int d){ return env(k, d); }

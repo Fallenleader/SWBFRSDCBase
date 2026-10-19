@@ -14,8 +14,32 @@ RS_FXAA=1
 RS_ANISO=16
 # frame rate: 30 or 60
 RS_FPS=60
-# vertex transform and lighting on the GPU: 1 = on
+# vertex transform and lighting on the GPU: 1 = on (needed by everything in the next section)
 RS_HW_TL=1
+
+# ---- lighting (PS5GFXExperimental)
+# sun shadows from a shadow map: 1 = on; map size in pixels; range around the camera in metres; darkness in percent
+RS_SHADOWS=1
+RS_SHADOW_RES=4096
+RS_SHADOW_RANGE=60
+RS_SHADOW_STRENGTH=50
+# PBR shading (metal/roughness + normal maps) for mod textures that come with _mr / _n maps
+RS_PBR=1
+# ray-traced shadows and reflections: settings only so far, the passes are not in this build (0 = off)
+RS_RT_SHADOWS=0
+RS_RT_REFLECTIONS=0
+# per-map light setup: written to /data/SWBFRS/mods/lights/<era>_<map>.txt from the game's own lights the first time a map is
+# played (after this many frames), then read from there - edit a file to change that map's sun; delete it to capture again
+RS_LIGHT_CAPTURE=1
+RS_LIGHT_CAPTURE_FRAMES=600
+
+# ---- modding
+# texture replacements from /data/SWBFRS/mods/<mod>/textures/ (any subfolder): 1 = on
+RS_MODS=1
+# 1 = write every texture of the maps, characters, weapons, vehicles and menus the game loads to /data/SWBFRS/mods/dumps/
+#     (maps/<map>, players/<character>, weapons/..., vehicles/..., objects/..., effects, ui/<file>), named <key>@<name>.png:
+#     a dumped file put into a mod's textures folder replaces that texture; add <key>@<name>_mr.png / _n.png for PBR
+RS_DUMP_ASSETS=1
 
 # ---- performance
 # 1 = renderer, game main thread and audio on a core each, the game's other threads on the rest; 0 = left to the kernel

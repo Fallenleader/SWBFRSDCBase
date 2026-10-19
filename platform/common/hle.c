@@ -432,6 +432,7 @@ static void h_IoOpen(sdkcall_t *c){
     FILE *f = vfs_fopen(full, mode); if (!f && (fl & 3) == 3) f = vfs_fopen(full, "rb");
     if (!f) { V0 = ERR_NOENT; fprintf(stderr, "[IO] open FAILED %s\n", p); return; }
     fprintf(stderr, "[IO] open %s\n", p); rs_atrac_note_file(full);
+    { extern void rs_fx_file_opened(const char *) __attribute__((weak)); if (rs_fx_file_opened) rs_fx_file_opened(full); }   /* gfx_fx.c: map, lights, dumps */
     for (int i = 3; i < 128; i++) if (!fds[i].used) { fds[i] = (fd_t){f, 0, 1, {0}}; V0 = i; return; } fclose(f); V0 = 0x80010018u; }
 static void h_IoClose(sdkcall_t *c){ if (A0 < 128 && fds[A0].used) { if (fds[A0].f) fclose(fds[A0].f); if (fds[A0].d) vfs_closedir(fds[A0].d); fds[A0].used = 0; } V0 = 0; }
 static void h_IoRead(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; return; } { static int dl = -1, df; if (dl < 0) { dl = getenv("RS_IO_DELAY_US") ? atoi(getenv("RS_IO_DELAY_US")) : 0; df = getenv("RS_IO_DELAY_FROM") ? atoi(getenv("RS_IO_DELAY_FROM")) : 0; } if (dl && g_frames >= df) unlocked_sleep((unsigned)dl); } u32 n = A2; u8 *dst = g_mem + GADDR(A1); V0 = (u32)fread(dst, 1, n, fds[A0].f);

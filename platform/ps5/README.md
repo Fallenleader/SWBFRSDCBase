@@ -1,4 +1,4 @@
-# PS5 build (experimental: branch PS5Experimental)
+# PS5 build (branch PS5GFXExperimental: graphics work on top of PS5Experimental)
 
 A native PS5 homebrew title (`PPSA90292`, "SWBF Renegade Squadron") of the decompiled game. No emulation: the game's C code runs
 on the PS5's CPU and draws through OpenGL on its GPU.
@@ -61,6 +61,23 @@ The zip has `SWBFRS/settings.txt` with every key at its PS5 default (also `platf
 
 The player and ticket limits apply to **offline games only**. A network game keeps the game's own limits (16 players, 25 to 200
 tickets), so that it stays compatible with the PS Vita and PSP.
+
+## Graphics work (PS5GFXExperimental)
+
+Code: `platform/common/gfx_fx.c` (settings, current map, light setups, dumps) and `platform/linux_test/gfx_gl.c` (renderer passes).
+
+- **Shadows**: the sun shadow map is on (`RS_SHADOWS`, `RS_SHADOW_RES` ...), lit by each map's own sun.
+- **PBR**: mod textures with `_mr` (R occlusion, G roughness, B metalness) and `_n` (normal) maps get GGX shading from the map's sun (`RS_PBR`).
+- **Light setups**: `/data/SWBFRS/mods/lights/<era>_<map>.txt` (e.g. `classic_hoth.txt`), written the first time a map is played from the
+  game's own GE lights: `sun_dir` (world space, towards the sun), `sun_color`, `sun_intensity`, `ambient`, and the map's local
+  `light point|spot` entries. Edit to change a map's light; delete to capture again.
+- **Ray-traced shadows / reflections** (`RS_RT_SHADOWS`, `RS_RT_REFLECTIONS`): settings and GPU capability check only. The PS5's
+  OpenGL has no ray-tracing API, so these are planned as compute passes (screen-space rays against the frame's depth and normals, the
+  shadow map and the light list as fallback).
+- **Asset dumps** (`RS_DUMP_ASSETS=1`): every texture the game loads, sorted under `/data/SWBFRS/mods/dumps/`:
+  `maps/<map>/` (and `maps/<map>/sky/`), `players/<character>/`, `players/heads/<sheet>/`, `weapons/<sheet>/`, `vehicles/<vehicle>/`,
+  `objects/<group>/`, `effects/`, `ui/<file>/`. Files are `<key>@<name>.png`; copy one into `/data/SWBFRS/mods/<mod>/textures/` (any
+  subfolder) to replace that texture, and add `<key>@<name>_mr.png` / `<key>@<name>_n.png` next to it for PBR.
 
 ## Not in this build yet
 

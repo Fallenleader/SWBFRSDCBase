@@ -17,6 +17,9 @@
 #include "rs_gl.h"
 #include "tex_mips.h"
 #include "gfx.h"
+#if defined(RS_PS5) || defined(RS_GFX_FX)
+#include "gfx_fx.h"
+#endif
 
 volatile unsigned rs_gfx_epoch = 1;
 rs_perf_t rs_perf;
@@ -927,6 +930,9 @@ static void flush_native(void){
     nb.nv = nb.ni = nb.draws = 0; }
 
 int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t *nv){
+#if defined(RS_PS5) || defined(RS_GFX_FX)
+    if (h->lfl[2] > 0.5f) rs_fx_note_lights(h);                          /* gfx_fx.c: the map's light setup */
+#endif
     if (native_on < 0) { extern int rs_setting_int(const char *, int); native_on = rs_setting_int("RS_NATIVE_GE", 1); }
     if (nb_on < 0) { extern int rs_setting_int(const char *, int); nb_on = rs_setting_int("RS_NATIVE_BATCH", 1); }
     if (native_on == 2 && (rs_gfx_epoch & 1)) return 0;                        /* RS_NATIVE_GE=2 (test): native draws on every other frame only, to compare */
@@ -970,6 +976,9 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
 
 void gfx_draw_hw(const gfx_state_t *st, const gfx_hw_t *hw, const gfx_hvtx_t *v, int n){
     if (n <= 0) return; st_draws++; sh_record(st, hw, v, n);
+#if defined(RS_PS5) || defined(RS_GFX_FX)
+    if (hw->lfl[2] > 0.5f) rs_fx_note_lights(hw);                         /* gfx_fx.c: the map's light setup is captured from these */
+#endif
     if (bactive && (bkind != 1 || memcmp(&bst, st, sizeof *st) != 0 || memcmp(&bhw, hw, sizeof *hw) != 0 || bn + n > bhcap)) flush_batch();
     if (!bhv || n > bhcap) { int nc = n > (1 << 16) ? n : (1 << 16); bhv = realloc(bhv, sizeof(gfx_hvtx_t) * (size_t)nc); bhcap = nc; }
     if (!bactive) { bst = *st; bhw = *hw; bactive = 1; bkind = 1; bn = 0; }
@@ -1138,7 +1147,15 @@ static void shadow_pass(void){
           FILE *f = fopen("shadowmap.pgm", "wb"); if (f) { fprintf(f, "P5\n%d %d\n255\n", sh_res, sh_res); for (int i = 0; i < sh_res * sh_res; i++) fputc(px[i] & 255, f); fclose(f); } } }
     glBindFramebuffer(GL_FRAMEBUFFER, 0); cur_target = 0;
     memcpy(sh_mat, M, sizeof M); sh_valid = 1; shr_n = shv_n = 0; sh_cam_ok = 0; sh_view_ok = 0; }
-void gfx_shadow_frame(void){ shadow_pass(); }                     /* frame boundary (GL thread) */
+static void fx_frame(void){                                           /* once per guest frame (GL thread) */
+#if defined(RS_PS5) || defined(RS_GFX_FX)
+    rs_fx_frame();
+    { float d[3], c[3]; unsigned g = 0; static unsigned lg;                /* the sun of the map being played (mods/lights/<map>.txt) */
+      if (rs_fx_sun(d, c, &g) && g != lg) { lg = g; memcpy(sh_sun, d, sizeof sh_sun); norm3(sh_sun); memcpy(pbr_sunc, c, sizeof pbr_sunc);
+          fprintf(stderr, "[GL] sun of %s: %.2f %.2f %.2f, colour %.2f %.2f %.2f\n", rs_fx_map(), sh_sun[0], sh_sun[1], sh_sun[2], c[0], c[1], c[2]); } }
+#endif
+}
+void gfx_shadow_frame(void){ fx_frame(); shadow_pass(); }            /* frame boundary (GL thread, GE reference path) */
 static void shadow_init(void){
     extern u32 rs_patch_shadows(void); extern int rs_patch_shadow_res(void), rs_patch_shadow_range(void), rs_patch_shadow_strength(void); extern void rs_patch_shadow_sun(float *);
     sh_on = hw_ok && rs_patch_shadows(); if (!sh_on) { fprintf(stderr, "[GL] real-time shadows: off\n"); return; }
@@ -1158,6 +1175,20 @@ static void shadow_init(void){
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) { sh_on = 0; fprintf(stderr, "[GL] real-time shadows: shadow map FBO incomplete - off\n"); }
     glBindFramebuffer(GL_FRAMEBUFFER, 0); glBindTexture(GL_TEXTURE_2D, 0);
     fprintf(stderr, "[GL] real-time shadows: %s (%dx%d map, %.0f m range, sun %.2f %.2f %.2f, strength %.0f%%)\n", sh_on ? "on" : "off", sh_res, sh_res, sh_range, sh_sun[0], sh_sun[1], sh_sun[2], sh_strength * 100); }
+
+#if defined(RS_PS5) || defined(RS_GFX_FX)
+/* ---- ray-traced shadows / reflections (PS5GFXExperimental): the setup.  The PS5's OpenGL (Mesa) has no hardware ray-tracing API, so
+ * both are planned as compute passes over this renderer's own buffers: the scene depth + normals of the frame (G-buffer written by
+ * the HW T&L programs), screen-space rays marched against it with the shadow map / the map's light list (gfx_fx.c) as the fallback
+ * for rays that leave the screen.  This checks what the GPU offers and reports it; the passes themselves are not in this build. */
+static int rt_compute;
+static void rt_setup(void){
+    if (!rs_fx.rt_shadows && !rs_fx.rt_reflections) return;
+    int inv = 0; glGetIntegerv(0x90EB /* GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS: GL 4.3+ / ES 3.1+ */, &inv); rt_compute = inv > 0;
+    while (glGetError() != 0) {}
+    fprintf(stderr, "[FX] ray-traced shadows %d / reflections %d requested: compute shaders %s (%d invocations per group); the ray passes are not in this build yet\n",
+            rs_fx.rt_shadows, rs_fx.rt_reflections, rt_compute ? "yes" : "no", (int)inv); }
+#endif
 
 int gfx_init(void){
 #ifndef RS_GFX_MAX_SCALE
@@ -1194,6 +1225,9 @@ int gfx_init(void){
         free(pfs); free(rfs); }
       fprintf(stderr, "[GL] PBR shading for mod textures: %s\n", pbr_ok ? "on" : "off"); }
     shadow_init();
+#if defined(RS_PS5) || defined(RS_GFX_FX)
+    rt_setup();
+#endif
     { extern u32 rs_patch_fxaa(void); use_fxaa = (int)rs_patch_fxaa(); }
     prog_fxaa = link_prog(PVS_SRC, FFS_SRC, "fxaa", pattrs, 2);
     if (prog_fxaa) { u_ftex = glGetUniformLocation(prog_fxaa, "uTex"); u_ftexel = glGetUniformLocation(prog_fxaa, "uTexel"); }
@@ -1253,4 +1287,4 @@ void gfx_hud(const char *const *lines, int n, int ww, int wh){
     if (nv) { glUniform4f(u_fcol, 1, 1, 0.6f, 1); glVertexAttribPointer(0, 2, GL_FLOAT, 0, 8, v); glDrawArrays(GL_TRIANGLES, 0, nv); } }
 
 /* ------------------------------------------------------------------ job hook (platform/common/gfx_jobs.c) */
-void gfx_before_job(void){ unsigned f = gfx_frame_seq(); if (sh_on && sh_frame != f) { sh_frame = f; shadow_pass(); } }      /* first GE job of a new guest frame */
+void gfx_before_job(void){ unsigned f = gfx_frame_seq(); static unsigned fxf; if (fxf != f) { fxf = f; fx_frame(); } if (sh_on && sh_frame != f) { sh_frame = f; shadow_pass(); } }      /* first GE job of a new guest frame */

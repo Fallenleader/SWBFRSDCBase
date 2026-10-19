@@ -48,40 +48,53 @@ static int cmp(const void *a, const void *b){ unsigned long long x = ((const rep
 static int cmpstr(const void *a, const void *b){ return strcmp(*(char * const *)a, *(char * const *)b); }
 static int hex8(const char *s){ for (int i = 0; i < 8; i++) if (!isxdigit((unsigned char)s[i])) return 0; return 1; }
 
-static void scan_dir(const char *dir){
-    DIR *d = opendir(dir); if (!d) return; struct dirent *e; int n = 0;
+/* <key>[-<pal>][@<label>][_mr|_n].png, in dir and its subfolders (a mod can keep the layout of mods/dumps) */
+static int scan_dir(const char *dir, int depth){
+    DIR *d = opendir(dir); if (!d) return 0; struct dirent *e; int n = 0;
     while ((e = readdir(d))) {
-        const char *s = e->d_name; size_t l = strlen(s); if (l < 12 || !hex8(s)) continue;
+        const char *s = e->d_name; size_t l = strlen(s); if (s[0] == '.') continue;
+        char p[1200]; snprintf(p, sizeof p, "%s/%s", dir, s);
+        if (l < 12 || !hex8(s)) { struct stat st; if (depth < 6 && stat(p, &st) == 0 && S_ISDIR(st.st_mode)) n += scan_dir(p, depth + 1); continue; }
         const char *ext = s + l - 4; if (strcmp(ext, ".png") && strcmp(ext, ".PNG")) continue;
         char k[9]; memcpy(k, s, 8); k[8] = 0; unsigned long long key = (unsigned long long)strtoul(k, 0, 16) << 32; const char *r = s + 8;
         if (*r == '-' && (size_t)(r + 9 - s) <= l - 4 && hex8(r + 1)) { memcpy(k, r + 1, 8); key |= strtoul(k, 0, 16); r += 9; }
+        if (*r == '@') { const char *x = ext; if (x - r > 3 && !strncmp(x - 3, "_mr", 3)) x -= 3; else if (x - r > 2 && !strncmp(x - 2, "_n", 2)) x -= 2; r = x; }   /* a label (dumps): ignored */
         size_t rl = (size_t)(ext - r); int slot;
         if (rl == 0) slot = 0; else if (rl == 3 && !strncmp(r, "_mr", 3)) slot = 1; else if (rl == 2 && !strncmp(r, "_n", 2)) slot = 2; else continue;
-        rep_t *rp = get(key); char p[1200]; snprintf(p, sizeof p, "%s/%s", dir, s); free(rp->path[slot]); rp->path[slot] = strdup(p); n++; }
+        rep_t *rp = get(key); free(rp->path[slot]); rp->path[slot] = strdup(p); n++; }
     closedir(d);
-    if (n) fprintf(stderr, "[MOD] %s: %d texture file(s)\n", dir, n); }
+    if (n && !depth) fprintf(stderr, "[MOD] %s: %d texture file(s)\n", dir, n);
+    return n; }
 
+void rs_mkdirs(const char *path){                                  /* mkdir -p */
+    char p[1024]; snprintf(p, sizeof p, "%s", path);
+    for (char *c = p + 1; *c; c++) if (*c == '/') { *c = 0; MKDIR(p); *c = '/'; }
+    MKDIR(p); }
 static const char *dump_root(void){
 #ifdef __vita__
     return "ux0:data/RS/dump";
+#elif defined(RS_PS5)
+    return "/data/SWBFRS/mods/dumps/all";
 #else
     return getenv("RS_DUMP_TEX_DIR") ? getenv("RS_DUMP_TEX_DIR") : "dump";
 #endif
 }
 static void init(void){
     inited = 1; crc_init(); enabled = rs_setting_int("RS_MODS", 1); dumping = rs_setting_int("RS_MOD_DUMP", 0);
-    if (dumping) { char p[600]; snprintf(p, sizeof p, "%s", dump_root()); MKDIR(p); snprintf(p, sizeof p, "%s/textures", dump_root()); MKDIR(p);
+    if (dumping) { char p[600]; snprintf(p, sizeof p, "%s/textures", dump_root()); rs_mkdirs(p);
         fprintf(stderr, "[MOD] dumping every texture to %s\n", p); }
     if (!enabled) return;
 #ifdef __vita__
     const char *root = "ux0:data/RS/mods";
+#elif defined(RS_PS5)
+    const char *root = "/data/SWBFRS/mods";
 #else
     const char *root = getenv("RS_MODS_DIR") ? getenv("RS_MODS_DIR") : "mods";
 #endif
     DIR *d = opendir(root); if (!d) return; struct dirent *e; char *names[256]; int nn = 0;
-    while ((e = readdir(d)) && nn < 256) if (e->d_name[0] != '.') names[nn++] = strdup(e->d_name);
+    while ((e = readdir(d)) && nn < 256) if (e->d_name[0] != '.' && strcmp(e->d_name, "dumps") && strcmp(e->d_name, "lights")) names[nn++] = strdup(e->d_name);
     closedir(d); qsort(names, (size_t)nn, sizeof names[0], cmpstr);          /* alphabetical: later mods override earlier ones */
-    for (int i = 0; i < nn; i++) { char p[1024]; snprintf(p, sizeof p, "%s/%s/textures", root, names[i]); scan_dir(p); free(names[i]); }
+    for (int i = 0; i < nn; i++) { char p[1024]; snprintf(p, sizeof p, "%s/%s/textures", root, names[i]); scan_dir(p, 0); free(names[i]); }
     for (int i = 0; i < nrep; ) { if (!reps[i].path[0]) { free(reps[i].path[1]); free(reps[i].path[2]); reps[i] = reps[--nrep]; } else i++; }   /* colour file required */
     qsort(reps, (size_t)nrep, sizeof *reps, cmp);
     fprintf(stderr, "[MOD] %d texture replacement(s) active\n", nrep); }
@@ -101,5 +114,7 @@ void rs_texrep_dump(u32 key, u32 pal, int w, int h, const u32 *rgba){
     char p[700]; if (pal) snprintf(p, sizeof p, "%s/textures/%08x-%08x.png", dump_root(), key, pal); else snprintf(p, sizeof p, "%s/textures/%08x.png", dump_root(), key);
     FILE *f = fopen(p, "rb"); if (f) { fclose(f); return; }                  /* already dumped by an earlier session */
     stbi_write_png(p, w, h, 4, rgba, w * 4); }
+/* write RGBA8 as a PNG (0 = written) */
+int rs_png_write(const char *path, int w, int h, const u32 *rgba){ return stbi_write_png(path, w, h, 4, rgba, w * 4) ? 0 : -1; }
 /* decode a PNG to RGBA8 (malloc'd, caller frees with free()) */
 u8 *rs_png_load(const char *path, int *w, int *h){ int c; return stbi_load(path, w, h, &c, 4); }
