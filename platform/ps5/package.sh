@@ -30,7 +30,7 @@ lib="$sdk/target/lib"
 # does, except the heap (the OpenGL SDK's app_heap stays the allocator) and the directory functions (dirent_ps5.c)
 vk_in=(); vk_flags=(); vk_map="$out/radv-local.map"
 if [[ -n ${PS5_VULKAN:-} ]]; then
-    vkr=$(cd -- "$PS5_VULKAN" && pwd); radv=${PS5_RADV:-$vkr/../../vkdeps/libvulkan_radeon_rs.a}
+    vkr=$(cd -- "$PS5_VULKAN" && pwd); radv=${PS5_RADV:?PS5_RADV: the renamed RADV archive (tools/ps5_radv_rename.sh)}
     [[ -f $radv ]] || { echo "the RADV archive is missing: $radv" >&2; exit 2; }
     source "$vkr/tools/radv-link.sh"
     PS5_CLANG=${PS5_CLANG:-$(command -v clang-20 || command -v clang)} radv_link_recipe "$vkr" "$vkr/.deps/native/ps5-payload-sdk" "$radv" >/dev/null || exit 2

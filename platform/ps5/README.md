@@ -71,11 +71,19 @@ Code: `platform/common/gfx_fx.c` (settings, current map, light setups, dumps) an
 - **Light setups**: `/data/SWBFRS/mods/lights/<era>_<map>.txt` (e.g. `classic_hoth.txt`), written the first time a map is played from the
   game's own GE lights: `sun_dir` (world space, towards the sun), `sun_color`, `sun_intensity`, `ambient`, and the map's local
   `light point|spot` entries. Edit to change a map's light; delete to capture again.
-- **Ray-traced shadows / reflections** (`RS_RT_SHADOWS`, `RS_RT_REFLECTIONS`): settings and GPU capability check only. The PS5's
-  OpenGL has no ray-tracing API.
-  - **TODO (planned, not started):** add a renderer setting (e.g. `RS_RENDERER=gl|vulkan`) that switches to a Vulkan back end, which
-    does support hardware ray tracing; the ray-traced shadows and reflections are to be built on that back end, with the OpenGL
-    renderer kept as the default and the fallback. Screen-space compute passes on OpenGL remain only a stopgap option.
+- **Renderers**: OpenGL (the default) or Vulkan, chosen by `RS_RENDERER=opengl|vulkan` or in the game's Options menu (the
+  "Vulkan Renderer" check box, the last entry: the game's own check-box widget), which rewrites that line of settings.txt; the
+  choice is used from the next start (`platform/common/renderer_option.c`). Vulkan is RADV, the Mesa driver for AMD GPUs, built for
+  the PS5 by [PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan), linked into the title next to the OpenGL SDK and presenting
+  through `VK_KHR_display`. If Vulkan cannot start, the game falls back to OpenGL. Both renderers share the shadow map, PBR and the
+  per-map light setups.
+- **Ray tracing (Vulkan only)** (`platform/linux_test/gfx_vk.c`, shaders in `platform/linux_test/vk/`): each frame the opaque
+  triangles drawn by the previous frame go into a ray-tracing acceleration structure (world space), and the pixel shader casts
+  rays with `VK_KHR_ray_query`:
+  - `RS_RT_SHADOWS=1`: sun shadows, a ray towards the sun from every lit pixel (in place of the shadow map);
+  - `RS_RT_REFLECTIONS=1`: reflections on shiny PBR surfaces (mod textures with `_mr` maps), the colour of what the reflected
+    ray hits, lit by the sun (itself shadow-tested), fading out towards `RS_RT_DISTANCE` (metres, 200);
+  - `RS_RT=0` turns ray tracing off. The OpenGL renderer has no ray tracing (the PS5's OpenGL has no ray-tracing API).
 - **Asset dumps** (`RS_DUMP_ASSETS=1`): every texture the game loads, sorted under `/data/SWBFRS/mods/dumps/`:
   `maps/<map>/` (and `maps/<map>/sky/`), `players/<character>/`, `players/heads/<sheet>/`, `weapons/<sheet>/`, `vehicles/<vehicle>/`,
   `objects/<group>/`, `effects/`, `ui/<file>/`. Files are `<key>@<name>.png`; copy one into `/data/SWBFRS/mods/<mod>/textures/` (any
@@ -107,6 +115,18 @@ make ps5 PS5_BOILERPLATE=/path/to/ps5-native-app-boilerplate PS5_OPENGL=/path/to
 ```
 
 The result is `build/ps5/PPSA90292/` and `build/ps5/PPSA90292.zip`.
+
+With the Vulkan renderer (PS5GFXExperimental): build RADV with [PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan)
+(`tools/setup-native-dependencies.sh`, then `PS5_MESA_FORK=<its PS5_Mesa checkout> tools/build-radv.sh release`; it needs LLVM 20
+with SPIR-V, libclc and libclang, meson and glslangValidator), then add its checkout:
+
+```
+make ps5 PS5_BOILERPLATE=... PS5_OPENGL=... PS5_VULKAN=/path/to/PS5_Vulkan
+```
+
+`tools/ps5_radv_rename.sh` (run by make) renames RADV's global names that the OpenGL SDK's Mesa also defines, and
+`platform/ps5/package.sh` links RADV whole with PS5_Vulkan's platform layer (`libps5platform.a`) the way its `tools/radv-link.sh`
+does, keeping the OpenGL SDK's heap and this port's directory functions.
 
 Home-screen pictures and sound come from the game's own `ICON0.PNG`, `PIC1.PNG` and `SND0.AT3`
 (`platform/ps5/sce_sys/`; `AT9TOOL=<PS4_at9tool.exe> python3 tools/ps5_assets.py <folder holding PSP_GAME>` makes them; it needs

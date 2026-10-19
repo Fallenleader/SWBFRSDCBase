@@ -4,6 +4,7 @@
 void rs_input_after_pad(void);                                   /* twin_stick.c: right stick into the game's input arrays */
 void rs_input_after_scheme(uint32_t scheme_obj, uint32_t idx);   /* twin_stick.c: control scheme idx built -> twin-stick bindings */
 void rs_game_var_range(uint32_t name, uint32_t var, uint32_t *min, uint32_t *max);  /* game_patches.c: option limits (tickets, players) */
+void rs_game_var_bool(uint32_t name, uint32_t var, uint32_t a2, uint32_t a3);    /* renderer_option.c: the Options menu's renderer switch */
 void rs_patches_frame(void);                                     /* game_patches.c: after each pad read: network games keep the game's ticket range */
 int  rs_ai_pool_init(void);                                       /* game_patches.c: the AI object pool, sized for the raised player counts */
 int  rs_text_get(uint32_t table, uint32_t idx, uint32_t *rv);    /* game_patches.c: bot names past the end of a faction's 48 */

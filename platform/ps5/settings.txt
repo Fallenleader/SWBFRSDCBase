@@ -2,6 +2,10 @@
 # One KEY=VALUE per line; '#' starts a comment line. Every value below is the PS5 default, so deleting a line changes nothing.
 
 # ---- picture
+# renderer: opengl or vulkan (Vulkan: RADV, with ray-traced shadows and reflections). Also in the game's Options menu
+# ("Vulkan Renderer", the last entry), which rewrites this line; a change is used from the next start. If Vulkan cannot
+# start, the game falls back to OpenGL.
+RS_RENDERER=opengl
 # internal resolution x the PSP's 480x272: 1 to 8 (8 = 3840x2176, shown as 4K)
 RS_RES_SCALE=8
 # 1 = exactly 16:9 (one PSP row off the top and the bottom: 3840x2160 at scale 8); 0 = the whole 480x272 with thin bars
@@ -25,10 +29,15 @@ RS_SHADOW_RANGE=60
 RS_SHADOW_STRENGTH=50
 # PBR shading (metal/roughness + normal maps) for mod textures that come with _mr / _n maps
 RS_PBR=1
-# ray-traced shadows and reflections: settings only so far, the passes are not in this build (0 = off).
-# Planned: a renderer switch to a Vulkan back end (hardware ray tracing); OpenGL has no ray-tracing API
-RS_RT_SHADOWS=0
-RS_RT_REFLECTIONS=0
+# ray tracing (the Vulkan renderer only; OpenGL keeps the shadow map): 1 = on
+#   RS_RT             0 = no ray tracing at all (the Vulkan renderer then uses the shadow map like OpenGL)
+#   RS_RT_SHADOWS     sun shadows by a ray towards the sun from every pixel (replaces the shadow map)
+#   RS_RT_REFLECTIONS reflections on shiny PBR surfaces (mod textures with _mr maps): what the reflected ray hits
+#   RS_RT_DISTANCE    how far the rays reach, in metres
+RS_RT=1
+RS_RT_SHADOWS=1
+RS_RT_REFLECTIONS=1
+RS_RT_DISTANCE=200
 # per-map light setup: written to /data/SWBFRS/mods/lights/<era>_<map>.txt from the game's own lights the first time a map is
 # played (after this many frames), then read from there - edit a file to change that map's sun; delete it to capture again
 RS_LIGHT_CAPTURE=1

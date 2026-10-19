@@ -84,6 +84,27 @@ const char *rs_platform_setting(const char *key){
     for (unsigned i = 0; i < sizeof ps5_defaults / sizeof ps5_defaults[0]; i++) if (!strcmp(ps5_defaults[i].k, key)) return ps5_defaults[i].v;
     return NULL; }
 extern int rs_setting_int(const char *k, int d);
+/* a setting changed in the game (the Options menu's Vulkan Renderer: renderer_option.c): settings.txt rewritten with KEY=value in
+ * place of its line (or added), every other line kept */
+const char *rs_platform_data_dir(void){ return RS_DIR; }
+int rs_platform_setting_store(const char *key, const char *value){
+    char *txt = NULL; size_t n = 0; FILE *f = fopen(RS_DIR "/settings.txt", "rb");
+    if (f) { fseek(f, 0, SEEK_END); long l = ftell(f); fseek(f, 0, SEEK_SET); if (l > 0 && (txt = malloc((size_t)l + 1))) { n = fread(txt, 1, (size_t)l, f); txt[n] = 0; } fclose(f); }
+    FILE *o = fopen(RS_DIR "/settings.txt", "wb"); if (!o) { free(txt); return -1; }
+    int done = 0; size_t kl = strlen(key);
+    for (char *p = txt; p && *p; ) {
+        char *e = strchr(p, '\n'); size_t len = e ? (size_t)(e - p + 1) : strlen(p);
+        const char *q = p; while (*q == ' ' || *q == '\t') q++;
+        const char *r = q + kl; while (*r == ' ' || *r == '\t') r++;
+        if (!done && !strncmp(q, key, kl) && *r == '=') { fprintf(o, "%s=%s\n", key, value); done = 1; }
+        else fwrite(p, 1, len, o);
+        p += len; }
+    if (!done) { if (n && txt[n - 1] != '\n') fputc('\n', o); fprintf(o, "%s=%s\n", key, value); }
+    free(txt);
+    if (fclose(o) != 0) return -1;
+    for (int i = 0; i < nkv; i++) if (!strcmp(kv[i].k, key)) { snprintf(kv[i].v, sizeof kv[i].v, "%s", value); return 0; }
+    if (nkv < 64) { snprintf(kv[nkv].k, sizeof kv[nkv].k, "%s", key); snprintf(kv[nkv].v, sizeof kv[nkv].v, "%s", value); nkv++; }
+    return 0; }
 
 /* ---------------------------------------------------------------- logging: stderr -> /data/SWBFRS/log.txt (up to RS_LOG_MB) */
 static void log_init(void){

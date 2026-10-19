@@ -16530,7 +16530,7 @@ L_08897794:;
 }
 
 /* 088977A0 */
-rv_t func_088977A0(u32 a0, u32 a1, u32 a2, u32 a3)
+static rv_t func_088977A0__orig(u32 a0, u32 a1, u32 a2, u32 a3)
 {
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
@@ -16550,6 +16550,12 @@ L_088977A0:;
 L_088977C8:;
     sp = sp + 32;
     return (rv_t){ v0, v1, f0 };
+}
+
+rv_t func_088977A0(u32 a0, u32 a1, u32 a2, u32 a3)
+{
+    rs_game_var_bool(a0, a1, a2, a3);   /* native hook (tools/dc/hooks.py) */
+    return func_088977A0__orig(a0, a1, a2, a3);
 }
 
 /* 088977D4 */

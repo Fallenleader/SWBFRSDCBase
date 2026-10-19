@@ -48,7 +48,9 @@ void rs_game_var_range(u32 name, u32 var, u32 *min, u32 *max){
 }
 
 /* every frame (after the pad read): a network game keeps the game's own ticket range */
+void rs_renderer_frame(void);
 void rs_patches_frame(void){
+    rs_renderer_frame();                                                  /* renderer_option.c */
     if (!on() || GU8(IMG(MODE_NETWORK)) != 1) return;
     u32 t = GU32(IMG(VAR_TICKETS));
     if (t > 200) GU32(IMG(VAR_TICKETS)) = 200; else if (t < 25) GU32(IMG(VAR_TICKETS)) = 25; }

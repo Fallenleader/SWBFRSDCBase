@@ -41,7 +41,7 @@ GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
-C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c $(C)/gfx_fx.c $(C)/gfx_backend.c
+C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c $(C)/gfx_fx.c $(C)/gfx_backend.c $(C)/renderer_option.c
 ifeq ($(GE_REF),1)
 C_SRC += $(C)/ge.c
 else
@@ -133,12 +133,13 @@ $(P5)/app_heap.o: $(PS5_OPENGL)/../native-app/app_heap.c ; @mkdir -p $(P5); $(PS
 $(P5)/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $(P5); $(PS5CC) -std=c++17 -O2 -w -I$(C)/ext/at3 -c $< -o $@
 # PS5_VULKAN=<PS5_Vulkan checkout with its RADV built> (+ PS5_RADV=<RADV archive, its global names apart from the OpenGL SDK's>):
 # the Vulkan renderer (ray tracing) next to OpenGL, chosen by RS_RENDERER in settings.txt / the Options menu
-PS5_RADV ?= $(PS5_VULKAN)/../../vkdeps/libvulkan_radeon_rs.a
+PS5_RADV ?= $(P5)/libvulkan_radeon_rs.a
 ifneq ($(PS5_VULKAN),)
-PS5_OBJ += $(P5)/gfx_vk.o
+PS5_OBJ += $(P5)/gfx_vk.o $(PS5_RADV)
+$(P5)/libvulkan_radeon_rs.a: $(PS5_VULKAN)/.deps/native/radv-release/lib/libvulkan_radeon.ps5.a ; @mkdir -p $(P5); bash tools/ps5_radv_rename.sh $< $(PS5_OPENGL) $@
 $(P5)/gfx_vk.o: platform/linux_test/gfx_vk.c build/vk_spv.h ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -Ibuild -I$(PS5_VULKAN)/.deps/native/radv-release/include -c $< -o $@
 endif
-ps5: build/data.c $(PS5_OBJ) ; PS5_VULKAN="$(PS5_VULKAN)" PS5_RADV="$(PS5_RADV)" bash platform/ps5/package.sh "$(PS5_BOILERPLATE)" "$(PS5_OPENGL)" $(PS5_OBJ)
+ps5: build/data.c $(PS5_OBJ) ; PS5_VULKAN="$(PS5_VULKAN)" PS5_RADV="$(abspath $(PS5_RADV))" bash platform/ps5/package.sh "$(PS5_BOILERPLATE)" "$(PS5_OPENGL)" $(filter-out $(PS5_RADV),$(PS5_OBJ))
 
 # ---- PS Vita (platform/vita) ----
 VITA_B := build/vita
