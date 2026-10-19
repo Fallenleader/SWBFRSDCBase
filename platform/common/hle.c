@@ -88,6 +88,7 @@ static volatile pthread_t big_owner;                 /* last thread to take the 
 static inline void big_lock(void){ __sync_add_and_fetch(&big_waiting, 1); pthread_mutex_lock(&big); __sync_sub_and_fetch(&big_waiting, 1); big_owner = pthread_self(); TLS_RESUME(); }
 static inline void big_wait(rs_cond_t *cv){ rc_wait(cv, &big); big_owner = pthread_self(); TLS_RESUME(); }
 static char g_root[1024] = ".";
+const char *rs_game_root(void){ return g_root; }                   /* the extracted game folder (game_ui.c) */
 u32 hle_heap_lo, hle_heap_hi;
 volatile int g_ge_lists, g_alive_threads;
 static int trace_all;

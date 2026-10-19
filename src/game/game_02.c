@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 08830E28 */
 void func_08830E28(u32 a0, u32 a1)
@@ -5072,7 +5073,7 @@ L_088346D8:;
 }
 
 /* 088346E0 */
-u32 func_088346E0(u32 a0, u32 a1)
+static u32 func_088346E0__orig(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0;
     int cnd_;
@@ -5095,6 +5096,13 @@ L_088346F8:;
 L_08834708:;
     v0 = 0 + 0;
     return v0;
+}
+
+u32 func_088346E0(u32 a0, u32 a1)
+{
+    u32 r_ = 0;
+    if (rs_text_get(a0, a1, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_088346E0__orig(a0, a1);
 }
 
 /* 08834710 */

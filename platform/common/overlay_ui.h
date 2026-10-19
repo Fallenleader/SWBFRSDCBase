@@ -11,9 +11,11 @@ void  ov_frame(float x0, float y0, float x1, float y1, float w, col_t c);
 void  ov_tri(float ax, float ay, float bx, float by, float cx, float cy, col_t c);
 void  ov_ring(float cx, float cy, float r0, float r1, col_t c);
 float ov_text_w(const char *s, float scale);
+float ov_text_h(float scale);                            /* line height of the face a scale uses */
 void  ov_text(float x, float y, float scale, col_t c, const char *s);
 void  ov_entry(float x0, float y0, float x1, float y1, const char *label, int focused);   /* a menu list entry, game style */
 /* the overlays (each draws only while it is up) */
 void rs_picker_draw(void);
 void rs_savemgr_draw(void);
-void ov_panel(float x0, float y0, float x1, float y1);   /* a panel in the Personalisation screen's green (gradient, light rim) */
+void ov_panel(float x0, float y0, float x1, float y1);   /* the game's green Personalisation panel (personalisation_01.tga) */
+void ov_box(float x0, float y0, float x1, float y1);     /* the game's blue dialog box (box_elements.tga) */

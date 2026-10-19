@@ -6,6 +6,7 @@ void rs_input_after_scheme(uint32_t scheme_obj, uint32_t idx);   /* twin_stick.c
 void rs_game_var_range(uint32_t name, uint32_t var, uint32_t *min, uint32_t *max);  /* game_patches.c: option limits (tickets, players) */
 void rs_patches_frame(void);                                     /* game_patches.c: after each pad read: network games keep the game's ticket range */
 int  rs_ai_pool_init(void);                                       /* game_patches.c: the AI object pool, sized for the raised player counts */
+int  rs_text_get(uint32_t table, uint32_t idx, uint32_t *rv);    /* game_patches.c: bot names past the end of a faction's 48 */
 /* colour_picker.c: Personalisation colours chosen with an HSV picker */
 void rs_picker_pad(void);                                        /* after each pad read: the picker's input (the game sees none) */
 int  rs_picker_category(uint32_t category, uint32_t query, uint32_t query2, void *rv);   /* list item accepted: colour -> picker */

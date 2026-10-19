@@ -14,6 +14,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <pthread.h>
+#include <psp2/appmgr.h>
 #include <psp2/kernel/processmgr.h>
 #include <psp2/kernel/sysmem.h>
 #include <psp2/kernel/threadmgr.h>
@@ -295,6 +296,10 @@ int main(void){
     {   /* start-up media screen: converted audio (PCM) and video (MP4) checked every boot, anything missing converted */
         extern int rs_convert_screen(const char *game_root, const char *out_dir);
         int r = rs_convert_screen(vfs_iso_active() ? "iso:" : RS_GAME, RS_DIR "/converted");
+        if (r == 2) {                                                  /* converted this boot: start again in a fresh process */
+            STEP("media converted; restarting");
+            fflush(stderr); int e = sceAppMgrLoadExec("app0:eboot.bin", NULL, NULL);
+            fprintf(stderr, "[RS] restart failed (%08x); continuing\n", (unsigned)e); r = 0; }
         STEP(r == 0 ? "media ready" : "media conversion skipped (%d): original media only", r); }
     { extern int rs_renderer_start(void); if (rs_renderer_start() != 0) fatal("renderer initialisation failed (see the lines above)"); }
     gfx_wake_init(); gfx_thread_register();
