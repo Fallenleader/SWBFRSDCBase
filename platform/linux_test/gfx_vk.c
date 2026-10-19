@@ -395,6 +395,9 @@ typedef struct {
 } ubo_t;
 
 /* ------------------------------------------------------------------ shadows + ray tracing state */
+/* receivers' normal offset against self-shadowing ("acne"): RS_SHADOW_OFFSET shadow-map texels (x 1..3 by the slope); 4 at
+ * 4096 px / 60 m is 12 cm on flat ground.  The casters are the previous frame's geometry, so less shows stripes on slopes. */
+static float sh_offset(void){ static float o = -1.0f; if (o < 0.0f) { extern int rs_setting_int(const char *, int); o = (float)rs_setting_int("RS_SHADOW_OFFSET", 4); if (o < 0.0f) o = 0.0f; } return o; }
 static int sh_on, sh_res = 1024; static float sh_range = 40.0f, sh_strength = 0.45f, sh_sun[3] = {0, 1, 0};
 static unsigned sh_img; static float sh_mat[16]; static int sh_valid;
 typedef struct { int first, count, skin; float wv[12], bone[96]; u32 col; } shrec_t;
@@ -802,7 +805,7 @@ static void shadow_matrix(float M[16]){
     float m[16] = {Xv[0] / (2 * R), Xv[1] / (2 * R), Xv[2] / (2 * R), 0.5f + (-tX - cx) / (2 * R),
                    Yv[0] / (2 * R), Yv[1] / (2 * R), Yv[2] / (2 * R), 0.5f + (-tY - cy) / (2 * R),
                    -dv[0] / (2 * D), -dv[1] / (2 * D), -dv[2] / (2 * D), (tD + cz + D) / (2 * D),
-                   dv[0], dv[1], dv[2], 0.0f};
+                   dv[0], dv[1], dv[2], 2.0f * R / (float)sh_res * sh_offset()};       /* w: the receivers' normal offset (metres) */
     memcpy(M, m, sizeof m); }
 static void shadow_pass(void){
     if (!sh_on || !sh_img || !sh_cam_ok || !shr_n) { sh_valid = 0; return; }

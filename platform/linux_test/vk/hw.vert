@@ -38,7 +38,12 @@ void main(){
     vVP = vp.xyz; vec3 vn = vec3(dot(nn, u.wv[0]), dot(nn, u.wv[1]), dot(nn, u.wv[2])); vVN = vn;
     vec4 tt = vec4(tg, 0.0); vVT = vec3(dot(tt, u.wv[0]), dot(tt, u.wv[1]), dot(tt, u.wv[2]));
     vSh = vec4(dot(vp, u.shm[0]), dot(vp, u.shm[1]), dot(vp, u.shm[2]), 1.0);
-    if (u.lfl.w > 0.5) { float lv = length(vn); vSh.w = (lv > 0.0000001) ? abs(dot(vn / lv, u.shm[3].xyz)) : 1.0; }
+    /* the shadow-map lookup point moved off the surface towards the sun side by one shadow-map texel (u.shm[3].w, metres) x 1..3 by
+     * the slope: no self-shadowing ("acne") on sloped ground; (the maps' terrain normals point away from the sun: abs) */
+    if (u.lfl.w > 0.5) { float lv = length(vn);
+        if (lv > 0.0000001) { vec3 un = vn / lv; float nl = dot(un, u.shm[3].xyz); vec3 nf = (nl < 0.0) ? -un : un;
+            vec4 vo = vec4(vp.xyz + nf * (u.shm[3].w * (1.0 + 2.0 * (1.0 - abs(nl)))), 1.0);
+            vSh = vec4(dot(vo, u.shm[0]), dot(vo, u.shm[1]), dot(vo, u.shm[2]), abs(nl)); } }
     if (LIT) {
         vec3 amb = (u.lfl.x > 0.5) ? aC.rgb : u.mamb.rgb; float aa = (u.lfl.x > 0.5) ? aC.a : u.mamb.a; vec3 dif = (u.lfl.y > 0.5) ? aC.rgb : u.mdif.rgb;
         vec3 col = u.memi.rgb + u.msca.rgb * amb;

@@ -30,6 +30,9 @@ RS_SHADOWS=1
 RS_SHADOW_RES=4096
 RS_SHADOW_RANGE=60
 RS_SHADOW_STRENGTH=50
+# how far each surface's shadow-map lookup is moved off the surface, in shadow-map texels (more on slopes): stops ground
+# shadowing itself in stripes; too high and small shadows start to detach from their objects
+RS_SHADOW_OFFSET=4
 # PBR shading (metal/roughness + normal maps) for mod textures that come with _mr / _n maps
 RS_PBR=1
 # ray tracing (the Vulkan renderer only; OpenGL keeps the shadow map): 1 = on

@@ -225,7 +225,11 @@ static const char *HWVS_BODY =
     "  vec4 vp = vec4(dot(q, uWV[0]), dot(q, uWV[1]), dot(q, uWV[2]), 1.0);\n"
     "  oVP = vp.xyz; oVN = vec3(dot(nn, uWV[0]), dot(nn, uWV[1]), dot(nn, uWV[2])); vec4 tt = vec4(tg, 0.0); oVT = vec3(dot(tt, uWV[0]), dot(tt, uWV[1]), dot(tt, uWV[2]));\n"
     "  oSh = vec4(dot(vp, uShM[0]), dot(vp, uShM[1]), dot(vp, uShM[2]), 1.0);\n"
-    "  if (uLFl.w > 0.5) { vec3 vn = vec3(dot(nn, uWV[0]), dot(nn, uWV[1]), dot(nn, uWV[2])); float lv = length(vn); oSh.w = (lv > 0.0000001) ? dot(vn / lv, uShM[3].xyz) : 1.0; }\n"     /* surfaces facing away from the sun are not darkened twice */
+    /* surfaces facing away from the sun are not darkened twice (w <= 0); the shadow-map lookup point is moved off the surface, towards
+     * the sun side, by uShM[3].w (one shadow-map texel in metres) x 1..3 by the slope: no self-shadowing ("acne") on sloped ground */
+    "  if (uLFl.w > 0.5) { vec3 vn = vec3(dot(nn, uWV[0]), dot(nn, uWV[1]), dot(nn, uWV[2])); float lv = length(vn);\n"
+    "    if (lv > 0.0000001) { vn = vn / lv; float nl = dot(vn, uShM[3].xyz); vec3 nf = (nl < 0.0) ? -vn : vn;\n"
+    "      vec4 vo = vec4(vp.xyz + nf * (uShM[3].w * (1.0 + 2.0 * (1.0 - abs(nl)))), 1.0); oSh = vec4(dot(vo, uShM[0]), dot(vo, uShM[1]), dot(vo, uShM[2]), nl); } }\n"
     "#ifdef LIT\n"
     "  vec3 amb = (uLFl.x > 0.5) ? C.rgb : uMAmb.rgb; float aa = (uLFl.x > 0.5) ? C.a : uMAmb.a; vec3 dif = (uLFl.y > 0.5) ? C.rgb : uMDif.rgb;\n"
     "  vec3 col = uMEmi.rgb + uMSca.rgb * amb;\n"
@@ -437,6 +441,9 @@ static void tp_forget(unsigned id){ tp[id & 511].id = 0; }
 static struct { unsigned id; int w, h; } tmip[4096];
 
 /* ---- shadow state ---- */
+/* receivers' normal offset against self-shadowing ("acne"): RS_SHADOW_OFFSET shadow-map texels (x 1..3 by the slope); 4 at
+ * 4096 px / 60 m is 12 cm on flat ground.  The casters are the previous frame's geometry, so less shows stripes on slopes. */
+static float sh_offset(void){ static float o = -1.0f; if (o < 0.0f) { extern int rs_setting_int(const char *, int); o = (float)rs_setting_int("RS_SHADOW_OFFSET", 4); if (o < 0.0f) o = 0.0f; } return o; }
 static int sh_on, sh_res = 1024; static float sh_range = 40.0f, sh_strength = 0.45f, sh_sun[3] = {0, 1, 0};
 static unsigned sh_fbo, sh_tex, sh_rb; static prog_t P_shd[2]; static float sh_mat[16]; static int sh_valid;
 typedef struct { int first, count, skin; float wv[12], bone[96]; } shrec_t;
@@ -869,7 +876,9 @@ static char *native_vs_src(u32 vt, int lit, int fx){
            "  vec4 q = vec4(mp, 1.0); vec4 vp = vec4(dot(q, uWV[0]), dot(q, uWV[1]), dot(q, uWV[2]), 1.0); vec4 nn = vec4(mn, 0.0);\n"
            "  vec3 vn = vec3(dot(nn, uWV[0]), dot(nn, uWV[1]), dot(nn, uWV[2])); vVP = vp.xyz; vVN = vn; vVT = vec3(uWV[0].x, uWV[1].x, uWV[2].x);\n"
            "  vSh = vec4(dot(vp, uShM[0]), dot(vp, uShM[1]), dot(vp, uShM[2]), 1.0);\n"
-           "  if (uLFl.w > 0.5) { float lv = length(vn); vSh.w = (lv > 0.0000001) ? abs(dot(vn / lv, uShM[3].xyz)) : 1.0; }\n");
+           "  if (uLFl.w > 0.5) { float lv = length(vn);\n"                     /* (the maps' terrain normals point away from the sun: abs) */
+           "    if (lv > 0.0000001) { vec3 un = vn / lv; float nl = dot(un, uShM[3].xyz); vec3 nf = (nl < 0.0) ? -un : un;\n"
+           "      vec4 vo = vec4(vp.xyz + nf * (uShM[3].w * (1.0 + 2.0 * (1.0 - abs(nl)))), 1.0); vSh = vec4(dot(vo, uShM[0]), dot(vo, uShM[1]), dot(vo, uShM[2]), abs(nl)); } }\n");
     sb(&b, "}\n");
 #endif
     return b.p; }
@@ -1178,7 +1187,7 @@ static void shadow_pass(void){
     float M[16] = {Xv[0] / (2 * R), Xv[1] / (2 * R), Xv[2] / (2 * R), 0.5f + (-tX - cx) / (2 * R),
                    Yv[0] / (2 * R), Yv[1] / (2 * R), Yv[2] / (2 * R), 0.5f + (-tY - cy) / (2 * R),
                    -dv[0] / (2 * D), -dv[1] / (2 * D), -dv[2] / (2 * D), (tD + cz + D) / (2 * D),
-                   dv[0], dv[1], dv[2], 0.0f};
+                   dv[0], dv[1], dv[2], 2.0f * R / (float)sh_res * sh_offset()};       /* w: the receivers' normal offset (metres) */
     glBindFramebuffer(GL_FRAMEBUFFER, sh_fbo); cur_target = 0;
     glViewport(0, 0, sh_res, sh_res); scissor_off(); glDisable(GL_BLEND); glDisable(GL_STENCIL_TEST); glDisable(GL_CULL_FACE);
     glColorMask(1, 1, 1, 1); glDepthMask(1); glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS);
