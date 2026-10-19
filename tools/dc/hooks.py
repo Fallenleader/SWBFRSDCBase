@@ -10,12 +10,16 @@ import re, sys, os
 
 # address -> {'before': call, 'replace': call, 'after': call}; argument names are the decompiled parameter names
 HOOKS = {
-    '088FDCC0': {'after': 'rs_input_after_pad(), rs_picker_pad(), rs_savemgr_pad()'},          # pad read (game_11.c): twin_stick.c, colour_picker.c, save_manager.c
+    '088FDCC0': {'after': 'rs_input_after_pad(), rs_picker_pad(), rs_savemgr_pad(), rs_parts_frame()'},          # pad read (game_11.c): twin_stick.c, colour_picker.c, save_manager.c
     '08A5F1A4': {'after': 'rs_input_after_scheme(a0, a1)'},                   # a control scheme's bindings built (game_26.c): twin_stick.c
     '08897814': {'before': 'rs_game_var_range(a1, &a2, &a3)'},                # a game option registered with its range (game_06.c)
     '08A359F4': {'replace': 'rs_picker_category(a0, a1, a2, &r_)'},           # Personalisation: list item accepted (game_25.c)
     '0897843C': {'replace': 'rs_colour_lookup(a0, a1, 0, &r_)'},              # a faction's colour 1 (team) as 0xAARRGGBB (game_16.c)
     '0897848C': {'replace': 'rs_colour_lookup(a0, a1, 1, &r_)'},              # a faction's colour 2 (uniform)
+    '08977FFC': {'replace': 'rs_head_lookup(a0, a1, a2, &r_)'},               # a body's head (game_16.c): parts_swap.c
+    '08A35BB0': {'replace': 'rs_parts_list(a0, a1, &r_)'},                    # Personalisation carousel: list an item (game_25.c)
+    '08A35D88': {'replace': 'rs_parts_anim(a0, a1, &r_)'},                    # Personalisation carousel: an item's 3D model
+    '08A35B00': {'replace': 'rs_parts_accept(a0, a1, &r_)'},                  # Personalisation carousel: item chosen
 }
 MARK = '/* native hook (tools/dc/hooks.py) */'
 INCLUDE = '#include "../../platform/common/game_hooks.h"   ' + MARK + '\n'

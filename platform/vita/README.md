@@ -138,6 +138,15 @@ In Customization → Personalize, Color 1 and Color 2 open an HSV colour picker 
 The colour is saved in the profile in place of the preset index, as 15-bit RGB. Old saves and preset colours still load as
 before. `RS_COLOUR_PICKER=0` turns the picker off and brings back the swatches.
 
+## Any head on any body (experimental branch)
+
+In Customization → Personalize, the Head list shows the heads of all three bodies of the faction (nine), not only those of
+the chosen body. For example, a Scout Trooper head can go on a Dark Trooper body. The preview and the game both use the
+chosen head.
+* A head of the chosen body is saved as before.
+* A head of another body is saved as 3 + body × 3 + head in the same field.
+* `RS_ANY_HEAD=0` brings back the three-head list. Saved heads from other bodies still show.
+
 ## Memory
 
 The game hands the GPU 28-bit addresses. The following are registered as GPU-visible regions and must differ in their

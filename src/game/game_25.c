@@ -1051,7 +1051,7 @@ rv_t func_08A359F4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
 }
 
 /* 08A35B00 */
-rv_t func_08A35B00(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static rv_t func_08A35B00__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
@@ -1126,8 +1126,15 @@ L_08A35BA8:;
     goto L_08A35B70;
 }
 
+rv_t func_08A35B00(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rv_t r_ = {0, 0, 0};
+    if (rs_parts_accept(a0, a1, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08A35B00__orig(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
+}
+
 /* 08A35BB0 */
-rv_t func_08A35BB0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static rv_t func_08A35BB0__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0, s6 = 0, s7 = 0;
     float f0 = 0;
@@ -1305,8 +1312,15 @@ L_08A35D80:;
     goto L_08A35D70;
 }
 
+rv_t func_08A35BB0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rv_t r_ = {0, 0, 0};
+    if (rs_parts_list(a0, a1, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08A35BB0__orig(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
+}
+
 /* 08A35D88 */
-rv_t func_08A35D88(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static rv_t func_08A35D88__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0;
     float f0 = 0, f1 = 0, f2 = 0;
@@ -1477,6 +1491,13 @@ L_08A35F54:;
     v1 = v1 + v0;
     s1 = LD32(v1);
     goto L_08A35E3C;
+}
+
+rv_t func_08A35D88(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rv_t r_ = {0, 0, 0};
+    if (rs_parts_anim(a0, a1, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08A35D88__orig(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
 }
 
 /* 08A35F70 */

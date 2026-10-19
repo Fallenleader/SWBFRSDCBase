@@ -17570,7 +17570,7 @@ L_08977FEC:;
 }
 
 /* 08977FFC */
-u32 func_08977FFC(u32 a0, u32 a1, u32 a2)
+static u32 func_08977FFC__orig(u32 a0, u32 a1, u32 a2)
 {
     u32 v0 = 0, v1 = 0, s0 = 0;
     int cnd_;
@@ -17629,6 +17629,13 @@ L_08978080:;
     a0 = D_08ADC5E0 - (-14880);
     a0 = a0 - 14880;
     goto L_08978070;
+}
+
+u32 func_08977FFC(u32 a0, u32 a1, u32 a2)
+{
+    u32 r_ = 0;
+    if (rs_head_lookup(a0, a1, a2, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08977FFC__orig(a0, a1, a2);
 }
 
 /* 0897808C */

@@ -9,3 +9,9 @@ void rs_picker_pad(void);                                        /* after each p
 int  rs_picker_category(uint32_t category, uint32_t query, uint32_t query2, void *rv);   /* list item accepted: colour -> picker */
 int  rs_colour_lookup(uint32_t profile, uint32_t faction, int which, uint32_t *rgba);    /* custom colour of a faction, if set */
 void rs_savemgr_pad(void);                                       /* save_manager.c: the game gets no input while the dialog is up */
+/* parts_swap.c: any head of the faction on any of its bodies */
+int  rs_head_lookup(uint32_t faction, uint32_t head, uint32_t body, uint32_t *rv);
+int  rs_parts_list(uint32_t index, uint32_t flag, void *rv);     /* Personalisation carousel: list item index */
+int  rs_parts_accept(uint32_t index, uint32_t flag, void *rv);   /* Personalisation carousel: item chosen */
+int  rs_parts_anim(uint32_t index, uint32_t flag, void *rv);     /* Personalisation carousel: item index's model */
+void rs_parts_frame(void);                                       /* after each pad read: the carousel's entry slots */
