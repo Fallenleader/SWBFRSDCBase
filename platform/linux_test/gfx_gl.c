@@ -609,6 +609,9 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
 #ifdef GL_TEXTURE_MAX_LEVEL
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, levels - 1);
 #endif
+#ifdef RS_HW_ANISO
+        glTexParameteri(GL_TEXTURE_2D, 0x84FE /* GL_TEXTURE_MAX_ANISOTROPY */, rs_aniso_level());
+#endif
 
         tmip[e->id & 4095].id = e->id; tmip[e->id & 4095].w = k->w; tmip[e->id & 4095].h = k->h;
         tc_bytes += (long)o - e->bytes; e->bytes = (long)o; }
@@ -691,7 +694,12 @@ static void apply_state(const gfx_state_t *s, const prog_t *P){
     u_set4(P, U_FOG, P->fog, (s->fogcol & 255) / 255.0f, ((s->fogcol >> 8) & 255) / 255.0f, ((s->fogcol >> 16) & 255) / 255.0f, s->fog ? 1.0f : 0.0f);
     if (!P->tex_set) { glUniform1i(P->tex, 0); ((prog_t *)P)->tex_set = 1; }
     int mip = use && !s->texhd && s->tfilter && tmip[s->texid & 4095].id == s->texid;
+#ifdef RS_HW_ANISO
+    /* the GPU filters anisotropically itself (GL_TEXTURE_MAX_ANISOTROPY, set when the mip chain is made): the shader samples once */
+    if (0) {}
+#else
     if (mip) u_set4(P, U_ANISO, P->aniso, (float)tmip[s->texid & 4095].w, (float)tmip[s->texid & 4095].h, (float)rs_aniso_level(), 1.0f);
+#endif
     else u_set4(P, U_ANISO, P->aniso, 1, 1, 1, 0);
     if (use) {
         if (all || gs.tex0 != s->texid) { glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, s->texid); gs.tex0 = s->texid; }
@@ -1053,11 +1061,16 @@ static void present_to(unsigned fbo, int ww, int wh){
     scissor_off(); glDisable(GL_DEPTH_TEST); glDisable(GL_BLEND); glDisable(GL_CULL_FACE); glColorMask(1, 1, 1, 1);
     glViewport(0, 0, ww, wh); glClearColor(0, 0, 0, 1); glClear(GL_COLOR_BUFFER_BIT);
     if (!tex) return;
-    int dw = ww, dh = ww * 272 / 480; if (dh > wh) { dh = wh; dw = wh * 480 / 272; }
+    /* RS_CROP_169=1: the PSP's 480x272 is 30:17; one PSP row off the top and the bottom leaves 480x270, exactly 16:9, which then
+     * fills a 16:9 screen with no bars and no stretch (at 8x: 3840x2160, pixel for pixel) */
+    static int crop = -1; if (crop < 0) { extern int rs_setting_int(const char *, int); crop = rs_setting_int("RS_CROP_169", 0) != 0; }
+    int r0 = crop ? 1 : 0, r1 = crop ? 271 : 272, rows = r1 - r0;
+    int dw = ww, dh = ww * rows / 480; if (dh > wh) { dh = wh; dw = wh * 480 / rows; }
     float x0 = -(float)dw / ww, x1 = (float)dw / ww, y0 = -(float)dh / wh, y1 = (float)dh / wh;
     /* GL row 0 of the surface is the TOP of the PSP picture, and the window's y axis points up: v=0 -> top edge */
-    float vm = s ? 272.0f / SURF_H : 272.0f / SZ;           /* (the CPU-display texture is SZ x SZ) */
-    float q[16] = {x0, y1, 0, 0,  x1, y1, 480.0f / SZ, 0,  x0, y0, 0, vm,  x1, y0, 480.0f / SZ, vm};
+    float hh = s ? (float)SURF_H : (float)SZ;                 /* (the CPU-display texture is SZ x SZ) */
+    float vt = r0 / hh, vb = r1 / hh;
+    float q[16] = {x0, y1, 0, vt,  x1, y1, 480.0f / SZ, vt,  x0, y0, 0, vb,  x1, y0, 480.0f / SZ, vb};
     if (s && use_fxaa && prog_fxaa) {                    /* FXAA on the internal-resolution picture while scaling it to the screen */
         glUseProgram(prog_fxaa); glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, tex); glUniform1i(u_ftex, 0);
         glUniform4f(u_ftexel, 1.0f / PX, 1.0f / PXH, (480.0f * RS_S - 0.5f) / PX, (272.0f * RS_S - 0.5f) / PXH);
@@ -1147,7 +1160,10 @@ static void shadow_init(void){
     fprintf(stderr, "[GL] real-time shadows: %s (%dx%d map, %.0f m range, sun %.2f %.2f %.2f, strength %.0f%%)\n", sh_on ? "on" : "off", sh_res, sh_res, sh_range, sh_sun[0], sh_sun[1], sh_sun[2], sh_strength * 100); }
 
 int gfx_init(void){
-    { extern u32 rs_patch_res_scale(void); RS_S = (int)rs_patch_res_scale(); if (RS_S < 1) RS_S = 1; if (RS_S > 4) RS_S = 4; SURF_H = RS_S >= 3 ? 272 : 512; }
+#ifndef RS_GFX_MAX_SCALE
+#define RS_GFX_MAX_SCALE 4
+#endif
+    { extern u32 rs_patch_res_scale(void); RS_S = (int)rs_patch_res_scale(); if (RS_S < 1) RS_S = 1; if (RS_S > RS_GFX_MAX_SCALE) RS_S = RS_GFX_MAX_SCALE; SURF_H = RS_S >= 3 ? 272 : 512; }
     static const char *attrs[4] = {"aPos", "aUV", "aCol", "aFog"}, *pattrs[2] = {"aPos", "aUV"};
     prog_main = link_prog(VS_SRC, FS_SRC, "main", attrs, 4); prog_pres = link_prog(PVS_SRC, PFS_SRC, "present", pattrs, 2);
     if (!prog_main || !prog_pres) return -1;
@@ -1200,7 +1216,14 @@ int gfx_init(void){
       glBindFramebuffer(GL_FRAMEBUFFER, 0); glDeleteFramebuffers(1, &tfbo); glDeleteTextures(1, &ttex);
       fprintf(stderr, "[GL] depth/stencil: %s\n", !depth_rb ? "NONE" : (sten_rb == depth_rb ? "D24S8 packed" : (sten_rb ? "D16 + S8" : "D16 only (no stencil)"))); }
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    fprintf(stderr, "[GL] renderer ready (GLES2-class shaders, %dx%d surfaces: the PSP screen at %dx%d, scale %d; FXAA %s)\n", PX, PXH, 480 * RS_S, 272 * RS_S, RS_S, use_fxaa && prog_fxaa ? "on" : "off");
+    fprintf(stderr, "[GL] renderer ready (GLES2-class shaders, %dx%d surfaces: the PSP screen at %dx%d, scale %d; FXAA %s; anisotropic filtering x%d%s)\n", PX, PXH, 480 * RS_S, 272 * RS_S, RS_S,
+            use_fxaa && prog_fxaa ? "on" : "off", rs_aniso_level(),
+#ifdef RS_HW_ANISO
+            " (GPU)"
+#else
+            " (shader)"
+#endif
+            );
     return 0; }
 
 

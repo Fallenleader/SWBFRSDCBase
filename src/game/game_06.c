@@ -16606,7 +16606,7 @@ L_08897848:;
 
 void func_08897814(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1)
 {
-    rs_game_var_range(a1, &a2, &a3);   /* native hook (tools/dc/hooks.py) */
+    rs_game_var_range(a0, a1, &a2, &a3);   /* native hook (tools/dc/hooks.py) */
     func_08897814__orig(a0, a1, a2, a3, t0, t1);
 }
 

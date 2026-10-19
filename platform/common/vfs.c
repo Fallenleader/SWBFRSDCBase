@@ -80,7 +80,7 @@ int vfs_stat(const char *full, int *isdir, unsigned *size){
     struct stat st; if (stat(full, &st)) return -1; *isdir = S_ISDIR(st.st_mode) ? 1 : 0; *size = (u32)st.st_size; return 0; }
 
 /* a file inside the image as a FILE * */
-#ifdef __vita__
+#if defined(__vita__) || defined(RS_PS5)
 typedef off_t vfs_off_t;                         /* newlib's cookie seek takes off_t */
 #else
 typedef off64_t vfs_off_t;
@@ -102,9 +102,14 @@ FILE *vfs_fopen(const char *full, const char *mode){
     f->iso = fopen(iso_path, "rb"); if (!f->iso) { free(f); return 0; }
     setvbuf(f->iso, NULL, _IOFBF, 64 * 1024);
     f->base = (u64)n->lbn * 2048; f->size = n->size;
+#ifdef RS_PS5
+    (void)ck_read; (void)ck_seek; ck_close(f); return 0;          /* the PS5's C library has no custom FILE streams: extracted files only */
+#else
     cookie_io_functions_t io = {ck_read, 0, ck_seek, ck_close};
     FILE *r = fopencookie(f, "rb", io); if (!r) { ck_close(f); return 0; }
-    return r; }
+    return r;
+#endif
+}
 
 /* directory listing */
 typedef struct { const inode_t *n; DIR *d; int i; char base[1024]; } vdir_t;

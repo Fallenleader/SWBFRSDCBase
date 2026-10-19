@@ -91,7 +91,10 @@ All settings are optional `KEY=VALUE` lines:
 | `RS_CPU_PIN` | 1 | 1 = renderer on core 0, game main thread on core 1, other game threads on core 2 |
 | `RS_TWIN_STICK` | 1 | 1 = left stick move + strafe, right stick turn + look; 0 = the PSP's one-stick controls |
 | `RS_MAX_PLAYERS` | 64 | highest "Min Players (including AI)" in Game Options: bots fill both teams evenly (64 = 32 per side; the game's own limit is 16) |
-| `RS_MAX_TICKETS` | 1000 | highest "Conquest Initial Tickets" (the game's own limit is 200; the step stays the game's 5) |
+| `RS_MIN_TICKETS` / `RS_MAX_TICKETS` | 25 / 1000 | lowest and highest "Conquest Initial Tickets" (the game's own range is 25 to 200; the step stays the game's 5) |
+
+The player and ticket limits apply to offline games only: a network game keeps the game's own limits (16 players, 25 to 200
+tickets), so that it stays compatible with the PSP.
 | `RS_GAME_PATCHES` | 1 | 0 = the game's original option limits |
 | `RS_SAVE_MANAGER` | 1 | 0 = no save manager: saves and loads happen at once (experimental branch) |
 | `RS_ANY_HEAD` | 1 | 0 = the Head list shows only the chosen body's heads (experimental branch) |

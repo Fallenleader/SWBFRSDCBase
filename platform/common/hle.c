@@ -463,7 +463,15 @@ static void h_CtrlRead(sdkcall_t *c){ rs_pad_t p; rs_backend_read_pad(&p); u32 b
     /* The PSP has one analog stick: the left stick goes to the game as it. The right stick is kept for twin_stick.c (turn / look). */
     SW(b, (u32)guest_us()); SW(b + 4, p.buttons); SB(b + 8, p.lx); SB(b + 9, p.ly);
     rs_right_stick[0] = p.rx; rs_right_stick[1] = p.ry; V0 = 1; yield_big(); }
+/* RS_DUMP_PRESENT=<width>x<height> (test builds): the frames are dumped as presented to a screen of that size (scaling, FXAA, crop) */
+typedef struct { const char *path; int w, h; } pdump_t;
+static void present_dump_job(void *a){ pdump_t *d = a; extern u32 *gfx_present_image(int, int); u32 *b = gfx_present_image(d->w, d->h); if (!b) return;
+    FILE *f = fopen(d->path, "wb"); if (f) { fprintf(f, "P6\n%d %d\n255\n", d->w, d->h);
+        for (int y = d->h - 1; y >= 0; y--) for (int x = 0; x < d->w; x++) { u32 c = b[y * d->w + x]; u8 rgb[3] = {c & 255, (c >> 8) & 255, (c >> 16) & 255}; fwrite(rgb, 1, 3, f); } fclose(f); }
+    free(b); }
 static void dump_frame(const char *dir, int n){
+    { const char *pd = getenv("RS_DUMP_PRESENT"); int w, h; if (pd && sscanf(pd, "%dx%d", &w, &h) == 2) { char p[600]; snprintf(p, sizeof p, "%s/present_%05d.ppm", dir, n);
+        pdump_t d = {p, w, h}; extern void gfx_run(void (*)(void *), void *); gfx_run(present_dump_job, &d); } }
     static u32 buf[480 * 272]; if (!rs_display_read(buf)) return; char p[600]; snprintf(p, sizeof p, "%s/frame_%05d.ppm", dir, n); FILE *f = fopen(p, "wb"); if (!f) return;
     fprintf(f, "P6\n480 272\n255\n"); for (int i = 0; i < 480 * 272; i++) { u8 rgb[3] = {buf[i] & 255, (buf[i] >> 8) & 255, (buf[i] >> 16) & 255}; fwrite(rgb, 1, 3, f); } fclose(f); }
 static int fl_vb, fl_fb, fl_tick; static u32 fl_ra[8]; static int fl_ran[8];

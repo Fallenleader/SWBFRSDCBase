@@ -37,13 +37,15 @@ void rs_frontend_main(pthread_t game){
     if (dir && getPlatDisp) { int at[8], n = 0; at[n++] = 0x3203; at[n++] = getenv("RS_SOFTGL") ? 0x3450 : 0x3489 /* default */; if (getenv("RS_SOFTGL")) { at[n++] = 0x348F; at[n++] = 0x3487; } at[n++] = 0x3038; dpy = getPlatDisp(0x3202, 0, at); }
     if (!dpy) dpy = getDisplay(0);
     int maj, min; if (!dpy || !init(dpy, &maj, &min)) { fprintf(stderr, "[GL] eglInitialize failed\n"); exit(2); }
-    bindApi(0x30A0);
+    int desk = getenv("RS_GL_DESKTOP") != 0;           /* desktop OpenGL compatibility profile: the PS5 build's context */
+    bindApi(desk ? 0x30A2 /* EGL_OPENGL_API */ : 0x30A0);
     void *cfg = 0; int n = 0;
-    const int a1[] = {0x3040, 4, 0x3024, 8, 0x3023, 8, 0x3022, 8, 0x3021, 8, 0x3025, 16, 0x3033, 1, 0x3038};
-    const int a2[] = {0x3040, 4, 0x3038};
+    const int a1[] = {0x3040, desk ? 8 : 4, 0x3024, 8, 0x3023, 8, 0x3022, 8, 0x3021, 8, 0x3025, 16, 0x3033, 1, 0x3038};
+    const int a2[] = {0x3040, desk ? 8 : 4, 0x3038};
     if (!chooseCfg(dpy, a1, &cfg, 1, &n) || n < 1) { cfg = 0; n = 0; if (!chooseCfg(dpy, a2, &cfg, 1, &n) || n < 1) { cfg = 0; n = 0; getCfgs(dpy, &cfg, 1, &n); } }
     /* RS_STRICT_ES2=1 (ANGLE only): EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE=FALSE -> an exact ES 2.0 context, so anything beyond GLES2 fails like it would on the Vita */
-    const int ca[] = {0x3098, 2, 0x3038}, cs[] = {0x3098, 2, 0x3483, 0, 0x3038}; void *ctx = mkCtx(dpy, cfg, 0, getenv("RS_STRICT_ES2") ? cs : ca);
+    const int ca[] = {0x3098, 2, 0x3038}, cs[] = {0x3098, 2, 0x3483, 0, 0x3038}; const int cd[] = {0x30FD, 2 /* EGL_CONTEXT_OPENGL_COMPATIBILITY_PROFILE_BIT */, 0x3038};
+    void *ctx = mkCtx(dpy, cfg, 0, desk ? cd : getenv("RS_STRICT_ES2") ? cs : ca);
     const int pa[] = {0x3057, 64, 0x3056, 64, 0x3038}; void *surf = cfg ? mkPb(dpy, cfg, pa) : 0;     /* no surface needed: everything renders into FBOs (surfaceless context) */
     if (!ctx || !makeCur(dpy, surf, surf, ctx)) { fprintf(stderr, "[GL] cannot create/make current a GLES2 context\n"); exit(2); }
     int miss = rs_gl_load(getproc); if (miss) { fprintf(stderr, "[GL] %d required GL functions missing\n", miss); exit(2); }
