@@ -15,3 +15,6 @@ int  rs_parts_list(uint32_t index, uint32_t flag, void *rv);     /* Personalisat
 int  rs_parts_accept(uint32_t index, uint32_t flag, void *rv);   /* Personalisation carousel: item chosen */
 int  rs_parts_anim(uint32_t index, uint32_t flag, void *rv);     /* Personalisation carousel: item index's model */
 void rs_parts_frame(void);                                       /* after each pad read: the carousel's entry slots */
+/* loadout_slots.c: any weapon in either weapon slot, explosives and special items in either slot, larger credit allowance */
+void rs_loadout_frame(void);                                     /* after each pad read: the carousel's entry slots */
+void rs_credits_init(uint32_t credits);                          /* after the credits are reset */

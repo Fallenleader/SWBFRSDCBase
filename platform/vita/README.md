@@ -91,6 +91,10 @@ All settings are optional `KEY=VALUE` lines:
 | `RS_MAX_PLAYERS` | 64 | highest "Min Players (including AI)" in Game Options: bots fill both teams evenly (64 = 32 per side; the game's own limit is 16) |
 | `RS_MAX_TICKETS` | 1000 | highest "Conquest Initial Tickets" (the game's own limit is 200; the step stays the game's 5) |
 | `RS_GAME_PATCHES` | 1 | 0 = the game's original option limits |
+| `RS_SAVE_MANAGER` | 1 | 0 = no save manager: saves and loads happen at once (experimental branch) |
+| `RS_ANY_HEAD` | 1 | 0 = the Head list shows only the chosen body's heads (experimental branch) |
+| `RS_ANY_SLOT` | 1 | 0 = the game's own load-out lists (experimental branch) |
+| `RS_CREDITS` | 200 | load-out credit allowance; the game's is 100 (experimental branch) |
 | `RS_FPS` | 30 | frame rate: 30 or 60 |
 | `RS_AUDIO` | 1 | 0 = no sound |
 | `RS_HUD` | 0 | 1 = frame-rate / load overlay |
@@ -146,6 +150,17 @@ chosen head.
 * A head of the chosen body is saved as before.
 * A head of another body is saved as 3 + body × 3 + head in the same field.
 * `RS_ANY_HEAD=0` brings back the three-head list. Saved heads from other bodies still show.
+
+## Load-out slots and credits (experimental branch)
+
+In Customization → Customize Load-out:
+* Weapon 1 and Weapon 2 each list every weapon: their own first, then the other slot's. A sidearm can be the primary and a
+  rifle the secondary.
+* Explosive and Special Item each list both kinds of item in the same way.
+* The credit allowance is 200 instead of 100 (`RS_CREDITS`).
+
+Saved load-outs keep their choices, because each list keeps its own items at the same positions. `RS_ANY_SLOT=0` brings
+back the game's lists.
 
 ## Memory
 

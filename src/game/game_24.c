@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 08A1E05C */
 float func_08A1E05C(u32 a0, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
@@ -34766,7 +34767,7 @@ L_08A34278:;
 }
 
 /* 08A34280 */
-void func_08A34280(u32 a0)
+static void func_08A34280__orig(u32 a0)
 {
     u32 v0 = 0;
 L_08A34280:;
@@ -34774,6 +34775,12 @@ L_08A34280:;
     ST32(a0+4, v0);
     ST32(a0, v0);
     return;
+}
+
+void func_08A34280(u32 a0)
+{
+    func_08A34280__orig(a0);
+    rs_credits_init(a0);   /* native hook (tools/dc/hooks.py) */
 }
 
 /* 08A34290 */
