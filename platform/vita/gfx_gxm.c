@@ -9,7 +9,8 @@
  *    texture function, fog, alpha test; blending and colour masks are baked into fragment program variants (GXM's model).
  *    Depth, stencil, cull and scissor are dynamic GXM state.
  *  - Textures: PSP formats go to GXM as they are where GXM reads them (565/5551/4444/8888, P4/P8 with the CLUT as palette, DXT as BC);
- *    other formats are decoded to RGBA8.  Memory comes from a sub-allocated video-RAM pool; frees wait until the GPU is past them.
+ *    other formats are decoded to RGBA8.  With anisotropic filtering (RS_ANISO) textures get a mip chain (tex_mips.c): palettized ones
+ *    as P8 with the same palette, others as RGBA8; filtered draws of them use a fragment program variant that samples anisotropically.  Memory comes from a sub-allocated video-RAM pool; frees wait until the GPU is past them.
  *  - Display: the displayed surface is drawn to the 960x544 screen (gxm_core.c) with bilinear filtering and FXAA (RS_FXAA), the
  *    debug HUD on top. */
 #include <stdio.h>
@@ -21,6 +22,7 @@
 #include <psp2/gxm.h>
 #include "gfx.h"
 #include "gxm_core.h"
+#include "tex_mips.h"
 
 volatile unsigned rs_gfx_epoch = 1;
 rs_perf_t rs_perf;
@@ -253,7 +255,10 @@ typedef struct { u32 key; int state; const SceGxmProgram *gxp; SceGxmVertexProgr
 #define VP_N 192
 static vprog_t vps[VP_N]; static int nvp;
 static SceGxmShaderPatcherId fs_id; static const SceGxmProgram *fs_gxp;
-static const SceGxmProgramParameter *fu_cfg0, *fu_cfg1, *fu_env, *fu_fog, *fu_mul;
+static const SceGxmProgramParameter *fu_cfg0g, *fu_cfg1g, *fu_envg, *fu_fogg, *fu_mulg;
+/* the same fragment program with anisotropic sampling (tex_mips.h), for filtered draws of textures that have a mip chain */
+typedef struct { SceGxmShaderPatcherId id; const SceGxmProgram *gxp; const SceGxmProgramParameter *cfg0, *cfg1, *env, *fog, *mul, *aniso; } fsv_t;
+static fsv_t fs_af; static int af_ok;
 static vprog_t cpu_vp;                                       /* gfx_vtx_t program */
 static SceGxmVertexProgram *clr_vp, *blt_vp; static SceGxmFragmentProgram *blt_fp; static const SceGxmProgram *clr_vgxp, *clr_fgxp, *blt_vgxp; static SceGxmShaderPatcherId clr_fid;
 static const SceGxmProgramParameter *clr_uz, *clr_ucol;
@@ -297,7 +302,8 @@ typedef struct { u32 key; SceGxmFragmentProgram *fp; } fprog_t;
 #define FP_N 128
 static fprog_t fps[FP_N]; static int nfp;
 static SceGxmFragmentProgram *frag_prog(int blend_on, SceGxmBlendFunc cf, SceGxmBlendFunc af, int cs, int cd, int as, int ad, int mask, SceGxmShaderPatcherId id, const SceGxmProgram *vgxp){
-    u32 key = (u32)blend_on | (u32)cf << 1 | (u32)af << 4 | (u32)cs << 7 | (u32)cd << 11 | (u32)as << 15 | (u32)ad << 19 | (u32)mask << 23 | (id == clr_fid ? 1u << 28 : 0);
+    u32 key = (u32)blend_on | (u32)cf << 1 | (u32)af << 4 | (u32)cs << 7 | (u32)cd << 11 | (u32)as << 15 | (u32)ad << 19 | (u32)mask << 23 | (id == clr_fid ? 1u << 28 : 0) |
+              (af_ok && id == fs_af.id ? 1u << 29 : 0);
     for (int i = 0; i < nfp; i++) if (fps[i].key == key) return fps[i].fp;
     SceGxmBlendInfo bi; memset(&bi, 0, sizeof bi); bi.colorMask = (SceGxmColorMask)mask;
     if (blend_on) { bi.colorFunc = cf; bi.alphaFunc = af; bi.colorSrc = (SceGxmBlendFactor)cs; bi.colorDst = (SceGxmBlendFactor)cd; bi.alphaSrc = (SceGxmBlendFactor)as; bi.alphaDst = (SceGxmBlendFactor)ad; }
@@ -309,7 +315,7 @@ static SceGxmFragmentProgram *frag_prog(int blend_on, SceGxmBlendFunc cf, SceGxm
 
 /* ===================================================================== textures */
 #define TC_N 1024
-typedef struct { gtex_key_t k; u32 hash; unsigned epoch, stamp; int used, hnext; SceGxmTexture tex; void *mem, *pal; long bytes; } tent_t;
+typedef struct { gtex_key_t k; u32 hash; unsigned epoch, stamp; int used, hnext, mips; unsigned up_ep; SceGxmTexture tex; void *mem, *pal; long bytes; } tent_t;
 static tent_t tc[TC_N]; static unsigned tc_stamp; static long tc_bytes; static u32 *scratch;
 #define TC_HB 4096
 static int tc_head[TC_HB];
@@ -377,6 +383,38 @@ static int tex_decoded(tent_t *e, const gtex_key_t *k, const gtex_src_t *src){
     sceGxmTextureInitLinear(&e->tex, m, SCE_GXM_TEXTURE_FORMAT_U8U8U8U8_ABGR, (unsigned)k->w, (unsigned)k->h, 0);
     e->mem = m; e->bytes = need; return 1; }
 
+/* anisotropic filtering (RS_ANISO, tex_mips.h): the texture decoded to RGBA8 with its mip chain (rows padded to 8 texels, levels in
+ * sequence: GXM's linear layout) */
+/* the indices of a P4 / P8 texture, one byte each (as tex_native reads them: linear or swizzled rows) */
+static int read_indices(const gtex_key_t *k, u8 *out){
+    int w = k->w, h = k->h, bw = k->bufw > 0 ? k->bufw : k->w, bpp = k->fmt == 4 ? 4 : 8;
+    size_t base = GADDR(gfx_vram(k->addr)); if (base >= GMEM_SIZE) return 0;
+    const u8 *src = g_mem + base; size_t avail = GMEM_SIZE - base, srow = (size_t)bw * bpp / 8, rb = (size_t)w * bpp / 8;
+    if (srow * (size_t)h > avail || rb > srow || (k->swz && (srow & 15))) return 0;
+    static u8 row[1024];
+    for (int y = 0; y < h; y++) {
+        if (!k->swz) memcpy(row, src + (size_t)y * srow, rb);
+        else { const u8 *trow = src + ((size_t)(y >> 3) * (srow >> 4)) * 128 + (size_t)(y & 7) * 16;
+            for (size_t c = 0; c < rb; c += 16) memcpy(row + c, trow + (c >> 4) * 128, rb - c < 16 ? rb - c : 16); }
+        u8 *o = out + (size_t)y * w;
+        if (bpp == 8) memcpy(o, row, (size_t)w); else for (int x = 0; x < w; x++) o[x] = (u8)((row[x >> 1] >> ((x & 1) * 4)) & 15); }
+    return 1; }
+static int tex_mipped(tent_t *e, const gtex_key_t *k, const gtex_src_t *src){
+    int L = rs_mip_levels(k->w, k->h); if (L < 2) return 0;
+    if (!scratch) scratch = malloc(1024 * 1024 * 4);
+    src->decode(scratch, src->ud);
+    if (k->fmt == 4 || k->fmt == 5) {                          /* palettized: stays palettized (8-bit), level 0 the game's own indices */
+        static u8 *idx; if (!idx) idx = malloc(1024 * 1024); if (!idx || !read_indices(k, idx)) return 0;
+        int npal = k->fmt == 4 ? 16 : 256;
+        u32 *pal = pool_alloc(256 * 4, 64); if (!pal) return 0; memset(pal, 0, 256 * 4); ge_clut_palette(pal, npal);
+        long need = (long)rs_mip_bytes(k->w, k->h, L, 8) / 4; u8 *m = pool_alloc((u32)need, 256); if (!m) { pool_release(pal); return 0; }
+        rs_mip_build_pal(idx, scratch, pal, npal, k->w, k->h, L, 8, m);
+        sceGxmTextureInitLinear(&e->tex, m, SCE_GXM_TEXTURE_FORMAT_P8_ABGR, (unsigned)k->w, (unsigned)k->h, (unsigned)L); sceGxmTextureSetPalette(&e->tex, pal);
+        e->mem = m; e->pal = pal; e->bytes = need + 1024; e->mips = L; return 1; }
+    long need = (long)rs_mip_bytes(k->w, k->h, L, 8); u8 *m = pool_alloc((u32)need, 256); if (!m) return 0;
+    rs_mip_build(scratch, k->w, k->h, L, 8, m);
+    sceGxmTextureInitLinear(&e->tex, m, SCE_GXM_TEXTURE_FORMAT_U8U8U8U8_ABGR, (unsigned)k->w, (unsigned)k->h, (unsigned)L);
+    e->mem = m; e->bytes = need; e->mips = L; return 1; }
 unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4]){
     uvs[0] = uvs[1] = 1; uvs[2] = uvs[3] = 0;
     if (k->w <= 0 || k->h <= 0 || k->w > 1024 || k->h > 1024) return 0;
@@ -393,14 +431,17 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
         while (tc_bytes + (long)k->w * k->h * 4 > budget) { tent_t *v = 0; for (int i = 0; i < TC_N; i++) if (tc[i].used && tc[i].epoch != rs_gfx_epoch && (!v || tc[i].stamp < v->stamp)) v = &tc[i];
             if (!v) break; tent_free(v); old = v; }
         e = old; tent_free(e); e->k = *k; e->used = 1; tc_link(e); }
-    else tent_release_mem(e);                                  /* contents changed: new memory (the GPU may still read the old) */
+    else { tent_release_mem(e);                                /* contents changed: new memory (the GPU may still read the old) */
+        e->mips = rs_gfx_epoch - e->up_ep < 30 ? -1 : 0; }       /* changing within a second (animated): no mip chain, ever */
     e->hash = h; e->epoch = rs_gfx_epoch; e->stamp = ++tc_stamp;
     u64 t_u = rs_perf_us();
-    int ok = tex_native(e, k);
+    int ok = 0;
+    if (e->mips == 0 && rs_aniso_level() > 1) { ok = tex_mipped(e, k, src); if (!ok) { pool_collect(); ok = tex_mipped(e, k, src); } }
+    if (!ok) { if (e->mips > 0) e->mips = 0; ok = tex_native(e, k); }
     if (!ok) { pool_collect(); ok = tex_native(e, k); }
     if (!ok) ok = tex_decoded(e, k, src);
     if (!ok) { fprintf(stderr, "[GXM] out of texture memory (%dx%d)\n", k->w, k->h); tent_free(e); return 0; }
-    tc_bytes += e->bytes; st_texup++; rs_perf.up_n++; rs_perf.up_us += rs_perf_us() - t_u;
+    e->up_ep = rs_gfx_epoch; tc_bytes += e->bytes; st_texup++; rs_perf.up_n++; rs_perf.up_us += rs_perf_us() - t_u;
     return (unsigned)(e - tc) + 1; }
 static const SceGxmTexture *tex_of(unsigned id){
     if (id >= 0x10000u) { unsigned i = id - 0x10000u; return i < SURF_N && surfs[i].used ? &surfs[i].tex : NULL; }
@@ -446,6 +487,10 @@ static SceGxmFragmentProgram *apply_state(const gfx_state_t *s, const SceGxmProg
         sceGxmSetFrontStencilRef(c, (unsigned)s->sref); }
     else sceGxmSetFrontStencilFunc(c, SCE_GXM_STENCIL_FUNC_ALWAYS, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, 0, 0);
     float mul[3] = {1, 1, 1}; int approx = 0;
+    const SceGxmTexture *tx = s->tex ? tex_of(s->texid) : NULL; int use = tx != NULL;
+    const tent_t *te = use && s->texid < 0x10000u ? &tc[s->texid - 1] : NULL;
+    int mipped = te && te->mips > 1 && s->tfilter, aniso = mipped && af_ok;   /* filtered + mip chain: trilinear, anisotropic if the program built */
+    SceGxmShaderPatcherId pid = aniso ? fs_af.id : fs_id;
     int mask = (s->cmr ? SCE_GXM_COLOR_MASK_R : 0) | (s->cmg ? SCE_GXM_COLOR_MASK_G : 0) | (s->cmb ? SCE_GXM_COLOR_MASK_B : 0) | (s->cma ? SCE_GXM_COLOR_MASK_A : 0);
     SceGxmFragmentProgram *fp;
     if (s->blend) {
@@ -454,13 +499,15 @@ static SceGxmFragmentProgram *apply_state(const gfx_state_t *s, const SceGxmProg
         SceGxmBlendFactor as = (sf == SCE_GXM_BLEND_FACTOR_DST_COLOR || sf == SCE_GXM_BLEND_FACTOR_ONE_MINUS_DST_COLOR) ? SCE_GXM_BLEND_FACTOR_ONE : sf;
         SceGxmBlendFactor ad = (df == SCE_GXM_BLEND_FACTOR_SRC_COLOR || df == SCE_GXM_BLEND_FACTOR_ONE_MINUS_SRC_COLOR) ? SCE_GXM_BLEND_FACTOR_ONE : df;
         SceGxmBlendFunc fn = s->beq == 1 ? SCE_GXM_BLEND_FUNC_SUBTRACT : (s->beq == 2 ? SCE_GXM_BLEND_FUNC_REVERSE_SUBTRACT : (s->beq == 3 ? SCE_GXM_BLEND_FUNC_MIN : (s->beq == 4 ? SCE_GXM_BLEND_FUNC_MAX : SCE_GXM_BLEND_FUNC_ADD)));
-        fp = frag_prog(1, fn, fn, sf, df, as, ad, mask, fs_id, vgxp); }
-    else fp = frag_prog(0, 0, 0, 0, 0, 0, 0, mask, fs_id, vgxp);
+        fp = frag_prog(1, fn, fn, sf, df, as, ad, mask, pid, vgxp); }
+    else fp = frag_prog(0, 0, 0, 0, 0, 0, 0, mask, pid, vgxp);
     if (!fp) return NULL;
     sceGxmSetFragmentProgram(c, fp);
     void *fb; sceGxmReserveFragmentDefaultUniformBuffer(c, &fb);
-    const SceGxmTexture *tx = s->tex ? tex_of(s->texid) : NULL; int use = tx != NULL;
+    const SceGxmProgramParameter *fu_cfg0 = aniso ? fs_af.cfg0 : fu_cfg0g, *fu_cfg1 = aniso ? fs_af.cfg1 : fu_cfg1g, *fu_env = aniso ? fs_af.env : fu_envg,
+                                 *fu_fog = aniso ? fs_af.fog : fu_fogg, *fu_mul = aniso ? fs_af.mul : fu_mulg;
     float v[4];
+    if (aniso && fs_af.aniso) { v[0] = (float)te->k.w; v[1] = (float)te->k.h; v[2] = (float)rs_aniso_level(); v[3] = 0; sceGxmSetUniformDataF(fb, fs_af.aniso, 0, 4, v); }
     if (fu_cfg0) { v[0] = use ? 1.0f : 0.0f; v[1] = (float)s->tfunc; v[2] = (float)s->trgba; v[3] = (float)s->tdbl; sceGxmSetUniformDataF(fb, fu_cfg0, 0, 4, v); }
     if (fu_cfg1) { v[0] = s->atest ? (float)s->afunc : 1.0f; v[1] = (float)s->aref; v[2] = v[3] = 0; sceGxmSetUniformDataF(fb, fu_cfg1, 0, 4, v); }
     if (fu_env) { v[0] = (s->tenv & 255) / 255.0f; v[1] = ((s->tenv >> 8) & 255) / 255.0f; v[2] = ((s->tenv >> 16) & 255) / 255.0f; v[3] = 1; sceGxmSetUniformDataF(fb, fu_env, 0, 4, v); }
@@ -471,6 +518,7 @@ static SceGxmFragmentProgram *apply_state(const gfx_state_t *s, const SceGxmProg
         SceGxmTextureFilter flt = s->tfilter ? SCE_GXM_TEXTURE_FILTER_LINEAR : SCE_GXM_TEXTURE_FILTER_POINT;
         if (s->texid >= 0x10000u) flt = SCE_GXM_TEXTURE_FILTER_LINEAR;
         sceGxmTextureSetMinFilter(&t, flt); sceGxmTextureSetMagFilter(&t, flt);
+        if (te && te->mips > 1) { if (mipped) sceGxmTextureSetMipFilter(&t, SCE_GXM_TEXTURE_MIP_FILTER_ENABLED); else sceGxmTextureSetMipmapCount(&t, 0); }   /* point-sampled: the full-size level only, as on the PSP */
         sceGxmTextureSetUAddrMode(&t, s->tclampu ? SCE_GXM_TEXTURE_ADDR_CLAMP : SCE_GXM_TEXTURE_ADDR_REPEAT);
         sceGxmTextureSetVAddrMode(&t, s->tclampv ? SCE_GXM_TEXTURE_ADDR_CLAMP : SCE_GXM_TEXTURE_ADDR_REPEAT);
         sceGxmSetFragmentTexture(c, 0, &t); }
@@ -663,8 +711,26 @@ int gfx_init(void){
     /* main fragment shader + the CPU-vertex program */
     SceGxmShaderPatcherId vid;
     if (prog_pair(VS_SRC, FS_SRC, &cpu_vp.gxp, &fs_gxp, &vid, &fs_id)) { fprintf(stderr, "[GXM] base shaders: %s\n", gxm_error()); return -1; }
-    fu_cfg0 = sceGxmProgramFindParameterByName(fs_gxp, "uCfg0"); fu_cfg1 = sceGxmProgramFindParameterByName(fs_gxp, "uCfg1"); fu_env = sceGxmProgramFindParameterByName(fs_gxp, "uEnv");
-    fu_fog = sceGxmProgramFindParameterByName(fs_gxp, "uFog"); fu_mul = sceGxmProgramFindParameterByName(fs_gxp, "uMul");
+    fu_cfg0g = sceGxmProgramFindParameterByName(fs_gxp, "uCfg0"); fu_cfg1g = sceGxmProgramFindParameterByName(fs_gxp, "uCfg1"); fu_envg = sceGxmProgramFindParameterByName(fs_gxp, "uEnv");
+    fu_fogg = sceGxmProgramFindParameterByName(fs_gxp, "uFog"); fu_mulg = sceGxmProgramFindParameterByName(fs_gxp, "uMul");
+    /* the anisotropic variant of the fragment program (a failure leaves trilinear filtering) */
+    if (rs_aniso_level() > 1) {
+        static char src[8192]; const char *body = strstr(FS_SRC, "float4 main(");
+        if (body && strlen(FS_SRC) + 2048 < sizeof src) {
+            size_t pre = (size_t)(body - FS_SRC); memcpy(src, FS_SRC, pre); src[pre] = 0; strcat(src, RS_ANISO_CG); strcat(src, body);
+            char *u = strstr(src, "uniform float4 uMul)"), *tx = strstr(src, "tex2D(uTex, vUV)");
+            if (u && tx) {
+                static char out[8192]; char *o = out; const char *r = src;
+                /* in order of appearance: the uniform list first, then the sample */
+                memcpy(o, r, (size_t)(u - r)); o += u - r; o += sprintf(o, "uniform float4 uMul, uniform float4 uAniso)"); r = u + strlen("uniform float4 uMul)");
+                memcpy(o, r, (size_t)(tx - r)); o += tx - r; o += sprintf(o, "afTex(uTex, vUV, uAniso)"); r = tx + strlen("tex2D(uTex, vUV)");
+                strcpy(o, r);
+                fs_af.gxp = gxm_shader(out, 1);
+                if (fs_af.gxp && sceGxmShaderPatcherRegisterProgram(gxm_patcher(), fs_af.gxp, &fs_af.id) >= 0) {
+                    const SceGxmProgram *g = fs_af.gxp; af_ok = 1;
+                    fs_af.cfg0 = sceGxmProgramFindParameterByName(g, "uCfg0"); fs_af.cfg1 = sceGxmProgramFindParameterByName(g, "uCfg1"); fs_af.env = sceGxmProgramFindParameterByName(g, "uEnv");
+                    fs_af.fog = sceGxmProgramFindParameterByName(g, "uFog"); fs_af.mul = sceGxmProgramFindParameterByName(g, "uMul"); fs_af.aniso = sceGxmProgramFindParameterByName(g, "uAniso"); }
+                else fprintf(stderr, "[GXM] anisotropic filtering shader unavailable (%s): trilinear filtering instead\n", gxm_error()); } } }
     { SceGxmVertexAttribute at[4]; int na = 0, r; static const char *nm[4] = {"aPos", "aUV", "aCol", "aFog"}; static const int off[4] = {0, 16, 24, 40}, cnt[4] = {4, 2, 4, 1};
       for (int i = 0; i < 4; i++) if ((r = reg_of(cpu_vp.gxp, nm[i])) >= 0) { at[na] = (SceGxmVertexAttribute){0, (unsigned short)off[i], SCE_GXM_ATTRIBUTE_FORMAT_F32, (unsigned char)cnt[i], (unsigned short)r}; na++; }
       SceGxmVertexStream st = {sizeof(gfx_vtx_t), SCE_GXM_INDEX_SOURCE_INDEX_16BIT};
@@ -687,6 +753,6 @@ int gfx_init(void){
           sceGxmShaderPatcherCreateFragmentProgram(gxm_patcher(), fid, SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE, NULL, blt_vgxp, &fxaa_fp) >= 0)
           fxaa_texel = sceGxmProgramFindParameterByName(fg, "uTexel");
       else { fxaa_fp = NULL; fprintf(stderr, "[GXM] FXAA shader unavailable (%s): presenting without it\n", gxm_error()); } }
-    fprintf(stderr, "[GXM] renderer ready: surfaces %dx%d (x%d: the PSP screen at %dx%d), FXAA %s, texture pool %u MB\n", PX, PXH, RS_S, 480 * RS_S, 272 * RS_S,
-            use_fxaa && fxaa_fp ? "on" : "off", pool_size >> 20);
+    fprintf(stderr, "[GXM] renderer ready: surfaces %dx%d (x%d: the PSP screen at %dx%d), FXAA %s, anisotropic filtering %s (x%d), texture pool %u MB\n", PX, PXH, RS_S, 480 * RS_S, 272 * RS_S,
+            use_fxaa && fxaa_fp ? "on" : "off", rs_aniso_level() < 2 ? "off" : af_ok ? "on" : "trilinear only", rs_aniso_level(), pool_size >> 20);
     return 0; }

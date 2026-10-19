@@ -15,6 +15,7 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include "rs_gl.h"
+#include "tex_mips.h"
 #include "gfx.h"
 
 volatile unsigned rs_gfx_epoch = 1;
@@ -115,14 +116,25 @@ static const char *VS_SRC =                /* no #version line: GLSL ES defaults
     "uniform vec4 uUVS; varying vec2 vUV; varying vec4 vCol; varying float vFog; varying float vCull;\n"
     "void main(){ gl_Position = aPos; vUV = vec2(aUV.x * uUVS.x + uUVS.w, aUV.y * uUVS.y + uUVS.z); vCol = aCol; vFog = aFog; vCull = 0.0; }\n";
 static const char *FS_SRC =
+    "#ifndef GL_ES\n#extension GL_ARB_shader_texture_lod : enable\n#endif\n"
     "#ifdef GL_ES\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n#endif\n"
-    "uniform sampler2D uTex; uniform vec4 uCfg0; uniform vec4 uCfg1; uniform vec4 uEnv; uniform vec4 uFog; uniform vec4 uMul;\n"
+    "uniform sampler2D uTex; uniform vec4 uCfg0; uniform vec4 uCfg1; uniform vec4 uEnv; uniform vec4 uFog; uniform vec4 uMul; uniform vec4 uAniso;\n"
+    /* anisotropic filtering (tex_mips.h RS_ANISO_CG in GLSL): uAniso = (width, height, max samples, 1 = on) */
+    "#ifdef GL_ARB_shader_texture_lod\n"
+    "vec4 afTex(sampler2D t, vec2 uv, vec4 k) {\n"
+    "  vec2 dx = dFdx(uv) * k.xy, dy = dFdy(uv) * k.xy; float lx = dot(dx, dx), ly = dot(dy, dy);\n"
+    "  float pmax = sqrt(max(lx, ly)), pmin = sqrt(min(lx, ly)); float n = clamp(ceil(pmax / max(pmin, 0.0001)), 1.0, k.z);\n"
+    "  float lod = max(log2(max(pmax / n, 0.0001)), 0.0); vec2 ax = ((lx > ly) ? dx : dy) / k.xy; vec4 s = vec4(0.0);\n"
+    "  for (int i = 0; i < 8; i++) { float fi = float(i); if (fi < n) s += texture2DLod(t, uv + ax * ((fi + 0.5) / n - 0.5), lod); }\n"
+    "  return s / n; }\n"
+    "#define TEX(uv) ((uAniso.w > 0.5) ? afTex(uTex, uv, uAniso) : texture2D(uTex, uv))\n"
+    "#else\n#define TEX(uv) texture2D(uTex, uv)\n#endif\n"
     "varying vec2 vUV; varying vec4 vCol; varying float vFog; varying float vCull;\n"
     "void main(){\n"
     "  if (vCull > 0.0) discard;\n"
     "  vec4 c = vCol;\n"
     "  if (uCfg0.x > 0.5) {\n"
-    "    vec4 t = texture2D(uTex, vUV);\n"
+    "    vec4 t = TEX(vUV);\n"
     "    float ta = (uCfg0.z > 0.5) ? t.a : 1.0;\n"
     "    float f = uCfg0.y;\n"
     "    if (f < 0.5) { c.rgb = c.rgb * t.rgb; c.a = c.a * ta; }\n"              /* modulate */
@@ -380,13 +392,13 @@ static unsigned link_prog(const char *vs, const char *fs, const char *name, cons
 static unsigned prog_main, prog_pres, prog_fxaa, prog_fill; static int use_fxaa, u_ftex, u_ftexel, u_fcol;
 static int u_ptex;
 /* a draw program and its uniform locations (main = pre-transformed CPU vertices; hw[skin | lit << 1] = GPU transform & lighting) */
-typedef struct { unsigned id; int tex, cfg0, cfg1, env, uvs, fog, mul;
+typedef struct { unsigned id; int tex, cfg0, cfg1, env, uvs, fog, mul, aniso;
                  int mvp, wvz, wld, b, vp0, vp1, vp2, uvt, fogp, mamb, mdif, memi, msca, lfl, lpos, latt, lspot, la, ld, shm, sht, shp, wvm, mr, nm, pbr, sun, sunc, defc;
                  float *ucv[32]; unsigned char ucok[32]; int tex_set; } prog_t;      /* ucv/ucok: last uploaded value per uniform (see u_set) */
 static prog_t P_main, P_hw[4], P_hwp[4]; static int hw_ok, pbr_ok; static float pbr_sunc[3] = {1, 0.95f, 0.85f}, pbr_spec = 1;
 static void prog_locs(prog_t *P){ unsigned p = P->id;
 #define L(f, n) P->f = glGetUniformLocation(p, n);
-    L(tex, "uTex") L(cfg0, "uCfg0") L(cfg1, "uCfg1") L(env, "uEnv") L(uvs, "uUVS") L(fog, "uFog") L(mul, "uMul")
+    L(tex, "uTex") L(aniso, "uAniso") L(cfg0, "uCfg0") L(cfg1, "uCfg1") L(env, "uEnv") L(uvs, "uUVS") L(fog, "uFog") L(mul, "uMul")
     L(mvp, "uMVP") L(wvz, "uWVZ") L(wld, "uWld") L(b, "uB") L(vp0, "uVP0") L(vp1, "uVP1") L(vp2, "uVP2") L(uvt, "uUVT") L(fogp, "uFogP")
     L(mamb, "uMAmb") L(mdif, "uMDif") L(memi, "uMEmi") L(msca, "uMSca") L(lfl, "uLFl") L(lpos, "uLPos") L(latt, "uLAtt") L(lspot, "uLSpot") L(la, "uLA") L(ld, "uLD") L(shm, "uShM") L(sht, "uShadow") L(shp, "uShP") L(wvm, "uWV") L(mr, "uMR") L(nm, "uNM") L(pbr, "uPbr") L(sun, "uSun") L(sunc, "uSunC") L(defc, "uDefC")
 #undef L
@@ -398,7 +410,7 @@ int gfx_hw_ok(void){ return hw_ok; }
  * program: GL keeps uniform values per program), render state only when it differs from what was last set.  Code that sets GL
  * state directly (clears, present, HUD, transfers, uploads) calls gs_reset() afterwards: everything is set again on the next draw. */
 enum { U_CFG0, U_CFG1, U_ENV, U_UVS, U_MUL, U_FOG, U_MVP, U_WVZ, U_WLD, U_WVM, U_VP0, U_VP1, U_VP2, U_UVT, U_FOGP, U_B, U_LFL, U_MAMB, U_MDIF, U_MEMI,
-       U_MSCA, U_LPOS, U_LATT, U_LSPOT, U_LA, U_LD, U_DEFC, U_N };
+       U_MSCA, U_LPOS, U_LATT, U_LSPOT, U_LA, U_LD, U_DEFC, U_ANISO, U_N };
 static void u_set(const prog_t *cp, int slot, int loc, int n4, const float *v){
     prog_t *P = (prog_t *)cp; if (loc == -1) return;
     size_t nb = (size_t)n4 * 16;
@@ -413,6 +425,8 @@ static void gs_attribs(int mask){ for (int a = 0; a < 7; a++) { int on = (mask >
 /* texture parameters per texture (direct-mapped by id); an upload into a texture forgets its entry */
 static struct { unsigned id; int ws, wt, flt; } tp[512];
 static void tp_forget(unsigned id){ tp[id & 511].id = 0; }
+/* textures with a mip chain (anisotropic filtering, tex_mips.h), direct-mapped by id */
+static struct { unsigned id; int w, h; } tmip[4096];
 
 /* ---- shadow state ---- */
 static int sh_on, sh_res = 1024; static float sh_range = 40.0f, sh_strength = 0.45f, sh_sun[3] = {0, 1, 0};
@@ -494,7 +508,7 @@ static surf_t *surf_for_addr(u32 a, int *y0, int *x0){        /* any pixel-align
 
 /* ------------------------------------------------------------------ texture cache */
 #define TC_N 1024                      /* texture cache entries (the game uses more than 256 different textures in a battle: 256 were always full) */
-typedef struct { gtex_key_t k; u32 hash; unsigned id, epoch, stamp, mr, nrm; long bytes; int used, hd, hnext; } tent_t;
+typedef struct { gtex_key_t k; u32 hash; unsigned id, epoch, stamp, mr, nrm, up_ep; long bytes; int used, hd, hnext; } tent_t;
 static tent_t tc[TC_N]; static unsigned tc_stamp; static u32 *scratch; static long tc_bytes;
 static unsigned last_mr, last_nrm; static int last_hd;
 void gfx_tex_maps(unsigned *mr, unsigned *nrm, int *hd){ *mr = last_mr; *nrm = last_nrm; *hd = last_hd; }
@@ -506,7 +520,7 @@ static int tk_eq(const gtex_key_t *a, const gtex_key_t *b){ return a->addr == b-
 static void tc_link(tent_t *e){ u32 h = tk_hash(&e->k); e->hnext = tc_head[h]; tc_head[h] = (int)(e - tc) + 1; }
 static void tc_unlink(tent_t *e){ u32 h = tk_hash(&e->k); int me = (int)(e - tc) + 1; int *pp = &tc_head[h];
     while (*pp) { if (*pp == me) { *pp = e->hnext; break; } pp = &tc[*pp - 1].hnext; } e->hnext = 0; }
-static void tent_free(tent_t *e){ if (!e->used) return; tc_unlink(e); tp_forget(e->id); glDeleteTextures(1, &e->id); if (e->mr) glDeleteTextures(1, &e->mr); if (e->nrm) glDeleteTextures(1, &e->nrm); tc_bytes -= e->bytes; memset(e, 0, sizeof *e); }
+static void tent_free(tent_t *e){ if (!e->used) return; tc_unlink(e); tp_forget(e->id); if (tmip[e->id & 4095].id == e->id) tmip[e->id & 4095].id = 0; glDeleteTextures(1, &e->id); if (e->mr) glDeleteTextures(1, &e->mr); if (e->nrm) glDeleteTextures(1, &e->nrm); tc_bytes -= e->bytes; memset(e, 0, sizeof *e); }
 
 /* ---- mod texture replacement (runtime/texrep.c finds the files) ---- */
 extern int rs_texrep_active(void); extern int rs_texrep_find(u32 key, u32 pal, const char *paths[3]); extern int rs_texrep_dumping(void); extern void rs_texrep_dump(u32 key, u32 pal, int w, int h, const u32 *rgba); extern u8 *rs_png_load(const char *path, int *w, int *h); extern u32 rs_crc32(const u8 *p, size_t n);
@@ -562,6 +576,7 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
     if (e && e->hash == h) { e->epoch = rs_gfx_epoch; e->stamp = ++tc_stamp; TEX_RET(e); }
     flush_batch();                                     /* a texture is about to be created, evicted or rewritten: draw what may use it first */
     long need = (long)k->w * k->h * 4;
+    int dynamic = e && rs_gfx_epoch - e->up_ep < 30;    /* contents changing within a second (animated): no mip chain */
     if (!e) {
         /* GPU memory budget for decoded textures (vitaGL spills to slow RAM when CDRAM runs out): evict least-recently-used entries */
         static long budget = -1; if (budget < 0) { extern int rs_patch_tex_budget_mb(void); budget = (long)rs_patch_tex_budget_mb() * 1048576L; }
@@ -584,7 +599,25 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
     if (!scratch) scratch = malloc(1024 * 1024 * 4);
     u64 t_u = rs_perf_us(); src->decode(scratch, src->ud);
     glBindTexture(GL_TEXTURE_2D, e->id); glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, k->w, k->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, scratch);
+    int levels = (rs_aniso_level() > 1 && !dynamic) ? rs_mip_levels(k->w, k->h) : 1;
+    tmip[e->id & 4095].id = 0;
+    if (levels > 1) {                                  /* the mip chain for anisotropic filtering */
+        static u8 *mb; if (!mb) mb = malloc(rs_mip_bytes(1024, 1024, 11, 1));
+        rs_mip_build(scratch, k->w, k->h, levels, 1, mb); size_t o = 0; int lw = k->w, lh = k->h;
+        for (int l = 0; l < levels; l++) { glTexImage2D(GL_TEXTURE_2D, l, GL_RGBA, lw, lh, 0, GL_RGBA, GL_UNSIGNED_BYTE, mb + o); o += (size_t)lw * lh * 4; lw >>= 1; lh >>= 1; }
+        
+#ifdef GL_TEXTURE_MAX_LEVEL
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, levels - 1);
+#endif
+
+        tmip[e->id & 4095].id = e->id; tmip[e->id & 4095].w = k->w; tmip[e->id & 4095].h = k->h;
+        tc_bytes += (long)o - e->bytes; e->bytes = (long)o; }
+    else { glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, k->w, k->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, scratch);
+#ifdef GL_TEXTURE_MAX_LEVEL
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+#endif
+    }
+    e->up_ep = rs_gfx_epoch;
     if (rs_texrep_dumping()) rs_texrep_dump(tex_key(k), k->clut, k->w, k->h, scratch);
     st_texup++; rs_perf.up_n++; rs_perf.up_us += rs_perf_us() - t_u;
     TEX_RET(e); }
@@ -657,13 +690,16 @@ static void apply_state(const gfx_state_t *s, const prog_t *P){
     u_set4(P, U_MUL, P->mul, mul[0], mul[1], mul[2], 1.0f);
     u_set4(P, U_FOG, P->fog, (s->fogcol & 255) / 255.0f, ((s->fogcol >> 8) & 255) / 255.0f, ((s->fogcol >> 16) & 255) / 255.0f, s->fog ? 1.0f : 0.0f);
     if (!P->tex_set) { glUniform1i(P->tex, 0); ((prog_t *)P)->tex_set = 1; }
+    int mip = use && !s->texhd && s->tfilter && tmip[s->texid & 4095].id == s->texid;
+    if (mip) u_set4(P, U_ANISO, P->aniso, (float)tmip[s->texid & 4095].w, (float)tmip[s->texid & 4095].h, (float)rs_aniso_level(), 1.0f);
+    else u_set4(P, U_ANISO, P->aniso, 1, 1, 1, 0);
     if (use) {
         if (all || gs.tex0 != s->texid) { glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, s->texid); gs.tex0 = s->texid; }
-        int ws = s->tclampu ? GL_CLAMP_TO_EDGE : GL_REPEAT, wt = s->tclampv ? GL_CLAMP_TO_EDGE : GL_REPEAT, flt = s->texhd ? -1 : (s->tfilter ? GL_LINEAR : GL_NEAREST);
+        int ws = s->tclampu ? GL_CLAMP_TO_EDGE : GL_REPEAT, wt = s->tclampv ? GL_CLAMP_TO_EDGE : GL_REPEAT, flt = s->texhd ? -1 : (mip ? GL_LINEAR_MIPMAP_LINEAR : s->tfilter ? GL_LINEAR : GL_NEAREST);
         typeof(tp[0]) *e = &tp[s->texid & 511];
         if (e->id != s->texid || e->ws != ws || e->wt != wt || e->flt != flt) {
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, ws); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wt);
-            if (flt >= 0) { glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, flt); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, flt); }
+            if (flt >= 0) { glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, flt); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, flt == GL_LINEAR_MIPMAP_LINEAR ? GL_LINEAR : flt); }
             e->id = s->texid; e->ws = ws; e->wt = wt; e->flt = flt; } } }
 
 static surf_t *target_for(const gfx_state_t *s){
