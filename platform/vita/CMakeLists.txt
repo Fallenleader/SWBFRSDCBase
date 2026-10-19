@@ -16,6 +16,7 @@ include("$ENV{VITASDK}/share/vita.cmake" REQUIRED)
 
 get_filename_component(ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 set(RS_DATA_C "${ROOT}/build/data.c" CACHE FILEPATH "data image generated from your EBOOT.BIN (make data)")
+# O2 for the game: O3's unrolling and inlining make its large decompiled functions outgrow the Cortex-A9's 32 KB instruction cache
 set(RS_GAME_OPT "-O2" CACHE STRING "optimisation level of the decompiled game code")
 set(VITA_APP_NAME "SWBF Renegade Squadron")
 set(VITA_TITLEID "SWBR00002")              # the title ID the vitaGL test builds used, so this installs over them
@@ -52,10 +53,10 @@ add_executable(swbfrs ${GAME_SRC} "${RS_DATA_C}" ${COMMON_SRC} "${GLUE_C}" ${VIT
 target_include_directories(swbfrs PRIVATE "${ROOT}/src/game" "${ROOT}/platform/common" "${ROOT}/platform/linux_test" "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/platform/common/ext/at3")
 # RS_TLS_STRUCT: the Vita's thread-local storage is emulated (a call per access); the game's per-thread state is one block instead
 target_compile_definitions(swbfrs PRIVATE RS_TLS_STRUCT HOST_BUILD _GNU_SOURCE)
-target_compile_options(swbfrs PRIVATE -fsigned-char -fno-strict-aliasing -ffp-contract=off -fno-math-errno -w)   # no-math-errno: sqrtf stays one instruction
+target_compile_options(swbfrs PRIVATE -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=hard -mthumb -fomit-frame-pointer -fsigned-char -fno-strict-aliasing -ffp-contract=off -fno-math-errno -w)   # no-math-errno: sqrtf stays one instruction
 set_source_files_properties(${GAME_SRC} "${RS_DATA_C}" PROPERTIES COMPILE_OPTIONS "${RS_GAME_OPT}")
-set_source_files_properties(${COMMON_SRC} "${GLUE_C}" ${VITA_SRC} PROPERTIES COMPILE_OPTIONS "-O2")
-set_source_files_properties(${AT3_SRC} PROPERTIES COMPILE_OPTIONS "-O2;-ffast-math")
+set_source_files_properties(${COMMON_SRC} "${GLUE_C}" ${VITA_SRC} PROPERTIES COMPILE_OPTIONS "-O3")
+set_source_files_properties(${AT3_SRC} PROPERTIES COMPILE_OPTIONS "-O3;-ffast-math")
 
 # media conversion (convert.c): FFmpeg from the VitaSDK (H.264 MPEG-PS -> MP4 with AAC audio)
 set(RS_LIBS avformat avcodec swresample avutil mp3lame mpg123 m SceKernelDmacMgr_stub SceTouch_stub SceHid_stub SceMotion_stub SceAudioIn_stub

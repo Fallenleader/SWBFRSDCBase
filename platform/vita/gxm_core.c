@@ -75,7 +75,37 @@ static void disp_cb(const void *data){
 
 /* ------------------------------------------------------------------ shaders */
 static uint64_t fnv64(const void *p, size_t n, uint64_t h){ const uint8_t *b = p; for (size_t i = 0; i < n; i++) { h ^= b[i]; h *= 1099511628211ull; } return h; }
-static int shark_ready;
+/* The runtime compiler (ur0:data/libshacccg.suprx, through vitaShaRK).  shark_init() also patches the loaded compiler in memory
+ * (SceShaccCgExt: pragmas and buffer extensions, at fixed offsets of one libshacccg build); with another build of the library the
+ * patched compiler fails every program with "fatal internal error".  None of these shaders uses the extensions, so the compiler is
+ * started unpatched (shark_init_simple) and the patched mode is only a fallback.  Compiling runs on its own thread with a 4 MB stack
+ * (the compiler is deeply recursive), and a failure writes the source and every diagnostic (line:column) to the log and to
+ * <cache>/failed_<hash>.cg. */
+static int shark_mode;                                   /* 0: not started; 1: unpatched; 2: with the extensions */
+static int shark_start(int mode){
+    if (shark_mode) { shark_end(); shark_mode = 0; }
+    int r = mode == 1 ? shark_init_simple(NULL) : shark_init(NULL);
+    fprintf(stderr, "[GXM] shader compiler %s: %d\n", mode == 1 ? "started" : "started with extensions", r);
+    if (r >= 0) shark_mode = mode; return r; }
+typedef struct { const char *src; int frag; void *prog; uint32_t size; char diag[1024]; } cjob_t;
+static int compile_thread(SceSize n, void *a){
+    cjob_t *j = *(cjob_t **)a; uint32_t size = 0; j->prog = NULL; j->size = 0; j->diag[0] = 0;
+    SceGxmProgram *p = shark_compile_shader_extended(j->src, &size, j->frag ? SHARK_FRAGMENT_SHADER : SHARK_VERTEX_SHADER, SHARK_OPT_DEFAULT, SHARK_ENABLE, SHARK_ENABLE, SHARK_ENABLE);
+    const SceShaccCgCompileOutput *o = shark_get_internal_compile_output(); size_t k = 0;
+    for (int i = 0; o && i < o->diagnosticCount && k + 8 < sizeof j->diag; i++) {
+        const SceShaccCgDiagnosticMessage *d = &o->diagnostics[i];
+        k += (size_t)snprintf(j->diag + k, sizeof j->diag - k, "%s%s %u:%u: %s", k ? "; " : "", d->level == SCE_SHACCCG_DIAGNOSTIC_LEVEL_ERROR ? "error" : d->level == SCE_SHACCCG_DIAGNOSTIC_LEVEL_WARNING ? "warning" : "info",
+                              d->location ? (unsigned)d->location->lineNumber : 0u, d->location ? (unsigned)d->location->columnNumber : 0u, d->message ? d->message : "?");
+        if (k >= sizeof j->diag) k = sizeof j->diag - 1; }
+    if (p && size) { j->prog = malloc(size); if (j->prog) { memcpy(j->prog, p, size); j->size = size; } }
+    shark_clear_output(); return sceKernelExitDeleteThread(0); }
+static void *compile_once(const char *src, int frag, uint32_t *size, char *diag, size_t dn){
+    cjob_t *j = calloc(1, sizeof *j); if (!j) { snprintf(diag, dn, "out of memory"); return NULL; }
+    j->src = src; j->frag = frag;
+    SceUID th = sceKernelCreateThread("shacccg", compile_thread, 0x10000100, 4 * 1024 * 1024, 0, 0, NULL);
+    if (th < 0) { snprintf(diag, dn, "cannot create the compiler thread (%08x)", (unsigned)th); free(j); return NULL; }
+    sceKernelStartThread(th, sizeof j, &j); sceKernelWaitThreadEnd(th, NULL, NULL);
+    void *p = j->prog; *size = j->size; snprintf(diag, dn, "%s", j->diag); free(j); return p; }
 const SceGxmProgram *gxm_shader(const char *src, int fragment){
     uint64_t h = fnv64(src, strlen(src), 14695981039346656037ull ^ (uint64_t)(fragment + 1));
     char path[320]; snprintf(path, sizeof path, "%s/gxm_%016llx.gxp", cache_dir, (unsigned long long)h);
@@ -84,11 +114,22 @@ const SceGxmProgram *gxm_shader(const char *src, int fragment){
         void *b = n > 0 ? malloc((size_t)n) : NULL; int r = b ? sceIoRead(fd, b, (SceSize)n) : -1; sceIoClose(fd);
         if (b && r == n && sceGxmProgramCheck((const SceGxmProgram *)b) >= 0) return (const SceGxmProgram *)b;
         free(b); }
-    if (!shark_ready) { if (shark_init(NULL) < 0 && shark_init_simple(NULL) < 0) { snprintf(err, sizeof err, "cannot load the shader compiler (ur0:data/libshacccg.suprx)"); return NULL; } shark_ready = 1; }
-    uint32_t size = 0; SceGxmProgram *p = shark_compile_shader_extended(src, &size, fragment ? SHARK_FRAGMENT_SHADER : SHARK_VERTEX_SHADER, SHARK_OPT_DEFAULT, SHARK_ENABLE, SHARK_ENABLE, SHARK_ENABLE);
-    if (!p || !size) { const SceShaccCgCompileOutput *o = shark_get_internal_compile_output();
-        snprintf(err, sizeof err, "shader compile failed%s%s", o && o->diagnosticCount ? ": " : "", o && o->diagnosticCount ? o->diagnostics[0].message : ""); shark_clear_output(); return NULL; }
-    void *b = malloc(size); memcpy(b, p, size); shark_clear_output();
+    if (!shark_mode && shark_start(1) < 0 && shark_start(2) < 0) { snprintf(err, sizeof err, "cannot load the shader compiler (ur0:data/libshacccg.suprx)"); return NULL; }
+    static char diag[1024]; uint32_t size = 0;
+    void *b = compile_once(src, fragment, &size, diag, sizeof diag);
+    if (b && sceGxmProgramCheck((const SceGxmProgram *)b) < 0) { free(b); b = NULL; snprintf(diag + strlen(diag), sizeof diag - strlen(diag), "%sinvalid program", diag[0] ? "; " : ""); }
+    if (!b) {                                            /* the other compiler mode, once */
+        fprintf(stderr, "[GXM] %s shader %016llx failed (compiler mode %d): %s\n", fragment ? "fragment" : "vertex", (unsigned long long)h, shark_mode, diag[0] ? diag : "no diagnostics");
+        if (shark_start(shark_mode == 1 ? 2 : 1) >= 0) {
+            b = compile_once(src, fragment, &size, diag, sizeof diag);
+            if (b && sceGxmProgramCheck((const SceGxmProgram *)b) < 0) { free(b); b = NULL; }
+            if (b) fprintf(stderr, "[GXM] shader %016llx compiled in compiler mode %d\n", (unsigned long long)h, shark_mode); } }
+    if (!b) {
+        char fp[320]; snprintf(fp, sizeof fp, "%s/failed_%016llx.cg", cache_dir, (unsigned long long)h); sceIoMkdir(cache_dir, 0777);
+        fd = sceIoOpen(fp, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666); if (fd >= 0) { sceIoWrite(fd, src, strlen(src)); sceIoClose(fd); }
+        fprintf(stderr, "[GXM] %s shader %016llx failed: %s\n[GXM] its source (also %s):\n%s\n", fragment ? "fragment" : "vertex", (unsigned long long)h, diag[0] ? diag : "no diagnostics", fp, src);
+        snprintf(err, sizeof err, "%s shader %016llx: compile failed: %.120s", fragment ? "fragment" : "vertex", (unsigned long long)h, diag[0] ? diag : "no diagnostics");
+        return NULL; }
     sceIoMkdir(cache_dir, 0777);
     fd = sceIoOpen(path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666); if (fd >= 0) { sceIoWrite(fd, b, size); sceIoClose(fd); }
     return (const SceGxmProgram *)b; }
