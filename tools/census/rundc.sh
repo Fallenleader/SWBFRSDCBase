@@ -2,7 +2,7 @@
 # usage: rundc.sh <outdir> <seconds> <script> [dump_every] [dump_from]
 OUT=$1; SEC=$2; SCR=$3; EV=${4:-60}; FR=${5:-0}
 rm -rf $OUT; mkdir -p $OUT; cd "/home/claude/work/disc/Renegade Squadron"
-env LIBGL_ALWAYS_SOFTWARE=1 RS_SCRIPT="$(cat "$SCR")" RS_MAX_SECONDS=$SEC RS_DUMP_DIR=$OUT RS_DUMP_EVERY=$EV RS_DUMP_FROM=$FR $EXTRA timeout $((SEC+30)) setarch -R ${RS_BIN} > $OUT/log.txt 2>&1
+env LIBGL_ALWAYS_SOFTWARE=1 RS_RES_SCALE=${RS_RES_SCALE:-1} RS_FXAA=${RS_FXAA:-0} RS_SCRIPT="$(cat "$SCR")" RS_MAX_SECONDS=$SEC RS_DUMP_DIR=$OUT RS_DUMP_EVERY=$EV RS_DUMP_FROM=$FR $EXTRA timeout $((SEC+30)) setarch -R ${RS_BIN} > $OUT/log.txt 2>&1
 echo "exit $?"
 python3 - "$OUT" <<'PY'
 import sys,glob

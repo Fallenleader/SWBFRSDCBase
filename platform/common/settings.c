@@ -27,9 +27,9 @@ const char *rs_patch_file(const char *rel, const char *host){ (void)rel; (void)h
 u32 rs_patch_heap_top(u32 t){ return t; }
 u32 rs_patch_audio(void){ return (u32)env("RS_AUDIO", 1); }
 int rs_patch_volume(void){ return 100; }
-u32 rs_patch_fxaa(void){ return (u32)env("RS_FXAA", 0); }
+u32 rs_patch_fxaa(void){ return (u32)env("RS_FXAA", 1); }               /* FXAA on the scaled picture */
 u32 rs_patch_hw_transform(void){ return (u32)env("RS_HW_TL", 1); }
-u32 rs_patch_res_scale(void){ return (u32)env("RS_RES_SCALE", 1); }
+u32 rs_patch_res_scale(void){ return (u32)env("RS_RES_SCALE", 2); }    /* internal resolution: 1-3 x the PSP 480x272 */
 u32 rs_patch_shadows(void){ return 0; }
 int rs_patch_shadow_res(void){ return 1024; }
 int rs_patch_shadow_range(void){ return 40; }

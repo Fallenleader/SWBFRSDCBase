@@ -2,7 +2,7 @@
  * GU (platform/common/gu_native.c) draws through.  No GL layer.
  *
  *  - Surfaces: every PSP render target (frame buffers, render-to-texture) is a GXM colour surface in video RAM, keyed by its PSP
- *    address, at the internal resolution (RS_RES_SCALE: 512*S x 512*S, PSP row 0 = memory row 0).  All surfaces share one
+ *    address, at the internal resolution (RS_RES_SCALE 1-3: 512*S x 512*S, 512*S x 272*S at 3x; PSP row 0 = memory row 0).  All surfaces share one
  *    depth/stencil surface (loaded and stored across scenes, so a frame may switch targets and come back).
  *  - Draws: one vertex program per PSP vertex type reads the game's vertex bytes as GXM attributes in their PSP formats and does the
  *    PSP transform / skinning / lighting / fog / range culling (the same Cg as the validated GL back end, gfx_gl.c).  Fragment programs:
@@ -10,7 +10,8 @@
  *    Depth, stencil, cull and scissor are dynamic GXM state.
  *  - Textures: PSP formats go to GXM as they are where GXM reads them (565/5551/4444/8888, P4/P8 with the CLUT as palette, DXT as BC);
  *    other formats are decoded to RGBA8.  Memory comes from a sub-allocated video-RAM pool; frees wait until the GPU is past them.
- *  - Display: the displayed surface is drawn to the 960x544 screen (gxm_core.c), the debug HUD on top. */
+ *  - Display: the displayed surface is drawn to the 960x544 screen (gxm_core.c) with bilinear filtering and FXAA (RS_FXAA), the
+ *    debug HUD on top. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,16 +80,16 @@ static void begin_scene(surf_t *s){
     sceGxmSetTwoSidedEnable(gxm_ctx(), SCE_GXM_TWO_SIDED_DISABLED); }
 static surf_t *surf_find(u32 addr){ addr = akey(addr); for (int i = 0; i < SURF_N; i++) if (surfs[i].used && surfs[i].addr == addr) return &surfs[i]; return 0; }
 static void clear_rect_internal(surf_t *s, int x0, int y0, int x1, int y1, const float rgba[4], float depth, int cc, int ca, int cz, int sval);
+static int surf_mem(surf_t *s){
+    s->mem = gxm_alloc((size_t)PX * PXH * 4, SCE_GXM_COLOR_SURFACE_ALIGNMENT, 1); if (!s->mem) return -1;
+    sceGxmColorSurfaceInit(&s->cs, SCE_GXM_COLOR_FORMAT_A8B8G8R8, SCE_GXM_COLOR_SURFACE_LINEAR, SCE_GXM_COLOR_SURFACE_SCALE_NONE,
+                           SCE_GXM_OUTPUT_REGISTER_SIZE_32BIT, PX, PXH, PX, s->mem);
+    sceGxmTextureInitLinear(&s->tex, s->mem, SCE_GXM_TEXTURE_FORMAT_U8U8U8U8_ABGR, PX, PXH, 0); return 0; }
 static surf_t *surf_create(u32 addr, int fmt, int stride){
     addr = akey(addr); surf_t *s = 0, *old = &surfs[0];
     for (int i = 0; i < SURF_N; i++) { if (!surfs[i].used) { s = &surfs[i]; break; } if (surfs[i].stamp < old->stamp) old = &surfs[i]; }
     if (!s) { s = old; if (scene_surf == s) end_scene(); }
-    if (!s->mem) {
-        s->mem = gxm_alloc((size_t)PX * PXH * 4, SCE_GXM_COLOR_SURFACE_ALIGNMENT, 1);
-        if (!s->mem) { fprintf(stderr, "[GXM] out of video memory for a render surface\n"); return NULL; }
-        sceGxmColorSurfaceInit(&s->cs, SCE_GXM_COLOR_FORMAT_A8B8G8R8, SCE_GXM_COLOR_SURFACE_LINEAR, SCE_GXM_COLOR_SURFACE_SCALE_NONE,
-                               SCE_GXM_OUTPUT_REGISTER_SIZE_32BIT, PX, PXH, PX, s->mem);
-        sceGxmTextureInitLinear(&s->tex, s->mem, SCE_GXM_TEXTURE_FORMAT_U8U8U8U8_ABGR, PX, PXH, 0); }
+    if (!s->mem && surf_mem(s)) { fprintf(stderr, "[GXM] out of video memory for a render surface\n"); return NULL; }
     s->used = 1; s->addr = addr; s->fmt = fmt; s->stride = stride ? stride : 512; s->psz = fmt == 3 ? 4 : 2; s->drawn = 0; s->stamp = ++surf_stamp;
     { float black[4] = {0, 0, 0, 1}; clear_rect_internal(s, 0, 0, SZ - 1, SURF_H - 1, black, 1.0f, 1, 1, 1, 0); }
     return s; }
@@ -153,6 +154,25 @@ static const char *CLR_VS = "void main(float2 aPos, uniform float4 uZ, float4 ou
 static const char *CLR_FS = "float4 main(uniform float4 uCol) : COLOR { return uCol; }\n";
 static const char *BLT_VS = "void main(float2 aPos, float2 aUV, float4 out vPos : POSITION, float2 out vUV : TEXCOORD0) { vPos = float4(aPos, 0.5, 1.0); vUV = aUV; }\n";
 static const char *BLT_FS = "float4 main(float2 vUV : TEXCOORD0, uniform sampler2D uTex) : COLOR { return tex2D(uTex, vUV); }\n";
+/* FXAA (Lottes' FXAA 2 / "FXAA lite": 5 + 4 bilinear reads, no loops; the same shader as the GL back end) on the internal-resolution
+ * picture while it is scaled to the screen.  uTexel = (1/w, 1/h, u max, v max). */
+static const char *FXAA_FS =
+    "float3 S(sampler2D t, float2 uv, float4 k) { return tex2D(t, clamp(uv, float2(0.0, 0.0), k.zw)).rgb; }\n"
+    "float4 main(float2 vUV : TEXCOORD0, uniform sampler2D uTex, uniform float4 uTexel) : COLOR {\n"
+    "  float2 px = uTexel.xy; float3 L = float3(0.299, 0.587, 0.114);\n"
+    "  float3 rNW = S(uTex, vUV + float2(-1.0, -1.0) * px, uTexel), rNE = S(uTex, vUV + float2(1.0, -1.0) * px, uTexel);\n"
+    "  float3 rSW = S(uTex, vUV + float2(-1.0, 1.0) * px, uTexel), rSE = S(uTex, vUV + float2(1.0, 1.0) * px, uTexel), rM = S(uTex, vUV, uTexel);\n"
+    "  float lNW = dot(rNW, L), lNE = dot(rNE, L), lSW = dot(rSW, L), lSE = dot(rSE, L), lM = dot(rM, L);\n"
+    "  float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE))), lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));\n"
+    "  float2 d = float2(-((lNW + lNE) - (lSW + lSE)), (lNW + lSW) - (lNE + lSE));\n"
+    "  float red = max((lNW + lNE + lSW + lSE) * (0.25 * 0.125), 1.0 / 128.0);\n"
+    "  float rcp = 1.0 / (min(abs(d.x), abs(d.y)) + red);\n"
+    "  d = clamp(d * rcp, float2(-8.0, -8.0), float2(8.0, 8.0)) * px;\n"
+    "  float3 rA = 0.5 * (S(uTex, vUV + d * (1.0 / 3.0 - 0.5), uTexel) + S(uTex, vUV + d * (2.0 / 3.0 - 0.5), uTexel));\n"
+    "  float3 rB = rA * 0.5 + 0.25 * (S(uTex, vUV + d * -0.5, uTexel) + S(uTex, vUV + d * 0.5, uTexel));\n"
+    "  float lB = dot(rB, L);\n"
+    "  return float4((lB < lMin || lB > lMax) ? rA : rB, 1.0);\n"
+    "}\n";
 
 /* the PSP vertex program for vertex type vt (see gfx_gl.c native_vs_src: same shader, Cg) */
 static char *native_vs_src(u32 vt, int lit){
@@ -237,6 +257,7 @@ static const SceGxmProgramParameter *fu_cfg0, *fu_cfg1, *fu_env, *fu_fog, *fu_mu
 static vprog_t cpu_vp;                                       /* gfx_vtx_t program */
 static SceGxmVertexProgram *clr_vp, *blt_vp; static SceGxmFragmentProgram *blt_fp; static const SceGxmProgram *clr_vgxp, *clr_fgxp, *blt_vgxp; static SceGxmShaderPatcherId clr_fid;
 static const SceGxmProgramParameter *clr_uz, *clr_ucol;
+static SceGxmFragmentProgram *fxaa_fp; static const SceGxmProgramParameter *fxaa_texel; static int use_fxaa;   /* present pass */
 static u16 *lin_idx;                                         /* 0, 1, 2, ... 65535 */
 
 static SceGxmAttributeFormat afmt(int psp_fmt, int is_unsigned){
@@ -584,8 +605,17 @@ void gfx_present(int ww, int wh){
     end_scene(); pool_collect();
     gxm_begin_frame(0xFF000000u);
     surf_t *s = disp_surface();
-    if (s) { disp_tex.tex = s->tex; disp_tex.w = PX; disp_tex.h = PXH;
-        ui_quad_opaque(&disp_tex, 0, 0, GXM_W, GXM_H, 0, 0, 480.0f * RS_S / PX, 272.0f * RS_S / PXH); }
+    if (s) {                                                       /* the internal-resolution picture to the 960x544 screen, filtered */
+        SceGxmTexture tx = s->tex; sceGxmTextureSetMinFilter(&tx, SCE_GXM_TEXTURE_FILTER_LINEAR); sceGxmTextureSetMagFilter(&tx, SCE_GXM_TEXTURE_FILTER_LINEAR);
+        float um = 480.0f * RS_S / PX, vm = 272.0f * RS_S / PXH;
+        if (use_fxaa && fxaa_fp) {
+            ui_flush(); SceGxmContext *c = gxm_ctx(); float *q = gxm_frame_alloc(16 * sizeof(float), 16);
+            if (q) { float v[16] = {-1, 1, 0, 0,  1, 1, um, 0,  -1, -1, 0, vm,  1, -1, um, vm}; memcpy(q, v, sizeof v);
+                sceGxmSetVertexProgram(c, blt_vp); sceGxmSetFragmentProgram(c, fxaa_fp); sceGxmSetFragmentTexture(c, 0, &tx);
+                void *fb; sceGxmReserveFragmentDefaultUniformBuffer(c, &fb);
+                float k[4] = {1.0f / PX, 1.0f / PXH, (480.0f * RS_S - 0.5f) / PX, (272.0f * RS_S - 0.5f) / PXH}; if (fxaa_texel) sceGxmSetUniformDataF(fb, fxaa_texel, 0, 4, k);
+                sceGxmSetVertexStream(c, 0, q); sceGxmDraw(c, SCE_GXM_PRIMITIVE_TRIANGLE_STRIP, SCE_GXM_INDEX_FORMAT_U16, lin_idx, 4); } }
+        else { disp_tex.tex = tx; disp_tex.w = PX; disp_tex.h = PXH; ui_quad_opaque(&disp_tex, 0, 0, GXM_W, GXM_H, 0, 0, um, vm); } }
     else if (disp_addr) {                                          /* the game wrote the frame buffer with the CPU (no GPU surface) */
         static u32 pix[480 * 272]; gfx_read_display(pix); if (!cpu_tex.mem) gxm_tex_rgba(&cpu_tex, pix, 480, 272, 1);
         else { u8 *m = cpu_tex.mem; for (int y = 0; y < 272; y++) memcpy(m + (size_t)y * 480 * 4, pix + y * 480, 480 * 4); }
@@ -614,8 +644,11 @@ static int prog_pair(const char *vs, const char *fsrc, const SceGxmProgram **vg,
     if (fsrc && sceGxmShaderPatcherRegisterProgram(gxm_patcher(), *fg, fid) < 0) return -1;
     return 0; }
 int gfx_init(void){
-    RS_S = rs_setting_int("RS_RES_SCALE", 2); if (RS_S < 1) RS_S = 1; if (RS_S > 2) RS_S = 2;     /* 1x = 480x272, 2x = 960x544 (the Vita screen) */
-    SURF_H = 512;
+    /* 1x = 480x272 (the PSP), 2x = 960x544 (the Vita screen), 3x = 1440x816 (supersampled down to the screen).  At 3x a surface keeps
+     * the 272 rows of a PSP screen instead of 512, so ten of them fit the video memory (as the GL back end) */
+    RS_S = rs_setting_int("RS_RES_SCALE", 2); if (RS_S < 1) RS_S = 1; if (RS_S > 3) RS_S = 3;
+    SURF_H = RS_S >= 3 ? 272 : 512;
+    use_fxaa = rs_setting_int("RS_FXAA", 1);
     SceGxmRenderTargetParams rp; memset(&rp, 0, sizeof rp); rp.width = PX; rp.height = PXH; rp.scenesPerFrame = 16; rp.multisampleMode = SCE_GXM_MULTISAMPLE_NONE; rp.driverMemBlock = -1;
     if (sceGxmCreateRenderTarget(&rp, &srt) < 0) { fprintf(stderr, "[GXM] cannot create the render target (%dx%d)\n", PX, PXH); return -1; }
     unsigned dw = ALIGN(PX, SCE_GXM_TILE_SIZEX), dh = ALIGN(PXH, SCE_GXM_TILE_SIZEY);
@@ -623,6 +656,7 @@ int gfx_init(void){
     sceGxmDepthStencilSurfaceInit(&sds, SCE_GXM_DEPTH_STENCIL_FORMAT_S8D24, SCE_GXM_DEPTH_STENCIL_SURFACE_TILED, dw, dmem, NULL);
     sceGxmDepthStencilSurfaceSetForceLoadMode(&sds, SCE_GXM_DEPTH_STENCIL_FORCE_LOAD_ENABLED);
     sceGxmDepthStencilSurfaceSetForceStoreMode(&sds, SCE_GXM_DEPTH_STENCIL_FORCE_STORE_ENABLED);
+    for (int i = 0; i < SURF_N; i++) surf_mem(&surfs[i]);            /* render surfaces first, so they get the video RAM (the texture pool may not) */
     pool_init((u32)rs_setting_int("RS_TEX_POOL_MB", 48) << 20);
     { u32 w1[64]; for (int i = 0; i < 64; i++) w1[i] = 0xFFFFFFFFu; if (gxm_tex_rgba(&white_gt, w1, 8, 8, 0)) return -1; }
     lin_idx = gxm_alloc(65536 * 2, 16, 0); if (!lin_idx) return -1; for (int i = 0; i < 65536; i++) lin_idx[i] = (u16)i;
@@ -647,5 +681,12 @@ int gfx_init(void){
       SceGxmVertexStream st = {16, SCE_GXM_INDEX_SOURCE_INDEX_16BIT};
       if (sceGxmShaderPatcherCreateVertexProgram(gxm_patcher(), bv, at, 2, &st, 1, &blt_vp) < 0) return -1;
       if (sceGxmShaderPatcherCreateFragmentProgram(gxm_patcher(), bf, SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE, NULL, blt_vgxp, &blt_fp) < 0) return -1; }
-    fprintf(stderr, "[GXM] renderer ready: surfaces %dx%d (x%d), texture pool %u MB\n", PX, PXH, RS_S, pool_size >> 20);
+    /* FXAA present pass (a failure only turns it off) */
+    { const SceGxmProgram *fg = gxm_shader(FXAA_FS, 1); SceGxmShaderPatcherId fid;
+      if (fg && sceGxmShaderPatcherRegisterProgram(gxm_patcher(), fg, &fid) >= 0 &&
+          sceGxmShaderPatcherCreateFragmentProgram(gxm_patcher(), fid, SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE, NULL, blt_vgxp, &fxaa_fp) >= 0)
+          fxaa_texel = sceGxmProgramFindParameterByName(fg, "uTexel");
+      else { fxaa_fp = NULL; fprintf(stderr, "[GXM] FXAA shader unavailable (%s): presenting without it\n", gxm_error()); } }
+    fprintf(stderr, "[GXM] renderer ready: surfaces %dx%d (x%d: the PSP screen at %dx%d), FXAA %s, texture pool %u MB\n", PX, PXH, RS_S, 480 * RS_S, 272 * RS_S,
+            use_fxaa && fxaa_fp ? "on" : "off", pool_size >> 20);
     return 0; }

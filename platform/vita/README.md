@@ -83,7 +83,8 @@ All settings are optional `KEY=VALUE` lines:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `RS_RES_SCALE` | 2 | internal resolution: 2 = 960x544 (Vita screen), 1 = 480x272 (PSP) |
+| `RS_RES_SCALE` | 2 | internal resolution, as a multiple of the PSP's 480x272: 1 = 480x272, 2 = 960x544 (the Vita screen), 3 = 1440x816 (supersampled down to the screen; uses more video memory and GPU time) |
+| `RS_FXAA` | 1 | 1 = FXAA anti-aliasing while the picture is scaled to the screen, 0 = off (plain bilinear) |
 | `RS_TEX_POOL_MB` | 48 | video memory for textures |
 | `RS_TEX_BUDGET_MB` | 40 | texture cache size before old textures are evicted |
 | `RS_CPU_PIN` | 1 | 1 = renderer on core 0, game main thread on core 1, other game threads on core 2 |
