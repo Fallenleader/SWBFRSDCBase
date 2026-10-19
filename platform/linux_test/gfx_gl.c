@@ -315,7 +315,7 @@ static const char *PBR_PARAM_AT = "float vCull : TEXCOORD3,";
 static const char *PBR_PARAMS = " float3 vVP : TEXCOORD5, float3 vVN : TEXCOORD6, float3 vVT : TEXCOORD7, uniform sampler2D uMR, uniform sampler2D uNM, uniform float4 uPbr, uniform float4 uSun, uniform float4 uSunC,";
 static const char *PBR_CODE =
     "  if (uPbr.w > 0.5) {\n"
-    "    float3 N = normalize(vVN); float3 V = normalize(-vVP); float3 L = uSun.xyz;\n"
+    "    float3 N = normalize(vVN); float3 V = normalize(-vVP); float3 L = uSun.xyz; if (dot(N, V) < 0.0) N = -N;\n"
     "    float rough = 0.7; float metal = 0.0; float ao = 1.0;\n"
     "    if (uPbr.x > 0.5) { float4 m = tex2D(uMR, vUV); rough = clamp(m.g, 0.05, 1.0); metal = m.b; ao = m.r; }\n"
     "    if (uPbr.y > 0.5) { float3 T = vVT - N * dot(N, vVT); float lt = length(T);\n"
@@ -327,7 +327,8 @@ static const char *PBR_CODE =
     "    float3 one = float3(1.0, 1.0, 1.0); float3 alb = c.rgb; float3 F0 = lerp(float3(0.04, 0.04, 0.04), alb, metal);\n"
     "    float3 F = F0 + (one - F0) * pow(1.0 - vdh, 5.0); float3 spec = F * (D * G / (4.0 * ndl * ndv + 0.001)) * ndl;\n"
     "    float3 Fa = F0 + (one - F0) * pow(1.0 - ndv, 5.0) * (1.0 - rough);\n"
-    "    c.rgb = c.rgb * (1.0 - metal) * ao + alb * metal * (0.55 * one + 0.45 * Fa) * ao + spec * uSunC.rgb * uPbr.z;\n"
+    "    float3 R = reflect(-V, N); float up = dot(R, L) * 0.5 + 0.5; float3 env = lerp(float3(0.42, 0.47, 0.56), float3(0.80, 0.88, 1.0), up) * uSunC.rgb + uSunC.rgb * 6.0 * pow(max(dot(R, L), 0.0), 2.0 + 300.0 * (1.0 - rough) * (1.0 - rough));\n"
+    "    c.rgb = c.rgb * (1.0 - metal) * ao + alb * metal * (0.25 * one + 0.75 * Fa * env * 1.6) * ao + Fa * env * (1.0 - rough) * (1.0 - metal) * 0.5 + spec * uSunC.rgb * uPbr.z;\n"
     "  }\n";
 #else
 static const char *PBR_FUNC = "uniform sampler2D uMR; uniform sampler2D uNM; uniform vec4 uPbr; uniform vec4 uSun; uniform vec4 uSunC; varying vec3 vVP; varying vec3 vVN; varying vec3 vVT;\n";
@@ -335,7 +336,7 @@ static const char *PBR_AT = "void main(){";
 static const char *PBR_PARAM_AT = 0, *PBR_PARAMS = 0;
 static const char *PBR_CODE =
     "  if (uPbr.w > 0.5) {\n"
-    "    vec3 N = normalize(vVN); vec3 V = normalize(-vVP); vec3 L = uSun.xyz;\n"
+    "    vec3 N = normalize(vVN); vec3 V = normalize(-vVP); vec3 L = uSun.xyz; if (dot(N, V) < 0.0) N = -N;\n"
     "    float rough = 0.7; float metal = 0.0; float ao = 1.0;\n"
     "    if (uPbr.x > 0.5) { vec4 m = texture2D(uMR, vUV); rough = clamp(m.g, 0.05, 1.0); metal = m.b; ao = m.r; }\n"
     "    if (uPbr.y > 0.5) { vec3 T = vVT - N * dot(N, vVT); float lt = length(T);\n"
@@ -347,7 +348,8 @@ static const char *PBR_CODE =
     "    vec3 one = vec3(1.0, 1.0, 1.0); vec3 alb = c.rgb; vec3 F0 = mix(vec3(0.04, 0.04, 0.04), alb, metal);\n"
     "    vec3 F = F0 + (one - F0) * pow(1.0 - vdh, 5.0); vec3 spec = F * (D * G / (4.0 * ndl * ndv + 0.001)) * ndl;\n"
     "    vec3 Fa = F0 + (one - F0) * pow(1.0 - ndv, 5.0) * (1.0 - rough);\n"
-    "    c.rgb = c.rgb * (1.0 - metal) * ao + alb * metal * (0.55 * one + 0.45 * Fa) * ao + spec * uSunC.rgb * uPbr.z;\n"
+    "    vec3 R = reflect(-V, N); float up = dot(R, L) * 0.5 + 0.5; vec3 env = mix(vec3(0.42, 0.47, 0.56), vec3(0.80, 0.88, 1.0), up) * uSunC.rgb + uSunC.rgb * 6.0 * pow(max(dot(R, L), 0.0), 2.0 + 300.0 * (1.0 - rough) * (1.0 - rough));\n"
+    "    c.rgb = c.rgb * (1.0 - metal) * ao + alb * metal * (0.25 * one + 0.75 * Fa * env * 1.6) * ao + Fa * env * (1.0 - rough) * (1.0 - metal) * 0.5 + spec * uSunC.rgb * uPbr.z;\n"
     "  }\n";
 #endif
 static const char *RCV_CODE_AT = "  if (uFog.a > 0.5)";
@@ -781,10 +783,10 @@ static void sb(sbuf_t *b, const char *fmt, ...){
 #else
 #define NV_CG 0
 #endif
-static char *native_vs_src(u32 vt, int lit){
+static char *native_vs_src(u32 vt, int lit, int fx){
     int tf = vt & 3, cf = (vt >> 2) & 7, nf = (vt >> 5) & 3, pf = (vt >> 7) & 3, wf = (vt >> 9) & 3, nw = ((vt >> 14) & 7) + 1, thr = (vt >> 23) & 1;
     static const char *sc[4] = {"1.0", "(1.0 / 128.0)", "(1.0 / 32768.0)", "1.0"};          /* PSP 8/16-bit fixed point */
-    if (thr) { nf = 0; wf = 0; lit = 0; }
+    if (thr) { nf = 0; wf = 0; lit = 0; fx = 0; }
     sbuf_t b = {0};
     sb(&b, "%s", HWVS_HEAD);
     sb(&b, "uniform vec4 uMVP[4]; uniform vec4 uWVZ; uniform vec4 uWld[3]; uniform vec4 uB[24];\n"
@@ -804,7 +806,7 @@ static char *native_vs_src(u32 vt, int lit){
     if (wf) { an[na] = "aW0"; at[na++] = "vec4"; if (nw > 4) { an[na] = "aW1"; at[na++] = "vec4"; } }
     sb(&b, "void nvxf(");
     for (int i = 0; i < na; i++) sb(&b, "%s %s, ", at[i], an[i]);
-    sb(&b, "out vec4 oPos, out vec2 oUV, out vec4 oCol, out float oFog, out float oCull) {\n");
+    sb(&b, "out vec4 oPos, out vec2 oUV, out vec4 oCol, out float oFog, out float oCull, out vec3 oMP, out vec3 oMN) {\n");
     switch (cf) {                                                                  /* as ge.c decode_vertex: 4 = 565, 5 = 5551, 7 = 8888, others 4444 */
     case 0: sb(&b, "  vec4 c = uDefC;\n"); break;
     case 7: sb(&b, "  vec4 c = aC;\n"); break;
@@ -821,7 +823,7 @@ static char *native_vs_src(u32 vt, int lit){
         sb(&b, "  vec3 p = aP;\n");
         if (pf == 2) sb(&b, "  if (p.z < 0.0) p.z = p.z + 65536.0;\n");
         sb(&b, "  float z = clamp(p.z, 0.0, 65535.0);\n"
-               "  oPos = vec4(p.x * (2.0 / 512.0) - 1.0, p.y * (2.0 / 512.0) - 1.0, z * (2.0 / 65535.0) - 1.0, 1.0); oFog = 1.0; oCull = 0.0; }\n"); }
+               "  oPos = vec4(p.x * (2.0 / 512.0) - 1.0, p.y * (2.0 / 512.0) - 1.0, z * (2.0 / 65535.0) - 1.0, 1.0); oFog = 1.0; oCull = 0.0; oMP = p; oMN = vec3(0.0, 0.0, 1.0); }\n"); }
     else {
         sb(&b, "  vec3 p = aP * %s;\n", sc[pf]);
         if (nf) sb(&b, "  vec3 n = aN * %s;\n", sc[nf]); else sb(&b, "  vec3 n = vec3(0.0, 0.0, 1.0);\n");
@@ -830,7 +832,7 @@ static char *native_vs_src(u32 vt, int lit){
             for (int i = 0; i < nw && i < 8; i++)
                 sb(&b, "  wt = aW%d.%c * %s; p += wt * vec3(dot(p4, uB[%d]), dot(p4, uB[%d]), dot(p4, uB[%d])); n += wt * vec3(dot(n4, uB[%d]), dot(n4, uB[%d]), dot(n4, uB[%d]));\n",
                    i / 4, "xyzw"[i % 4], sc[wf], i * 3, i * 3 + 1, i * 3 + 2, i * 3, i * 3 + 1, i * 3 + 2); }
-        sb(&b, "  vec4 q = vec4(p, 1.0);\n"
+        sb(&b, "  vec4 q = vec4(p, 1.0); oMP = p; oMN = n;\n"
                "  vec4 cl = vec4(dot(q, uMVP[0]), dot(q, uMVP[1]), dot(q, uMVP[2]), dot(q, uMVP[3])); float w = cl.w;\n"
                "  oPos = vec4((cl.x * uVP0.x + uVP1.x * w) * (2.0 / 512.0) - w, (cl.y * uVP0.y + uVP1.y * w) * (2.0 / 512.0) - w, (cl.z * uVP0.z + uVP1.z * w) * (2.0 / 65535.0) - w, w);\n"
                "  float iw = (abs(w) > 0.000001) ? 1.0 / w : 0.0;\n"
@@ -850,33 +852,45 @@ static char *native_vs_src(u32 vt, int lit){
 #if NV_CG
     sb(&b, "void main(");
     for (int i = 0; i < na; i++) sb(&b, "%s %s, ", at[i], an[i]);
-    sb(&b, "float4 out vPos : POSITION, float2 out vUV : TEXCOORD0, float4 out vCol : TEXCOORD1, float out vFog : TEXCOORD2, float out vCull : TEXCOORD3) { nvxf(");
+    sb(&b, "float4 out vPos : POSITION, float2 out vUV : TEXCOORD0, float4 out vCol : TEXCOORD1, float out vFog : TEXCOORD2, float out vCull : TEXCOORD3) { float3 mp, mn; nvxf(");
     for (int i = 0; i < na; i++) sb(&b, "%s, ", an[i]);
-    sb(&b, "vPos, vUV, vCol, vFog, vCull); }\n");
+    sb(&b, "vPos, vUV, vCol, vFog, vCull, mp, mn); }\n");
 #else
     for (int i = 0; i < na; i++) sb(&b, "attribute %s %s;\n", at[i], an[i]);
-    sb(&b, "varying vec2 vUV; varying vec4 vCol; varying float vFog; varying float vCull;\n"
-           "void main(){ vec4 p; vec2 t; vec4 c; float f; float k; nvxf(");
+    sb(&b, "varying vec2 vUV; varying vec4 vCol; varying float vFog; varying float vCull;\n");
+    if (fx) sb(&b, "uniform vec4 uWV[3]; uniform vec4 uShM[4]; varying vec4 vSh; varying vec3 vVP; varying vec3 vVN; varying vec3 vVT;\n");
+    sb(&b, "void main(){ vec4 p; vec2 t; vec4 c; float f; float k; vec3 mp; vec3 mn; nvxf(");
     for (int i = 0; i < na; i++) sb(&b, "%s, ", an[i]);
-    sb(&b, "p, t, c, f, k); gl_Position = p; vUV = t; vCol = c; vFog = f; vCull = k; }\n");
+    sb(&b, "p, t, c, f, k, mp, mn); gl_Position = p; vUV = t; vCol = c; vFog = f; vCull = k;\n");
+    if (fx) sb(&b,                                                                 /* view space for PBR, shadow-map coordinates (as hwxf) */
+           "  vec4 q = vec4(mp, 1.0); vec4 vp = vec4(dot(q, uWV[0]), dot(q, uWV[1]), dot(q, uWV[2]), 1.0); vec4 nn = vec4(mn, 0.0);\n"
+           "  vec3 vn = vec3(dot(nn, uWV[0]), dot(nn, uWV[1]), dot(nn, uWV[2])); vVP = vp.xyz; vVN = vn; vVT = vec3(uWV[0].x, uWV[1].x, uWV[2].x);\n"
+           "  vSh = vec4(dot(vp, uShM[0]), dot(vp, uShM[1]), dot(vp, uShM[2]), 1.0);\n"
+           "  if (uLFl.w > 0.5) { float lv = length(vn); vSh.w = (lv > 0.0000001) ? abs(dot(vn / lv, uShM[3].xyz)) : 1.0; }\n");
+    sb(&b, "}\n");
 #endif
     return b.p; }
 
 #define NP_N 192
 typedef struct { u32 key; int state; prog_t P; } nprog_t;                     /* state: 1 ready, -1 failed */
 static nprog_t np[NP_N]; static int np_n, native_on = -1;
-static u32 native_key(u32 vt, int lit){ int thr = (vt >> 23) & 1; return (vt & 0x1C7FFu) | ((u32)thr << 23) | ((u32)(lit && !thr) << 24) | 0x80000000u; }
-static const prog_t *native_prog(u32 vt, int lit){
-    u32 key = native_key(vt, lit);
+static u32 native_key(u32 vt, int lit, int fx){ int thr = (vt >> 23) & 1; return (vt & 0x1C7FFu) | ((u32)thr << 23) | ((u32)(lit && !thr) << 24) | ((u32)(thr ? 0 : fx) << 25) | 0x80000000u; }
+/* fx: 1 = receives the sun's shadow, 2 = PBR (mod texture with _mr / _n maps) */
+static const prog_t *native_prog(u32 vt, int lit, int fx){
+    if ((vt >> 23) & 1) fx = 0;
+    u32 key = native_key(vt, lit, fx);
     for (int i = 0; i < np_n; i++) if (np[i].key == key) return np[i].state > 0 ? &np[i].P : NULL;
     if (np_n >= NP_N) return NULL;
     nprog_t *e = &np[np_n++]; memset(e, 0, sizeof *e); e->key = key; e->state = -1;
     if (!((vt >> 7) & 3)) return NULL;                                             /* no position */
-    char *src = native_vs_src(vt, lit); if (!src) return NULL;
+    char *src = native_vs_src(vt, lit, fx); if (!src) return NULL;
     static const char *hattrs[6] = {"aP", "aN", "aT", "aC", "aW0", "aW1"};
-    char nm[48]; snprintf(nm, sizeof nm, "vertex type %06x%s%s", (unsigned)(vt & 0x1C7FFu), (vt >> 23) & 1 ? " 2D" : "", (lit && !((vt >> 23) & 1)) ? " lit" : "");
+    char nm[64]; snprintf(nm, sizeof nm, "vertex type %06x%s%s%s%s", (unsigned)(vt & 0x1C7FFu), (vt >> 23) & 1 ? " 2D" : "", (lit && !((vt >> 23) & 1)) ? " lit" : "", fx & 1 ? " shadowed" : "", fx & 2 ? " PBR" : "");
     u64 t0 = rs_perf_us();
-    e->P.id = link_prog(src, FS_SRC, nm, hattrs, 6); free(src);
+    char *fs = NULL;
+    if (fx & 2) { char *pf = pbr_fs(); fs = (pf && (fx & 1)) ? receiver_fs_from(pf) : pf; if (fs != pf) free(pf); }
+    else if (fx & 1) fs = receiver_fs();
+    e->P.id = link_prog(src, fs ? fs : FS_SRC, nm, hattrs, 6); free(src); free(fs);
     if (!e->P.id) { fprintf(stderr, "[GL] %s: no native program, decoded on the CPU instead\n", nm); return NULL; }
     prog_locs(&e->P);
     fprintf(stderr, "[GL] native program for %s (%.1f ms)\n", nm, (rs_perf_us() - t0) / 1000.0);
@@ -905,6 +919,22 @@ static void flush_native(void){
             u_set(P, U_LPOS, P->lpos, 4, h->lpos); u_set(P, U_LATT, P->latt, 4, h->latt); u_set(P, U_LSPOT, P->lspot, 4, h->lspot); u_set(P, U_LA, P->la, 4, h->la); u_set(P, U_LD, P->ld, 4, h->ld); } }
     u_set(P, U_UVT, P->uvt, 1, h->uvt);
     u_set(P, U_DEFC, P->defc, 1, nb.defc);
+    if (!((vt >> 23) & 1) && (P->shm != -1 || P->pbr != -1)) {            /* shadow receiver / PBR variants (native_prog fx) */
+        if (P->wvm != -1) glUniform4fv(P->wvm, 3, h->wv);
+        if (P->lfl != -1) glUniform4fv(P->lfl, 1, h->lfl);
+        if (P->shm != -1) { static const float z16[16]; int rcv = sh_on && sh_valid && st->ztest && !st->blend;
+            { static int rl = -1, nrl; if (rl < 0) rl = getenv("RS_SHADOW_RCVLOG") != 0; if (rl && nrl++ < 3000) fprintf(stderr, "[RCV] native vt=%06x n=%d lit=%d nrm=%.0f z=%d/%d blend=%d atest=%d tex=%u rcv=%d\n", vt, nb.ni, h->lit, h->lfl[3], st->ztest, st->zwrite, st->blend, st->atest, st->texid, rcv); }
+            glUniform4fv(P->shm, 4, rcv ? sh_mat : z16);
+            { static int vis = -1; if (vis < 0) vis = getenv("RS_SHADOW_VIS") != 0; if (P->shp != -1) glUniform4f(P->shp, 1.0f / (float)sh_res, 1.0f / (3.0f * (float)sh_res), sh_strength, rcv ? (vis ? 3.0f : 1.0f) : 0.0f); }
+            if (P->sht != -1 && sh_on) { glUniform1i(P->sht, 1); glActiveTexture(GL_TEXTURE0 + 1); glBindTexture(GL_TEXTURE_2D, sh_tex); glActiveTexture(GL_TEXTURE0); } }
+        if (P->pbr != -1) {
+            float sv[3]; const float *V = sh_view; static const float I12[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}; if (!sh_view_any) V = I12;
+            for (int c = 0; c < 3; c++) sv[c] = sh_sun[0] * V[c] + sh_sun[1] * V[3 + c] + sh_sun[2] * V[6 + c]; norm3(sv);
+            glUniform4f(P->pbr, st->texmr ? 1.0f : 0.0f, 0.0f /* PSP vertices carry no tangents: normal maps not on this path yet */, pbr_spec, 1.0f);
+            glUniform4f(P->sun, sv[0], sv[1], sv[2], 0); glUniform4f(P->sunc, pbr_sunc[0], pbr_sunc[1], pbr_sunc[2], 1);
+            glUniform1i(P->mr, 2); glUniform1i(P->nm, 3);
+            glActiveTexture(GL_TEXTURE0 + 2); glBindTexture(GL_TEXTURE_2D, st->texmr ? st->texmr : st->texid);
+            glActiveTexture(GL_TEXTURE0 + 3); glBindTexture(GL_TEXTURE_2D, st->texn ? st->texn : st->texid); glActiveTexture(GL_TEXTURE0); } }
     /* attributes: the PSP vertex bytes as the game wrote them */
     int tf = vt & 3, cf = (vt >> 2) & 7, nf = (vt >> 5) & 3, pf = (vt >> 7) & 3, wf = (vt >> 9) & 3, nw = ((vt >> 14) & 7) + 1, thr = (vt >> 23) & 1;
     static const unsigned sty[4] = {GL_FLOAT, 0x1400 /*GL_BYTE*/, 0x1402 /*GL_SHORT*/, GL_FLOAT}, uty[4] = {GL_FLOAT, GL_UNSIGNED_BYTE, 0x1403 /*GL_UNSIGNED_SHORT*/, GL_FLOAT};
@@ -929,6 +959,21 @@ static void flush_native(void){
     if (dbg) { unsigned e = glGetError(); if (e) fprintf(stderr, "[GL] error 0x%x after native draw (vertex type %06x, %d indices, %d PSP primitives)\n", e, vt, nb.ni, nb.draws); }
     nb.nv = nb.ni = nb.draws = 0; }
 
+/* Shadow casters from native draws: the triangles' model-space positions (and skinning weights) decoded on the CPU into the shadow
+ * pass's list (sh_record), as the HW T&L path hands them over */
+static float nv_rd(const u8 *p, int f){ if (f == 1) return (float)(signed char)p[0] * (1.0f / 128.0f); if (f == 2) { short v; memcpy(&v, p, 2); return v * (1.0f / 32768.0f); } float v; memcpy(&v, p, 4); return v; }
+static float nv_rdu(const u8 *p, int f){ if (f == 1) return p[0] * (1.0f / 128.0f); if (f == 2) { unsigned short v; memcpy(&v, p, 2); return v * (1.0f / 32768.0f); } float v; memcpy(&v, p, 4); return v; }
+static void native_shadow_record(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t *nv, u32 lo, const u16 *tri, u16 b, int ni){
+    static gfx_hvtx_t one;
+    if (!sh_on || !sh_caster(st) || ni <= 0) { sh_record(st, h, &one, 0); return; }   /* (still notes the camera for PBR) */
+    static gfx_hvtx_t *tv; static int tcap; if (tcap < ni) { tcap = ni * 2 + 1024; tv = realloc(tv, sizeof *tv * (size_t)tcap); }
+    u32 vt = nv->vt; int pf = (vt >> 7) & 3, wf = (vt >> 9) & 3, nw = ((vt >> 14) & 7) + 1; static const int fs[4] = {0, 1, 2, 4};
+    for (int i = 0; i < ni; i++) {
+        const u8 *v = nv->vdata + (size_t)(lo + (u32)(tri[i] - b)) * (size_t)nv->vsz; gfx_hvtx_t *o = &tv[i]; memset(o, 0, sizeof *o);
+        const u8 *pp = v + nv->off[4]; o->x = nv_rd(pp, pf); o->y = nv_rd(pp + fs[pf], pf); o->z = nv_rd(pp + 2 * fs[pf], pf);
+        if (wf && nv->off[0] >= 0) for (int k = 0; k < nw && k < 8; k++) o->w[k] = nv_rdu(v + nv->off[0] + k * fs[wf], wf); }
+    sh_record(st, h, tv, ni); }
+
 int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t *nv){
 #if defined(RS_PS5) || defined(RS_GFX_FX)
     if (h->lfl[2] > 0.5f) rs_fx_note_lights(h);                          /* gfx_fx.c: the map's light setup */
@@ -950,7 +995,11 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
         if (hi - lo >= 65535u) return 0;
         if (lo) for (int i = 0; i < n; i++) ix[i] = (u16)(ix[i] - lo); }
     else for (int i = 0; i < n; i++) ix[i] = (u16)i;
-    const prog_t *P = native_prog(vt, h->lit); if (!P) return 0;
+    int thr = (vt >> 23) & 1, fx = 0;
+    if (!thr && sh_on) fx |= 1;
+    if (!thr && pbr_ok && st->tex && (st->texmr || st->texn) && h->lfl[3] > 0.5f) fx |= 2;
+    { static int dbg = -1, n; if (dbg < 0) dbg = getenv("RS_FX_DEBUG") != 0; if (dbg && !thr && st->texmr && n++ < 30) fprintf(stderr, "[FX] mod-PBR draw: normals %.0f lit %d fx %d vt %06x ztest %d zwrite %d blend %d atest %d\n", h->lfl[3], h->lit, fx, vt, st->ztest, st->zwrite, st->blend, st->atest); }
+    const prog_t *P = native_prog(vt, h->lit, fx); if (!P && fx) P = native_prog(vt, h->lit, 0); if (!P) return 0;
     int nvert = (int)(hi - lo + 1), ntri = nv->ptype == 3 ? n / 3 : n - 2;
     /* same draw as the open batch, and room for it? */
     int same = bactive && bkind == 2 && nb_on && nb.P == P && nb.vt == vt && nb.vsz == nv->vsz && nb.nv + nvert <= 65535 &&
@@ -968,6 +1017,7 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
     case 3: for (int i = 0; i < n; i++) o[i] = (u16)(ix[i] + b); break;
     case 4: for (int i = 0; i + 2 < n; i++) { u16 *q = o + i * 3; if (i & 1) { q[0] = (u16)(ix[i + 1] + b); q[1] = (u16)(ix[i] + b); } else { q[0] = (u16)(ix[i] + b); q[1] = (u16)(ix[i + 1] + b); } q[2] = (u16)(ix[i + 2] + b); } break;
     default: for (int i = 1; i + 1 < n; i++) { u16 *q = o + (i - 1) * 3; q[0] = (u16)(ix[0] + b); q[1] = (u16)(ix[i] + b); q[2] = (u16)(ix[i + 1] + b); } break; }
+    if (!thr && (sh_on || pbr_ok)) native_shadow_record(st, h, nv, lo, o, b, ntri * 3);
     nb.ni += ntri * 3; nb.nv += nvert; nb.draws++; st_draws++;
     rs_perf.setup_us += rs_perf_us() - t_s;
     if (!nb_on) flush_batch();

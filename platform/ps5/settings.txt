@@ -25,7 +25,8 @@ RS_SHADOW_RANGE=60
 RS_SHADOW_STRENGTH=50
 # PBR shading (metal/roughness + normal maps) for mod textures that come with _mr / _n maps
 RS_PBR=1
-# ray-traced shadows and reflections: settings only so far, the passes are not in this build (0 = off)
+# ray-traced shadows and reflections: settings only so far, the passes are not in this build (0 = off).
+# Planned: a renderer switch to a Vulkan back end (hardware ray tracing); OpenGL has no ray-tracing API
 RS_RT_SHADOWS=0
 RS_RT_REFLECTIONS=0
 # per-map light setup: written to /data/SWBFRS/mods/lights/<era>_<map>.txt from the game's own lights the first time a map is

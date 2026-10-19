@@ -72,8 +72,10 @@ Code: `platform/common/gfx_fx.c` (settings, current map, light setups, dumps) an
   game's own GE lights: `sun_dir` (world space, towards the sun), `sun_color`, `sun_intensity`, `ambient`, and the map's local
   `light point|spot` entries. Edit to change a map's light; delete to capture again.
 - **Ray-traced shadows / reflections** (`RS_RT_SHADOWS`, `RS_RT_REFLECTIONS`): settings and GPU capability check only. The PS5's
-  OpenGL has no ray-tracing API, so these are planned as compute passes (screen-space rays against the frame's depth and normals, the
-  shadow map and the light list as fallback).
+  OpenGL has no ray-tracing API.
+  - **TODO (planned, not started):** add a renderer setting (e.g. `RS_RENDERER=gl|vulkan`) that switches to a Vulkan back end, which
+    does support hardware ray tracing; the ray-traced shadows and reflections are to be built on that back end, with the OpenGL
+    renderer kept as the default and the fallback. Screen-space compute passes on OpenGL remain only a stopgap option.
 - **Asset dumps** (`RS_DUMP_ASSETS=1`): every texture the game loads, sorted under `/data/SWBFRS/mods/dumps/`:
   `maps/<map>/` (and `maps/<map>/sky/`), `players/<character>/`, `players/heads/<sheet>/`, `weapons/<sheet>/`, `vehicles/<vehicle>/`,
   `objects/<group>/`, `effects/`, `ui/<file>/`. Files are `<key>@<name>.png`; copy one into `/data/SWBFRS/mods/<mod>/textures/` (any
