@@ -14,6 +14,9 @@ RS_CROP_169=1
 RS_OUTPUT=2160
 # FXAA anti-aliasing: 1 = on, 0 = off
 RS_FXAA=1
+# fog intensity, in percent of each map's own fog: 100 = the game's (set close for the PSP), above 100 closer, below farther
+# (fog distance x (2 - value/100): 25 = 75% farther away)
+RS_FOG=25
 # anisotropic filtering: 1 = off, 2, 4, 8 or 16
 RS_ANISO=16
 # frame rate: 30 or 60

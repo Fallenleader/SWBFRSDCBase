@@ -212,7 +212,16 @@ void rgu_clut_load(u32 blocks, u32 cbp){
     u32 *p = emit(OP_CLUTLOAD, (n + 3) / 4); opp(p)->a[0] = (u32)n;
     memcpy(p + HDR_WORDS, gfx_gp(cbp), (size_t)n); }
 
+/* Fog intensity (RS_FOG, percent of each map's own fog; default 25): the game's fog is set close for the PSP's sake.  100 = the
+ * game's distances; above 100 the fog comes closer, below it moves away: start and end distances x (2 - RS_FOG/100), so 110 is
+ * 10% closer and 25 is 75% farther (the scale is kept at 0.05 or more). */
+static float fog_scale(void){
+    static float k = -1.0f;
+    if (k < 0.0f) { extern int rs_setting_int(const char *, int); float i = (float)rs_setting_int("RS_FOG", 25) / 100.0f;
+        k = 2.0f - i; if (k < 0.05f) k = 0.05f; }
+    return k; }
 void rgu_fog(u32 color, float n, float f){
+    { float k = fog_scale(); n *= k; f *= k; }
     float d = f - n, slope = 0.0f; if (1e-4f < d || d < -1e-4f) slope = 1.0f / d;      /* exactly: 9.9999997e-05 < d, d < -9.9999997e-05 */
     float a = f24f(f), b = f24f(slope); u32 x, y; memcpy(&x, &a, 4); memcpy(&y, &b, 4); OP(OP_FOG, x, y, color & 0xFFFFFF); }
 void rgu_scissor(u32 x, u32 y, u32 w, u32 h){
