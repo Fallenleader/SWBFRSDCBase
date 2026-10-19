@@ -52,3 +52,27 @@ void rs_patches_frame(void){
     if (!on() || GU8(IMG(MODE_NETWORK)) != 1) return;
     u32 t = GU32(IMG(VAR_TICKETS));
     if (t > 200) GU32(IMG(VAR_TICKETS)) = 200; else if (t < 25) GU32(IMG(VAR_TICKETS)) = 25; }
+
+/* The AI object pool.  The game's AI (squad behaviours, goals, orders: func_08956D80 and the other factories next to it) takes its
+ * objects from one pool built at start-up by func_08956118: 128 blocks of the largest AI object's size (at least 620 bytes), a free
+ * list at pool+4 and the count in use at pool+16 (*0x08C278D8).  Each bot holds several of them, so 128 blocks last for about 32
+ * bots: the factories return nothing for the rest, and those bots stand still for the whole match.  This builds the same pool with
+ * room for RS_MAX_PLAYERS bots (6 blocks each, never fewer than the game's 128). */
+rv_t func_08A94784(u32 a0, u32 t1, u32 t2, u32 t3);
+rv_t func_08A94838(u32 a0, u32 t1, u32 t2, u32 t3);
+u32 func_089560B4(void);
+int rs_ai_pool_init(void){
+    if (!on()) return 0;
+    int players = rs_setting_int("RS_MAX_PLAYERS", 64), n = players * 6;
+    if (n <= 128) return 0;                                       /* the game's own pool */
+    u32 sz = func_089560B4();
+    u32 pool = func_08A94784(20, 0, 0, 0).v0;
+    u32 mem = func_08A94838(sz * (u32)n, 0, 0, 0).v0;
+    if (!pool) return 0;
+    if (!mem) { fprintf(stderr, "[PATCH] AI object pool: no memory for %d x %u bytes, the game's 128\n", n, sz);
+        mem = func_08A94838(sz << 7, 0, 0, 0).v0; n = 128; }
+    GU32(pool + 12) = (u32)n; GU32(pool) = mem; GU32(pool + 8) = sz; GU32(pool + 4) = mem; GU32(pool + 16) = 0;
+    if (mem) { for (int i = 0; i < n - 1; i++) GU32(mem + (u32)i * sz) = mem + (u32)(i + 1) * sz; GU32(mem + (u32)(n - 1) * sz) = 0; }
+    GU32(IMG(0x08C278D8u)) = pool;
+    fprintf(stderr, "[PATCH] AI object pool: %d blocks of %u bytes (the game's 128)\n", n, sz);
+    return 1; }

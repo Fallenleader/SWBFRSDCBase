@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 0893F65C */
 void func_0893F65C(u32 a0, u32 a1, u32 t2, u32 t3, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
@@ -33643,7 +33644,7 @@ L_08956100:;
 }
 
 /* 08956118 */
-void func_08956118(void)
+static void func_08956118__orig(void)
 {
     u32 v0 = 0, v1 = 0, a0 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
@@ -33707,6 +33708,12 @@ L_089561B0:;
     ST32(v0+30936, s0);
     sp = sp + 16;
     return;
+}
+
+void func_08956118(void)
+{
+    if (rs_ai_pool_init()) return;   /* native hook (tools/dc/hooks.py) */
+    func_08956118__orig();
 }
 
 /* 089561CC */
