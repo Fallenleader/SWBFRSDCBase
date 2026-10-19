@@ -10,7 +10,7 @@
  *
  * Offline only: the player count of the network modes is its own variable (BFF.MinPlayersAdHoc 0x08C294D8, ...Infrastructure
  * 0x08C294D4), left at the game's 16.  The tickets variable is shared by every mode, so while the game is set up for a network game
- * (the mode byte 0x08C2932C is not 1 = single player; func_08979D14 chooses the player-count variable by it) the tickets are kept
+ * (the mode byte 0x08C2932C is 1; func_08979D14 chooses the player-count variable by it) the tickets are kept
  * within the game's own 25..200 (rs_patches_frame), so a network game stays what a PSP or a PS Vita expects.
  *
  * Checked on the Linux build: with 64 players the bot fill (func_089809B8) creates 63 bots + the player, 32 per team, and each
@@ -26,7 +26,7 @@ extern int rs_setting_int(const char *, int);
 #define IMG(va) GIMG(va)     /* game data address -> this build's address */
 #define VAR_PLAYERS_SP 0x08C294D0u
 #define VAR_TICKETS    0x08C294E4u
-#define MODE_OFFLINE   0x08C2932Cu    /* 1: single player; otherwise a network game (0x08C2932D: infrastructure / ad hoc) */
+#define MODE_NETWORK   0x08C2932Cu    /* 1: a network game (0x08C2932D: infrastructure / ad hoc); 0: single player (func_08979D14) */
 
 static int on(void){ static int v = -1; if (v < 0) v = rs_setting_int("RS_GAME_PATCHES", 1); return v; }
 static u32 tickets_min(void){ int v = rs_setting_int("RS_MIN_TICKETS", 25); if (v < 1) v = 1; return (u32)v; }
@@ -49,6 +49,6 @@ void rs_game_var_range(u32 name, u32 var, u32 *min, u32 *max){
 
 /* every frame (after the pad read): a network game keeps the game's own ticket range */
 void rs_patches_frame(void){
-    if (!on() || GU8(IMG(MODE_OFFLINE)) == 1) return;
+    if (!on() || GU8(IMG(MODE_NETWORK)) != 1) return;
     u32 t = GU32(IMG(VAR_TICKETS));
     if (t > 200) GU32(IMG(VAR_TICKETS)) = 200; else if (t < 25) GU32(IMG(VAR_TICKETS)) = 25; }

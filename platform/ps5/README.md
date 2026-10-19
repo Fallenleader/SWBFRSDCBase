@@ -54,6 +54,7 @@ The zip has `SWBFRS/settings.txt` with every key at its PS5 default (also `platf
 | `RS_ANISO` | 16 | anisotropic filtering: 1 (off), 2, 4, 8 or 16 |
 | `RS_FXAA` | 1 | 0 = no FXAA |
 | `RS_FPS` | 60 | 30 or 60 |
+| `RS_CPU_PIN` | 1 | 1 = renderer, game main thread and audio on a core each, the other game threads on the remaining cores |
 | `RS_MAX_PLAYERS` | 128 | highest "Min Players (including AI)" in an offline game: 64 per team |
 | `RS_MIN_TICKETS` / `RS_MAX_TICKETS` | 200 / 5000 | conquest initial tickets in an offline game |
 | `RS_SAVE_MANAGER`, `RS_ANY_HEAD`, `RS_ANY_SLOT`, `RS_CREDITS`, `RS_COLOUR_PICKER`, `RS_TWIN_STICK` | | as on the Vita (platform/vita/README.md) |

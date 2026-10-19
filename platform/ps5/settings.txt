@@ -17,6 +17,10 @@ RS_FPS=60
 # vertex transform and lighting on the GPU: 1 = on
 RS_HW_TL=1
 
+# ---- performance
+# 1 = renderer, game main thread and audio on a core each, the game's other threads on the rest; 0 = left to the kernel
+RS_CPU_PIN=1
+
 # ---- controls
 # 1 = left stick move + strafe, right stick turn + look; 0 = the PSP's one-stick controls
 RS_TWIN_STICK=1

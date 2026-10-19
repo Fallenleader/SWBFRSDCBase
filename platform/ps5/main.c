@@ -15,6 +15,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <pthread.h>
+#include <pthread_np.h>
+#include <sys/cpuset.h>
 #include <unistd.h>
 #include <time.h>
 #include <sys/stat.h>
@@ -94,6 +96,24 @@ static void *map_window(size_t size){
 
 /* threads that run game code have their stacks in the guest window (their frames have guest addresses) */
 #define STACK_SZ (1u << 20)
+/* CPU cores (RS_CPU_PIN=1, as on the Vita): the renderer (this thread, "frontend") on the first core the title may use, the game's main
+ * thread ("user_main") on the second, audio output on the third, the game's other threads on the rest.  The game's threads take turns
+ * (one big lock, as on the PSP's single CPU), so the work that runs in parallel is: renderer, game, audio and the rest */
+void rs_thread_cores(const char *name){
+    static int pin = -1; if (pin < 0) pin = rs_setting_int("RS_CPU_PIN", 1);
+    pthread_t me = pthread_self(); cpuset_t all, want; CPU_ZERO(&all); CPU_ZERO(&want);
+    if (pthread_getaffinity_np(me, sizeof all, &all) != 0) { fprintf(stderr, "[PS5] thread '%s': affinity unknown\n", name); return; }
+    int cpu[CPU_SETSIZE], n = 0; for (int i = 0; i < CPU_SETSIZE && n < CPU_SETSIZE; i++) if (CPU_ISSET(i, &all)) cpu[n++] = i;
+    unsigned long long m0 = 0; for (int i = 0; i < n && cpu[i] < 64; i++) m0 |= 1ull << cpu[i];
+    if (!pin || n < 4) { fprintf(stderr, "[PS5] thread '%s': %d cores allowed (%llx), left to the kernel\n", name, n, m0); return; }
+    if (!strcmp(name, "frontend")) CPU_SET(cpu[0], &want);
+    else if (!strcmp(name, "user_main")) CPU_SET(cpu[1], &want);
+    else if (!strcmp(name, "audio output")) CPU_SET(cpu[2], &want);
+    else for (int i = 3; i < n; i++) CPU_SET(cpu[i], &want);
+    unsigned long long m1 = 0; for (int i = 0; i < CPU_SETSIZE && i < 64; i++) if (CPU_ISSET(i, &want)) m1 |= 1ull << i;
+    int r = pthread_setaffinity_np(me, sizeof want, &want);
+    fprintf(stderr, "[PS5] thread '%s': CPU affinity %llx -> %llx%s\n", name, m0, m1, r ? " FAILED" : ""); }
+
 void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ (void)psp_stack; pthread_attr_setstack(at, rs_guest_stack(STACK_SZ), STACK_SZ); }
 void rs_thread_init(void){ static u8 (*blocks)[256]; static int n; if (!blocks) blocks = rs_guest_alloc(64 * 256, 16);
     rs_tls()->psp_k0 = GA(blocks[__sync_fetch_and_add(&n, 1) & 63]); }
@@ -222,7 +242,7 @@ int main(void){
     pad_init();
     display_init();
     if (gfx_init() != 0) fatal("renderer initialisation failed (see the lines above)");
-    gfx_wake_init(); gfx_thread_register();
+    gfx_wake_init(); gfx_thread_register(); rs_thread_cores("frontend");
     STEP("renderer ready");
 
     pthread_attr_t at; pthread_attr_init(&at); rs_thread_attr(&at, 0);
