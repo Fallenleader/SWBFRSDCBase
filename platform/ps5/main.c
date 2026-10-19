@@ -28,6 +28,11 @@
 #include "psp_impl.h"
 #include "guest64.h"
 #include "gfx.h"
+#ifdef RS_VULKAN
+#include "gfx_vk.h"
+/* the process heap (the OpenGL SDK's app_heap.c): RADV's shader compiler and objects share it with the game and the OpenGL driver */
+const size_t ps5_opengl_heap_size = 512u << 20;
+#endif
 
 #define RS_DIR "/data/SWBFRS"
 #define RS_GAME RS_DIR "/GAME"
@@ -240,8 +245,21 @@ int main(void){
     void *w = map_window(RS_G_WINDOW); if (!w) fatal("cannot map the guest window");
     rs_guest64_init(w, RS_G_WINDOW);
     pad_init();
-    display_init();
-    if (gfx_init() != 0) fatal("renderer initialisation failed (see the lines above)");
+    int vk = 0;
+#ifdef RS_VULKAN
+    {   /* RS_RENDERER=vulkan (settings.txt, the Options menu's Renderer): RADV through VK_KHR_display; OpenGL when it cannot start */
+        const char *r = rs_platform_setting("RS_RENDERER");
+        if (r && (!strcmp(r, "vulkan") || !strcmp(r, "Vulkan") || !strcmp(r, "1"))) {
+            extern void *vk_icdGetInstanceProcAddr(void *, const char *); extern void rs_gfx_use_vulkan(int);
+            STEP("renderer: Vulkan (RADV)");
+            extern void ps5_fp_ieee(void); ps5_fp_ieee();   /* RADV's compiler expects the IEEE state (the console starts titles with FTZ/DAZ) */
+            rs_gfx_use_vulkan(1); gfx_vk_setup((void *)vk_icdGetInstanceProcAddr, 1);
+            if (gfx_init() == 0) vk = 1;
+            else { STEP("Vulkan initialisation failed: OpenGL instead"); rs_gfx_use_vulkan(0); } } }
+#endif
+    if (!vk) {
+        display_init();
+        if (gfx_init() != 0) fatal("renderer initialisation failed (see the lines above)"); }
     gfx_wake_init(); gfx_thread_register(); rs_thread_cores("frontend");
     STEP("renderer ready");
 
@@ -253,7 +271,8 @@ int main(void){
         double now = now_s();
         if (gfx_present_due() || now - last >= 0.25) {
             last = now;
-            gfx_present(sw, sh); eglSwapBuffers(dpy, surf);
+            if (vk) gfx_present(0, 0);                     /* (the Vulkan renderer presents to its swapchain) */
+            else { gfx_present(sw, sh); eglSwapBuffers(dpy, surf); }
             if (++frames == 1 || frames % 3600 == 0) STEP("presented %llu frames", frames);
             continue; }
         gfx_pump(4); }

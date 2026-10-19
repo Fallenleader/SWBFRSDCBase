@@ -110,6 +110,10 @@ PS5_OPENGL ?= ../ps5-opengl-sdk-1.0.2/sdk
 PS5_SDK := $(PS5_BOILERPLATE)/.deps/native/ps5-payload-sdk
 PS5CC := env PS5_PAYLOAD_SDK=$(abspath $(PS5_SDK)) USE_CCACHE=1 sh $(PS5_BOILERPLATE)/tooling/prospero-clang18
 PS5_DEFS := -DRS_GUEST64 -DRS_TLS_STRUCT -DRS_PS5 -DRS_HW_ANISO -DRS_ANISO_MAX=16 -DRS_ANISO_DEFAULT=16 -DRS_GFX_MAX_SCALE=8
+PS5_VULKAN ?=
+ifneq ($(PS5_VULKAN),)
+PS5_DEFS += -DRS_VULKAN -DRS_GFX_FX
+endif
 PS5_FLAGS := -O3 -march=znver2 -mtune=znver2 -w -fno-strict-aliasing -ffp-contract=off -fno-math-errno -ffunction-sections -fdata-sections $(PS5_DEFS)
 P5 := build/ps5
 PS5_C_SRC := $(filter-out $(C)/ge.c $(C)/census.c $(C)/fnprof.c,$(C_SRC))
@@ -127,7 +131,14 @@ $(P5)/main.o: platform/ps5/main.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_F
 $(P5)/dirent_ps5.o: platform/ps5/dirent_ps5.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -c $< -o $@
 $(P5)/app_heap.o: $(PS5_OPENGL)/../native-app/app_heap.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 -O3 -march=znver2 -w -c $< -o $@
 $(P5)/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $(P5); $(PS5CC) -std=c++17 -O2 -w -I$(C)/ext/at3 -c $< -o $@
-ps5: build/data.c $(PS5_OBJ) ; bash platform/ps5/package.sh "$(PS5_BOILERPLATE)" "$(PS5_OPENGL)" $(PS5_OBJ)
+# PS5_VULKAN=<PS5_Vulkan checkout with its RADV built> (+ PS5_RADV=<RADV archive, its global names apart from the OpenGL SDK's>):
+# the Vulkan renderer (ray tracing) next to OpenGL, chosen by RS_RENDERER in settings.txt / the Options menu
+PS5_RADV ?= $(PS5_VULKAN)/../../vkdeps/libvulkan_radeon_rs.a
+ifneq ($(PS5_VULKAN),)
+PS5_OBJ += $(P5)/gfx_vk.o
+$(P5)/gfx_vk.o: platform/linux_test/gfx_vk.c build/vk_spv.h ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -Ibuild -I$(PS5_VULKAN)/.deps/native/radv-release/include -c $< -o $@
+endif
+ps5: build/data.c $(PS5_OBJ) ; PS5_VULKAN="$(PS5_VULKAN)" PS5_RADV="$(PS5_RADV)" bash platform/ps5/package.sh "$(PS5_BOILERPLATE)" "$(PS5_OPENGL)" $(PS5_OBJ)
 
 # ---- PS Vita (platform/vita) ----
 VITA_B := build/vita

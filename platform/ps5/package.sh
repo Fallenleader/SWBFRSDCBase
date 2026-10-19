@@ -25,23 +25,57 @@ done
 
 # link (as the OpenGL SDK's consumers do: native titles import libkernel, not the web-process provider)
 lib="$sdk/target/lib"
+# the Vulkan renderer (PS5_VULKAN, make ps5 PS5_VULKAN=...): RADV linked whole (its global names that the OpenGL SDK's Mesa also
+# defines renamed apart: PS5_RADV), the PS5_Vulkan SDK fork's platform layer bound to libc's missing names as its tools/radv-link.sh
+# does, except the heap (the OpenGL SDK's app_heap stays the allocator) and the directory functions (dirent_ps5.c)
+vk_in=(); vk_flags=(); vk_map="$out/radv-local.map"
+if [[ -n ${PS5_VULKAN:-} ]]; then
+    vkr=$(cd -- "$PS5_VULKAN" && pwd); radv=${PS5_RADV:-$vkr/../../vkdeps/libvulkan_radeon_rs.a}
+    [[ -f $radv ]] || { echo "the RADV archive is missing: $radv" >&2; exit 2; }
+    source "$vkr/tools/radv-link.sh"
+    PS5_CLANG=${PS5_CLANG:-$(command -v clang-20 || command -v clang)} radv_link_recipe "$vkr" "$vkr/.deps/native/ps5-payload-sdk" "$radv" >/dev/null || exit 2
+    platform="$vkr/.deps/native/ps5-payload-sdk/target/lib/libps5platform.a"
+    builtins="$("${PS5_CLANG:-$(command -v clang-20 || command -v clang)}" --print-resource-dir)/lib/linux/libclang_rt.builtins-x86_64.a"
+    vk_in=(--whole-archive "$radv" --no-whole-archive "$builtins" "$platform")
+    for f in "${radv_link_flags[@]}"; do
+        case $f in
+            --wrap=malloc|--wrap=calloc|--wrap=realloc|--wrap=free|--wrap=posix_memalign|--wrap=malloc_usable_size) ;;
+            --wrap=aligned_alloc|--wrap=memalign|--wrap=reallocf|--wrap=reallocarray|--wrap=getline|--wrap=getdelim) ;;
+            --defsym=opendir=*|--defsym=fdopendir=*|--defsym=readdir=*|--defsym=rewinddir=*|--defsym=dirfd=*|--defsym=closedir=*) ;;
+            --version-script|*.map) ;;
+            *) vk_flags+=("$f") ;;
+        esac
+    done
+    # one version script: nothing exported (app-symbols.map), the bound names local
+    { printf '{\n    local:\n        *;\n'; for f in "${vk_flags[@]}"; do [[ $f == --defsym=* ]] || continue; f=${f#--defsym=}; printf '        %s;\n' "${f%%=*}"; done; printf '};\n'; } > "$vk_map"
+fi
+vscript="$root/platform/ps5/app-symbols.map"; agcdrv="$gl/lib/libSceAgcDriver.so"
+if [[ -n ${PS5_VULKAN:-} ]]; then
+    vscript="$vk_map"
+    # libSceAgcDriver's link stub: the OpenGL SDK's functions and RADV's (its HS off-chip parameters) together
+    { "$sdk/bin/llvm-nm" -D --defined-only "$agcdrv" | awk '{print $NF}'
+      grep -o 'sceAgcDriver[A-Za-z0-9_]*' "$vkr/vendor/ps5/sdk/stubs/agc_driver_canary_link_stub.c"; } | sort -u | sed 's/.*/void &(void){}/' > "$out/agcdrv_stub.c"
+    cc -std=c11 -O2 -fPIC -c "$out/agcdrv_stub.c" -o "$out/agcdrv_stub.o"
+    mkdir -p "$out/stubs"; "$sdk/bin/prospero-lld" --shared -soname libSceAgcDriver.prx -o "$out/stubs/libSceAgcDriver.so" "$out/agcdrv_stub.o"
+    agcdrv="$out/stubs/libSceAgcDriver.so"
+fi
 "$sdk/bin/prospero-lld" \
     --defsym=__cxa_thread_atexit_impl=0 -L "$lib" \
     --defsym=__dlopen=0 --defsym=__dlsym=0 --defsym=__dladdr=0 --defsym=__dlclose=0 --defsym=__dlerror=0 \
-    -T "$native/ps5-pie.ld" -T "$root/platform/ps5/unwind.ld" --eh-frame-hdr --gc-sections --version-script "$root/platform/ps5/app-symbols.map" -e _start \
+    -T "$native/ps5-pie.ld" -T "$root/platform/ps5/unwind.ld" --eh-frame-hdr --gc-sections --version-script "$vscript" -e _start \
     --no-dynamic-linker --error-limit=0 -Map="$out/llvm-pie.map" -u ps5_agc_gate2_run \
-    --wrap=malloc --wrap=calloc --wrap=realloc --wrap=free --wrap=posix_memalign --wrap=malloc_usable_size \
+    --wrap=malloc --wrap=calloc --wrap=realloc --wrap=free --wrap=posix_memalign --wrap=malloc_usable_size "${vk_flags[@]}" \
     -o "$out/llvm-pie.elf" \
-    --start-group "$out/app_crt.o" "$out/app_cpp_runtime.o" "$@" "$gl/lib/libPS5OpenGL.a" \
+    --start-group "$out/app_crt.o" "$out/app_cpp_runtime.o" "$@" "${vk_in[@]}" "$gl/lib/libPS5OpenGL.a" \
     "$lib/libc++.a" "$lib/libc++abi.a" "$lib/libunwind.a" --end-group \
-    --as-needed "$gl/lib/libSceAgc.so" "$gl/lib/libSceAgcDriver.so" "$lib/libSceVideoOut.so" "$lib/libSceSystemService.so" \
+    --as-needed "$gl/lib/libSceAgc.so" "$agcdrv" "$lib/libSceVideoOut.so" "$lib/libSceSystemService.so" \
     "$lib/libScePad.so" "$lib/libSceAudioOut.so" "$lib/libSceUserService.so" \
     "$lib/libSceLibcInternal.so" "$lib/libkernel.so" "$lib/libc.a"
 
 # PS5 ELF + development FSELF (the boilerplate's cross-firmware SDK profile)
 stubs=()
 for s in "$lib"/*.so; do case "${s##*/}" in libSceAgc.so|libSceAgcDriver.so) continue ;; esac; stubs+=(--stub "$s"); done
-stubs+=(--stub "$gl/lib/libSceAgc.so" --stub "$gl/lib/libSceAgcDriver.so")
+stubs+=(--stub "$gl/lib/libSceAgc.so" --stub "$agcdrv")
 "$tool" link --in "$out/llvm-pie.elf" --out "$out/eboot.elf" "${stubs[@]}" --module-sdk 0x02000009 --companion-sdk 0x08050001 --file-name eboot.elf
 app="$out/$title"; rm -rf -- "$app"; mkdir -p "$app/sce_sys" "$app/sce_module"
 "$tool" self --sign --in "$out/eboot.elf" --out "$app/eboot.bin" --magic 0x1D3D154F
