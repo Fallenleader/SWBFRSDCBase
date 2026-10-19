@@ -12,13 +12,11 @@
 int rs_aniso_level(void){
     extern int rs_setting_int(const char *, int);
     static int a = -1;
-    if (a < 0) { a = rs_setting_int("RS_ANISO",
 #ifdef __vita__
-        1);                                                  /* the shader version is too expensive for the Vita GPU by default */
+    (void)a; return 1;                                       /* the Vita GPU has no anisotropic filtering: the shader version cost far too much */
 #else
-        4);
+    if (a < 0) { a = rs_setting_int("RS_ANISO", 4); a = a >= 8 ? 8 : a >= 4 ? 4 : a >= 2 ? 2 : 1; }
 #endif
-         a = a >= 8 ? 8 : a >= 4 ? 4 : a >= 2 ? 2 : 1; }
     return a; }
 
 int rs_mip_levels(int w, int h){

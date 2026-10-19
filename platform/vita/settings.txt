@@ -2,12 +2,11 @@
 # One KEY=VALUE per line; '#' starts a comment line. Every value below is the default, so deleting a line changes nothing.
 
 # ---- picture
-# internal resolution x the PSP's 480x272: 1 = 480x272, 2 = 960x544 (the Vita screen), 3 = 1440x816 (supersampled; more GPU time)
-RS_RES_SCALE=2
+# internal resolution x the PSP's 480x272: 1 = 480x272 (512x512 render surfaces, as the PSP; scaled up to the screen),
+# 2 = 960x544 (1024x1024 surfaces, 4x the GPU memory and fill), 3 = 1440x816 (supersampled)
+RS_RES_SCALE=1
 # FXAA anti-aliasing while the picture is scaled to the screen: 1 = on, 0 = off
 RS_FXAA=1
-# anisotropic filtering: 1 = off, 2, 4 or 8 (done in the fragment shader: up to 8 extra texture reads per pixel, expensive on the Vita GPU)
-RS_ANISO=1
 # frame rate: 30 or 60
 RS_FPS=30
 # video memory for textures (MB), and the texture cache size before old textures are evicted (MB)

@@ -697,7 +697,7 @@ static int prog_pair(const char *vs, const char *fsrc, const SceGxmProgram **vg,
 int gfx_init(void){
     /* 1x = 480x272 (the PSP), 2x = 960x544 (the Vita screen), 3x = 1440x816 (supersampled down to the screen).  At 3x a surface keeps
      * the 272 rows of a PSP screen instead of 512, so ten of them fit the video memory (as the GL back end) */
-    RS_S = rs_setting_int("RS_RES_SCALE", 2); if (RS_S < 1) RS_S = 1; if (RS_S > 3) RS_S = 3;
+    RS_S = rs_setting_int("RS_RES_SCALE", 1); if (RS_S < 1) RS_S = 1; if (RS_S > 3) RS_S = 3;
     SURF_H = RS_S >= 3 ? 272 : 512;
     use_fxaa = rs_setting_int("RS_FXAA", 1);
     SceGxmRenderTargetParams rp; memset(&rp, 0, sizeof rp); rp.width = PX; rp.height = PXH; rp.scenesPerFrame = 16; rp.multisampleMode = SCE_GXM_MULTISAMPLE_NONE; rp.driverMemBlock = -1;

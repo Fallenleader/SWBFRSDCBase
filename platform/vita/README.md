@@ -83,8 +83,7 @@ All settings are optional `KEY=VALUE` lines:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `RS_RES_SCALE` | 2 | internal resolution, as a multiple of the PSP's 480x272: 1 = 480x272, 2 = 960x544 (the Vita screen), 3 = 1440x816 (supersampled down to the screen; uses more video memory and GPU time) |
-| `RS_ANISO` | 4 | anisotropic filtering: 1 = off (the PSP's single texture level), 2, 4 or 8 samples |
+| `RS_RES_SCALE` | 1 | internal resolution, as a multiple of the PSP's 480x272: 1 = 480x272 (512x512 surfaces, as the PSP), 2 = 960x544 (the Vita screen), 3 = 1440x816 (supersampled down to the screen; uses more video memory and GPU time) |
 | `RS_FXAA` | 1 | 1 = FXAA anti-aliasing while the picture is scaled to the screen, 0 = off (plain bilinear) |
 | `RS_TEX_POOL_MB` | 48 | video memory for textures |
 | `RS_TEX_BUDGET_MB` | 40 | texture cache size before old textures are evicted |
