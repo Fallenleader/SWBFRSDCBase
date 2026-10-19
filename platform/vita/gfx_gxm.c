@@ -436,7 +436,7 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
     e->hash = h; e->epoch = rs_gfx_epoch; e->stamp = ++tc_stamp;
     u64 t_u = rs_perf_us();
     int ok = 0;
-    if (e->mips == 0 && rs_aniso_level() > 1) { ok = tex_mipped(e, k, src); if (!ok) { pool_collect(); ok = tex_mipped(e, k, src); } }
+    if (e->mips == 0 && rs_aniso_level() > 1 && !rs_tex_nomip(k->addr)) { ok = tex_mipped(e, k, src); if (!ok) { pool_collect(); ok = tex_mipped(e, k, src); } }
     if (!ok) { if (e->mips > 0) e->mips = 0; ok = tex_native(e, k); }
     if (!ok) { pool_collect(); ok = tex_native(e, k); }
     if (!ok) ok = tex_decoded(e, k, src);

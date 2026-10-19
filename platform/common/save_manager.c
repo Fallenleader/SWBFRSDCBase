@@ -117,7 +117,7 @@ void rs_savemgr_draw(void){
     int mode = M.mode, cur = M.cursor, n = M.nslots;
     ov_rect(0, 0, 480, 272, ov_c(0, 0, 0, 0.6f));
     const float x0 = 90, y0 = 30, x1 = 390, y1 = 244;
-    ov_vgrad(x0, y0, x1, y1, ov_c(11, 77, 53, 1), ov_c(9, 55, 38, 1)); ov_frame(x0, y0, x1, y1, 2, ov_c(8, 110, 80, 1));
+    ov_panel(x0, y0, x1, y1);
     const char *title = mode == MODE_LOAD ? "Load Profile" : mode == MODE_SAVE ? "Save Profile" : "Delete Profile";
     ov_text(x0 + 12, y0 + 6, 0.62f, ov_c(255, 255, 255, 1), title);
     for (int i = 0; i < n; i++) {
@@ -136,7 +136,7 @@ void rs_savemgr_draw(void){
         if (mode == MODE_DELETE) snprintf(q, sizeof q, "Delete \"%s\"?", s->name); else snprintf(q, sizeof q, "Overwrite \"%s\"?", s->name);
         const float bx0 = 130, by0 = 92, bx1 = 350, by1 = 196;
         ov_rect(0, 0, 480, 272, ov_c(0, 0, 0, 0.45f));
-        ov_vgrad(bx0, by0, bx1, by1, ov_c(12, 84, 58, 1), ov_c(9, 60, 41, 1)); ov_frame(bx0, by0, bx1, by1, 2, ov_c(156, 238, 186, 1));
+        ov_panel(bx0, by0, bx1, by1);
         ov_text((bx0 + bx1 - ov_text_w(q, 0.5f)) / 2, by0 + 10, 0.5f, ov_c(255, 255, 255, 1), q);
         const char *sub = mode == MODE_DELETE ? "This cannot be undone." : "The saved profile will be replaced.";
         ov_text((bx0 + bx1 - ov_text_w(sub, 0.42f)) / 2, by0 + 28, 0.42f, ov_c(200, 220, 210, 1), sub);

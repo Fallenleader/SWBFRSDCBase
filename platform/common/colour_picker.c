@@ -139,7 +139,7 @@ void rs_picker_draw(void){
     const float px0 = 153, py0 = 24, px1 = 291, py1 = 221;          /* the swatch grid's panel (PSP pixels) */
     const float qx0 = 160, qy0 = 32, qx1 = 258, qy1 = 130;          /* saturation x value square */
     const float hx0 = 266, hx1 = 282;                                /* hue slider */
-    ov_vgrad(px0, py0, px1, py1, ov_c(11, 77, 53, 1), ov_c(10, 62, 42, 1));
+    ov_panel(px0, py0, px1, py1);
     /* square: per-vertex HSV on a 12 x 12 grid */
     for (int j = 0; j < 12; j++) for (int i = 0; i < 12; i++) {
         float s0 = i / 12.0f, s1 = (i + 1) / 12.0f, v0 = 1 - j / 12.0f, v1 = 1 - (j + 1) / 12.0f; col_t c[4]; float r, g, b;
