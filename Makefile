@@ -41,7 +41,7 @@ GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
-C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c $(C)/gfx_fx.c
+C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c $(C)/gfx_fx.c $(C)/gfx_backend.c
 ifeq ($(GE_REF),1)
 C_SRC += $(C)/ge.c
 else
@@ -81,6 +81,13 @@ $(B)/rs_linux_test: $(GAME_OBJ) $(T_OBJ) $(AT3_OBJ) ; g++ -m32 -no-pie $(XLD) -o
 #   make linux64 EBOOT=...                           -> build/linux64/rs_linux64
 B64 ?= build/linux64
 LINUX64_DEFS ?=
+# RS_VULKAN=1: the Vulkan back end too (platform/linux_test/gfx_vk.c, shaders in platform/linux_test/vk/ -> build/vk_spv.h)
+ifeq ($(RS_VULKAN),1)
+LINUX64_DEFS += -DRS_VULKAN -DRS_GFX_FX
+VK64_OBJ := $(B64)/linux_test/gfx_vk.o
+endif
+build/vk_spv.h: $(wildcard platform/linux_test/vk/*.vert platform/linux_test/vk/*.frag platform/linux_test/vk/*.glsl platform/linux_test/vk/build_shaders.py) ; @mkdir -p build; python3 platform/linux_test/vk/build_shaders.py $@
+$(B64)/linux_test/gfx_vk.o: platform/linux_test/gfx_vk.c build/vk_spv.h ; @mkdir -p $(B64)/linux_test; $(CC64) -O2 -w -DHOST_BUILD -Ibuild -I$(T) -I$(C) -I src/game -c $< -o $@
 CC64 := gcc -m64 -msse2 -DRS_GUEST64 $(LINUX64_DEFS)
 GAME64_OBJ := $(patsubst src/game/%.c,$(B64)/game/%.o,$(GAME_SRC)) $(B64)/game/data.o $(B64)/game/fn_table.o
 T64_OBJ := $(patsubst $(T)/%.c,$(B64)/linux_test/%.o,$(T_SRC)) $(patsubst $(C)/%.c,$(B64)/linux_test/c_%.o,$(C_SRC)) $(B64)/linux_test/glue.o
@@ -93,7 +100,7 @@ $(B64)/linux_test/%.o: $(T)/%.c ; @mkdir -p $(B64)/linux_test; $(CC64) -O1 -w -D
 $(B64)/linux_test/c_%.o: $(C)/%.c ; @mkdir -p $(B64)/linux_test; $(CC64) -O1 -w -DHOST_BUILD -I$(C) -I src/game -c $< -o $@
 $(B64)/linux_test/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $(B64)/linux_test; g++ -m64 -O2 -I$(C)/ext/at3 -c $< -o $@
 linux64: $(B64)/rs_linux64
-$(B64)/rs_linux64: $(GAME64_OBJ) $(T64_OBJ) $(AT3_64_OBJ) ; g++ -m64 -o $@ $^ -lm -lpthread -ldl
+$(B64)/rs_linux64: $(GAME64_OBJ) $(T64_OBJ) $(VK64_OBJ) $(AT3_64_OBJ) ; g++ -m64 -o $@ $^ -lm -lpthread -ldl
 
 # ---- PS5 (platform/ps5): native homebrew title, 64-bit (RS_GUEST64), OpenGL on the PS5 OpenGL SDK ----
 #   make ps5 EBOOT=... PS5_BOILERPLATE=<ps5-native-app-boilerplate checkout> PS5_OPENGL=<ps5-opengl-sdk-1.0.2/sdk>

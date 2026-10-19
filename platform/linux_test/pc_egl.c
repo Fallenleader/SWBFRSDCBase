@@ -22,7 +22,23 @@ static void *dl(const char *dir, const char *base, const char *alt){
     if (dir) { snprintf(p, sizeof p, "%s/%s", dir, base); h = dlopen(p, RTLD_NOW | RTLD_GLOBAL); }
     if (!h) h = dlopen(base, RTLD_NOW | RTLD_GLOBAL); if (!h && alt) h = dlopen(alt, RTLD_NOW | RTLD_GLOBAL); return h; }
 
+#ifdef RS_VULKAN
+#include "gfx_vk.h"
+/* RS_RENDERER=vulkan: the system Vulkan loader (lavapipe with VK_ICD_FILENAMES=.../lvp_icd.json on GPU-less machines), headless */
+static int vulkan_frontend(pthread_t game){
+    const char *r = getenv("RS_RENDERER"); if (!r || strcmp(r, "vulkan")) return 0;
+    void *h = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_GLOBAL); if (!h) { fprintf(stderr, "[VK] cannot load libvulkan.so.1\n"); exit(2); }
+    void *gipa = dlsym(h, "vkGetInstanceProcAddr");
+    extern void rs_gfx_use_vulkan(int); rs_gfx_use_vulkan(1); gfx_vk_setup(gipa, 0);
+    if (gfx_init() != 0) exit(2);
+    gfx_thread_register();
+    for (;;) { gfx_pump(5); if (pthread_tryjoin_np(game, 0) == 0) break; }
+    return 1; }
+#endif
 void rs_frontend_main(pthread_t game){
+#ifdef RS_VULKAN
+    if (vulkan_frontend(game)) return;
+#endif
     const char *dir = getenv("RS_GLES_DIR");
     if (!dir) setenv("EGL_PLATFORM", "surfaceless", 0);
     h_egl = dl(dir, "libEGL.so", "libEGL.so.1"); h_gles = dl(dir, "libGLESv2.so", "libGLESv2.so.2");

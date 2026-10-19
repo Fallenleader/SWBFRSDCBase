@@ -14,6 +14,9 @@
 #include <math.h>
 #include <pthread.h>
 #include <stdarg.h>
+#ifndef __vita__
+#include "gfx_backend_gl.h"                     /* gfx_* renamed gl_gfx_*: gfx_backend.c picks OpenGL or Vulkan */
+#endif
 #include "rs_gl.h"
 #include "tex_mips.h"
 #include "gfx.h"
