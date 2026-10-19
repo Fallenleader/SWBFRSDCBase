@@ -9,8 +9,33 @@
 typedef uint8_t u8; typedef int8_t s8; typedef uint16_t u16; typedef int16_t s16;
 typedef uint32_t u32; typedef int32_t s32; typedef uint64_t u64; typedef int64_t s64;
 
+/* The game code holds addresses in 32-bit values.
+ *  - 32-bit targets: a guest address is a native pointer.
+ *  - 64-bit targets (RS_GUEST64): guest addresses are offsets into one window of memory at rs_gbase (the PSP's own address map:
+ *    scratchpad 0x00010000, VRAM 0x04000000, the game image 0x08804000, heap, thread stacks).  The threads that run game code
+ *    have their stacks inside the window, so a function's stack frame has a guest address (RS_GADDR); a function's address is
+ *    its PSP address (RS_FADDR) and calls through one look the native function up (RS_FPTR, platform/common/guest64.c). */
+typedef struct { u32 addr; void *fn; } rs_fn_ent_t;     /* fn_table.c (generated): the functions whose address is taken */
+extern const rs_fn_ent_t rs_fn_table[]; extern const int rs_fn_count;
+#ifdef RS_GUEST64
+extern u8 *rs_gbase;
+void *rs_fn_native(u32 guest_addr);
+#define PTR(a)            ((void *)(rs_gbase + (u32)(a)))
+/* A stack frame (or other native memory) becomes a guest address.  The empty asm tells the compiler the memory escapes: the code
+ * reaches it only through rs_gbase + offset, which the compiler cannot connect to the local array by itself (without it, stores
+ * into a frame that are read back through PTR() - stack-passed arguments - can be deleted as dead). */
+static inline u32 rs_gaddr(const void *p){ __asm__ volatile("" : : "r"(p) : "memory"); return (u32)((uintptr_t)p - (uintptr_t)rs_gbase); }
+#define RS_GADDR(p)       rs_gaddr(p)
+#define RS_FADDR(f, a)    ((u32)(a))
+#define RS_FPTR(a)        rs_fn_native((u32)(a))
+#else
 #if UINTPTR_MAX != 0xFFFFFFFFu
-#error "SWBFRSDCBase currently requires a 32-bit target (pointers are held in 32-bit values)"
+#error "a 64-bit target needs RS_GUEST64 (pointers are held in 32-bit values)"
+#endif
+#define PTR(a)            ((void *)(uintptr_t)(a))
+#define RS_GADDR(p)       ((u32)(uintptr_t)(p))
+#define RS_FADDR(f, a)    ((u32)(uintptr_t)(f))
+#define RS_FPTR(a)        PTR(a)
 #endif
 
 /* multi-value return of functions that deliver an integer pair and/or a float */
@@ -19,7 +44,6 @@ typedef struct { u32 v0, v1; float f0; } rv_t;
 typedef rv_t (*ifn_t)(u32, u32, u32, u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
 
 /* ---- memory access through native pointers ---- */
-#define PTR(a)        ((void *)(uintptr_t)(a))
 #define LD_U8(a)      (*(const u8 *)PTR(a))
 #define LD_S8(a)      (*(const s8 *)PTR(a))
 #define LD_U16(a)     (*(const u16 *)PTR(a))
@@ -28,6 +52,18 @@ typedef rv_t (*ifn_t)(u32, u32, u32, u32, u32, u32, u32, u32, float, float, floa
 #define ST8(a, v)     (*(u8 *)PTR(a) = (u8)(v))
 #define ST16(a, v)    (*(u16 *)PTR(a) = (u16)(v))
 #define ST32(a, v)    (*(u32 *)PTR(a) = (u32)(v))
+#ifdef RS_CENSUS
+/* Analysis build only (tools/census): every store also records, per 32-bit guest word, the code location that wrote it, so the
+ * GE command interpreter can attribute each executed command to the game function that produced it. */
+extern u32 *rs_census_shadow;
+#define RS_CENSUS_TAG(a) ({ __label__ L_; L_: __attribute__((unused)); if ((u32)(a) < 0x10000000u && rs_census_shadow) rs_census_shadow[(u32)(a) >> 2] = (u32)(uintptr_t)&&L_; })
+#undef ST8
+#undef ST16
+#undef ST32
+#define ST8(a, v)     ({ u32 rs_cen_a = (u32)(a); RS_CENSUS_TAG(rs_cen_a); *(u8 *)PTR(rs_cen_a) = (u8)(v); })
+#define ST16(a, v)    ({ u32 rs_cen_a = (u32)(a); RS_CENSUS_TAG(rs_cen_a); *(u16 *)PTR(rs_cen_a) = (u16)(v); })
+#define ST32(a, v)    ({ u32 rs_cen_a = (u32)(a); RS_CENSUS_TAG(rs_cen_a); *(u32 *)PTR(rs_cen_a) = (u32)(v); })
+#endif
 static inline u32 LDU32(u32 a){ u32 v; memcpy(&v, PTR(a), 4); return v; }          /* unaligned (lwl/lwr pair) */
 static inline void STU32(u32 a, u32 v){ memcpy(PTR(a), &v, 4); }                    /* unaligned (swl/swr pair) */
 static inline u32 LWL(u32 o, u32 a){ u32 w = LD32(a & ~3u), s = a & 3; return (o & (0x00FFFFFFu >> (s * 8))) | (w << (24 - s * 8)); }
@@ -93,7 +129,19 @@ extern rs_tls_t *rs_tls_cur;
 #define RS_ALLOCA(n) __builtin_alloca(n)
 
 /* the PSP's 16 KB scratchpad RAM (fixed address 0x00010000 on the PSP), provided by the platform */
+#ifdef RS_GUEST64
+#define rs_scratchpad (rs_gbase + 0x00010000u)
+#else
 extern u8 rs_scratchpad[0x4000];
+#endif
 
 /* ---- traps ---- */
 void rs_break(u32 code, u32 where);
+
+#ifdef RS_CENSUS
+/* analysis build: library copies made by game code tag their destination with the calling location */
+static inline void *rs_census_memcpy(void *d, const void *s, size_t n, u32 pc){ u32 a = (u32)(uintptr_t)d;
+    if (rs_census_shadow) for (size_t o = 0; o < n; o += 4) if (a + o < 0x10000000u) rs_census_shadow[(a + o) >> 2] = pc;
+    return __builtin_memcpy(d, s, n); }
+#define memcpy(d, s, n) ({ __label__ M_; M_: __attribute__((unused)); rs_census_memcpy((d), (s), (n), (u32)(uintptr_t)&&M_); })
+#endif

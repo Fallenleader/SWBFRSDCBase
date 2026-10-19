@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "psp_impl.h"
+#include "guest.h"
 #include "overlay_ui.h"
 
 extern int rs_setting_int(const char *, int);
@@ -101,14 +102,13 @@ void rs_savemgr_poll(void){
         act(); } }
 
 /* the game gets no input while the dialog is up, nor from the press that closes it until it is released (pad hook, game thread) */
-extern u32 rs_image_w[];
-#define IMG(va) ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))
+#define IMG(va) GIMG(va)
 void rs_savemgr_pad(void){
     if (!M.active && !suppress) return;
-    u32 btn = *(volatile u32 *)(uintptr_t)IMG(0x08B46204), ax = *(volatile u32 *)(uintptr_t)IMG(0x08B46200); if (!btn || !ax) return;
-    int any = 0; for (u32 b = 449; b <= 464; b++) { any |= *(volatile u8 *)(uintptr_t)(btn + b) != 0; *(volatile u8 *)(uintptr_t)(btn + b) = 0; }
-    float sx = *(volatile float *)(uintptr_t)(ax + 12), sy = *(volatile float *)(uintptr_t)(ax + 16);
-    for (u32 i = 3; i <= 6; i++) *(volatile float *)(uintptr_t)(ax + 4 * i) = 0;
+    u32 btn = GU32(IMG(0x08B46204)), ax = GU32(IMG(0x08B46200)); if (!btn || !ax) return;
+    int any = 0; for (u32 b = 449; b <= 464; b++) { any |= GU8(btn + b) != 0; GU8(btn + b) = 0; }
+    float sx = GF32(ax + 12), sy = GF32(ax + 16);
+    for (u32 i = 3; i <= 6; i++) GF32(ax + 4 * i) = 0;
     if (!M.active && !any && sx * sx + sy * sy < 0.04f) suppress = 0; }
 
 /* drawing (renderer thread) */

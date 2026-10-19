@@ -12,23 +12,22 @@
 #include <string.h>
 #include <math.h>
 #include "psp_impl.h"
+#include "guest.h"
 #include "gfx.h"
 #include "gu_native.h"
 
 #define SETTINGS 0x08C37CC0u                 /* GU's settings block in the game's data (gu_settings) */
 #define LISTCTX  0x08C37CC0u                 /* see below: the current-list context lives at D_08C38260 - 32160 */
-static inline u32 gaddr(u32 a){ return (u32)(uintptr_t)(g_mem + GADDR(a)); }
-extern u32 rs_image_w[];
 /* The decompiled code reaches GU's globals through symbols; their native addresses come from the data image. */
 #include "symbols.h"
 #define S_BASE ((u32)(D_08C37CC0 - 31936) + 31936)          /* gu_settings */
 #define L_BASE ((u32)(D_08C38260 - (-32160)) - 32160)       /* current display list context: [0] cur ptr, [8] start, [16] offset base, [24] cid, [28] active */
-#define LD32_(a) (*(const u32 *)(uintptr_t)(a))
-#define ST32_(a, v) (*(u32 *)(uintptr_t)(a) = (u32)(v))
-#define LD16_(a) (*(const u16 *)(uintptr_t)(a))
-#define ST16_(a, v) (*(u16 *)(uintptr_t)(a) = (u16)(v))
-#define LD8_(a) (*(const u8 *)(uintptr_t)(a))
-#define ST8_(a, v) (*(u8 *)(uintptr_t)(a) = (u8)(v))
+#define LD32_(a) (*(const u32 *)GP(a))
+#define ST32_(a, v) (*(u32 *)GP(a) = (u32)(v))
+#define LD16_(a) (*(const u16 *)GP(a))
+#define ST16_(a, v) (*(u16 *)GP(a) = (u16)(v))
+#define LD8_(a) (*(const u8 *)GP(a))
+#define ST8_(a, v) (*(u8 *)GP(a) = (u8)(v))
 static inline float f24f(float f){ u32 u; memcpy(&u, &f, 4); u &= 0xFFFFFF00u; memcpy(&f, &u, 4); return f; }   /* the GPU keeps 24 bits of a float */
 static inline float bitsf(u32 u){ float f; memcpy(&f, &u, 4); return f; }
 
@@ -145,11 +144,11 @@ u64 rgu_disable(u32 state){
     ST32_(s + 228, LD32_(s + 228) & ~bit); return 0; }
 
 void rgu_set_matrix(u32 type, u32 m){                                 /* 0 projection (4x4), 1 view, 2 model, 3 texture (4x3: the first three columns) */
-    u32 *p = emit(OP_MATRIX, 16); opp(p)->a[0] = type & 3; float *o = (float *)(p + HDR_WORDS); const float *src = (const float *)(uintptr_t)m;
+    u32 *p = emit(OP_MATRIX, 16); opp(p)->a[0] = type & 3; float *o = (float *)(p + HDR_WORDS); const float *src = (const float *)GP(m);
     if ((type & 3) == 0) for (int i = 0; i < 16; i++) o[i] = f24f(src[i]);
     else for (int r = 0; r < 4; r++) for (int c = 0; c < 3; c++) o[r * 3 + c] = f24f(src[r * 4 + c]); }
 void rgu_bone_matrix(u32 index, u32 m){
-    u32 *p = emit(OP_BONE, 12); opp(p)->a[0] = index & 7; float *o = (float *)(p + HDR_WORDS); const float *src = (const float *)(uintptr_t)m;
+    u32 *p = emit(OP_BONE, 12); opp(p)->a[0] = index & 7; float *o = (float *)(p + HDR_WORDS); const float *src = (const float *)GP(m);
     for (int r = 0; r < 4; r++) for (int c = 0; c < 3; c++) o[r * 3 + c] = f24f(src[r * 4 + c]); }
 
 void rgu_viewport(u32 cx, u32 cy, u32 w, u32 h){                      /* scale = size * (0.5, -0.5), centre = (cx, cy) */
@@ -176,7 +175,7 @@ void rgu_material(u32 comps, u32 c){ OP(OP_MATERIAL, comps & 7, c & 0xFFFFFF, c 
 static void send_light_colors(u32 light, u32 c0, u32 c1, u32 c2){ OP(OP_LIGHTCOL, light & 3, c0 & 0xFFFFFF, c1 & 0xFFFFFF, c2 & 0xFFFFFF); }
 void rgu_light(u32 light, u32 type, u32 comps, u32 pos){
     u32 kind = comps >> 2; if (kind >= 3) kind = 2; (void)kind;
-    const float *p = (const float *)(uintptr_t)pos;
+    const float *p = (const float *)GP(pos);
     float x = f24f(p[0]), y = f24f(p[1]), z = f24f(p[2]); u32 v[3]; memcpy(&v[0], &x, 4); memcpy(&v[1], &y, 4); memcpy(&v[2], &z, 4);
     OP(OP_LIGHT, light & 3, type & 3, v[0], v[1], v[2]);
     u32 s = S_BASE; if (LD32_(s + 8) != 0) return;
@@ -300,7 +299,7 @@ void rgu_clear(u32 flags){                                            /* 08A9806
     OP(OP_CLEAR, flags & 7, col, LD16_(s + 214), w, h); }
 
 void rgu_copy_image(u32 psm, u32 sx, u32 sy, u32 w, u32 h, u32 srcw, u32 src, u32 dx, u32 sp_in){
-    const u8 *st = (const u8 *)(uintptr_t)sp_in; u16 dy; u32 destw, dest; memcpy(&dy, st, 2); memcpy(&destw, st + 4, 4); memcpy(&dest, st + 8, 4);
+    const u8 *st = (const u8 *)GP(sp_in); u16 dy; u32 destw, dest; memcpy(&dy, st, 2); memcpy(&destw, st + 4, 4); memcpy(&dest, st + 8, 4);
     u32 *p = emit(OP_COPY, 6); u32 *q = p + HDR_WORDS;
     opp(p)->a[0] = psm < 3 ? 2 : 4; opp(p)->a[1] = src; opp(p)->a[2] = srcw & 0x7FF; opp(p)->a[3] = (sx & 0x3FF) | ((sy & 0x3FF) << 10); opp(p)->a[4] = dest; opp(p)->a[5] = destw & 0x7FF;
     q[0] = (dx & 0x3FF) | ((u32)(dy & 0x3FF) << 10); q[1] = ((w - 1) & 0x3FF) | (((h - 1) & 0x3FF) << 10); }

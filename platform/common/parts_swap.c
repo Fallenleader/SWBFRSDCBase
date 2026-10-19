@@ -16,9 +16,9 @@
 #include <stdio.h>
 #include <string.h>
 #include "psp_impl.h"
+#include "guest.h"
 #include "game_hooks.h"
 
-extern u32 rs_image_w[];
 extern int rs_setting_int(const char *, int);
 extern u32 func_08A3729C(void);
 extern float func_08A36BA0(u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
@@ -37,9 +37,9 @@ extern u32 func_08A28C68(void);
 extern u64 func_0888FC44(u32, u32);
 extern rv_t func_08A35D88(u32, u32, u32, u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
 extern rv_t func_08A35BB0(u32, u32, u32, u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
-#define IMG(va)  ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))
-#define B8(a)    (*(volatile u8 *)(uintptr_t)(a))
-#define W32(a)   (*(volatile u32 *)(uintptr_t)(a))
+#define IMG(va)  GIMG(va)
+#define B8(a)    GU8(a)
+#define W32(a)   GU32(a)
 
 #define NB 3                                        /* bodies of a faction, and heads of a body */
 static int enabled(void){ static int on = -1; if (on < 0) on = rs_setting_int("RS_ANY_HEAD", 1); return on; }
@@ -53,8 +53,8 @@ static u32 item_of(u32 rec){ u32 h = W32(rec + 4), b = W32(rec); return h < NB ?
 
 /* a string property of a body's data (the game's func_08A35BB0 does the same for one) */
 static const u16 *body_text(u32 faction, u32 body, u32 key){
-    u32 obj = 0; func_0881C3E0(0x203E217Du, func_089780FC(faction, body), (u32)(uintptr_t)&obj);
-    return (const u16 *)(uintptr_t)func_08834304(func_0896CE48(obj, key, 0, 0, 0, 0)); }
+    u32 obj = 0; func_0881C3E0(0x203E217Du, func_089780FC(faction, body), GA(&obj));   /* (a game thread: its stack is guest memory) */
+    return (const u16 *)GP(func_08834304(func_0896CE48(obj, key, 0, 0, 0, 0))); }
 
 /* The carousel (a list widget) has as many entries as it has entry slots (widget +408, made from its template by
  * func_0888FC44), three in the menu's file; populating stops at the first item the list function has no name for.  The Head
@@ -75,14 +75,14 @@ int rs_parts_list(u32 index, u32 flag, void *rv){
         if ((s32)widget > 0 && (s32)rec > 0) func_0888FCA8(widget, item_of(rec));
         W32(last) = cat; }
     if (index >= NB * NB) return 1;                                  /* the end of the list */
-    static u16 names[NB * NB][64];
+    static u16 (*names)[64]; if (!names) names = rs_guest_alloc(sizeof(u16) * 64 * NB * NB, 16);   /* the game reads them */
     u16 *o = names[index]; int n = 0;
     const u16 *b = body_text(faction, index / NB, 0x6588132Du), *h = body_text(faction, index / NB, W32(IMG(0x08AE3E28) + 4 * (index % NB)));
     for (; b && *b && n < 30; b++) o[n++] = *b;
     o[n++] = ':'; o[n++] = ' ';
     for (; h && *h && n < 62; h++) o[n++] = *h;
     o[n] = 0;
-    func_08898048((u32)(uintptr_t)o, 0, 0, 0, 0, 0, 0, 0);
+    func_08898048(GA(o), 0, 0, 0, 0, 0, 0, 0);
     r->v0 = 1; return 1; }
 
 /* the item's 3D head: the game's own, listed for the item's body (made current for the call) */

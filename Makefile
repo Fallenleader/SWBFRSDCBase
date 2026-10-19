@@ -41,7 +41,7 @@ GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
-C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c
+C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c
 ifeq ($(GE_REF),1)
 C_SRC += $(C)/ge.c
 else
@@ -60,7 +60,7 @@ CC32 := gcc -m32 -msse2 -mfpmath=sse $(XFLAGS)
 GAME_CFLAGS ?= -O1
 GAME_FLAGS := $(GAME_CFLAGS) -w -fno-strict-aliasing -ffp-contract=off -Isrc/game
 
-.PHONY: all data regen linux_test vita clean
+.PHONY: all data regen linux_test linux64 vita clean
 all: linux_test
 data: build/data.c
 build/data.c: ; mkdir -p build && python3 tools/dc/mkdata.py $(EBOOT) $@
@@ -76,6 +76,23 @@ $(B)/linux_test/c_%.o: $(C)/%.c ; @mkdir -p $(B)/linux_test; $(CC32) -O1 -w -DHO
 $(B)/linux_test/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $(B)/linux_test; g++ -m32 -msse2 -mfpmath=sse -O2 -I$(C)/ext/at3 -c $< -o $@
 linux_test: $(B)/rs_linux_test
 $(B)/rs_linux_test: $(GAME_OBJ) $(T_OBJ) $(AT3_OBJ) ; g++ -m32 -no-pie $(XLD) -o $@ $^ -lm -lpthread -ldl
+
+# ---- 64-bit Linux (RS_GUEST64): the same harness with the game's memory in a guest window; the model of the 64-bit consoles ----
+#   make linux64 EBOOT=...                           -> build/linux64/rs_linux64
+B64 := build/linux64
+CC64 := gcc -m64 -msse2 -DRS_GUEST64
+GAME64_OBJ := $(patsubst src/game/%.c,$(B64)/game/%.o,$(GAME_SRC)) $(B64)/game/data.o $(B64)/game/fn_table.o
+T64_OBJ := $(patsubst $(T)/%.c,$(B64)/linux_test/%.o,$(T_SRC)) $(patsubst $(C)/%.c,$(B64)/linux_test/c_%.o,$(C_SRC)) $(B64)/linux_test/glue.o
+AT3_64_OBJ := $(patsubst $(C)/ext/at3/%.cpp,$(B64)/linux_test/at3_%.o,$(wildcard $(C)/ext/at3/*.cpp))
+$(B64)/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p $(B64)/game; $(CC64) $(GAME_FLAGS) -c $< -o $@
+$(B64)/game/data.o: build/data.c ; @mkdir -p $(B64)/game; $(CC64) $(GAME_FLAGS) -c $< -o $@
+$(B64)/linux_test/glue.c: src/game/psp_sdk.h ; @mkdir -p $(B64)/linux_test; python3 $(C)/mkglue.py $< $@
+$(B64)/linux_test/glue.o: $(B64)/linux_test/glue.c ; $(CC64) -O1 -w -I$(C) -I src/game -c $< -o $@
+$(B64)/linux_test/%.o: $(T)/%.c ; @mkdir -p $(B64)/linux_test; $(CC64) -O1 -w -DHOST_BUILD -I$(T) -I$(C) -I src/game -c $< -o $@
+$(B64)/linux_test/c_%.o: $(C)/%.c ; @mkdir -p $(B64)/linux_test; $(CC64) -O1 -w -DHOST_BUILD -I$(C) -I src/game -c $< -o $@
+$(B64)/linux_test/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $(B64)/linux_test; g++ -m64 -O2 -I$(C)/ext/at3 -c $< -o $@
+linux64: $(B64)/rs_linux64
+$(B64)/rs_linux64: $(GAME64_OBJ) $(T64_OBJ) $(AT3_64_OBJ) ; g++ -m64 -o $@ $^ -lm -lpthread -ldl
 
 # ---- PS Vita (platform/vita) ----
 VITA_B := build/vita

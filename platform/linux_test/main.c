@@ -10,7 +10,11 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
+#ifdef RS_GUEST64
+#include "guest64.h"
+#else
 u8 *g_mem;   /* NULL: harness SDK code accesses memory through native addresses */
+#endif
 #ifndef RS_TLS_STRUCT
 __thread u32 fpu_csr;
 __thread float vfpu_v[128];
@@ -20,7 +24,7 @@ __thread u32 psp_k0;
 static __thread rs_tls_t tls_block;
 rs_tls_t *rs_tls(void){ return &tls_block; }
 #endif
-void rs_thread_init(void){ static u8 blocks[64][256] __attribute__((aligned(16))); static int n; u32 k0 = (u32)(uintptr_t)blocks[__sync_fetch_and_add(&n, 1) & 63];
+void rs_thread_init(void){ static u8 (*blocks)[256]; static int n; if (!blocks) blocks = rs_guest_alloc(64 * 256, 16); u32 k0 = GA(blocks[__sync_fetch_and_add(&n, 1) & 63]);
 #ifndef RS_TLS_STRUCT
     psp_k0 = k0;
 #else
@@ -59,9 +63,13 @@ static u32 stack_next = STACK_LO;
 void rs_harness_stack(pthread_attr_t *at);
 const char *rs_platform_setting(const char *key){ return getenv(key); }
 void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ (void)psp_stack; rs_harness_stack(at); }
+#ifdef RS_GUEST64
+void rs_harness_stack(pthread_attr_t *at){ pthread_attr_setstack(at, rs_guest_stack(STACK_SZ), STACK_SZ); }
+#else
 void rs_harness_stack(pthread_attr_t *at){
     if (stack_next + STACK_SZ > STACK_HI) { fprintf(stderr, "[HARNESS] out of thread stacks\n"); exit(2); }
     pthread_attr_setstack(at, (void *)(uintptr_t)stack_next, STACK_SZ); stack_next += STACK_SZ; }
+#endif
 
 static const char *arg_root = ".", *arg_iso;
 static void *watchdog(void *p){ int s = (int)(long)p; sleep(s); fprintf(stderr, "[RS] time limit reached (%ds)\n", s); rs_prof_dump(); hle_report(); fflush(stderr); _exit(0); return 0; }
@@ -69,11 +77,15 @@ static void *game_main(void *unused){
     (void)unused;
     /* game heap: 64 MB (the top 4 MB are the PSP's volatile memory) */
     rs_thread_init();
+#ifdef RS_GUEST64
+    hle_init(arg_root, RS_G_HEAP, RS_G_HEAP + RS_G_HEAP_SIZE);
+#else
     hle_init(arg_root, HEAP_AT, HEAP_AT + (64u << 20));
+#endif
     const char *path = "disc0:/PSP_GAME/SYSDIR/EBOOT.BIN";
-    static char argbuf[64]; strcpy(argbuf, path);
+    char *argbuf = rs_guest_alloc(64, 16); strcpy(argbuf, path);
     fprintf(stderr, "[RS] decompiled game: module_start\n");
-    rv_t r = func_08A85AB0((u32)strlen(path) + 1, (u32)(uintptr_t)argbuf, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    rv_t r = func_08A85AB0((u32)strlen(path) + 1, GA(argbuf), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     fprintf(stderr, "[RS] module_start returned %d; waiting for game threads\n", (int)r.v0);
     hle_wait_all_threads(); hle_report(); return 0; }
 
@@ -82,10 +94,16 @@ int main(int argc, char **argv){
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--root") && i + 1 < argc) arg_root = argv[++i];
         else if (!strcmp(argv[i], "--iso") && i + 1 < argc) arg_iso = argv[++i]; }
+#ifdef RS_GUEST64
+    { void *w = mmap(NULL, RS_G_WINDOW, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+      if (w == MAP_FAILED) { fprintf(stderr, "[HARNESS] cannot map the guest window\n"); return 2; }
+      rs_guest64_init(w, RS_G_WINDOW); }
+#else
     map_fixed(VRAM_AT, 8u << 20, "VRAM"); rs_vram_base = VRAM_AT;
     map_fixed(HEAP_AT, 64u << 20, "game heap");
     map_fixed(STACK_LO, STACK_HI - STACK_LO, "thread stacks");
     { extern u32 rs_image_w[]; extern const u32 rs_image_size; rs_region_add((u32)(uintptr_t)rs_image_w, rs_image_size); rs_region_add(HEAP_AT, 64u << 20); rs_region_add(STACK_LO, STACK_HI - STACK_LO); }
+#endif
     if (arg_iso) { extern int vfs_iso_mount(const char *); if (vfs_iso_mount(arg_iso)) { fprintf(stderr, "[HARNESS] cannot mount %s\n", arg_iso); return 2; } }   /* after the fixed mappings (it allocates) */
     const char *t = getenv("RS_MAX_SECONDS"); pthread_t wd; if (t) pthread_create(&wd, 0, watchdog, (void *)(long)atoi(t));
     pthread_attr_t at; pthread_attr_init(&at); rs_harness_stack(&at);

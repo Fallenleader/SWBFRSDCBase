@@ -1,6 +1,7 @@
 /* Settings of the platform layer (renderer/audio options).  Values come from rs_platform_setting(): environment variables on
  * Linux, ux0:data/RS/settings.txt on the Vita.  No game patches: the decompiled game runs unmodified. */
 #include "psp_impl.h"
+#include "guest.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -19,7 +20,7 @@ u32 rs_patch_fps(void){ static int v = -1;
         v = f; }
     return (u32)v; }
 void rs_patch_apply_fps_cap(void){
-    extern u32 rs_image_w[]; u8 *img = (u8 *)rs_image_w;
+    u8 *img = (u8 *)GP(GIMG(0x08804000u));
     const u32 flag = 0x08B1CBBCu - 0x08804000u, cap = 0x08B285CCu - 0x08804000u;
     if (img[flag]) { u32 z = 0; memcpy(img + cap, &z, 4); } }
 void rs_patch_vblank(void){}
@@ -43,7 +44,12 @@ int rs_setting_int(const char *k, int d){ return env(k, d); }
 void rc_dump_stack(sdkcall_t *c, const char *tag){ (void)c; (void)tag; }
 
 /* the PSP scratchpad (16 KB of fast RAM at 0x00010000 on the PSP; src/game/rs_base.h) */
+#ifndef RS_GUEST64
 u8 rs_scratchpad[0x4000] __attribute__((aligned(64)));
+u32 rs_scratchpad_addr(void){ return GA(rs_scratchpad); }
+#else
+u32 rs_scratchpad_addr(void){ return 0x00010000u; }   /* the PSP's own address, inside the guest window */
+#endif
 
 /* GPU-visible memory regions (see psp_impl.h) */
 rs_region_t rs_regions[RS_MAX_REGIONS]; int rs_nregions; u32 rs_vram_base = 0x04000000u, rs_vram_size = 0x00800000u;

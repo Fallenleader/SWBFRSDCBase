@@ -13,11 +13,11 @@
  * map's team factor (func_089875C8), with no other clamp. */
 #include <stdio.h>
 #include "psp_impl.h"
+#include "guest.h"
 #include "game_hooks.h"
 
-extern u32 rs_image_w[];
 extern int rs_setting_int(const char *, int);
-#define IMG(va) ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))     /* game data address -> this build's address */
+#define IMG(va) GIMG(va)     /* game data address -> this build's address */
 
 void rs_game_var_range(u32 var, u32 *min, u32 *max){
     static int on = -1; if (on < 0) on = rs_setting_int("RS_GAME_PATCHES", 1); if (!on) return;

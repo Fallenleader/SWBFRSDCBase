@@ -32,17 +32,17 @@ def main(eboot, out):
         v = p.m.r32(o)
         if a in p.ptr_at:
             t = p.ptr_at[a]
-            if t in ents: words.append((o // 4, '(u32)(uintptr_t)%s' % fname(t))); used_funcs.add(t); continue
+            if t in ents: words.append((o // 4, 'RS_FADDR(%s, 0x%08Xu)' % (fname(t), t))); used_funcs.add(t); continue
             if p.code_lo <= t < p.stub_hi + 0x1000 and t < p.stub_hi: words.append((o // 4, '0x%08Xu' % t)); continue
             if BASE <= t < BASE + size: words.append((o // 4, 'IMG(0x%X)' % (t - BASE))); continue
         if v: words.append((o // 4, '0x%08Xu' % v))
     with open(out, 'w') as f:
         f.write('/* Generated from the game EBOOT by tools/dc/mkdata.py - do not edit, do not commit. */\n#include "game.h"\n')
-        f.write('#define IMG(o) ((u32)(uintptr_t)((u8 *)rs_image_w + (o)))\n')
-        f.write('u32 rs_image_w[%d] __attribute__((aligned(64))) = {\n' % nw)
+        f.write('#define IMG(o) RS_IMG(o)\n')
+        f.write('u32 RS_IMAGE_ARRAY[%d] __attribute__((aligned(64))) = {\n' % nw)
         for i, e in words: f.write('[%d]=%s,\n' % (i, e))
         f.write('};\n')
-        f.write('const u32 rs_image_size = sizeof rs_image_w;   /* GPU-visible region (see platform/common/psp_impl.h) */\n')
+        f.write('const u32 rs_image_size = sizeof RS_IMAGE_ARRAY;   /* GPU-visible region (see platform/common/psp_impl.h) */\n')
     print('image words', nw, 'initialised', len(words), 'function pointers', len(used_funcs))
 
 

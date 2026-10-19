@@ -31,7 +31,7 @@ MIN_GAIN = int(next((a.split('=')[1] for a in sys.argv if a.startswith('--min-ga
 FUNC_RE = re.compile(r'\n((?:rv_t|void|u32|float|s32|int|u64) (func_[0-9A-F]+)\([^)]*\))\n\{\n(.*?)\n\}\n', re.S)
 VREF = re.compile(r'\bv\[(\d+)\]')
 VWRITE = re.compile(r'\bv\[(\d+)\]\s*(=(?!=)|[-+*/]=)')
-CALL = re.compile(r'\b(func_[0-9A-F]+)\s*\(|\(\(ifn_t\)PTR\(')
+CALL = re.compile(r'\b(func_[0-9A-F]+)\s*\(|\(\(ifn_t\)RS_FPTR\(')
 
 def sdk_names(path):
     names, ret = set(), {}
@@ -66,7 +66,7 @@ for fn in files:
         w = set(int(x) for x, _ in VWRITE.findall(body))
         u = set(int(x) for x in VREF.findall(body))
         calls = set(re.findall(r'\b(func_[0-9A-F]+)\s*\(', body))
-        allf = '((ifn_t)PTR(' in body or any(sdk_all(n) for n in SDK_RE.findall(body))
+        allf = '((ifn_t)RS_FPTR(' in body or any(sdk_all(n) for n in SDK_RE.findall(body))
         info[name] = {'w': w, 'u': u, 'calls': calls, 'all': allf}
 
 # ---- transitive sets: U (touched) and W (written) over the call graph (fixpoint)
@@ -111,7 +111,7 @@ def call_sites(b, name):              # every call in a body: (start, end, expre
         elif mm.group(0).startswith('(('): callee = None; ret_t = 'rv_t'; cu, cw = ALL, ALL
         else:
             callee = mm.group(2); ret_t = sdk_ret.get(callee, 'u32'); cu, cw = (ALL, ALL) if sdk_all(callee) else (set(), set())
-        op = b.index('(', (find_close(b, st) + 1) if callee is None else st + len(callee))   # ((ifn_t)PTR(x)) (...) / name (...)
+        op = b.index('(', (find_close(b, st) + 1) if callee is None else st + len(callee))   # ((ifn_t)RS_FPTR(x)) (...) / name (...)
         cl = find_close(b, op)
         if ANYCALL.search(b[op + 1:cl]): raise SystemExit('%s: nested call in arguments: %s' % (name, b[st:cl + 1][:160]))
         yield st, cl + 1, b[st:cl + 1], ret_t, cu, cw

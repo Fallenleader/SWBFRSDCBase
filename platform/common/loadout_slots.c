@@ -17,24 +17,25 @@
  * carousel's entry slots grow to match, and the allowance becomes RS_CREDITS (200). */
 #include <string.h>
 #include "psp_impl.h"
+#include "guest.h"
 #include "game_hooks.h"
 
-extern u32 rs_image_w[];
 extern int rs_setting_int(const char *, int);
 extern u64 func_0888FC44(u32, u32);
-#define IMG(va)  ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))
-#define W32(a)   (*(volatile u32 *)(uintptr_t)(a))
+#define IMG(va)  GIMG(va)
+#define W32(a)   GU32(a)
 
 static const u32 src_va[5] = {0x08ADC5E8, 0x08ADC610, 0x08ADC630, 0x08ADC648, 0x08ADC668};
 static const int src_n[5] = {10, 8, 6, 8, 6};
 static const int other[5] = {1, 0, 3, 2, -1};          /* the category whose items are added to a list */
-static u32 tab[5][32]; static int len[5], ready;
+static u32 (*tab)[32]; static int len[5], ready;   /* in guest memory: the game reads the tables */
 #define MAXLEN 32
 
 static int enabled(void){ static int on = -1; if (on < 0) on = rs_setting_int("RS_ANY_SLOT", 1); return on; }
 static int has(int t, u32 id){ for (int i = 0; i < len[t]; i++) if (tab[t][i] == id) return 1; return 0; }
 static void init(void){
     if (ready) return;
+    tab = rs_guest_alloc(sizeof(u32) * 32 * 5, 64);
     for (int t = 0; t < 5; t++) { len[t] = src_n[t]; for (int i = 0; i < src_n[t]; i++) tab[t][i] = W32(IMG(src_va[t]) + 4u * (u32)i); }
     if (enabled()) {
         for (int t = 0; t < 5; t++) {                      /* the other slot's items (not "none", not one listed already) */
@@ -43,7 +44,7 @@ static void init(void){
         for (int t = 0; t < 4; t++) W32(IMG(0x08ADFC84) + 12u * (u32)t + 8) = (u32)len[t]; }
     ready = 1; }
 
-u32 rs_loadout_table(int t){ init(); return (u32)(uintptr_t)tab[t]; }   /* symbols.h: D_08ADC5E8 etc. */
+u32 rs_loadout_table(int t){ init(); return GA(tab[t]); }   /* symbols.h: D_08ADC5E8 etc. */
 
 void rs_loadout_frame(void){                            /* after each pad read: the carousel's entry slots */
     init();

@@ -23,18 +23,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include "psp_impl.h"
+#include "guest.h"
 #include "game_hooks.h"
 
-extern u32 rs_image_w[];
 extern u8 rs_right_stick[2];
 extern int rs_setting_int(const char *, int);
 extern float func_088FDA34(u32 a0);
 extern void func_088FDAD0(u32 a0, u32 a1, u32 a2, u32 a3);
 extern void func_08896520(u32 a0, u32 a1, u32 a2, u32 a3, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14);
 
-#define IMG(va)      ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))   /* game data address -> this build's address */
-#define R32(a)       (*(volatile u32 *)(uintptr_t)(a))
-#define RF(a)        (*(volatile float *)(uintptr_t)(a))
+#define IMG(va)      GIMG(va)   /* game data address -> this build's address */
+#define R32(a)       GU32(a)
+#define RF(a)        GF32(a)
 #define AXIS_PTR     IMG(0x08B46200)          /* -> the axis array */
 #define CIRCLE_FLAG  IMG(0x08B46208)          /* the game's circular dead-zone mode */
 #define VT_AXIS      IMG(0x08AF7978)          /* binding classes (vtables) */
@@ -49,7 +49,7 @@ void rs_input_after_pad(void){
     if (!enabled()) return;
     u32 ax = R32(AXIS_PTR); if (!ax) return;
     u32 rx = rs_right_stick[0], ry = rs_right_stick[1];
-    if (*(volatile u8 *)(uintptr_t)CIRCLE_FLAG) func_088FDAD0(rx, ry, ax + SLOT_RX * 4, ax + SLOT_RY * 4);
+    if (GU8(CIRCLE_FLAG)) func_088FDAD0(rx, ry, ax + SLOT_RX * 4, ax + SLOT_RY * 4);
     else { RF(ax + SLOT_RX * 4) = func_088FDA34(rx); RF(ax + SLOT_RY * 4) = -func_088FDA34(ry); }   /* as the left stick: up = positive */
     static int log = -1; static unsigned n; if (log < 0) log = getenv("RS_INPUT_LOG") != 0;      /* diagnostics: action values */
     if (log && scheme_obj && ++n % 20 == 0) { u32 o = scheme_obj, t = R32(o + 8) + R32(o + 12) * 16, v = R32(t + 12);

@@ -24,18 +24,18 @@
 #include <string.h>
 #include <math.h>
 #include "psp_impl.h"
+#include "guest.h"
 #include "gfx.h"
 #include "game_hooks.h"
 #include "overlay_ui.h"
 
-extern u32 rs_image_w[];
 extern int rs_setting_int(const char *, int);
 extern u32 func_08A3729C(void);
 extern float func_08A36BA0(u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
-#define IMG(va)  ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))
-#define B8(a)    (*(volatile u8 *)(uintptr_t)(a))
-#define W32(a)   (*(volatile u32 *)(uintptr_t)(a))
-#define F32(a)   (*(volatile float *)(uintptr_t)(a))
+#define IMG(va)  GIMG(va)
+#define B8(a)    GU8(a)
+#define W32(a)   GU32(a)
+#define F32(a)   GF32(a)
 #define SETTINGS IMG(0x08C2933C)
 
 static int enabled(void){ static int on = -1; if (on < 0) on = rs_setting_int("RS_COLOUR_PICKER", 1); return on; }
