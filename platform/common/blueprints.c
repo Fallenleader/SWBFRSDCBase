@@ -25,6 +25,7 @@
 #include <string.h>
 #include <strings.h>
 #include <ctype.h>
+#include <stddef.h>
 #include <sys/stat.h>
 #include "psp_impl.h"
 
