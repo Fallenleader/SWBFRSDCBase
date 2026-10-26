@@ -25,7 +25,8 @@ void rs_patch_apply_fps_cap(void){
     if (img[flag]) { u32 z = 0; memcpy(img + cap, &z, 4); } }
 void rs_patch_vblank(void){}
 const char *rs_renderer_patch_file(const char *rel, const char *host);
-const char *rs_patch_file(const char *rel, const char *host){ return rs_renderer_patch_file(rel, host); }   /* renderer_option.c: the Options menu's renderer switch */
+const char *rs_weapons_patch_file(const char *rel, const char *host);
+const char *rs_patch_file(const char *rel, const char *host){ const char *r = rs_renderer_patch_file(rel, host); return r ? r : rs_weapons_patch_file(rel, host); }   /* renderer_option.c, blueprints.c (weapons.txt) */   /* renderer_option.c: the Options menu's renderer switch */
 u32 rs_patch_heap_top(u32 t){ return t; }
 u32 rs_patch_audio(void){ return (u32)env("RS_AUDIO", 1); }
 int rs_patch_volume(void){ return 100; }
