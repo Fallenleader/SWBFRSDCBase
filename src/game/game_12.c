@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 08911F14 */
 rv_t func_08911F14(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13)
@@ -30021,7 +30022,7 @@ L_08926218:;
 }
 
 /* 08926220 */
-rv_t func_08926220(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static rv_t func_08926220__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0, f20 = 0;
@@ -30195,6 +30196,13 @@ L_089263C0:;
     goto L_08926294;
 }
 
+rv_t func_08926220(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rv_t v_ = func_08926220__orig(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
+    rs_ai_squad_caps(a0);   /* native hook (tools/dc/hooks.py) */
+    return v_;
+}
+
 /* 089263D0 */
 rv_t func_089263D0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
@@ -30263,7 +30271,7 @@ L_0892646C:;
 }
 
 /* 08926478 */
-void func_08926478(u32 a0, u32 a1, u32 a2)
+static void func_08926478__orig(u32 a0, u32 a1, u32 a2)
 {
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0, s6 = 0;
     float f0 = 0, f1 = 0, f2 = 0, f20 = 0;
@@ -30480,6 +30488,12 @@ L_089266C0:;
 L_089266CC:;
     f0 = BITSF(LD32(s0+164));
     goto L_089266A4;
+}
+
+void func_08926478(u32 a0, u32 a1, u32 a2)
+{
+    if (rs_ai_assign(a0, a1, a2)) return;   /* native hook (tools/dc/hooks.py) */
+    func_08926478__orig(a0, a1, a2);
 }
 
 /* 089266D4 */

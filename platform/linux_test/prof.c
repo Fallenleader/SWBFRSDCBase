@@ -25,7 +25,7 @@ static void dump(void){
 __attribute__((constructor)) static void prof_init(void){
     outp = getenv("RS_PROF"); if (!outp) return; if (getenv("RS_BENCH_FROM")) rs_prof_on = 0;   /* bench: sample only the benchmark window */ smp = malloc(sizeof(unsigned long) * NS);
     struct sigaction sa; memset(&sa, 0, sizeof sa); sa.sa_sigaction = on_prof; sa.sa_flags = SA_SIGINFO | SA_RESTART; sigaction(SIGPROF, &sa, 0);
-    struct itimerval it = {{0, 1000}, {0, 1000}}; setitimer(ITIMER_PROF, &it, 0); }
+    int us = getenv("RS_PROF_US") ? atoi(getenv("RS_PROF_US")) : 1000; struct itimerval it = {{0, us}, {0, us}}; setitimer(ITIMER_PROF, &it, 0); }
 void rs_prof_dump(void){ if (outp) dump(); }
 #else
 volatile int rs_prof_on;
