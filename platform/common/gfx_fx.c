@@ -17,7 +17,7 @@
  *             <data>/mods/dumps/players/<character>/   characters (graphics\characters), heads under players/heads/
  *             <data>/mods/dumps/weapons/<weapon sheet>/, vehicles/<vehicle>/, objects/<...>/, effects/, ui/<file>/
  *         as <key>@<texture name>.png, where <key> is the texture-replacement key: a dumped file copied into mods/<mod>/textures/ (any
- *         subfolder) replaces that texture as it is; _mr / _n next to it add PBR maps (texrep.c).  A background thread does the work. */
+ *         subfolder) replaces that texture as it is; _ms / _n next to it add PBR maps (texrep.c).  A background thread does the work. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -181,11 +181,11 @@ int rs_fx_local_lights(rs_fx_light_t *out, int max){
 #define QN 64
 static char *queue[QN]; static int qh, qt, worker_on; static pthread_cond_t qc = PTHREAD_COND_INITIALIZER; static pthread_mutex_t qm = PTHREAD_MUTEX_INITIALIZER;
 typedef struct { char map[64], file[64]; int n_new, n_all, loadscreen; } dctx_t;
-/* sanitise a label: letters, digits, '-' and '_' (and never ending in _n / _mr, the PBR suffixes) */
+/* sanitise a label: letters, digits, '-' and '_' (and never ending in _n / _ms, the PBR suffixes) */
 static void label(const char *in, char *out, size_t cap){
     size_t j = 0; for (const char *c = in; *c && j + 2 < cap; c++) { char ch = (char)tolower((unsigned char)*c); out[j++] = isalnum((unsigned char)ch) || ch == '-' || ch == '_' ? ch : '-'; }
     out[j] = 0;
-    size_t l = strlen(out); if ((l >= 2 && !strcmp(out + l - 2, "_n")) || (l >= 3 && !strcmp(out + l - 3, "_mr"))) { if (l + 1 < cap) { out[l] = '-'; out[l + 1] = 0; } } }
+    size_t l = strlen(out); if ((l >= 2 && !strcmp(out + l - 2, "_n")) || (l >= 3 && !strcmp(out + l - 3, "_ms"))) { if (l + 1 < cap) { out[l] = '-'; out[l + 1] = 0; } } }
 /* the dump folder of a texture from its resource name: "\graphics\characters\mediumrebel.tga" -> players/mediumrebel */
 static void category(const char *res, const dctx_t *c, char *out, size_t cap){
     char n[256]; size_t j = 0; for (const char *s = res; *s && j + 1 < sizeof n; s++) n[j++] = *s == '\\' ? '/' : (char)tolower((unsigned char)*s); n[j] = 0;

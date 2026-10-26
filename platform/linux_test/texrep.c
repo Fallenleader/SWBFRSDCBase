@@ -2,7 +2,8 @@
  *
  *   <mods dir>/<mod name>/textures/<key>.png             replacement colour (RGBA; any resolution, keep the aspect ratio)
  *   <mods dir>/<mod name>/textures/<key>-<pal>.png       same, only for one palette of a CLUT texture (team colours etc.)
- *   ..._mr.png   PBR map: R = ambient occlusion, G = roughness, B = metalness (glTF "ORM" layout)
+ *   ..._ms.png   PBR map: R = metalness, G = smoothness, B = ambient occlusion (A reserved for a height map, not used yet);
+ *                the layout Materialize-style tools give (smoothness = 1 - roughness)
  *   ..._n.png    tangent-space normal map (OpenGL convention, +Y up)
  *
  * <key> = CRC-32 of the texture's level-0 texel bytes as the game stores them (8 lowercase hex digits; tools/asura/extract.py writes the
@@ -48,7 +49,7 @@ static int cmp(const void *a, const void *b){ unsigned long long x = ((const rep
 static int cmpstr(const void *a, const void *b){ return strcmp(*(char * const *)a, *(char * const *)b); }
 static int hex8(const char *s){ for (int i = 0; i < 8; i++) if (!isxdigit((unsigned char)s[i])) return 0; return 1; }
 
-/* <key>[-<pal>][@<label>][_mr|_n].png, in dir and its subfolders (a mod can keep the layout of mods/dumps) */
+/* <key>[-<pal>][@<label>][_ms|_n].png, in dir and its subfolders (a mod can keep the layout of mods/dumps) */
 static int scan_dir(const char *dir, int depth){
     DIR *d = opendir(dir); if (!d) return 0; struct dirent *e; int n = 0;
     while ((e = readdir(d))) {
@@ -58,9 +59,9 @@ static int scan_dir(const char *dir, int depth){
         const char *ext = s + l - 4; if (strcmp(ext, ".png") && strcmp(ext, ".PNG")) continue;
         char k[9]; memcpy(k, s, 8); k[8] = 0; unsigned long long key = (unsigned long long)strtoul(k, 0, 16) << 32; const char *r = s + 8;
         if (*r == '-' && (size_t)(r + 9 - s) <= l - 4 && hex8(r + 1)) { memcpy(k, r + 1, 8); key |= strtoul(k, 0, 16); r += 9; }
-        if (*r == '@') { const char *x = ext; if (x - r > 3 && !strncmp(x - 3, "_mr", 3)) x -= 3; else if (x - r > 2 && !strncmp(x - 2, "_n", 2)) x -= 2; r = x; }   /* a label (dumps): ignored */
+        if (*r == '@') { const char *x = ext; if (x - r > 3 && !strncmp(x - 3, "_ms", 3)) x -= 3; else if (x - r > 2 && !strncmp(x - 2, "_n", 2)) x -= 2; r = x; }   /* a label (dumps): ignored */
         size_t rl = (size_t)(ext - r); int slot;
-        if (rl == 0) slot = 0; else if (rl == 3 && !strncmp(r, "_mr", 3)) slot = 1; else if (rl == 2 && !strncmp(r, "_n", 2)) slot = 2; else continue;
+        if (rl == 0) slot = 0; else if (rl == 3 && !strncmp(r, "_ms", 3)) slot = 1; else if (rl == 2 && !strncmp(r, "_n", 2)) slot = 2; else continue;
         rep_t *rp = get(key); free(rp->path[slot]); rp->path[slot] = strdup(p); n++; }
     closedir(d);
     if (n && !depth) fprintf(stderr, "[MOD] %s: %d texture file(s)\n", dir, n);

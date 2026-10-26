@@ -3,7 +3,7 @@
  * game's own lighting), asset dumps by map / character / weapon / vehicle.  Renderer passes: platform/linux_test/gfx_gl.c. */
 #include "gfx.h"
 typedef struct {
-    int pbr;                  /* RS_PBR: PBR shading of textures with _mr / _n maps (mods) */
+    int pbr;                  /* RS_PBR: PBR shading of textures with _ms / _n maps (mods) */
     int shadows;              /* RS_SHADOWS: sun shadow map */
     int shadow_res, shadow_range, shadow_strength;
     int rt_shadows;           /* RS_RT_SHADOWS: ray-traced (screen-space ray-marched) sun and local-light shadows - setup only */

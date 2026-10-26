@@ -10,7 +10,7 @@
  *    covers every vertex type; 2D (through-mode) draws go to the CPU-vertex program (vk/main.vert).
  *  - Sun shadows: the shadow map of the GL back end (previous frame's opaque 3D triangles, camera space), or with RS_RT_SHADOWS=1 a ray
  *    query per pixel against an acceleration structure of the previous frame's opaque triangles in world space (rebuilt every frame).
- *  - Reflections (RS_RT_REFLECTIONS=1): smooth PBR surfaces (mod textures with _mr maps) trace the reflected view ray against the same
+ *  - Reflections (RS_RT_REFLECTIONS=1): smooth PBR surfaces (mod textures with _ms maps) trace the reflected view ray against the same
  *    acceleration structure; a hit shows that triangle's colour (vertex colour x its texture's average colour) lit by the sun.
  * Shaders: vk/*.vert|frag, compiled to SPIR-V at build time (vk/build_shaders.py -> vk_spv.h).  Platform hooks: gfx_vk.h. */
 #include <stdio.h>

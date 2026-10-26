@@ -5,7 +5,7 @@
 # renderer: opengl or vulkan (Vulkan: RADV, with ray-traced shadows and reflections). Also in the game's Options menu
 # ("Vulkan Renderer", the last entry), which rewrites this line; a change is used from the next start. If Vulkan cannot
 # start, the game falls back to OpenGL.
-RS_RENDERER=opengl
+RS_RENDERER=vulkan
 # internal resolution x the PSP's 480x272: 1 to 8 (8 = 3840x2176, shown as 4K)
 RS_RES_SCALE=8
 # 1 = exactly 16:9 (one PSP row off the top and the bottom: 3840x2160 at scale 8); 0 = the whole 480x272 with thin bars
@@ -33,12 +33,12 @@ RS_SHADOW_STRENGTH=50
 # how far each surface's shadow-map lookup is moved off the surface, in shadow-map texels (more on slopes): stops ground
 # shadowing itself in stripes; too high and small shadows start to detach from their objects
 RS_SHADOW_OFFSET=4
-# PBR shading (metal/roughness + normal maps) for mod textures that come with _mr / _n maps
+# PBR shading (metal/roughness + normal maps) for mod textures that come with _ms / _n maps
 RS_PBR=1
 # ray tracing (the Vulkan renderer only; OpenGL keeps the shadow map): 1 = on
 #   RS_RT             0 = no ray tracing at all (the Vulkan renderer then uses the shadow map like OpenGL)
 #   RS_RT_SHADOWS     sun shadows by a ray towards the sun from every pixel (replaces the shadow map)
-#   RS_RT_REFLECTIONS reflections on shiny PBR surfaces (mod textures with _mr maps): what the reflected ray hits
+#   RS_RT_REFLECTIONS reflections on shiny PBR surfaces (mod textures with _ms maps): what the reflected ray hits
 #   RS_RT_DISTANCE    how far the rays reach, in metres
 RS_RT=1
 RS_RT_SHADOWS=1
@@ -54,7 +54,7 @@ RS_LIGHT_CAPTURE_FRAMES=600
 RS_MODS=1
 # 1 = write every texture of the maps, characters, weapons, vehicles and menus the game loads to /data/SWBFRS/mods/dumps/
 #     (maps/<map>, players/<character>, weapons/..., vehicles/..., objects/..., effects, ui/<file>), named <key>@<name>.png:
-#     a dumped file put into a mod's textures folder replaces that texture; add <key>@<name>_mr.png / _n.png for PBR
+#     a dumped file put into a mod's textures folder replaces that texture; add <key>@<name>_ms.png / _n.png for PBR
 RS_DUMP_ASSETS=1
 
 # ---- performance

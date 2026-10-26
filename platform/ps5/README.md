@@ -67,7 +67,7 @@ tickets), so that it stays compatible with the PS Vita and PSP.
 Code: `platform/common/gfx_fx.c` (settings, current map, light setups, dumps) and `platform/linux_test/gfx_gl.c` (renderer passes).
 
 - **Shadows**: the sun shadow map is on (`RS_SHADOWS`, `RS_SHADOW_RES` ...), lit by each map's own sun.
-- **PBR**: mod textures with `_mr` (R occlusion, G roughness, B metalness) and `_n` (normal) maps get GGX shading from the map's sun (`RS_PBR`).
+- **PBR**: mod textures with `_ms` (R metalness, G smoothness, B ambient occlusion; the alpha channel is reserved for a height map, planned) and `_n` (normal) maps get GGX shading from the map's sun (`RS_PBR`).
 - **Light setups**: `/data/SWBFRS/mods/lights/<era>_<map>.txt` (e.g. `classic_hoth.txt`), written the first time a map is played from the
   game's own GE lights: `sun_dir` (world space, towards the sun), `sun_color`, `sun_intensity`, `ambient`, and the map's local
   `light point|spot` entries. Edit to change a map's light; delete to capture again.
@@ -81,13 +81,13 @@ Code: `platform/common/gfx_fx.c` (settings, current map, light setups, dumps) an
   triangles drawn by the previous frame go into a ray-tracing acceleration structure (world space), and the pixel shader casts
   rays with `VK_KHR_ray_query`:
   - `RS_RT_SHADOWS=1`: sun shadows, a ray towards the sun from every lit pixel (in place of the shadow map);
-  - `RS_RT_REFLECTIONS=1`: reflections on shiny PBR surfaces (mod textures with `_mr` maps), the colour of what the reflected
+  - `RS_RT_REFLECTIONS=1`: reflections on shiny PBR surfaces (mod textures with `_ms` maps), the colour of what the reflected
     ray hits, lit by the sun (itself shadow-tested), fading out towards `RS_RT_DISTANCE` (metres, 200);
   - `RS_RT=0` turns ray tracing off. The OpenGL renderer has no ray tracing (the PS5's OpenGL has no ray-tracing API).
 - **Asset dumps** (`RS_DUMP_ASSETS=1`): every texture the game loads, sorted under `/data/SWBFRS/mods/dumps/`:
   `maps/<map>/` (and `maps/<map>/sky/`), `players/<character>/`, `players/heads/<sheet>/`, `weapons/<sheet>/`, `vehicles/<vehicle>/`,
   `objects/<group>/`, `effects/`, `ui/<file>/`. Files are `<key>@<name>.png`; copy one into `/data/SWBFRS/mods/<mod>/textures/` (any
-  subfolder) to replace that texture, and add `<key>@<name>_mr.png` / `<key>@<name>_n.png` next to it for PBR.
+  subfolder) to replace that texture, and add `<key>@<name>_ms.png` / `<key>@<name>_n.png` next to it for PBR.
 
 ## Not in this build yet
 

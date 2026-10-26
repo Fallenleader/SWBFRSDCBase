@@ -314,7 +314,7 @@ static const char *RCV_CODE =
     "      if (uShP.w > 2.5) c.rgb = vec3(fract(z * 20.0), fract(shd(sc) * 20.0), k); } }\n";
 #endif
 #if defined(__vita__) && !defined(RS_VITA_GLSL)
-/* PBR (mod textures with _mr / _n maps): inserted into FS_SRC for the PBR variants of the HW T&L programs.  GGX specular + Schlick
+/* PBR (mod textures with _ms / _n maps): inserted into FS_SRC for the PBR variants of the HW T&L programs.  GGX specular + Schlick
  * Fresnel from the sun (uSun = direction towards the sun in view space); the game's own vertex lighting stays the diffuse/ambient term. */
 static const char *PBR_FUNC = "";
 static const char *PBR_AT = "float4 main(";
@@ -324,7 +324,7 @@ static const char *PBR_CODE =
     "  if (uPbr.w > 0.5) {\n"
     "    float3 N = normalize(vVN); float3 V = normalize(-vVP); float3 L = uSun.xyz; if (dot(N, V) < 0.0) N = -N;\n"
     "    float rough = 0.7; float metal = 0.0; float ao = 1.0;\n"
-    "    if (uPbr.x > 0.5) { float4 m = tex2D(uMR, vUV); rough = clamp(m.g, 0.05, 1.0); metal = m.b; ao = m.r; }\n"
+    "    if (uPbr.x > 0.5) { float4 m = tex2D(uMR, vUV); metal = m.r; rough = clamp(1.0 - m.g, 0.05, 1.0); ao = m.b; }\n"
     "    if (uPbr.y > 0.5) { float3 T = vVT - N * dot(N, vVT); float lt = length(T);\n"
     "      if (lt > 0.00001) { T = T / lt; float3 B = cross(N, T); float3 m = tex2D(uNM, vUV).xyz * 2.0 - 1.0; float3 Nm = normalize(T * m.x + B * m.y + N * m.z);\n"
     "        float g0 = dot(N, L) * 0.5 + 0.5; float g1 = dot(Nm, L) * 0.5 + 0.5; c.rgb = c.rgb * clamp(g1 / max(g0, 0.1), 0.0, 2.0); N = Nm; } }\n"
@@ -345,7 +345,7 @@ static const char *PBR_CODE =
     "  if (uPbr.w > 0.5) {\n"
     "    vec3 N = normalize(vVN); vec3 V = normalize(-vVP); vec3 L = uSun.xyz; if (dot(N, V) < 0.0) N = -N;\n"
     "    float rough = 0.7; float metal = 0.0; float ao = 1.0;\n"
-    "    if (uPbr.x > 0.5) { vec4 m = texture2D(uMR, vUV); rough = clamp(m.g, 0.05, 1.0); metal = m.b; ao = m.r; }\n"
+    "    if (uPbr.x > 0.5) { vec4 m = texture2D(uMR, vUV); metal = m.r; rough = clamp(1.0 - m.g, 0.05, 1.0); ao = m.b; }\n"
     "    if (uPbr.y > 0.5) { vec3 T = vVT - N * dot(N, vVT); float lt = length(T);\n"
     "      if (lt > 0.00001) { T = T / lt; vec3 B = cross(N, T); vec3 m = texture2D(uNM, vUV).xyz * 2.0 - 1.0; vec3 Nm = normalize(T * m.x + B * m.y + N * m.z);\n"
     "        float g0 = dot(N, L) * 0.5 + 0.5; float g1 = dot(Nm, L) * 0.5 + 0.5; c.rgb = c.rgb * clamp(g1 / max(g0, 0.1), 0.0, 2.0); N = Nm; } }\n"
@@ -887,7 +887,7 @@ static char *native_vs_src(u32 vt, int lit, int fx){
 typedef struct { u32 key; int state; prog_t P; } nprog_t;                     /* state: 1 ready, -1 failed */
 static nprog_t np[NP_N]; static int np_n, native_on = -1;
 static u32 native_key(u32 vt, int lit, int fx){ int thr = (vt >> 23) & 1; return (vt & 0x1C7FFu) | ((u32)thr << 23) | ((u32)(lit && !thr) << 24) | ((u32)(thr ? 0 : fx) << 25) | 0x80000000u; }
-/* fx: 1 = receives the sun's shadow, 2 = PBR (mod texture with _mr / _n maps) */
+/* fx: 1 = receives the sun's shadow, 2 = PBR (mod texture with _ms / _n maps) */
 static const prog_t *native_prog(u32 vt, int lit, int fx){
     if ((vt >> 23) & 1) fx = 0;
     u32 key = native_key(vt, lit, fx);

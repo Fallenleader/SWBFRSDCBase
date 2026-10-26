@@ -292,7 +292,10 @@ int main(void){
         double now = now_s();
         if (gfx_present_due() || now - last >= 0.25) {
             last = now;
-            if (vk) gfx_present(0, 0);                     /* (the Vulkan renderer presents to its swapchain) */
+            if (vk) {                                        /* (the Vulkan renderer presents to its swapchain) */
+                gfx_present(0, 0);
+                /* the system's launch splash stays over the video output until the title hides it (EGL does this itself) */
+                if (frames == 0) { extern int sceSystemServiceHideSplashScreen(void); int r = sceSystemServiceHideSplashScreen(); STEP("launch splash hidden (0x%08x)", (unsigned)r); } }
             else { gfx_present(sw, sh); eglSwapBuffers(dpy, surf); }
             if (++frames == 1 || frames % 3600 == 0) STEP("presented %llu frames", frames);
             continue; }

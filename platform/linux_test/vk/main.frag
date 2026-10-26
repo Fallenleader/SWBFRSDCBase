@@ -52,10 +52,10 @@ void main(){
 #ifdef FX
     vec3 N = normalize(vVN), V = normalize(-vVP), L = u.sun.xyz;
     if (dot(N, V) < 0.0) N = -N;
-    /* ---- PBR (mod textures with _mr / _n maps): GGX specular + Schlick Fresnel from the sun, sky/sun reflection term */
+    /* ---- PBR (mod textures with _ms / _n maps): GGX specular + Schlick Fresnel from the sun, sky/sun reflection term */
     float rough = 0.7, metal = 0.0, ao = 1.0;
     if (u.pbr.w > 0.5) {
-        if (u.pbr.x > 0.5) { vec4 m = texture(uMR, vUV); rough = clamp(m.g, 0.05, 1.0); metal = m.b; ao = m.r; }
+        if (u.pbr.x > 0.5) { vec4 m = texture(uMR, vUV); metal = m.r; rough = clamp(1.0 - m.g, 0.05, 1.0); ao = m.b; }
         if (u.pbr.y > 0.5) { vec3 T = vVT - N * dot(N, vVT); float lt = length(T);
             if (lt > 0.00001) { T /= lt; vec3 B = cross(N, T); vec3 m = texture(uNM, vUV).xyz * 2.0 - 1.0; vec3 Nm = normalize(T * m.x + B * m.y + N * m.z);
                 float g0 = dot(N, L) * 0.5 + 0.5, g1 = dot(Nm, L) * 0.5 + 0.5; c.rgb *= clamp(g1 / max(g0, 0.1), 0.0, 2.0); N = Nm; } } }
