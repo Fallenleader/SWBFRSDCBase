@@ -48,3 +48,12 @@ RS_CREDITS=200
 # ---- sound and diagnostics
 # 0 = no sound
 RS_AUDIO=1
+
+# ---- AI and weapons
+# most bots sent to hold one of their own command posts (the rest go to take posts); 0 = the game's own choice
+RS_AI_DEFENDERS=5
+# weapons.txt next to this file: the game's weapons, projectiles and laser bolts, written with the game's own values the first
+# time and read at every start (edit values, add new weapons); 0 = the game's own weapons (weapons.txt not read)
+RS_WEAPONS=1
+# any head on any body: the CIS too (off: the droids' heads do not fit each other's bodies)
+RS_ANY_HEAD_CIS=0

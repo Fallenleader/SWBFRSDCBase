@@ -30,6 +30,7 @@
 #include "gfx.h"
 
 #define RS_DIR "/data/SWBFRS"
+const char *rs_platform_data_dir(void){ return RS_DIR; }   /* weapons.txt, patched game files (blueprints.c) */
 #define RS_GAME RS_DIR "/GAME"
 const char *rs_platform_save_dir(void){ return RS_DIR "/SAVEDATA"; }
 volatile int rs_prof_on;
