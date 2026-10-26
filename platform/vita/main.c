@@ -37,6 +37,7 @@ int _newlib_heap_size_user = 96 * 1024 * 1024;                 /* the platform l
 unsigned int sceUserMainThreadStackSize = 1024 * 1024;          /* the frontend thread interprets GE command lists */
 
 #define RS_DIR "ux0:data/SWBFRS"
+const char *rs_platform_data_dir(void){ return RS_DIR; }   /* weapons.txt, patched game files (blueprints.c) */
 #define RS_GAME RS_DIR "/GAME"                                  /* extracted UMD: GAME/PSP_GAME/... (the ISO's own layout) */
 #define RS_ISO RS_DIR "/game.iso"                               /* else the UMD image itself */
 const char *rs_platform_save_dir(void){ return RS_DIR "/SAVEDATA"; }   /* game profiles (hle.c savedata) */

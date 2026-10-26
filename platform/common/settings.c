@@ -23,7 +23,8 @@ void rs_patch_apply_fps_cap(void){
     const u32 flag = 0x08B1CBBCu - 0x08804000u, cap = 0x08B285CCu - 0x08804000u;
     if (img[flag]) { u32 z = 0; memcpy(img + cap, &z, 4); } }
 void rs_patch_vblank(void){}
-const char *rs_patch_file(const char *rel, const char *host){ (void)rel; (void)host; return 0; }
+const char *rs_weapons_patch_file(const char *rel, const char *host);
+const char *rs_patch_file(const char *rel, const char *host){ return rs_weapons_patch_file(rel, host); }   /* blueprints.c (weapons.txt) */
 u32 rs_patch_heap_top(u32 t){ return t; }
 u32 rs_patch_audio(void){ return (u32)env("RS_AUDIO", 1); }
 int rs_patch_volume(void){ return 100; }

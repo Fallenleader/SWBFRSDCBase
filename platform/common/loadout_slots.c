@@ -32,6 +32,9 @@ static u32 tab[5][32]; static int len[5], ready;
 #define MAXLEN 32
 
 static int enabled(void){ static int on = -1; if (on < 0) on = rs_setting_int("RS_ANY_SLOT", 1); return on; }
+/* weapons.txt (blueprints.c): new weapons for the lists Weapon 1 / Weapon 2 / Explosive / Special Item, added after the game's */
+static u32 extra[4][16]; static int nextra[4];
+void rs_loadout_add(int list, u32 hash){ if (list >= 0 && list < 4 && nextra[list] < 16) extra[list][nextra[list]++] = hash; }
 static int has(int t, u32 id){ for (int i = 0; i < len[t]; i++) if (tab[t][i] == id) return 1; return 0; }
 static void init(void){
     if (ready) return;
@@ -41,6 +44,8 @@ static void init(void){
             int o = other[t]; if (o < 0) continue;
             for (int i = 0; i < src_n[o] && len[t] < MAXLEN; i++) { u32 id = W32(IMG(src_va[o]) + 4u * (u32)i); if (id && !has(t, id)) tab[t][len[t]++] = id; } }
         for (int t = 0; t < 4; t++) W32(IMG(0x08ADFC84) + 12u * (u32)t + 8) = (u32)len[t]; }
+    for (int t = 0; t < 4; t++) { for (int i = 0; i < nextra[t] && len[t] < MAXLEN; i++) if (!has(t, extra[t][i])) tab[t][len[t]++] = extra[t][i];
+        if (nextra[t]) W32(IMG(0x08ADFC84) + 12u * (u32)t + 8) = (u32)len[t]; }
     ready = 1; }
 
 u32 rs_loadout_table(int t){ init(); return (u32)(uintptr_t)tab[t]; }   /* symbols.h: D_08ADC5E8 etc. */
