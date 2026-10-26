@@ -5,6 +5,7 @@
  *   ..._ms.png   PBR map: R = metalness, G = smoothness, B = ambient occlusion (A reserved for a height map, not used yet);
  *                the layout Materialize-style tools give (smoothness = 1 - roughness)
  *   ..._n.png    tangent-space normal map (OpenGL convention, +Y up)
+ *   ..._mask.png characters' colour mask, read into the colour file's alpha (white: own colour, mid grey: colour 1, black: colour 2)
  *
  * <key> = CRC-32 of the texture's level-0 texel bytes as the game stores them (8 lowercase hex digits; tools/asura/extract.py writes the
  * key of every texture into manifest.json).  <pal> = the runtime palette id; RS_MOD_DUMP=1 writes every texture the game uploads as
@@ -14,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <dirent.h>
 #include <ctype.h>
 #include <sys/stat.h>
@@ -59,6 +61,7 @@ static int scan_dir(const char *dir, int depth){
         const char *ext = s + l - 4; if (strcmp(ext, ".png") && strcmp(ext, ".PNG")) continue;
         char k[9]; memcpy(k, s, 8); k[8] = 0; unsigned long long key = (unsigned long long)strtoul(k, 0, 16) << 32; const char *r = s + 8;
         if (*r == '-' && (size_t)(r + 9 - s) <= l - 4 && hex8(r + 1)) { memcpy(k, r + 1, 8); key |= strtoul(k, 0, 16); r += 9; }
+        if ((size_t)(ext - r) >= 5 && !strncmp(ext - 5, "_mask", 5)) continue;                 /* a colour mask: read with its colour file */
         if (*r == '@') { const char *x = ext; if (x - r > 3 && !strncmp(x - 3, "_ms", 3)) x -= 3; else if (x - r > 2 && !strncmp(x - 2, "_n", 2)) x -= 2; r = x; }   /* a label (dumps): ignored */
         size_t rl = (size_t)(ext - r); int slot;
         if (rl == 0) slot = 0; else if (rl == 3 && !strncmp(r, "_ms", 3)) slot = 1; else if (rl == 2 && !strncmp(r, "_n", 2)) slot = 2; else continue;
@@ -118,4 +121,14 @@ void rs_texrep_dump(u32 key, u32 pal, int w, int h, const u32 *rgba){
 /* write RGBA8 as a PNG (0 = written) */
 int rs_png_write(const char *path, int w, int h, const u32 *rgba){ return stbi_write_png(path, w, h, 4, rgba, w * 4) ? 0 : -1; }
 /* decode a PNG to RGBA8 (malloc'd, caller frees with free()) */
-u8 *rs_png_load(const char *path, int *w, int *h){ int c; return stbi_load(path, w, h, &c, 4); }
+/* a PNG as RGBA; a colour file with <name>_mask.png next to it gets its alpha channel from the mask (its grey level: characters'
+ * colour masks, white = the texture's own colour, mid grey = Personalisation colour 1, black = colour 2), scaled to the colour size */
+u8 *rs_png_load(const char *path, int *w, int *h){
+    int c; u8 *px = stbi_load(path, w, h, &c, 4); if (!px) return NULL;
+    size_t l = strlen(path); if (l < 5 || l > 1000 || strcasecmp(path + l - 4, ".png")) return px;
+    char mp[1024]; memcpy(mp, path, l - 4); strcpy(mp + l - 4, "_mask.png");
+    struct stat st; if (stat(mp, &st) != 0) return px;
+    int mw, mh; u8 *m = stbi_load(mp, &mw, &mh, &c, 4); if (!m) return px;
+    for (int y = 0; y < *h; y++) for (int x = 0; x < *w; x++) { const u8 *q = m + ((size_t)(y * mh / *h) * mw + (size_t)(x * mw / *w)) * 4;
+        px[((size_t)y * *w + x) * 4 + 3] = (u8)((q[0] * 77 + q[1] * 150 + q[2] * 29 + 128) >> 8); }
+    stbi_image_free(m); return px; }

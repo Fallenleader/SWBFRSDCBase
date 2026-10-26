@@ -181,11 +181,11 @@ int rs_fx_local_lights(rs_fx_light_t *out, int max){
 #define QN 64
 static char *queue[QN]; static int qh, qt, worker_on; static pthread_cond_t qc = PTHREAD_COND_INITIALIZER; static pthread_mutex_t qm = PTHREAD_MUTEX_INITIALIZER;
 typedef struct { char map[64], file[64]; int n_new, n_all, loadscreen; } dctx_t;
-/* sanitise a label: letters, digits, '-' and '_' (and never ending in _n / _ms, the PBR suffixes) */
+/* sanitise a label: letters, digits, '-' and '_' (and never ending in _n / _ms / _mask, the suffixes of the extra maps) */
 static void label(const char *in, char *out, size_t cap){
     size_t j = 0; for (const char *c = in; *c && j + 2 < cap; c++) { char ch = (char)tolower((unsigned char)*c); out[j++] = isalnum((unsigned char)ch) || ch == '-' || ch == '_' ? ch : '-'; }
     out[j] = 0;
-    size_t l = strlen(out); if ((l >= 2 && !strcmp(out + l - 2, "_n")) || (l >= 3 && !strcmp(out + l - 3, "_ms"))) { if (l + 1 < cap) { out[l] = '-'; out[l + 1] = 0; } } }
+    size_t l = strlen(out); if ((l >= 2 && !strcmp(out + l - 2, "_n")) || (l >= 3 && !strcmp(out + l - 3, "_ms")) || (l >= 5 && !strcmp(out + l - 5, "_mask"))) { if (l + 1 < cap) { out[l] = '-'; out[l + 1] = 0; } } }
 /* the dump folder of a texture from its resource name: "\graphics\characters\mediumrebel.tga" -> players/mediumrebel */
 static void category(const char *res, const dctx_t *c, char *out, size_t cap){
     char n[256]; size_t j = 0; for (const char *s = res; *s && j + 1 < sizeof n; s++) n[j++] = *s == '\\' ? '/' : (char)tolower((unsigned char)*s); n[j] = 0;
@@ -210,6 +210,15 @@ static void dump_tex(const char *name, uint32_t key, const uint32_t *rgba, int w
     char dir[800]; snprintf(dir, sizeof dir, "%s/mods/dumps/%s", rs_fx_data_dir(), cat); rs_mkdirs(dir);
     char p[1100]; snprintf(p, sizeof p, "%s/%08x@%s.png", dir, (unsigned)key, lb); c->n_all++;
     struct stat st; if (stat(p, &st) == 0) return;
+    if (!strncmp(cat, "players", 7)) {
+        /* characters and heads: the alpha channel is the colour mask of Personalisation's two colours (opaque white = the
+         * texture's own colour, mid grey = colour 1 / team, black = colour 2 / uniform), so the colour picture is written
+         * opaque and the mask next to it as <key>@<name>_mask.png (texrep.c puts it back into the alpha channel) */
+        uint32_t *o = malloc((size_t)w * h * 4), *m = malloc((size_t)w * h * 4); if (!o || !m) { free(o); free(m); return; }
+        for (int i = 0; i < w * h; i++) { uint32_t a = rgba[i] >> 24; o[i] = rgba[i] | 0xFF000000u; m[i] = 0xFF000000u | a << 16 | a << 8 | a; }
+        char q[1100]; snprintf(q, sizeof q, "%s/%08x@%s_mask.png", dir, (unsigned)key, lb);
+        if (!rs_png_write(p, w, h, o)) c->n_new++;
+        rs_png_write(q, w, h, m); free(o); free(m); return; }
     if (!rs_png_write(p, w, h, rgba)) c->n_new++; }
 static void *dump_thread(void *arg){
     (void)arg;
