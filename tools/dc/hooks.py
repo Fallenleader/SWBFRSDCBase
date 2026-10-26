@@ -22,6 +22,8 @@ HOOKS = {
     '08A34280': {'after': 'rs_credits_init(a0)'},                           # Customize Load-out: credits reset (game_24.c): loadout_slots.c
     '08A35B00': {'replace': 'rs_parts_accept(a0, a1, &r_)'},                  # Personalisation carousel: item chosen
     '08956118': {'replace': 'rs_ai_pool_init()'},
+    '08926220': {'after': 'rs_ai_squad_caps(a0)'},                              # AI: a team's squad sizes (game_12.c): game_patches.c
+    '08926478': {'replace': 'rs_ai_assign(a0, a1, a2)'},              # AI: a squad sent to a command post
     '088346E0': {'replace': 'rs_text_get(a0, a1, &r_)'},                       # text table string n (bot names past 48): game_patches.c                              # AI object pool (behaviours, goals): game_patches.c
 }
 # data symbols (symbols.h) redirected to native data: address -> expression

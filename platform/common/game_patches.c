@@ -77,6 +77,52 @@ int rs_ai_pool_init(void){
     fprintf(stderr, "[PATCH] AI object pool: %d blocks of %u bytes (the game's 128)\n", n, sz);
     return 1; }
 
+/* AI squads and command posts (traced in the decompiled code; Ghidra names FUN_xxx = func_xxx).  Each team's commander
+ * (func_089279D4 and the functions next to it) puts its bots in squads and sends squads to command posts:
+ *  - squad sizes: func_08926220 counts the team's bots, clamps the count to 16 and copies that row of a table (0x08AD9888, ten
+ *    sizes a row; 16 bots: 4,3,3,3,3) to commander +0x10; func_0892774C fills squads up to those sizes and gives a bot that fits
+ *    nowhere a squad of its own (one bot) while there are squad slots (ten), the rest of the team in no squad at all;
+ *  - command posts: commander +0x48 = the posts to take (next to ours), +0x49 = ours to hold (next to the enemy's), +0x50 a
+ *    priority each; func_08926478(commander, squad, post) sends a squad (order 0x3F2, squad +0x3C the post); the squad then
+ *    attacks or holds the post by whose it is.  Squad +0xAC = its bots.
+ * With more than 16 bots a side the squads stayed those of 16 and the rest stood about as one-bot squads or with no squad at all,
+ * and squads sent to hold a post parked their bots there.  So:
+ *  - more than 16 bots a side (offline): eight squads for all of them, the first three of at most 5 bots (rs_ai_squad_caps);
+ *  - every game: a post of ours is held by at most RS_AI_DEFENDERS bots (5): a squad that would go past that is sent to the
+ *    best post to take instead (rs_ai_assign). */
+extern u64 func_0898BC68(u32, u32);
+extern u32 func_08926FD0(u32);
+extern void func_08926478(u32, u32, u32);
+#define CP_IDS   0x08B1B510u      /* the map's command posts (ids), CP_COUNT of them (at most 8) */
+#define CP_COUNT 0x08C25390u
+void rs_ai_squad_caps(u32 cmd){
+    if (!on() || GU8(IMG(MODE_NETWORK)) == 1 || !cmd) return;
+    u32 n = (GU32(IMG(VAR_PLAYERS_SP)) + 1) / 2; if (n <= 16) return;
+    u32 cap[10] = {0}, left = n;
+    for (int i = 0; i < 3; i++) { cap[i] = left < 5 ? left : 5; left -= cap[i]; }
+    for (int i = 3; i < 8; i++) { u32 k = (u32)(8 - i); cap[i] = (left + k - 1) / k; left -= cap[i]; }
+    for (int i = 0; i < 10; i++) GU32(cmd + 0x10 + 4u * (u32)i) = cap[i];
+    { static u32 last; if (last != n) { last = n; fprintf(stderr, "[PATCH] AI squads for %u bots a side: %u %u %u %u %u %u %u %u\n", n, cap[0], cap[1], cap[2], cap[3], cap[4], cap[5], cap[6], cap[7]); } } }
+int rs_ai_assign(u32 cmd, u32 sq, u32 cp){
+    static int inside;
+    if (inside || !on() || !cmd) return 0;
+    int lim = rs_setting_int("RS_AI_DEFENDERS", 5); if (lim <= 0) return 0;
+    u32 team = GU32(cmd + 4); if (!team) return 0;
+    u32 i = func_08926FD0(cp), ncp = GU32(IMG(CP_COUNT)); if (i >= 8 || ncp > 8) return 0;
+    if (rs_setting_int("RS_AI_LOG", 0) > 1) fprintf(stderr, "[AI] commander %08x team %u: squad %u -> post %u (#%u) hold %02x take %02x ours %02x\n", cmd, GU32(team + 0x4C), sq, cp, i, GU8(cmd + 0x49), GU8(cmd + 0x48), GU8(cmd + 0x4A));
+    if (!((GU8(cmd + 0x49) >> i) & 1)) return 0;                      /* not a post of ours to hold */
+    u32 me = (u32)func_0898BC68(team, sq); if (!me) return 0;
+    u32 sum = GU32(me + 0xAC), ns = GU32(team + 0x48); if (ns > 10) ns = 10;
+    for (u32 j = 0; j < ns; j++) { if (j == sq) continue; u32 s = (u32)func_0898BC68(team, j);
+        if (s && GU32(s + 0x3C) == cp && GU32(s + 0x4C) == 0x3F2) sum += GU32(s + 0xAC); }
+    if ((int)sum <= lim) return 0;
+    u32 best = 999; float bp = -1e30f;
+    for (u32 k = 0; k < ncp; k++) if ((GU8(cmd + 0x48) >> k) & 1) { float p = GF32(cmd + 0x50 + 4u * k); if (p > bp) { bp = p; best = GU32(IMG(CP_IDS) + 4u * k); } }
+    for (u32 k = 0; k < ncp && best == 999; k++) if (!((GU8(cmd + 0x4A) >> k) & 1)) best = GU32(IMG(CP_IDS) + 4u * k);   /* any post not ours */
+    if (best == 999 || best == cp) return 0;
+    if (rs_setting_int("RS_AI_LOG", 0)) fprintf(stderr, "[AI] squad %u (%u bots) not sent to hold post %u (%u bots there with it): to post %u\n", sq, GU32(me + 0xAC), cp, sum, best);
+    inside = 1; func_08926478(cmd, sq, best); inside = 0; return 1; }
+
 /* Bot names.  Each faction's names are a text table (TEXT/BOTNAMES_{ALLIANCE,EMPIRE,CIS,REPUBLIC}.ASR: 48 names each, in the
  * language played); the bot fill takes name n of the bot's faction (func_0883458C -> func_088346E0(table, n)), which is NULL past the
  * table's end, so with more than 48 bots on a side the rest were called "[NULL]".  Past the end this makes a new name from the same
