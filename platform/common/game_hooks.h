@@ -7,6 +7,8 @@ void rs_game_var_range(uint32_t name, uint32_t var, uint32_t *min, uint32_t *max
 void rs_game_var_bool(uint32_t name, uint32_t var, uint32_t a2, uint32_t a3);    /* renderer_option.c: the Options menu's renderer switch */
 void rs_patches_frame(void);                                     /* game_patches.c: after each pad read: network games keep the game's ticket range */
 int  rs_ai_pool_init(void);                                       /* game_patches.c: the AI object pool, sized for the raised player counts */
+void rs_ai_squad_caps(uint32_t commander);                       /* game_patches.c: squad sizes for teams of more than 16 bots */
+int  rs_ai_assign(uint32_t commander, uint32_t squad, uint32_t post);   /* game_patches.c: at most RS_AI_DEFENDERS bots hold a command post */
 int  rs_text_get(uint32_t table, uint32_t idx, uint32_t *rv);    /* game_patches.c: bot names past the end of a faction's 48 */
 /* colour_picker.c: Personalisation colours chosen with an HSV picker */
 void rs_picker_pad(void);                                        /* after each pad read: the picker's input (the game sees none) */
