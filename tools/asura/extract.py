@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """Renegade Squadron (PSP, Asura engine) asset extractor.  Python 2.7 (Maya 2020) and 3.x.
 usage: extract.py <file.PSP|.ASR|.GUI|...> [more files] -o <out dir>
-Writes per input file: textures/*.png (+ textures.json: name -> runtime replacement key), models/*.obj|.mtl|.skeleton.json,
+Writes per input file: textures/*.png (+ textures.json: name -> runtime replacement key), models/*.obj|.mtl|.skeleton.json|.fbx (skeleton + skin),
 env/Env.obj|.mtl (level geometry, one group per material), sounds/*.wav, manifest.json."""
 from __future__ import print_function
 import os, sys, json, struct
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chunks import chunks
 from rscf import rscf
-import texture, model, skeleton, env, lists, vag, pngw, fnv
+import texture, model, skeleton, env, lists, vag, pngw, fnv, fbx
 
 def safe(name): return name.replace('\\', '/').lstrip('/').replace(':', '_')
 def mkdirs(p):
@@ -92,6 +92,8 @@ def extract(path, out):
                     tex_rel = None
                     if last_text: tex_rel = 'textures/' + os.path.splitext(safe('graphics' + last_text[0]))[0] + '.png'
                     rel = write_rigid(out, name, m, sk, tex_rel); man['models'].append({'name': name, 'obj': rel, 'parts': len(m['parts']), 'skeleton': base if sk else None})
+                    fb = os.path.join(out, 'models', safe(name).replace('#', '_') + '.fbx')     # FBX with the skeleton and the skin (weights)
+                    fbx.write(fb, os.path.basename(safe(name).replace('#', '_')), m, sk, ('../' + tex_rel) if tex_rel else None)
                     if sk and not os.path.exists(os.path.join(out, 'models', safe(base) + '.skeleton.json')):
                         json.dump({'name': base, 'bones': sk['bones']}, open(os.path.join(out, 'models', safe(base) + '.skeleton.json'), 'w'), indent=1)
                 elif typ == 0 and v == 1 and name == 'Env':
