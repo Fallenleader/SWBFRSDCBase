@@ -43,9 +43,14 @@ extern rv_t func_08A35BB0(u32, u32, u32, u32, u32, u32, u32, u32, float, float, 
 
 #define NB 3                                        /* bodies of a faction, and heads of a body */
 static int enabled(void){ static int on = -1; if (on < 0) on = rs_setting_int("RS_ANY_HEAD", 1); return on; }
+/* the game's factions: 0 Republic, 1 CIS, 2 Alliance, 3 Empire.  The CIS droids' heads do not fit each other's bodies, so the CIS
+ * keeps the game's own heads (RS_ANY_HEAD_CIS=1 lists them anyway, for custom meshes) */
+#define FACTION_CIS 1
+static int faction_ok(u32 faction){ static int cis = -1; if (cis < 0) cis = rs_setting_int("RS_ANY_HEAD_CIS", 0); return faction != FACTION_CIS || cis; }
 
 int rs_head_lookup(u32 faction, u32 head, u32 body, u32 *rv){
     if (head < NB || head >= NB + NB * NB) return 0;                /* the game's own: a head of this body */
+    if (!faction_ok(faction)) { *rv = func_08977FFC(faction, 0, body); return 1; }   /* (a profile saved with another body's CIS head) */
     head -= NB; *rv = func_08977FFC(faction, head % NB, head / NB); return 1; }
 
 static u32 category(void){ return func_08899420(IMG(0x08AE3558), 0, 0, 0); }   /* 0 Body, 1 Head (the carousel's) */
@@ -63,11 +68,11 @@ void rs_parts_frame(void){
     if (!enabled()) return;
     u32 w = func_0888B320(0x7EA08E83u, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).v0;
     if ((s32)w <= 0) return;
-    u32 want = category() == 1 ? NB * NB : NB;
+    u32 want = category() == 1 && faction_ok(func_08A28C68()) ? NB * NB : NB;
     if (W32(w + 408) != want) func_0888FC44(w, want); }
 
 int rs_parts_list(u32 index, u32 flag, void *rv){
-    if (!enabled() || (flag & 0xFF) || category() != 1) return 0;
+    if (!enabled() || (flag & 0xFF) || category() != 1 || !faction_ok(func_08A28C68())) return 0;
     rv_t *r = rv; r->v0 = 0; r->v1 = 0; r->f0 = 0;
     u32 faction = func_08A28C68(), last = IMG(0x08B1C2D0), cat = category();
     if (W32(last) != cat) {                                          /* the carousel has just been opened: select the stored head */
@@ -88,7 +93,7 @@ int rs_parts_list(u32 index, u32 flag, void *rv){
 /* the item's 3D head: the game's own, listed for the item's body (made current for the call) */
 int rs_parts_anim(u32 index, u32 flag, void *rv){
     static int inside;
-    if (inside || !enabled() || (flag & 0xFF) || category() != 1) return 0;
+    if (inside || !enabled() || (flag & 0xFF) || category() != 1 || !faction_ok(func_08A28C68())) return 0;
     rv_t *r = rv; r->v0 = 0; r->v1 = 0; r->f0 = 0;
     if (index >= NB * NB) return 1;
     u32 rec = func_08A3729C(); if (!rec) return 0;
@@ -97,7 +102,7 @@ int rs_parts_anim(u32 index, u32 flag, void *rv){
     inside = 0; W32(rec) = b; return 1; }
 
 int rs_parts_accept(u32 index, u32 flag, void *rv){
-    if (!enabled() || (flag & 0xFF) || category() != 1) return 0;
+    if (!enabled() || (flag & 0xFF) || category() != 1 || !faction_ok(func_08A28C68())) return 0;
     rv_t *r = rv; r->v0 = 1; r->v1 = 0; r->f0 = 0;
     u32 rec = func_08A3729C();
     if (rec && index < NB * NB) W32(rec + 4) = index / NB == W32(rec) ? index % NB : NB + index;
