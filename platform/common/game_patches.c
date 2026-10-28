@@ -50,6 +50,7 @@ void rs_game_var_range(u32 name, u32 var, u32 *min, u32 *max){
 
 /* every frame (after the pad read): a network game keeps the game's own ticket range */
 void rs_patches_frame(void){
+    { extern void rs_ai_frame(void); rs_ai_frame(); }                    /* idle squads (below) */
     if (!on() || GU8(IMG(MODE_NETWORK)) != 1) return;
     u32 t = GU32(IMG(VAR_TICKETS));
     if (t > 200) GU32(IMG(VAR_TICKETS)) = 200; else if (t < 25) GU32(IMG(VAR_TICKETS)) = 25; }
@@ -96,7 +97,10 @@ extern u32 func_08926FD0(u32);
 extern void func_08926478(u32, u32, u32);
 #define CP_IDS   0x08B1B510u      /* the map's command posts (ids), CP_COUNT of them (at most 8) */
 #define CP_COUNT 0x08C25390u
+#define UL_COUNT 0x08C2C56Cu       /* the game's soldier count (the list below) */
+static u32 ai_cmd[2];                                              /* the two commanders (rs_ai_squad_caps sees them) */
 void rs_ai_squad_caps(u32 cmd){
+    if (cmd && GU32(cmd + 4)) ai_cmd[GU32(GU32(cmd + 4) + 0x4C) & 1] = cmd;
     if (!on() || GU8(IMG(MODE_NETWORK)) == 1 || !cmd) return;
     u32 n = (GU32(IMG(VAR_PLAYERS_SP)) + 1) / 2; if (n <= 16) return;
     u32 cap[10] = {0}, left = n;
@@ -104,10 +108,40 @@ void rs_ai_squad_caps(u32 cmd){
     for (int i = 3; i < 8; i++) { u32 k = (u32)(8 - i); cap[i] = (left + k - 1) / k; left -= cap[i]; }
     for (int i = 0; i < 10; i++) GU32(cmd + 0x10 + 4u * (u32)i) = cap[i];
     { static u32 last; if (last != n) { last = n; fprintf(stderr, "[PATCH] AI squads for %u bots a side: %u %u %u %u %u %u %u %u\n", n, cap[0], cap[1], cap[2], cap[3], cap[4], cap[5], cap[6], cap[7]); } } }
+/* best post for a squad to go to: the take post with the highest priority, else any post not ours (999: none) */
+static u32 ai_best_post(u32 cmd){
+    u32 ncp = GU32(IMG(CP_COUNT)); if (ncp > 8) return 999;
+    u32 best = 999; float bp = -1e30f;
+    for (u32 k = 0; k < ncp; k++) if ((GU8(cmd + 0x48) >> k) & 1) { float p = GF32(cmd + 0x50 + 4u * k); if (p > bp) { bp = p; best = GU32(IMG(CP_IDS) + 4u * k); } }
+    for (u32 k = 0; k < ncp && best == 999; k++) if (!((GU8(cmd + 0x4A) >> k) & 1)) best = GU32(IMG(CP_IDS) + 4u * k);
+    return best; }
+/* Squads the commander has formed but not sent anywhere (target post 999) stand where they spawned until their bots die and
+ * respawn into other squads - most of a side at the start of a match.  Every second (offline), such a squad is sent to the
+ * best post to take.  The commanders are forgotten between matches. */
+void rs_ai_debug(unsigned fr);
+void rs_ai_frame(void){
+    static unsigned fr;
+    if (GU32(IMG(UL_COUNT)) == 0) { ai_cmd[0] = ai_cmd[1] = 0; return; }
+    if (!on() || GU8(IMG(MODE_NETWORK)) == 1 || ++fr % 30) return;
+    { static int dbg = -1; if (dbg < 0) dbg = getenv("RS_AI_DEBUG") != 0; if (dbg && fr % 300 == 0) rs_ai_debug(fr); }
+    if (!rs_setting_int("RS_AI_IDLE_FIX", 1)) return;
+    for (int c = 0; c < 2; c++) { u32 cmd = ai_cmd[c]; if (!cmd) continue; u32 team = GU32(cmd + 4); if (!team) continue;
+        u32 ns = GU32(team + 0x48); if (ns > 10) ns = 10;
+        for (u32 j = 0; j < ns; j++) { u32 sq = (u32)func_0898BC68(team, j); if (!sq || !GU32(sq + 0xAC) || GU32(sq + 0x3C) != 999 || GU8(sq + 0x2A) || GU8(sq + 0x2C)) continue;
+            u32 best = ai_best_post(cmd); if (best == 999) break;
+            if (rs_setting_int("RS_AI_LOG", 0)) fprintf(stderr, "[AI] team %u: idle squad %u (%u bots) sent to post %u\n", GU32(team + 0x4C), j, GU32(sq + 0xAC), best);
+            func_08926478(cmd, j, best); } } }
+void rs_ai_debug(unsigned fr){
+    for (int c = 0; c < 2; c++) { u32 cmd = ai_cmd[c]; if (!cmd) continue; u32 team = GU32(cmd + 4); if (!team) continue;
+        u32 ns = GU32(team + 0x48); if (ns > 10) ns = 10;
+        fprintf(stderr, "[AIDBG] f%u team %u posts take %02x hold %02x ours %02x squads %u:", fr, GU32(team + 0x4C), GU8(cmd + 0x48), GU8(cmd + 0x49), GU8(cmd + 0x4A), ns);
+        for (u32 j = 0; j < ns; j++) { u32 sq = (u32)func_0898BC68(team, j); if (!sq) { fprintf(stderr, " -"); continue; }
+            fprintf(stderr, " [%u: %u bots, order %x post %u, %02x%02x]", j, GU32(sq + 0xAC), GU32(sq + 0x4C), GU32(sq + 0x3C), GU8(sq + 0x2A), GU8(sq + 0x2C)); }
+        fprintf(stderr, "\n"); } }
 int rs_ai_assign(u32 cmd, u32 sq, u32 cp){
     static int inside;
     if (inside || !on() || !cmd) return 0;
-    int lim = rs_setting_int("RS_AI_DEFENDERS", 5); if (lim <= 0) return 0;
+    int lim = rs_setting_int("RS_AI_DEFENDERS", 0); if (lim < 0) return 0;        /* -1: the game's own choice; 0: no defenders */
     u32 team = GU32(cmd + 4); if (!team) return 0;
     u32 i = func_08926FD0(cp), ncp = GU32(IMG(CP_COUNT)); if (i >= 8 || ncp > 8) return 0;
     if (rs_setting_int("RS_AI_LOG", 0) > 1) fprintf(stderr, "[AI] commander %08x team %u: squad %u -> post %u (#%u) hold %02x take %02x ours %02x\n", cmd, GU32(team + 0x4C), sq, cp, i, GU8(cmd + 0x49), GU8(cmd + 0x48), GU8(cmd + 0x4A));
@@ -117,9 +151,7 @@ int rs_ai_assign(u32 cmd, u32 sq, u32 cp){
     for (u32 j = 0; j < ns; j++) { if (j == sq) continue; u32 s = (u32)func_0898BC68(team, j);
         if (s && GU32(s + 0x3C) == cp && GU32(s + 0x4C) == 0x3F2) sum += GU32(s + 0xAC); }
     if ((int)sum <= lim) return 0;
-    u32 best = 999; float bp = -1e30f;
-    for (u32 k = 0; k < ncp; k++) if ((GU8(cmd + 0x48) >> k) & 1) { float p = GF32(cmd + 0x50 + 4u * k); if (p > bp) { bp = p; best = GU32(IMG(CP_IDS) + 4u * k); } }
-    for (u32 k = 0; k < ncp && best == 999; k++) if (!((GU8(cmd + 0x4A) >> k) & 1)) best = GU32(IMG(CP_IDS) + 4u * k);   /* any post not ours */
+    u32 best = ai_best_post(cmd);
     if (best == 999 || best == cp) return 0;
     if (rs_setting_int("RS_AI_LOG", 0)) fprintf(stderr, "[AI] squad %u (%u bots) not sent to hold post %u (%u bots there with it): to post %u\n", sq, GU32(me + 0xAC), cp, sum, best);
     inside = 1; func_08926478(cmd, sq, best); inside = 0; return 1; }
@@ -130,7 +162,6 @@ int rs_ai_assign(u32 cmd, u32 sq, u32 cp){
  * 32 soldiers the counts went wrong and, when everyone is removed at the end of a match, the game read outside its memory and
  * crashed.  The list is now native, 256 slots (the symbol is redirected, tools/dc/hooks.py), and a soldier not in it is left alone. */
 #define UL_MAX 256
-#define UL_COUNT 0x08C2C56Cu
 #define UL_SIDE1 0x08C2C570u
 #define UL_SIDE2 0x08C2C574u
 #define UL_FLAG  0x08C2C4E8u
@@ -195,3 +226,38 @@ int rs_text_get(u32 table, u32 idx, u32 *rv){
     for (int i = 0; i < n; i++) G16(m + 2u * (u32)i) = out[i];
     if (rs_setting_int("RS_LOG_BOTNAMES", 0)) { char t[64]; for (int i = 0; i < n; i++) t[i] = out[i] < 128 ? (char)out[i] : '?'; fprintf(stderr, "[PATCH] bot name %d/%u of faction %d: %s\n", (int)idx, cnt, fac, t); }
     made[fac][idx] = m; *rv = m; return 1; }
+
+/* New lines of text (Weapons_Mod.txt Name = / DescriptionText =, blueprints.c): the game's text lookup (func_08834304, the line n of
+ * TEXT/STDTEXT.ASR for the language in use, or 0 past its count) returns them for the numbers after the file's own. */
+int rs_weapons_text16(u32 id, u16 *out, int max);
+int rs_stdtext_get(u32 id, u32 *rv){
+    static u32 ids[64], at[64]; static int n;
+    for (int i = 0; i < n; i++) if (ids[i] == id) { *rv = at[i]; return 1; }
+    u16 w[512]; int k = rs_weapons_text16(id, w, 512); if (k <= 0 || n == 64) return 0;
+    u16 *g = rs_guest_alloc(sizeof(u16) * (size_t)k, 4); memcpy(g, w, sizeof(u16) * (size_t)k);
+    ids[n] = id; at[n] = GA(g); n++; *rv = GA(g); return 1; }
+
+/* Vehicles and soldiers (tools/dc/hooks.py: func_089D7D08 is the game's vehicle-against-soldier contact, reached from
+ * func_089D74B4 for a contact with an object of type 0x8005; it reacts to the soldier with the vehicle's and the soldier's physics).
+ * RS_VEHICLE_RUNOVER=1: a soldier on the side of whoever is aboard is left alone (no contact reaction, so the vehicle is not
+ * held up by friendly soldiers); an enemy soldier gets the game's damage message (type 0x9E500986, as func_089D710C sends:
+ * { type, source id, source +0x54, amount }) for far more than any health, so being run over kills.  An empty vehicle, or a
+ * soldier that is not in the game's soldier list, keeps the game's own reaction. */
+extern u32 func_089D194C(u32);
+static u32 obj_id(u32 o){ return GU32(o + GU32(GU32(o) - 16) + 4); }
+static int obj_type(u32 o){ return (int)GU16(o + GU32(GU32(o) - 16) + 8); }
+static int unit_side(u32 u){ return (int)(u32)func_08A26FC0(GU32(u + 64)); }
+int rs_vehicle_hit(u32 veh, u32 man){
+    static int on_ = -1; if (on_ < 0) on_ = rs_setting_int("RS_VEHICLE_RUNOVER", 1);
+    if (!on_ || !on() || !veh || !man || obj_type(man) != 0x8005) return 0;
+    u32 l = rs_unit_list(), n = GU32(IMG(UL_COUNT)), vid = obj_id(veh); if (n > UL_MAX) n = UL_MAX;
+    int inlist = 0, side = -1;
+    for (u32 i = 0; i < n; i++) { u32 s = GU32(l + 4 * i); if (!s) continue; if (s == man) { inlist = 1; continue; }
+        if (side < 0 && func_089D194C(s) == vid) side = unit_side(s); }
+    if (!inlist || side < 0) return 0;
+    if (unit_side(man) == side) return 1;                               /* friendly: drive on */
+    static u32 msg; if (!msg) msg = GA(rs_guest_alloc(16, 16));
+    GU32(msg) = 0x9E500986u; GU32(msg + 4) = vid; GU32(msg + 8) = GU32(veh + 0x54); GF32(msg + 12) = 100000.0f;
+    if (rs_setting_int("RS_AI_LOG", 0)) fprintf(stderr, "[VEHICLE] %08x ran over an enemy soldier %08x\n", veh, man);
+    ((ifn_t)GFN(GU32(GU32(man) + 8)))(man, msg, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    return 1; }

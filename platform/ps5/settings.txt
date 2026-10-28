@@ -27,6 +27,8 @@ RS_CPU_PIN=1
 # ---- controls
 # 1 = left stick move + strafe, right stick turn + look; 0 = the PSP's one-stick controls
 RS_TWIN_STICK=1
+# twin-stick turning acceleration, percent: how fast turning picks up when the right stick is pushed (100 = the game's; 130 = 30% faster)
+RS_TURN_ACCEL=130
 
 # ---- game options (offline games only; network games keep the game's 16 players and 25..200 tickets)
 # 0 = the game's original option limits
@@ -50,10 +52,15 @@ RS_CREDITS=200
 RS_AUDIO=1
 
 # ---- AI and weapons
-# most bots sent to hold one of their own command posts (the rest go to take posts); 0 = the game's own choice
-RS_AI_DEFENDERS=5
-# weapons.txt next to this file: the game's weapons, projectiles and laser bolts, written with the game's own values the first
-# time and read at every start (edit values, add new weapons); 0 = the game's own weapons (weapons.txt not read)
+# most bots sent to hold one of their own command posts: 0 = no defenders (every squad attacks or takes posts); -1 = the game's own choice
+RS_AI_DEFENDERS=0
+# 1 = squads the game forms but sends nowhere (most of a side at the start of a match) are sent to the best post to take
+RS_AI_IDLE_FIX=1
+# vehicles and soldiers: 1 = friendly soldiers do not hold a vehicle up, an enemy soldier hit by a vehicle with someone aboard dies
+RS_VEHICLE_RUNOVER=1
+# Weapons_Mod.txt next to this file: changes to the game's weapons and new weapons (with on-screen names), in sections per
+# faction; read at every start.  Weapons_<CIS|Republic|Imperial|Rebels|HV|All|Vehicles>_Default.txt: the game's own values,
+# rewritten at every start for reference.  0 = the game's own weapons (Weapons_Mod.txt not read)
 RS_WEAPONS=1
 # any head on any body: the CIS too (off: the droids' heads do not fit each other's bodies)
 RS_ANY_HEAD_CIS=0

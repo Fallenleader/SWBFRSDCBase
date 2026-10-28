@@ -4641,7 +4641,7 @@ L_088342EC:;
 }
 
 /* 08834304 */
-u32 func_08834304(u32 a0)
+static u32 func_08834304__orig(u32 a0)
 {
     u32 v0 = 0, v1 = 0;
     int cnd_;
@@ -4677,6 +4677,13 @@ L_0883433C:;
 L_08834340:;
     v0 = v1 + 0;
     return v0;
+}
+
+u32 func_08834304(u32 a0)
+{
+    u32 r_ = 0;
+    if (rs_stdtext_get(a0, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08834304__orig(a0);
 }
 
 /* 08834348 */

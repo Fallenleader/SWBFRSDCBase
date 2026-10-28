@@ -23,7 +23,9 @@ HOOKS = {
     '08A35B00': {'replace': 'rs_parts_accept(a0, a1, &r_)'},                  # Personalisation carousel: item chosen
     '08956118': {'replace': 'rs_ai_pool_init()'},
     '08A0AD64': {'replace': 'rs_unit_list_add(a0, &r_)'},                       # a soldier added to that list (game_23.c)
-    '08A0ADFC': {'replace': 'rs_unit_list_remove(a0, &r_)'},                    # and removed
+    '08A0ADFC': {'replace': 'rs_unit_list_remove(a0, &r_)'},
+    '08834304': {'replace': 'rs_stdtext_get(a0, &r_)'},                       # STDTEXT line n: Weapons_Mod.txt names past the file's own (game_02.c)                    # and removed
+    '089D7D08': {'replace': 'rs_vehicle_hit(a0, a1)'},                         # vehicle against soldier contact: friendly pass, enemy run over (game_20.c)
     '08926220': {'after': 'rs_ai_squad_caps(a0)'},                              # AI: a team's squad sizes (game_12.c): game_patches.c
     '08926478': {'replace': 'rs_ai_assign(a0, a1, a2)'},              # AI: a squad sent to a command post
     '088346E0': {'replace': 'rs_text_get(a0, a1, &r_)'},                       # text table string n (bot names past 48): game_patches.c                              # AI object pool (behaviours, goals): game_patches.c
