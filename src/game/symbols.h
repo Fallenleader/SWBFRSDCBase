@@ -4,6 +4,7 @@ extern u32 rs_image_w[];
 #define rs_image ((u8 *)rs_image_w)
 #define RS_IMAGE_BASE 0x08804000u
 u32 rs_loadout_table(int);   /* native hook (tools/dc/hooks.py) */
+u32 rs_loadout_table(int); u32 rs_unit_list(void);   /* native hook (tools/dc/hooks.py) */
 #define D_08AD2D80 ((u32)(uintptr_t)(rs_image + 0x2CED80))
 #define D_08AD3780 ((u32)(uintptr_t)(rs_image + 0x2CF780))
 #define D_08AD3798 ((u32)(uintptr_t)(rs_image + 0x2CF798))
@@ -9862,7 +9863,7 @@ u32 rs_loadout_table(int);   /* native hook (tools/dc/hooks.py) */
 #define D_08C2C3E5 ((u32)(uintptr_t)(rs_image + 0x4283E5))
 #define D_08C2C3E8 ((u32)(uintptr_t)(rs_image + 0x4283E8))
 #define D_08C2C4E8 ((u32)(uintptr_t)(rs_image + 0x4284E8))
-#define D_08C2C4EC ((u32)(uintptr_t)(rs_image + 0x4284EC))
+#define D_08C2C4EC ((u32)rs_unit_list())   /* native hook (tools/dc/hooks.py) */
 #define D_08C2C56C ((u32)(uintptr_t)(rs_image + 0x42856C))
 #define D_08C2C570 ((u32)(uintptr_t)(rs_image + 0x428570))
 #define D_08C2C574 ((u32)(uintptr_t)(rs_image + 0x428574))
