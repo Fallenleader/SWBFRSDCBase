@@ -40,7 +40,7 @@ u32 rs_patch_shadows(void){ rs_fx_init(); return (u32)rs_fx.shadows; }
 int rs_patch_shadow_res(void){ rs_fx_init(); return rs_fx.shadow_res; }
 int rs_patch_shadow_range(void){ rs_fx_init(); return rs_fx.shadow_range; }
 int rs_patch_shadow_strength(void){ rs_fx_init(); return rs_fx.shadow_strength; }
-void rs_patch_shadow_sun(float *d){ if (!rs_fx_sun(d, 0, 0)) { d[0] = 0.35f; d[1] = 0.85f; d[2] = 0.4f; } }
+void rs_patch_shadow_sun(float *d){ if (!rs_fx_sun(d, 0, 0)) { d[0] = -0.35f; d[1] = -0.85f; d[2] = -0.4f; } }   /* towards the sun (the world's Y points down) */
 u32 rs_patch_pbr(void){ rs_fx_init(); return (u32)rs_fx.pbr; }
 void rs_patch_pbr_sun(float *c, float *spec){ float d[3]; if (!rs_fx_sun(d, c, 0)) c[0] = c[1] = c[2] = 1; if (spec) *spec = 1; }
 #else

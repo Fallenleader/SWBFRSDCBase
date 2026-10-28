@@ -61,7 +61,7 @@ extern int rs_setting_int(const char *, int);
 static PFN_vkGetInstanceProcAddr gipa; static int want_display;
 static VkInstance inst; static VkPhysicalDevice phys; static VkDevice dev; static VkQueue queue; static uint32_t qfam;
 static VkPhysicalDeviceMemoryProperties memprops; static VkPhysicalDeviceProperties props;
-static int has_rt, rt_shadows, rt_refl, rt_ao, rt_gi; static float rt_ao_rad = 2, rt_ao_str = 0.7f, rt_gi_str = 0.6f, rt_gi_len = 30; static VkFormat dsfmt;
+static float sun_tint[3] = {1, 1, 1}, amb_col[3] = {0.45f, 0.45f, 0.45f}, nrm_str = 1; static int has_rt, rt_shadows, rt_refl, rt_ao, rt_gi; static float rt_ao_rad = 2, rt_ao_str = 0.7f, rt_gi_str = 0.6f, rt_gi_len = 30; static VkFormat dsfmt;
 void gfx_vk_setup(void *get_instance_proc_addr, int display){ gipa = (PFN_vkGetInstanceProcAddr)get_instance_proc_addr; want_display = display; }
 int gfx_vk_has_rt(void){ return has_rt; }
 
@@ -390,7 +390,7 @@ typedef struct {
     float vp0[4], vp1[4], vp2[4], uvt[4], fogp[4], defc[4];
     float mamb[4], mdif[4], memi[4], msca[4], lfl[4];
     float lpos[16], latt[16], lspot[16], la[16], ld[16];
-    float shm[16], shp[4], pbr[4], sun[4], sunc[4], rt[4], vinv[12], sunw[4], amb[4], rt2[4], rt3[4];
+    float shm[16], shp[4], pbr[4], sun[4], sunc[4], rt[4], vinv[12], sunw[4], amb[4], rt2[4], rt3[4], lit[4];
     float bone[96];
 } ubo_t;
 
@@ -535,12 +535,13 @@ static void flush_batch(void){
         float sv[3]; for (int k = 0; k < 3; k++) sv[k] = sh_sun[0] * V[k] + sh_sun[1] * V[3 + k] + sh_sun[2] * V[6 + k]; norm3(sv);
         u->sun[0] = sv[0]; u->sun[1] = sv[1]; u->sun[2] = sv[2];
         u->sunc[0] = pbr_sunc[0]; u->sunc[1] = pbr_sunc[1]; u->sunc[2] = pbr_sunc[2]; u->sunc[3] = 1;
-        int pbr = pbr_ok && bst.tex && (bst.texmr || bst.texn) && h->lfl[3] > 0.5f;
+        int pbr = pbr_ok && bst.tex && (bst.texmr || bst.texn);   /* (no vertex normals: the shader takes the triangle's) */
         if (pbr) { u->pbr[0] = bst.texmr ? 1.0f : 0.0f; u->pbr[1] = bst.texn ? 1.0f : 0.0f; u->pbr[2] = pbr_spec; u->pbr[3] = 1; }
         u->rt[0] = rts ? 1.0f : 0.0f; u->rt[1] = rt_refl ? 1.0f : 0.0f; u->rt[2] = rt_len; u->rt[3] = (as[fi].valid && sh_view_any && !getenv("RS_RT_NOTRACE")) ? 1.0f : 0.0f;
         if (has_rt) { static float lv[12] = {9}; if (memcmp(lv, sh_view, sizeof lv)) { memcpy(lv, sh_view, sizeof lv); inv_view(sh_view, rt_vinv); } }
         memcpy(u->vinv, rt_vinv, sizeof u->vinv); u->sunw[0] = sh_sun[0]; u->sunw[1] = sh_sun[1]; u->sunw[2] = sh_sun[2];
-        u->amb[0] = u->amb[1] = u->amb[2] = 0.45f; { static int d = -1; if (d < 0) d = getenv("RS_RT_FIXEDRAY") != 0; u->amb[3] = (float)d; }
+        u->amb[0] = amb_col[0]; u->amb[1] = amb_col[1]; u->amb[2] = amb_col[2]; { static int d = -1; if (d < 0) d = getenv("RS_RT_FIXEDRAY") != 0; u->amb[3] = (float)d; }
+        u->lit[0] = rcv ? sun_tint[0] : 1.0f; u->lit[1] = rcv ? sun_tint[1] : 1.0f; u->lit[2] = rcv ? sun_tint[2] : 1.0f; u->lit[3] = nrm_str;
         if (rcv) { u->rt2[0] = (float)rt_ao; u->rt2[1] = (float)rt_gi; u->rt2[2] = rt_ao_rad; u->rt2[3] = rt_gi_str; u->rt3[0] = 0; u->rt3[1] = rt_ao_str; u->rt3[2] = rt_gi_len; }
         push_desc(uo, bst.tex ? bst.texid : 0, tex_sampler(&bst), bst.texmr, bst.texn, 1); }
     else {
@@ -934,7 +935,7 @@ static void fx_frame(void){
 #if defined(RS_PS5) || defined(RS_GFX_FX)
     rs_fx_frame();
     { float d[3], c[3]; unsigned g = 0; static unsigned lg;
-      if (rs_fx_sun(d, c, &g) && g != lg) { lg = g; memcpy(sh_sun, d, sizeof sh_sun); norm3(sh_sun); memcpy(pbr_sunc, c, sizeof pbr_sunc); } }
+      if (rs_fx_sun(d, c, &g) && g != lg) { lg = g; memcpy(sh_sun, d, sizeof sh_sun); norm3(sh_sun); memcpy(pbr_sunc, c, sizeof pbr_sunc); rs_fx_sun_tint(sun_tint, amb_col); } }
 #endif
 }
 void gfx_before_job(void){
@@ -1049,6 +1050,7 @@ int gfx_init(void){
       pbr_ok = (int)rs_patch_pbr();
       rt_shadows = has_rt && rs_setting_int("RS_RT_SHADOWS", 1); rt_refl = has_rt && rs_setting_int("RS_RT_REFLECTIONS", 1);
       rt_len = (float)rs_setting_int("RS_RT_DISTANCE", 200);
+      nrm_str = (float)rs_setting_int("RS_NORMAL_STRENGTH", 100) / 100.0f;
       /* ray-traced ambient occlusion and one-bounce diffuse light (rays per pixel; 0 = off) */
       rt_ao = has_rt ? rs_setting_int("RS_RTAO_RAYS", 2) : 0; if (rt_ao < 0) rt_ao = 0; if (rt_ao > 16) rt_ao = 16;
       rt_gi = has_rt ? rs_setting_int("RS_RTGI_RAYS", 1) : 0; if (rt_gi < 0) rt_gi = 0; if (rt_gi > 16) rt_gi = 16;

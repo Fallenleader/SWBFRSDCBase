@@ -197,3 +197,13 @@ int rs_text_get(u32 table, u32 idx, u32 *rv){
     for (int i = 0; i < n; i++) G16(m + 2u * (u32)i) = out[i];
     if (rs_setting_int("RS_LOG_BOTNAMES", 0)) { char t[64]; for (int i = 0; i < n; i++) t[i] = out[i] < 128 ? (char)out[i] : '?'; fprintf(stderr, "[PATCH] bot name %d/%u of faction %d: %s\n", (int)idx, cnt, fac, t); }
     made[fac][idx] = m; *rv = m; return 1; }
+
+/* New lines of text (Weapons_Mod.txt Name = / DescriptionText =, blueprints.c): the game's text lookup (func_08834304, the line n of
+ * TEXT/STDTEXT.ASR for the language in use, or 0 past its count) returns them for the numbers after the file's own. */
+int rs_weapons_text16(u32 id, u16 *out, int max);
+int rs_stdtext_get(u32 id, u32 *rv){
+    static u32 ids[64], at[64]; static int n;
+    for (int i = 0; i < n; i++) if (ids[i] == id) { *rv = at[i]; return 1; }
+    u16 w[512]; int k = rs_weapons_text16(id, w, 512); if (k <= 0 || n == 64) return 0;
+    u16 *g = rs_guest_alloc(sizeof(u16) * (size_t)k, 4); memcpy(g, w, sizeof(u16) * (size_t)k);
+    ids[n] = id; at[n] = GA(g); n++; *rv = GA(g); return 1; }

@@ -19,5 +19,6 @@ layout(std140, set = 0, binding = 0) uniform Draw {
     vec4 amb;         /* ambient for reflected surfaces */
     vec4 rt2;         /* x ambient-occlusion rays, y GI rays (0 = off), z AO radius (m), w GI strength */
     vec4 rt3;         /* x (unused), y AO strength, z GI ray length (m) */
+    vec4 lit;         /* rgb: the sunlit side's colour factor (mods/lights sun_color, sun_intensity; 1 = the map's own), w: normal-map strength */
     vec4 bone[24];
 } u;

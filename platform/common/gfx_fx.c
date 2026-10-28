@@ -3,10 +3,11 @@
  * Map:    the game opens its level as PSP_GAME/USRDIR/ENVS/<ERA>/<MAP>.PSP (hle.c sceIoOpen -> rs_fx_file_opened): era + map name.
  *
  * Lights: <data>/mods/lights/<era>_<map>.txt, one per map:
- *             sun_dir x y z          world-space direction towards the sun (the shadow and PBR light)
- *             sun_color r g b        linear 0..1;  sun_intensity k
- *             ambient r g b
+ *             sun_rotation X Y Z     the sun as a Unity Directional Light's rotation (X 90 = straight down; see below)
+ *             sun_color #RRGGBB, game_sun_color #RRGGBB (the map's own), sun_intensity 0.5..2 (1 = the map's own)
+ *             ambient #RRGGBB
  *             light point|spot x y z [dx dy dz] r g b     the map's local lights (for the ray-traced passes)
+ *         (files with sun_dir / decimal colours, from earlier builds, are converted when read; the old file is kept as .old)
  *         The file is made from the game's own lighting the first time a map is played: every lit 3D draw passes its GE lights through
  *         rs_fx_note_lights (renderer thread); the strongest directional light (weighted by brightness and how often it is used) becomes
  *         the sun, point/spot lights are collected by position.  After RS_LIGHT_CAPTURE_FRAMES frames with lights the file is written;
@@ -16,7 +17,7 @@
  *             <data>/mods/dumps/maps/<map>/            the level's own textures and its sky
  *             <data>/mods/dumps/players/<character>/   characters (graphics\characters), heads under players/heads/
  *             <data>/mods/dumps/weapons/<weapon sheet>/, vehicles/<vehicle>/, objects/<...>/, effects/, ui/<file>/
- *         as <key>@<texture name>.png, where <key> is the texture-replacement key: a dumped file copied into mods/<mod>/textures/ (any
+ *         as <key>@<texture name>_RGBA.png (characters: also _NM.png, a flat normal map carrying the colour mask in alpha), where <key> is the texture-replacement key: a dumped file copied into mods/<mod>/textures/ (any
  *         subfolder) replaces that texture as it is; _ms / _n next to it add PBR maps (texrep.c).  A background thread does the work. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -75,10 +76,15 @@ static void base_noext(const char *p, char *out, size_t cap){
     snprintf(out, cap, "%s", b); char *dot = strrchr(out, '.'); if (dot) *dot = 0; lower(out); }
 
 /* ---------------------------------------------------------------- lights */
+/* World axes: the engine's Y axis points down (the extractor's OBJ / FBX files are mirrored in Y), and the game's directional lights
+ * (GE light vectors) point from the sun: the direction towards the sun is minus the captured vector.
+ * The file gives the sun as a Unity rotation, as a Directional Light in Unity would have it over the map exported by tools/asura
+ * (Unity reads those files as (-x, -y, z) of the game): the light shines along the rotation's forward (sin Y cos X, -sin X, cos Y cos X),
+ * so X = 90 is straight down, X = 0 horizontal, and Y turns it around the vertical.  Towards the sun, in game axes: (fx, fy, -fz). */
 #define MAXL 64
 typedef struct { int type; float pos[3], dir[3], col[3]; double w; } lrec_t;
 static struct {
-    int loaded, have_sun, written; float sun[3], sun_col[3], sun_k, sun_level, amb[3];
+    int loaded, have_sun, written, have_amb, have_gcol; float sun[3], sun_col[3], sun_k, sun_level, amb[3], game_col[3];
     lrec_t dl[16]; int ndl;                 /* directional lights seen (capture) */
     lrec_t L[MAXL]; int nL;                 /* local lights */
     double amb_acc[3]; long amb_n; long frames, lit_frames; int frame_lit;
@@ -86,15 +92,56 @@ static struct {
 } lt;
 static void light_path(char *out, size_t cap){ snprintf(out, cap, "%s/mods/lights/%s_%s.txt", rs_fx_data_dir(), cur_era, cur_map); }
 static void lights_reset(void){ memset(&lt, 0, sizeof lt); lt.sun_k = 1; lt.gen++; }
+static const float DEG = 3.14159265f / 180.0f;
+static void rot_to_dir(const float r[3], float t[3]){            /* Unity rotation (degrees) -> towards the sun, game axes */
+    float cx = cosf(r[0] * DEG), sx = sinf(r[0] * DEG), cy = cosf(r[1] * DEG), sy = sinf(r[1] * DEG);
+    t[0] = sy * cx; t[1] = -sx; t[2] = -(cy * cx); }
+static void dir_to_rot(const float t[3], float r[3]){
+    float fx = t[0], fy = t[1], fz = -t[2]; float l = sqrtf(fx * fx + fy * fy + fz * fz); if (l < 1e-6f) { r[0] = 90; r[1] = r[2] = 0; return; }
+    fx /= l; fy /= l; fz /= l; float y = fy < -1 ? -1 : fy > 1 ? 1 : fy;
+    r[0] = asinf(-y) / DEG; r[1] = (fabsf(fx) + fabsf(fz) > 1e-6f) ? atan2f(fx, fz) / DEG : 0; if (r[1] < 0) r[1] += 360; r[2] = 0; }
+static int hexcol(const char *s, float c[3]){
+    while (*s == ' ' || *s == '\t') s++; if (*s == '#') s++;
+    unsigned v; if (sscanf(s, "%6x", &v) != 1) return 0;
+    c[0] = (float)((v >> 16) & 255) / 255.0f; c[1] = (float)((v >> 8) & 255) / 255.0f; c[2] = (float)(v & 255) / 255.0f; return 1; }
+static unsigned tohex(const float c[3]){ unsigned v = 0; for (int i = 0; i < 3; i++) { float x = c[i] < 0 ? 0 : c[i] > 1 ? 1 : c[i]; v = v << 8 | (unsigned)(x * 255.0f + 0.5f); } return v; }
+static float clampk(float k){ return k < 0.5f ? 0.5f : k > 2.0f ? 2.0f : k; }
+static void lights_write_file(const char *p, const char *how){
+    FILE *f = fopen(p, "w"); if (!f) { fprintf(stderr, "[FX] cannot write %s\n", p); return; }
+    float r[3]; dir_to_rot(lt.sun, r);
+    fprintf(f, "# Sun of %s_%s (%s).  Edit and play the map again; delete this file to capture the game's own sun again.\n", cur_era, cur_map, how);
+    fprintf(f, "# Preview in Unity: a Directional Light with this rotation over the map exported by tools/asura (env/Env.obj or .fbx).\n");
+    fprintf(f, "#   sun_rotation X Y Z   Unity rotation in degrees.  X = how steeply the light points down: 90 = straight down (noon),\n");
+    fprintf(f, "#                        0 = level with the horizon.  Y = which way it points around the vertical (compass, 0..360).\n");
+    fprintf(f, "#                        Z = roll: no effect on a sun.\n");
+    fprintf(f, "#   sun_color #RRGGBB    colour of the sunlight (hex RGB).  game_sun_color is the map's own: sun_color equal to it = unchanged.\n");
+    fprintf(f, "#   sun_intensity K      0.5 .. 2.0: 1.0 = the map's own light, 2.0 = twice as bright, 0.5 = half.\n");
+    fprintf(f, "#   ambient #RRGGBB      light in the shade (ray-traced reflections and bounce light).\n");
+    fprintf(f, "#   light point x y z r g b / light spot x y z dx dy dz r g b   the map's local lights (game coordinates, colours 0..1).\n");
+    if (lt.have_sun) {
+        fprintf(f, "sun_rotation %.1f %.1f %.1f\n", r[0], r[1], r[2]);
+        fprintf(f, "sun_color #%06X\n", tohex(lt.sun_col));
+        fprintf(f, "sun_intensity %.2f\n", clampk(lt.sun_k));
+        fprintf(f, "game_sun_color #%06X\n", tohex(lt.have_gcol ? lt.game_col : lt.sun_col)); }
+    if (lt.have_amb) fprintf(f, "ambient #%06X\n", tohex(lt.amb));
+    for (int i = 0; i < lt.nL; i++) { const lrec_t *q = &lt.L[i];
+        if (q->type == 2) fprintf(f, "light spot %.3f %.3f %.3f %.4f %.4f %.4f %.3f %.3f %.3f\n", q->pos[0], q->pos[1], q->pos[2], q->dir[0], q->dir[1], q->dir[2], q->col[0], q->col[1], q->col[2]);
+        else fprintf(f, "light point %.3f %.3f %.3f %.3f %.3f %.3f\n", q->pos[0], q->pos[1], q->pos[2], q->col[0], q->col[1], q->col[2]); }
+    fclose(f); }
 static void lights_load(void){
     char p[700]; light_path(p, sizeof p); FILE *f = fopen(p, "r"); lt.loaded = 1; if (!f) return;
-    char l[256];
+    char l[256]; int old = 0;
     while (fgets(l, sizeof l, f)) {
-        float a[9]; char kind[16];
-        if (sscanf(l, "sun_dir %f %f %f", &a[0], &a[1], &a[2]) == 3) { float n = sqrtf(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]); if (n > 1e-6f) { for (int i = 0; i < 3; i++) lt.sun[i] = a[i] / n; lt.have_sun = 1; } }
-        else if (sscanf(l, "sun_color %f %f %f", &a[0], &a[1], &a[2]) == 3) memcpy(lt.sun_col, a, 12);
-        else if (sscanf(l, "sun_intensity %f", &a[0]) == 1) lt.sun_k = a[0];
-        else if (sscanf(l, "ambient %f %f %f", &a[0], &a[1], &a[2]) == 3) memcpy(lt.amb, a, 12);
+        float a[9]; char kind[16], hx[64];
+        if (sscanf(l, "sun_rotation %f %f %f", &a[0], &a[1], &a[2]) >= 2) { rot_to_dir(a, lt.sun); lt.have_sun = 1; }
+        else if (sscanf(l, "sun_dir %f %f %f", &a[0], &a[1], &a[2]) == 3) {        /* earlier files: the game's light vector (from the sun) */
+            float n = sqrtf(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]); if (n > 1e-6f) { for (int i = 0; i < 3; i++) lt.sun[i] = -a[i] / n; lt.have_sun = 1; old = 1; } }
+        else if (sscanf(l, "sun_color %63s", hx) == 1 && hx[0] == '#') hexcol(hx, lt.sun_col);
+        else if (sscanf(l, "sun_color %f %f %f", &a[0], &a[1], &a[2]) == 3) { memcpy(lt.sun_col, a, 12); old = 1; }
+        else if (sscanf(l, "game_sun_color %63s", hx) == 1 && hexcol(hx, lt.game_col)) lt.have_gcol = 1;
+        else if (sscanf(l, "sun_intensity %f", &a[0]) == 1) lt.sun_k = clampk(a[0]);
+        else if (sscanf(l, "ambient %63s", hx) == 1 && hx[0] == '#') { if (hexcol(hx, lt.amb)) lt.have_amb = 1; }
+        else if (sscanf(l, "ambient %f %f %f", &a[0], &a[1], &a[2]) == 3) { memcpy(lt.amb, a, 12); lt.have_amb = 1; old = 1; }
         else if (sscanf(l, "light %15s", kind) == 1 && lt.nL < MAXL) {
             lrec_t *r = &lt.L[lt.nL]; memset(r, 0, sizeof *r);
             if (!strcmp(kind, "point") && sscanf(l, "light point %f %f %f %f %f %f", &a[0], &a[1], &a[2], &a[3], &a[4], &a[5]) == 6) {
@@ -102,22 +149,21 @@ static void lights_load(void){
             else if (!strcmp(kind, "spot") && sscanf(l, "light spot %f %f %f %f %f %f %f %f %f", &a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6], &a[7], &a[8]) == 9) {
                 r->type = 2; memcpy(r->pos, a, 12); memcpy(r->dir, a + 3, 12); memcpy(r->col, a + 6, 12); lt.nL++; } } }
     fclose(f); lt.written = 1; lt.gen++;
-    fprintf(stderr, "[FX] lights of %s_%s: %s, sun %.2f %.2f %.2f, %d local light(s)\n", cur_era, cur_map, p, lt.sun[0], lt.sun[1], lt.sun[2], lt.nL); }
+    if (old) {                                                       /* rewrite in the current form (same sun, same colours) */
+        if (!lt.have_gcol) { memcpy(lt.game_col, lt.sun_col, 12); lt.have_gcol = 1; }
+        char bak[720]; snprintf(bak, sizeof bak, "%s.old", p); rename(p, bak); lights_write_file(p, "converted from the earlier format; the old file is kept as .txt.old");
+        fprintf(stderr, "[FX] %s converted to the sun_rotation form (old file: %s)\n", p, bak); }
+    { float r[3]; dir_to_rot(lt.sun, r);
+      fprintf(stderr, "[FX] lights of %s_%s: %s, sun rotation %.1f %.1f (towards the sun %.2f %.2f %.2f), intensity %.2f, %d local light(s)\n", cur_era, cur_map, p, r[0], r[1], lt.sun[0], lt.sun[1], lt.sun[2], lt.sun_k, lt.nL); } }
 static void lights_write(void){
     if (!lt.have_sun && !lt.nL) return;
     char d[600]; snprintf(d, sizeof d, "%s/mods/lights", rs_fx_data_dir()); rs_mkdirs(d);
     char p[700]; light_path(p, sizeof p); FILE *f = fopen(p, "r"); if (f) { fclose(f); lt.written = 1; return; }
-    f = fopen(p, "w"); if (!f) { fprintf(stderr, "[FX] cannot write %s\n", p); lt.written = 1; return; }
-    fprintf(f, "# light setup of %s_%s, captured from the game's own lighting (%ld frames); edit freely - this file is not overwritten\n", cur_era, cur_map, lt.lit_frames);
-    fprintf(f, "# sun_dir = world-space direction towards the sun; colours linear 0..1\n");
-    if (lt.have_sun) fprintf(f, "# the game's own light level for this sun: %.3f (its lights are dim and summed per colour channel)\n", lt.sun_level);
-    if (lt.have_sun) { fprintf(f, "sun_dir %.4f %.4f %.4f\nsun_color %.3f %.3f %.3f\nsun_intensity %.2f\n", lt.sun[0], lt.sun[1], lt.sun[2], lt.sun_col[0], lt.sun_col[1], lt.sun_col[2], lt.sun_k); }
-    if (lt.amb_n) fprintf(f, "ambient %.3f %.3f %.3f\n", lt.amb_acc[0] / lt.amb_n, lt.amb_acc[1] / lt.amb_n, lt.amb_acc[2] / lt.amb_n);
-    for (int i = 0; i < lt.nL; i++) { const lrec_t *r = &lt.L[i];
-        if (r->type == 2) fprintf(f, "light spot %.3f %.3f %.3f %.4f %.4f %.4f %.3f %.3f %.3f\n", r->pos[0], r->pos[1], r->pos[2], r->dir[0], r->dir[1], r->dir[2], r->col[0], r->col[1], r->col[2]);
-        else fprintf(f, "light point %.3f %.3f %.3f %.3f %.3f %.3f\n", r->pos[0], r->pos[1], r->pos[2], r->col[0], r->col[1], r->col[2]); }
-    fclose(f); lt.written = 1;
-    fprintf(stderr, "[FX] lights of %s_%s captured: %s (sun %.2f %.2f %.2f, %d local)\n", cur_era, cur_map, p, lt.sun[0], lt.sun[1], lt.sun[2], lt.nL); }
+    if (lt.amb_n) { for (int k = 0; k < 3; k++) lt.amb[k] = (float)(lt.amb_acc[k] / lt.amb_n); lt.have_amb = 1; }
+    memcpy(lt.game_col, lt.sun_col, 12); lt.have_gcol = 1;
+    char how[96]; snprintf(how, sizeof how, "captured from the game's own lighting over %ld frames", lt.lit_frames);
+    lights_write_file(p, how); lt.written = 1;
+    fprintf(stderr, "[FX] lights of %s_%s captured: %s (towards the sun %.2f %.2f %.2f, %d local)\n", cur_era, cur_map, p, lt.sun[0], lt.sun[1], lt.sun[2], lt.nL); }
 
 /* renderer thread: the GE lights of one lit 3D draw */
 void rs_fx_note_lights(const gfx_hw_t *h){
@@ -160,7 +206,7 @@ void rs_fx_frame(void){
             float l = sqrtf(r->dir[0] * r->dir[0] + r->dir[1] * r->dir[1] + r->dir[2] * r->dir[2]); if (l < 1e-6f) l = 1;
             float c[3] = {(float)(r->col[0] / r->w), (float)(r->col[1] / r->w), (float)(r->col[2] / r->w)};
             float m = c[0] > c[1] ? (c[0] > c[2] ? c[0] : c[2]) : (c[1] > c[2] ? c[1] : c[2]); if (m < 1e-4f) m = 1;
-            for (int k = 0; k < 3; k++) { lt.sun[k] = r->dir[k] / l; lt.sun_col[k] = c[k] / m; }
+            for (int k = 0; k < 3; k++) { lt.sun[k] = -r->dir[k] / l; lt.sun_col[k] = c[k] / m; }
             lt.sun_k = 1; lt.sun_level = m; lt.have_sun = 1; lt.gen++; }
         lights_write(); }
     pthread_mutex_unlock(&mx); }
@@ -172,6 +218,13 @@ int rs_fx_sun(float dir[3], float col[3], unsigned *gen){
     memcpy(dir, lt.sun, 12); if (col) for (int i = 0; i < 3; i++) col[i] = lt.sun_col[i] * lt.sun_k;
     if (gen) *gen = lt.gen;
     pthread_mutex_unlock(&mx); return 1; }
+/* the sunlit side's colour factor (sun_color / game_sun_color x sun_intensity; 1 1 1 = the map's own light) and the ambient */
+void rs_fx_sun_tint(float t[3], float amb[3]){
+    pthread_mutex_lock(&mx);
+    for (int i = 0; i < 3; i++) { float g = lt.have_gcol ? lt.game_col[i] : lt.sun_col[i]; float c = lt.have_sun ? lt.sun_col[i] : 1;
+        t[i] = (lt.have_sun ? (g > 0.02f ? c / g : 1.0f) : 1.0f) * (lt.have_sun ? lt.sun_k : 1.0f);
+        if (amb) amb[i] = lt.have_amb ? lt.amb[i] : 0.45f; }
+    pthread_mutex_unlock(&mx); }
 int rs_fx_local_lights(rs_fx_light_t *out, int max){
     pthread_mutex_lock(&mx); int n = lt.nL < max ? lt.nL : max;
     for (int i = 0; i < n; i++) { out[i].type = lt.L[i].type; memcpy(out[i].pos, lt.L[i].pos, 12); memcpy(out[i].dir, lt.L[i].dir, 12); memcpy(out[i].col, lt.L[i].col, 12); }
@@ -208,15 +261,16 @@ static void category(const char *res, const dctx_t *c, char *out, size_t cap){
 static void dump_tex(const char *name, uint32_t key, const uint32_t *rgba, int w, int h, void *ud){
     dctx_t *c = ud; char cat[256], b[128], lb[128]; category(name, c, cat, sizeof cat); base_noext(name, b, sizeof b); label(b, lb, sizeof lb);
     char dir[800]; snprintf(dir, sizeof dir, "%s/mods/dumps/%s", rs_fx_data_dir(), cat); rs_mkdirs(dir);
-    char p[1100]; snprintf(p, sizeof p, "%s/%08x@%s.png", dir, (unsigned)key, lb); c->n_all++;
+    char p[1100]; snprintf(p, sizeof p, "%s/%08x@%s_RGBA.png", dir, (unsigned)key, lb); c->n_all++;
     struct stat st; if (stat(p, &st) == 0) return;
     if (!strncmp(cat, "players", 7)) {
         /* characters and heads: the alpha channel is the colour mask of Personalisation's two colours (opaque white = the
          * texture's own colour, mid grey = colour 1 / team, black = colour 2 / uniform), so the colour picture is written
-         * opaque and the mask next to it as <key>@<name>_mask.png (texrep.c puts it back into the alpha channel) */
+         * opaque and the mask goes into the alpha channel of <key>@<name>_NM.png, the normal map (written flat: 128 128 255), as
+         * mod textures keep it (texrep.c puts it back into the colour's alpha) */
         uint32_t *o = malloc((size_t)w * h * 4), *m = malloc((size_t)w * h * 4); if (!o || !m) { free(o); free(m); return; }
-        for (int i = 0; i < w * h; i++) { uint32_t a = rgba[i] >> 24; o[i] = rgba[i] | 0xFF000000u; m[i] = 0xFF000000u | a << 16 | a << 8 | a; }
-        char q[1100]; snprintf(q, sizeof q, "%s/%08x@%s_mask.png", dir, (unsigned)key, lb);
+        for (int i = 0; i < w * h; i++) { uint32_t a = rgba[i] >> 24; o[i] = rgba[i] | 0xFF000000u; m[i] = a << 24 | 0x00FF8080u; }
+        char q[1100]; snprintf(q, sizeof q, "%s/%08x@%s_NM.png", dir, (unsigned)key, lb);
         if (!rs_png_write(p, w, h, o)) c->n_new++;
         rs_png_write(q, w, h, m); free(o); free(m); return; }
     if (!rs_png_write(p, w, h, rgba)) c->n_new++; }

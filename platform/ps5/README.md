@@ -67,10 +67,23 @@ tickets), so that it stays compatible with the PS Vita and PSP.
 Code: `platform/common/gfx_fx.c` (settings, current map, light setups, dumps) and `platform/linux_test/gfx_gl.c` (renderer passes).
 
 - **Shadows**: the sun shadow map is on (`RS_SHADOWS`, `RS_SHADOW_RES` ...), lit by each map's own sun.
-- **PBR**: mod textures with `_ms` (R metalness, G smoothness, B ambient occlusion; the alpha channel is reserved for a height map, planned) and `_n` (normal) maps get GGX shading from the map's sun (`RS_PBR`).
+- **Mod texture sets** (names after the `_` are fixed; the part before is free): `<key>@<name>_RGBA.png` (RGB diffuse, A transparency),
+  `<key>@<name>_NM.png` (RGB tangent-space normal map, OpenGL +Y up; A = the characters' colour mask: white own colour, grey colour 1,
+  black colour 2) and `<key>@<name>_MSAO.png` (R metalness, G smoothness, B ambient occlusion; A unused, reserved for height).
+- **PBR** (Vulkan; `RS_PBR`): the Frostbite BRDF ("Moving Frostbite to PBR", Lagarde & de Rousiers 2014) - renormalised Disney/Burley
+  diffuse, Cook-Torrance specular with GGX (Trowbridge-Reitz) NDF, height-correlated Smith GGX visibility and Schlick Fresnel; an
+  environment term from Karis' analytic split-sum fit with Lagarde's specular occlusion. Roughness = (1 - smoothness), GGX alpha = its
+  square. The game's own lighting of each pixel is the diffuse irradiance.
 - **Light setups**: `/data/SWBFRS/mods/lights/<era>_<map>.txt` (e.g. `classic_hoth.txt`), written the first time a map is played from the
-  game's own GE lights: `sun_dir` (world space, towards the sun), `sun_color`, `sun_intensity`, `ambient`, and the map's local
-  `light point|spot` entries. Edit to change a map's light; delete to capture again.
+  game's own GE lights: `sun_rotation X Y Z` (the sun as a Unity Directional Light's rotation over the map exported by
+  `tools/asura`: X 90 = straight down, X 0 = level, Y = compass heading), `sun_color #RRGGBB` (with `game_sun_color`, the map's own),
+  `sun_intensity` 0.5..2.0 (1.0 = the map's own), `ambient #RRGGBB`, and the map's local `light point|spot` entries. Edit to change
+  a map's light; delete to capture again. Files from earlier builds (`sun_dir`) are converted; the old file is kept as `.txt.old`.
+  The engine's Y axis points down and its light vectors point away from the sun; the shadows, PBR and ray tracing use the
+  direction towards the sun.
+- **Weapons**: `/data/SWBFRS/Weapons_Mod.txt` (changes and new weapons, sections `[All] [CIS] [Republic] [Imperial] [Rebels] [HV]
+  [Vehicles]`, on-screen names with `Name = "..."`), and the game's own values for reference in
+  `Weapons_<group>_Default.txt` (`platform/common/blueprints.c`).
 - **Renderers**: OpenGL (the default) or Vulkan, chosen by `RS_RENDERER=opengl|vulkan` or in the game's Options menu (the
   "Vulkan Renderer" check box, the last entry: the game's own check-box widget), which rewrites that line of settings.txt; the
   choice is used from the next start (`platform/common/renderer_option.c`). Vulkan is RADV, the Mesa driver for AMD GPUs, built for
@@ -81,13 +94,13 @@ Code: `platform/common/gfx_fx.c` (settings, current map, light setups, dumps) an
   triangles drawn by the previous frame go into a ray-tracing acceleration structure (world space), and the pixel shader casts
   rays with `VK_KHR_ray_query`:
   - `RS_RT_SHADOWS=1`: sun shadows, a ray towards the sun from every lit pixel (in place of the shadow map);
-  - `RS_RT_REFLECTIONS=1`: reflections on shiny PBR surfaces (mod textures with `_ms` maps), the colour of what the reflected
+  - `RS_RT_REFLECTIONS=1`: reflections on shiny PBR surfaces (mod textures with `_MSAO` maps), the colour of what the reflected
     ray hits, lit by the sun (itself shadow-tested), fading out towards `RS_RT_DISTANCE` (metres, 200);
   - `RS_RT=0` turns ray tracing off. The OpenGL renderer has no ray tracing (the PS5's OpenGL has no ray-tracing API).
 - **Asset dumps** (`RS_DUMP_ASSETS=1`): every texture the game loads, sorted under `/data/SWBFRS/mods/dumps/`:
   `maps/<map>/` (and `maps/<map>/sky/`), `players/<character>/`, `players/heads/<sheet>/`, `weapons/<sheet>/`, `vehicles/<vehicle>/`,
-  `objects/<group>/`, `effects/`, `ui/<file>/`. Files are `<key>@<name>.png`; copy one into `/data/SWBFRS/mods/<mod>/textures/` (any
-  subfolder) to replace that texture, and add `<key>@<name>_ms.png` / `<key>@<name>_n.png` next to it for PBR.
+  `objects/<group>/`, `effects/`, `ui/<file>/`. Files are `<key>@<name>_RGBA.png` (characters also `_NM.png`, flat, with the colour mask in alpha); copy one into `/data/SWBFRS/mods/<mod>/textures/` (any
+  subfolder) to replace that texture, and add `<key>@<name>_NM.png` / `<key>@<name>_MSAO.png` next to it for PBR.
 
 ## Not in this build yet
 

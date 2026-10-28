@@ -33,12 +33,12 @@ RS_SHADOW_STRENGTH=50
 # how far each surface's shadow-map lookup is moved off the surface, in shadow-map texels (more on slopes): stops ground
 # shadowing itself in stripes; too high and small shadows start to detach from their objects
 RS_SHADOW_OFFSET=4
-# PBR shading (metal/roughness + normal maps) for mod textures that come with _ms / _n maps
+# PBR shading for mod textures that come with _MSAO / _NM maps (Vulkan: Burley diffuse, GGX + height-correlated Smith + Schlick)
 RS_PBR=1
 # ray tracing (the Vulkan renderer only; OpenGL keeps the shadow map): 1 = on
 #   RS_RT             0 = no ray tracing at all (the Vulkan renderer then uses the shadow map like OpenGL)
 #   RS_RT_SHADOWS     sun shadows by a ray towards the sun from every pixel (replaces the shadow map)
-#   RS_RT_REFLECTIONS reflections on shiny PBR surfaces (mod textures with _ms maps): what the reflected ray hits
+#   RS_RT_REFLECTIONS reflections on shiny PBR surfaces (mod textures with _MSAO maps): what the reflected ray hits
 #   RS_RT_DISTANCE    how far the rays reach, in metres
 RS_RT=1
 RS_RT_SHADOWS=1
@@ -60,8 +60,12 @@ RS_RTGI=1
 RS_RTGI_RAYS=1
 RS_RTGI_STRENGTH=60
 RS_RTGI_DISTANCE=30
+# normal maps (mod textures with _NM maps): how strongly they bend the light, percent (100 = as painted, 200 = twice as deep)
+RS_NORMAL_STRENGTH=100
 # per-map light setup: written to /data/SWBFRS/mods/lights/<era>_<map>.txt from the game's own lights the first time a map is
 # played (after this many frames), then read from there - edit a file to change that map's sun; delete it to capture again
+#   sun_rotation X Y Z = the sun as a Unity Directional Light rotation (X 90 = straight down, Y = compass heading),
+#   sun_color #RRGGBB, sun_intensity 0.5..2.0 (1.0 = the map's own); files from earlier builds are converted (old kept as .old)
 RS_LIGHT_CAPTURE=1
 RS_LIGHT_CAPTURE_FRAMES=600
 
@@ -69,8 +73,11 @@ RS_LIGHT_CAPTURE_FRAMES=600
 # texture replacements from /data/SWBFRS/mods/<mod>/textures/ (any subfolder): 1 = on
 RS_MODS=1
 # 1 = write every texture of the maps, characters, weapons, vehicles and menus the game loads to /data/SWBFRS/mods/dumps/
-#     (maps/<map>, players/<character>, weapons/..., vehicles/..., objects/..., effects, ui/<file>), named <key>@<name>.png:
-#     a dumped file put into a mod's textures folder replaces that texture; add <key>@<name>_ms.png / _n.png for PBR
+#     (maps/<map>, players/<character>, weapons/..., vehicles/..., objects/..., effects, ui/<file>), named <key>@<name>_RGBA.png:
+#     a dumped file put into a mod's textures folder replaces that texture.  Texture set of a mod:
+#       <key>@<name>_RGBA.png  RGB diffuse, A transparency
+#       <key>@<name>_NM.png    RGB normal map (OpenGL, +Y up), A colour mask (characters: white own colour, grey colour 1, black colour 2)
+#       <key>@<name>_MSAO.png  R metalness, G smoothness, B ambient occlusion (A unused)
 RS_DUMP_ASSETS=1
 
 # ---- performance
@@ -105,8 +112,9 @@ RS_AUDIO=1
 # ---- AI and weapons
 # most bots sent to hold one of their own command posts (the rest go to take posts); 0 = the game's own choice
 RS_AI_DEFENDERS=5
-# weapons.txt next to this file: the game's weapons, projectiles and laser bolts, written with the game's own values the first
-# time and read at every start (edit values, add new weapons); 0 = the game's own weapons (weapons.txt not read)
+# Weapons_Mod.txt next to this file: changes to the game's weapons and new weapons (with on-screen names), in sections per
+# faction; read at every start.  Weapons_<CIS|Republic|Imperial|Rebels|HV|All|Vehicles>_Default.txt: the game's own values,
+# rewritten at every start for reference.  0 = the game's own weapons (Weapons_Mod.txt not read)
 RS_WEAPONS=1
 # any head on any body: the CIS too (off: the droids' heads do not fit each other's bodies)
 RS_ANY_HEAD_CIS=0

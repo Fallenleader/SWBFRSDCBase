@@ -22,3 +22,4 @@ void rs_fx_note_lights(const gfx_hw_t *h);                /* renderer: a lit 3D 
 void rs_fx_frame(void);                                   /* renderer: once per frame */
 int  rs_fx_sun(float dir[3], float col[3], unsigned *gen);   /* the map's sun (towards the sun, world space); 0 = not known yet */
 int  rs_fx_local_lights(rs_fx_light_t *out, int max);
+void rs_fx_sun_tint(float t[3], float amb[3]);              /* sunlit colour factor (1 1 1 = the map's own) and the ambient */

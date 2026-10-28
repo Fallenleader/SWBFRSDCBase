@@ -322,12 +322,12 @@ static const char *PBR_PARAM_AT = "float vCull : TEXCOORD3,";
 static const char *PBR_PARAMS = " float3 vVP : TEXCOORD5, float3 vVN : TEXCOORD6, float3 vVT : TEXCOORD7, uniform sampler2D uMR, uniform sampler2D uNM, uniform float4 uPbr, uniform float4 uSun, uniform float4 uSunC,";
 static const char *PBR_CODE =
     "  if (uPbr.w > 0.5) {\n"
-    "    float3 N = normalize(vVN); float3 V = normalize(-vVP); float3 L = uSun.xyz; if (dot(N, V) < 0.0) N = -N;\n"
+    "    float3 N = dot(vVN, vVN) > 1e-10 ? normalize(vVN) : normalize(cross(ddx(vVP), ddy(vVP))); float3 V = normalize(-vVP); float3 L = uSun.xyz; if (dot(N, V) < 0.0) N = -N;\n"
     "    float rough = 0.7; float metal = 0.0; float ao = 1.0;\n"
     "    if (uPbr.x > 0.5) { float4 m = tex2D(uMR, vUV); metal = m.r; rough = clamp(1.0 - m.g, 0.05, 1.0); ao = m.b; }\n"
     "    if (uPbr.y > 0.5) { float3 T = vVT - N * dot(N, vVT); float lt = length(T);\n"
-    "      if (lt > 0.00001) { T = T / lt; float3 B = cross(N, T); float3 m = tex2D(uNM, vUV).xyz * 2.0 - 1.0; float3 Nm = normalize(T * m.x + B * m.y + N * m.z);\n"
-    "        float g0 = dot(N, L) * 0.5 + 0.5; float g1 = dot(Nm, L) * 0.5 + 0.5; c.rgb = c.rgb * clamp(g1 / max(g0, 0.1), 0.0, 2.0); N = Nm; } }\n"
+    "      if (lt > 0.00001) { T = T / lt; float3 B = cross(N, T); float3 m = tex2D(uNM, vUV).xyz * 2.0 - 1.0; m.xy = m.xy * uSun.w; float3 Nm = normalize(T * m.x + B * m.y + N * m.z);\n"
+    "        float g0 = 0.25 + 0.55 * max(dot(N, L), 0.0) + 0.2 * max(dot(N, V), 0.0); float g1 = 0.25 + 0.55 * max(dot(Nm, L), 0.0) + 0.2 * max(dot(Nm, V), 0.0); c.rgb = c.rgb * clamp(g1 / g0, 0.3, 2.5); N = Nm; } }\n"
     "    float3 H = normalize(L + V); float ndl = max(dot(N, L), 0.0); float ndv = max(dot(N, V), 0.001); float ndh = max(dot(N, H), 0.0); float vdh = max(dot(V, H), 0.0);\n"
     "    float a = rough * rough; float a2 = a * a; float dd = ndh * ndh * (a2 - 1.0) + 1.0; float D = a2 / (3.14159 * dd * dd);\n"
     "    float kk = (rough + 1.0) * (rough + 1.0) * 0.125; float G = (ndl / (ndl * (1.0 - kk) + kk)) * (ndv / (ndv * (1.0 - kk) + kk));\n"
@@ -338,17 +338,17 @@ static const char *PBR_CODE =
     "    c.rgb = c.rgb * (1.0 - metal) * ao + alb * metal * (0.25 * one + 0.75 * Fa * env * 1.6) * ao + Fa * env * (1.0 - rough) * (1.0 - metal) * 0.5 + spec * uSunC.rgb * uPbr.z;\n"
     "  }\n";
 #else
-static const char *PBR_FUNC = "uniform sampler2D uMR; uniform sampler2D uNM; uniform vec4 uPbr; uniform vec4 uSun; uniform vec4 uSunC; varying vec3 vVP; varying vec3 vVN; varying vec3 vVT;\n";
+static const char *PBR_FUNC = "\n#if !defined(GL_ES) || defined(GL_OES_standard_derivatives)\n#define RS_FLATN(p) normalize(cross(dFdx(p), dFdy(p)))\n#else\n#define RS_FLATN(p) vec3(0.0, 0.0, 1.0)\n#endif\nuniform sampler2D uMR; uniform sampler2D uNM; uniform vec4 uPbr; uniform vec4 uSun; uniform vec4 uSunC; varying vec3 vVP; varying vec3 vVN; varying vec3 vVT;\n";
 static const char *PBR_AT = "void main(){";
 static const char *PBR_PARAM_AT = 0, *PBR_PARAMS = 0;
 static const char *PBR_CODE =
     "  if (uPbr.w > 0.5) {\n"
-    "    vec3 N = normalize(vVN); vec3 V = normalize(-vVP); vec3 L = uSun.xyz; if (dot(N, V) < 0.0) N = -N;\n"
+    "    vec3 N = dot(vVN, vVN) > 1e-10 ? normalize(vVN) : RS_FLATN(vVP); vec3 V = normalize(-vVP); vec3 L = uSun.xyz; if (dot(N, V) < 0.0) N = -N;\n"
     "    float rough = 0.7; float metal = 0.0; float ao = 1.0;\n"
     "    if (uPbr.x > 0.5) { vec4 m = texture2D(uMR, vUV); metal = m.r; rough = clamp(1.0 - m.g, 0.05, 1.0); ao = m.b; }\n"
     "    if (uPbr.y > 0.5) { vec3 T = vVT - N * dot(N, vVT); float lt = length(T);\n"
-    "      if (lt > 0.00001) { T = T / lt; vec3 B = cross(N, T); vec3 m = texture2D(uNM, vUV).xyz * 2.0 - 1.0; vec3 Nm = normalize(T * m.x + B * m.y + N * m.z);\n"
-    "        float g0 = dot(N, L) * 0.5 + 0.5; float g1 = dot(Nm, L) * 0.5 + 0.5; c.rgb = c.rgb * clamp(g1 / max(g0, 0.1), 0.0, 2.0); N = Nm; } }\n"
+    "      if (lt > 0.00001) { T = T / lt; vec3 B = cross(N, T); vec3 m = texture2D(uNM, vUV).xyz * 2.0 - 1.0; m.xy = m.xy * uSun.w; vec3 Nm = normalize(T * m.x + B * m.y + N * m.z);\n"
+    "        float g0 = 0.25 + 0.55 * max(dot(N, L), 0.0) + 0.2 * max(dot(N, V), 0.0); float g1 = 0.25 + 0.55 * max(dot(Nm, L), 0.0) + 0.2 * max(dot(Nm, V), 0.0); c.rgb = c.rgb * clamp(g1 / g0, 0.3, 2.5); N = Nm; } }\n"
     "    vec3 H = normalize(L + V); float ndl = max(dot(N, L), 0.0); float ndv = max(dot(N, V), 0.001); float ndh = max(dot(N, H), 0.0); float vdh = max(dot(V, H), 0.0);\n"
     "    float a = rough * rough; float a2 = a * a; float dd = ndh * ndh * (a2 - 1.0) + 1.0; float D = a2 / (3.14159 * dd * dd);\n"
     "    float kk = (rough + 1.0) * (rough + 1.0) * 0.125; float G = (ndl / (ndl * (1.0 - kk) + kk)) * (ndv / (ndv * (1.0 - kk) + kk));\n"
@@ -376,7 +376,12 @@ static char *str_ins(const char *src, const char *at, const char *ins, int after
 static char *pbr_fs(void){
     char *a = str_ins(FS_SRC, PBR_AT, PBR_FUNC, 0); if (!a) return 0;
     if (PBR_PARAM_AT) { char *b = str_ins(a, PBR_PARAM_AT, PBR_PARAMS, 1); free(a); a = b; if (!a) return 0; }
-    char *b = str_ins(a, RCV_CODE_AT, PBR_CODE, 0); free(a); return b; }
+    char *b = str_ins(a, RCV_CODE_AT, PBR_CODE, 0); free(a); if (!b) return 0;
+#if !(defined(__vita__) && !defined(RS_VITA_GLSL))
+    { static const char ext[] = "#ifdef GL_ES\n#extension GL_OES_standard_derivatives : enable\n#endif\n";      /* (no vertex normals: the triangle's) */
+      char *c = malloc(strlen(b) + sizeof ext); strcpy(c, ext); strcat(c, b); free(b); b = c; }
+#endif
+    return b; }
 static char *receiver_fs_from(const char *src){
     char *a = str_ins(src, RCV_AT, RCV_FUNC, 0); if (!a) return 0;
     if (RCV_PARAM_AT) { char *b = str_ins(a, RCV_PARAM_AT, RCV_PARAMS, 1); free(a); a = b; if (!a) return 0; }
@@ -407,7 +412,7 @@ static int u_ptex;
 typedef struct { unsigned id; int tex, cfg0, cfg1, env, uvs, fog, mul, aniso;
                  int mvp, wvz, wld, b, vp0, vp1, vp2, uvt, fogp, mamb, mdif, memi, msca, lfl, lpos, latt, lspot, la, ld, shm, sht, shp, wvm, mr, nm, pbr, sun, sunc, defc;
                  float *ucv[32]; unsigned char ucok[32]; int tex_set; } prog_t;      /* ucv/ucok: last uploaded value per uniform (see u_set) */
-static prog_t P_main, P_hw[4], P_hwp[4]; static int hw_ok, pbr_ok; static float pbr_sunc[3] = {1, 0.95f, 0.85f}, pbr_spec = 1;
+static prog_t P_main, P_hw[4], P_hwp[4]; static int hw_ok, pbr_ok; static float pbr_sunc[3] = {1, 0.95f, 0.85f}, pbr_spec = 1, nrm_str = 1;
 static void prog_locs(prog_t *P){ unsigned p = P->id;
 #define L(f, n) P->f = glGetUniformLocation(p, n);
     L(tex, "uTex") L(aniso, "uAniso") L(cfg0, "uCfg0") L(cfg1, "uCfg1") L(env, "uEnv") L(uvs, "uUVS") L(fog, "uFog") L(mul, "uMul")
@@ -736,7 +741,7 @@ static void flush_batch(void){
     if (bn <= 0) { bn = 0; return; }
     surf_t *t = target_for(&bst); raw_bind(t);
     if (bkind == 1) {
-        const gfx_hw_t *h = &bhw; int pbr = pbr_ok && (bst.texmr || bst.texn) && h->lfl[3] > 0.5f && bst.tex;
+        const gfx_hw_t *h = &bhw; int pbr = pbr_ok && (bst.texmr || bst.texn) && bst.tex;
         const prog_t *P = pbr ? &P_hwp[h->skin | (h->lit << 1)] : &P_hw[h->skin | (h->lit << 1)];
         apply_state(&bst, P);
         u_set(P, U_MVP, P->mvp, 4, h->mvp); u_set(P, U_WVZ, P->wvz, 1, h->wvz); u_set(P, U_WLD, P->wld, 3, h->wld);
@@ -759,7 +764,7 @@ static void flush_batch(void){
         if (pbr) {
             float sv[3]; const float *V = sh_view; static const float I12[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}; if (!sh_view_any) V = I12;
             for (int c = 0; c < 3; c++) sv[c] = sh_sun[0] * V[c] + sh_sun[1] * V[3 + c] + sh_sun[2] * V[6 + c]; norm3(sv);
-            glUniform4f(P->pbr, bst.texmr ? 1.0f : 0.0f, bst.texn ? 1.0f : 0.0f, pbr_spec, 1.0f); glUniform4f(P->sun, sv[0], sv[1], sv[2], 0); glUniform4f(P->sunc, pbr_sunc[0], pbr_sunc[1], pbr_sunc[2], 1);
+            glUniform4f(P->pbr, bst.texmr ? 1.0f : 0.0f, bst.texn ? 1.0f : 0.0f, pbr_spec, 1.0f); glUniform4f(P->sun, sv[0], sv[1], sv[2], nrm_str); glUniform4f(P->sunc, pbr_sunc[0], pbr_sunc[1], pbr_sunc[2], 1);
             glUniform1i(P->mr, 2); glUniform1i(P->nm, 3);
             glActiveTexture(GL_TEXTURE0 + 2); glBindTexture(GL_TEXTURE_2D, bst.texmr ? bst.texmr : bst.texid);
             glActiveTexture(GL_TEXTURE0 + 3); glBindTexture(GL_TEXTURE_2D, bst.texn ? bst.texn : bst.texid); glActiveTexture(GL_TEXTURE0);
@@ -943,7 +948,7 @@ static void flush_native(void){
             float sv[3]; const float *V = sh_view; static const float I12[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}; if (!sh_view_any) V = I12;
             for (int c = 0; c < 3; c++) sv[c] = sh_sun[0] * V[c] + sh_sun[1] * V[3 + c] + sh_sun[2] * V[6 + c]; norm3(sv);
             glUniform4f(P->pbr, st->texmr ? 1.0f : 0.0f, 0.0f /* PSP vertices carry no tangents: normal maps not on this path yet */, pbr_spec, 1.0f);
-            glUniform4f(P->sun, sv[0], sv[1], sv[2], 0); glUniform4f(P->sunc, pbr_sunc[0], pbr_sunc[1], pbr_sunc[2], 1);
+            glUniform4f(P->sun, sv[0], sv[1], sv[2], nrm_str); glUniform4f(P->sunc, pbr_sunc[0], pbr_sunc[1], pbr_sunc[2], 1);
             glUniform1i(P->mr, 2); glUniform1i(P->nm, 3);
             glActiveTexture(GL_TEXTURE0 + 2); glBindTexture(GL_TEXTURE_2D, st->texmr ? st->texmr : st->texid);
             glActiveTexture(GL_TEXTURE0 + 3); glBindTexture(GL_TEXTURE_2D, st->texn ? st->texn : st->texid); glActiveTexture(GL_TEXTURE0); } }
@@ -1206,6 +1211,7 @@ static void shadow_pass(void){
       if (dbg) { static u32 *px; if (!px) px = malloc((size_t)sh_res * sh_res * 4); glReadPixels(0, 0, sh_res, sh_res, GL_RGBA, GL_UNSIGNED_BYTE, px);
           int nfar = 0; for (int i = 0; i < sh_res * sh_res; i++) if (px[i] == 0xFFFFFFFFu) nfar++;
           fprintf(stderr, "[SHADOW] %d draws, %d verts, view known %d, camera (%.1f %.1f %.1f); %.1f%% of the map covered\n", shr_n, shv_n, sh_view_ok, cw[0], cw[1], cw[2], 100.0 - 100.0 * nfar / (sh_res * sh_res));
+          fprintf(stderr, "[SHADOW] camera up (world) %.2f %.2f %.2f, forward %.2f %.2f %.2f, sun %.2f %.2f %.2f\n", sh_view[1], sh_view[4], sh_view[7], -sh_view[2], -sh_view[5], -sh_view[8], sh_sun[0], sh_sun[1], sh_sun[2]);
           FILE *f = fopen("shadowmap.pgm", "wb"); if (f) { fprintf(f, "P5\n%d %d\n255\n", sh_res, sh_res); for (int i = 0; i < sh_res * sh_res; i++) fputc(px[i] & 255, f); fclose(f); } } }
     glBindFramebuffer(GL_FRAMEBUFFER, 0); cur_target = 0;
     memcpy(sh_mat, M, sizeof M); sh_valid = 1; shr_n = shv_n = 0; sh_cam_ok = 0; sh_view_ok = 0; }
@@ -1277,6 +1283,7 @@ int gfx_init(void){
     { extern u32 rs_patch_pbr(void), rs_patch_shadows(void); extern void rs_patch_pbr_sun(float *, float *), rs_patch_shadow_sun(float *); extern int rs_texrep_active(void);
       rs_patch_shadow_sun(sh_sun); norm3(sh_sun); rs_patch_pbr_sun(pbr_sunc, &pbr_spec);
       if (hw_ok && rs_patch_pbr() && rs_texrep_active()) { static const char *pattrs7[7] = {"aP", "aN", "aT", "aC", "aW0", "aW1", "aTg"}; pbr_ok = 1;
+        { extern int rs_setting_int(const char *, int); nrm_str = (float)rs_setting_int("RS_NORMAL_STRENGTH", 100) / 100.0f; }
         char *pfs = pbr_fs(); char *rfs = (pfs && rs_patch_shadows()) ? receiver_fs_from(pfs) : 0;
         for (int v = 0; v < 4 && pbr_ok; v++) { size_t n = strlen(HWVS_HEAD) + strlen(HWVS_BODY) + strlen(HWVS_MAIN_PBR) + 80; char *src = malloc(n);
             snprintf(src, n, "%s#define PBR 1\n%s%s%s%s", HWVS_HEAD, (v & 1) ? "#define SKIN 1\n" : "", (v & 2) ? "#define LIT 1\n" : "", HWVS_BODY, HWVS_MAIN_PBR);

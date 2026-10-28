@@ -9,7 +9,8 @@ void rs_patches_frame(void);                                     /* game_patches
 int  rs_ai_pool_init(void);                                       /* game_patches.c: the AI object pool, sized for the raised player counts */
 void rs_ai_squad_caps(uint32_t commander);                       /* game_patches.c: squad sizes for teams of more than 16 bots */
 int  rs_ai_assign(uint32_t commander, uint32_t squad, uint32_t post);   /* game_patches.c: at most RS_AI_DEFENDERS bots hold a command post */
-int  rs_unit_list_add(uint32_t unit, uint64_t *rv);               /* game_patches.c: the soldier list past 32 (match end crash) */
+int  rs_unit_list_add(uint32_t unit, uint64_t *rv);
+int  rs_stdtext_get(uint32_t id, uint32_t *rv);                     /* game_patches.c: new lines of STDTEXT (Weapons_Mod.txt names) */               /* game_patches.c: the soldier list past 32 (match end crash) */
 int  rs_unit_list_remove(uint32_t unit, uint64_t *rv);
 int  rs_text_get(uint32_t table, uint32_t idx, uint32_t *rv);    /* game_patches.c: bot names past the end of a faction's 48 */
 /* colour_picker.c: Personalisation colours chosen with an HSV picker */

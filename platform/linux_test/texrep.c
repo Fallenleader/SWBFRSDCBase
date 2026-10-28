@@ -1,11 +1,12 @@
 /* Texture replacement (mod support): any texture the game uploads can be replaced by a PNG of any size, plus optional PBR maps.
  *
- *   <mods dir>/<mod name>/textures/<key>.png             replacement colour (RGBA; any resolution, keep the aspect ratio)
- *   <mods dir>/<mod name>/textures/<key>-<pal>.png       same, only for one palette of a CLUT texture (team colours etc.)
- *   ..._ms.png   PBR map: R = metalness, G = smoothness, B = ambient occlusion (A reserved for a height map, not used yet);
- *                the layout Materialize-style tools give (smoothness = 1 - roughness)
- *   ..._n.png    tangent-space normal map (OpenGL convention, +Y up)
- *   ..._mask.png characters' colour mask, read into the colour file's alpha (white: own colour, mid grey: colour 1, black: colour 2)
+ *   <mods dir>/<mod name>/textures/<key>[@<label>]_RGBA.png     replacement colour: RGB diffuse, A transparency (any resolution,
+ *                                                                 keep the aspect ratio)
+ *   <mods dir>/<mod name>/textures/<key>-<pal>[@<label>]_RGBA.png same, only for one palette of a CLUT texture (team colours etc.)
+ *   ..._NM.png    tangent-space normal map in RGB (OpenGL convention, +Y up); A = characters' colour mask (white: own colour, mid
+ *                 grey: colour 1, black: colour 2), put into the colour's alpha when it is not all white
+ *   ..._MSAO.png  PBR map: R = metalness, G = smoothness, B = ambient occlusion (A unused for now; reserved for a height map)
+ *   (earlier names still read: <key>.png, _ms, _n, _mask)  Suffixes are case-insensitive; the label is ignored.
  *
  * <key> = CRC-32 of the texture's level-0 texel bytes as the game stores them (8 lowercase hex digits; tools/asura/extract.py writes the
  * key of every texture into manifest.json).  <pal> = the runtime palette id; RS_MOD_DUMP=1 writes every texture the game uploads as
@@ -51,7 +52,7 @@ static int cmp(const void *a, const void *b){ unsigned long long x = ((const rep
 static int cmpstr(const void *a, const void *b){ return strcmp(*(char * const *)a, *(char * const *)b); }
 static int hex8(const char *s){ for (int i = 0; i < 8; i++) if (!isxdigit((unsigned char)s[i])) return 0; return 1; }
 
-/* <key>[-<pal>][@<label>][_ms|_n].png, in dir and its subfolders (a mod can keep the layout of mods/dumps) */
+/* <key>[-<pal>][@<label>][_RGBA|_NM|_MSAO|_ms|_n].png, in dir and its subfolders (a mod can keep the layout of mods/dumps) */
 static int scan_dir(const char *dir, int depth){
     DIR *d = opendir(dir); if (!d) return 0; struct dirent *e; int n = 0;
     while ((e = readdir(d))) {
@@ -61,10 +62,14 @@ static int scan_dir(const char *dir, int depth){
         const char *ext = s + l - 4; if (strcmp(ext, ".png") && strcmp(ext, ".PNG")) continue;
         char k[9]; memcpy(k, s, 8); k[8] = 0; unsigned long long key = (unsigned long long)strtoul(k, 0, 16) << 32; const char *r = s + 8;
         if (*r == '-' && (size_t)(r + 9 - s) <= l - 4 && hex8(r + 1)) { memcpy(k, r + 1, 8); key |= strtoul(k, 0, 16); r += 9; }
-        if ((size_t)(ext - r) >= 5 && !strncmp(ext - 5, "_mask", 5)) continue;                 /* a colour mask: read with its colour file */
-        if (*r == '@') { const char *x = ext; if (x - r > 3 && !strncmp(x - 3, "_ms", 3)) x -= 3; else if (x - r > 2 && !strncmp(x - 2, "_n", 2)) x -= 2; r = x; }   /* a label (dumps): ignored */
-        size_t rl = (size_t)(ext - r); int slot;
-        if (rl == 0) slot = 0; else if (rl == 3 && !strncmp(r, "_ms", 3)) slot = 1; else if (rl == 2 && !strncmp(r, "_n", 2)) slot = 2; else continue;
+        if ((size_t)(ext - r) >= 5 && !strncasecmp(ext - 5, "_mask", 5)) continue;              /* a colour mask: read with its colour file */
+        static const struct { const char *suf; int slot; } SUF[] = {{"_RGBA", 0}, {"_MSAO", 1}, {"_NM", 2}, {"_ms", 1}, {"_n", 2}};
+        int slot = -1; const char *x = ext;
+        for (size_t i = 0; i < sizeof SUF / sizeof SUF[0] && slot < 0; i++) { size_t sl = strlen(SUF[i].suf);
+            if ((size_t)(ext - r) >= sl && !strncasecmp(ext - sl, SUF[i].suf, sl)) { slot = SUF[i].slot; x = ext - sl; } }
+        if (slot < 0) slot = 0;
+        if (*r == '@') r = x;                                                                  /* a label (dumps): ignored */
+        if (r != x) continue;
         rep_t *rp = get(key); free(rp->path[slot]); rp->path[slot] = strdup(p); n++; }
     closedir(d);
     if (n && !depth) fprintf(stderr, "[MOD] %s: %d texture file(s)\n", dir, n);
@@ -123,12 +128,21 @@ int rs_png_write(const char *path, int w, int h, const u32 *rgba){ return stbi_w
 /* decode a PNG to RGBA8 (malloc'd, caller frees with free()) */
 /* a PNG as RGBA; a colour file with <name>_mask.png next to it gets its alpha channel from the mask (its grey level: characters'
  * colour masks, white = the texture's own colour, mid grey = Personalisation colour 1, black = colour 2), scaled to the colour size */
+/* A <name>_RGBA.png colour file takes its alpha from <name>_NM.png's alpha when that is not all opaque (the colour mask). */
+static int find_sibling(const char *path, char *out, size_t cap){
+    size_t l = strlen(path); if (l < 10 || l + 8 > cap) return 0;
+    if (!strcasecmp(path + l - 9, "_RGBA.png")) {
+        const char *nm[2] = {"_NM.png", "_nm.png"};
+        for (int i = 0; i < 2; i++) { memcpy(out, path, l - 9); strcpy(out + l - 9, nm[i]); struct stat st; if (stat(out, &st) == 0) return 2; }
+        return 0; }
+    memcpy(out, path, l - 4); strcpy(out + l - 4, "_mask.png"); struct stat st; return stat(out, &st) == 0 ? 1 : 0; }
 u8 *rs_png_load(const char *path, int *w, int *h){
     int c; u8 *px = stbi_load(path, w, h, &c, 4); if (!px) return NULL;
     size_t l = strlen(path); if (l < 5 || l > 1000 || strcasecmp(path + l - 4, ".png")) return px;
-    char mp[1024]; memcpy(mp, path, l - 4); strcpy(mp + l - 4, "_mask.png");
-    struct stat st; if (stat(mp, &st) != 0) return px;
+    char mp[1100]; int kind = find_sibling(path, mp, sizeof mp); if (!kind) return px;
     int mw, mh; u8 *m = stbi_load(mp, &mw, &mh, &c, 4); if (!m) return px;
+    if (kind == 2) { int any = 0; for (size_t i = 0; i < (size_t)mw * mh && !any; i++) if (m[i * 4 + 3] != 255) any = 1;   /* no mask in it */
+        if (!any) { stbi_image_free(m); return px; } }
     for (int y = 0; y < *h; y++) for (int x = 0; x < *w; x++) { const u8 *q = m + ((size_t)(y * mh / *h) * mw + (size_t)(x * mw / *w)) * 4;
-        px[((size_t)y * *w + x) * 4 + 3] = (u8)((q[0] * 77 + q[1] * 150 + q[2] * 29 + 128) >> 8); }
+        px[((size_t)y * *w + x) * 4 + 3] = kind == 2 ? q[3] : (u8)((q[0] * 77 + q[1] * 150 + q[2] * 29 + 128) >> 8); }
     stbi_image_free(m); return px; }

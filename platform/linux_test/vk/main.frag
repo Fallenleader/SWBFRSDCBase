@@ -1,7 +1,7 @@
 #version 460
 /* The PSP GE's texture functions, fog, alpha test (gfx_gl.c FS_SRC), and for 3D draws (FX):
  *   sun shadow  - shadow map (SHADOW_MAP) or a ray query towards the sun (RT build, u.rt.x)
- *   PBR         - metal-roughness / normal maps of mod textures (u.pbr.w)
+ *   PBR         - _MSAO / _NM maps of mod textures (u.pbr.w): Burley diffuse, GGX / height-correlated Smith / Schlick specular
  *   reflections - a ray query along the reflected view direction (RT build, u.rt.y): the hit triangle's colour, lit by the sun
  *   AO / GI     - short cosine-distributed rays around the normal (RT build, u.rt2.x rays): what they hit darkens the surface;
  *                 longer rays (u.rt2.y): the colour of what they hit, lit by the sun and the ambient, bounces onto the surface
@@ -67,15 +67,18 @@ void main(){
         else { c.rgb += t.rgb; c.a *= ta; }                                 /* add */
         if (u.cfg0.w > 0.5) c.rgb *= 2.0; }
 #ifdef FX
-    vec3 N = normalize(vVN), V = normalize(-vVP), L = u.sun.xyz;
+    vec3 N = dot(vVN, vVN) > 1e-10 ? normalize(vVN) : normalize(cross(dFdx(vVP), dFdy(vVP)));   /* no vertex normals: the triangle's */
+    vec3 V = normalize(-vVP), L = u.sun.xyz;
     if (dot(N, V) < 0.0) N = -N;
-    /* ---- PBR (mod textures with _ms / _n maps): GGX specular + Schlick Fresnel from the sun, sky/sun reflection term */
+    /* ---- PBR maps (mod textures: _MSAO R metalness, G smoothness, B ambient occlusion; _NM normal map) */
     float rough = 0.7, metal = 0.0, ao = 1.0;
     if (u.pbr.w > 0.5) {
         if (u.pbr.x > 0.5) { vec4 m = texture(uMR, vUV); metal = m.r; rough = clamp(1.0 - m.g, 0.05, 1.0); ao = m.b; }
         if (u.pbr.y > 0.5) { vec3 T = vVT - N * dot(N, vVT); float lt = length(T);
-            if (lt > 0.00001) { T /= lt; vec3 B = cross(N, T); vec3 m = texture(uNM, vUV).xyz * 2.0 - 1.0; vec3 Nm = normalize(T * m.x + B * m.y + N * m.z);
-                float g0 = dot(N, L) * 0.5 + 0.5, g1 = dot(Nm, L) * 0.5 + 0.5; c.rgb *= clamp(g1 / max(g0, 0.1), 0.0, 2.0); N = Nm; } } }
+            if (lt > 0.00001) { T /= lt; vec3 B = cross(N, T); vec3 m = texture(uNM, vUV).xyz * 2.0 - 1.0; m.xy *= u.lit.w; vec3 Nm = normalize(T * m.x + B * m.y + N * m.z);
+                /* the bumps: the sun's and a light from the eye's (so they show in the shade too) on the mapped normal vs the surface's */
+                float g0 = 0.25 + 0.55 * max(dot(N, L), 0.0) + 0.2 * max(dot(N, V), 0.0), g1 = 0.25 + 0.55 * max(dot(Nm, L), 0.0) + 0.2 * max(dot(Nm, V), 0.0);
+                c.rgb *= clamp(g1 / g0, 0.3, 2.5); N = Nm; } } }
     /* ---- sun shadow */
     float shade = 0.0;                                                      /* 0 lit .. 1 in shadow */
     if (u.shp.w > 0.5) {
@@ -94,6 +97,7 @@ void main(){
                 float edge = clamp(min(min(sc.x, 1.0 - sc.x), min(sc.y, 1.0 - sc.y)) * 12.0, 0.0, 1.0);
                 shade = k * edge * clamp(vSh.w * 4.0, 0.0, 1.0); } }
         c.rgb *= 1.0 - u.shp.z * shade; }
+    c.rgb *= mix(vec3(1.0), u.lit.rgb, 1.0 - shade);                       /* the map's sun colour / intensity (mods/lights) */
 #ifdef RT
     /* ---- ray-traced ambient occlusion and one-bounce diffuse light */
     if ((u.rt2.x > 0.5 || u.rt2.y > 0.5) && u.rt.w > 0.5) {
@@ -120,18 +124,32 @@ void main(){
             c.rgb += albT * (gi / float(ng)) * u.rt2.w * (1.0 - metal) * 0.6; } }
 #endif
     if (u.pbr.w > 0.5) {
-        vec3 H = normalize(L + V); float ndl = max(dot(N, L), 0.0) * (1.0 - shade), ndv = max(dot(N, V), 0.001), ndh = max(dot(N, H), 0.0), vdh = max(dot(V, H), 0.0);
-        float a = rough * rough, a2 = a * a, dd = ndh * ndh * (a2 - 1.0) + 1.0, D = a2 / (3.14159 * dd * dd);
-        float kk = (rough + 1.0) * (rough + 1.0) * 0.125, G = (ndl / (ndl * (1.0 - kk) + kk)) * (ndv / (ndv * (1.0 - kk) + kk));
-        vec3 alb = c.rgb, F0 = mix(vec3(0.04), alb, metal);
-        vec3 F = F0 + (1.0 - F0) * pow(1.0 - vdh, 5.0), spec = F * (D * G / (4.0 * ndl * ndv + 0.001)) * ndl;
-        vec3 Fa = F0 + (1.0 - F0) * pow(1.0 - ndv, 5.0) * (1.0 - rough);
+        /* ---- the BRDF (Frostbite, "Moving Frostbite to PBR", Lagarde & de Rousiers 2014): renormalised Disney / Burley diffuse;
+         * Cook-Torrance specular with the GGX (Trowbridge-Reitz) NDF, height-correlated Smith GGX visibility and Schlick Fresnel
+         * (f90 from f0); split-sum environment term (Karis' analytic DFG fit) with Lagarde's specular occlusion from the AO map.
+         * Smoothness s -> perceptual roughness r = 1 - s, GGX alpha = r^2.  The game's own lighting of the pixel (c) stays the
+         * diffuse irradiance: the Burley term reshapes its sunlit part, and the specular is added on top. */
+        const float PI = 3.14159265;
+        float lr = max(rough, 0.045), al = lr * lr, a2 = al * al;
+        vec3 H = normalize(L + V);
+        float NdotL = max(dot(N, L), 0.0), NdotV = max(abs(dot(N, V)), 1e-4), NdotH = max(dot(N, H), 0.0), LdotH = max(dot(L, H), 0.0);
+        float sunW = NdotL * (1.0 - shade);
+        /* Burley diffuse, energy-renormalised, relative to Lambert (1 = Lambert) */
+        float eBias = mix(0.0, 0.5, lr), eFactor = mix(1.0, 1.0 / 1.51, lr), fd90 = eBias + 2.0 * LdotH * LdotH * lr;
+        float burley = (1.0 + (fd90 - 1.0) * pow(1.0 - NdotL, 5.0)) * (1.0 + (fd90 - 1.0) * pow(1.0 - NdotV, 5.0)) * eFactor;
+        /* base colour: the texture's (unlit); F0 = 4% for dielectrics, the base colour for metals */
+        vec3 base = albT, F0 = mix(vec3(0.04), base, metal); float f90 = clamp(50.0 * dot(F0, vec3(0.33)), 0.0, 1.0);
+        vec3 F = F0 + (vec3(f90) - F0) * pow(1.0 - LdotH, 5.0);
+        float dd = NdotH * NdotH * (a2 - 1.0) + 1.0, D = a2 / (PI * dd * dd);
+        float lv = NdotL * sqrt(NdotV * NdotV * (1.0 - a2) + a2), ll = NdotV * sqrt(NdotL * NdotL * (1.0 - a2) + a2), Vis = 0.5 / max(lv + ll, 1e-5);
+        vec3 specD = PI * D * Vis * F * sunW * u.sunc.rgb * u.pbr.z;            /* (x PI: the game's lights are Lambert without 1/PI) */
+        /* environment: sky gradient + the sun's glow, or what the ray-traced reflection hits */
         vec3 R = reflect(-V, N); float up = dot(R, L) * 0.5 + 0.5;
-        vec3 env = mix(vec3(0.42, 0.47, 0.56), vec3(0.80, 0.88, 1.0), up) * u.sunc.rgb + u.sunc.rgb * 6.0 * pow(max(dot(R, L), 0.0), 2.0 + 300.0 * (1.0 - rough) * (1.0 - rough)) * (1.0 - shade);
+        vec3 env = mix(vec3(0.42, 0.47, 0.56), vec3(0.80, 0.88, 1.0), up) * u.sunc.rgb + u.sunc.rgb * 4.0 * pow(max(dot(R, L), 0.0), 2.0 / max(a2, 0.002)) * (1.0 - shade) * (1.0 - lr);
 #ifdef RT
         /* ---- ray-traced reflection: what the reflected ray hits (its triangle's colour, lit by the sun and the ambient), else the sky */
         vec3 wp = toWorld(vVP, 1.0), wn = normalize(toWorld(N, 0.0)), wr = normalize(toWorld(R, 0.0));
-        if (u.rt.y > 0.5 && u.rt.w > 0.5 && rough < 0.6 && !any(isnan(wp)) && !any(isnan(wr)) && !any(isinf(wp)) && dot(wr, wr) > 0.5) {
+        if (u.rt.y > 0.5 && u.rt.w > 0.5 && lr < 0.6 && !any(isnan(wp)) && !any(isnan(wr)) && !any(isinf(wp)) && dot(wr, wr) > 0.5) {
             rayQueryEXT q;
             rayQueryInitializeEXT(q, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, wp + wn * 0.08, 0.05, wr, u.rt.z);
             while (rayQueryProceedEXT(q)) {}
@@ -142,10 +160,17 @@ void main(){
                 vec3 hp = wp + wr * t;
                 float lit = 1.0 - 0.6 * rayOccluded(hp + u.sunw.xyz * 0.1, u.sunw.xyz, u.rt.z);
                 vec3 hit = hc.rgb * (u.amb.rgb + u.sunc.rgb * 0.7 * lit);
-                float fade = clamp(1.0 - t / u.rt.z, 0.0, 1.0);
+                float fade = clamp(1.0 - t / u.rt.z, 0.0, 1.0) * (1.0 - lr / 0.6);
                 env = mix(env, hit, fade); } }
 #endif
-        c.rgb = c.rgb * (1.0 - metal) * ao + alb * metal * (0.25 + 0.75 * Fa * env * 1.6) * ao + Fa * env * (1.0 - rough) * (1.0 - metal) * 0.5 + spec * u.sunc.rgb * u.pbr.z; }
+        /* the game's light level here (its lighting and shading of this pixel), so reflections dim in dark places */
+        float lvl = clamp(dot(c.rgb, vec3(0.299, 0.587, 0.114)) / max(dot(base, vec3(0.299, 0.587, 0.114)), 0.04), 0.15, 1.5);
+        vec4 rr = lr * vec4(-1.0, -0.0275, -0.572, 0.022) + vec4(1.0, 0.0425, 1.04, -0.04);
+        float a004 = min(rr.x * rr.x, exp2(-9.28 * NdotV)) * rr.x + rr.y; vec2 AB = vec2(-1.04, 1.04) * a004 + rr.zw;
+        float specOcc = clamp(pow(NdotV + ao, exp2(-16.0 * al - 1.0)) - 1.0 + ao, 0.0, 1.0);
+        vec3 specE = env * lvl * (F0 * AB.x + AB.y) * specOcc;
+        vec3 diffuse = c.rgb * mix(1.0, burley, sunW) * (1.0 - metal) * ao;
+        c.rgb = diffuse + specD + specE; }
 #endif
     if (u.fog.a > 0.5) c.rgb = mix(u.fog.rgb, c.rgb, clamp(vFog, 0.0, 1.0));
     c.rgb *= u.mul.rgb;
