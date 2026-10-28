@@ -261,3 +261,40 @@ int rs_vehicle_hit(u32 veh, u32 man){
     if (rs_setting_int("RS_AI_LOG", 0)) fprintf(stderr, "[VEHICLE] %08x ran over an enemy soldier %08x\n", veh, man);
     ((ifn_t)GFN(GU32(GU32(man) + 8)))(man, msg, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     return 1; }
+/* Physics: vehicles pass through soldiers of the side aboard them.  func_088BBDEC(pair) is the physics engine's test of a pair of
+ * bodies (pair +4, +8): 1 = not touching (the bounding boxes apart), else the narrow-phase contact.  Each body carries its game
+ * object's id at +364 (the id the game looks up in its object table, 0x08C2C31C / size 0x08C2C320, as func_089D74B4 does).  A pair of
+ * a vehicle (object type 0x8004) and a soldier (0x8005) whose sides are the same (RS_VEHICLE_RUNOVER) is reported as not touching. */
+static int is_veh(int t){ return t == 0x8004 || t == 0x8014 || t == 0x801D || t == 0x801E; }   /* the vehicle types (func_089D74B4's table) */
+static u32 obj_by_id(u32 id){
+    if (id == 999 || !id) return 0;
+    u32 tab = GU32(IMG(0x08C2C31Cu)), sz = GU32(IMG(0x08C2C320u)); if (!tab || !sz) return 0;
+    for (u32 nd = GU32(tab + 4u * (id & (sz - 1))); nd; nd = GU32(nd + 4)) { u32 o = GU32(nd); if (!o) continue;
+        u32 b = o + GU32(GU32(o) - 16); if (GU32(b + 4) == id && !(GU32(b + 16) & 1)) return o; }
+    return 0; }
+static int vehicle_side(u32 veh){                                         /* the side of whoever is aboard (-1: nobody); cached per frame */
+    extern volatile int g_frames; static u32 cv[16]; static int cs[16], cf[16]; u32 vid = obj_id(veh); int k = (int)(vid % 16u);
+    if (cv[k] == vid && cf[k] == g_frames) return cs[k];
+    u32 l = rs_unit_list(), n = GU32(IMG(UL_COUNT)); if (n > UL_MAX) n = UL_MAX; int side = -1;
+    for (u32 i = 0; i < n && side < 0; i++) { u32 s = GU32(l + 4 * i); if (s && func_089D194C(s) == vid) side = unit_side(s); }
+    cv[k] = vid; cf[k] = g_frames; cs[k] = side; return side; }
+int rs_phys_pair(u32 pair, u32 *rv){
+    static int on_ = -1; if (on_ < 0) on_ = rs_setting_int("RS_VEHICLE_RUNOVER", 1) && on();
+    if (!on_ || !GU32(IMG(UL_COUNT))) return 0;
+    u32 ba = GU32(pair + 4), bb = GU32(pair + 8); if (!ba || !bb) return 0;
+    u32 oa = obj_by_id(GU32(ba + 364)); if (!oa) return 0; int ta = obj_type(oa); if (ta != 0x8005 && !is_veh(ta)) return 0;
+    u32 ob = obj_by_id(GU32(bb + 364)); if (!ob) return 0; int tb = obj_type(ob);
+    u32 veh, man; if (is_veh(ta) && tb == 0x8005) { veh = oa; man = ob; } else if (ta == 0x8005 && is_veh(tb)) { veh = ob; man = oa; } else return 0;
+    int vs = vehicle_side(veh); if (vs < 0 || func_089D194C(man) == obj_id(veh)) return 0;
+    if (unit_side(man) != vs) return 0;
+    { static unsigned n; if (++n % 500 == 1 && rs_setting_int("RS_AI_LOG", 0)) fprintf(stderr, "[VEHICLE] friendly soldier contacts passed through: %u\n", n); }
+    *rv = 1; return 1; }
+/* Look centring (RS_LOOK_CENTER=0 turns it off).  The player's soldier (func_0899530C, the soldier update: +92 is its input object,
+ * the twin-stick one for the player) keeps a look timer at +0x1FC: set to about 1 while the look up / down input is used, counted
+ * down otherwise, and when it runs out the view is levelled again (checked on the Linux build: the aim direction at +0x118 returns
+ * to level the frame the timer passes 0).  Held just above 0, the timer never runs out and the view stays where it was put. */
+extern u32 rs_input_object(void);
+void rs_soldier_frame(u32 sol){
+    static int keep = -1; if (keep < 0) keep = !rs_setting_int("RS_LOOK_CENTER", 1);
+    if (!keep || !sol || GU32(sol + 92) != rs_input_object()) return;
+    float t = GF32(sol + 0x1FC); if (t > -1.0f && t < 0.15f) GF32(sol + 0x1FC) = 0.15f; }
