@@ -44,6 +44,22 @@ RS_RT=1
 RS_RT_SHADOWS=1
 RS_RT_REFLECTIONS=1
 RS_RT_DISTANCE=200
+#   RS_RTAO           ray-traced ambient occlusion: short rays around each pixel darken creases, corners and the ground under things
+#   RS_RTAO_RAYS      AO rays per pixel (1-16; more = smoother, slower)
+#   RS_RTAO_RADIUS    how far an AO ray looks, in tenths of a metre (20 = 2 m)
+#   RS_RTAO_STRENGTH  how dark full occlusion gets, percent
+#   RS_RTGI           ray-traced global illumination (one bounce): the sunlit colour of nearby surfaces bleeds onto each pixel
+#   RS_RTGI_RAYS      GI rays per pixel (1-16; each costs two rays: the bounce and its shadow check)
+#   RS_RTGI_STRENGTH  how strong the bounced light is, percent
+#   RS_RTGI_DISTANCE  how far a GI ray looks, in metres
+RS_RTAO=1
+RS_RTAO_RAYS=2
+RS_RTAO_RADIUS=20
+RS_RTAO_STRENGTH=70
+RS_RTGI=1
+RS_RTGI_RAYS=1
+RS_RTGI_STRENGTH=60
+RS_RTGI_DISTANCE=30
 # per-map light setup: written to /data/SWBFRS/mods/lights/<era>_<map>.txt from the game's own lights the first time a map is
 # played (after this many frames), then read from there - edit a file to change that map's sun; delete it to capture again
 RS_LIGHT_CAPTURE=1

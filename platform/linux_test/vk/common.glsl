@@ -17,5 +17,7 @@ layout(std140, set = 0, binding = 0) uniform Draw {
     vec4 vinv[3];     /* camera space -> world (rows, 3x4) */
     vec4 sunw;        /* towards the sun, world space */
     vec4 amb;         /* ambient for reflected surfaces */
+    vec4 rt2;         /* x ambient-occlusion rays, y GI rays (0 = off), z AO radius (m), w GI strength */
+    vec4 rt3;         /* x (unused), y AO strength, z GI ray length (m) */
     vec4 bone[24];
 } u;

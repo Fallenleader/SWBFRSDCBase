@@ -3,6 +3,8 @@
  *   sun shadow  - shadow map (SHADOW_MAP) or a ray query towards the sun (RT build, u.rt.x)
  *   PBR         - metal-roughness / normal maps of mod textures (u.pbr.w)
  *   reflections - a ray query along the reflected view direction (RT build, u.rt.y): the hit triangle's colour, lit by the sun
+ *   AO / GI     - short cosine-distributed rays around the normal (RT build, u.rt2.x rays): what they hit darkens the surface;
+ *                 longer rays (u.rt2.y): the colour of what they hit, lit by the sun and the ambient, bounces onto the surface
  * Built three times: BASIC (2D: no FX inputs), FX, FX + RT (GL_EXT_ray_query; only on devices that have it). */
 #ifdef RT
 #extension GL_EXT_ray_query : require
@@ -34,14 +36,29 @@ float rayOccluded(vec3 p, vec3 dir, float tmax){
     rayQueryInitializeEXT(q, uTLAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT, 0xFF, p, 0.05, dir, tmax);
     while (rayQueryProceedEXT(q)) {}
     return rayQueryGetIntersectionTypeEXT(q, true) != gl_RayQueryCommittedIntersectionNoneEXT ? 1.0 : 0.0; }
+/* closest hit along the ray: its distance (and triangle), or -1 */
+float rayHit(vec3 p, vec3 dir, float tmax, out int prim){
+    prim = 0;
+    if (any(isnan(p)) || any(isinf(p)) || any(isnan(dir)) || dot(dir, dir) < 0.5) return -1.0;
+    rayQueryEXT q;
+    rayQueryInitializeEXT(q, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, p, 0.05, dir, tmax);
+    while (rayQueryProceedEXT(q)) {}
+    if (rayQueryGetIntersectionTypeEXT(q, true) == gl_RayQueryCommittedIntersectionNoneEXT) return -1.0;
+    prim = rayQueryGetIntersectionPrimitiveIndexEXT(q, true); return rayQueryGetIntersectionTEXT(q, true); }
+/* a fixed per-pixel random number (no frame-to-frame shimmer) and a cosine-weighted direction around n */
+float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+vec3 cosDir(vec3 n, vec2 r){
+    float ph = 6.28318 * r.x, s = sqrt(r.y);
+    vec3 t = normalize(abs(n.y) < 0.99 ? cross(n, vec3(0.0, 1.0, 0.0)) : cross(n, vec3(1.0, 0.0, 0.0))), b = cross(n, t);
+    return normalize(t * (cos(ph) * s) + b * (sin(ph) * s) + n * sqrt(max(1.0 - r.y, 0.0))); }
 #endif
 #endif
 
 void main(){
     if (vCull > 0.0) discard;
-    vec4 c = vCol;
+    vec4 c = vCol; vec3 albT = vec3(1.0);                                   /* albT: the surface's texture colour (GI bounce) */
     if (u.cfg0.x > 0.5) {
-        vec4 t = texture(uTex, vUV);
+        vec4 t = texture(uTex, vUV); albT = t.rgb;
         float ta = (u.cfg0.z > 0.5) ? t.a : 1.0; float f = u.cfg0.y;
         if (f < 0.5) { c.rgb *= t.rgb; c.a *= ta; }                       /* modulate */
         else if (f < 1.5) { c.rgb = mix(c.rgb, t.rgb, ta); }                /* decal */
@@ -77,6 +94,31 @@ void main(){
                 float edge = clamp(min(min(sc.x, 1.0 - sc.x), min(sc.y, 1.0 - sc.y)) * 12.0, 0.0, 1.0);
                 shade = k * edge * clamp(vSh.w * 4.0, 0.0, 1.0); } }
         c.rgb *= 1.0 - u.shp.z * shade; }
+#ifdef RT
+    /* ---- ray-traced ambient occlusion and one-bounce diffuse light */
+    if ((u.rt2.x > 0.5 || u.rt2.y > 0.5) && u.rt.w > 0.5) {
+        vec3 wp = toWorld(vVP, 1.0), wn = normalize(toWorld(N, 0.0)), o = wp + wn * 0.06;
+        float h = hash12(gl_FragCoord.xy); vec2 h2 = vec2(h, hash12(gl_FragCoord.yx + 17.0));
+        int na = int(u.rt2.x + 0.5), ng = int(u.rt2.y + 0.5); int prim;
+        if (na > 0) {
+            float occ = 0.0;
+            for (int i = 0; i < na; i++) {
+                vec2 r = fract(h2 + float(i) * vec2(0.7548777, 0.5698403));
+                float t = rayHit(o, cosDir(wn, r), u.rt2.z, prim);
+                if (t >= 0.0) occ += 1.0 - t / u.rt2.z; }
+            c.rgb *= 1.0 - u.rt3.y * clamp(occ / float(na), 0.0, 1.0) * ao; }
+        if (ng > 0) {
+            vec3 gi = vec3(0.0);
+            for (int i = 0; i < ng; i++) {
+                vec2 r = fract(h2.yx + float(i) * vec2(0.5698403, 0.7548777));
+                vec3 d = cosDir(wn, r);
+                float t = rayHit(o, d, u.rt3.z, prim);
+                if (t >= 0.0) {
+                    vec3 hc = unpackUnorm4x8(hitCol[prim]).rgb, hp = o + d * t;
+                    float lit = 1.0 - rayOccluded(hp + u.sunw.xyz * 0.1, u.sunw.xyz, u.rt.z);
+                    gi += hc * (u.amb.rgb * 0.5 + u.sunc.rgb * 0.8 * lit) * clamp(1.0 - t / u.rt3.z, 0.0, 1.0); } }
+            c.rgb += albT * (gi / float(ng)) * u.rt2.w * (1.0 - metal) * 0.6; } }
+#endif
     if (u.pbr.w > 0.5) {
         vec3 H = normalize(L + V); float ndl = max(dot(N, L), 0.0) * (1.0 - shade), ndv = max(dot(N, V), 0.001), ndh = max(dot(N, H), 0.0), vdh = max(dot(V, H), 0.0);
         float a = rough * rough, a2 = a * a, dd = ndh * ndh * (a2 - 1.0) + 1.0, D = a2 / (3.14159 * dd * dd);

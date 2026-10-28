@@ -61,7 +61,7 @@ extern int rs_setting_int(const char *, int);
 static PFN_vkGetInstanceProcAddr gipa; static int want_display;
 static VkInstance inst; static VkPhysicalDevice phys; static VkDevice dev; static VkQueue queue; static uint32_t qfam;
 static VkPhysicalDeviceMemoryProperties memprops; static VkPhysicalDeviceProperties props;
-static int has_rt, rt_shadows, rt_refl; static VkFormat dsfmt;
+static int has_rt, rt_shadows, rt_refl, rt_ao, rt_gi; static float rt_ao_rad = 2, rt_ao_str = 0.7f, rt_gi_str = 0.6f, rt_gi_len = 30; static VkFormat dsfmt;
 void gfx_vk_setup(void *get_instance_proc_addr, int display){ gipa = (PFN_vkGetInstanceProcAddr)get_instance_proc_addr; want_display = display; }
 int gfx_vk_has_rt(void){ return has_rt; }
 
@@ -390,7 +390,7 @@ typedef struct {
     float vp0[4], vp1[4], vp2[4], uvt[4], fogp[4], defc[4];
     float mamb[4], mdif[4], memi[4], msca[4], lfl[4];
     float lpos[16], latt[16], lspot[16], la[16], ld[16];
-    float shm[16], shp[4], pbr[4], sun[4], sunc[4], rt[4], vinv[12], sunw[4], amb[4];
+    float shm[16], shp[4], pbr[4], sun[4], sunc[4], rt[4], vinv[12], sunw[4], amb[4], rt2[4], rt3[4];
     float bone[96];
 } ubo_t;
 
@@ -408,7 +408,7 @@ static void norm3(float *v){ float l = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * 
 static int is_identity(const float *v){ static const float I[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}; for (int i = 0; i < 12; i++) if (fabsf(v[i] - I[i]) > 1e-4f) return 0; return 1; }
 static void sh_record(const gfx_state_t *st, const gfx_hw_t *hw, const gfx_hvtx_t *v, int n){
     if (!is_identity(hw->view)) { memcpy(sh_view, hw->view, sizeof sh_view); sh_view_any = 1; }
-    if (!(sh_on || rt_shadows || rt_refl) || !sh_caster(st) || n <= 0) return;
+    if (!(sh_on || rt_shadows || rt_refl || rt_ao || rt_gi) || !sh_caster(st) || n <= 0) return;
     if (shv_n + n > shv_cap) { int nc = (shv_n + n) * 2; if (nc < 65536) nc = 65536; gfx_hvtx_t *t = realloc(shv, sizeof *shv * (size_t)nc); if (!t) return; shv = t; shv_cap = nc; }
     if (shr_n + 1 > shr_cap) { int nc = shr_cap ? shr_cap * 2 : 512; shrec_t *t = realloc(shr, sizeof *shr * (size_t)nc); if (!t) return; shr = t; shr_cap = nc; }
     u32 col = st->tex && st->texid && st->texid < IMG_N ? imgs[st->texid].avg : 0xFFFFFFFFu;
@@ -541,6 +541,7 @@ static void flush_batch(void){
         if (has_rt) { static float lv[12] = {9}; if (memcmp(lv, sh_view, sizeof lv)) { memcpy(lv, sh_view, sizeof lv); inv_view(sh_view, rt_vinv); } }
         memcpy(u->vinv, rt_vinv, sizeof u->vinv); u->sunw[0] = sh_sun[0]; u->sunw[1] = sh_sun[1]; u->sunw[2] = sh_sun[2];
         u->amb[0] = u->amb[1] = u->amb[2] = 0.45f; { static int d = -1; if (d < 0) d = getenv("RS_RT_FIXEDRAY") != 0; u->amb[3] = (float)d; }
+        if (rcv) { u->rt2[0] = (float)rt_ao; u->rt2[1] = (float)rt_gi; u->rt2[2] = rt_ao_rad; u->rt2[3] = rt_gi_str; u->rt3[0] = 0; u->rt3[1] = rt_ao_str; u->rt3[2] = rt_gi_len; }
         push_desc(uo, bst.tex ? bst.texid : 0, tex_sampler(&bst), bst.texmr, bst.texn, 1); }
     else {
         memcpy(vp, bv, vsz * (size_t)bn);
@@ -852,7 +853,7 @@ static void rt_build(void){
     rtas_t *a = &as[fi];
     if (a->frame == vk_frame_no) return;                          /* already built (and maybe used) in this command buffer: keep it */
     a->frame = vk_frame_no; a->valid = 0;
-    if (!has_rt || !(rt_shadows || rt_refl) || !sh_cam_ok || !shr_n || !sh_view_ok) return;
+    if (!has_rt || !(rt_shadows || rt_refl || rt_ao || rt_gi) || !sh_cam_ok || !shr_n || !sh_view_ok) return;
     inv_view(sh_view, rt_vinv);
     int ntri = shv_n / 3; if (ntri <= 0) return;
     /* vertices: model -> camera (wv, skinning) -> world */
@@ -1048,13 +1049,20 @@ int gfx_init(void){
       pbr_ok = (int)rs_patch_pbr();
       rt_shadows = has_rt && rs_setting_int("RS_RT_SHADOWS", 1); rt_refl = has_rt && rs_setting_int("RS_RT_REFLECTIONS", 1);
       rt_len = (float)rs_setting_int("RS_RT_DISTANCE", 200);
+      /* ray-traced ambient occlusion and one-bounce diffuse light (rays per pixel; 0 = off) */
+      rt_ao = has_rt ? rs_setting_int("RS_RTAO_RAYS", 2) : 0; if (rt_ao < 0) rt_ao = 0; if (rt_ao > 16) rt_ao = 16;
+      rt_gi = has_rt ? rs_setting_int("RS_RTGI_RAYS", 1) : 0; if (rt_gi < 0) rt_gi = 0; if (rt_gi > 16) rt_gi = 16;
+      if (!rs_setting_int("RS_RTAO", 1)) rt_ao = 0;
+      if (!rs_setting_int("RS_RTGI", 1)) rt_gi = 0;
+      rt_ao_rad = (float)rs_setting_int("RS_RTAO_RADIUS", 20) / 10.0f; rt_ao_str = (float)rs_setting_int("RS_RTAO_STRENGTH", 70) / 100.0f;
+      rt_gi_str = (float)rs_setting_int("RS_RTGI_STRENGTH", 60) / 100.0f; rt_gi_len = (float)rs_setting_int("RS_RTGI_DISTANCE", 30);
       if (rt_shadows) sh_on = 0;                                     /* ray-traced sun shadows replace the shadow map */
       if (sh_on) { sh_img = img_new(sh_res, sh_res, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 1, VK_IMAGE_ASPECT_DEPTH_BIT);
           if (sh_img) to_general(cmd(), imgs[sh_img].img, VK_IMAGE_ASPECT_DEPTH_BIT, 1); else sh_on = 0; } }
     if (has_rt) as_dummy_init();
     use_fxaa = rs_setting_int("RS_FXAA", 1);
     if (want_display && display_init()) { fprintf(stderr, "[VK] no display output\n"); return -1; }
-    fprintf(stderr, "[VK] %s, Vulkan %u.%u.%u; internal %dx%d (x%d); ray tracing %s (sun shadows %s, reflections %s); shadow map %s; PBR %s; FXAA %s\n",
+    fprintf(stderr, "[VK] %s, Vulkan %u.%u.%u; internal %dx%d (x%d); ray tracing %s (sun shadows %s, reflections %s, AO %d rays, GI %d rays); shadow map %s; PBR %s; FXAA %s\n",
             props.deviceName, VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion), VK_VERSION_PATCH(props.apiVersion), 480 * RS_S, 272 * RS_S, RS_S,
-            has_rt ? "available" : "not available", rt_shadows ? "ray-traced" : "off", rt_refl ? "ray-traced" : "off", sh_on ? "on" : "off", pbr_ok ? "on" : "off", use_fxaa ? "on" : "off");
+            has_rt ? "available" : "not available", rt_shadows ? "ray-traced" : "off", rt_refl ? "ray-traced" : "off", rt_ao, rt_gi, sh_on ? "on" : "off", pbr_ok ? "on" : "off", use_fxaa ? "on" : "off");
     return 0; }
