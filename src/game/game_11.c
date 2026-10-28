@@ -6911,7 +6911,7 @@ L_088FDE8C:;
 void func_088FDCC0(u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3)
 {
     func_088FDCC0__orig(a2, a3, t0, t1, t2, t3);
-    rs_input_after_pad(), rs_picker_pad(), rs_savemgr_pad(), rs_parts_frame(), rs_loadout_frame();   /* native hook (tools/dc/hooks.py) */
+    rs_input_after_pad(), rs_picker_pad(), rs_savemgr_pad(), rs_parts_frame(), rs_loadout_frame(), rs_ai_frame();   /* native hook (tools/dc/hooks.py) */
 }
 
 /* 088FDE94 */

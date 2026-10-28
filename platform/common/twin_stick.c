@@ -80,6 +80,11 @@ void rs_input_after_scheme(u32 obj, u32 idx){
         if (is_axis(aim_x, SLOT_LX) && !R32(aim_x + 8)) R32(aim_x + 12) = SLOT_RX;               /* aiming: right stick */
         if (is_axis(aim_y, SLOT_LY) && !R32(aim_y + 8)) R32(aim_y + 12) = SLOT_RY;
         add_axis(tbl, ACT_LOOK, SLOT_RY, turn);                                                   /* look up / down: right Y */
+        {   /* turning acceleration (RS_TURN_ACCEL, percent; 130 = 30% faster): the binding eases towards the stick over +20 seconds
+             * when the stick moves out (func_08896A3C: value += (stick - value) * frame time / +20), so that time is divided */
+            int k = rs_setting_int("RS_TURN_ACCEL", 130); if (k < 25) k = 25; if (k > 400) k = 400;
+            float up = RF(turn + 20); if (up > 0.0f) RF(turn + 20) = up * 100.0f / (float)k;
+            fprintf(stderr, "[INPUT] turn: ease-in %.3f s -> %.3f s (RS_TURN_ACCEL %d%%), ease-out %.3f s, scale %.2f\n", up, RF(turn + 20), k, RF(turn + 24), RF(turn + 4)); }
         fprintf(stderr, "[INPUT] twin-stick controls: left stick move + strafe, right stick turn + look\n");
     } else {
         u32 t0 = R32(obj + 8);                                                                    /* scheme 0, already converted */
