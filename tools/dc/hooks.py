@@ -23,6 +23,8 @@ HOOKS = {
     '08A34280': {'after': 'rs_credits_init(a0)'},                           # Customize Load-out: credits reset (game_24.c): loadout_slots.c
     '08A35B00': {'replace': 'rs_parts_accept(a0, a1, &r_)'},                  # Personalisation carousel: item chosen
     '08956118': {'replace': 'rs_ai_pool_init()'},
+    '08A0AD64': {'replace': 'rs_unit_list_add(a0, &r_)'},                       # a soldier added to that list (game_23.c)
+    '08A0ADFC': {'replace': 'rs_unit_list_remove(a0, &r_)'},                    # and removed
     '08926220': {'after': 'rs_ai_squad_caps(a0)'},                              # AI: a team's squad sizes (game_12.c): game_patches.c
     '08926478': {'replace': 'rs_ai_assign(a0, a1, a2)'},              # AI: a squad sent to a command post
     '088346E0': {'replace': 'rs_text_get(a0, a1, &r_)'},                       # text table string n (bot names past 48): game_patches.c                              # AI object pool (behaviours, goals): game_patches.c
@@ -34,8 +36,9 @@ DATA = {
     '08ADC630': 'rs_loadout_table(2)',   # Explosive
     '08ADC648': 'rs_loadout_table(3)',   # Special Item
     '08ADC668': 'rs_loadout_table(4)',   # Power Up
+    '08C2C4EC': 'rs_unit_list()',       # the game's list of up to 32 soldiers (now RS_UNIT_LIST_MAX): game_patches.c
 }
-DATA_DECL = 'u32 rs_loadout_table(int);'
+DATA_DECL = 'u32 rs_loadout_table(int); u32 rs_unit_list(void);'
 MARK = '/* native hook (tools/dc/hooks.py) */'
 INCLUDE = '#include "../../platform/common/game_hooks.h"   ' + MARK + '\n'
 INIT = {'void': '', 'u32': ' = 0', 'u64': ' = 0', 'float': ' = 0', 'rv_t': ' = {0, 0, 0}'}
