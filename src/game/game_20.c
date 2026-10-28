@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 089C48BC */
 rv_t func_089C48BC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
@@ -29270,7 +29271,7 @@ L_089D7D00:;
 }
 
 /* 089D7D08 */
-void func_089D7D08(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
+static void func_089D7D08__orig(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
 {
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, t0 = 0, t5 = 0, t7 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0, s7 = 0, t9 = 0;
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f9 = 0, f10 = 0, f11 = 0, f12 = 0, f13 = 0, f14 = 0, f15 = 0, f16 = 0, f18 = 0, f19 = 0, f20 = 0, f21 = 0, f22 = 0, f23 = 0, f24 = 0, f25 = 0, f26 = 0, f27 = 0, f28 = 0, f29 = 0, f30 = 0, f31 = 0;
@@ -30331,6 +30332,12 @@ L_089D8C84:;
 L_089D8CC0:;
     goto L_089D7D8C;
     v[0]=vr0;v[1]=vr1;v[2]=vr2;v[4]=vr4;v[5]=vr5;v[6]=vr6;v[12]=vr12;v[13]=vr13;v[14]=vr14;v[32]=vr32;v[33]=vr33;v[34]=vr34;
+}
+
+void func_089D7D08(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
+{
+    if (rs_vehicle_hit(a0, a1)) return;   /* native hook (tools/dc/hooks.py) */
+    func_089D7D08__orig(a0, a1, t1, t2, t3);
 }
 
 /* 089D8CC8 */

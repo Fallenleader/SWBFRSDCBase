@@ -1207,11 +1207,12 @@ static void shadow_pass(void){
         glDrawArrays(GL_TRIANGLES, 0, r->count); }
     rs_perf.shadow_us += rs_perf_us() - t0; rs_perf.shadow_draws += (u64)shr_n; sh_draws_total += (u64)shr_n;
     glDisableVertexAttribArray(4); glDisableVertexAttribArray(5);
+    { static int cl = -1; static unsigned n; if (cl < 0) cl = getenv("RS_CAM_LOG") != 0;            /* test builds: the camera's axes (world) */
+      if (cl && n++ % 10 == 0) { extern volatile int g_frames; fprintf(stderr, "[CAM] frame %d up %.2f %.2f %.2f forward %.2f %.2f %.2f sun %.2f %.2f %.2f\n", g_frames, sh_view[1], sh_view[4], sh_view[7], -sh_view[2], -sh_view[5], -sh_view[8], sh_sun[0], sh_sun[1], sh_sun[2]); } }
     { static int dbg = -1; if (dbg < 0) dbg = getenv("RS_SHADOW_DEBUG") != 0;
       if (dbg) { static u32 *px; if (!px) px = malloc((size_t)sh_res * sh_res * 4); glReadPixels(0, 0, sh_res, sh_res, GL_RGBA, GL_UNSIGNED_BYTE, px);
           int nfar = 0; for (int i = 0; i < sh_res * sh_res; i++) if (px[i] == 0xFFFFFFFFu) nfar++;
           fprintf(stderr, "[SHADOW] %d draws, %d verts, view known %d, camera (%.1f %.1f %.1f); %.1f%% of the map covered\n", shr_n, shv_n, sh_view_ok, cw[0], cw[1], cw[2], 100.0 - 100.0 * nfar / (sh_res * sh_res));
-          fprintf(stderr, "[SHADOW] camera up (world) %.2f %.2f %.2f, forward %.2f %.2f %.2f, sun %.2f %.2f %.2f\n", sh_view[1], sh_view[4], sh_view[7], -sh_view[2], -sh_view[5], -sh_view[8], sh_sun[0], sh_sun[1], sh_sun[2]);
           FILE *f = fopen("shadowmap.pgm", "wb"); if (f) { fprintf(f, "P5\n%d %d\n255\n", sh_res, sh_res); for (int i = 0; i < sh_res * sh_res; i++) fputc(px[i] & 255, f); fclose(f); } } }
     glBindFramebuffer(GL_FRAMEBUFFER, 0); cur_target = 0;
     memcpy(sh_mat, M, sizeof M); sh_valid = 1; shr_n = shv_n = 0; sh_cam_ok = 0; sh_view_ok = 0; }
