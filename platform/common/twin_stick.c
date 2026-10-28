@@ -43,6 +43,7 @@ enum { SLOT_LX = 3, SLOT_LY = 4, SLOT_RX = 5, SLOT_RY = 6 };
 enum { ACT_TURN = 0, ACT_LOOK = 1, ACT_AIM_X = 2, ACT_AIM_Y = 3, ACT_MOVE = 4, ACT_STRAFE = 5 };
 
 static u32 scheme_obj;                                    /* the input object (for RS_INPUT_LOG) */
+u32 rs_input_object(void){ return scheme_obj; }
 static int enabled(void){ static int on = -1; if (on < 0) on = rs_setting_int("RS_TWIN_STICK", 1); return on; }
 
 void rs_input_after_pad(void){

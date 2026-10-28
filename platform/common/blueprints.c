@@ -218,6 +218,21 @@ static void export_group(bps_t *B, int g, const char *path){
                "# [Weapon:Name] line and only the values to change into Weapons_Mod.txt (section [%s]).\n"
                "# \"(from the parent)\": the value is the parent entry's (shown after # parent); the entry does not set it itself.\n\n",
             GTITLE[g], g == G_VEH ? "" : ", projectiles and laser bolts", GFILE[g]);
+    {   /* an index of the weapons: name, parent, on-screen name, model, who carries it */
+        blue_t *W = cat(B, "Weapon");
+        fprintf(f, "# ---- weapons in this file (name | made from | shown as | model | carried by)\n");
+        for (int i = 0; W && i < W->ne; i++) { ent_t *t = &W->e[i]; if (t->group != g) continue;
+            ent_t *par = t->parent ? find_ent(W, t->parent) : NULL; int wn = eff_int(W, t, "Weapon_Name", -1); const char *m = eff_str(W, t, "WeaponModel");
+            fprintf(f, "#   %-34s | %-26s | %-22s | %-28s |", t->name, par ? par->name : "-", wn >= 0 && wn < g_text_n ? g_text[wn] : "", m && *m ? m : "-");
+            int any = 0;
+            for (int c = 0; c < B->nb; c++) { blue_t *x = &B->b[c]; int hero = !strcasecmp(x->cat, "Humanoid"); if (!hero && !is_vehicle_cat(x->cat)) continue;
+                for (int k = 0; k < x->ne; k++) { ent_t *e = &x->e[k];
+                    for (int j = 0; j < e->np; j++) { prop_t *q = &e->p[j]; if (q->nv < 1 || q->v[0].type != 3 || !q->v[0].u || strcasecmp(q->v[0].s, t->name)) continue;
+                        if (hero ? strncasecmp(q->name, "Loadout_", 8) : 0) continue;
+                        fprintf(f, "%s %s %s(%s)", any ? "," : "", hero ? "hero" : x->cat, e->name, q->name); any = 1; } } }
+            if (!any) fprintf(f, " %s", g <= G_REB ? "this faction's version of the weapon it is made from" : g == G_ALL ? "soldier classes / Customize Load-out (or a base other weapons are made from)" : "-");
+            fputc('\n', f); }
+        fputs("\n", f); }
     for (int c = 0; c < 3; c++) { blue_t *b = cat(B, CATS[c]); if (!b) continue;
         for (int i = 0; i < b->ne; i++) { ent_t *t = &b->e[i]; if (t->group != g) continue;
             ent_t *par = t->parent ? find_ent(b, t->parent) : NULL;
@@ -236,23 +251,40 @@ static void export_group(bps_t *B, int g, const char *path){
 static void write_mod_template(const char *path){
     FILE *f = fopen(path, "w"); if (!f) return;
     fputs("# Renegade Squadron - Weapons_Mod.txt: only the weapons you change or add.  Read at every start.\n"
-          "# The game's own weapons and every value they have: Weapons_<CIS|Republic|Imperial|Rebels|HV|All|Vehicles>_Default.txt\n"
-          "# (rewritten at every start; copy an entry's [Weapon:...] line and the values to change into a section below).\n"
+          "# The game's own weapons: Weapons_<CIS|Republic|Imperial|Rebels|HV|All|Vehicles>_Default.txt (rewritten at every start, never\n"
+          "# read).  Each starts with an index: name | made from | shown as | model | carried by.\n"
           "#\n"
-          "#   [Weapon:Name]               change an existing weapon (also [Projectile:Name], [LaserBolt:Name])\n"
-          "#   [Weapon:NewName : Parent]   a new weapon: everything comes from Parent except the values you give\n"
+          "# ---- what you can write\n"
+          "#   [Weapon:Name]               change an existing weapon (also [Projectile:Name], [LaserBolt:Name]): list only the values to change\n"
+          "#   [Weapon:NewName : Parent]   add a new weapon made from Parent (see below)\n"
           "#   Name = \"Sniper Shotgun\"     the name shown on screen (HUD, Customize Load-out)\n"
           "#   DescriptionText = \"...\"     the description shown in Customize Load-out\n"
           "#   Loadout = Weapon1           list it in Customize Load-out: Weapon1, Weapon2, Explosive or Special\n"
-          "#   Hero = DarthVader 2         ([HV]) the hero's weapon slot 2 (1-5) becomes this weapon\n"
-          "#   Vehicle = X_Wing 1          ([Vehicles]) the vehicle's / turret's weapon 1 or 2 becomes this weapon\n"
+          "#   Hero = DarthVader 2         give it to a hero, in weapon slot 2 (1-5; the hero names are in Weapons_HV_Default.txt)\n"
+          "#   Vehicle = X_Wing 1          put it on a vehicle / turret as its weapon 1 or 2 (names in Weapons_Vehicles_Default.txt)\n"
           "#\n"
-          "# Sections: a weapon in [All] is the same for every faction.  In [CIS] / [Republic] / [Imperial] / [Rebels] the values only\n"
-          "# change that faction's version of the weapon (e.g. its model), and the rest comes from [All].  A new weapon made from a\n"
-          "# parent that has faction versions (BlasterRifle, Shotgun, Sniper Rifle, BlasterPistol, Rocket_Launcher, Fusion Cutter,\n"
-          "# Guided_Missile) automatically gets each faction's model, icon, sound and muzzle flash.\n"
+          "# ---- how a new weapon works (inheritance)\n"
+          "# Every weapon is \"made from\" another one, its parent: it has all of the parent's values except those it sets itself.  The game's\n"
+          "# weapons form a tree (the \"made from\" column), e.g. Base > Infantry > Infantry_Others > Sniper Rifle > REP_Sniper_Rifle.\n"
+          "#   [Weapon:Sniper Shotgun : Sniper Rifle]\n"
+          "# adds ONE new weapon, named Sniper Shotgun, to that tree under Sniper Rifle.  It starts as an exact copy of the Sniper Rifle\n"
+          "# (fire rate, ammunition, zoom, projectile, model, sounds ...) and the lines under it change only what they list.  The Sniper\n"
+          "# Rifle and every other weapon stay as they were (to change the Sniper Rifle itself, write [Weapon:Sniper Rifle]).\n"
+          "# Any weapon can be the parent, so [Weapon:Lightsaber Rifle : Lightsaber] is a new weapon that starts as the lightsaber, with\n"
+          "# its behaviour, model and values, and you change what you want.  The parent decides what kind of weapon it is (a sword that\n"
+          "# swings, a gun that fires a projectile, a grenade that is thrown, a power-up); to make a rifle look like something else, keep a\n"
+          "# rifle as the parent and change WeaponModel.  The name before the colon is yours; it must not be an existing weapon's name.\n"
           "#\n"
-          "# Example:\n"
+          "# ---- factions\n"
+          "# Some weapons have one version per faction (Faction Specific = 1): BlasterRifle is swapped for REP_Blaster_Rifle on the Republic\n"
+          "# side, FED_Blaster_Rifle for the CIS, and so on - those versions are in the faction files.  A new weapon made from such a weapon\n"
+          "# (BlasterRifle, Shotgun, Sniper Rifle, BlasterPistol, Rocket_Launcher, Fusion Cutter, Guided_Missile) gets its own version per\n"
+          "# faction automatically (named <name>@REP, @CIS, @REB, @IMP), with that faction's model, icon, sound and muzzle flash.\n"
+          "#   [All]       values for every faction (the weapon and all of its faction versions)\n"
+          "#   [Republic]  [CIS]  [Imperial]  [Rebels]   the same [Weapon:Name] again: values for that faction's version only\n"
+          "#   [HV]  [Vehicles]   heroes' and vehicles' weapons (no faction versions)\n"
+          "#\n"
+          "# Example: an explosive shotgun, rebels with the rebel blaster rifle's model:\n"
           "#   [All]\n"
           "#   [Weapon:Explosive Shotgun : Shotgun]\n"
           "#   Name = \"Explosive Shotgun\"\n"

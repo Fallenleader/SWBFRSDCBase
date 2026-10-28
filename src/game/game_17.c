@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 08984A0C */
 float func_08984A0C(u32 a0, u32 a1, u32 t2, u32 t3)
@@ -25388,7 +25389,7 @@ L_089952F8:;
 }
 
 /* 0899530C */
-rv_t func_0899530C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static rv_t func_0899530C__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0, s6 = 0, s7 = 0;
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f20 = 0, f21 = 0, f22 = 0, f23 = 0, f24 = 0, f25 = 0;
@@ -29141,6 +29142,12 @@ L_08997F2C:;
     ST32(s2+92, s0);
     goto L_08995358;
     v[64]=vr64;v[65]=vr65;v[68]=vr68;v[77]=vr77;v[78]=vr78;
+}
+
+rv_t func_0899530C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rs_soldier_frame(a0);   /* native hook (tools/dc/hooks.py) */
+    return func_0899530C__orig(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
 }
 
 /* 08997F34 */

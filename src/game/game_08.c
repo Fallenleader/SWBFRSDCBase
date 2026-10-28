@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 088BA110 */
 rv_t func_088BA110(u32 a0, u32 t2, u32 t3)
@@ -3043,7 +3044,7 @@ L_088BBDE4:;
 }
 
 /* 088BBDEC */
-u32 func_088BBDEC(u32 a0, u32 a1)
+static u32 func_088BBDEC__orig(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0;
     float f0 = 0, f1 = 0;
@@ -3217,6 +3218,13 @@ L_088BBF94:;
     goto L_088BBFA0;
 L_088BBFA0:;
     goto L_088BBF64;
+}
+
+u32 func_088BBDEC(u32 a0, u32 a1)
+{
+    u32 r_ = 0;
+    if (rs_phys_pair(a0, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_088BBDEC__orig(a0, a1);
 }
 
 /* 088BBFA8 */
