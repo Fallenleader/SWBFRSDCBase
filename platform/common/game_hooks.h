@@ -10,6 +10,8 @@ int  rs_ai_pool_init(void);                                       /* game_patche
 void rs_ai_squad_caps(uint32_t commander);                       /* game_patches.c: squad sizes for teams of more than 16 bots */
 int  rs_ai_assign(uint32_t commander, uint32_t squad, uint32_t post);   /* game_patches.c: at most RS_AI_DEFENDERS bots hold a command post */
 int  rs_unit_list_add(uint32_t unit, uint64_t *rv);
+void rs_soldier_frame(uint32_t soldier);                            /* game_patches.c: RS_LOOK_CENTER */
+int  rs_phys_pair(uint32_t pair, uint32_t *rv);                     /* game_patches.c: physics pairs (vehicles / friendly soldiers) */
 int  rs_vehicle_hit(uint32_t vehicle, uint32_t soldier);              /* game_patches.c: vehicles and soldiers */
 int  rs_stdtext_get(uint32_t id, uint32_t *rv);                     /* game_patches.c: new lines of STDTEXT (Weapons_Mod.txt names) */               /* game_patches.c: the soldier list past 32 (match end crash) */
 int  rs_unit_list_remove(uint32_t unit, uint64_t *rv);

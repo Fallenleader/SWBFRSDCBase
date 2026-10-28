@@ -89,6 +89,9 @@ RS_CPU_PIN=1
 RS_TWIN_STICK=1
 # twin-stick turning acceleration, percent: how fast turning picks up when the right stick is pushed (100 = the game's; 130 = 30% faster)
 RS_TURN_ACCEL=130
+# look centring: 1 = the game's (after you stop looking up / down, the view is levelled again); 0 = the view stays where you
+# put it (aim and fire up or down without the aim button, as in classic Battlefront)
+RS_LOOK_CENTER=0
 
 # ---- game options (offline games only; network games keep the game's 16 players and 25..200 tickets)
 # 0 = the game's original option limits
