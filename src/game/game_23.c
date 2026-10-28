@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 08A08244 */
 void func_08A08244(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
@@ -4395,7 +4396,7 @@ L_08A0AD44:;
 }
 
 /* 08A0AD64 */
-u64 func_08A0AD64(u32 a0)
+static u64 func_08A0AD64__orig(u32 a0)
 {
     u32 v0 = 0, v1 = 0, a1 = 0, s0 = 0, s1 = 0;
     int cnd_;
@@ -4448,8 +4449,15 @@ L_08A0ADEC:;
     goto L_08A0ADC0;
 }
 
+u64 func_08A0AD64(u32 a0)
+{
+    u64 r_ = 0;
+    if (rs_unit_list_add(a0, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08A0AD64__orig(a0);
+}
+
 /* 08A0ADFC */
-u64 func_08A0ADFC(u32 a0)
+static u64 func_08A0ADFC__orig(u32 a0)
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0;
     int cnd_;
@@ -4521,6 +4529,13 @@ L_08A0AEB8:;
     v0 = v0 - 1;
     ST32(v1-14992, v0);
     goto L_08A0AE50;
+}
+
+u64 func_08A0ADFC(u32 a0)
+{
+    u64 r_ = 0;
+    if (rs_unit_list_remove(a0, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08A0ADFC__orig(a0);
 }
 
 /* 08A0AECC */

@@ -17,6 +17,7 @@
  * bot's AI runs (per-bot AI objects scale with the count; no fixed pool); conquest tickets per team are the option x the map's team
  * factor (func_089875C8), with no other clamp. */
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include "psp_impl.h"
 #include "guest.h"
@@ -122,6 +123,34 @@ int rs_ai_assign(u32 cmd, u32 sq, u32 cp){
     if (best == 999 || best == cp) return 0;
     if (rs_setting_int("RS_AI_LOG", 0)) fprintf(stderr, "[AI] squad %u (%u bots) not sent to hold post %u (%u bots there with it): to post %u\n", sq, GU32(me + 0xAC), cp, sum, best);
     inside = 1; func_08926478(cmd, sq, best); inside = 0; return 1; }
+
+/* The game's list of soldiers (func_08A0AD64 adds, func_08A0ADFC removes; read by func_08973070): 32 slots at 0x08C2C4EC, the
+ * count at 0x08C2C56C and a count per side at 0x08C2C570 / 0x08C2C574 (func_08A26FC0 of the soldier's +64: 1 or the other).  Adding
+ * stops at 32, but removing a soldier that is not in the list still took one off the counts and wrote past the end - with more than
+ * 32 soldiers the counts went wrong and, when everyone is removed at the end of a match, the game read outside its memory and
+ * crashed.  The list is now native, 256 slots (the symbol is redirected, tools/dc/hooks.py), and a soldier not in it is left alone. */
+#define UL_MAX 256
+#define UL_COUNT 0x08C2C56Cu
+#define UL_SIDE1 0x08C2C570u
+#define UL_SIDE2 0x08C2C574u
+#define UL_FLAG  0x08C2C4E8u
+extern u64 func_08A26FC0(u32);
+static u32 *ul;
+u32 rs_unit_list(void){ if (!ul) { ul = rs_guest_alloc(sizeof(u32) * UL_MAX, 16); memset(ul, 0, sizeof(u32) * UL_MAX); } return GA(ul); }
+int rs_unit_list_add(u32 unit, u64 *rv){
+    rs_unit_list(); u32 n = GU32(IMG(UL_COUNT));
+    if (n >= UL_MAX) { *rv = 0; return 1; }
+    u32 side = (u32)func_08A26FC0(GU32(unit + 64));
+    GU32(IMG(side == 1 ? UL_SIDE1 : UL_SIDE2)) += 1;
+    ul[n] = unit; GU32(IMG(UL_COUNT)) = n + 1; GU32(IMG(UL_FLAG)) = 0; *rv = 1; return 1; }
+int rs_unit_list_remove(u32 unit, u64 *rv){
+    rs_unit_list(); u32 n = GU32(IMG(UL_COUNT)); *rv = n;
+    if (!n || n > UL_MAX) return 1;
+    u32 i = 0; while (i < n && ul[i] != unit) i++;
+    if (i == n) return 1;                                            /* not in the list: nothing to take away */
+    u32 side = (u32)func_08A26FC0(GU32(unit + 64));
+    GU32(IMG(side == 1 ? UL_SIDE1 : UL_SIDE2)) -= 1;
+    ul[i] = ul[n - 1]; ul[n - 1] = 0; GU32(IMG(UL_COUNT)) = n - 1; GU32(IMG(UL_FLAG)) = 0; return 1; }
 
 /* Bot names.  Each faction's names are a text table (TEXT/BOTNAMES_{ALLIANCE,EMPIRE,CIS,REPUBLIC}.ASR: 48 names each, in the
  * language played); the bot fill takes name n of the bot's faction (func_0883458C -> func_088346E0(table, n)), which is NULL past the
