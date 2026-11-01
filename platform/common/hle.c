@@ -394,7 +394,8 @@ void rs_atrac_note_file(const char *host_path);
 
 /* ---------------- file IO ---------------- */
 #include "vfs.h"
-typedef struct { FILE *f; void *d; int used; char path[1400]; } fd_t; static fd_t fds[128];
+typedef struct { FILE *f; void *d; int used; char path[1400]; int extra; } fd_t;   /* extra: custom maps listed so far (custom_maps.c) */
+int rs_custom_map_file(const char *rel, char *out, size_t cap); int rs_custom_map_dirent(const char *dir, int k, char *name, size_t cap, char *host, size_t hcap); static fd_t fds[128];
 static int resolve_ci(const char *rel, char *out, size_t cap){   /* case-insensitive path walk under g_root */
     if (vfs_iso_active()) return vfs_iso_resolve(rel, out, cap);        /* game files from an ISO image (vfs.c) */
     char cur[1024]; strncpy(cur, g_root, sizeof cur); char tmp[1024]; strncpy(tmp, rel, sizeof tmp); char *save = 0;
@@ -424,6 +425,10 @@ static void h_IoOpen(sdkcall_t *c){
     if (sscanf(strip_dev(p), "/sce_lbn0x%x_size0x%x", &lb, &lsz) == 2 || sscanf(strip_dev(p), "sce_lbn0x%x_size0x%x", &lb, &lsz) == 2) {
         const char *lp = lbn_lookup(lb); if (!lp) { fprintf(stderr, "[IO] unknown raw sector open %s\n", p); V0 = ERR_NOENT; return; } strncpy(full, lp, sizeof full - 1); full[sizeof full - 1] = 0; }
     else resolve_ci(strip_dev(p), full, sizeof full);
+    if ((fl & 3) == 1) { char cf[1500]; int r = rs_custom_map_file(strip_dev(p), cf, sizeof cf);      /* custom maps (custom_maps.c) */
+        int isd = 0; unsigned fsz = 0;
+        if (r == 1) { strncpy(full, cf, sizeof full - 1); full[sizeof full - 1] = 0; }
+        else if (r == 2 && vfs_stat(full, &isd, &fsz) != 0) { char alt[1500]; resolve_ci(cf, alt, sizeof alt); if (vfs_stat(alt, &isd, &fsz) == 0) { fprintf(stderr, "[MAPS] %s -> %s\n", p, cf); strncpy(full, alt, sizeof full - 1); full[sizeof full - 1] = 0; } } }
     if ((fl & 3) == 1 && !vfs_iso_active()) { size_t rl = strlen(g_root); const char *rel = strncmp(full, g_root, rl) ? strip_dev(p) : full + rl;
         const char *alt = rs_patch_file(rel, full); if (alt) { strncpy(full, alt, sizeof full - 1); full[sizeof full - 1] = 0; } }   /* mods / data patches (read-only opens) */
     const char *mode = (fl & 3) == 1 ? "rb" : ((fl & 3) == 2 ? ((fl & 0x400) ? "wb" : "r+b") : "r+b");
@@ -442,6 +447,7 @@ static void h_IoWrite(sdkcall_t *c){ if (A0 == 1 || A0 == 2) { fwrite(g_mem + GA
 static void h_IoLseek(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; V1 = 0xFFFFFFFFu; return; }
     s64 off = (s64)(((u64)A3 << 32) | A2); int wh = T0; fseeko(fds[A0].f, off, wh == 0 ? SEEK_SET : (wh == 1 ? SEEK_CUR : SEEK_END)); s64 pos = ftello(fds[A0].f); V0 = (u32)pos; V1 = (u32)((u64)pos >> 32); }
 static void h_IoGetstat(sdkcall_t *c){ char full[1500]; int isdir; unsigned sz; resolve_ci(strip_dev(gstr(A0)), full, sizeof full);
+    { char cf[1500]; if (rs_custom_map_file(strip_dev(gstr(A0)), cf, sizeof cf) == 1) { strncpy(full, cf, sizeof full - 1); full[sizeof full - 1] = 0; } }   /* custom maps */
     if (vfs_stat(full, &isdir, &sz) != 0) { fprintf(stderr, "[IO] getstat MISSING %s\n", gstr(A0)); V0 = ERR_NOENT; return; } memset(g_mem + GADDR(A1), 0, 88); SW(A1, isdir ? 0x1000 : 0x2000); u32 esz = isdir ? (u32)sz : eff_size(full, (u32)sz); SW(A1 + 8, esz); SW(A1 + 12, 0); if (!isdir) SW(A1 + 0x40, lbn_for(full, esz)); V0 = 0; }
 
 /* ---------------- misc ---------------- */
@@ -551,7 +557,10 @@ static void h_Dopen(sdkcall_t *c){ char full[1500]; const char *p = gstr(A0); re
     if (!d) { fprintf(stderr, "[IO] dopen FAILED %s\n", p); V0 = ERR_NOENT; return; }
     for (int i = 3; i < 128; i++) if (!fds[i].used) { fds[i] = (fd_t){0, d, 1, {0}}; strncpy(fds[i].path, full, sizeof fds[i].path - 1); V0 = i; return; } vfs_closedir(d); V0 = 0x80010018u; }
 static void h_Dread(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used || !fds[A0].d) { V0 = 0x80010009u; return; }
-    char name[256], full[2000]; if (!vfs_readdir(fds[A0].d, name, sizeof name, full, sizeof full)) { V0 = 0; return; } memset(g_mem + GADDR(A1), 0, 0x160);
+    char name[256], full[2000]; if (!vfs_readdir(fds[A0].d, name, sizeof name, full, sizeof full)) {
+        if (!rs_custom_map_dirent(fds[A0].path, fds[A0].extra, name, sizeof name, full, sizeof full)) { V0 = 0; return; }   /* custom maps after the folder's own */
+        fds[A0].extra++; }
+    memset(g_mem + GADDR(A1), 0, 0x160);
     int isdir = 0; unsigned fsz = 0; vfs_stat(full, &isdir, &fsz);
     SW(A1, isdir ? 0x1000 : 0x2000); if (!isdir) { u32 sz = eff_size(full, (u32)fsz); SW(A1 + 8, sz); SW(A1 + 0x40, lbn_for(full, sz)); } strncpy((char *)(g_mem + GADDR(A1 + 0x58)), name, 255); V0 = 1; }
 static void h_One(sdkcall_t *c){ V0 = 1; }

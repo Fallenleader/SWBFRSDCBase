@@ -8,7 +8,7 @@
  * <key> = CRC-32 of the texture's level-0 texel bytes as the game stores them (8 lowercase hex digits; tools/asura/extract.py writes the
  * key of every texture into manifest.json).  <pal> = the runtime palette id; RS_MOD_DUMP=1 writes every texture the game uploads as
  * <dump dir>/<key>-<pal>.png exactly as it appears in game, so the easiest workflow is: dump, edit, drop into a mod (rename to <key>.png
- * to cover every palette).  Mods dir: Vita ux0:data/RS/mods, PC ./mods (RS_MODS_DIR).  Dump dir: ux0:data/RS/dump, PC ./dump.
+ * to cover every palette).  Mods dir: PS5 /data/SWBFRS/mods, PC ./mods (RS_MODS_DIR).  Dump dir: PS5 /data/SWBFRS/mods/dumps/all, PC ./dump.
  * Mods load in alphabetical order; a later mod wins for the same file.  RS_MODS=0 disables all replacements. */
 #include <stdio.h>
 #include <stdlib.h>

@@ -29,3 +29,15 @@ void rs_parts_frame(void);                                       /* after each p
 /* loadout_slots.c: any weapon in either weapon slot, explosives and special items in either slot, larger credit allowance */
 void rs_loadout_frame(void);                                     /* after each pad read: the carousel's entry slots */
 void rs_credits_init(uint32_t credits);                          /* after the credits are reset */
+/* custom_maps.c: custom maps in Instant Action (the map table, its list commands) */
+int  rs_map_has_era(uint32_t era, uint32_t idx, uint64_t *rv);
+int  rs_map_mode(uint32_t mode, uint32_t idx, uint64_t *rv);
+int  rs_map_space(uint32_t idx, uint32_t *rv);
+int  rs_map_prequel(uint32_t idx, uint32_t *rv);
+int  rs_map_classic(uint32_t idx, uint32_t *rv);
+int  rs_map_text(uint32_t idx, uint32_t *rv);
+int  rs_map_text_by_name(uint32_t name, uint32_t *rv);
+int  rs_map_index(uint32_t name, uint32_t *rv);
+void rs_map_played(uint32_t *idx);
+int  rs_fe_list_all_maps(uint32_t n, uint32_t f1, uint32_t f2, void *rv);
+int  rs_fe_select_planet(uint32_t n, uint32_t f1, uint32_t f2, void *rv);
