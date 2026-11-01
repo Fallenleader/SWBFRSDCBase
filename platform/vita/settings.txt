@@ -35,6 +35,18 @@ RS_MAX_PLAYERS=64
 RS_MIN_TICKETS=25
 RS_MAX_TICKETS=1000
 
+# ---- AI
+# most bots sent to hold one of their own command posts: 0 = no defenders (every squad attacks or takes posts); -1 = the game's own choice
+RS_AI_DEFENDERS=0
+# 1 = no bot stands about: squads the game forms but sends nowhere, squads waiting at a post their side owns, and bots the game
+#     takes out of their squads and leaves with nothing to do are sent to the best post to take (checked every second)
+RS_AI_IDLE_FIX=1
+# seconds a bot with no squad may stand still before it is put back into a squad
+RS_AI_IDLE_SECONDS=6
+
+# ---- custom maps from ux0:data/SWBFRS/mods/maps (made with tools/asura/maptool.py install): 1 = listed in Instant Action
+RS_CUSTOM_MAPS=1
+
 # ---- experimental features: 1 = on, 0 = the game's own behaviour
 # save manager: 5 profile slots to load, save and delete
 RS_SAVE_MANAGER=1

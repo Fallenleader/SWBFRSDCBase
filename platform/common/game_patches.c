@@ -18,6 +18,7 @@
  * factor (func_089875C8), with no other clamp. */
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include <stdlib.h>
 #include "psp_impl.h"
 #include "guest.h"
@@ -118,19 +119,115 @@ static u32 ai_best_post(u32 cmd){
 /* Squads the commander has formed but not sent anywhere (target post 999) stand where they spawned until their bots die and
  * respawn into other squads - most of a side at the start of a match.  Every second (offline), such a squad is sent to the
  * best post to take.  The commanders are forgotten between matches. */
-void rs_ai_debug(unsigned fr);
+void rs_ai_debug(unsigned fr); void rs_ai_bots(unsigned fr); static void ai_unstick(unsigned fr);
 void rs_ai_frame(void){
     static unsigned fr;
     if (GU32(IMG(UL_COUNT)) == 0) { ai_cmd[0] = ai_cmd[1] = 0; return; }
     if (!on() || GU8(IMG(MODE_NETWORK)) == 1 || ++fr % 30) return;
     { static int dbg = -1; if (dbg < 0) dbg = getenv("RS_AI_DEBUG") != 0; if (dbg && fr % 300 == 0) rs_ai_debug(fr); }
+    { static int bl = -1; if (bl < 0) bl = getenv("RS_AI_BOTS") != 0; if (bl && fr % 60 == 0) rs_ai_bots(fr); }
     if (!rs_setting_int("RS_AI_IDLE_FIX", 1)) return;
     for (int c = 0; c < 2; c++) { u32 cmd = ai_cmd[c]; if (!cmd) continue; u32 team = GU32(cmd + 4); if (!team) continue;
         u32 ns = GU32(team + 0x48); if (ns > 10) ns = 10;
         for (u32 j = 0; j < ns; j++) { u32 sq = (u32)func_0898BC68(team, j); if (!sq || !GU32(sq + 0xAC) || GU32(sq + 0x3C) != 999 || GU8(sq + 0x2A) || GU8(sq + 0x2C)) continue;
             u32 best = ai_best_post(cmd); if (best == 999) break;
             if (rs_setting_int("RS_AI_LOG", 0)) fprintf(stderr, "[AI] team %u: idle squad %u (%u bots) sent to post %u\n", GU32(team + 0x4C), j, GU32(sq + 0xAC), best);
-            func_08926478(cmd, j, best); } } }
+            func_08926478(cmd, j, best); } }
+    ai_unstick(fr); }
+/* RS_AI_BOTS=1 (test harness): every 2 s, each soldier's position, how far it moved, its squad and the squad's order */
+extern u64 func_08ABCA14(u32, u32, u32); extern u64 func_08A26FC0(u32); u32 rs_unit_list(void);
+#ifdef RS_GUEST64
+static int gok(u32 a){ return a >= 0x08800000u && a < 0x0C000000u && !(a & 3); }    /* a guest address in the window */
+#else
+static int gok(u32 a){ return a >= 0x10000u && !(a & 3); }                           /* 32-bit: native pointers */
+#endif
+#ifndef GFN
+#define GFN(a) ((void *)(uintptr_t)(u32)(a))
+#endif
+#ifndef GP
+#define GP(a) ((void *)(uintptr_t)(u32)(a))
+#endif
+static int ai_goal(u32 o){ u32 b = GU32(o + 0xB0); if (!gok(b)) return -1; u32 g = GU32(b + 0xC); if (!gok(g)) return -2; return GU16(g + 10); }
+static const float *soldier_pos(u32 o){ if (!gok(o) || !gok(GU32(o))) return 0; u32 sub = o + GU32(GU32(o) - 12); if (!gok(sub) || !gok(GU32(sub))) return 0;
+    u32 fn = GU32(GU32(sub) + 0x14); if (!gok(fn)) return 0;
+    u32 p = ((ifn_t)GFN(fn))(sub, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).v0; return gok(p) ? (const float *)GP(p) : 0; }
+void rs_ai_bots(unsigned fr){
+    static u32 ids[512]; static float last[512][3]; static int idle[512];
+    u32 tb = IMG(0x08C2A880u), bk = GU32(tb), nbk = GU32(tb + 4); if (!gok(bk) || nbk > 4096) return;
+    int nidle = 0, nb = 0;
+    for (u32 bi = 0; bi < nbk; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
+        if (GU8(nd + 8)) continue; u32 o = GU32(nd); if (!gok(o) || !gok(GU32(o))) continue;
+        u32 so = o + GU32(GU32(o) - 16); if (!gok(so)) continue; u32 id = GU32(so + 4);
+        const float *p = soldier_pos(o); if (!p) continue;
+        int k = -1; for (int j = 0; j < 512; j++) if (ids[j] == id) { k = j; break; }
+        if (k < 0) { for (int j = 0; j < 512; j++) if (!ids[j]) { k = j; ids[j] = id; memcpy(last[j], p, 12); idle[j] = 0; break; } if (k < 0) continue; }
+        float dx = p[0] - last[k][0], dz = p[2] - last[k][2], d = sqrtf(dx * dx + dz * dz); memcpy(last[k], p, 12);
+        int alive = GU8(o + 5) && GU8(o + 0x40);
+        idle[k] = (d < 1.5f && alive) ? idle[k] + 1 : 0;
+        u32 sq = GU32(o + 0xE4); if (!gok(sq)) sq = 0;
+        nb++; if (idle[k] >= 3) nidle++;
+        if (idle[k] >= 3 || getenv("RS_AI_BOTS_ALL"))
+            fprintf(stderr, "[BOT] f%u goal %d id %x team %u pos %.0f %.0f %.0f moved %.1f idle %ds alive %d obj %08x squad %08x order %x post %u slot %u insq %u veh %x\n", fr, ai_goal(o), id,
+                GU32(o + 12), p[0], p[1], p[2], d, idle[k] * 2, alive, o, sq, sq ? GU32(sq + 0x4C) : 0, sq ? GU32(sq + 0x3C) : 0, GU32(o + 0xF0), GU8(o + 0xE8), GU32(o + 0xF8));
+        if ((idle[k] >= 3 || getenv("RS_AI_BOTS_ALL")) && !sq) fprintf(stderr, "[BOT]    no squad: ctl %u flags %08x b0 %08x goal %d 149 %u\n", GU32(o + 0x54), GU32(o + 0xC8), GU32(o + 0xB0), ai_goal(o), GU8(o + 0x149)); }
+    fprintf(stderr, "[BOT] f%u: %d soldiers, %d idle 6 s or more\n", fr, nb, nidle); }
+/* Bots that stand about (traced with RS_AI_BOTS=1).  Two causes, both fixed here every second (offline, RS_AI_IDLE_FIX):
+ *  - a bot taken out of its squad by func_0892CC00 (it marks the bot +0xC8 bit 0x20 and removes it; the squad-filling pass,
+ *    func_0892774C, never takes a bot with that bit again) is left with no goal and no squad until it dies: a bot with no squad
+ *    that has not moved for RS_AI_IDLE_SECONDS (6) or has no goal gets the bit cleared and joins a squad of its side that has
+ *    room (else a squad of its own, which the idle-squad pass above sends to the best post);
+ *  - a squad whose order points at a post its side already owns - it captured it (order 0x3F2 stays) or was told to defend it
+ *    (order 0x3F5, func_089266D4) - waits there: with RS_AI_DEFENDERS=0 it is sent to the best post to take. */
+extern rv_t func_089268D0(u32, u32, u32, u32, u32); extern u64 func_0898D728(u32, u32); extern u64 func_089E3BD4(u32); extern u32 func_089E3BC4(u32); extern u32 func_08ABC6F8(u32, u32, u32); extern rv_t func_0898D7A8(u32, u32);
+static void ai_unstick(unsigned fr){
+    static u32 ids[512]; static float last[512][3]; static unsigned seen[512]; static int still[512];
+    int log = rs_setting_int("RS_AI_LOG", 0), need = rs_setting_int("RS_AI_IDLE_SECONDS", 6); if (need < 2) need = 2;
+    u32 ncp = GU32(IMG(CP_COUNT));
+    /* squads waiting at a post of their own side */
+    if (rs_setting_int("RS_AI_DEFENDERS", 0) == 0 && ncp <= 8)
+        for (int c = 0; c < 2; c++) { u32 cmd = ai_cmd[c]; if (!cmd) continue; u32 team = GU32(cmd + 4); if (!team) continue;
+            u32 ns = GU32(team + 0x48); if (ns > 10) ns = 10;
+            for (u32 j = 0; j < ns; j++) { u32 sq = (u32)func_0898BC68(team, j); if (!gok(sq) || !GU32(sq + 0xAC) || GU8(sq + 0x2C)) continue;
+                u32 ord = GU32(sq + 0x4C), cp = GU32(sq + 0x3C); if (ord != 0x3F2 && ord != 0x3F5) continue;
+                u32 k = 0; while (k < ncp && GU32(IMG(CP_IDS) + 4u * k) != cp) k++; if (k == ncp || !((GU8(cmd + 0x4A) >> k) & 1)) continue;
+                u32 best = ai_best_post(cmd); if (best == 999 || best == cp) continue;
+                if (log) fprintf(stderr, "[AI] team %u: squad %u (%u bots, order %x) at its own post %u: sent to post %u\n", GU32(team + 0x4C), j, GU32(sq + 0xAC), ord, cp, best);
+                GU8(sq + 0x2A) = 0; func_08926478(cmd, j, best); } }
+    /* bots with no squad */
+    u32 tb = IMG(0x08C2A880u), bk = GU32(tb), nbk = GU32(tb + 4); if (!gok(bk) || nbk > 4096) return;
+    for (u32 bi = 0; bi < nbk; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
+        if (GU8(nd + 8)) continue; u32 o = GU32(nd); if (!gok(o) || !gok(GU32(o))) continue;
+        u32 so = o + GU32(GU32(o) - 16), sub = o + GU32(GU32(o) - 12); if (!gok(so) || !gok(sub)) continue; u32 id = GU32(so + 4);
+        int k = -1, fr_ = -1; for (int j = 0; j < 512; j++) { if (ids[j] == id) { k = j; break; } if (fr_ < 0 && (!ids[j] || fr - seen[j] > 300)) fr_ = j; }
+        if (k < 0) { if (fr_ < 0) continue; k = fr_; ids[k] = id; still[k] = 0; last[k][0] = 1e9f; }
+        seen[k] = fr;
+        int alive = GU8(o + 5) && GU8(o + 0x40) && GF32(sub + 0x28) > 0.0f;
+        if (!alive || GU32(o + 0x54) == 999 || func_089E3BC4(o) == 0 || (u32)func_089E3BD4(o) != 0) { still[k] = 0; last[k][0] = 1e9f; continue; }
+        const float *p = soldier_pos(o); if (!p) continue;
+        float dx = p[0] - last[k][0], dz = p[2] - last[k][2]; memcpy(last[k], p, 12);
+        still[k] = (dx * dx + dz * dz < 1.5f * 1.5f) ? still[k] + 1 : 0;
+        if (GU8(o + 0xE8)) {                                                /* in a squad: stuck away from where the squad is going */
+            u32 sq = GU32(o + 0xE4); if (still[k] < 2 * need || !gok(sq) || GU8(sq + 0x2C) || GU32(sq + 0x4C) != 0x3F2) continue;
+            u32 cpo = func_08ABC6F8(0x08C2BA28u, GU32(sq + 0x3C), 1); const float *cp = gok(cpo) ? soldier_pos(cpo) : 0; if (!cp) continue;
+            float ex = p[0] - cp[0], ez = p[2] - cp[2]; if (ex * ex + ez * ez < 25.0f * 25.0f) continue;     /* at the post: capturing */
+            u32 cmd = 0; for (int c = 0; c < 2; c++) if (ai_cmd[c] && GU32(ai_cmd[c] + 4) && GU32(GU32(ai_cmd[c] + 4) + 0x4C) == GU32(o + 12)) cmd = ai_cmd[c];
+            if (!cmd) continue;
+            func_0898D7A8(sq, id); still[k] = 0;
+            u32 nsq = func_089268D0(cmd, o, 0, 0, 0).v0;
+            if (log) fprintf(stderr, "[AI] team %u: bot %x stuck %.0f m from its squad's post: %s\n", GU32(GU32(cmd + 4) + 0x4C), id, sqrtf(ex * ex + ez * ez), nsq ? "a squad of its own" : "left its squad");
+            continue; }
+        int nogoal = ai_goal(o) < 0;
+        if (still[k] < need && !(nogoal && still[k] >= 2)) continue;
+        u32 cmd = 0; for (int c = 0; c < 2; c++) if (ai_cmd[c] && GU32(ai_cmd[c] + 4) && GU32(GU32(ai_cmd[c] + 4) + 0x4C) == GU32(o + 12)) cmd = ai_cmd[c];
+        if (!cmd) continue; u32 team = GU32(cmd + 4), ns = GU32(team + 0x48); if (ns > 10) ns = 10;
+        GU32(o + 0xC8) &= ~0x20u; still[k] = 0;
+        u32 jn = 999;
+        for (u32 j = 0; j < ns && jn == 999; j++) { u32 sq = (u32)func_0898BC68(team, j);
+            if (gok(sq) && GU32(sq + 0xAC) < 5 && GU32(sq + 0x4C) == 0x3F2 && !GU8(sq + 0x2A) && !GU8(sq + 0x2C)) jn = j; }
+        if (jn != 999) { u32 sq = (u32)func_0898BC68(team, jn); func_0898D728(sq, id);
+            if (log) fprintf(stderr, "[AI] team %u: bot %x stood still with no squad%s: joined squad %u (to post %u)\n", GU32(team + 0x4C), id, nogoal ? " (no goal)" : "", jn, GU32(sq + 0x3C)); }
+        else { u32 sq = func_089268D0(cmd, o, 0, 0, 0).v0;
+            if (log) fprintf(stderr, "[AI] team %u: bot %x stood still with no squad%s: %s\n", GU32(team + 0x4C), id, nogoal ? " (no goal)" : "", sq ? "a squad of its own" : "no squad slot left"); } } }
 void rs_ai_debug(unsigned fr){
     for (int c = 0; c < 2; c++) { u32 cmd = ai_cmd[c]; if (!cmd) continue; u32 team = GU32(cmd + 4); if (!team) continue;
         u32 ns = GU32(team + 0x48); if (ns > 10) ns = 10;
@@ -230,10 +327,11 @@ int rs_text_get(u32 table, u32 idx, u32 *rv){
 /* New lines of text (Weapons_Mod.txt Name = / DescriptionText =, blueprints.c): the game's text lookup (func_08834304, the line n of
  * TEXT/STDTEXT.ASR for the language in use, or 0 past its count) returns them for the numbers after the file's own. */
 int rs_weapons_text16(u32 id, u16 *out, int max);
+int rs_custom_maps_text16(u32 id, u16 *out, int max);   /* custom_maps.c: custom map names */
 int rs_stdtext_get(u32 id, u32 *rv){
     static u32 ids[64], at[64]; static int n;
     for (int i = 0; i < n; i++) if (ids[i] == id) { *rv = at[i]; return 1; }
-    u16 w[512]; int k = rs_weapons_text16(id, w, 512); if (k <= 0 || n == 64) return 0;
+    u16 w[512]; int k = rs_weapons_text16(id, w, 512); if (k <= 0) k = rs_custom_maps_text16(id, w, 512); if (k <= 0 || n == 64) return 0;
     u16 *g = rs_guest_alloc(sizeof(u16) * (size_t)k, 4); memcpy(g, w, sizeof(u16) * (size_t)k);
     ids[n] = id; at[n] = GA(g); n++; *rv = GA(g); return 1; }
 

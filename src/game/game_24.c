@@ -28579,7 +28579,7 @@ L_08A31910:;
 }
 
 /* 08A31918 */
-rv_t func_08A31918(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static rv_t func_08A31918__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
@@ -28633,6 +28633,13 @@ L_08A31980:;
 L_08A3198C:;
     v0 = 1;
     goto L_08A3194C;
+}
+
+rv_t func_08A31918(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rv_t r_ = {0, 0, 0};
+    if (rs_fe_select_planet(a0, a1, a2, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08A31918__orig(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
 }
 
 /* 08A31994 */
@@ -28959,7 +28966,7 @@ L_08A31C30:;
 }
 
 /* 08A31C38 */
-rv_t func_08A31C38(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static rv_t func_08A31C38__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
@@ -29011,6 +29018,13 @@ L_08A31C8C:;
 L_08A31C9C:;
     v0 = 1;
     goto L_08A31C64;
+}
+
+rv_t func_08A31C38(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rv_t r_ = {0, 0, 0};
+    if (rs_fe_list_all_maps(a0, a1, a2, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08A31C38__orig(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
 }
 
 /* 08A31CA4 */

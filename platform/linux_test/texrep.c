@@ -8,7 +8,7 @@
  * <key> = CRC-32 of the texture's level-0 texel bytes as the game stores them (8 lowercase hex digits; tools/asura/extract.py writes the
  * key of every texture into manifest.json).  <pal> = the runtime palette id; RS_MOD_DUMP=1 writes every texture the game uploads as
  * <dump dir>/<key>-<pal>.png exactly as it appears in game, so the easiest workflow is: dump, edit, drop into a mod (rename to <key>.png
- * to cover every palette).  Mods dir: Vita ux0:data/RS/mods, PC ./mods (RS_MODS_DIR).  Dump dir: ux0:data/RS/dump, PC ./dump.
+ * to cover every palette).  Mods dir: PS5 /data/SWBFRS/mods, PC ./mods (RS_MODS_DIR).  Dump dir: PS5 /data/SWBFRS/mods/dumps/all, PC ./dump.
  * Mods load in alphabetical order; a later mod wins for the same file.  RS_MODS=0 disables all replacements. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,10 +78,13 @@ static void init(void){
 #else
     const char *root = getenv("RS_MODS_DIR") ? getenv("RS_MODS_DIR") : "mods";
 #endif
-    DIR *d = opendir(root); if (!d) return; struct dirent *e; char *names[256]; int nn = 0;
-    while ((e = readdir(d)) && nn < 256) if (e->d_name[0] != '.') names[nn++] = strdup(e->d_name);
-    closedir(d); qsort(names, (size_t)nn, sizeof names[0], cmpstr);          /* alphabetical: later mods override earlier ones */
+    /* <root>/textures/ is the place for replacement textures; <root>/<mod>/textures/ folders (earlier builds) are read first */
+    DIR *d = opendir(root); struct dirent *e; char *names[256]; int nn = 0;
+    if (d) { while ((e = readdir(d)) && nn < 256) if (e->d_name[0] != '.' && strcmp(e->d_name, "dumps") && strcmp(e->d_name, "maps") && strcmp(e->d_name, "textures")) names[nn++] = strdup(e->d_name);
+        closedir(d); }
+    qsort(names, (size_t)nn, sizeof names[0], cmpstr);          /* alphabetical: later mods override earlier ones */
     for (int i = 0; i < nn; i++) { char p[1024]; snprintf(p, sizeof p, "%s/%s/textures", root, names[i]); scan_dir(p); free(names[i]); }
+    { char p[1024]; snprintf(p, sizeof p, "%s/textures", root); scan_dir(p); }
     for (int i = 0; i < nrep; ) { if (!reps[i].path[0]) { free(reps[i].path[1]); free(reps[i].path[2]); reps[i] = reps[--nrep]; } else i++; }   /* colour file required */
     qsort(reps, (size_t)nrep, sizeof *reps, cmp);
     fprintf(stderr, "[MOD] %d texture replacement(s) active\n", nrep); }
