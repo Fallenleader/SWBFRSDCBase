@@ -42,7 +42,7 @@ file(GLOB AT3_SRC "${ROOT}/platform/common/ext/at3/*.cpp")
 # reference for porting the renderer to other native APIs (Makefile GE_REF=1 on PC)
 set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/gu_native.c" "${ROOT}/platform/common/audio.c" "${ROOT}/platform/common/settings.c"
                "${ROOT}/platform/common/vfs.c" "${ROOT}/platform/common/gfx_jobs.c" "${ROOT}/platform/common/convert.c" "${ROOT}/platform/common/asura_tex.c"
-               "${ROOT}/platform/common/twin_stick.c" "${ROOT}/platform/common/game_patches.c" "${ROOT}/platform/common/custom_maps.c"
+               "${ROOT}/platform/common/twin_stick.c" "${ROOT}/platform/common/game_patches.c" "${ROOT}/platform/common/custom_maps.c" "${ROOT}/platform/common/mpeg.c" "${ROOT}/platform/common/rs_avc.c" "${ROOT}/platform/common/mp4demux.c"
                "${ROOT}/platform/common/colour_picker.c"
                "${ROOT}/platform/common/overlay_ui.c" "${ROOT}/platform/common/game_ui.c" "${ROOT}/platform/common/save_manager.c" "${ROOT}/platform/common/parts_swap.c" "${ROOT}/platform/common/loadout_slots.c" "${ROOT}/platform/common/blueprints.c" "${ROOT}/platform/common/tex_mips.c")
 # renderer: GXM, the Vita's native GPU API (no GL layer)
@@ -59,7 +59,7 @@ set_source_files_properties(${COMMON_SRC} "${GLUE_C}" ${VITA_SRC} PROPERTIES COM
 set_source_files_properties(${AT3_SRC} PROPERTIES COMPILE_OPTIONS "-O3;-ffast-math")
 
 # media conversion (convert.c): FFmpeg from the VitaSDK (H.264 MPEG-PS -> MP4 with AAC audio)
-set(RS_LIBS avformat avcodec swresample avutil mp3lame mpg123 m SceKernelDmacMgr_stub SceTouch_stub SceHid_stub SceMotion_stub SceAudioIn_stub
+set(RS_LIBS avformat avcodec swresample avutil mp3lame mpg123 m SceKernelDmacMgr_stub SceVideodec_stub SceTouch_stub SceHid_stub SceMotion_stub SceAudioIn_stub
             SceGxm_stub SceDisplay_stub SceCtrl_stub SceAudio_stub ScePower_stub SceSysmodule_stub SceAppMgr_stub SceAppUtil_stub SceCommonDialog_stub
             SceIofilemgr_stub vitashark SceShaccCg_stub SceShaccCgExt taihen_stub)
 target_link_libraries(swbfrs ${RS_LIBS} stdc++ pthread m)

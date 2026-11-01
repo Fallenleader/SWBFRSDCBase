@@ -75,9 +75,9 @@ static uint64_t free_space(void){
 
 /* 0: media ready; 2: ready after converting (the caller restarts the game: hours of decoding leave the address space too fragmented
  * for the renderer's 1024 x 1024 render target); 1: the player chose to go on without converted media; -1: no conversion possible */
-int rs_convert_screen(const char *game_root, const char *out_dir){
+int rs_convert_screen(const char *game_root, const char *out_dir, const char *iso){
     load_art(game_root);
-    if (rs_convert_start(game_root, out_dir, 3, free_space())) return -1;
+    if (rs_convert_start_iso(iso, game_root, out_dir, 3, free_space())) return -1;
     uint64_t t0 = sceKernelGetProcessTimeWide(), done_at = 0; int choice = 0, worked = 0; unsigned prev = 0;
     for (;;) {
         rs_conv_status_t s; rs_convert_status(&s); uint64_t now = sceKernelGetProcessTimeWide(); worked |= s.phase == RS_CONV_CONVERTING;
@@ -90,6 +90,7 @@ int rs_convert_screen(const char *game_root, const char *out_dir){
         centered(py + 18, 2.0f, C_WHITE, "PREPARING GAME MEDIA");
         const char *line = "Checking converted audio and video...";
         if (s.phase == RS_CONV_CONVERTING) line = "Converting audio and video for PS Vita (first start only)";
+        else if (s.phase == RS_CONV_EXTRACTING) line = "Extracting the game files from game.iso (first start only)";
         else if (s.phase == RS_CONV_DONE) line = worked ? "All media ready - restarting the game" : "All media ready";
         else if (s.phase == RS_CONV_FAILED) line = "Media conversion stopped";
         centered(py + 62, 1.3f, s.phase == RS_CONV_FAILED ? C_RED : C_DIM, line);
@@ -98,8 +99,11 @@ int rs_convert_screen(const char *game_root, const char *out_dir){
         if (s.phase == RS_CONV_CHECKING) f = 0;
         ui_rect(bx, by, bw, bh, C_TRACK); ui_rect(bx, by, (float)(bw * f), bh, C_CYAN);
         char t[160];
-        snprintf(t, sizeof t, "%d of %d files ready", s.files_ok, s.files_total); text(bx, by + 24, 1.3f, C_DIM, t);
+        if (s.phase == RS_CONV_EXTRACTING) snprintf(t, sizeof t, "%llu of %llu MB", (unsigned long long)(s.work_done >> 20), (unsigned long long)(s.work_total >> 20));
+        else snprintf(t, sizeof t, "%d of %d files ready", s.files_ok, s.files_total);
+        text(bx, by + 24, 1.3f, C_DIM, t);
         snprintf(t, sizeof t, "%d%%", (int)(f * 100.0 + 0.5)); text(bx + bw - text_w(t, 1.3f), by + 24, 1.3f, C_WHITE, t);
+        if (s.phase == RS_CONV_EXTRACTING && s.current[0][0]) text(bx, by + 54, 1.1f, C_DIM, s.current[0]);
         if (s.phase == RS_CONV_CONVERTING) { float y = by + 54; for (int i = 0; i < 4; i++) if (s.current[i][0]) { text(bx, y, 1.1f, C_DIM, s.current[i]); y += 22; } }
         if (s.phase == RS_CONV_FAILED) {
             text(bx, by + 54, 1.1f, C_WHITE, s.message);
@@ -108,5 +112,5 @@ int rs_convert_screen(const char *game_root, const char *out_dir){
 
         if (s.phase == RS_CONV_DONE) { if (!done_at) done_at = now; if (now - done_at > (worked ? 1500000u : 300000u) && now - t0 > 900000) return worked ? 2 : 0; }  /* keep it on screen briefly */
         if (s.phase == RS_CONV_FAILED) {
-            if (pressed & SCE_CTRL_CROSS) { if (rs_convert_start(game_root, out_dir, 3, free_space())) return -1; t0 = now; done_at = 0; }
+            if (pressed & SCE_CTRL_CROSS) { if (rs_convert_start_iso(iso, game_root, out_dir, 3, free_space())) return -1; t0 = now; done_at = 0; }
             else if (pressed & SCE_CTRL_CIRCLE) { choice = 1; return choice; } } } }

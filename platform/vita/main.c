@@ -1,8 +1,9 @@
 /* PS Vita platform: memory, threads, settings, logging, input, audio output and the frontend loop for the decompiled game.
  *
  * Files (ux0:data/SWBFRS/):
- *   GAME/            the extracted UMD (GAME/PSP_GAME/..., the layout inside the image), or else
- *   game.iso         the UMD image itself (used only when GAME/PSP_GAME is absent)
+ *   game.iso         the UMD image: on the first start every file is extracted into GAME/ (the media screen shows the progress)
+ *                    and the image is deleted
+ *   GAME/            the extracted UMD (GAME/PSP_GAME/..., the layout inside the image)
  *   settings.txt     optional KEY=VALUE lines (see platform/vita/README.md)
  *   log.txt          log of the last session
  *
@@ -277,11 +278,12 @@ int main(void){
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
     { SceKernelFreeMemorySizeInfo mi; memset(&mi, 0, sizeof mi); mi.size = sizeof mi; sceKernelGetFreeMemorySize(&mi);
       STEP("free memory: user %d KB, CDRAM %d KB, phycont %d KB", mi.size_user / 1024, mi.size_cdram / 1024, mi.size_phycont / 1024); }
-    {   /* game files: the extracted folder if present, else the ISO image */
+    int have_iso = 0;
+    {   /* game files: the UMD image (extracted on the first start), else the extracted folder */
         SceIoStat st;
-        if (sceIoGetstat(RS_GAME "/PSP_GAME/SYSDIR", &st) >= 0) STEP("game files: " RS_GAME);
-        else if (sceIoGetstat(RS_ISO, &st) >= 0) { if (vfs_iso_mount(RS_ISO) != 0) fatal(RS_ISO " is not a readable ISO 9660 image"); STEP("game files: " RS_ISO); }
-        else fatal("game files not found: extract the UMD so that " RS_GAME "/PSP_GAME exists, or copy the UMD image to " RS_ISO); }
+        if (sceIoGetstat(RS_ISO, &st) >= 0) { have_iso = 1; STEP("game files: " RS_ISO " (extracted to " RS_GAME " at the media screen, then deleted)"); }
+        else if (sceIoGetstat(RS_GAME "/PSP_GAME/SYSDIR", &st) >= 0) STEP("game files: " RS_GAME);
+        else fatal("game files not found: copy the UMD image to " RS_ISO " (it is extracted on the first start), or extract it so that " RS_GAME "/PSP_GAME exists"); }
     {   /* system dialogs (the on-screen keyboard) */
         SceAppUtilInitParam ip; SceAppUtilBootParam bp; memset(&ip, 0, sizeof ip); memset(&bp, 0, sizeof bp); sceAppUtilInit(&ip, &bp);
         SceCommonDialogConfigParam cp; sceCommonDialogConfigParamInit(&cp);
@@ -303,13 +305,14 @@ int main(void){
     if (gxm_init(RS_DIR "/shaders") != 0) fatal(gxm_error());
     STEP("GPU ready");
     {   /* start-up media screen: converted audio (PCM) and video (MP4) checked every boot, anything missing converted */
-        extern int rs_convert_screen(const char *game_root, const char *out_dir);
-        int r = rs_convert_screen(vfs_iso_active() ? "iso:" : RS_GAME, RS_DIR "/converted");
+        extern int rs_convert_screen(const char *game_root, const char *out_dir, const char *iso);
+        int r = rs_convert_screen(RS_GAME, RS_DIR "/converted", have_iso ? RS_ISO : NULL);
         if (r == 2) {                                                  /* converted this boot: start again in a fresh process */
             STEP("media converted; restarting");
             fflush(stderr); int e = sceAppMgrLoadExec("app0:eboot.bin", NULL, NULL);
             fprintf(stderr, "[RS] restart failed (%08x); continuing\n", (unsigned)e); r = 0; }
-        STEP(r == 0 ? "media ready" : "media conversion skipped (%d): original media only", r); }
+        STEP(r == 0 ? "media ready" : "media conversion skipped (%d): original media only", r);
+        SceIoStat st; if (sceIoGetstat(RS_GAME "/PSP_GAME/SYSDIR", &st) < 0) fatal("the game files could not be extracted from " RS_ISO " (free space?)"); }
     { extern int rs_renderer_start(void); if (rs_renderer_start() != 0) fatal("renderer initialisation failed (see the lines above)"); }
     gfx_wake_init(); gfx_thread_register();
     STEP("renderer ready");

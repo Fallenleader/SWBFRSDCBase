@@ -387,4 +387,4 @@ extern u32 rs_input_object(void);
 void rs_soldier_frame(u32 sol){
     static int keep = -1; if (keep < 0) keep = !rs_setting_int("RS_LOOK_CENTER", 1);
     if (!keep || !sol || GU32(sol + 92) != rs_input_object()) return;
-    float t = GF32(sol + 0x1FC); if (t > -1.0f && t < 0.15f) GF32(sol + 0x1FC) = 0.15f; }
+    float t = GF32(sol + 0x1FC); if (t < 0.5f) GF32(sol + 0x1FC) = 0.5f; }   /* well above one frame (the timer is also counted down where this does not run) */
