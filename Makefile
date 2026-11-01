@@ -41,7 +41,7 @@ GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
-C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c $(C)/gfx_fx.c $(C)/gfx_backend.c $(C)/renderer_option.c $(C)/blueprints.c $(C)/custom_maps.c $(C)/mpeg.c $(C)/rs_avc.c $(C)/mp4demux.c $(C)/convert.c
+C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c $(C)/gfx_fx.c $(C)/gfx_backend.c $(C)/renderer_option.c $(C)/blueprints.c $(C)/custom_maps.c $(C)/mpeg.c $(C)/rs_avc.c $(C)/mp4demux.c $(C)/convert.c $(C)/gfx_menu.c
 ifeq ($(GE_REF),1)
 C_SRC += $(C)/ge.c
 else
@@ -188,11 +188,13 @@ $$($(1)_B)/%.o: $(T)/%.c build/vk_spv.h ; @mkdir -p $$(@D); $$($(1)_CC) -std=gnu
 $$($(1)_B)/main.o: platform/desktop/main.c ; @mkdir -p $$(@D); $$($(1)_CC) -std=gnu11 $$($(1)_FLAGS) $$($(1)_INC) -c $$< -o $$@
 $$($(1)_B)/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $$(@D); $$($(1)_CXX) -std=c++17 -O2 $(3) -w -I$(C)/ext/at3 -c $$< -o $$@
 endef
-$(eval $(call DESKTOP,deck,x86_64-linux-gnu.2.31,-march=znver2 -mtune=znver2,-DRS_VARIANT_DECK,$(EXT)/sdlinc,lin))
-$(eval $(call DESKTOP,decktest,x86_64-linux-gnu.2.31,-march=x86_64_v3,-DRS_VARIANT_DECK,$(EXT)/sdlinc,lin))
+$(eval $(call DESKTOP,deck,x86_64-linux-gnu.2.31,-march=znver2 -mtune=znver2,-DRS_VARIANT_DECK -DRS_NO_GL,$(EXT)/sdlinc,lin))
+$(eval $(call DESKTOP,decktest,x86_64-linux-gnu.2.31,-march=x86_64_v3,-DRS_VARIANT_DECK -DRS_NO_GL,$(EXT)/sdlinc,lin))
 $(eval $(call DESKTOP,windows,x86_64-windows-gnu,-march=x86_64_v3,-DRS_VARIANT_WINDOWS -include platform/desktop/win_compat.h -D_FILE_OFFSET_BITS=64,$(EXT)/SDL2-2.30.9/x86_64-w64-mingw32/include,win))
 $(eval $(call DESKTOP,rtx,x86_64-windows-gnu,-march=x86_64_v3,-DRS_VARIANT_RTX -include platform/desktop/win_compat.h -D_FILE_OFFSET_BITS=64,$(EXT)/SDL2-2.30.9/x86_64-w64-mingw32/include,win))
 FF_LIBS = $(EXT)/ffmpeg-$(1)/lib/libavformat.a $(EXT)/ffmpeg-$(1)/lib/libavcodec.a $(EXT)/ffmpeg-$(1)/lib/libavutil.a
+deck_OBJ := $(filter-out $(deck_B)/gfx_gl.o,$(deck_OBJ))
+decktest_OBJ := $(filter-out $(decktest_B)/gfx_gl.o,$(decktest_OBJ))
 deck: build/data.c $(deck_OBJ)
 	@mkdir -p $(deck_B)/SWBFRS
 	$(ZIG) c++ -target x86_64-linux-gnu.2.31 -o $(deck_B)/SWBFRS/swbfrs $(deck_OBJ) $(call FF_LIBS,lin) /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0 -lm -lpthread -ldl -Wl,--gc-sections -s
