@@ -181,7 +181,29 @@ What players, vehicles, shots and the AI collide with is separate from what is d
 
 `pack` rebuilds the collision only when the `col_` meshes describe a different set of triangles, materials or types from the original; otherwise the original chunk is kept byte for byte. It reports what it did. If `Env.fbx` has no `col_` meshes at all, the original collision is kept.
 
-**Not rebuilt from the FBX:** the AI navigation mesh (`NAV1`): see the nav mesh section.
+### The AI navigation graph (nav mesh)
+
+Bots find their way on a graph of walkable circles (the `NAV1` chunk): each node is a circle (0.5 to 6 m) where a soldier can stand,
+linked to the nodes a soldier can walk to in a straight line; nodes and links are closed to the vehicle classes that do not fit
+(four classes, largest first), and one-way links let soldiers drop down ledges.  A level whose walkable ground changed needs a new graph:
+
+    maptool.py bake <era folder>
+
+bakes it from the collision (the `col_` meshes of `env/Env.fbx`; the original collision if there are none) into `nav/navmesh.nav`,
+points `map.txt`'s NAV1 line at it, and writes `nav/navmesh_preview.fbx` (the nodes as discs, one mesh per vehicle-class mask) to look
+at.  `pack` then builds it into the level.  What counts:
+
+* floors: collision polygons sloped less than 50 degrees, not `hull` and not the level's edge, with 1.8 m free above them;
+* walls: collision polygons a soldier collides with (not `kinematic`);
+* steps up to 0.6 m are walked, drops of 0.6 to 4 m become one-way links;
+* walkable areas smaller than 150 m2 (roofs, crates) are left out; the graph covers the area the level's own graph covered (+10 m),
+  or the level's edge box for a new level;
+* vehicle classes need 14 / 6.5 / 3.5 / 2 m of clearance (measured on the shipped levels).
+
+Baking Hoth takes about 30 seconds (Python 3 with numpy: Maya 2025's Python has it; elsewhere `pip install numpy`).
+
+Workflow: unpack, edit (geometry and `col_` meshes), bake, pack (or install), play.
+
 
 **Maya:**
 

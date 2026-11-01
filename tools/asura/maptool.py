@@ -17,6 +17,9 @@ Full documentation: docs/MAPS.md.  Python 3 (numpy optional: faster texture pale
   maptool.py pack    <era folder> [-o <file.PSP>]
         Builds the level file from the folder: chunks whose file was not changed are copied from the original; changed or new files
         are converted (PNG -> palette texture, WAV -> VAG, FBX -> strips, text -> binary).  Default output: <era folder>/<MAP>.PSP
+  maptool.py bake    <era folder>
+        Bakes the AI navigation graph from the level's collision (the col_ meshes of env/Env.fbx) into nav/navmesh.nav (+ a preview FBX);
+        pack builds it into the level.  Needs numpy.
   maptool.py verify  <era folder>
         Packs into memory and reports what changed (an untouched folder must give back the original file byte for byte).
   maptool.py install <map folder> --id <NEWID> --name "<shown name>" --data <data folder> [--base <MAP>]
@@ -28,7 +31,7 @@ import os, sys, json, struct, hashlib, shutil, re, shlex, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chunks import chunks
 from rscf import rscf
-import texture, texenc, pngw, vag, pack, env, envfbx, phen, fbx, fbxread, model, skeleton, rigid_io, lists, textdump, chunkfmt
+import texture, texenc, pngw, vag, pack, env, envfbx, phen, nav, fbx, fbxread, model, skeleton, rigid_io, lists, textdump, chunkfmt
 
 ERAS = ('CLASSIC', 'PREQUEL', 'CAMPAIGN')
 VERSION = 1
@@ -238,6 +241,7 @@ def _model_from_fbx(path, blob, sk):
     bname = dict((((names[i] if i < len(names) else 'bone%02d' % i).replace(' ', '_')), i) for i in range(len(sk['bones']) if sk else nparts))
     verts = []; tris = []
     for me in sc['meshes']:
+        if (me['model'] or me['name']).split(':')[-1].lower().startswith(('col_', 'nav_')): continue    # collision boxes (chartool)
         part_of = {}
         for jn, ws in me['clusters'].items():
             pi = bname.get(jn.split(':')[-1])
@@ -372,6 +376,7 @@ def _resource(e, it, blob):
 
 def _build(it, e, fpath, base, man, folder):
     if it['kind'] == 'chunk':
+        if fpath.lower().endswith('.nav'): return _chunk(it['tag'], it['ver'], it['flags'] & ~7, open(fpath, 'rb').read())   # a baked graph (bake)
         return _chunk(it['tag'], it['ver'], it['flags'], textdump.parse(_read_text(fpath)))
     ext = os.path.splitext(fpath)[1].lower()
     if ext == '.png':
@@ -446,6 +451,38 @@ def install(mapdir, mid, name, data, basemap=None, log=print):
     open(os.path.join(root, mid + '.txt'), 'w').write(MAPDEF.format(id=mid, name=name, base=basemap.upper()))
     log('%s/%s.txt' % (root, mid))
 
+# ------------------------------------------------------------------ navigation graph
+def bake(folder, log=print, preview=True):
+    """the AI navigation graph (NAV1) baked from the level's collision: the col_ meshes of env/Env.fbx (else the original collision)
+    -> nav/navmesh.nav (+ nav/navmesh_preview.fbx), and map.txt's NAV1 line pointed at it"""
+    import navbake
+    man = json.load(open(os.path.join(folder, '.maptool', 'manifest.json'))); base = open(os.path.join(folder, '.maptool', 'base.PSP'), 'rb').read()
+    env_ent = man['chunks'].get(str(man.get('env'))) if man.get('env') is not None else None
+    objs = None
+    if env_ent and os.path.exists(os.path.join(folder, env_ent['file'])):
+        objs, w = envfbx.read_collision(os.path.join(folder, env_ent['file'])); [log('  ' + x) for x in w]
+        if objs: log('collision from the col_ meshes of %s' % env_ent['file'])
+    if not objs:
+        pe = man['chunks'].get(str(man.get('phen')))
+        if pe is None: raise SystemExit('this level has no collision to bake from')
+        objs = phen.objects_of(phen.parse(base[pe['off'] + 16:pe['off'] + pe['size']], pe['flags'])); log('collision: the original (no col_ meshes)')
+    navi = next((k for k, e in man['chunks'].items() if e['tag'] == 'NAV1'), None)
+    if navi is None: raise SystemExit('this level has no navigation chunk (NAV1) to replace')
+    ne = man['chunks'][navi]; original = nav.parse(base[ne['off'] + 16:ne['off'] + ne['size']])
+    nodes, _, _ = navbake.bake(objs, original, log)
+    body = nav.build(nodes)
+    mkdirs(os.path.join(folder, 'nav')); rel = 'nav/navmesh.nav'; open(os.path.join(folder, rel), 'wb').write(body)
+    log('%s: %d nodes, %d links (the original: %d nodes)' % (rel, len(nodes), sum(len(n['links']) for n in nodes), len(original['nodes'])))
+    if preview:
+        envfbx.write_nav_preview(os.path.join(folder, 'nav', 'navmesh_preview.fbx'), nodes); log('nav/navmesh_preview.fbx: the nodes as discs (to look at, not read back)')
+    # map.txt: the NAV1 line -> the baked file
+    lines = open(os.path.join(folder, 'map.txt')).read().split('\n'); idx = int(navi)
+    for k, l in enumerate(lines):
+        if l.startswith('%04d chunk "NAV1"' % idx):
+            parts = shlex.split(l); lines[k] = '%04d chunk "NAV1" %s %s %s' % (idx, parts[3], parts[4], rel)
+    open(os.path.join(folder, 'map.txt'), 'w').write('\n'.join(lines))
+    log('map.txt: the navigation chunk now comes from %s (pack builds it into the level)' % rel)
+
 # ------------------------------------------------------------------ main
 def main(argv):
     if len(argv) < 2 or argv[1] in ('-h', '--help', 'help'): print(__doc__); return 0
@@ -480,6 +517,8 @@ def main(argv):
         for r in rep: print(' ', r)
         print('identical to the original' if b == base else 'differs from the original (%d -> %d bytes)' % (len(base), len(b)))
         return 0 if (b == base or rep) else 1
+    elif cmd == 'bake':
+        bake(args[0])
     elif cmd == 'install':
         mid = opt('--id'); name = opt('--name'); data = opt('--data'); basemap = opt('--base')
         if not (mid and name and data and args): raise SystemExit('usage: install <map folder> --id NEWID --name "Name" --data <data folder>')

@@ -174,3 +174,15 @@ int rs_custom_map_dirent(const char *dir, int k, char *name, size_t cap, char *h
     for (int i = 0, seen = 0; i < ncm; i++) if (cm[i].eras & (1 << era)) {
         if (seen++ == k) { snprintf(name, cap, "%s.PSP", cm[i].id); snprintf(host, hcap, "%s/mods/maps/%s/%s.PSP", data_dir(), ERA_DIR[era], cm[i].id); return 1; } }
     return 0; }
+
+/* Any game file replaced by a mod: <data>/mods/files/<its path on the disc> (e.g. mods/files/PSP_GAME/USRDIR/ENVS/CLASSIC/HOTH.PSP,
+ * as tools/asura's character and weapon tools write them).  rel: the path the game opened (without the device). */
+int rs_mod_file(const char *rel, char *out, size_t cap){
+    static int any = -1; char root[600];
+    snprintf(root, sizeof root, "%s/mods/files", data_dir());
+    if (any < 0) { struct stat st; any = stat(root, &st) == 0; }
+    if (!any) return 0;
+    while (*rel == '/' || *rel == '\\') rel++;
+    char r[600]; size_t n = 0; for (const char *p = rel; *p && n < sizeof r - 1; p++) r[n++] = (char)toupper((unsigned char)(*p == '\\' ? '/' : *p)); r[n] = 0;
+    snprintf(out, cap, "%s/%s", root, r); struct stat st;
+    return stat(out, &st) == 0 && st.st_size > 0; }

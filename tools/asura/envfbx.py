@@ -144,7 +144,7 @@ def read(path, nobjects, bounds, material_for):
     corners = {}; clist = []
     for me in sc['meshes']:
         nm = (me['model'] or me['name']).split(':')[-1]
-        if nm.lower().startswith('col_'): continue                                             # collision (read_collision)
+        if nm.lower().startswith('col_') or nm.lower().startswith('nav_'): continue              # collision (read_collision); the nav preview
         m = re.match(r'o(\d+)', nm); layer = '__blend' in nm
         M = me['matrix']; pos = [fbxread.transform(M, p) for p in me['pos']]
         ident = all(abs(M[i][j] - (1.0 if i == j else 0.0)) < 1e-9 for i in range(3) for j in range(3)) and up != 2
@@ -273,3 +273,13 @@ def read_collision(path):
         if len(g['verts']) > 65534: warn.append('collision object %s has more than 65534 vertices: split it into several meshes' % k)
         out.append(g)
     return out, warn
+
+def write_nav_preview(path, nodes):
+    """the baked navigation nodes as flat discs (one mesh per vehicle-class mask, coloured by it), lifted 5 cm off the ground"""
+    by = {}
+    for nd in nodes:
+        x, y, z = nd['pos']; r = nd['r']; m = (nd.get('flags', 0) >> 8) & 15
+        g = by.setdefault(m, {'name': 'nav_preview_closed_to_%x' % m, 'verts': [], 'polys': [], 'mats': []})
+        b = len(g['verts']); g['verts'] += [(x + r * math.cos(a * math.pi / 4), y - 0.05, z + r * math.sin(a * math.pi / 4)) for a in range(8)]
+        g['polys'].append([b + k for k in range(8)]); g['mats'].append(m)
+    write(path, {'verts': [], 'strips': []}, [], {}, [by[k] for k in sorted(by)])
