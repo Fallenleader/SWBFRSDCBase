@@ -228,7 +228,11 @@ static void h_StartThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t || 
     fprintf(stderr, "[HLE] StartThread '%s' from ra=%08x fn=%08x arg=%08x\n", t->name, c->r[31], A2 ? LW(A2) : 0, A2 ? LW(A2 + 4) : 0); if (strstr(t->name, "Atrac")) { extern void rc_dump_stack(sdkcall_t *, const char *); rc_dump_stack(c, "atrac start"); }
     t->started = 1; t->argc = A1 > 256 ? 256 : A1; t->argp = A2; if (t->argc) memcpy(t->argbuf, g_mem + GADDR(A2), t->argc); g_alive_threads++;
     pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32 psp_stack); rs_thread_attr(&at, t->stacksize); }
+#ifdef RS_DESKTOP
+    { extern int rs_thread_spawn(pthread_t *, pthread_attr_t *, void *(*)(void *), void *); rs_thread_spawn(&t->th, &at, thread_main, t); } V0 = 0; }   /* platform/desktop (Windows: stack switch) */
+#else
     pthread_create(&t->th, &at, thread_main, t); V0 = 0; }
+#endif
 static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; g_alive_threads--; rc_broadcast(&gcv); pthread_mutex_unlock(&big); pthread_exit(0); } }
 static void h_DeleteThread(sdkcall_t *c){ V0 = 0; }
 static void h_WaitThreadEnd(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t) { V0 = 0x800201A5u; return; } while (!t->exited) big_wait(&gcv); V0 = t->status; }
@@ -465,7 +469,7 @@ static void h_IoGetstat(sdkcall_t *c){ char full[1500]; int isdir; unsigned sz; 
 /* Platform backends supply pad state. Defaults below are used by the headless host build. */
 typedef struct { u32 buttons; u8 lx, ly, rx, ry; } rs_pad_t;
 /* Headless default backend: optional script  RS_SCRIPT="frame:hexbuttons[:lx:ly[:rx:ry]];..."  (state holds from that frame on) */
-__attribute__((weak)) void rs_backend_read_pad(rs_pad_t *p){
+void rs_script_read_pad(rs_pad_t *p){                  /* RS_SCRIPT (tests): scripted input */
     p->buttons = 0; p->lx = p->ly = p->rx = p->ry = 0x80;
     static char *scr; static int init; if (!init) { init = 1; const char *e = getenv("RS_SCRIPT"); if (e) scr = strdup(e); }
     if (!scr) return; char *s = strdup(scr), *save = 0;
@@ -475,6 +479,7 @@ __attribute__((weak)) void rs_backend_read_pad(rs_pad_t *p){
     for (char *tok = strtok_r(s, ";", &save); tok; tok = strtok_r(0, ";", &save)) { unsigned fr = 0, b = 0, lx = 128, ly = 128, rx = 128, ry = 128; int n = sscanf(tok, "%u:%x:%u:%u:%u:%u", &fr, &b, &lx, &ly, &rx, &ry);
         if (n >= 2 && cur >= fr) { p->buttons = b; p->lx = n >= 3 ? lx : 128; p->ly = n >= 4 ? ly : 128; p->rx = n >= 5 ? rx : 128; p->ry = n >= 6 ? ry : 128; } }
     free(s); }
+__attribute__((weak)) void rs_backend_read_pad(rs_pad_t *p){ rs_script_read_pad(p); }
 u8 rs_right_stick[2] = {128, 128};   /* the right stick (raw, as the PSP reports the left one): read by platform/common/twin_stick.c */
 static void h_CtrlRead(sdkcall_t *c){ rs_pad_t p; rs_backend_read_pad(&p); u32 b = A0;
     /* The PSP has one analog stick: the left stick goes to the game as it. The right stick is kept for twin_stick.c (turn / look). */
@@ -552,7 +557,12 @@ static void *ge_intr_thread(void *u){ (void)u; gi_th = pthread_self(); gi_th_ok 
     for (;;) { pthread_mutex_lock(&gi_m); while (gi_h == gi_t) rc_wait(&gi_work, &gi_m); int id = gi_q[gi_t % 256]; gi_running = 1; pthread_mutex_unlock(&gi_m);
         big_lock(); rs_ge_finish_hook(id); rc_broadcast(&gcv); pthread_mutex_unlock(&big);
         pthread_mutex_lock(&gi_m); gi_t++; gi_running = 0; rc_broadcast(&gi_done); pthread_mutex_unlock(&gi_m); } return 0; }
-static void ge_intr_start(void){ pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32); rs_thread_attr(&at, 0x10000); } pthread_t t; pthread_create(&t, &at, ge_intr_thread, 0); }
+static void ge_intr_start(void){ pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32); rs_thread_attr(&at, 0x10000); } pthread_t t;
+#ifdef RS_DESKTOP
+    { extern int rs_thread_spawn(pthread_t *, pthread_attr_t *, void *(*)(void *), void *); rs_thread_spawn(&t, &at, ge_intr_thread, 0); } }
+#else
+    pthread_create(&t, &at, ge_intr_thread, 0); }
+#endif
 int rs_ge_busy(void); void rs_ge_wait_idle(void);
 unsigned rs_ge_posted(void); int rs_ge_done_upto(unsigned mark);
 static void ge_sync(sdkcall_t *c){
