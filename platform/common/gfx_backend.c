@@ -29,10 +29,19 @@ GFX_BACKEND_FUNCS(DECL)
 static int use_vk = -1;
 void rs_gfx_use_vulkan(int on){ use_vk = on; }
 int rs_gfx_vulkan(void){ return use_vk == 1; }
-#ifdef RS_VULKAN
+#if defined(RS_VULKAN) && defined(RS_NO_GL)
+#define FWD(r, n, a, c) r gfx_##n a { return vk_gfx_##n c; }       /* Vulkan only (Steam Deck: no OpenGL renderer) */
+#elif defined(RS_VULKAN)
 #define FWD(r, n, a, c) r gfx_##n a { return use_vk == 1 ? vk_gfx_##n c : gl_gfx_##n c; }
 #else
 #define FWD(r, n, a, c) r gfx_##n a { return gl_gfx_##n c; }
 #endif
 GFX_BACKEND_FUNCS(FWD)
 #undef FWD
+#ifdef RS_NO_GL
+/* shared renderer globals that live in gfx_gl.c when it is built */
+#include <time.h>
+volatile unsigned rs_gfx_epoch = 1;
+rs_perf_t rs_perf;
+u64 rs_perf_us(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (u64)t.tv_sec * 1000000ull + (u64)t.tv_nsec / 1000; }
+#endif

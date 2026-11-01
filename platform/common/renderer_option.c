@@ -1,5 +1,6 @@
-/* The Options menu's renderer switch (builds with the Vulkan renderer, RS_VULKAN): a check box "Vulkan Renderer" under Profile
- * Management in Options, the game's own check-box widget (Profile Management's "Autosave"), saved as RS_RENDERER=vulkan|opengl in
+/* The Options menu's "Graphics Settings" entry (builds with the Vulkan renderer, RS_VULKAN; not the Steam Deck's, RS_NO_GL): the
+ * game's check-box widget under Profile Management in Options, pressed to open the Graphics Settings panel (gfx_menu.c).  It was the
+ * "Vulkan Renderer" check box, the game's own check-box widget (Profile Management's "Autosave"), saved as RS_RENDERER=vulkan|opengl in
  * settings.txt and applied the next time the game starts (the renderer is chosen before anything is drawn: platform/ps5/main.c).
  *
  * The menu is game data, extended when it is read (rs_patch_file -> rs_renderer_patch_file):
@@ -30,7 +31,7 @@ __attribute__((weak)) int rs_platform_setting_store(const char *key, const char 
 
 #define TEXT_ID   0x564B5352u       /* "RSKV": the label's text id (not a hash any of the game's texts have) */
 #define WIDGET_ID 0x564B5357u       /* the check box's widget id */
-static const char LABEL[] = "Vulkan Renderer";
+static const char LABEL[] = "Graphics Settings";
 
 static int vulkan_chosen(void){ const char *r = rs_platform_setting("RS_RENDERER"); return r && (!strcmp(r, "vulkan") || !strcmp(r, "Vulkan") || !strcmp(r, "1")); }
 
@@ -120,7 +121,7 @@ static int patch_text(const char *src, const char *dst){
         if (insert(&b, o, e, elen)) goto out;
         /* the names block after the entries: its size, then a NUL-terminated name per entry */
         size_t nb = o + elen; u32 nsz = r32(b.p + nb);
-        static const char nm[] = "RS_VULKAN_RENDERER";
+        static const char nm[] = "RS_GRAPHICS_SETTINGS";
         if (insert(&b, nb + 4 + nsz, nm, sizeof nm)) goto out;
         w32(b.p + nb, nsz + (u32)sizeof nm);
         w32(b.p + 24, cnt + 1); w32(b.p + 32, tot + (u32)(2 * nc));
@@ -132,7 +133,7 @@ out:
 
 /* rs_patch_file (settings.c): the patched copy of a game file, or NULL */
 const char *rs_renderer_patch_file(const char *rel, const char *host){
-#ifdef RS_VULKAN
+#if defined(RS_VULKAN) && !defined(RS_NO_GL)
     static char out[2][512]; static int done[2];
     int k; size_t n = strlen(rel);
     if (n >= 15 && !strcasecmp(rel + n - 15, "BFF_OPTIONS.GUI")) k = 0;
@@ -142,7 +143,7 @@ const char *rs_renderer_patch_file(const char *rel, const char *host){
         char dir[480]; snprintf(dir, sizeof dir, "%s/patched", rs_platform_data_dir()); mkdir(dir, 0777);
         snprintf(out[k], sizeof out[k], "%s/%s", dir, k ? "MENU_AM.ASR" : "BFF_OPTIONS.GUI");
         done[k] = (k ? patch_text(host, out[k]) : patch_gui(host, out[k])) == 0 ? 1 : -1;
-        if (done[k] > 0) fprintf(stderr, "[RENDERER] %s -> %s (the Options menu's Vulkan Renderer check box)\n", rel, out[k]); }
+        if (done[k] > 0) fprintf(stderr, "[RENDERER] %s -> %s (the Options menu's Graphics Settings entry)\n", rel, out[k]); }
     return done[k] > 0 ? out[k] : NULL;
 #else
     (void)rel; (void)host; return NULL;
@@ -152,7 +153,7 @@ const char *rs_renderer_patch_file(const char *rel, const char *host){
 /* ------------------------------------------------------------------ the variable */
 static u32 *var; static u32 var_seen;
 void rs_game_var_bool(u32 name, u32 v, u32 a2, u32 a3){
-#ifdef RS_VULKAN
+#if defined(RS_VULKAN) && !defined(RS_NO_GL)
     static const char want[] = "BFF.FE.ProfileAutosaveOn"; int i = 0;
     for (; want[i]; i++) if (GU16(name + 2u * (u32)i) != (u16)want[i]) return;
     if (GU16(name + 2u * (u32)i) || var) return;
@@ -167,11 +168,12 @@ void rs_game_var_bool(u32 name, u32 v, u32 a2, u32 a3){
     (void)name; (void)v; (void)a2; (void)a3;
 #endif
 }
-/* every frame: the check box changed -> settings.txt */
+/* every frame (after the pad is read): the entry pressed -> the Graphics Settings panel (gfx_menu.c); the check box keeps its look */
+void rs_gfxmenu_open(void); void rs_gfxmenu_poll(void); void rs_gfxmenu_pad(void);
 void rs_renderer_frame(void){
+    rs_gfxmenu_poll(); rs_gfxmenu_pad();
     if (!var) return;
     u32 now = (*var & 0xFF) ? 1u : 0u;
     if (now == var_seen) return;
-    var_seen = now;
-    int r = rs_platform_setting_store("RS_RENDERER", now ? "vulkan" : "opengl");
-    fprintf(stderr, "[RENDERER] RS_RENDERER=%s stored%s; used from the next start\n", now ? "vulkan" : "opengl", r ? " (FAILED)" : ""); }
+    *var = (*var & ~0xFFu) | var_seen;                                         /* not a check box any more: put it back */
+    rs_gfxmenu_open(); }

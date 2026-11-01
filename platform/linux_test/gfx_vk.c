@@ -1003,7 +1003,8 @@ int gfx_init(void){
       if (want_display == 2) { for (int i = 0; i < win_next && nie < 8; i++) iext[nie++] = win_ext[i]; }
       else if (want_display && has_surf && has_disp) { iext[nie++] = "VK_KHR_surface"; iext[nie++] = "VK_KHR_display"; }
       else if (want_display) { fprintf(stderr, "[VK] VK_KHR_display is not available\n"); want_display = 0; } }
-    VkApplicationInfo app = {VK_STRUCTURE_TYPE_APPLICATION_INFO, 0, "SWBFRS", 1, "RS", 1, VK_API_VERSION_1_3};
+    static uint32_t iver; iver = VK_API_VERSION_1_1; { PFN_vkEnumerateInstanceVersion eiv = (PFN_vkEnumerateInstanceVersion)gipa(0, "vkEnumerateInstanceVersion"); if (eiv) eiv(&iver); }
+    VkApplicationInfo app = {VK_STRUCTURE_TYPE_APPLICATION_INFO, 0, "SWBFRS", 1, "RS", 1, iver >= VK_API_VERSION_1_3 ? VK_API_VERSION_1_3 : VK_API_VERSION_1_1};
     VkInstanceCreateInfo ici = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, 0, 0, &app, 0, 0, nie, iext};
     VKCHK(vkCreateInstance(&ici, 0, &inst), "vkCreateInstance");
 #define VKI(n) vk##n = (PFN_vk##n)gipa(inst, "vk" #n);
@@ -1030,6 +1031,33 @@ int gfx_init(void){
           else if (!strcmp(s, "VK_KHR_deferred_host_operations")) e_dho = 1; else if (!strcmp(s, "VK_KHR_swapchain")) e_swap = 1; }
       free(ep); }
     if (!e_push) { fprintf(stderr, "[VK] VK_KHR_push_descriptor is required\n"); return -1; }
+    /* Vulkan 1.1 / 1.2 devices (Mesa Dozen: Vulkan on Direct3D 12): dynamic rendering and the dynamic state from their extensions */
+    int legacy = (VK_API_VERSION_MINOR(props.apiVersion) < 3 && VK_API_VERSION_MAJOR(props.apiVersion) == 1) || iver < VK_API_VERSION_1_3 || getenv("RS_VK_LEGACY");
+    if (legacy) {
+        int e_dr = 0, e_eds = 0, e_dsr = 0, e_rp2 = 0;
+        { VkExtensionProperties *ep = malloc(sizeof *ep * 512); uint32_t n = 512; vkEnumerateDeviceExtensionProperties(phys, 0, &n, ep);
+          for (uint32_t i = 0; i < n; i++) { const char *x = ep[i].extensionName;
+              if (!strcmp(x, "VK_KHR_dynamic_rendering")) e_dr = 1; else if (!strcmp(x, "VK_EXT_extended_dynamic_state")) e_eds = 1;
+              else if (!strcmp(x, "VK_KHR_depth_stencil_resolve")) e_dsr = 1; else if (!strcmp(x, "VK_KHR_create_renderpass2")) e_rp2 = 1; }
+          free(ep); }
+        if (!e_dr || !e_eds) { fprintf(stderr, "[VK] Vulkan %u.%u device without VK_KHR_dynamic_rendering / VK_EXT_extended_dynamic_state\n", VK_API_VERSION_MAJOR(props.apiVersion), VK_API_VERSION_MINOR(props.apiVersion)); return -1; }
+        VkPhysicalDeviceExtendedDynamicStateFeaturesEXT feds = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT, 0, 0};
+        VkPhysicalDeviceDynamicRenderingFeaturesKHR fdr = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR, &feds, 0};
+        VkPhysicalDeviceFeatures2 f2l = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &fdr}; vkGetPhysicalDeviceFeatures2(phys, &f2l);
+        if (!fdr.dynamicRendering || !feds.extendedDynamicState) { fprintf(stderr, "[VK] dynamic rendering / extended dynamic state not supported\n"); return -1; }
+        has_rt = 0;
+        VkPhysicalDeviceExtendedDynamicStateFeaturesEXT eeds = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT, 0, VK_TRUE};
+        VkPhysicalDeviceDynamicRenderingFeaturesKHR edr = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR, &eeds, VK_TRUE};
+        VkPhysicalDeviceFeatures2 e2l = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &edr}; e2l.features.samplerAnisotropy = f2l.features.samplerAnisotropy;
+        const char *dx[8]; uint32_t nd = 0; dx[nd++] = "VK_KHR_push_descriptor"; dx[nd++] = "VK_KHR_dynamic_rendering"; dx[nd++] = "VK_EXT_extended_dynamic_state";
+        if (e_dsr) dx[nd++] = "VK_KHR_depth_stencil_resolve"; if (e_rp2) dx[nd++] = "VK_KHR_create_renderpass2";
+        if (want_display && e_swap) dx[nd++] = "VK_KHR_swapchain";
+        float pr = 1.0f; VkDeviceQueueCreateInfo qil = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, 0, 0, qfam, 1, &pr};
+        VkDeviceCreateInfo dcl = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, &e2l, 0, 1, &qil, 0, 0, nd, dx, 0};
+        VKCHK(vkCreateDevice(phys, &dcl, 0, &dev), "vkCreateDevice");
+        fprintf(stderr, "[VK] Vulkan %u.%u device: dynamic rendering and dynamic state through extensions\n", VK_API_VERSION_MAJOR(props.apiVersion), VK_API_VERSION_MINOR(props.apiVersion));
+        goto device_made; }
+    {
     VkPhysicalDeviceRayQueryFeaturesKHR frq = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, 0, 0};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR fas = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR, &frq, 0, 0, 0, 0, 0};
     VkPhysicalDeviceVulkan13Features f13 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES, (e_as && e_rq && e_dho) ? (void *)&fas : 0};
@@ -1050,11 +1078,15 @@ int gfx_init(void){
     float prio = 1.0f; VkDeviceQueueCreateInfo qi = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, 0, 0, qfam, 1, &prio};
     VkDeviceCreateInfo dci = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, &e2, 0, 1, &qi, 0, 0, nde, dext, 0};
     VKCHK(vkCreateDevice(phys, &dci, 0, &dev), "vkCreateDevice");
-#define VKD(n) vk##n = (PFN_vk##n)vkGetDeviceProcAddr(dev, "vk" #n);
+    }
+device_made:
+    {
+#define VKD(n) vk##n = (PFN_vk##n)vkGetDeviceProcAddr(dev, "vk" #n); if (!vk##n) vk##n = (PFN_vk##n)vkGetDeviceProcAddr(dev, "vk" #n "KHR"); \
+    if (!vk##n) vk##n = (PFN_vk##n)vkGetDeviceProcAddr(dev, "vk" #n "EXT");
     VK_DEVICE(VKD)
     if (has_rt) { VK_RT(VKD) }
 #undef VKD
-    if (!vkCmdBeginRendering) { vkCmdBeginRendering = (PFN_vkCmdBeginRendering)vkGetDeviceProcAddr(dev, "vkCmdBeginRenderingKHR"); vkCmdEndRendering = (PFN_vkCmdEndRendering)vkGetDeviceProcAddr(dev, "vkCmdEndRenderingKHR"); }
+    }
     vkGetDeviceQueue(dev, qfam, 0, &queue);
     /* depth/stencil format: D24S8 where it is supported, else D32S8 */
     { VkFormatProperties fp; vkGetPhysicalDeviceFormatProperties(phys, VK_FORMAT_D24_UNORM_S8_UINT, &fp);

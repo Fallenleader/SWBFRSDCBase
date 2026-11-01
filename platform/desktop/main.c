@@ -24,6 +24,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <direct.h>
+#define VK_USE_PLATFORM_WIN32_KHR 1
 #define mkdir_p(p) _mkdir(p)
 #else
 #include <unistd.h>
@@ -31,9 +32,13 @@
 #include <sys/mman.h>
 #define mkdir_p(p) mkdir(p, 0777)
 #endif
+#include <vulkan/vulkan.h>
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
+#ifdef _WIN32
+#include <SDL2/SDL_syswm.h>
+#endif
 #include "psp_impl.h"
 #include "guest64.h"
 #include "gfx.h"
@@ -205,7 +210,9 @@ static void pad_update(void){
             {SDL_CONTROLLER_BUTTON_A, 0x4000}, {SDL_CONTROLLER_BUTTON_B, 0x2000}, {SDL_CONTROLLER_BUTTON_X, 0x8000}, {SDL_CONTROLLER_BUTTON_Y, 0x1000},
             {SDL_CONTROLLER_BUTTON_START, 0x0008}, {SDL_CONTROLLER_BUTTON_BACK, 0x0001}, {SDL_CONTROLLER_BUTTON_DPAD_UP, 0x0010},
             {SDL_CONTROLLER_BUTTON_DPAD_RIGHT, 0x0020}, {SDL_CONTROLLER_BUTTON_DPAD_DOWN, 0x0040}, {SDL_CONTROLLER_BUTTON_DPAD_LEFT, 0x0080},
-            {SDL_CONTROLLER_BUTTON_LEFTSHOULDER, 0x0100}, {SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, 0x0200}, {SDL_CONTROLLER_BUTTON_TOUCHPAD, 0x0001}};
+            {SDL_CONTROLLER_BUTTON_LEFTSHOULDER, 0x0100}, {SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, 0x0200}, {SDL_CONTROLLER_BUTTON_TOUCHPAD, 0x0001},
+            {SDL_CONTROLLER_BUTTON_PADDLE1, 0x0200}, {SDL_CONTROLLER_BUTTON_PADDLE3, 0x0200}, {SDL_CONTROLLER_BUTTON_PADDLE2, 0x0100}, {SDL_CONTROLLER_BUTTON_PADDLE4, 0x0100},
+            {SDL_CONTROLLER_BUTTON_MISC1, 0x0001}};
         for (unsigned i = 0; i < sizeof map / sizeof map[0]; i++) if (SDL_GameControllerGetButton(ctl, map[i].b)) p.buttons |= map[i].psp;
         if (SDL_GameControllerGetAxis(ctl, SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 12000) p.buttons |= 0x0100;      /* L2 / R2 = L / R too */
         if (SDL_GameControllerGetAxis(ctl, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 12000) p.buttons |= 0x0200;
@@ -251,6 +258,116 @@ static SDL_Window *win;
 static void *make_surface(void *instance){ VkSurfaceKHR s = 0; if (!SDL_Vulkan_CreateSurface(win, (VkInstance)instance, &s)) { fprintf(stderr, "[PC] %s\n", SDL_GetError()); return NULL; } return (void *)(uintptr_t)s; }
 static void drawable_size(int *w, int *h){ SDL_Vulkan_GetDrawableSize(win, w, h); }
 
+/* ---------------------------------------------------------------- renderers
+ *   vulkan  the Vulkan renderer (gfx_vk.c) through the system's Vulkan driver
+ *   opengl  the OpenGL renderer (gfx_gl.c): OpenGL 2.1 + framebuffer objects (ARB or EXT) - the lowest OpenGL that runs its
+ *           PBR shaders (GLSL 1.10), so it starts on old GPUs and drivers
+ *   dx12    (Windows) the Vulkan renderer on Direct3D 12: Mesa's Dozen driver (vulkan_dzn.dll next to the executable, with
+ *           dxil.dll) is loaded directly, without the Vulkan loader, so it runs on GPUs with only a Direct3D 12 driver
+ * If the chosen renderer cannot start the game falls back to Vulkan, then OpenGL. */
+enum { R_VULKAN, R_OPENGL, R_DX12 };
+static int renderer; static SDL_GLContext glctx;
+static Uint32 win_flags(int r){ return r == R_OPENGL ? SDL_WINDOW_OPENGL : r == R_VULKAN ? SDL_WINDOW_VULKAN : 0; }
+static void window_size(int *w, int *h){
+    int res = rs_setting_int("RS_RESOLUTION", 0), sc = rs_setting_int("RS_RES_SCALE", 4);
+    if (!res) res = sc <= 3 ? 720 : sc == 4 ? 1080 : sc <= 6 ? 1440 : 2160;
+    *w = res >= 2160 ? 3840 : res >= 1440 ? 2560 : res >= 1080 ? 1920 : 1280; *h = res >= 2160 ? 2160 : res >= 1440 ? 1440 : res >= 1080 ? 1080 : 720;
+#ifdef RS_VARIANT_DECK
+    *w = 1280; *h = 800;
+#endif
+    SDL_Rect ub; if (SDL_GetDisplayUsableBounds(0, &ub) == 0 && ub.w > 0 && ub.h > 0) {          /* a window that fits the desktop */
+        while ((*w > ub.w || *h > ub.h) && *w > 640) { *w = *w * 3 / 4; *h = *h * 3 / 4; } } }
+static SDL_Window *open_window(int r, int fs){
+    int w, h; window_size(&w, &h);
+    return SDL_CreateWindow("Star Wars Battlefront: Renegade Squadron", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h,
+                            win_flags(r) | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | (fs ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0)); }
+
+static int start_vulkan(void){
+    if (SDL_Vulkan_LoadLibrary(NULL) != 0) { fprintf(stderr, "[PC] no Vulkan driver: %s\n", SDL_GetError()); return -1; }
+    unsigned ne = 0; SDL_Vulkan_GetInstanceExtensions(win, &ne, NULL);
+    const char **ex = calloc(ne + 1, sizeof *ex); SDL_Vulkan_GetInstanceExtensions(win, &ne, ex);
+    extern void rs_gfx_use_vulkan(int); rs_gfx_use_vulkan(1);
+    gfx_vk_setup_window(SDL_Vulkan_GetVkGetInstanceProcAddr(), ex, (int)ne, make_surface, drawable_size);
+    return gfx_init(); }
+
+#ifndef RS_NO_GL
+static void *gl_proc(const char *n){ return SDL_GL_GetProcAddress(n); }
+static int start_opengl(void){
+    glctx = SDL_GL_CreateContext(win);
+    if (!glctx) { fprintf(stderr, "[PC] no OpenGL 2.1 context: %s\n", SDL_GetError()); return -1; }
+    SDL_GL_MakeCurrent(win, glctx);
+    const char *(*gs)(unsigned) = (const char *(*)(unsigned))SDL_GL_GetProcAddress("glGetString");
+    if (gs) fprintf(stderr, "[GL] %s | %s | %s\n", gs(0x1F00), gs(0x1F01), gs(0x1F02));
+    extern int rs_gl_load(void *(*)(const char *)); int miss = rs_gl_load(gl_proc);
+    if (miss) { fprintf(stderr, "[GL] %d required OpenGL functions missing (OpenGL 2.1 with framebuffer objects is needed)\n", miss); return -1; }
+    SDL_GL_SetSwapInterval(rs_setting_int("RS_VSYNC", 1) ? 1 : 0);
+    extern void rs_gfx_use_vulkan(int); rs_gfx_use_vulkan(0);
+    return gfx_init(); }
+#endif
+
+#ifdef _WIN32
+static PFN_vkGetInstanceProcAddr dzn_gipa;
+static void *dzn_surface(void *instance){
+    SDL_SysWMinfo wi; SDL_VERSION(&wi.version); if (!SDL_GetWindowWMInfo(win, &wi)) return NULL;
+    PFN_vkCreateWin32SurfaceKHR mk = (PFN_vkCreateWin32SurfaceKHR)dzn_gipa((VkInstance)instance, "vkCreateWin32SurfaceKHR"); if (!mk) return NULL;
+    VkWin32SurfaceCreateInfoKHR ci = {VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR, 0, 0, GetModuleHandleW(NULL), wi.info.win.window};
+    VkSurfaceKHR s = 0; return mk((VkInstance)instance, &ci, 0, &s) == VK_SUCCESS ? (void *)(uintptr_t)s : NULL; }
+static void dzn_size(int *w, int *h){ SDL_GetWindowSizeInPixels(win, w, h); }
+static int start_dx12(void){
+    char p[1200]; snprintf(p, sizeof p, "%s/vulkan_dzn.dll", data_dir);
+    HMODULE m = LoadLibraryExA(p, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);          /* its DLLs (dxil.dll, SPIR-V tools) from the same folder */
+    if (!m) { fprintf(stderr, "[DX12] cannot load %s (error %lu)\n", p, GetLastError()); return -1; }
+    typedef VkResult (VKAPI_PTR *neg_t)(uint32_t *); neg_t neg = (neg_t)(void *)GetProcAddress(m, "vk_icdNegotiateLoaderICDInterfaceVersion");
+    if (neg) { uint32_t v = 5; neg(&v); }
+    dzn_gipa = (PFN_vkGetInstanceProcAddr)(void *)GetProcAddress(m, "vk_icdGetInstanceProcAddr");
+    if (!dzn_gipa) { fprintf(stderr, "[DX12] vulkan_dzn.dll has no vk_icdGetInstanceProcAddr\n"); return -1; }
+    static const char *ex[2] = {"VK_KHR_surface", "VK_KHR_win32_surface"};
+    extern void rs_gfx_use_vulkan(int); rs_gfx_use_vulkan(1);
+    gfx_vk_setup_window((void *)dzn_gipa, ex, 2, dzn_surface, dzn_size);
+    fprintf(stderr, "[DX12] Direct3D 12 through Dozen (Vulkan on D3D12)\n");
+    return gfx_init(); }
+#endif
+
+/* the renderer from RS_RENDERER, falling back to the others; the window is made for it (its flags depend on the API) */
+static void start_renderer(int fs){
+    const char *rn = rs_platform_setting("RS_RENDERER"); int want = R_VULKAN;
+#ifndef RS_NO_GL
+    if (rn && (!strcmp(rn, "opengl") || !strcmp(rn, "gl") || !strcmp(rn, "0"))) want = R_OPENGL;
+#endif
+#ifdef _WIN32
+    if (rn && (!strcmp(rn, "dx12") || !strcmp(rn, "d3d12") || !strcmp(rn, "directx12"))) want = R_DX12;
+#endif
+    int order[3], n = 0; order[n++] = want;
+    if (want != R_VULKAN) order[n++] = R_VULKAN;
+#ifndef RS_NO_GL
+    if (want != R_OPENGL) order[n++] = R_OPENGL;
+#endif
+    for (int i = 0; i < n; i++) {
+        int r = order[i];
+        if (r == R_OPENGL) { SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2); SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0); SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1); SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0); }
+        if (win && (SDL_GetWindowFlags(win) & (SDL_WINDOW_OPENGL | SDL_WINDOW_VULKAN)) != win_flags(r)) { SDL_DestroyWindow(win); win = NULL; }
+        if (!win) win = open_window(r, fs);
+        if (!win) { fprintf(stderr, "[PC] window: %s\n", SDL_GetError()); continue; }
+        int ok = -1;
+        if (r == R_VULKAN) ok = start_vulkan();
+#ifndef RS_NO_GL
+        else if (r == R_OPENGL) ok = start_opengl();
+#endif
+#ifdef _WIN32
+        else if (r == R_DX12) ok = start_dx12();
+#endif
+        if (ok == 0) { renderer = r; static const char *nm[3] = {"Vulkan", "OpenGL", "DirectX 12"};
+            if (r != want) fprintf(stderr, "[PC] renderer: %s (the chosen one could not start)\n", nm[r]); else fprintf(stderr, "[PC] renderer: %s\n", nm[r]);
+            return; }
+        fprintf(stderr, "[PC] renderer %d could not start\n", r); }
+    fatal("No renderer could start (see log.txt). A GPU with Vulkan 1.1+ (dynamic rendering), Direct3D 12 or OpenGL 2.1 is needed."); }
+static void present_frame(void){
+#ifndef RS_NO_GL
+    if (renderer == R_OPENGL) { int w, h; SDL_GL_GetDrawableSize(win, &w, &h); gfx_present(w, h); SDL_GL_SwapWindow(win); return; }
+#endif
+    gfx_present(0, 0); }
+
 /* the first start: game.iso extracted, media converted (the window shows the progress in its title) */
 static void prepare_media(void){
     char iso[1100], out[1100]; snprintf(iso, sizeof iso, "%s/game.iso", data_dir); snprintf(out, sizeof out, "%s/converted", data_dir);
@@ -292,12 +409,14 @@ int main(int argc, char **argv){
 #define STEP(...) do { fprintf(stderr, "[PC] %7.3fs ", now_s() - t0); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } while (0)
     STEP("SWBFRSDCBase (decompiled Star Wars Battlefront: Renegade Squadron), %s build, data folder %s", RS_VARIANT, data_dir);
     SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0");
+    SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_STEAMDECK, "1");            /* the Deck's own controls when it runs outside Steam (desktop mode) */
+    SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_XBOX, "1"); SDL_SetHint(SDL_HINT_JOYSTICK_RAWINPUT, "1");   /* Xbox pads: XInput / Raw Input, triggers separate */
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "0");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS) != 0) fatal(SDL_GetError());
     pad_mx = SDL_CreateMutex();
     int fs = rs_setting_int("RS_FULLSCREEN", 0);
     if (getenv("SteamDeck") && !rs_platform_setting("RS_FULLSCREEN")) fs = 1;
-    win = SDL_CreateWindow("Star Wars Battlefront: Renegade Squadron", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 800,
-                           SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | (fs ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
+    win = open_window(-1, fs);                           /* for the first start's progress; made again for the renderer if need be */
     if (!win) fatal(SDL_GetError());
     SDL_ShowCursor(fs ? SDL_DISABLE : SDL_ENABLE);
     {   struct stat st; char sys[1200], iso[1100]; snprintf(sys, sizeof sys, "%s/PSP_GAME/SYSDIR", game_dir); snprintf(iso, sizeof iso, "%s/game.iso", data_dir);
@@ -309,12 +428,7 @@ int main(int argc, char **argv){
         STEP("game files: %s", game_dir); }
     void *w = map_window(RS_G_WINDOW); if (!w) fatal("cannot reserve the game's memory");
     rs_guest64_init(w, RS_G_WINDOW);
-    if (SDL_Vulkan_LoadLibrary(NULL) != 0) fatal("Vulkan is not available on this computer (no Vulkan driver)");
-    unsigned ne = 0; SDL_Vulkan_GetInstanceExtensions(win, &ne, NULL);
-    const char **ex = calloc(ne + 1, sizeof *ex); SDL_Vulkan_GetInstanceExtensions(win, &ne, ex);
-    extern void rs_gfx_use_vulkan(int); rs_gfx_use_vulkan(1);
-    gfx_vk_setup_window(SDL_Vulkan_GetVkGetInstanceProcAddr(), ex, (int)ne, make_surface, drawable_size);
-    if (gfx_init() != 0) fatal("The Vulkan renderer could not start (see log.txt). A Vulkan 1.3 GPU with dynamic rendering is needed.");
+    start_renderer(fs); SDL_ShowCursor(fs ? SDL_DISABLE : SDL_ENABLE);
     gfx_wake_init(); gfx_thread_register();
     STEP("renderer ready");
     pthread_attr_t at; pthread_attr_init(&at); rs_thread_attr(&at, 0);
@@ -331,7 +445,7 @@ int main(int argc, char **argv){
                 if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_RETURN && (e.key.keysym.mod & KMOD_ALT)) { Uint32 f = SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN_DESKTOP; SDL_SetWindowFullscreen(win, f ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP); } }
             pad_update(); }
         if (gfx_present_due() || now - last >= 0.25) {
-            last = now; gfx_present(0, 0);
+            last = now; present_frame();
             if (++frames == 1 || frames % 3600 == 0) STEP("presented %llu frames", frames);
             continue; }
         gfx_pump(4); }
