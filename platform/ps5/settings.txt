@@ -2,15 +2,19 @@
 # One KEY=VALUE per line; '#' starts a comment line. Every value below is the PS5 default, so deleting a line changes nothing.
 
 # ---- picture
-# renderer: opengl or vulkan (Vulkan: RADV, with ray-traced shadows and reflections). Also in the game's Options menu
-# ("Vulkan Renderer", the last entry), which rewrites this line; a change is used from the next start. If Vulkan cannot
-# start, the game falls back to OpenGL.
+# The game's Options menu has a "Graphics Settings" entry (the last one): Renderer, Ray Tracing Features and Resolution
+# carousels that rewrite the lines below. A change is used from the next start.
+# renderer: opengl or vulkan (Vulkan: RADV, with ray-traced shadows and reflections). If Vulkan cannot start, the game
+# falls back to OpenGL.
 RS_RENDERER=vulkan
+# resolution: 720, 1080, 1440 or 2160 (4K). The menu sets this, RS_RES_SCALE and RS_OUTPUT together
+# (720 = scale 3 + 720p output, 1080 = 4, 1440 = 6, 2160 = 8). Ray tracing at 4K drops frames: 1440 or 1080 keeps 60.
+RS_RESOLUTION=2160
 # internal resolution x the PSP's 480x272: 1 to 8 (8 = 3840x2176, shown as 4K)
 RS_RES_SCALE=8
 # 1 = exactly 16:9 (one PSP row off the top and the bottom: 3840x2160 at scale 8); 0 = the whole 480x272 with thin bars
 RS_CROP_169=1
-# video output: 2160, 1440 or 1080
+# video output: 2160, 1440, 1080 or 720
 RS_OUTPUT=2160
 # FXAA anti-aliasing: 1 = on, 0 = off
 RS_FXAA=1

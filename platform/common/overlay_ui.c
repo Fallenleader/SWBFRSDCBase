@@ -131,14 +131,14 @@ static void tex_decode(u32 *dst, void *ud){
 
 void rs_overlay_draw(u32 addr, u32 stride, u32 fmt){                /* gu_native.c: each finished frame, renderer thread */
     nv = nseg = 0;
-    rs_picker_draw(); rs_savemgr_draw();                              /* nothing up: nothing is loaded or drawn */
+    { extern void rs_gfxmenu_draw(void); rs_picker_draw(); rs_savemgr_draw(); rs_gfxmenu_draw(); }   /* nothing up: nothing is loaded or drawn */
     {   /* a movie playing (mpeg.c): its picture over the whole frame */
         extern int rs_movie_draw(gfx_state_t *st); gfx_state_t ms; memset(&ms, 0, sizeof ms);
         ms.fbaddr = gfx_vram(addr); ms.fbfmt = (int)fmt; ms.fbstride = stride ? (int)stride : 512;
         ms.sx1 = 0; ms.sy1 = 0; ms.sx2 = 479; ms.sy2 = 271; ms.cmr = ms.cmg = ms.cmb = 1;
         if (rs_movie_draw(&ms) && !nv) { gfx_flush(); return; } }
     if (!nv) return;
-    if (!assets_tried) { load_assets(); nv = nseg = 0; rs_picker_draw(); rs_savemgr_draw(); }
+    if (!assets_tried) { extern void rs_gfxmenu_draw(void); load_assets(); nv = nseg = 0; rs_picker_draw(); rs_savemgr_draw(); rs_gfxmenu_draw(); }
     gfx_state_t st; memset(&st, 0, sizeof st);
     st.fbaddr = gfx_vram(addr); st.fbfmt = (int)fmt; st.fbstride = stride ? (int)stride : 512;
     st.sx1 = 0; st.sy1 = 0; st.sx2 = 479; st.sy2 = 271; st.cmr = st.cmg = st.cmb = 1;
