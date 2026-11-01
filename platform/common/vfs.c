@@ -125,3 +125,36 @@ int vfs_readdir(void *dp, char *name, size_t cap, char *full, size_t fcap){
     struct dirent *e; while ((e = readdir(v->d)) && (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))) ;
     if (!e) return 0; snprintf(name, cap, "%s", e->d_name); snprintf(full, fcap, "%s/%s", v->base, e->d_name); return 1; }
 void vfs_closedir(void *dp){ vdir_t *v = dp; if (!v) return; if (v->d) closedir(v->d); free(v); }
+
+/* ---------------------------------------------------------------- first start: the ISO image extracted to a folder
+ * Every file of the image is copied to <dest>/<path as stored> (the ISO's own layout: PSP_GAME/..., UMD_DATA.BIN), each through
+ * "<file>.part" and renamed when complete.  progress(done, total, name) is called as data is copied. */
+static u64 tree_bytes(const inode_t *n){ u64 t = 0; for (int i = 0; i < n->nkids; i++) t += n->kids[i].isdir ? tree_bytes(&n->kids[i]) : n->kids[i].size; return t; }
+static int extract_dir(FILE *f, const inode_t *d, const char *dest, u8 *buf, size_t bufsz, u64 *done, u64 total, vfs_progress_fn cb){
+    mkdir(dest, 0777);
+    for (int i = 0; i < d->nkids; i++) {
+        const inode_t *k = &d->kids[i]; char out[1024]; snprintf(out, sizeof out, "%s/%s", dest, k->name);
+        if (k->isdir) { if (extract_dir(f, k, out, buf, bufsz, done, total, cb)) return -1; continue; }
+        struct stat st; if (stat(out, &st) == 0 && (u64)st.st_size == k->size) { *done += k->size; if (cb) cb(*done, total, k->name); continue; }   /* from an interrupted run */
+        char part[1100]; snprintf(part, sizeof part, "%s.part", out);
+        FILE *o = fopen(part, "wb"); if (!o) { fprintf(stderr, "[VFS] cannot write %s\n", part); return -1; }
+        if (fseeko(f, (off_t)k->lbn * 2048, SEEK_SET)) { fclose(o); return -1; }
+        u64 left = k->size; int err = 0;
+        while (left && !err) { size_t n = left > bufsz ? bufsz : (size_t)left;
+            if (fread(buf, 1, n, f) != n || fwrite(buf, 1, n, o) != n) err = 1;
+            left -= n; *done += n; if (cb) cb(*done, total, k->name); }
+        if (fclose(o)) err = 1;
+        if (err) { fprintf(stderr, "[VFS] extracting %s failed (disk full?)\n", out); remove(part); return -1; }
+        remove(out); if (rename(part, out)) return -1; }
+    return 0; }
+int vfs_iso_extract(const char *iso, const char *dest, vfs_progress_fn cb){
+    if (vfs_iso_mount(iso)) return -1;
+    iso_on = 0;                                                   /* read the image here only: the game reads the extracted files */
+    FILE *f = fopen(iso, "rb"); if (!f) return -1;
+    size_t bufsz = 1u << 20; u8 *buf = malloc(bufsz); if (!buf) { fclose(f); return -1; }
+    u64 done = 0, total = tree_bytes(&iso_root);
+    fprintf(stderr, "[VFS] extracting %s (%llu MB) to %s\n", iso, (unsigned long long)(total >> 20), dest);
+    int r = extract_dir(f, &iso_root, dest, buf, bufsz, &done, total, cb);
+    free(buf); fclose(f);
+    if (!r) fprintf(stderr, "[VFS] extracted %llu bytes\n", (unsigned long long)done);
+    return r; }

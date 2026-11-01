@@ -66,8 +66,8 @@ static void add_axis(u32 tbl, int act, int slot, u32 like){        /* a new axis
     func_08896520(tbl, (u32)act, (u32)slot, R32(like + 28), 0, 0, 0, RF(like + 4), RF(like + 20), RF(like + 24)); }
 
 void rs_input_after_scheme(u32 obj, u32 idx){
+    if (idx <= 1) scheme_obj = obj;                       /* (also without twin-stick: the look-centring option uses it) */
     if (!enabled() || idx > 1) return;
-    scheme_obj = obj;
     u32 tbl = R32(obj + 8) + idx * 16; if (R32(tbl) < 6 || !R32(tbl + 4)) return;
     if (idx == 0) {
         u32 c_turn = R32(head_at(tbl, ACT_TURN)), c_strafe = R32(head_at(tbl, ACT_STRAFE));

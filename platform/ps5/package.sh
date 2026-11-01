@@ -32,7 +32,7 @@ lib="$sdk/target/lib"
     --no-dynamic-linker --error-limit=0 -Map="$out/llvm-pie.map" -u ps5_agc_gate2_run \
     --wrap=malloc --wrap=calloc --wrap=realloc --wrap=free --wrap=posix_memalign --wrap=malloc_usable_size \
     -o "$out/llvm-pie.elf" \
-    --start-group "$out/app_crt.o" "$out/app_cpp_runtime.o" "$@" "$gl/lib/libPS5OpenGL.a" \
+    --start-group "$out/app_crt.o" "$out/app_cpp_runtime.o" "$@" "$gl/lib/libPS5OpenGL.a" ${PS5_FFMPEG:+"$PS5_FFMPEG/lib/libavformat.a" "$PS5_FFMPEG/lib/libavcodec.a" "$PS5_FFMPEG/lib/libavutil.a"} \
     "$lib/libc++.a" "$lib/libc++abi.a" "$lib/libunwind.a" --end-group \
     --as-needed "$gl/lib/libSceAgc.so" "$gl/lib/libSceAgcDriver.so" "$lib/libSceVideoOut.so" "$lib/libSceSystemService.so" \
     "$lib/libScePad.so" "$lib/libSceAudioOut.so" "$lib/libSceUserService.so" \

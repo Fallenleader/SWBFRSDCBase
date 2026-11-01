@@ -24,13 +24,16 @@ typedef struct {
     char message[200];         /* error text (RS_CONV_FAILED) */
 } rs_conv_status_t;
 
-enum { RS_CONV_IDLE, RS_CONV_CHECKING, RS_CONV_CONVERTING, RS_CONV_DONE, RS_CONV_FAILED };
+enum { RS_CONV_IDLE, RS_CONV_CHECKING, RS_CONV_CONVERTING, RS_CONV_DONE, RS_CONV_FAILED, RS_CONV_EXTRACTING };
 
 /* game_root: what the game's disc0:/ maps to (the folder holding PSP_GAME, or "iso:" when an ISO image is mounted with vfs).
  * out_dir: folder for the converted files (created if needed).  workers: conversion threads (1..4).
  * free_bytes: space left on the output device, or 0 if unknown (checked before converting).
  * Runs in a background thread; poll rs_convert_status() until phase is RS_CONV_DONE or RS_CONV_FAILED. */
 int rs_convert_start(const char *game_root, const char *out_dir, int workers, uint64_t free_bytes);
+/* As rs_convert_start, after extracting the UMD image iso_path into game_root first (phase RS_CONV_EXTRACTING, work_* = bytes)
+ * when game_root/PSP_GAME/SYSDIR does not exist yet.  The image is deleted once every file is out. */
+int rs_convert_start_iso(const char *iso_path, const char *game_root, const char *out_dir, int workers, uint64_t free_bytes);
 void rs_convert_status(rs_conv_status_t *out);
 
 /* Path of the converted copy of a game file (full host path as opened by the platform layer), or 0 when the file is not one

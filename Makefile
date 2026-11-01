@@ -41,7 +41,7 @@ GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
-C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/blueprints.c $(C)/custom_maps.c $(C)/tex_mips.c $(C)/guest64.c
+C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/blueprints.c $(C)/custom_maps.c $(C)/tex_mips.c $(C)/guest64.c $(C)/mpeg.c $(C)/rs_avc.c $(C)/mp4demux.c $(C)/convert.c
 ifeq ($(GE_REF),1)
 C_SRC += $(C)/ge.c
 else
@@ -81,6 +81,7 @@ $(B)/rs_linux_test: $(GAME_OBJ) $(T_OBJ) $(AT3_OBJ) ; g++ -m32 -no-pie $(XLD) -o
 #   make linux64 EBOOT=...                           -> build/linux64/rs_linux64
 B64 ?= build/linux64
 LINUX64_DEFS ?=
+LINUX64_DEFS += -DRS_AVC_FFMPEG
 CC64 := gcc -m64 -msse2 -DRS_GUEST64 $(LINUX64_DEFS)
 GAME64_OBJ := $(patsubst src/game/%.c,$(B64)/game/%.o,$(GAME_SRC)) $(B64)/game/data.o $(B64)/game/fn_table.o
 T64_OBJ := $(patsubst $(T)/%.c,$(B64)/linux_test/%.o,$(T_SRC)) $(patsubst $(C)/%.c,$(B64)/linux_test/c_%.o,$(C_SRC)) $(B64)/linux_test/glue.o
@@ -93,7 +94,7 @@ $(B64)/linux_test/%.o: $(T)/%.c ; @mkdir -p $(B64)/linux_test; $(CC64) -O1 -w -D
 $(B64)/linux_test/c_%.o: $(C)/%.c ; @mkdir -p $(B64)/linux_test; $(CC64) -O1 -w -DHOST_BUILD -I$(C) -I src/game -c $< -o $@
 $(B64)/linux_test/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $(B64)/linux_test; g++ -m64 -O2 -I$(C)/ext/at3 -c $< -o $@
 linux64: $(B64)/rs_linux64
-$(B64)/rs_linux64: $(GAME64_OBJ) $(T64_OBJ) $(AT3_64_OBJ) ; g++ -m64 -o $@ $^ -lm -lpthread -ldl
+$(B64)/rs_linux64: $(GAME64_OBJ) $(T64_OBJ) $(AT3_64_OBJ) ; g++ -m64 -o $@ $^ -lm -lpthread -ldl -lavformat -lavcodec -lavutil
 
 # ---- PS5 (platform/ps5): native homebrew title, 64-bit (RS_GUEST64), OpenGL on the PS5 OpenGL SDK ----
 #   make ps5 EBOOT=... PS5_BOILERPLATE=<ps5-native-app-boilerplate checkout> PS5_OPENGL=<ps5-opengl-sdk-1.0.2/sdk>
@@ -102,14 +103,16 @@ PS5_BOILERPLATE ?= ../ps5-native-app-boilerplate
 PS5_OPENGL ?= ../ps5-opengl-sdk-1.0.2/sdk
 PS5_SDK := $(PS5_BOILERPLATE)/.deps/native/ps5-payload-sdk
 PS5CC := env PS5_PAYLOAD_SDK=$(abspath $(PS5_SDK)) USE_CCACHE=1 sh $(PS5_BOILERPLATE)/tooling/prospero-clang18
-PS5_DEFS := -DRS_GUEST64 -DRS_TLS_STRUCT -DRS_PS5 -DRS_HW_ANISO -DRS_ANISO_MAX=16 -DRS_ANISO_DEFAULT=16 -DRS_GFX_MAX_SCALE=8
+PS5_DEFS := -DRS_GUEST64 -DRS_TLS_STRUCT -DRS_PS5 -DRS_HW_ANISO -DRS_ANISO_MAX=16 -DRS_ANISO_DEFAULT=16 -DRS_GFX_MAX_SCALE=8 -DRS_AVC_FFMPEG
+# FFmpeg built for the PS5 (H.264 / AAC decoders, AAC encoder, MP4 muxer: the first-start media conversion and the movies)
+PS5_FFMPEG ?= ../ext/ffmpeg-ps5
 PS5_FLAGS := -O3 -march=znver2 -mtune=znver2 -w -fno-strict-aliasing -ffp-contract=off -fno-math-errno -ffunction-sections -fdata-sections $(PS5_DEFS)
 P5 := build/ps5
 PS5_C_SRC := $(filter-out $(C)/ge.c $(C)/census.c $(C)/fnprof.c,$(C_SRC))
 PS5_OBJ := $(patsubst src/game/%.c,$(P5)/game/%.o,$(GAME_SRC)) $(P5)/game/data.o $(P5)/game/fn_table.o \
            $(patsubst $(C)/%.c,$(P5)/c_%.o,$(PS5_C_SRC)) $(P5)/gfx_gl.o $(P5)/texrep.o $(P5)/main.o $(P5)/dirent_ps5.o $(P5)/glue.o $(P5)/app_heap.o \
            $(patsubst $(C)/ext/at3/%.cpp,$(P5)/at3_%.o,$(wildcard $(C)/ext/at3/*.cpp))
-PS5_INC := -Isrc/game -I$(C) -I$(T) -Iplatform/ps5 -I$(PS5_OPENGL)/include
+PS5_INC := -Isrc/game -I$(C) -I$(T) -Iplatform/ps5 -I$(PS5_OPENGL)/include -I$(PS5_FFMPEG)/include
 $(P5)/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p $(P5)/game; $(PS5CC) -std=gnu11 $(PS5_FLAGS) -Isrc/game -c $< -o $@
 $(P5)/game/data.o: build/data.c ; @mkdir -p $(P5)/game; $(PS5CC) -std=gnu11 $(PS5_FLAGS) -Isrc/game -c $< -o $@
 $(P5)/glue.c: src/game/psp_sdk.h ; @mkdir -p $(P5); python3 $(C)/mkglue.py $< $@
@@ -120,7 +123,7 @@ $(P5)/main.o: platform/ps5/main.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_F
 $(P5)/dirent_ps5.o: platform/ps5/dirent_ps5.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -c $< -o $@
 $(P5)/app_heap.o: $(PS5_OPENGL)/../native-app/app_heap.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 -O3 -march=znver2 -w -c $< -o $@
 $(P5)/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $(P5); $(PS5CC) -std=c++17 -O2 -w -I$(C)/ext/at3 -c $< -o $@
-ps5: build/data.c $(PS5_OBJ) ; bash platform/ps5/package.sh "$(PS5_BOILERPLATE)" "$(PS5_OPENGL)" $(PS5_OBJ)
+ps5: build/data.c $(PS5_OBJ) ; PS5_FFMPEG="$(abspath $(PS5_FFMPEG))" bash platform/ps5/package.sh "$(PS5_BOILERPLATE)" "$(PS5_OPENGL)" $(PS5_OBJ)
 
 # ---- PS Vita (platform/vita) ----
 VITA_B := build/vita
