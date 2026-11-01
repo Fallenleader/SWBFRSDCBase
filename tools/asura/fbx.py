@@ -23,8 +23,10 @@ def _mat4(q, t):
     return [m[0][0], m[1][0], m[2][0], 0, m[0][1], m[1][1], m[2][1], 0, m[0][2], m[1][2], m[2][2], 0, t[0], t[1], t[2], 1]
 def _arr(vals, fmt='%.6f'): return ','.join(fmt % v if isinstance(v, float) else str(v) for v in vals)
 
-def write(path, name, m, sk, texture_png=None, strip_tris=None):
-    """m: model.parse() result, sk: skeleton.parse() result (or None: one joint per part at the origin)"""
+def write(path, name, m, sk, texture_png=None, strip_tris=None, boxes=None):
+    """m: model.parse() result, sk: skeleton.parse() result (or None: one joint per part at the origin);
+    boxes: {bone: [min x, max x, min y, max y, min z, max z] in the bone's space} -> col_<bone> box meshes under their joints (HSBB)"""
+    boxes = boxes or {}
     import model as _model
     strip_tris = strip_tris or _model.strip_tris
     nb = len(m['parts'])
@@ -54,9 +56,9 @@ def write(path, name, m, sk, texture_png=None, strip_tris=None):
     o('GlobalSettings:  {\n\tVersion: 1000\n\tProperties70:  {\n\t\tP: "UpAxis", "int", "Integer", "",1\n\t\tP: "UpAxisSign", "int", "Integer", "",1\n'
       '\t\tP: "FrontAxis", "int", "Integer", "",2\n\t\tP: "FrontAxisSign", "int", "Integer", "",1\n\t\tP: "CoordAxis", "int", "Integer", "",0\n'
       '\t\tP: "CoordAxisSign", "int", "Integer", "",1\n\t\tP: "UnitScaleFactor", "double", "Number", "",100\n\t}\n}\n')
-    nmodels = 1 + len(bones); ndef = 1 + len(clusters)
-    o('Definitions:  {\n\tVersion: 100\n\tCount: %d\n' % (1 + nmodels + 1 + len(bones) + ndef + 1 + (2 if tex else 0)))
-    o('\tObjectType: "GlobalSettings" {\n\t\tCount: 1\n\t}\n\tObjectType: "Model" {\n\t\tCount: %d\n\t}\n\tObjectType: "Geometry" {\n\t\tCount: 1\n\t}\n' % nmodels)
+    nmodels = 1 + len(bones) + len(boxes); ndef = 1 + len(clusters)
+    o('Definitions:  {\n\tVersion: 100\n\tCount: %d\n' % (1 + nmodels + 1 + len(boxes) + len(bones) + ndef + 1 + (2 if tex else 0)))
+    o('\tObjectType: "GlobalSettings" {\n\t\tCount: 1\n\t}\n\tObjectType: "Model" {\n\t\tCount: %d\n\t}\n\tObjectType: "Geometry" {\n\t\tCount: %d\n\t}\n' % (nmodels, 1 + len(boxes)))
     o('\tObjectType: "NodeAttribute" {\n\t\tCount: %d\n\t}\n\tObjectType: "Deformer" {\n\t\tCount: %d\n\t}\n\tObjectType: "Material" {\n\t\tCount: 1\n\t}\n' % (len(bones), ndef))
     o('\tObjectType: "Pose" {\n\t\tCount: 1\n\t}\n')
     if tex: o('\tObjectType: "Texture" {\n\t\tCount: 1\n\t}\n\tObjectType: "Video" {\n\t\tCount: 1\n\t}\n')
@@ -80,6 +82,17 @@ def write(path, name, m, sk, texture_png=None, strip_tris=None):
         o('\tModel: %d, "Model::%s", "LimbNode" {\n\t\tVersion: 232\n\t\tProperties70:  {\n'
           '\t\t\tP: "Lcl Translation", "Lcl Translation", "", "A",%.6f,%.6f,%.6f\n\t\t\tP: "Lcl Rotation", "Lcl Rotation", "", "A",%.6f,%.6f,%.6f\n'
           '\t\t}\n\t\tShading: Y\n\t\tCulling: "CullingOff"\n\t}\n' % (joint[i], bname(i), t[0], t[1], t[2], r[0], r[1], r[2]))
+    box_ids = {}
+    for b, bx in sorted(boxes.items()):                                            # hit boxes: in the joint's space (Y mirrored)
+        g2, m2 = nid(), nid(); box_ids[b] = (g2, m2)
+        x0, x1, y0, y1, z0, z1 = bx; y0, y1 = -y1, -y0
+        V8 = [(x, y, z) for x in (x0, x1) for y in (y0, y1) for z in (z0, z1)]
+        F = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+        pv = []
+        for f in F: pv += [f[0], f[1], f[2], -f[3] - 1]
+        o('\tGeometry: %d, "Geometry::col_%s", "Mesh" {\n\t\tVertices: *24 {\n\t\t\ta: %s\n\t\t}\n\t\tPolygonVertexIndex: *24 {\n\t\t\ta: %s\n\t\t}\n\t\tGeometryVersion: 124\n\t}\n'
+          % (g2, bname(b), _arr([c for v in V8 for c in v]), _arr(pv, '%d')))
+        o('\tModel: %d, "Model::col_%s", "Mesh" {\n\t\tVersion: 232\n\t\tProperties70:  {\n\t\t\tP: "Primary Visibility", "bool", "", "",0\n\t\t}\n\t\tShading: T\n\t\tCulling: "CullingOff"\n\t}\n' % (m2, bname(b)))
     o('\tMaterial: %d, "Material::%s_mat", "" {\n\t\tVersion: 102\n\t\tShadingModel: "lambert"\n\t\tProperties70:  {\n\t\t\tP: "DiffuseColor", "Color", "", "A",1,1,1\n\t\t}\n\t}\n' % (mat, name))
     if tex:
         o('\tVideo: %d, "Video::%s_img", "Clip" {\n\t\tType: "Clip"\n\t\tFileName: "%s"\n\t\tRelativeFilename: "%s"\n\t}\n' % (vid, name, texture_png, texture_png))
@@ -103,6 +116,7 @@ def write(path, name, m, sk, texture_png=None, strip_tris=None):
     for i, bn in enumerate(bones):
         o('\tC: "OO",%d,%d\n' % (attr[i], joint[i]))
         o('\tC: "OO",%d,%d\n' % (joint[i], joint[bn['parent']] if bn['parent'] >= 0 else 0))
+    for b, (g2, m2) in sorted(box_ids.items()): o('\tC: "OO",%d,%d\n\tC: "OO",%d,%d\n' % (g2, m2, m2, joint[b]))
     o('\tC: "OO",%d,%d\n' % (skin, geo))
     for b in sorted(clusters): o('\tC: "OO",%d,%d\n\tC: "OO",%d,%d\n' % (clus[b], skin, joint[b], clus[b]))
     o('}\n')
