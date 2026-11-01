@@ -1,8 +1,9 @@
 /* Texture replacement (mod support): any texture the game uploads can be replaced by a PNG of any size, plus optional PBR maps.
  *
- *   <mods dir>/<mod name>/textures/<key>[@<label>]_RGBA.png     replacement colour: RGB diffuse, A transparency (any resolution,
- *                                                                 keep the aspect ratio)
- *   <mods dir>/<mod name>/textures/<key>-<pal>[@<label>]_RGBA.png same, only for one palette of a CLUT texture (team colours etc.)
+ *   <mods dir>/textures/<key>[@<label>]_RGBA.png     replacement colour: RGB diffuse, A transparency (any resolution, keep the
+ *                                                     aspect ratio); any subfolders (e.g. the layout of mods/dumps)
+ *   <mods dir>/textures/<key>-<pal>[@<label>]_RGBA.png same, only for one palette of a CLUT texture (team colours etc.)
+ *   (mods/<mod name>/textures/ folders from earlier builds are still read, before mods/textures)
  *   ..._NM.png    tangent-space normal map in RGB (OpenGL convention, +Y up); A = characters' colour mask (white: own colour, mid
  *                 grey: colour 1, black: colour 2), put into the colour's alpha when it is not all white
  *   ..._MSAO.png  PBR map: R = metalness, G = smoothness, B = ambient occlusion (A unused for now; reserved for a height map)
@@ -11,7 +12,7 @@
  * <key> = CRC-32 of the texture's level-0 texel bytes as the game stores them (8 lowercase hex digits; tools/asura/extract.py writes the
  * key of every texture into manifest.json).  <pal> = the runtime palette id; RS_MOD_DUMP=1 writes every texture the game uploads as
  * <dump dir>/<key>-<pal>.png exactly as it appears in game, so the easiest workflow is: dump, edit, drop into a mod (rename to <key>.png
- * to cover every palette).  Mods dir: Vita ux0:data/RS/mods, PC ./mods (RS_MODS_DIR).  Dump dir: ux0:data/RS/dump, PC ./dump.
+ * to cover every palette).  Mods dir: PS5 /data/SWBFRS/mods, PC ./mods (RS_MODS_DIR).  Dump dir: PS5 /data/SWBFRS/mods/dumps/all, PC ./dump.
  * Mods load in alphabetical order; a later mod wins for the same file.  RS_MODS=0 disables all replacements. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -81,7 +82,7 @@ void rs_mkdirs(const char *path){                                  /* mkdir -p *
     MKDIR(p); }
 static const char *dump_root(void){
 #ifdef __vita__
-    return "ux0:data/RS/dump";
+    return "ux0:data/SWBFRS/mods/dumps/all";
 #elif defined(RS_PS5)
     return "/data/SWBFRS/mods/dumps/all";
 #else
@@ -94,16 +95,20 @@ static void init(void){
         fprintf(stderr, "[MOD] dumping every texture to %s\n", p); }
     if (!enabled) return;
 #ifdef __vita__
-    const char *root = "ux0:data/RS/mods";
+    const char *root = "ux0:data/SWBFRS/mods";
 #elif defined(RS_PS5)
     const char *root = "/data/SWBFRS/mods";
 #else
     const char *root = getenv("RS_MODS_DIR") ? getenv("RS_MODS_DIR") : "mods";
 #endif
-    DIR *d = opendir(root); if (!d) return; struct dirent *e; char *names[256]; int nn = 0;
-    while ((e = readdir(d)) && nn < 256) if (e->d_name[0] != '.' && strcmp(e->d_name, "dumps") && strcmp(e->d_name, "lights")) names[nn++] = strdup(e->d_name);
-    closedir(d); qsort(names, (size_t)nn, sizeof names[0], cmpstr);          /* alphabetical: later mods override earlier ones */
+    /* mods/textures/ (any subfolders) is the place for replacement textures and their PBR maps; folders of mods from earlier builds
+     * (mods/<mod>/textures/) are still read first, alphabetically, so mods/textures wins over them.  mods/dumps is never read. */
+    DIR *d = opendir(root); struct dirent *e; char *names[256]; int nn = 0;
+    if (d) { while ((e = readdir(d)) && nn < 256) if (e->d_name[0] != '.' && strcmp(e->d_name, "dumps") && strcmp(e->d_name, "lights") && strcmp(e->d_name, "maps") && strcmp(e->d_name, "textures")) names[nn++] = strdup(e->d_name);
+        closedir(d); }
+    qsort(names, (size_t)nn, sizeof names[0], cmpstr);                      /* alphabetical: later mods override earlier ones */
     for (int i = 0; i < nn; i++) { char p[1024]; snprintf(p, sizeof p, "%s/%s/textures", root, names[i]); scan_dir(p, 0); free(names[i]); }
+    { char p[1024]; snprintf(p, sizeof p, "%s/textures", root); rs_mkdirs(p); scan_dir(p, 0); }
     for (int i = 0; i < nrep; ) { if (!reps[i].path[0]) { free(reps[i].path[1]); free(reps[i].path[2]); reps[i] = reps[--nrep]; } else i++; }   /* colour file required */
     qsort(reps, (size_t)nrep, sizeof *reps, cmp);
     fprintf(stderr, "[MOD] %d texture replacement(s) active\n", nrep); }

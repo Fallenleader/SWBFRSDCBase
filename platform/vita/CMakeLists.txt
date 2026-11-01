@@ -42,7 +42,7 @@ file(GLOB AT3_SRC "${ROOT}/platform/common/ext/at3/*.cpp")
 # reference for porting the renderer to other native APIs (Makefile GE_REF=1 on PC)
 set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/gu_native.c" "${ROOT}/platform/common/audio.c" "${ROOT}/platform/common/settings.c"
                "${ROOT}/platform/common/vfs.c" "${ROOT}/platform/common/gfx_jobs.c" "${ROOT}/platform/common/convert.c" "${ROOT}/platform/common/asura_tex.c"
-               "${ROOT}/platform/common/twin_stick.c" "${ROOT}/platform/common/game_patches.c"
+               "${ROOT}/platform/common/twin_stick.c" "${ROOT}/platform/common/game_patches.c" "${ROOT}/platform/common/custom_maps.c"
                "${ROOT}/platform/common/colour_picker.c"
                "${ROOT}/platform/common/overlay_ui.c" "${ROOT}/platform/common/game_ui.c" "${ROOT}/platform/common/save_manager.c" "${ROOT}/platform/common/parts_swap.c" "${ROOT}/platform/common/loadout_slots.c" "${ROOT}/platform/common/tex_mips.c" "${ROOT}/platform/common/guest64.c" "${ROOT}/platform/common/renderer_option.c" "${ROOT}/platform/common/blueprints.c")
 # renderer: GXM, the Vita's native GPU API (no GL layer)

@@ -15506,7 +15506,7 @@ L_089771CC:;
 }
 
 /* 089771D8 */
-u64 func_089771D8(u32 a0, u32 a1)
+static u64 func_089771D8__orig(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0;
     int cnd_;
@@ -15537,8 +15537,15 @@ L_08977210:;
     return (u64)v0 | ((u64)v1 << 32);
 }
 
+u64 func_089771D8(u32 a0, u32 a1)
+{
+    u64 r_ = 0;
+    if (rs_map_has_era(a0, a1, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_089771D8__orig(a0, a1);
+}
+
 /* 08977218 */
-u64 func_08977218(u32 a0, u32 a1)
+static u64 func_08977218__orig(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0;
     int cnd_;
@@ -15560,6 +15567,13 @@ L_08977240:;
     goto L_08977244;
 L_08977244:;
     return (u64)v0 | ((u64)v1 << 32);
+}
+
+u64 func_08977218(u32 a0, u32 a1)
+{
+    u64 r_ = 0;
+    if (rs_map_mode(a0, a1, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08977218__orig(a0, a1);
 }
 
 /* 0897724C */
@@ -15607,7 +15621,7 @@ L_089772A4:;
 }
 
 /* 089772B4 */
-u32 func_089772B4(u32 a0)
+static u32 func_089772B4__orig(u32 a0)
 {
     u32 v0 = 0, v1 = 0;
     int cnd_;
@@ -15630,6 +15644,13 @@ L_089772DC:;
     return v0;
 }
 
+u32 func_089772B4(u32 a0)
+{
+    u32 r_ = 0;
+    if (rs_map_space(a0, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_089772B4__orig(a0);
+}
+
 /* 089772E4 */
 u32 func_089772E4(u32 a0)
 {
@@ -15650,7 +15671,7 @@ L_089772FC:;
 }
 
 /* 08977308 */
-u32 func_08977308(u32 a0)
+static u32 func_08977308__orig(u32 a0)
 {
     u32 v0 = 0, v1 = 0;
     int cnd_;
@@ -15673,8 +15694,15 @@ L_08977330:;
     return v0;
 }
 
+u32 func_08977308(u32 a0)
+{
+    u32 r_ = 0;
+    if (rs_map_prequel(a0, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08977308__orig(a0);
+}
+
 /* 08977338 */
-u32 func_08977338(u32 a0)
+static u32 func_08977338__orig(u32 a0)
 {
     u32 v0 = 0, v1 = 0;
     int cnd_;
@@ -15697,8 +15725,15 @@ L_08977360:;
     return v0;
 }
 
+u32 func_08977338(u32 a0)
+{
+    u32 r_ = 0;
+    if (rs_map_classic(a0, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08977338__orig(a0);
+}
+
 /* 08977368 */
-u32 func_08977368(u32 a0)
+static u32 func_08977368__orig(u32 a0)
 {
     u32 v0 = 0, v1 = 0;
     int cnd_;
@@ -15721,8 +15756,15 @@ L_08977390:;
     return v0;
 }
 
+u32 func_08977368(u32 a0)
+{
+    u32 r_ = 0;
+    if (rs_map_text(a0, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08977368__orig(a0);
+}
+
 /* 08977398 */
-u32 func_08977398(u32 a0)
+static u32 func_08977398__orig(u32 a0)
 {
     u32 v0 = 0, v1 = 0;
     int cnd_;
@@ -15753,8 +15795,15 @@ L_089773D0:;
     return v0;
 }
 
+u32 func_08977398(u32 a0)
+{
+    u32 r_ = 0;
+    if (rs_map_text_by_name(a0, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_08977398__orig(a0);
+}
+
 /* 089773E0 */
-u32 func_089773E0(u32 a0)
+static u32 func_089773E0__orig(u32 a0)
 {
     u32 v0 = 0, v1 = 0, a1 = 0, s0 = 0, s1 = 0, s2 = 0;
     int cnd_;
@@ -15815,6 +15864,13 @@ L_08977478:;
     goto L_08977480;
 L_08977480:;
     goto L_08977440;
+}
+
+u32 func_089773E0(u32 a0)
+{
+    u32 r_ = 0;
+    if (rs_map_index(a0, &r_)) return r_;   /* native hook (tools/dc/hooks.py) */
+    return func_089773E0__orig(a0);
 }
 
 /* 08977488 */
@@ -15954,7 +16010,7 @@ L_089775D8:;
 }
 
 /* 089775E0 */
-rv_t func_089775E0(u32 a0, u32 a1)
+static rv_t func_089775E0__orig(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     float f0 = 0;
@@ -15985,6 +16041,12 @@ L_08977614:;
 L_0897761C:;
     sp = sp + 16;
     return (rv_t){ v0, v1, f0 };
+}
+
+rv_t func_089775E0(u32 a0, u32 a1)
+{
+    rs_map_played(&a1);   /* native hook (tools/dc/hooks.py) */
+    return func_089775E0__orig(a0, a1);
 }
 
 /* 08977628 */

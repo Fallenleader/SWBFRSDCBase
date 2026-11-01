@@ -1,7 +1,8 @@
 #version 460
 /* The PSP GE's texture functions, fog, alpha test (gfx_gl.c FS_SRC), and for 3D draws (FX):
  *   sun shadow  - shadow map (SHADOW_MAP) or a ray query towards the sun (RT build, u.rt.x)
- *   PBR         - _MSAO / _NM maps of mod textures (u.pbr.w): Burley diffuse, GGX / height-correlated Smith / Schlick specular
+ *   PBR         - _MSAO / _NM maps of mod textures, or the default smoothness / metalness (RS_PBR_SMOOTHNESS, RS_PBR_METALNESS) for
+ *                 every other lit 3D texture (u.pbr.w): Burley diffuse, GGX / height-correlated Smith / Schlick specular
  *   reflections - a ray query along the reflected view direction (RT build, u.rt.y): the hit triangle's colour, lit by the sun
  *   AO / GI     - short cosine-distributed rays around the normal (RT build, u.rt2.x rays): what they hit darkens the surface;
  *                 longer rays (u.rt2.y): the colour of what they hit, lit by the sun and the ambient, bounces onto the surface
@@ -74,6 +75,7 @@ void main(){
     float rough = 0.7, metal = 0.0, ao = 1.0;
     if (u.pbr.w > 0.5) {
         if (u.pbr.x > 0.5) { vec4 m = texture(uMR, vUV); metal = m.r; rough = clamp(1.0 - m.g, 0.05, 1.0); ao = m.b; }
+        else { rough = clamp(1.0 - u.rt3.x, 0.0, 1.0); metal = u.rt3.w; }                 /* no _MSAO map (the game's own textures): the defaults */
         if (u.pbr.y > 0.5) { vec3 T = vVT - N * dot(N, vVT); float lt = length(T);
             if (lt > 0.00001) { T /= lt; vec3 B = cross(N, T); vec3 m = texture(uNM, vUV).xyz * 2.0 - 1.0; m.xy *= u.lit.w; vec3 Nm = normalize(T * m.x + B * m.y + N * m.z);
                 /* the bumps: the sun's and a light from the eye's (so they show in the shade too) on the mapped normal vs the surface's */

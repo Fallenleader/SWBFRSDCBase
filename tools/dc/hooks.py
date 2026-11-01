@@ -32,6 +32,17 @@ HOOKS = {
     '08926220': {'after': 'rs_ai_squad_caps(a0)'},                              # AI: a team's squad sizes (game_12.c): game_patches.c
     '08926478': {'replace': 'rs_ai_assign(a0, a1, a2)'},              # AI: a squad sent to a command post
     '088346E0': {'replace': 'rs_text_get(a0, a1, &r_)'},                       # text table string n (bot names past 48): game_patches.c                              # AI object pool (behaviours, goals): game_patches.c
+    '089771D8': {'replace': 'rs_map_has_era(a0, a1, &r_)'},                    # custom maps (custom_maps.c): the map table's readers (game_16.c)
+    '08977218': {'replace': 'rs_map_mode(a0, a1, &r_)'},
+    '089772B4': {'replace': 'rs_map_space(a0, &r_)'},
+    '08977308': {'replace': 'rs_map_prequel(a0, &r_)'},
+    '08977338': {'replace': 'rs_map_classic(a0, &r_)'},
+    '08977368': {'replace': 'rs_map_text(a0, &r_)'},
+    '08977398': {'replace': 'rs_map_text_by_name(a0, &r_)'},
+    '089773E0': {'replace': 'rs_map_index(a0, &r_)'},
+    '089775E0': {'before': 'rs_map_played(&a1)'},                              # the profile's times-played count (22 slots)
+    '08A31C38': {'replace': 'rs_fe_list_all_maps(a0, a1, a2, &r_)'},          # FE_ListAllMaps (game_24.c)
+    '08A31918': {'replace': 'rs_fe_select_planet(a0, a1, a2, &r_)'},          # FE_SelectMapPlanet
 }
 # data symbols (symbols.h) redirected to native data: address -> expression
 DATA = {

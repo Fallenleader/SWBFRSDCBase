@@ -13,11 +13,11 @@
  *         the sun, point/spot lights are collected by position.  After RS_LIGHT_CAPTURE_FRAMES frames with lights the file is written;
  *         edit it to change a map's light (it is never overwritten; delete it to capture again).
  *
- * Dumps:  RS_DUMP_ASSETS=1: every texture of every container the game opens (maps, GUI files, fonts, HUD) is written once to
+ * Dumps:  RS_DUMP_ASSETS=1 (settings.txt; 0 = none): every texture of every container the game opens (maps, GUI files, fonts, HUD) is written once to
  *             <data>/mods/dumps/maps/<map>/            the level's own textures and its sky
  *             <data>/mods/dumps/players/<character>/   characters (graphics\characters), heads under players/heads/
  *             <data>/mods/dumps/weapons/<weapon sheet>/, vehicles/<vehicle>/, objects/<...>/, effects/, ui/<file>/
- *         as <key>@<texture name>_RGBA.png (characters: also _NM.png, a flat normal map carrying the colour mask in alpha), where <key> is the texture-replacement key: a dumped file copied into mods/<mod>/textures/ (any
+ *         as <key>@<texture name>_RGBA.png (characters: also _NM.png, a flat normal map carrying the colour mask in alpha), where <key> is the texture-replacement key: a dumped file copied into mods/textures/ (any
  *         subfolder) replaces that texture as it is; _ms / _n next to it add PBR maps (texrep.c).  A background thread does the work. */
 #include <stdio.h>
 #include <stdlib.h>

@@ -402,7 +402,7 @@ static int sh_on, sh_res = 1024; static float sh_range = 40.0f, sh_strength = 0.
 static unsigned sh_img; static float sh_mat[16]; static int sh_valid;
 typedef struct { int first, count, skin; float wv[12], bone[96]; u32 col; } shrec_t;
 static shrec_t *shr; static int shr_n, shr_cap; static gfx_hvtx_t *shv; static int shv_n, shv_cap; static float sh_view[12]; static int sh_cam_ok, sh_view_ok, sh_view_any;
-static int pbr_ok; static float pbr_sunc[3] = {1, 0.95f, 0.85f}, pbr_spec = 1;
+static int pbr_ok, pbr_default = 1; static float pbr_sunc[3] = {1, 0.95f, 0.85f}, pbr_spec = 1, pbr_smooth = 1, pbr_metal = 0;   /* defaults for the game's own textures */
 static int sh_caster(const gfx_state_t *st){ return st->ztest && st->zwrite && !st->blend && !st->atest && (st->cmr || st->cmg || st->cmb); }
 static void norm3(float *v){ float l = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]); if (l > 1e-9f) { v[0] /= l; v[1] /= l; v[2] /= l; } }
 static int is_identity(const float *v){ static const float I[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}; for (int i = 0; i < 12; i++) if (fabsf(v[i] - I[i]) > 1e-4f) return 0; return 1; }
@@ -535,14 +535,15 @@ static void flush_batch(void){
         float sv[3]; for (int k = 0; k < 3; k++) sv[k] = sh_sun[0] * V[k] + sh_sun[1] * V[3 + k] + sh_sun[2] * V[6 + k]; norm3(sv);
         u->sun[0] = sv[0]; u->sun[1] = sv[1]; u->sun[2] = sv[2];
         u->sunc[0] = pbr_sunc[0]; u->sunc[1] = pbr_sunc[1]; u->sunc[2] = pbr_sunc[2]; u->sunc[3] = 1;
-        int pbr = pbr_ok && bst.tex && (bst.texmr || bst.texn);   /* (no vertex normals: the shader takes the triangle's) */
+        int pbr = pbr_ok && bst.tex && (bst.texmr || bst.texn || (rcv && pbr_default));   /* (no vertex normals: the shader takes the triangle's) */
         if (pbr) { u->pbr[0] = bst.texmr ? 1.0f : 0.0f; u->pbr[1] = bst.texn ? 1.0f : 0.0f; u->pbr[2] = pbr_spec; u->pbr[3] = 1; }
         u->rt[0] = rts ? 1.0f : 0.0f; u->rt[1] = rt_refl ? 1.0f : 0.0f; u->rt[2] = rt_len; u->rt[3] = (as[fi].valid && sh_view_any && !getenv("RS_RT_NOTRACE")) ? 1.0f : 0.0f;
         if (has_rt) { static float lv[12] = {9}; if (memcmp(lv, sh_view, sizeof lv)) { memcpy(lv, sh_view, sizeof lv); inv_view(sh_view, rt_vinv); } }
         memcpy(u->vinv, rt_vinv, sizeof u->vinv); u->sunw[0] = sh_sun[0]; u->sunw[1] = sh_sun[1]; u->sunw[2] = sh_sun[2];
         u->amb[0] = amb_col[0]; u->amb[1] = amb_col[1]; u->amb[2] = amb_col[2]; { static int d = -1; if (d < 0) d = getenv("RS_RT_FIXEDRAY") != 0; u->amb[3] = (float)d; }
         u->lit[0] = rcv ? sun_tint[0] : 1.0f; u->lit[1] = rcv ? sun_tint[1] : 1.0f; u->lit[2] = rcv ? sun_tint[2] : 1.0f; u->lit[3] = nrm_str;
-        if (rcv) { u->rt2[0] = (float)rt_ao; u->rt2[1] = (float)rt_gi; u->rt2[2] = rt_ao_rad; u->rt2[3] = rt_gi_str; u->rt3[0] = 0; u->rt3[1] = rt_ao_str; u->rt3[2] = rt_gi_len; }
+        u->rt3[0] = pbr_smooth; u->rt3[3] = pbr_metal;
+        if (rcv) { u->rt2[0] = (float)rt_ao; u->rt2[1] = (float)rt_gi; u->rt2[2] = rt_ao_rad; u->rt2[3] = rt_gi_str; u->rt3[1] = rt_ao_str; u->rt3[2] = rt_gi_len; }
         push_desc(uo, bst.tex ? bst.texid : 0, tex_sampler(&bst), bst.texmr, bst.texn, 1); }
     else {
         memcpy(vp, bv, vsz * (size_t)bn);
@@ -1048,6 +1049,8 @@ int gfx_init(void){
       sh_on = (int)rs_patch_shadows(); sh_res = rs_patch_shadow_res(); sh_range = (float)rs_patch_shadow_range(); sh_strength = rs_patch_shadow_strength() / 100.0f;
       rs_patch_shadow_sun(sh_sun); norm3(sh_sun); rs_patch_pbr_sun(pbr_sunc, &pbr_spec);
       pbr_ok = (int)rs_patch_pbr();
+      pbr_default = rs_setting_int("RS_PBR_DEFAULT", 1);                                   /* the game's own textures get the BRDF too */
+      pbr_smooth = (float)rs_setting_int("RS_PBR_SMOOTHNESS", 100) / 100.0f; pbr_metal = (float)rs_setting_int("RS_PBR_METALNESS", 0) / 100.0f;
       rt_shadows = has_rt && rs_setting_int("RS_RT_SHADOWS", 1); rt_refl = has_rt && rs_setting_int("RS_RT_REFLECTIONS", 1);
       rt_len = (float)rs_setting_int("RS_RT_DISTANCE", 200);
       nrm_str = (float)rs_setting_int("RS_NORMAL_STRENGTH", 100) / 100.0f;
