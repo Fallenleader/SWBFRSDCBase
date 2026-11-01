@@ -436,7 +436,7 @@ static void h_IoOpen(sdkcall_t *c){
     if (fl & 0x200 && !(fl & 0x400) && !vfs_iso_active()) { FILE *t = fopen(full, "ab"); if (t) fclose(t); }
     FILE *f = vfs_fopen(full, mode); if (!f && (fl & 3) == 3) f = vfs_fopen(full, "rb");
     if (!f) { V0 = ERR_NOENT; fprintf(stderr, "[IO] open FAILED %s\n", p); return; }
-    fprintf(stderr, "[IO] open %s\n", p); rs_atrac_note_file(full);
+    fprintf(stderr, "[IO] open %s\n", p); rs_atrac_note_file(full); { extern void rs_movie_note_file(const char *); rs_movie_note_file(full); }
     { extern void rs_fx_file_opened(const char *) __attribute__((weak)); if (rs_fx_file_opened) rs_fx_file_opened(full); }   /* gfx_fx.c: map, lights, dumps */
     for (int i = 3; i < 128; i++) if (!fds[i].used) { fds[i] = (fd_t){f, 0, 1, {0}}; V0 = i; return; } fclose(f); V0 = 0x80010018u; }
 static void h_IoClose(sdkcall_t *c){ if (A0 < 128 && fds[A0].used) { if (fds[A0].f) fclose(fds[A0].f); if (fds[A0].d) vfs_closedir(fds[A0].d); fds[A0].used = 0; } V0 = 0; }
@@ -527,6 +527,7 @@ extern u32 rs_ge_cb_finish_func, rs_ge_cb_finish_arg;
 static sdkcall_t *tl_get(void){ pthread_once(&key_once, mk_keys); return (sdkcall_t *)pthread_getspecific(k_cpu); }
 /* A new frame is shown when the game flips the display buffer, not at every vertical blank: presenting (and waiting for the target's
  * own display flip) once per vblank kept the renderer thread blocked while the game waited for it to run its GPU lists. */
+static void h_GetVcount(sdkcall_t *c){ V0 = (u32)g_frames; }   /* vblanks so far (the movie player paces itself by it) */
 static void h_SetFrameBuf(sdkcall_t *c){ rs_display_set(A0, A1, A2); V0 = 0; fl_fb++; since_flip = 0; }   /* rs_display_set signals the new frame once drawn */
 void rs_ge_finish_hook(int id){
     sdkcall_t *c = tl_get(); if (!c || !rs_ge_cb_finish_func) return;
@@ -618,6 +619,8 @@ static void h_UtilParam(sdkcall_t *c){ if (A0 == 7) SW(A1, 1); else if (A0 == 8)
 static void h_RtcTick(sdkcall_t *c){ fl_rtc++; u64 us = guest_us() + 62135596800000000ull; SW(A0, (u32)us); SW(A0 + 4, (u32)(us >> 32)); V0 = 0; }
 static void h_Printf(sdkcall_t *c){ fprintf(stderr, "[GAME] %s\n", gstr(A0)); V0 = 0; }
 
+/* movies (mpeg.c) */
+void hm_MpegInit(sdkcall_t *); void hm_MpegFinish(sdkcall_t *); void hm_MpegQueryMemSize(sdkcall_t *); void hm_MpegRingbufferQueryMemSize(sdkcall_t *); void hm_MpegRingbufferConstruct(sdkcall_t *); void hm_MpegRingbufferDestruct(sdkcall_t *); void hm_MpegCreate(sdkcall_t *); void hm_MpegDelete(sdkcall_t *); void hm_MpegQueryStreamOffset(sdkcall_t *); void hm_MpegQueryStreamSize(sdkcall_t *); void hm_MpegRegistStream(sdkcall_t *); void hm_MpegUnRegistStream(sdkcall_t *); void hm_MpegMallocAvcEsBuf(sdkcall_t *); void hm_MpegFreeAvcEsBuf(sdkcall_t *); void hm_MpegInitAu(sdkcall_t *); void hm_MpegQueryAtracEsSize(sdkcall_t *); void hm_MpegRingbufferPut(sdkcall_t *); void hm_MpegRingbufferAvailableSize(sdkcall_t *); void hm_MpegGetAvcAu(sdkcall_t *); void hm_MpegAvcDecode(sdkcall_t *); void hm_MpegAvcDecodeStop(sdkcall_t *); void hm_MpegGetAtracAu(sdkcall_t *); void hm_MpegAtracDecode(sdkcall_t *); void hm_PsmfSetPsmf(sdkcall_t *); void hm_PsmfGetNumberOfSpecificStreams(sdkcall_t *);
 typedef struct { u32 nid; const char *name; void (*fn)(sdkcall_t *); } hle_t;
 static const hle_t tbl[] = {
  {0x237DBD4F,"sceKernelAllocPartitionMemory",h_AllocPartitionMemory},{0x9D9A5BA1,"sceKernelGetBlockHeadAddr",h_GetBlockHeadAddr},
@@ -633,7 +636,7 @@ static const hle_t tbl[] = {
  {0x109F50BC,"sceIoOpen",h_IoOpen},{0x810C4BC3,"sceIoClose",h_IoClose},{0x6A638D83,"sceIoRead",h_IoRead},{0x42EC03AC,"sceIoWrite",h_IoWrite},
  {0x27EB27B8,"sceIoLseek",h_IoLseek},{0xACE946E8,"sceIoGetstat",h_IoGetstat},
  {0x1F803938,"sceCtrlReadBufferPositive",h_CtrlRead},{0x1F4011E6,"sceCtrlSetSamplingMode",h_Zero},{0x6A2774F3,"sceCtrlSetSamplingCycle",h_Zero},
- {0x984C27E7,"sceDisplayWaitVblankStart",h_WaitVblank},{0x46F186C3,"sceDisplayWaitVblankStartCB",h_WaitVblank},{0x289D82FE,"sceDisplaySetFrameBuf",h_SetFrameBuf},{0x0E20F177,"sceDisplaySetMode",h_Zero},
+ {0x984C27E7,"sceDisplayWaitVblankStart",h_WaitVblank},{0x46F186C3,"sceDisplayWaitVblankStartCB",h_WaitVblank},{0x289D82FE,"sceDisplaySetFrameBuf",h_SetFrameBuf},{0x9C6EAAD7,"sceDisplayGetVcount",h_GetVcount},{0x0E20F177,"sceDisplaySetMode",h_Zero},
  {0xAB49E76A,"sceGeListEnQueue",h_GeEnqueue},{0x1C0D95A6,"sceGeListEnQueueHead",h_GeEnqueue},{0xE47E40E4,"sceGeEdramGetAddr",h_GeEdramAddr},
  {0x03444EB4,"sceGeListSync",h_GeListSync},{0xB287BD61,"sceGeDrawSync",h_GeDrawSync},{0xE0D68148,"sceGeListUpdateStallAddr",h_GeUpdateStall},{0xA4FC06A4,"sceGeSetCallback",h_GeSetCallback},
  {0x46EBB729,"sceUmdCheckMedium",h_One},{0x6B4A146C,"sceUmdGetDriveStat",h_UmdStat},{0x8EF08FCE,"sceUmdWaitDriveStat",h_UmdStat},{0x4A9E5E29,"sceUmdWaitDriveStatCB",h_UmdStat},{0xC6183D47,"sceUmdActivate",h_Zero},
@@ -658,6 +661,7 @@ static const hle_t tbl[] = {
  {0x7A20E7AF,"sceAtracSetDataAndGetID",w_ha_SetDataAndGetID},{0x6A8C3CD5,"sceAtracDecodeData",w_ha_DecodeData},{0xA2BBA8BE,"sceAtracGetSoundSample",w_ha_GetSoundSample},
  {0x5D268707,"sceAtracGetStreamDataInfo",w_ha_GetStreamDataInfo},{0x7DB31251,"sceAtracAddStreamData",w_ha_AddStreamData},{0x61EB33F5,"sceAtracReleaseAtracID",w_ha_Release},
 
+ {0x682A619B,"sceMpegInit",hm_MpegInit},{0x874624D6,"sceMpegFinish",hm_MpegFinish},{0xC132E22F,"sceMpegQueryMemSize",hm_MpegQueryMemSize},{0xD7A29F46,"sceMpegRingbufferQueryMemSize",hm_MpegRingbufferQueryMemSize},{0x37295ED8,"sceMpegRingbufferConstruct",hm_MpegRingbufferConstruct},{0x13407F13,"sceMpegRingbufferDestruct",hm_MpegRingbufferDestruct},{0xD8C5F121,"sceMpegCreate",hm_MpegCreate},{0x606A4649,"sceMpegDelete",hm_MpegDelete},{0x21FF80E4,"sceMpegQueryStreamOffset",hm_MpegQueryStreamOffset},{0x611E9E11,"sceMpegQueryStreamSize",hm_MpegQueryStreamSize},{0x42560F23,"sceMpegRegistStream",hm_MpegRegistStream},{0x591A4AA2,"sceMpegUnRegistStream",hm_MpegUnRegistStream},{0xA780CF7E,"sceMpegMallocAvcEsBuf",hm_MpegMallocAvcEsBuf},{0xCEB870B1,"sceMpegFreeAvcEsBuf",hm_MpegFreeAvcEsBuf},{0x167AFD9E,"sceMpegInitAu",hm_MpegInitAu},{0xF8DCB679,"sceMpegQueryAtracEsSize",hm_MpegQueryAtracEsSize},{0xB240A59E,"sceMpegRingbufferPut",hm_MpegRingbufferPut},{0xB5F6DC87,"sceMpegRingbufferAvailableSize",hm_MpegRingbufferAvailableSize},{0xFE246728,"sceMpegGetAvcAu",hm_MpegGetAvcAu},{0x0E3C2E9D,"sceMpegAvcDecode",hm_MpegAvcDecode},{0x740FCCD1,"sceMpegAvcDecodeStop",hm_MpegAvcDecodeStop},{0xE1CE83A7,"sceMpegGetAtracAu",hm_MpegGetAtracAu},{0x800C44DF,"sceMpegAtracDecode",hm_MpegAtracDecode},{0xC22C8327,"scePsmfSetPsmf",hm_PsmfSetPsmf},{0x68D42328,"scePsmfGetNumberOfSpecificStreams",hm_PsmfGetNumberOfSpecificStreams},
  {0xC07BB470,"sceKernelCreateFpl",h_CreateFpl},{0x623AE665,"sceKernelAllocateFpl",h_AllocateFpl},{0xF6414A71,"sceKernelFreeFpl",h_FreeFpl},
  {0x68DA9E36,"sceKernelDelayThreadCB",h_DelayCB},{0xE81CAF8F,"sceKernelCreateCallback",h_CreateCallback},{0x54F5FB11,"sceIoDevctl",h_Devctl},{0xAEE7404D,"sceUmdRegisterUMDCallBack",h_UmdRegCb},{0x6AD345D7,"sceKernelSetGPO",h_Zero},{0x092968F4,"sceKernelCpuSuspendIntr",h_Zero},{0x5F10D406,"sceKernelCpuResumeIntr",h_Zero},
  {0x7591C7DB,"sceKernelSetCompiledSdkVersion",h_Zero},{0xF77D77CB,"sceKernelSetCompilerVersion",h_Zero},

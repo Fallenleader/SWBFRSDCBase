@@ -5785,7 +5785,7 @@ L_08834E70:;
 }
 
 /* 08834E84 */
-rv_t func_08834E84(u32 a0)
+static rv_t func_08834E84__orig(u32 a0)
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0;
     float f0 = 0, f12 = 0;
@@ -5821,6 +5821,12 @@ L_08834EE0:;
     v0 = s1 + 0;
     sp = sp + 16;
     return (rv_t){ v0, v1, f0 };
+}
+
+rv_t func_08834E84(u32 a0)
+{
+    rs_col_ray(a0);   /* native hook (tools/dc/hooks.py) */
+    return func_08834E84__orig(a0);
 }
 
 /* 08834F00 */

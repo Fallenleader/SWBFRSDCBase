@@ -67,6 +67,7 @@ fi
     --wrap=malloc --wrap=calloc --wrap=realloc --wrap=free --wrap=posix_memalign --wrap=malloc_usable_size "${vk_flags[@]}" \
     -o "$out/llvm-pie.elf" \
     --start-group "$out/app_crt.o" "$out/app_cpp_runtime.o" "$@" "${vk_in[@]}" "$gl/lib/libPS5OpenGL.a" \
+    ${PS5_FFMPEG:+"$PS5_FFMPEG/lib/libavformat.a" "$PS5_FFMPEG/lib/libavcodec.a" "$PS5_FFMPEG/lib/libavutil.a"} \
     "$lib/libc++.a" "$lib/libc++abi.a" "$lib/libunwind.a" --end-group \
     --as-needed "$gl/lib/libSceAgc.so" "$agcdrv" "$lib/libSceVideoOut.so" "$lib/libSceSystemService.so" \
     "$lib/libScePad.so" "$lib/libSceAudioOut.so" "$lib/libSceUserService.so" \

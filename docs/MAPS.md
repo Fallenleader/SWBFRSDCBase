@@ -157,12 +157,31 @@ Each vertex carries:
 * A material with no texture uses material 0, and `pack` says so.
 * The triangles are rebuilt into GE strips of at most 160 vertices, the game's own limit being 175.
 
-**Not rebuilt from the FBX:**
+### Collision (the col_ meshes in env/Env.fbx)
 
-* **Collision.** This is the `PHEN` chunk, kept as it was. New walls or floors can be seen but not touched, and removed geometry still blocks.
-* **The AI navigation mesh** (`NAV1`).
+What players, vehicles, shots and the AI collide with is separate from what is drawn (the `PHEN` chunk). `unpack` exports it into `Env.fbx` as meshes whose names start with `col_`, and `pack` rebuilds it from them. Collision can be as simple (a few boxes) or as detailed as the level needs: the game tests every collision triangle it is near, so keep it to what must block.
 
-Keep edits that change where players walk within the old collision.
+**Naming:** `col_[type_...][c<number>_]name`, for example `col_static_c12_Bunker`, `col_kinematic_Fence`, `col_hull_c5_Box01`, `col_wall`.
+
+* **Type words** (any number, in any order; none means `static`). The game marks each collision polygon with "ignored by" bits, and a test skips polygons carrying the bits it excludes. Measured in the game:
+
+| Word | Bits | Effect |
+|---|---|---|
+| `static` | 0 | Blocks everything: soldiers, vehicles, shots, AI line of sight. Use this for walls and floors. |
+| `kinematic` | 4 | Not touched by soldiers or vehicles; shots and AI sight still hit it. The game uses it on the drawn geometry of details (railings, pipes, lights) so you can pass through them but shoot them. A blocker that should not block paths needs this word. |
+| `hull` | 2+8 | The game's invisible `Col` boxes round buildings and at the map's edge: blocks soldiers and vehicles, but the AI sees through it (as `noai`), and one rare test (bit 2) ignores it. |
+| `noai` | 8 | The AI's line-of-sight and path tests pass through it; blocks everything else. |
+| `twosided` | 1 | Hit by rays from both sides. |
+| `f<4 hex digits>` | raw | Any other bits, written as they were. `f0010` is used on terrain; `f0400`, `f0800`, `f1000`, `f2000`, `f4000`, `f8000` make the polygon ignored by one class of mover each (`f1000`: soldiers; the others: vehicle classes). |
+
+* **`c<number>`** names a collision object. Meshes with the same number become one object (the game sorts collision into objects, each with its own bounding tree). A mesh without a number becomes an object of its own. Keep the numbers on exported meshes; give new meshes new numbers or none.
+* **Materials** named `cmat<number>` are collision materials (footstep sound, surface effects). A polygon without one gets `cmat0`. The exported `cmat` colours only tell them apart in the viewport.
+* Quads stay quads (one record, two triangles); triangles stay triangles; bigger polygons are split into fans. A collision object can have up to 65534 vertices.
+* Only the meshes are read: hidden or not, `col_` meshes are never drawn.
+
+`pack` rebuilds the collision only when the `col_` meshes describe a different set of triangles, materials or types from the original; otherwise the original chunk is kept byte for byte. It reports what it did. If `Env.fbx` has no `col_` meshes at all, the original collision is kept.
+
+**Not rebuilt from the FBX:** the AI navigation mesh (`NAV1`): see the nav mesh section.
 
 **Maya:**
 

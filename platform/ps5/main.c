@@ -3,7 +3,10 @@
  * (Mesa on the PS5's GPU), a compatibility-profile context presenting at 3840x2160.
  *
  * Files (/data/SWBFRS/, the same layout as the PS Vita's ux0:data/SWBFRS/):
- *   GAME/            the extracted UMD (GAME/PSP_GAME/...); an ISO image is not read here (the C library has no custom streams)
+ *   game.iso         the UMD image: extracted into GAME/ on the first start, then deleted
+ *   GAME/            the extracted UMD (GAME/PSP_GAME/...)
+ *   converted/       the first start's media conversion (AT3 -> WAV, PMF -> MP4: platform/common/convert.c)
+ *   mods/movies/     replacement movies (<NAME>.mp4, any resolution)
  *   SAVEDATA/        game profiles
  *   settings.txt     optional KEY=VALUE lines (platform/ps5/README.md)
  *   log.txt          log of the last session
@@ -204,9 +207,30 @@ void rs_audio_host_write(const s16 *stereo, int frames){
 void rs_perf_write(const char *line){ (void)line; }
 void rs_perf_mem(char *b, int n){ snprintf(b, (size_t)n, "-"); }
 void rs_prof_dump(void){}
-/* media conversion (platform/common/convert.c, the Vita's start-up screen) is not part of this build: the original AT3 audio is
- * decoded as it plays; the PMF videos are not shown */
-const char *rs_convert_output_for(const char *full, const char *ext){ (void)full; (void)ext; return NULL; }
+/* ---------------------------------------------------------------- first start: the UMD image extracted, the media converted
+ * (platform/common/convert.c: AT3 -> WAV, PMF -> MP4), shown as system notifications while the launch splash is up */
+#include "convert.h"
+typedef struct { int type, req_id, priority, msg_id, target_id, user_id, unk1, unk2, app_id, error_num, unk3; unsigned char use_icon_image_uri;
+                 char message[1024], icon_uri[1024], unk[1024]; } notify_req_t;
+int sceKernelSendNotificationRequest(int, notify_req_t *, size_t, int);
+static void notify(const char *msg){ notify_req_t r; memset(&r, 0, sizeof r); snprintf(r.message, sizeof r.message, "%s", msg); sceKernelSendNotificationRequest(0, &r, sizeof r, 0);
+    fprintf(stderr, "[PS5] %s\n", msg); }
+static void prepare_media(void){
+    struct stat st; int iso = stat(RS_DIR "/game.iso", &st) == 0;
+    if (rs_convert_start_iso(iso ? RS_DIR "/game.iso" : NULL, RS_GAME, RS_DIR "/converted", 4, 0)) return;
+    int shown = -1, last_pct = -1;
+    for (;;) {
+        rs_conv_status_t c; rs_convert_status(&c);
+        if (c.phase != shown) { shown = c.phase; last_pct = -1;
+            if (c.phase == RS_CONV_EXTRACTING) notify("Renegade Squadron: extracting the game files from game.iso (first start only)");
+            else if (c.phase == RS_CONV_CONVERTING) notify("Renegade Squadron: converting the game's audio and video (first start only)");
+            else if (c.phase == RS_CONV_FAILED) { char m[300]; snprintf(m, sizeof m, "Renegade Squadron: %s", c.message); notify(m); } }
+        if (c.phase == RS_CONV_DONE || c.phase == RS_CONV_FAILED) break;
+        if ((c.phase == RS_CONV_EXTRACTING || c.phase == RS_CONV_CONVERTING) && c.work_total) {
+            int pct = (int)(c.work_done * 100 / c.work_total) / 25 * 25;
+            if (pct > last_pct && pct > 0 && pct < 100) { char m[160]; snprintf(m, sizeof m, "Renegade Squadron: %s %d%%", c.phase == RS_CONV_EXTRACTING ? "extracting" : "converting", pct); notify(m); }
+            if (pct > last_pct) last_pct = pct; }
+        sceKernelUsleep(100000); } }
 
 /* ---------------------------------------------------------------- game thread */
 void hle_init(const char *root, u32 lo, u32 hi); void hle_wait_all_threads(void); void hle_report(void);
@@ -261,8 +285,11 @@ int main(void){
     STEP("SWBFRSDCBase (decompiled Star Wars Battlefront: Renegade Squadron) starting");
     {   /* game files: the extracted folder if present, else the ISO image */
         struct stat st;
-        if (stat(RS_GAME "/PSP_GAME/SYSDIR", &st) == 0) STEP("game files: " RS_GAME);
-        else fatal("game files not found: extract the UMD so that " RS_GAME "/PSP_GAME exists (an ISO image is not read on the PS5)"); }
+        if (stat(RS_GAME "/PSP_GAME/SYSDIR", &st) != 0 && stat(RS_DIR "/game.iso", &st) != 0)
+            fatal("game files not found: copy the UMD image to " RS_DIR "/game.iso (extracted on the first start), or extract it so that " RS_GAME "/PSP_GAME exists");
+        prepare_media();
+        if (stat(RS_GAME "/PSP_GAME/SYSDIR", &st) != 0) fatal("the game files could not be extracted from " RS_DIR "/game.iso (free space?)");
+        STEP("game files: " RS_GAME); }
     void *w = map_window(RS_G_WINDOW); if (!w) fatal("cannot map the guest window");
     rs_guest64_init(w, RS_G_WINDOW);
     pad_init();

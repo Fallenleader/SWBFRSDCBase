@@ -583,7 +583,8 @@ static int try_replace(tent_t *e, const gtex_key_t *k){
 /* texture keys that were looked up and have no replacement are remembered by (addr, hash) only implicitly: a lookup happens on upload */
 unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4]){
     uvs[0] = uvs[1] = 1; uvs[2] = uvs[3] = 0; last_mr = last_nrm = 0; last_hd = 0;
-    if (k->w <= 0 || k->h <= 0 || k->w > 1024 || k->h > 1024) return 0;
+    { int lim = (k->addr >= 0x0BF00000u && k->addr < 0x0C000000u) ? 2048 : 1024;           /* overlay textures (a movie's pictures) may be larger */
+      if (k->w <= 0 || k->h <= 0 || k->w > lim || k->h > lim) return 0; }
     int y0, x0; surf_t *s = surf_for_addr(k->addr, &y0, &x0);
     { static int lg = -1, n; if (lg < 0) lg = getenv("RS_FB_LOG") != 0; u32 a = akey(k->addr); if (lg && n < 30 && a >= akey(0x04000000) && a < akey(0x04110000)) { n++; fprintf(stderr, "[FB] texture from frame-buffer memory %08x %dx%d fmt %d bufw %d -> %s (x0=%d y0=%d)\n", k->addr, k->w, k->h, k->fmt, k->bufw, s ? "surface" : "RAM", s ? x0 : -1, s ? y0 : -1); } }
     if (s) { if (s == cur_target) return 0; flush_batch(); uvs[0] = (float)k->w / SZ; uvs[1] = (float)k->h / SURF_H; uvs[2] = (float)y0 / SURF_H; uvs[3] = (float)x0 / SZ; return s->tex; }
@@ -607,7 +608,7 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
         long b = e->bytes; unsigned id = 0; tent_t keep = *e; keep.bytes = 0; (void)b; tent_free(e); *e = keep; e->hnext = 0; e->hd = 0; e->mr = e->nrm = 0; glGenTextures(1, &id); e->id = id; e->bytes = need; tc_bytes += need; tc_link(e); }
     e->hash = h; e->epoch = rs_gfx_epoch; e->stamp = ++tc_stamp;
     gs_reset(); tp_forget(e->id);                      /* uploads bind the texture and may reset its parameters */
-    if (try_replace(e, k)) { st_texup++; tp_forget(e->id); TEX_RET(e); }
+    if ((k->addr < 0x0BF00000u || k->addr >= 0x0C000000u) && try_replace(e, k)) { st_texup++; tp_forget(e->id); TEX_RET(e); }
 #ifdef RS_VITAGL
     {   /* the PSP texel data as it is, in a GXM format that reads it (platform/vita/gfx_vgl.c); other formats are decoded below */
         static int nat = -1; if (nat < 0) { extern int rs_setting_int(const char *, int); nat = rs_setting_int("RS_NATIVE_GE", 1); }
@@ -616,7 +617,7 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
         if (nat) { static unsigned logged; if (!(logged & (1u << (k->fmt & 15)))) { logged |= 1u << (k->fmt & 15); fprintf(stderr, "[GL] texture format %d (%dx%d) is decoded on the CPU\n", k->fmt, k->w, k->h); } } }
 #endif
     glBindTexture(GL_TEXTURE_2D, e->id); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    if (!scratch) scratch = malloc(1024 * 1024 * 4);
+    if (!scratch) scratch = malloc(2048 * 2048 * 4);
     u64 t_u = rs_perf_us(); src->decode(scratch, src->ud);
     glBindTexture(GL_TEXTURE_2D, e->id); glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     int levels = (rs_aniso_level() > 1 && !dynamic && !rs_tex_nomip(k->addr)) ? rs_mip_levels(k->w, k->h) : 1;
@@ -641,7 +642,7 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
 #endif
     }
     e->up_ep = rs_gfx_epoch;
-    if (rs_texrep_dumping()) rs_texrep_dump(tex_key(k), k->clut, k->w, k->h, scratch);
+    if (rs_texrep_dumping() && (k->addr < 0x0BF00000u || k->addr >= 0x0C000000u)) rs_texrep_dump(tex_key(k), k->clut, k->w, k->h, scratch);   /* (not the overlays) */
     st_texup++; rs_perf.up_n++; rs_perf.up_us += rs_perf_us() - t_u;
     TEX_RET(e); }
 #undef TEX_RET
@@ -1208,7 +1209,8 @@ static void shadow_pass(void){
     rs_perf.shadow_us += rs_perf_us() - t0; rs_perf.shadow_draws += (u64)shr_n; sh_draws_total += (u64)shr_n;
     glDisableVertexAttribArray(4); glDisableVertexAttribArray(5);
     { static int cl = -1; static unsigned n; if (cl < 0) cl = getenv("RS_CAM_LOG") != 0;            /* test builds: the camera's axes (world) */
-      if (cl && n++ % 10 == 0) { extern volatile int g_frames; fprintf(stderr, "[CAM] frame %d up %.2f %.2f %.2f forward %.2f %.2f %.2f sun %.2f %.2f %.2f\n", g_frames, sh_view[1], sh_view[4], sh_view[7], -sh_view[2], -sh_view[5], -sh_view[8], sh_sun[0], sh_sun[1], sh_sun[2]); } }
+      if (cl && n++ % 10 == 0) { extern volatile int g_frames; fprintf(stderr, "[CAM] frame %d up %.2f %.2f %.2f forward %.2f %.2f %.2f sun %.2f %.2f %.2f pos %.1f %.1f %.1f\n", g_frames, sh_view[1], sh_view[4], sh_view[7], -sh_view[2], -sh_view[5], -sh_view[8], sh_sun[0], sh_sun[1], sh_sun[2],
+          -(sh_view[0] * sh_view[9] + sh_view[1] * sh_view[10] + sh_view[2] * sh_view[11]), -(sh_view[3] * sh_view[9] + sh_view[4] * sh_view[10] + sh_view[5] * sh_view[11]), -(sh_view[6] * sh_view[9] + sh_view[7] * sh_view[10] + sh_view[8] * sh_view[11])); } }
     { static int dbg = -1; if (dbg < 0) dbg = getenv("RS_SHADOW_DEBUG") != 0;
       if (dbg) { static u32 *px; if (!px) px = malloc((size_t)sh_res * sh_res * 4); glReadPixels(0, 0, sh_res, sh_res, GL_RGBA, GL_UNSIGNED_BYTE, px);
           int nfar = 0; for (int i = 0; i < sh_res * sh_res; i++) if (px[i] == 0xFFFFFFFFu) nfar++;

@@ -140,3 +140,8 @@ RS_VEHICLE_RUNOVER=1
 RS_WEAPONS=1
 # any head on any body: the CIS too (off: the droids' heads do not fit each other's bodies)
 RS_ANY_HEAD_CIS=0
+# movies (the intro logos, the cut-scenes): played from MP4.  The first start converts the game's PMF movies to MP4 (H.264 + AAC)
+# and its AT3 sound to WAV, into converted/ next to this file; a replacement movie goes in mods/movies/<NAME>.mp4 (NAME as the
+# game's file, e.g. OPENING_LOGOS.mp4, INTRO.mp4; H.264 video, AAC sound, any resolution: drawn over the whole screen).
+# 0 = no movies
+RS_MOVIES=1

@@ -105,6 +105,11 @@ int main(int argc, char **argv){
     { extern u32 rs_image_w[]; extern const u32 rs_image_size; rs_region_add((u32)(uintptr_t)rs_image_w, rs_image_size); rs_region_add(HEAP_AT, 64u << 20); rs_region_add(STACK_LO, STACK_HI - STACK_LO); }
 #endif
     if (arg_iso) { extern int vfs_iso_mount(const char *); if (vfs_iso_mount(arg_iso)) { fprintf(stderr, "[HARNESS] cannot mount %s\n", arg_iso); return 2; } }   /* after the fixed mappings (it allocates) */
+    {   /* RS_CONVERT_DIR=<folder>: the first-start media conversion (convert.c), as the consoles run it, before the game */
+        const char *cd = getenv("RS_CONVERT_DIR");
+        if (cd) { extern int rs_convert_start(const char *, const char *, int, unsigned long long); typedef struct { int phase, ft, fo, ftodo, fd; unsigned long long wt, wd; char cur[4][96]; char msg[200]; } cs_t;
+            extern void rs_convert_status(void *);
+            if (rs_convert_start(arg_iso ? "iso:" : arg_root, cd, 2, 0) == 0) for (;;) { cs_t st; rs_convert_status(&st); if (st.phase == 3 || st.phase == 4) { fprintf(stderr, "[HARNESS] media conversion: %s (%d files ready) %s\n", st.phase == 3 ? "done" : "FAILED", st.fo, st.msg); break; } usleep(100000); } } }
     const char *t = getenv("RS_MAX_SECONDS"); pthread_t wd; if (t) pthread_create(&wd, 0, watchdog, (void *)(long)atoi(t));
     pthread_attr_t at; pthread_attr_init(&at); rs_harness_stack(&at);
     pthread_t th; pthread_create(&th, &at, game_main, 0); rs_frontend_main(th); return 0;

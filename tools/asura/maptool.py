@@ -28,7 +28,7 @@ import os, sys, json, struct, hashlib, shutil, re, shlex, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chunks import chunks
 from rscf import rscf
-import texture, texenc, pngw, vag, pack, env, envfbx, fbx, fbxread, model, skeleton, rigid_io, lists, textdump, chunkfmt
+import texture, texenc, pngw, vag, pack, env, envfbx, phen, fbx, fbxread, model, skeleton, rigid_io, lists, textdump, chunkfmt
 
 ERAS = ('CLASSIC', 'PREQUEL', 'CAMPAIGN')
 VERSION = 1
@@ -61,7 +61,7 @@ Edit the files, then:   maptool.py pack <this folder>      (or install the whole
   map.txt      the order of the chunks in the level file and which file holds each one; lines can be reordered, removed, or added
   textures/    PNG, RGBA.  Keep the size a power of two (sizes may change).  More than 256 colours are reduced to a palette.
   sounds/      WAV, 16-bit PCM.  Stereo is mixed to mono; the sample rate is kept.
-  env/Env.fbx  the level geometry.  Collision is separate (scripts/PHEN) and is not rebuilt from it.
+  env/Env.fbx  the level geometry, and its collision as meshes named col_... (see docs/MAPS.md).
   models/      the props.  Each part follows one joint of the skeleton (rigid skin, weight 1).
   scripts/     every other chunk as text: one value per line, comments after #.  Lists can grow or shrink (counts are fields: keep
                them right); values that point into a chunk by offset are not adjusted.
@@ -158,7 +158,14 @@ def unpack(src, out, log=print):
             mnames[k] = ('m%03d_%s' % (k, label(os.path.splitext(os.path.basename(tn.replace('\\', '/')))[0]) if tn else 'none'),
                          ('../' + png) if png else None)
         mnames[0xFFFFFFFF] = ('m_none', None)
-        mkdirs(os.path.join(out, 'env')); envfbx.write(os.path.join(out, 'env', 'Env.fbx'), env.parse(d[q:q + dsz]), objects, mnames)
+        coll = []
+        phen_i = next((i for i, x in enumerate(lst) if x[1] == 'PHEN'), None)
+        if phen_i is not None:
+            try: coll = collision_meshes(d, lst, phen_i, emod)
+            except Exception as ex: log('  collision not exported (%s)' % ex)
+        man['phen'] = phen_i
+        mkdirs(os.path.join(out, 'env')); envfbx.write(os.path.join(out, 'env', 'Env.fbx'), env.parse(d[q:q + dsz]), objects, mnames, coll)
+        if coll: man['col_hash'] = col_hash(envfbx.read_collision(os.path.join(out, 'env', 'Env.fbx'))[0])
     open(os.path.join(out, 'map.txt'), 'w').write(''.join(lines))
     open(os.path.join(out, 'README.txt'), 'w').write(README)
     for e in man['chunks'].values():
@@ -167,6 +174,40 @@ def unpack(src, out, log=print):
     man['maptxt'] = sha1(os.path.join(out, 'map.txt'))
     json.dump(man, open(os.path.join(out, '.maptool', 'manifest.json'), 'w'), indent=0, sort_keys=True)
     return man
+
+# ------------------------------------------------------------------ collision
+def collision_meshes(d, lst, phen_i, emod_i):
+    """the level's PHEN as col_ meshes for Env.fbx: one mesh per (object, flag value), named col_<type>_c<object>_<EMOD name>"""
+    p, t, s, v, fl = lst[phen_i]; P = phen.parse(d[p + 16:p + s], fl)
+    boxes = []
+    if emod_i is not None:
+        ep = lst[emod_i]; eb = d[ep[0] + 16:ep[0] + ep[2]]
+        for name, pos, off in chunkfmt.emod_entries(eb):
+            f = struct.unpack_from('<6f', eb, off)
+            boxes.append((name, (pos[0] + f[0], pos[0] + f[1], pos[1] + f[2], pos[1] + f[3], pos[2] + f[4], pos[2] + f[5])))
+    out = []
+    for oi, o in enumerate(phen.objects_of(P)):
+        bb = P['objects'][oi]['bounds']; nm = 'obj'
+        if boxes:
+            k = min(range(len(boxes)), key=lambda k: sum(abs(boxes[k][1][j] - bb[j]) for j in range(6)))
+            if sum(abs(boxes[k][1][j] - bb[j]) for j in range(6)) < 2.0: nm = label(boxes[k][0]) or 'obj'
+        for fv in sorted(set(o['flags'])):
+            ks = [k for k in range(len(o['quads'])) if o['flags'][k] == fv]
+            used = sorted(set(i for k in ks for i in o['quads'][k] if i != 0xFFFF)); remap = dict((i, j) for j, i in enumerate(used))
+            out.append({'name': 'col_%s_c%d_%s' % (envfbx.col_flags_name(fv), oi, nm), 'verts': [o['verts'][i] for i in used],
+                        'polys': [[remap[i] for i in o['quads'][k] if i != 0xFFFF] for k in ks], 'mats': [o['mats'][k] for k in ks]})
+    return out
+
+def col_hash(objs):
+    """the collision as a set of triangles (rounded corners, flags, material) per object: unchanged by vertex order"""
+    h = hashlib.sha1()
+    for o in objs:
+        V = o['verts']; tris = []
+        for q, f, m in zip(o['quads'], o['flags'], o['mats']):
+            for tr in ((q[0], q[1], q[2]),) + (((q[2], q[3], q[0]),) if q[3] != 0xFFFF else ()):
+                tris.append((tuple(sorted(tuple(round(c, 3) for c in V[i]) for i in tr)), f, m))
+        h.update(repr(sorted(tris)).encode()); h.update(b'|')
+    return h.hexdigest()
 
 # ------------------------------------------------------------------ pack
 def _chunk(tag, ver, flags, body):
@@ -268,6 +309,14 @@ def packdir(folder, log=print):
             report.append('new material %d for %s (texture %s)' % (cache[key], mname, rname)); return cache[key]
         env_new, env_bounds, warns = envfbx.read(os.path.join(folder, env_ent['file']), len(ents), centres, material_for)
         report += warns; report.append('level geometry rebuilt from %s' % env_ent['file'])
+    phen_new = None
+    if env_ent and man.get('phen') is not None and changed(env_ent['file']):
+        cobjs, cw = envfbx.read_collision(os.path.join(folder, env_ent['file']))
+        if cobjs and col_hash(cobjs) != man.get('col_hash'):
+            report += cw; pe = man['chunks'][str(man['phen'])]
+            phen_new = _chunk('PHEN', pe['ver'], pe['flags'] & ~1, phen.build(cobjs))
+            report.append('collision rebuilt from the col_ meshes (%d objects, %d polygons)' % (len(cobjs), sum(len(o['quads']) for o in cobjs)))
+        elif not cobjs: report.append('no col_ meshes in %s: the collision is kept as it was' % env_ent['file'])
     out = [base[:8]]; tex_inserted = False
     last_tex_line = max([k for k, it in enumerate(items) if it['kind'] == 'resource' and it['type'] == 2 and it['idx'] is not None and
                          (man.get('env_text') is None or it['idx'] < man['env_text'])] or [-1])
@@ -277,7 +326,9 @@ def packdir(folder, log=print):
             (it['kind'] == 'chunk' and e['tag'] == it['tag'] and e.get('file') == it['file']) or
             (it['kind'] == 'resource' and e['tag'] == 'RSCF' and e['type'] == it['type'] and e['unk'] == it['unk'] and e['name'] == it['name'] and e.get('file') == it['file']))
         fpath = os.path.join(folder, it['file'])
-        if e is not None and it['idx'] == man.get('env') and env_new is not None:
+        if e is not None and it['idx'] == man.get('phen') and phen_new is not None:
+            ch = phen_new
+        elif e is not None and it['idx'] == man.get('env') and env_new is not None:
             ch = _resource(e, it, env_new)
         elif same_params and not changed(it['file']):
             ch = orig(it['idx'])

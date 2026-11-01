@@ -169,8 +169,8 @@ void rs_ai_bots(unsigned fr){
         u32 sq = GU32(o + 0xE4); if (!gok(sq)) sq = 0;
         nb++; if (idle[k] >= 3) nidle++;
         if (idle[k] >= 3 || getenv("RS_AI_BOTS_ALL"))
-            fprintf(stderr, "[BOT] f%u goal %d id %x team %u pos %.0f %.0f %.0f moved %.1f idle %ds alive %d obj %08x squad %08x order %x post %u slot %u insq %u veh %x\n", fr, ai_goal(o), id,
-                GU32(o + 12), p[0], p[1], p[2], d, idle[k] * 2, alive, o, sq, sq ? GU32(sq + 0x4C) : 0, sq ? GU32(sq + 0x3C) : 0, GU32(o + 0xF0), GU8(o + 0xE8), GU32(o + 0xF8));
+            fprintf(stderr, "[BOT] f%u goal %d id %x team %u pos %.0f %.0f %.0f moved %.1f idle %ds alive %d obj %08x squad %08x order %x post %u slot %u insq %u veh %x ctl %u\n", fr, ai_goal(o), id,
+                GU32(o + 12), p[0], p[1], p[2], d, idle[k] * 2, alive, o, sq, sq ? GU32(sq + 0x4C) : 0, sq ? GU32(sq + 0x3C) : 0, GU32(o + 0xF0), GU8(o + 0xE8), GU32(o + 0xF8), GU32(o + 0x54));
         if ((idle[k] >= 3 || getenv("RS_AI_BOTS_ALL")) && !sq) fprintf(stderr, "[BOT]    no squad: ctl %u flags %08x b0 %08x goal %d 149 %u\n", GU32(o + 0x54), GU32(o + 0xC8), GU32(o + 0xB0), ai_goal(o), GU8(o + 0x149)); }
     fprintf(stderr, "[BOT] f%u: %d soldiers, %d idle 6 s or more\n", fr, nb, nidle); }
 /* Bots that stand about (traced with RS_AI_BOTS=1).  Two causes, both fixed here every second (offline, RS_AI_IDLE_FIX):
@@ -401,5 +401,28 @@ int rs_phys_pair(u32 pair, u32 *rv){
 extern u32 rs_input_object(void);
 void rs_soldier_frame(u32 sol){
     static int keep = -1; if (keep < 0) keep = !rs_setting_int("RS_LOOK_CENTER", 1);
+    { static int lg = -1; if (lg < 0) lg = getenv("RS_LOOK_LOG") != 0;
+      if (lg) { static u32 seen[64]; static int ns; int f = 0; for (int i = 0; i < ns; i++) if (seen[i] == sol) f = 1;
+        static unsigned cnt; if (GU32(sol + 92) && ++cnt % 200 == 0) f = 0;
+        if (!f && ns < 64) { if (cnt % 200) seen[ns++] = sol; fprintf(stderr, "[LOOK] soldier %08x input %08x (twin-stick object %08x) timer %.3f\n", sol, GU32(sol + 92), rs_input_object(), GF32(sol + 0x1FC)); } } }
     if (!keep || !sol || GU32(sol + 92) != rs_input_object()) return;
-    float t = GF32(sol + 0x1FC); if (t > -1.0f && t < 0.15f) GF32(sol + 0x1FC) = 0.15f; }
+    float t = GF32(sol + 0x1FC); if (t < 0.5f) GF32(sol + 0x1FC) = 0.5f; }   /* well above one frame (the timer is also counted down where this does not run) */
+
+/* RS_COL_LOG=1 (diagnostics): the masks of the level collision queries (func_088B73C4: the query's +0x24 is the mask of quad flags
+ * it ignores), counted by the native caller */
+void rs_col_query(u32 ctx){
+    static int on_ = -1; if (on_ < 0) on_ = getenv("RS_COL_LOG") != 0; if (!on_) return;
+    static struct { u32 mask, fl; void *ra; unsigned n; } h[64]; static int nh; static unsigned tot;
+    void *ra = __builtin_return_address(1); u32 mask = GU16(ctx + 0x24), fl = GU16(ctx + 0x26);
+    int i = 0; for (; i < nh; i++) if (h[i].mask == mask && h[i].ra == ra && h[i].fl == fl) break;
+    if (i == nh && nh < 64) { h[nh].mask = mask; h[nh].ra = ra; h[nh].fl = fl; h[nh].n = 0; nh++; }
+    if (i < 64) h[i].n++;
+    if (++tot % 500 == 0) { fprintf(stderr, "[COL] queries by mask:"); for (int k = 0; k < nh; k++) fprintf(stderr, " %04x/%04x@%p:%u", h[k].mask, h[k].fl, h[k].ra, h[k].n); fprintf(stderr, "\n"); } }
+void rs_col_ray(u32 ray){
+    static int on_ = -1; if (on_ < 0) on_ = getenv("RS_COL_LOG") != 0; if (!on_) return;
+    static struct { u32 ex, req; void *ra; unsigned n; } h[96]; static int nh; static unsigned tot;
+    void *ra = __builtin_return_address(1); u32 ex = GU32(ray + 48), req = GU32(ray + 52);
+    int i = 0; for (; i < nh; i++) if (h[i].ex == ex && h[i].ra == ra && h[i].req == req) break;
+    if (i == nh && nh < 96) { h[nh].ex = ex; h[nh].ra = ra; h[nh].req = req; h[nh].n = 0; nh++; }
+    if (i < 96) h[i].n++;
+    if (++tot % 3000 == 0) { fprintf(stderr, "[RAY] rays by exclude/require mask:"); for (int k = 0; k < nh; k++) fprintf(stderr, " %x/%x@%p:%u", h[k].ex, h[k].req, h[k].ra, h[k].n); fprintf(stderr, "\n"); } }

@@ -41,7 +41,7 @@ GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
-C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c $(C)/gfx_fx.c $(C)/gfx_backend.c $(C)/renderer_option.c $(C)/blueprints.c $(C)/custom_maps.c
+C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c $(C)/gfx_fx.c $(C)/gfx_backend.c $(C)/renderer_option.c $(C)/blueprints.c $(C)/custom_maps.c $(C)/mpeg.c $(C)/rs_avc.c $(C)/mp4demux.c $(C)/convert.c
 ifeq ($(GE_REF),1)
 C_SRC += $(C)/ge.c
 else
@@ -81,6 +81,12 @@ $(B)/rs_linux_test: $(GAME_OBJ) $(T_OBJ) $(AT3_OBJ) ; g++ -m32 -no-pie $(XLD) -o
 #   make linux64 EBOOT=...                           -> build/linux64/rs_linux64
 B64 ?= build/linux64
 LINUX64_DEFS ?=
+# movies: the system's FFmpeg (libavcodec) decodes the game's H.264 videos (RS_AVC=0: no movies)
+RS_AVC ?= $(shell test -f /usr/include/x86_64-linux-gnu/libavcodec/avcodec.h -o -f /usr/include/libavcodec/avcodec.h && echo 1 || echo 0)
+ifeq ($(RS_AVC),1)
+LINUX64_DEFS += -DRS_AVC_FFMPEG
+AVC_LIBS := -lavformat -lavcodec -lavutil
+endif
 # RS_VULKAN=1: the Vulkan back end too (platform/linux_test/gfx_vk.c, shaders in platform/linux_test/vk/ -> build/vk_spv.h)
 ifeq ($(RS_VULKAN),1)
 LINUX64_DEFS += -DRS_VULKAN -DRS_GFX_FX
@@ -100,7 +106,7 @@ $(B64)/linux_test/%.o: $(T)/%.c ; @mkdir -p $(B64)/linux_test; $(CC64) -O1 -w -D
 $(B64)/linux_test/c_%.o: $(C)/%.c ; @mkdir -p $(B64)/linux_test; $(CC64) -O1 -w -DHOST_BUILD -I$(C) -I src/game -c $< -o $@
 $(B64)/linux_test/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $(B64)/linux_test; g++ -m64 -O2 -I$(C)/ext/at3 -c $< -o $@
 linux64: $(B64)/rs_linux64
-$(B64)/rs_linux64: $(GAME64_OBJ) $(T64_OBJ) $(VK64_OBJ) $(AT3_64_OBJ) ; g++ -m64 -o $@ $^ -lm -lpthread -ldl
+$(B64)/rs_linux64: $(GAME64_OBJ) $(T64_OBJ) $(VK64_OBJ) $(AT3_64_OBJ) ; g++ -m64 -o $@ $^ -lm -lpthread -ldl $(AVC_LIBS)
 
 # ---- PS5 (platform/ps5): native homebrew title, 64-bit (RS_GUEST64), OpenGL on the PS5 OpenGL SDK ----
 #   make ps5 EBOOT=... PS5_BOILERPLATE=<ps5-native-app-boilerplate checkout> PS5_OPENGL=<ps5-opengl-sdk-1.0.2/sdk>
@@ -111,6 +117,9 @@ PS5_SDK := $(PS5_BOILERPLATE)/.deps/native/ps5-payload-sdk
 PS5CC := env PS5_PAYLOAD_SDK=$(abspath $(PS5_SDK)) USE_CCACHE=1 sh $(PS5_BOILERPLATE)/tooling/prospero-clang18
 PS5_DEFS := -DRS_GUEST64 -DRS_TLS_STRUCT -DRS_PS5 -DRS_HW_ANISO -DRS_ANISO_MAX=16 -DRS_ANISO_DEFAULT=16 -DRS_GFX_MAX_SCALE=8
 PS5_VULKAN ?=
+# FFmpeg built for the PS5 (H.264 / AAC decoders, AAC encoder, MP4 muxer: the first-start media conversion and the movies)
+PS5_FFMPEG ?= ../ext/ffmpeg-ps5
+PS5_DEFS += -DRS_AVC_FFMPEG
 ifneq ($(PS5_VULKAN),)
 PS5_DEFS += -DRS_VULKAN -DRS_GFX_FX
 endif
@@ -120,7 +129,7 @@ PS5_C_SRC := $(filter-out $(C)/ge.c $(C)/census.c $(C)/fnprof.c,$(C_SRC))
 PS5_OBJ := $(patsubst src/game/%.c,$(P5)/game/%.o,$(GAME_SRC)) $(P5)/game/data.o $(P5)/game/fn_table.o \
            $(patsubst $(C)/%.c,$(P5)/c_%.o,$(PS5_C_SRC)) $(P5)/gfx_gl.o $(P5)/texrep.o $(P5)/main.o $(P5)/dirent_ps5.o $(P5)/glue.o $(P5)/app_heap.o \
            $(patsubst $(C)/ext/at3/%.cpp,$(P5)/at3_%.o,$(wildcard $(C)/ext/at3/*.cpp))
-PS5_INC := -Isrc/game -I$(C) -I$(T) -Iplatform/ps5 -I$(PS5_OPENGL)/include
+PS5_INC := -Isrc/game -I$(C) -I$(T) -Iplatform/ps5 -I$(PS5_OPENGL)/include -I$(PS5_FFMPEG)/include
 $(P5)/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p $(P5)/game; $(PS5CC) -std=gnu11 $(PS5_FLAGS) -Isrc/game -c $< -o $@
 $(P5)/game/data.o: build/data.c ; @mkdir -p $(P5)/game; $(PS5CC) -std=gnu11 $(PS5_FLAGS) -Isrc/game -c $< -o $@
 $(P5)/glue.c: src/game/psp_sdk.h ; @mkdir -p $(P5); python3 $(C)/mkglue.py $< $@
@@ -139,7 +148,7 @@ PS5_OBJ += $(P5)/gfx_vk.o $(PS5_RADV)
 $(P5)/libvulkan_radeon_rs.a: $(PS5_VULKAN)/.deps/native/radv-release/lib/libvulkan_radeon.ps5.a ; @mkdir -p $(P5); bash tools/ps5_radv_rename.sh $< $(PS5_OPENGL) $@
 $(P5)/gfx_vk.o: platform/linux_test/gfx_vk.c build/vk_spv.h ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -Ibuild -I$(PS5_VULKAN)/.deps/native/radv-release/include -c $< -o $@
 endif
-ps5: build/data.c $(PS5_OBJ) ; PS5_VULKAN="$(PS5_VULKAN)" PS5_RADV="$(abspath $(PS5_RADV))" bash platform/ps5/package.sh "$(PS5_BOILERPLATE)" "$(PS5_OPENGL)" $(filter-out $(PS5_RADV),$(PS5_OBJ))
+ps5: build/data.c $(PS5_OBJ) ; PS5_FFMPEG="$(abspath $(PS5_FFMPEG))" PS5_VULKAN="$(PS5_VULKAN)" PS5_RADV="$(abspath $(PS5_RADV))" bash platform/ps5/package.sh "$(PS5_BOILERPLATE)" "$(PS5_OPENGL)" $(filter-out $(PS5_RADV),$(PS5_OBJ))
 
 # ---- PS Vita (platform/vita) ----
 VITA_B := build/vita

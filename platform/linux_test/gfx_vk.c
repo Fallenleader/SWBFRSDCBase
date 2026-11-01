@@ -353,7 +353,8 @@ static int try_replace(tent_t *e, const gtex_key_t *k){
 
 unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4]){
     uvs[0] = uvs[1] = 1; uvs[2] = uvs[3] = 0; last_mr = last_nrm = 0; last_hd = 0;
-    if (k->w <= 0 || k->h <= 0 || k->w > 1024 || k->h > 1024) return 0;
+    { int lim = (k->addr >= 0x0BF00000u && k->addr < 0x0C000000u) ? 2048 : 1024;           /* overlay textures (a movie's pictures) may be larger */
+      if (k->w <= 0 || k->h <= 0 || k->w > lim || k->h > lim) return 0; }
     int y0, x0; surf_t *s = surf_for_addr(k->addr, &y0, &x0);
     if (s) { if (s == rp_surf) return 0; flush_batch(); uvs[0] = (float)k->w / SZ; uvs[1] = (float)k->h / SURF_H; uvs[2] = (float)y0 / SURF_H; uvs[3] = (float)x0 / SZ; return s->img; }
     tent_t *e = 0, *old = &tc[0];
@@ -372,13 +373,13 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
         e = old; tent_free(e); e->k = *k; e->used = 1; e->bytes = need; tc_bytes += need; tc_link(e); }
     else if (e->hd || imgs[e->id].w != k->w) { tent_t keep = *e; keep.bytes = 0; tent_free(e); *e = keep; e->hnext = 0; e->hd = 0; e->id = e->mr = e->nrm = 0; e->bytes = need; tc_bytes += need; tc_link(e); }
     e->hash = h; e->epoch = rs_gfx_epoch; e->stamp = ++tc_stamp;
-    if (try_replace(e, k)) TEX_RET(e);
-    if (!scratch) scratch = malloc(1024 * 1024 * 4);
+    if ((k->addr < 0x0BF00000u || k->addr >= 0x0C000000u) && try_replace(e, k)) TEX_RET(e);
+    if (!scratch) scratch = malloc(2048 * 2048 * 4);
     u64 t_u = rs_perf_us(); src->decode(scratch, src->ud);
     if (!e->id) e->id = tex_image(k->w, k->h, 1);
     if (e->id) upload(e->id, scratch, k->w, k->h);
     e->up_ep = rs_gfx_epoch;
-    if (rs_texrep_dumping()) rs_texrep_dump(tex_key(k), k->clut, k->w, k->h, scratch);
+    if (rs_texrep_dumping() && (k->addr < 0x0BF00000u || k->addr >= 0x0C000000u)) rs_texrep_dump(tex_key(k), k->clut, k->w, k->h, scratch);   /* (not the overlays) */
     rs_perf.up_n++; rs_perf.up_us += rs_perf_us() - t_u;
     TEX_RET(e); }
 #undef TEX_RET

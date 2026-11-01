@@ -28,7 +28,7 @@ void *rs_at3_alloc(int ch, int ba, const unsigned char *extra, int extra_size); 
 #define MAXJOB 512
 typedef struct { char rel[256]; char src[1100]; int kind; unsigned size; uint32_t sig; uint64_t out_size; int state; } job_t;   /* kind 0 audio, 1 video; state 0 ok, 1 todo, 2 done, 3 failed */
 static job_t jobs[MAXJOB]; static int njobs, next_job;
-static char g_root[1024], g_out[1024];
+static char g_root[1024], g_out[1024], g_iso[1024];
 static int g_workers; static uint64_t g_free;
 static pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER, dec_mx = PTHREAD_MUTEX_INITIALIZER;
 static rs_conv_status_t st;
@@ -366,8 +366,18 @@ static uint64_t estimate_out(void){                                        /* ou
     uint64_t t = 0; for (int i = 0; i < njobs; i++) if (jobs[i].state == 1) t += jobs[i].kind ? jobs[i].size : (uint64_t)jobs[i].size * 11u + 4096u;   /* ATRAC3plus 132 kbit/s -> PCM 1411 kbit/s */
     return t; }
 
+static void extract_progress(unsigned long long done, unsigned long long total, const char *name){
+    pthread_mutex_lock(&mx); st.work_done = done; st.work_total = total; snprintf(st.current[0], sizeof st.current[0], "%s", name); pthread_mutex_unlock(&mx); }
 static void *main_thread(void *u){
     (void)u;
+    if (g_iso[0]) {                                                         /* first start: the UMD image -> game folder */
+        char sys[1100]; snprintf(sys, sizeof sys, "%s/x", g_root); struct stat s0;
+        if (stat(g_iso, &s0) == 0) {                                        /* still there: not (completely) extracted yet */
+            pthread_mutex_lock(&mx); st.phase = RS_CONV_EXTRACTING; pthread_mutex_unlock(&mx);
+            mkdirs(sys);
+            if (vfs_iso_extract(g_iso, g_root, extract_progress)) { set_failed("Could not extract the game files from %s (is there enough free space?).", g_iso); return 0; }
+            if (remove(g_iso) == 0) fprintf(stderr, "[CONV] extracted the game files; %s deleted\n", g_iso);
+            pthread_mutex_lock(&mx); st.current[0][0] = 0; st.work_done = st.work_total = 0; pthread_mutex_unlock(&mx); } }
     pthread_mutex_lock(&mx); st.phase = RS_CONV_CHECKING; pthread_mutex_unlock(&mx);
     char usr[1100]; snprintf(usr, sizeof usr, "%s/PSP_GAME/USRDIR", g_root);
     { int isdir = 0; unsigned sz = 0; if (vfs_stat(usr, &isdir, &sz) || !isdir) { set_failed("Game files not found (%s).", usr); return 0; } }
@@ -388,7 +398,11 @@ static void *main_thread(void *u){
     pthread_mutex_lock(&mx); if (st.phase != RS_CONV_FAILED) { st.phase = RS_CONV_DONE; st.work_done = st.work_total; } pthread_mutex_unlock(&mx);
     return 0; }
 
-int rs_convert_start(const char *game_root, const char *out_dir, int workers, uint64_t free_bytes){
+static int start(const char *game_root, const char *out_dir, int workers, uint64_t free_bytes);
+int rs_convert_start_iso(const char *iso_path, const char *game_root, const char *out_dir, int workers, uint64_t free_bytes){
+    snprintf(g_iso, sizeof g_iso, "%s", iso_path ? iso_path : ""); return start(game_root, out_dir, workers, free_bytes); }
+int rs_convert_start(const char *game_root, const char *out_dir, int workers, uint64_t free_bytes){ g_iso[0] = 0; return start(game_root, out_dir, workers, free_bytes); }
+static int start(const char *game_root, const char *out_dir, int workers, uint64_t free_bytes){
     snprintf(g_root, sizeof g_root, "%s", game_root); snprintf(g_out, sizeof g_out, "%s", out_dir); g_workers = workers; g_free = free_bytes;
     memset(&st, 0, sizeof st); njobs = 0; next_job = 0;
     pthread_t t; pthread_attr_t at; pthread_attr_init(&at); pthread_attr_setstacksize(&at, 256 * 1024);

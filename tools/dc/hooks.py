@@ -32,6 +32,8 @@ HOOKS = {
     '08926220': {'after': 'rs_ai_squad_caps(a0)'},                              # AI: a team's squad sizes (game_12.c): game_patches.c
     '08926478': {'replace': 'rs_ai_assign(a0, a1, a2)'},              # AI: a squad sent to a command post
     '088346E0': {'replace': 'rs_text_get(a0, a1, &r_)'},                       # text table string n (bot names past 48): game_patches.c                              # AI object pool (behaviours, goals): game_patches.c
+    '088B73C4': {'before': 'rs_col_query(a1)'},
+    '08834E84': {'before': 'rs_col_ray(a0)'},                                  # a ray against the level: census of its masks (RS_COL_LOG)                               # a collision query against the level (PHEN): census of masks (RS_COL_LOG)
     '089771D8': {'replace': 'rs_map_has_era(a0, a1, &r_)'},                    # custom maps (custom_maps.c): the map table's readers (game_16.c)
     '08977218': {'replace': 'rs_map_mode(a0, a1, &r_)'},
     '089772B4': {'replace': 'rs_map_space(a0, &r_)'},

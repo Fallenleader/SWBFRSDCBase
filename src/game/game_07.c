@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 088A4294 */
 u32 func_088A4294(u32 a0)
@@ -28127,7 +28128,7 @@ L_088B73BC:;
 }
 
 /* 088B73C4 */
-float func_088B73C4(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static float func_088B73C4__orig(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, t0 = 0;
     float f0 = 0;
@@ -28159,6 +28160,12 @@ L_088B73F4:;
     goto L_088B7408;
 L_088B7408:;
     goto L_088B73EC;
+}
+
+float func_088B73C4(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rs_col_query(a1);   /* native hook (tools/dc/hooks.py) */
+    return func_088B73C4__orig(a0, a1, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
 }
 
 /* 088B7410 */

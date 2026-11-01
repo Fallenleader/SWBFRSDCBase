@@ -42,3 +42,5 @@ int  rs_map_index(uint32_t name, uint32_t *rv);
 void rs_map_played(uint32_t *idx);
 int  rs_fe_list_all_maps(uint32_t n, uint32_t f1, uint32_t f2, void *rv);
 int  rs_fe_select_planet(uint32_t n, uint32_t f1, uint32_t f2, void *rv);
+void rs_col_query(uint32_t ctx);                                  /* game_patches.c: RS_COL_LOG census of level collision queries */
+void rs_col_ray(uint32_t ray);                                    /* game_patches.c: RS_COL_LOG census of level rays */
