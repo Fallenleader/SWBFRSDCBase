@@ -257,7 +257,7 @@ static void *getproc(const char *n){ return (void *)eglGetProcAddress(n); }
 static void display_init(void){
     dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     int mw = 3840, mh = 2160, out = rs_setting_int("RS_OUTPUT", 2160);
-    if (out == 1080) { mw = 1920; mh = 1080; } else if (out == 1440) { mw = 2560; mh = 1440; }
+    if (out == 720) { mw = 1280; mh = 720; } else if (out == 1080) { mw = 1920; mh = 1080; } else if (out == 1440) { mw = 2560; mh = 1440; }
     if (!eglSetDisplayModePS5(dpy, mw, mh)) fprintf(stderr, "[PS5] display mode %dx%d not set\n", mw, mh);
     eglSetDisplayRefreshPS5(dpy, 60);
     EGLint maj = 0, min = 0;
