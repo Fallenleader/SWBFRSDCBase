@@ -86,10 +86,21 @@ static void motd_done(void){
     motd_buf[motd_len] = 0; char *b = strstr(motd_buf, "\r\n\r\n"); if (b) { b += 4; while (*b == '\r' || *b == '\n') b++; size_t n = strlen(b); while (n && (b[n - 1] == '\r' || b[n - 1] == '\n' || b[n - 1] == ' ')) b[--n] = 0; rs_motd_set(b); }
     motd_len = 0; }
 static int net_up;
+#ifdef __vita__
+#include <psp2/sysmodule.h>
+#include <psp2/net/net.h>
+#include <psp2/net/netctl.h>
+#endif
 static void net_start(void){
     if (net_up) return; net_up = 1;
 #ifdef _WIN32
     WSADATA w; WSAStartup(MAKEWORD(2, 2), &w);
+#elif defined(__vita__)
+    /* the PS Vita: the network module and its memory, then the connection manager (Wi-Fi, as the system set it up) */
+    sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
+    static char mem[1024 * 1024]; SceNetInitParam p; p.memory = mem; p.size = sizeof mem; p.flags = 0;
+    int r = sceNetInit(&p); int r2 = sceNetCtlInit();
+    fprintf(stderr, "[NET] PS Vita network: init %08x, connection manager %08x\n", (unsigned)r, (unsigned)r2);
 #endif
 }
 static int sk_new(sock_t s, int type){ for (int i = 1; i < NS; i++) if (!socks[i].used) { socks[i].used = 1; socks[i].s = s; socks[i].nonblock = 0; socks[i].type = type; socks[i].motd = 0; return i; } sclose(s); return -1; }
@@ -97,6 +108,8 @@ static sock_t sk(u32 id){ return id < NS && socks[id].used ? socks[id].s : BADSO
 static void set_nb(sock_t s, int on){
 #ifdef _WIN32
     u_long v = (u_long)on; ioctlsocket(s, FIONBIO, &v);
+#elif defined(__vita__)
+    setsockopt(s, SOL_SOCKET, SO_NONBLOCK, &on, sizeof on);
 #else
     int f = fcntl(s, F_GETFL, 0); fcntl(s, F_SETFL, on ? (f | O_NONBLOCK) : (f & ~O_NONBLOCK));
 #endif
@@ -298,7 +311,12 @@ typedef struct { u32 r[2]; float f; } rv3_t;
 static void ap_notify(u32 oldst, u32 newst, u32 ev){
     if (!ap_handler) return;
     typedef rv_t (*fn_t)(u32, u32, u32, u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
-    extern void *rs_fn_native(u32); fn_t f = (fn_t)rs_fn_native(ap_handler); NLOG("apctl handler %08x: %u -> %u", ap_handler, oldst, newst); f(oldst, newst, ev, 0, ap_arg, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); }
+#ifdef RS_GUEST64
+    extern void *rs_fn_native(u32); fn_t f = (fn_t)rs_fn_native(ap_handler);
+#else
+    fn_t f = (fn_t)(uintptr_t)ap_handler;                                  /* 32-bit: a native address */
+#endif
+    NLOG("apctl handler %08x: %u -> %u", ap_handler, oldst, newst); f(oldst, newst, ev, 0, ap_arg, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); }
 static void h_ApAddHandler(sdkcall_t *c){ ap_handler = A0; ap_arg = A1; V0 = 1; }
 static void h_ApDelHandler(sdkcall_t *c){ ap_handler = 0; V0 = 0; }
 static void h_ApGetInfo(sdkcall_t *c){
