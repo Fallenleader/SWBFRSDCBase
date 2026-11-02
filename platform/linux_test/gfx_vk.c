@@ -34,7 +34,7 @@
     X(GetPhysicalDeviceMemoryProperties) X(GetPhysicalDeviceFeatures2) X(GetPhysicalDeviceFormatProperties) X(CreateDevice) X(GetDeviceProcAddr) \
     X(EnumerateDeviceExtensionProperties) X(GetPhysicalDeviceProperties2) \
     X(GetPhysicalDeviceDisplayPropertiesKHR) X(GetDisplayModePropertiesKHR) X(CreateDisplayPlaneSurfaceKHR) \
-    X(GetPhysicalDeviceSurfaceSupportKHR) X(GetPhysicalDeviceSurfaceCapabilitiesKHR) X(GetPhysicalDeviceSurfaceFormatsKHR)
+    X(GetPhysicalDeviceSurfaceSupportKHR) X(GetPhysicalDeviceSurfaceCapabilitiesKHR) X(GetPhysicalDeviceSurfaceFormatsKHR) X(GetPhysicalDeviceSurfacePresentModesKHR)
 #define VK_DEVICE(X) X(GetDeviceQueue) X(CreateCommandPool) X(AllocateCommandBuffers) X(BeginCommandBuffer) X(EndCommandBuffer) \
     X(QueueSubmit) X(QueueWaitIdle) X(DeviceWaitIdle) X(CreateFence) X(WaitForFences) X(ResetFences) X(ResetCommandBuffer) \
     X(CreateBuffer) X(DestroyBuffer) X(GetBufferMemoryRequirements) X(AllocateMemory) X(FreeMemory) X(BindBufferMemory) X(MapMemory) \
@@ -45,7 +45,7 @@
     X(CmdSetDepthCompareOp) X(CmdSetStencilTestEnable) X(CmdSetStencilOp) X(CmdSetStencilCompareMask) X(CmdSetStencilWriteMask) \
     X(CmdSetStencilReference) X(CmdSetBlendConstants) X(CmdPushConstants) X(CmdClearAttachments) X(CmdCopyImage) X(CmdCopyBufferToImage) \
     X(CmdCopyImageToBuffer) X(CmdBlitImage) X(CmdPushDescriptorSetKHR) \
-    X(CreateSwapchainKHR) X(GetSwapchainImagesKHR) X(AcquireNextImageKHR) X(QueuePresentKHR) X(CreateSemaphore)
+    X(CreateSwapchainKHR) X(GetSwapchainImagesKHR) X(AcquireNextImageKHR) X(QueuePresentKHR) X(CreateSemaphore) X(DestroySwapchainKHR)
 #define VK_RT(X) X(GetBufferDeviceAddress) X(GetAccelerationStructureBuildSizesKHR) X(CreateAccelerationStructureKHR) \
     X(DestroyAccelerationStructureKHR) X(CmdBuildAccelerationStructuresKHR) X(GetAccelerationStructureDeviceAddressKHR)
 #define VKP(n) static PFN_vk##n vk##n;
@@ -63,6 +63,10 @@ static VkInstance inst; static VkPhysicalDevice phys; static VkDevice dev; stati
 static VkPhysicalDeviceMemoryProperties memprops; static VkPhysicalDeviceProperties props;
 static float sun_tint[3] = {1, 1, 1}, amb_col[3] = {0.45f, 0.45f, 0.45f}, nrm_str = 1; static int has_rt, rt_shadows, rt_refl, rt_ao, rt_gi; static float rt_ao_rad = 2, rt_ao_str = 0.7f, rt_gi_str = 0.6f, rt_gi_len = 30; static VkFormat dsfmt;
 void gfx_vk_setup(void *get_instance_proc_addr, int display){ gipa = (PFN_vkGetInstanceProcAddr)get_instance_proc_addr; want_display = display; }
+/* desktop window (platform/desktop: SDL): the instance extensions the window needs, a surface maker and the drawable size */
+static const char *const *win_ext; static int win_next; static void *(*win_surface)(void *); static void (*win_size)(int *, int *);
+void gfx_vk_setup_window(void *get_instance_proc_addr, const char *const *exts, int n, void *(*make_surface)(void *instance), void (*drawable_size)(int *, int *)){
+    gipa = (PFN_vkGetInstanceProcAddr)get_instance_proc_addr; want_display = 2; win_ext = exts; win_next = n; win_surface = make_surface; win_size = drawable_size; }
 int gfx_vk_has_rt(void){ return has_rt; }
 
 static uint32_t memtype(uint32_t bits, VkMemoryPropertyFlags want){
@@ -725,6 +729,35 @@ static int display_init(void){
     for (int i = 0; i < FR; i++) { vkCreateSemaphore(dev, &sci, 0, &sem_acq[i]); vkCreateSemaphore(dev, &sci, 0, &sem_done[i]); }
     fprintf(stderr, "[VK] display %ux%u at %.2f Hz, %u swapchain images, format %d\n", sw_w, sw_h, modes[pick].parameters.refreshRate / 1000.0, sw_n, (int)sw_fmt);
     return 0; }
+/* a desktop window's swapchain (created again when the window changes size) */
+static VkPresentModeKHR win_mode = VK_PRESENT_MODE_FIFO_KHR;
+static int window_swapchain(void){
+    VkSurfaceCapabilitiesKHR caps; vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phys, wsurf, &caps);
+    VkSurfaceFormatKHR fmts[32]; uint32_t nf = 32; vkGetPhysicalDeviceSurfaceFormatsKHR(phys, wsurf, &nf, fmts); sw_fmt = nf ? fmts[0].format : VK_FORMAT_B8G8R8A8_UNORM;
+    for (uint32_t i = 0; i < nf; i++) if ((fmts[i].format == VK_FORMAT_B8G8R8A8_UNORM || fmts[i].format == VK_FORMAT_R8G8B8A8_UNORM) && fmts[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) { sw_fmt = fmts[i].format; break; }
+    int w = 0, h = 0; if (win_size) win_size(&w, &h);
+    if (caps.currentExtent.width != 0xFFFFFFFFu) { w = (int)caps.currentExtent.width; h = (int)caps.currentExtent.height; }
+    if (w <= 0 || h <= 0) return 1;                                                 /* minimised: nothing to show */
+    sw_w = (uint32_t)w; sw_h = (uint32_t)h;
+    uint32_t cnt = caps.minImageCount < 3 ? 3 : caps.minImageCount; if (caps.maxImageCount && cnt > caps.maxImageCount) cnt = caps.maxImageCount;
+    VkSwapchainKHR old = swch;
+    VkSwapchainCreateInfoKHR ci = {VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR, 0, 0, wsurf, cnt, sw_fmt, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, {sw_w, sw_h}, 1,
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_SHARING_MODE_EXCLUSIVE, 0, 0, caps.currentTransform, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, win_mode, 1, old};
+    VKCHK(vkCreateSwapchainKHR(dev, &ci, 0, &swch), "vkCreateSwapchainKHR");
+    if (old) { vkDeviceWaitIdle(dev); for (uint32_t i = 0; i < sw_n; i++) vkDestroyImageView(dev, sw_view[i], 0); vkDestroySwapchainKHR(dev, old, 0); }
+    sw_n = 8; vkGetSwapchainImagesKHR(dev, swch, &sw_n, sw_img);
+    for (uint32_t i = 0; i < sw_n; i++) { VkImageViewCreateInfo vi = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, 0, 0, sw_img[i], VK_IMAGE_VIEW_TYPE_2D, sw_fmt, {0, 0, 0, 0}, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}};
+        vkCreateImageView(dev, &vi, 0, &sw_view[i]); }
+    fprintf(stderr, "[VK] window %ux%u, %u swapchain images, format %d, present mode %d\n", sw_w, sw_h, sw_n, (int)sw_fmt, (int)win_mode);
+    return 0; }
+static int window_init(void){
+    wsurf = (VkSurfaceKHR)(uintptr_t)win_surface(inst); if (!wsurf) { fprintf(stderr, "[VK] no window surface\n"); return -1; }
+    VkBool32 ok = 0; vkGetPhysicalDeviceSurfaceSupportKHR(phys, qfam, wsurf, &ok); if (!ok) { fprintf(stderr, "[VK] the GPU cannot present to the window\n"); return -1; }
+    VkPresentModeKHR pm[8]; uint32_t npm = 8; vkGetPhysicalDeviceSurfacePresentModesKHR(phys, wsurf, &npm, pm);
+    if (!rs_setting_int("RS_VSYNC", 1)) for (uint32_t i = 0; i < npm; i++) { if (pm[i] == VK_PRESENT_MODE_MAILBOX_KHR) { win_mode = pm[i]; break; } if (pm[i] == VK_PRESENT_MODE_IMMEDIATE_KHR) win_mode = pm[i]; }
+    VkSemaphoreCreateInfo sci = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, 0, 0};
+    for (int i = 0; i < FR; i++) { vkCreateSemaphore(dev, &sci, 0, &sem_acq[i]); vkCreateSemaphore(dev, &sci, 0, &sem_done[i]); }
+    return window_swapchain() < 0 ? -1 : 0; }
 /* the display surface (or the CPU-written frame buffer) scaled to w x h into view (format f), letterboxed; layout -> GENERAL / PRESENT */
 static void draw_picture(VkImageView view, VkImage image, VkFormat f, int w, int h, VkImageLayout final){
     VkCommandBuffer c = cmd(); end_render();
@@ -764,9 +797,13 @@ static void draw_picture(VkImageView view, VkImage image, VkFormat f, int w, int
     vkCmdPipelineBarrier(c, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, 0, 0, 0, 1, &b2); }
 void gfx_present(int ww, int wh){
     u64 t = rs_perf_us(); flush_batch();
+    if (want_display == 2 && win_size) {                                           /* the window changed size: a new swapchain */
+        int w = 0, h = 0; win_size(&w, &h);
+        if (w > 0 && h > 0 && ((uint32_t)w != sw_w || (uint32_t)h != sw_h || !swch)) window_swapchain(); }
     if (swch) {
         uint32_t idx = 0; VkResult r = vkAcquireNextImageKHR(dev, swch, UINT64_MAX, sem_acq[fi], 0, &idx);
-        if (r == VK_SUCCESS || r == VK_SUBOPTIMAL_KHR) {
+        if (r == VK_ERROR_OUT_OF_DATE_KHR && want_display == 2) { window_swapchain(); submit(0, 0); }
+        else if (r == VK_SUCCESS || r == VK_SUBOPTIMAL_KHR) {
             draw_picture(sw_view[idx], sw_img[idx], sw_fmt, (int)sw_w, (int)sw_h, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
             int f = fi; submit(sem_acq[f], sem_done[f]);
             VkPresentInfoKHR pi = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, 0, 1, &sem_done[f], 1, &swch, &idx, 0};
@@ -960,18 +997,29 @@ int gfx_init(void){
     VK_GLOBAL(VKG)
 #undef VKG
     if (!vkCreateInstance) { fprintf(stderr, "[VK] no vkCreateInstance\n"); return -1; }
-    const char *iext[4]; uint32_t nie = 0;
+    const char *iext[8]; uint32_t nie = 0;
     { VkExtensionProperties ep[64]; uint32_t n = 64; vkEnumerateInstanceExtensionProperties(0, &n, ep);
       int has_surf = 0, has_disp = 0; for (uint32_t i = 0; i < n; i++) { if (!strcmp(ep[i].extensionName, "VK_KHR_surface")) has_surf = 1; if (!strcmp(ep[i].extensionName, "VK_KHR_display")) has_disp = 1; }
-      if (want_display && has_surf && has_disp) { iext[nie++] = "VK_KHR_surface"; iext[nie++] = "VK_KHR_display"; }
+      if (want_display == 2) { for (int i = 0; i < win_next && nie < 8; i++) iext[nie++] = win_ext[i]; }
+      else if (want_display && has_surf && has_disp) { iext[nie++] = "VK_KHR_surface"; iext[nie++] = "VK_KHR_display"; }
       else if (want_display) { fprintf(stderr, "[VK] VK_KHR_display is not available\n"); want_display = 0; } }
-    VkApplicationInfo app = {VK_STRUCTURE_TYPE_APPLICATION_INFO, 0, "SWBFRS", 1, "RS", 1, VK_API_VERSION_1_3};
+    static uint32_t iver; iver = VK_API_VERSION_1_1; { PFN_vkEnumerateInstanceVersion eiv = (PFN_vkEnumerateInstanceVersion)gipa(0, "vkEnumerateInstanceVersion"); if (eiv) eiv(&iver); }
+    VkApplicationInfo app = {VK_STRUCTURE_TYPE_APPLICATION_INFO, 0, "SWBFRS", 1, "RS", 1, iver >= VK_API_VERSION_1_3 ? VK_API_VERSION_1_3 : VK_API_VERSION_1_1};
     VkInstanceCreateInfo ici = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, 0, 0, &app, 0, 0, nie, iext};
     VKCHK(vkCreateInstance(&ici, 0, &inst), "vkCreateInstance");
 #define VKI(n) vk##n = (PFN_vk##n)gipa(inst, "vk" #n);
     VK_INSTANCE(VKI)
 #undef VKI
-    uint32_t np = 1; vkEnumeratePhysicalDevices(inst, &np, &phys); if (!np) { fprintf(stderr, "[VK] no GPU\n"); return -1; }
+    {   /* the GPU: a discrete one first (RS_GPU_VENDOR=<PCI vendor id, e.g. 0x10DE NVIDIA> prefers a maker), else the first */
+        VkPhysicalDevice pd[16]; uint32_t np = 16; vkEnumeratePhysicalDevices(inst, &np, pd); if (!np) { fprintf(stderr, "[VK] no GPU\n"); return -1; }
+        const char *pv = getenv("RS_GPU_VENDOR"); extern const char *rs_platform_setting(const char *) __attribute__((weak));
+        if (!pv && rs_platform_setting) pv = rs_platform_setting("RS_GPU_VENDOR");
+        unsigned want_v = pv ? (unsigned)strtoul(pv, 0, 0) : 0; int best = -1, bs = -1;
+        for (uint32_t i = 0; i < np; i++) { VkPhysicalDeviceProperties pp; vkGetPhysicalDeviceProperties(pd[i], &pp);
+            int sc = (pp.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? 4 : pp.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU ? 2 : 0) + (want_v && pp.vendorID == want_v ? 8 : 0);
+            fprintf(stderr, "[VK] GPU %u: %s (vendor %04x, type %d)\n", i, pp.deviceName, pp.vendorID, (int)pp.deviceType);
+            if (sc > bs) { bs = sc; best = (int)i; } }
+        phys = pd[best]; }
     vkGetPhysicalDeviceProperties(phys, &props); vkGetPhysicalDeviceMemoryProperties(phys, &memprops);
     { VkQueueFamilyProperties q[16]; uint32_t n = 16; vkGetPhysicalDeviceQueueFamilyProperties(phys, &n, q);
       for (uint32_t i = 0; i < n; i++) if (q[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) { qfam = i; break; } }
@@ -983,6 +1031,33 @@ int gfx_init(void){
           else if (!strcmp(s, "VK_KHR_deferred_host_operations")) e_dho = 1; else if (!strcmp(s, "VK_KHR_swapchain")) e_swap = 1; }
       free(ep); }
     if (!e_push) { fprintf(stderr, "[VK] VK_KHR_push_descriptor is required\n"); return -1; }
+    /* Vulkan 1.1 / 1.2 devices (Mesa Dozen: Vulkan on Direct3D 12): dynamic rendering and the dynamic state from their extensions */
+    int legacy = (VK_API_VERSION_MINOR(props.apiVersion) < 3 && VK_API_VERSION_MAJOR(props.apiVersion) == 1) || iver < VK_API_VERSION_1_3 || getenv("RS_VK_LEGACY");
+    if (legacy) {
+        int e_dr = 0, e_eds = 0, e_dsr = 0, e_rp2 = 0;
+        { VkExtensionProperties *ep = malloc(sizeof *ep * 512); uint32_t n = 512; vkEnumerateDeviceExtensionProperties(phys, 0, &n, ep);
+          for (uint32_t i = 0; i < n; i++) { const char *x = ep[i].extensionName;
+              if (!strcmp(x, "VK_KHR_dynamic_rendering")) e_dr = 1; else if (!strcmp(x, "VK_EXT_extended_dynamic_state")) e_eds = 1;
+              else if (!strcmp(x, "VK_KHR_depth_stencil_resolve")) e_dsr = 1; else if (!strcmp(x, "VK_KHR_create_renderpass2")) e_rp2 = 1; }
+          free(ep); }
+        if (!e_dr || !e_eds) { fprintf(stderr, "[VK] Vulkan %u.%u device without VK_KHR_dynamic_rendering / VK_EXT_extended_dynamic_state\n", VK_API_VERSION_MAJOR(props.apiVersion), VK_API_VERSION_MINOR(props.apiVersion)); return -1; }
+        VkPhysicalDeviceExtendedDynamicStateFeaturesEXT feds = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT, 0, 0};
+        VkPhysicalDeviceDynamicRenderingFeaturesKHR fdr = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR, &feds, 0};
+        VkPhysicalDeviceFeatures2 f2l = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &fdr}; vkGetPhysicalDeviceFeatures2(phys, &f2l);
+        if (!fdr.dynamicRendering || !feds.extendedDynamicState) { fprintf(stderr, "[VK] dynamic rendering / extended dynamic state not supported\n"); return -1; }
+        has_rt = 0;
+        VkPhysicalDeviceExtendedDynamicStateFeaturesEXT eeds = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT, 0, VK_TRUE};
+        VkPhysicalDeviceDynamicRenderingFeaturesKHR edr = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR, &eeds, VK_TRUE};
+        VkPhysicalDeviceFeatures2 e2l = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &edr}; e2l.features.samplerAnisotropy = f2l.features.samplerAnisotropy;
+        const char *dx[8]; uint32_t nd = 0; dx[nd++] = "VK_KHR_push_descriptor"; dx[nd++] = "VK_KHR_dynamic_rendering"; dx[nd++] = "VK_EXT_extended_dynamic_state";
+        if (e_dsr) dx[nd++] = "VK_KHR_depth_stencil_resolve"; if (e_rp2) dx[nd++] = "VK_KHR_create_renderpass2";
+        if (want_display && e_swap) dx[nd++] = "VK_KHR_swapchain";
+        float pr = 1.0f; VkDeviceQueueCreateInfo qil = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, 0, 0, qfam, 1, &pr};
+        VkDeviceCreateInfo dcl = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, &e2l, 0, 1, &qil, 0, 0, nd, dx, 0};
+        VKCHK(vkCreateDevice(phys, &dcl, 0, &dev), "vkCreateDevice");
+        fprintf(stderr, "[VK] Vulkan %u.%u device: dynamic rendering and dynamic state through extensions\n", VK_API_VERSION_MAJOR(props.apiVersion), VK_API_VERSION_MINOR(props.apiVersion));
+        goto device_made; }
+    {
     VkPhysicalDeviceRayQueryFeaturesKHR frq = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, 0, 0};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR fas = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR, &frq, 0, 0, 0, 0, 0};
     VkPhysicalDeviceVulkan13Features f13 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES, (e_as && e_rq && e_dho) ? (void *)&fas : 0};
@@ -1003,11 +1078,15 @@ int gfx_init(void){
     float prio = 1.0f; VkDeviceQueueCreateInfo qi = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, 0, 0, qfam, 1, &prio};
     VkDeviceCreateInfo dci = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, &e2, 0, 1, &qi, 0, 0, nde, dext, 0};
     VKCHK(vkCreateDevice(phys, &dci, 0, &dev), "vkCreateDevice");
-#define VKD(n) vk##n = (PFN_vk##n)vkGetDeviceProcAddr(dev, "vk" #n);
+    }
+device_made:
+    {
+#define VKD(n) vk##n = (PFN_vk##n)vkGetDeviceProcAddr(dev, "vk" #n); if (!vk##n) vk##n = (PFN_vk##n)vkGetDeviceProcAddr(dev, "vk" #n "KHR"); \
+    if (!vk##n) vk##n = (PFN_vk##n)vkGetDeviceProcAddr(dev, "vk" #n "EXT");
     VK_DEVICE(VKD)
     if (has_rt) { VK_RT(VKD) }
 #undef VKD
-    if (!vkCmdBeginRendering) { vkCmdBeginRendering = (PFN_vkCmdBeginRendering)vkGetDeviceProcAddr(dev, "vkCmdBeginRenderingKHR"); vkCmdEndRendering = (PFN_vkCmdEndRendering)vkGetDeviceProcAddr(dev, "vkCmdEndRenderingKHR"); }
+    }
     vkGetDeviceQueue(dev, qfam, 0, &queue);
     /* depth/stencil format: D24S8 where it is supported, else D32S8 */
     { VkFormatProperties fp; vkGetPhysicalDeviceFormatProperties(phys, VK_FORMAT_D24_UNORM_S8_UINT, &fp);
@@ -1067,7 +1146,8 @@ int gfx_init(void){
           if (sh_img) to_general(cmd(), imgs[sh_img].img, VK_IMAGE_ASPECT_DEPTH_BIT, 1); else sh_on = 0; } }
     if (has_rt) as_dummy_init();
     use_fxaa = rs_setting_int("RS_FXAA", 1);
-    if (want_display && display_init()) { fprintf(stderr, "[VK] no display output\n"); return -1; }
+    if (want_display == 2) { if (window_init()) { fprintf(stderr, "[VK] no window output\n"); return -1; } }
+    else if (want_display && display_init()) { fprintf(stderr, "[VK] no display output\n"); return -1; }
     fprintf(stderr, "[VK] %s, Vulkan %u.%u.%u; internal %dx%d (x%d); ray tracing %s (sun shadows %s, reflections %s, AO %d rays, GI %d rays); shadow map %s; PBR %s; FXAA %s\n",
             props.deviceName, VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion), VK_VERSION_PATCH(props.apiVersion), 480 * RS_S, 272 * RS_S, RS_S,
             has_rt ? "available" : "not available", rt_shadows ? "ray-traced" : "off", rt_refl ? "ray-traced" : "off", rt_ao, rt_gi, sh_on ? "on" : "off", pbr_ok ? "on" : "off", use_fxaa ? "on" : "off");

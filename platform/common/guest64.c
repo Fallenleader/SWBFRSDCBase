@@ -43,6 +43,14 @@ void *rs_fn_native(u32 a){
 #endif
     abort(); }
 
+/* a native function the game is to call through an address (a command it calls by name, ...): a guest address of its own in the
+ * table (past the game image's code, 0x08FF0000 up: no game function is there) */
+u32 rs_fn_alias(void *fn){
+    static u32 next = 0x08FF0000u;
+    u32 a = next; next += 16;
+    u32 h = hslot(a); while (ht[h].addr) h = (h + 1) & hmask;
+    ht[h].addr = a; ht[h].fn = fn; return a; }
+
 void *rs_guest_alloc(size_t size, size_t align){
     static u32 next = RS_G_PLAT;
     if (align < 16) align = 16;
@@ -56,6 +64,7 @@ void *rs_guest_stack(size_t size){
     if (next + size > RS_G_STACKS + RS_G_STACKS_SIZE) { fprintf(stderr, "[GUEST] out of thread stacks\n"); abort(); }
     void *p = rs_gbase + next; next += (u32)size; return p; }
 #else
+u32 rs_fn_alias(void *fn){ return (u32)(uintptr_t)fn; }          /* 32-bit: the game calls native addresses */
 void *rs_guest_alloc(size_t size, size_t align){
     if (align < 16) align = 16;
     void *raw = malloc(size + align); if (!raw) { fprintf(stderr, "[GUEST] out of memory\n"); abort(); }   /* never freed */

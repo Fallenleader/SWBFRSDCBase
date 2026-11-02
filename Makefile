@@ -41,7 +41,7 @@ GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
-C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c $(C)/gfx_fx.c $(C)/gfx_backend.c $(C)/renderer_option.c $(C)/gfx_menu.c $(C)/blueprints.c $(C)/custom_maps.c $(C)/mpeg.c $(C)/rs_avc.c $(C)/mp4demux.c $(C)/convert.c
+C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c $(C)/gfx_fx.c $(C)/gfx_backend.c $(C)/renderer_option.c $(C)/blueprints.c $(C)/custom_maps.c $(C)/mpeg.c $(C)/rs_avc.c $(C)/mp4demux.c $(C)/convert.c $(C)/gfx_menu.c $(C)/net.c $(C)/osk_panel.c $(C)/gamespy_ui.c
 ifeq ($(GE_REF),1)
 C_SRC += $(C)/ge.c
 else
@@ -161,3 +161,53 @@ else
 endif
 
 clean: ; rm -rf build
+
+# ---- Desktop (platform/desktop): Steam Deck / Linux and Windows, 64-bit, Vulkan in an SDL2 window; cross-built with zig (pip install ziglang)
+#   make deck     -> build/deck/SWBFRS/      (SteamOS / Linux x86-64, glibc 2.31+: no ray tracing, 1280x800 full screen)
+#   make windows  -> build/windows/SWBFRS/   (Windows 10/11 x64: ray tracing off by default)
+#   make rtx      -> build/rtx/SWBFRS/       (Windows x64, NVIDIA RTX: hardware ray tracing on by default)
+EXT ?= ../ext
+ZIG := python3 -m ziglang
+DESK_DEFS := -DRS_GUEST64 -DRS_DESKTOP -DRS_VULKAN -DRS_GFX_FX -DRS_AVC_FFMPEG -DRS_HW_ANISO -DRS_ANISO_MAX=16 -DRS_ANISO_DEFAULT=16 -DRS_GFX_MAX_SCALE=8
+DESK_C_SRC := $(filter-out $(C)/ge.c $(C)/census.c $(C)/fnprof.c,$(C_SRC))
+define DESKTOP
+$(1)_B := build/$(1)
+$(1)_CC := $(ZIG) cc -target $(2)
+$(1)_CXX := $(ZIG) c++ -target $(2)
+$(1)_FLAGS := -O3 $(3) -w -fno-strict-aliasing -ffp-contract=off -fno-math-errno -ffunction-sections -fdata-sections $(DESK_DEFS) -DRS_VARIANT=\"$(1)\" $(4)
+$(1)_INC := -Isrc/game -I$(C) -I$(T) -Iplatform/desktop -Ibuild -I$(EXT)/vkinc -I$(5) -I$(EXT)/ffmpeg-$(6)/include
+$(1)_OBJ := $$(patsubst src/game/%.c,$$($(1)_B)/game/%.o,$(GAME_SRC)) $$($(1)_B)/game/data.o $$($(1)_B)/game/fn_table.o \
+    $$(patsubst $(C)/%.c,$$($(1)_B)/c_%.o,$(DESK_C_SRC)) $$($(1)_B)/gfx_gl.o $$($(1)_B)/gfx_vk.o $$($(1)_B)/texrep.o $$($(1)_B)/main.o $$($(1)_B)/glue.o \
+    $$(patsubst $(C)/ext/at3/%.cpp,$$($(1)_B)/at3_%.o,$$(wildcard $(C)/ext/at3/*.cpp))
+$$($(1)_B)/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p $$(@D); $$($(1)_CC) -std=gnu11 $$($(1)_FLAGS) -Isrc/game -c $$< -o $$@
+$$($(1)_B)/game/data.o: build/data.c ; @mkdir -p $$(@D); $$($(1)_CC) -std=gnu11 $$($(1)_FLAGS) -Isrc/game -c $$< -o $$@
+$$($(1)_B)/glue.c: src/game/psp_sdk.h ; @mkdir -p $$(@D); python3 $(C)/mkglue.py $$< $$@
+$$($(1)_B)/glue.o: $$($(1)_B)/glue.c ; $$($(1)_CC) -std=gnu11 $$($(1)_FLAGS) $$($(1)_INC) -c $$< -o $$@
+$$($(1)_B)/c_%.o: $(C)/%.c ; @mkdir -p $$(@D); $$($(1)_CC) -std=gnu11 $$($(1)_FLAGS) $$($(1)_INC) -c $$< -o $$@
+$$($(1)_B)/%.o: $(T)/%.c build/vk_spv.h ; @mkdir -p $$(@D); $$($(1)_CC) -std=gnu11 $$($(1)_FLAGS) $$($(1)_INC) -c $$< -o $$@
+$$($(1)_B)/main.o: platform/desktop/main.c ; @mkdir -p $$(@D); $$($(1)_CC) -std=gnu11 $$($(1)_FLAGS) $$($(1)_INC) -c $$< -o $$@
+$$($(1)_B)/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $$(@D); $$($(1)_CXX) -std=c++17 -O2 $(3) -w -I$(C)/ext/at3 -c $$< -o $$@
+endef
+$(eval $(call DESKTOP,deck,x86_64-linux-gnu.2.31,-march=znver2 -mtune=znver2,-DRS_VARIANT_DECK -DRS_NO_GL,$(EXT)/sdlinc,lin))
+$(eval $(call DESKTOP,decktest,x86_64-linux-gnu.2.31,-march=x86_64_v3,-DRS_VARIANT_DECK -DRS_NO_GL,$(EXT)/sdlinc,lin))
+$(eval $(call DESKTOP,windows,x86_64-windows-gnu,-march=x86_64_v3,-DRS_VARIANT_WINDOWS -include platform/desktop/win_compat.h -D_FILE_OFFSET_BITS=64,$(EXT)/SDL2-2.30.9/x86_64-w64-mingw32/include,win))
+$(eval $(call DESKTOP,rtx,x86_64-windows-gnu,-march=x86_64_v3,-DRS_VARIANT_RTX -include platform/desktop/win_compat.h -D_FILE_OFFSET_BITS=64,$(EXT)/SDL2-2.30.9/x86_64-w64-mingw32/include,win))
+FF_LIBS = $(EXT)/ffmpeg-$(1)/lib/libavformat.a $(EXT)/ffmpeg-$(1)/lib/libavcodec.a $(EXT)/ffmpeg-$(1)/lib/libavutil.a
+deck_OBJ := $(filter-out $(deck_B)/gfx_gl.o,$(deck_OBJ))
+decktest_OBJ := $(filter-out $(decktest_B)/gfx_gl.o,$(decktest_OBJ))
+deck: build/data.c $(deck_OBJ)
+	@mkdir -p $(deck_B)/SWBFRS
+	$(ZIG) c++ -target x86_64-linux-gnu.2.31 -o $(deck_B)/SWBFRS/swbfrs $(deck_OBJ) $(call FF_LIBS,lin) /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0 -lm -lpthread -ldl -Wl,--gc-sections -s
+	bash platform/desktop/package.sh deck $(deck_B)/SWBFRS
+windows: build/data.c $(windows_OBJ)
+	@mkdir -p $(windows_B)/SWBFRS
+	$(ZIG) c++ -target x86_64-windows-gnu -o $(windows_B)/SWBFRS/SWBFRS.exe $(windows_OBJ) $(call FF_LIBS,win) $(EXT)/SDL2-2.30.9/x86_64-w64-mingw32/lib/libSDL2.dll.a -lws2_32 -lbcrypt -lole32 -Wl,--subsystem,windows -Wl,--gc-sections -s
+	bash platform/desktop/package.sh windows $(windows_B)/SWBFRS
+rtx_OBJ := $(filter-out $(windows_B)/main.o,$(windows_OBJ)) $(rtx_B)/main.o
+rtx: build/data.c $(rtx_OBJ)
+	@mkdir -p $(rtx_B)/SWBFRS
+	$(ZIG) c++ -target x86_64-windows-gnu -o $(rtx_B)/SWBFRS/SWBFRS.exe $(rtx_OBJ) $(call FF_LIBS,win) $(EXT)/SDL2-2.30.9/x86_64-w64-mingw32/lib/libSDL2.dll.a -lws2_32 -lbcrypt -lole32 -Wl,--subsystem,windows -Wl,--gc-sections -s
+	bash platform/desktop/package.sh rtx $(rtx_B)/SWBFRS
+decktest: build/data.c $(decktest_OBJ)
+	@mkdir -p $(decktest_B)/SWBFRS
+	$(ZIG) c++ -target x86_64-linux-gnu.2.31 -o $(decktest_B)/SWBFRS/swbfrs $(decktest_OBJ) $(call FF_LIBS,lin) /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0 -lm -lpthread -ldl -Wl,--gc-sections

@@ -153,14 +153,14 @@ void rs_break(u32 code, u32 where){ fprintf(stderr, "[GAME] break/trap code 0x%x
  * L / R too (the twin-stick layout aims with L and fires with R on the PSP's shoulder buttons).  Sticks: left = the PSP stick,
  * right = the second stick (twin_stick.c). */
 typedef struct { u32 buttons; u8 lx, ly, rx, ry; } rs_pad_t;
-static int pad_handle = -1;
+static int pad_handle = -1, pad_user = -1;
 static u8 dz(u8 v){ int d = (int)v - 128; if (d > -20 && d < 20) return 128; return v; }
 static void pad_init(void){
     int user = -1;
     sceUserServiceInitialize(NULL);
     if (sceUserServiceGetInitialUser(&user) < 0 || user < 0) { fprintf(stderr, "[PS5] no signed-in user: no controller\n"); return; }
     if (scePadInit() < 0) { fprintf(stderr, "[PS5] scePadInit failed\n"); return; }
-    pad_handle = scePadOpen(user, 0, 0, NULL);
+    pad_handle = scePadOpen(user, 0, 0, NULL); pad_user = user;
     fprintf(stderr, "[PS5] controller: user %d, pad handle %d\n", user, pad_handle); }
 void rs_backend_read_pad(rs_pad_t *p){
     u8 d[256]; memset(d, 0, sizeof d);
@@ -182,6 +182,40 @@ void rs_backend_read_pad(rs_pad_t *p){
     if (s & 0x00004000u) b |= 0x004000;
     if (s & 0x00008000u) b |= 0x008000;
     p->buttons = b; p->lx = dz(d[4]); p->ly = dz(d[5]); p->rx = dz(d[6]); p->ry = dz(d[7]); }
+
+/* ---------------------------------------------------------------- text entry: the PS5's own keyboard dialog (sceImeDialog), for
+ * the game's on-screen keyboard (hle.c rs_osk_begin / rs_osk_poll: names, the online Nickname and Username).  If the dialog cannot
+ * open, the controller keyboard panel (platform/common/osk_panel.c). */
+typedef struct {
+    int32_t userId, type; uint64_t supportedLanguages; int32_t enterLabel, inputMethod; void *filter; uint32_t option, maxTextLength;
+    uint16_t *inputTextBuffer; float posx, posy; int32_t horizontalAlignment, verticalAlignment; const uint16_t *placeholder, *title; int8_t reserved[16];
+} ime_setting_t;
+int sceImeDialogInit(const ime_setting_t *param, void *extended); int sceImeDialogGetStatus(void); int sceImeDialogGetResult(void *result); int sceImeDialogTerm(void);
+int sceCommonDialogInitialize(void);
+int rs_oskpanel_begin(const u16 *, const u16 *, int); int rs_oskpanel_poll(u16 *, int);
+static int ime_on, panel_on; static uint16_t ime_text[512], ime_title[128];
+int rs_osk_begin(const u16 *title, const u16 *initial, int max_len){
+    static int cd; if (!cd) { cd = 1; int r = sceCommonDialogInitialize(); fprintf(stderr, "[PS5] common dialog: %08x\n", r); }
+    if (max_len > 511) max_len = 511;
+    int n = 0; while (initial[n] && n < max_len) { ime_text[n] = initial[n]; n++; } ime_text[n] = 0;
+    n = 0; while (title[n] && n < 127) { ime_title[n] = title[n]; n++; } ime_title[n] = 0;
+    ime_setting_t st; memset(&st, 0, sizeof st);
+    st.userId = pad_user; st.type = 0; st.maxTextLength = (uint32_t)max_len; st.inputTextBuffer = ime_text;
+    st.posx = 960; st.posy = 540; st.horizontalAlignment = 1; st.verticalAlignment = 1; st.title = ime_title;
+    int r = sceImeDialogInit(&st, NULL);
+    if (r >= 0) { ime_on = 1; panel_on = 0; fprintf(stderr, "[PS5] keyboard dialog open\n"); return 1; }
+    fprintf(stderr, "[PS5] keyboard dialog: %08x - the controller keyboard instead\n", r);
+    ime_on = 0; panel_on = 1; return rs_oskpanel_begin(title, initial, max_len); }
+int rs_osk_poll(u16 *out, int max_len){
+    if (panel_on) { int r = rs_oskpanel_poll(out, max_len); if (r) panel_on = 0; return r; }
+    if (!ime_on) return -1;
+    int s = sceImeDialogGetStatus();
+    if (s == 1) return 0;                                                  /* running */
+    struct { int32_t endstatus; int8_t reserved[12]; } res; memset(&res, 0, sizeof res);
+    if (s == 2) sceImeDialogGetResult(&res); else res.endstatus = 2;
+    sceImeDialogTerm(); ime_on = 0;
+    if (res.endstatus != 0) return -1;                                     /* cancelled */
+    int n = 0; while (ime_text[n] && n < max_len - 1) { out[n] = ime_text[n]; n++; } out[n] = 0; return 1; }
 
 /* ---------------------------------------------------------------- audio: the game mixes 44.1 kHz stereo in 1024-frame blocks
  * (platform/common/audio.c); the PS5 outputs 48 kHz in 256-frame grains: resampled here, written blocking (paced). */

@@ -94,6 +94,12 @@ RS_DUMP_ASSETS=1
 # custom maps from /data/SWBFRS/mods/maps (made with tools/asura/maptool.py install): 1 = listed in Instant Action
 RS_CUSTOM_MAPS=1
 
+# ---- online (Multiplayer > Infrastructure: the RS server, tools/rsserver)
+# The game looks for an RS server on the local network first; if none answers it uses this address (a name or an IP).
+RS_SERVER=
+# 1 = look on the local network first, 0 = only RS_SERVER
+RS_LAN_SEARCH=1
+
 # ---- performance
 # 1 = renderer, game main thread and audio on a core each, the game's other threads on the rest; 0 = left to the kernel
 RS_CPU_PIN=1

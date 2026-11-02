@@ -228,7 +228,11 @@ static void h_StartThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t || 
     fprintf(stderr, "[HLE] StartThread '%s' from ra=%08x fn=%08x arg=%08x\n", t->name, c->r[31], A2 ? LW(A2) : 0, A2 ? LW(A2 + 4) : 0); if (strstr(t->name, "Atrac")) { extern void rc_dump_stack(sdkcall_t *, const char *); rc_dump_stack(c, "atrac start"); }
     t->started = 1; t->argc = A1 > 256 ? 256 : A1; t->argp = A2; if (t->argc) memcpy(t->argbuf, g_mem + GADDR(A2), t->argc); g_alive_threads++;
     pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32 psp_stack); rs_thread_attr(&at, t->stacksize); }
+#ifdef RS_DESKTOP
+    { extern int rs_thread_spawn(pthread_t *, pthread_attr_t *, void *(*)(void *), void *); rs_thread_spawn(&t->th, &at, thread_main, t); } V0 = 0; }   /* platform/desktop (Windows: stack switch) */
+#else
     pthread_create(&t->th, &at, thread_main, t); V0 = 0; }
+#endif
 static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; g_alive_threads--; rc_broadcast(&gcv); pthread_mutex_unlock(&big); pthread_exit(0); } }
 static void h_DeleteThread(sdkcall_t *c){ V0 = 0; }
 static void h_WaitThreadEnd(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t) { V0 = 0x800201A5u; return; } while (!t->exited) big_wait(&gcv); V0 = t->status; }
@@ -317,30 +321,33 @@ static void h_UmdRegCb(sdkcall_t *c){ cb_notify(A0, 0x32); V0 = 0; }
 __attribute__((weak)) int rs_osk_begin(const u16 *title, const u16 *initial, int max_len){ (void)title; (void)initial; (void)max_len; return 0; }
 __attribute__((weak)) int rs_osk_poll(u16 *out, int max_len){ (void)out; (void)max_len; return -1; }   /* 0 running, 1 entered, -1 cancelled */
 static int osk_state; static u32 osk_params; static int osk_polls, osk_native;
-static u32 osk_data(void){ return LW(osk_params + 60); }
+static u32 osk_data(void){ return LW(osk_params + 52); }          /* SceUtilityOskParams: base (48 bytes), datacount, data */
+/* the field's length: SceUtilityOskData +36 (outtextlength: the most characters the game takes), else +48 / +52 */
+static u32 osk_limit(u32 d){ u32 l = LW(d + 36); if (!l || l > 512) l = LW(d + 48); if (!l || l > 512) l = LW(d + 52); if (!l || l > 512) l = 64; return l; }
 static int ustrcpy_in(u16 *dst, u32 src, int max){ int n = 0; if (src) while (n < max - 1 && LH(src + n * 2)) { dst[n] = LH(src + n * 2); n++; } dst[n] = 0; return n; }
 static void osk_finish(const u16 *text, int result){         /* result: 0 unchanged, 1 cancelled, 2 changed (PSP_UTILITY_OSK_RESULT_*) */
     u32 data = osk_data();
-    if (data) { u32 in = LW(data + 32), out = LW(data + 40), lim = LW(data + 48); int n = 0;
+    if (data) { u32 in = LW(data + 32), out = LW(data + 40), lim = osk_limit(data); int n = 0;
         if (out && lim) { if (text) while (n < (int)lim - 1 && text[n]) { SH(out + n * 2, text[n]); n++; }
                           else if (in) while (n < (int)lim - 1 && LH(in + n * 2)) { SH(out + n * 2, LH(in + n * 2)); n++; }
                           SH(out + n * 2, 0); }
-        SW(data + 36, n); SW(data + 44, (u32)result); }
+        SW(data + 44, (u32)result);
+        fprintf(stderr, "[UTIL] OSK done: result %d, %d chars to %08x (limit %u, in %08x)\n", result, n, out, lim, in); }
     SW(osk_params + 28, 0); }
 static void h_OskInit(sdkcall_t *c){ osk_params = A0; osk_state = 2; osk_polls = 0; osk_native = 0; fprintf(stderr, "[UTIL] OSK start params=%08x\n", A0);
     u32 data = osk_data();
-    if (data) { static u16 title[128], init[512]; int lim = (int)LW(data + 48); if (lim <= 0 || lim > 512) lim = 512;
+    if (data) { static u16 title[128], init[512]; int lim = (int)osk_limit(data);
         ustrcpy_in(title, LW(data + 28), 128); ustrcpy_in(init, LW(data + 32), 512); osk_native = rs_osk_begin(title, init, lim - 1); }
     V0 = 0; }
 static void osk_step(void){
     if (osk_state != 2) return;
     if (!osk_native) { if (++osk_polls > 6) { osk_finish(0, 2); osk_state = 3; } return; }
-    static u16 out[512]; u32 data = osk_data(); int lim = data ? (int)LW(data + 48) : 512; if (lim <= 0 || lim > 512) lim = 512;
+    static u16 out[512]; u32 data = osk_data(); int lim = data ? (int)osk_limit(data) : 512;
     int r = rs_osk_poll(out, lim);
     if (r > 0) { osk_finish(out, 2); osk_state = 3; } else if (r < 0) { osk_finish(0, 1); osk_state = 3; } }
-static void h_OskStatus(sdkcall_t *c){ osk_step(); V0 = osk_state; yield_big(); }
+static void h_OskStatus(sdkcall_t *c){ osk_step(); V0 = osk_state; if (osk_state == 4) osk_state = 0; yield_big(); }   /* 4 finished (after shutdown), then 0 */
 static void h_OskUpdate(sdkcall_t *c){ osk_step(); V0 = 0; }
-static void h_OskShutdown(sdkcall_t *c){ osk_state = 0; V0 = 0; }
+static void h_OskShutdown(sdkcall_t *c){ osk_state = 4; V0 = 0; }
 static int mod_uid = 0x2000;
 static void h_LoadModule(sdkcall_t *c){ fprintf(stderr, "[MOD] LoadModule %s\n", gstr(A0)); V0 = mod_uid++; }
 static void h_StartModule(sdkcall_t *c){ if (A3) SW(A3, 0); V0 = 0; }
@@ -465,7 +472,7 @@ static void h_IoGetstat(sdkcall_t *c){ char full[1500]; int isdir; unsigned sz; 
 /* Platform backends supply pad state. Defaults below are used by the headless host build. */
 typedef struct { u32 buttons; u8 lx, ly, rx, ry; } rs_pad_t;
 /* Headless default backend: optional script  RS_SCRIPT="frame:hexbuttons[:lx:ly[:rx:ry]];..."  (state holds from that frame on) */
-__attribute__((weak)) void rs_backend_read_pad(rs_pad_t *p){
+void rs_script_read_pad(rs_pad_t *p){                  /* RS_SCRIPT (tests): scripted input */
     p->buttons = 0; p->lx = p->ly = p->rx = p->ry = 0x80;
     static char *scr; static int init; if (!init) { init = 1; const char *e = getenv("RS_SCRIPT"); if (e) scr = strdup(e); }
     if (!scr) return; char *s = strdup(scr), *save = 0;
@@ -475,8 +482,10 @@ __attribute__((weak)) void rs_backend_read_pad(rs_pad_t *p){
     for (char *tok = strtok_r(s, ";", &save); tok; tok = strtok_r(0, ";", &save)) { unsigned fr = 0, b = 0, lx = 128, ly = 128, rx = 128, ry = 128; int n = sscanf(tok, "%u:%x:%u:%u:%u:%u", &fr, &b, &lx, &ly, &rx, &ry);
         if (n >= 2 && cur >= fr) { p->buttons = b; p->lx = n >= 3 ? lx : 128; p->ly = n >= 4 ? ly : 128; p->rx = n >= 5 ? rx : 128; p->ry = n >= 6 ? ry : 128; } }
     free(s); }
+__attribute__((weak)) void rs_backend_read_pad(rs_pad_t *p){ rs_script_read_pad(p); }
 u8 rs_right_stick[2] = {128, 128};   /* the right stick (raw, as the PSP reports the left one): read by platform/common/twin_stick.c */
-static void h_CtrlRead(sdkcall_t *c){ rs_pad_t p; rs_backend_read_pad(&p); u32 b = A0;
+u32 rs_pad_inject(u32 buttons);
+static void h_CtrlRead(sdkcall_t *c){ rs_pad_t p; rs_backend_read_pad(&p); u32 b = A0; p.buttons = rs_pad_inject(p.buttons);   /* gamespy_ui.c */
     /* The PSP has one analog stick: the left stick goes to the game as it. The right stick is kept for twin_stick.c (turn / look). */
     SW(b, (u32)guest_us()); SW(b + 4, p.buttons); SB(b + 8, p.lx); SB(b + 9, p.ly);
     rs_right_stick[0] = p.rx; rs_right_stick[1] = p.ry; V0 = 1; yield_big(); }
@@ -552,7 +561,12 @@ static void *ge_intr_thread(void *u){ (void)u; gi_th = pthread_self(); gi_th_ok 
     for (;;) { pthread_mutex_lock(&gi_m); while (gi_h == gi_t) rc_wait(&gi_work, &gi_m); int id = gi_q[gi_t % 256]; gi_running = 1; pthread_mutex_unlock(&gi_m);
         big_lock(); rs_ge_finish_hook(id); rc_broadcast(&gcv); pthread_mutex_unlock(&big);
         pthread_mutex_lock(&gi_m); gi_t++; gi_running = 0; rc_broadcast(&gi_done); pthread_mutex_unlock(&gi_m); } return 0; }
-static void ge_intr_start(void){ pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32); rs_thread_attr(&at, 0x10000); } pthread_t t; pthread_create(&t, &at, ge_intr_thread, 0); }
+static void ge_intr_start(void){ pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32); rs_thread_attr(&at, 0x10000); } pthread_t t;
+#ifdef RS_DESKTOP
+    { extern int rs_thread_spawn(pthread_t *, pthread_attr_t *, void *(*)(void *), void *); rs_thread_spawn(&t, &at, ge_intr_thread, 0); } }
+#else
+    pthread_create(&t, &at, ge_intr_thread, 0); }
+#endif
 int rs_ge_busy(void); void rs_ge_wait_idle(void);
 unsigned rs_ge_posted(void); int rs_ge_done_upto(unsigned mark);
 static void ge_sync(sdkcall_t *c){
@@ -682,6 +696,8 @@ static const char *hname(int i){ return handlers[i] ? handlers[i]->name : "?"; }
 void hle_init(const char *root, u32 heap_lo, u32 heap_hi){
     if (root) strncpy(g_root, root, sizeof g_root - 1); { rs_region_add(rs_scratchpad_addr(), 0x4000); } vol_base = heap_hi - 0x400000u; hle_heap_lo = heap_lo; hle_heap_hi = vol_base; heap_init(); rs_ge_reset(); ge_intr_start(); trace_all = getenv("RS_TRACE") != 0;
     for (int i = 0; i < RC_NSTUBS; i++) for (int k = 0; k < NTBL; k++) if (tbl[k].nid == rc_stubs[i].nid) handlers[i] = &tbl[k];
+    { extern const hle_t rs_net_tbl[]; extern const int rs_net_ntbl;                    /* networking: net.c */
+      for (int i = 0; i < RC_NSTUBS; i++) for (int k = 0; k < rs_net_ntbl; k++) if (rs_net_tbl[k].nid == rc_stubs[i].nid) handlers[i] = &rs_net_tbl[k]; }
     big_lock();
 }
 void hle_lock_release_for_main(void){ pthread_mutex_unlock(&big); }
