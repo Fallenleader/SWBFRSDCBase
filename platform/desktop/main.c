@@ -73,6 +73,7 @@ static void find_data_dir(void){
     char *s = strrchr(data_dir, '/'); if (s) *s = 0; else strcpy(data_dir, ".");
     const char *o = getenv("RS_DATA_DIR"); if (o && *o) snprintf(data_dir, sizeof data_dir, "%s", o);
     snprintf(game_dir, sizeof game_dir, "%s/GAME", data_dir); snprintf(save_dir, sizeof save_dir, "%s/SAVEDATA", data_dir);
+    { const char *g = getenv("RS_GAME_DIR"); if (g && *g) snprintf(game_dir, sizeof game_dir, "%s", g); }   /* a hosted session: the server's game files */
     /* the shared code finds the data, mods and dump folders through these */
     char v[1200];
 #ifdef _WIN32
@@ -435,6 +436,21 @@ static void *game_main(void *unused){
 #include <signal.h>
 static void report_sig(int s){ (void)s; extern void hle_report(void); hle_report(); fflush(stderr); }   /* kill -USR1: what each game thread is doing */
 #endif
+/* the dedicated host: the game with the null renderer (gfx_backend.c) and no window; the frontend loop only runs the renderer's job
+ * queue.  The session's settings are in its settings.txt (written by the RS server); its log is its log.txt. */
+static void dedicated_main(double t0){
+    struct stat st; char sys[1200]; snprintf(sys, sizeof sys, "%s/PSP_GAME/SYSDIR", game_dir);
+    if (stat(sys, &st) != 0) fatal("dedicated host: the game files were not found (RS_GAME_DIR)");
+    void *w = map_window(RS_G_WINDOW); if (!w) fatal("cannot reserve the game's memory");
+    rs_guest64_init(w, RS_G_WINDOW);
+    extern void rs_gfx_use_null(void); rs_gfx_use_null(); gfx_init(); gfx_wake_init(); gfx_thread_register();
+    fprintf(stderr, "[PC] %7.3fs dedicated host: no window, nothing drawn (game files %s)\n", now_s() - t0, game_dir);
+    pthread_attr_t at; pthread_attr_init(&at); rs_thread_attr(&at, 0);
+    extern int rs_thread_spawn(pthread_t *, pthread_attr_t *, void *(*)(void *), void *);
+    pthread_t th; if (rs_thread_spawn(&th, &at, game_main, 0) != 0) fatal("cannot create the game thread");
+    while (!game_done) { if (gfx_present_due()) continue; gfx_pump(16); }
+    fflush(stderr); }
+
 int main(int argc, char **argv){
     (void)argc; (void)argv;
 #ifndef _WIN32
@@ -448,8 +464,11 @@ int main(int argc, char **argv){
     SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_STEAMDECK, "1");            /* the Deck's own controls when it runs outside Steam (desktop mode) */
     SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_XBOX, "1"); SDL_SetHint(SDL_HINT_JOYSTICK_RAWINPUT, "1");   /* Xbox pads: XInput / Raw Input, triggers separate */
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "0");
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS) != 0) fatal(SDL_GetError());
+    /* RS_DEDICATED=1 (a session hosted by the RS server, tools/rsserver/sessions.py): no window, nothing drawn, no sound device */
+    int dedicated = rs_setting_int("RS_DEDICATED", 0) || (getenv("RS_DEDICATED") && atoi(getenv("RS_DEDICATED")));
+    if (SDL_Init(dedicated ? SDL_INIT_EVENTS : (SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS)) != 0) fatal(SDL_GetError());
     pad_mx = SDL_CreateMutex();
+    if (dedicated) { dedicated_main(t0); return 0; }
     int fs = rs_setting_int("RS_FULLSCREEN", 0);
     if (getenv("SteamDeck") && !rs_platform_setting("RS_FULLSCREEN")) fs = 1;
     win = open_window(-1, fs);                           /* for the first start's progress; made again for the renderer if need be */

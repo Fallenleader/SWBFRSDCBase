@@ -51,6 +51,9 @@ static const char *data_dir(void){
     const char *e = getenv("RS_DATA_DIR"); return e ? e : ".";
 #endif
 }
+static const char *mods_dir(void){                       /* <data>/mods, or RS_MODS_DIR (a hosted session's mods_serversession<N>) */
+    static char b[600]; const char *e = getenv("RS_MODS_DIR"); if (e && *e) return e;
+    snprintf(b, sizeof b, "%s/mods", data_dir()); return b; }
 
 static struct {
     int active, log, open_tried;
@@ -90,8 +93,8 @@ static int open_movie(void){
     char path[1200] = "";
     const char *b = strrchr(pmf_path, '/'); b = b ? b + 1 : pmf_path; char name[256]; snprintf(name, sizeof name, "%s", b);
     char *dot = strrchr(name, '.'); if (dot) *dot = 0;
-    snprintf(path, sizeof path, "%s/mods/movies/%s.mp4", data_dir(), name);
-    if (!exists(path)) { for (char *q = name; *q; q++) if (*q >= 'A' && *q <= 'Z') *q += 32; snprintf(path, sizeof path, "%s/mods/movies/%s.mp4", data_dir(), name); }
+    snprintf(path, sizeof path, "%s/movies/%s.mp4", mods_dir(), name);
+    if (!exists(path)) { for (char *q = name; *q; q++) if (*q >= 'A' && *q <= 'Z') *q += 32; snprintf(path, sizeof path, "%s/movies/%s.mp4", mods_dir(), name); }
     if (!exists(path)) { const char *rs_convert_output_for(const char *, const char *) __attribute__((weak));
         const char *o = rs_convert_output_for ? rs_convert_output_for(pmf_path, ".mp4") : 0; snprintf(path, sizeof path, "%s", o ? o : ""); }
     if (!path[0] || !exists(path)) { fprintf(stderr, "[MOVIE] %s: no MP4 (not converted yet?): skipped\n", pmf_path); return 0; }

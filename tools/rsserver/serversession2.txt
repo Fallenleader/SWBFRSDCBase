@@ -1,0 +1,13 @@
+# A hosted session (see README.md).
+Name         = Prequel Era Rotation
+MaxPlayers   = 16
+Bots         = 32
+AIDifficulty = 1
+Tickets      = 300
+TimeLimit    = 20
+HeroTime     = 60
+AutoBalance  = 1
+Map          = GEONOSIS PREQUEL CQST
+Map          = KASHYYYK PREQUEL CQST
+Map          = MUSTAFAR PREQUEL CQST
+Map          = NABOO PREQUEL CQST

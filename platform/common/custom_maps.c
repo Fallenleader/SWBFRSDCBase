@@ -87,6 +87,9 @@ static const char *data_dir(void){
     const char *e = getenv("RS_DATA_DIR"); return e ? e : ".";
 #endif
 }
+static const char *mods_dir(void){                       /* <data>/mods, or RS_MODS_DIR (a hosted session's mods_serversession<N>) */
+    static char b[600]; const char *e = getenv("RS_MODS_DIR"); if (e && *e) return e;
+    snprintf(b, sizeof b, "%s/mods", data_dir()); return b; }
 static void trim(char *s){ size_t n = strlen(s); while (n && isspace((unsigned char)s[n - 1])) s[--n] = 0; size_t i = 0; while (isspace((unsigned char)s[i])) i++; if (i) memmove(s, s + i, strlen(s + i) + 1); }
 static void upper(char *s){ for (; *s; s++) *s = (char)toupper((unsigned char)*s); }
 static u32 gstrdup(const char *s){ size_t n = strlen(s) + 1; char *g = rs_guest_alloc(n, 4); memcpy(g, s, n); return GA(g); }
@@ -111,7 +114,7 @@ static int valid_id(const char *s){ size_t n = strlen(s); if (!n || n > 24) retu
 typedef struct { char name[96], base[32]; int modes[4], space, eras; } def_t;
 static int read_def(const char *id, def_t *d){
     memset(d, 0, sizeof *d); for (int m = 0; m < 4; m++) d->modes[m] = -1; d->space = -1;
-    char root[600], path[800]; snprintf(root, sizeof root, "%s/mods/maps", data_dir());
+    char root[600], path[800]; snprintf(root, sizeof root, "%s/maps", mods_dir());
     for (int era = 0; era < 3; era++) { struct stat st; snprintf(path, sizeof path, "%s/%s/%s.PSP", root, ERA_DIR[era], id); if (stat(path, &st) == 0) d->eras |= 1 << era; }
     if (!(d->eras & 3)) return 0;
     snprintf(path, sizeof path, "%s/%s.txt", root, id); FILE *f = fopen(path, "r");
@@ -206,8 +209,8 @@ static void names_from_game(void){
     static int done; if (done) return; done = 1;
     for (int i = 0; i < NORIG; i++) { u32 t = func_0897A064(GU32(GIMG(TABLE) + 20 * (u32)i + 8), 0); if (!t) continue;
         const u16 *w = (const u16 *)GP(t); int k = 0; while (w[k] && k < 63) { orig_shown[i][k] = w[k] < 256 ? (char)w[k] : '?'; k++; } orig_shown[i][k] = 0; }
-    char path[800]; snprintf(path, sizeof path, "%s/mods/original_maps.txt", data_dir()); write_original(path);
-    if (made_list && !ncm) { snprintf(path, sizeof path, "%s/mods/mod_maps.txt", data_dir()); write_list(path); } }
+    char path[800]; snprintf(path, sizeof path, "%s/original_maps.txt", mods_dir()); write_original(path);
+    if (made_list && !ncm) { snprintf(path, sizeof path, "%s/mod_maps.txt", mods_dir()); write_list(path); } }
 
 /* add a table entry (custom map or instance) for line L; returns its table index or -1 */
 static int add_entry(const line_t *L){
@@ -250,7 +253,7 @@ static void load(void){
     memcpy(GP(tab), GP(GIMG(TABLE)), 20 * NORIG);
     for (int i = 0; i < NORIG; i++) order[i] = i;
     if (!rs_setting_int("RS_CUSTOM_MAPS", 1)) return;
-    char dir[600], path[800]; snprintf(dir, sizeof dir, "%s/mods", data_dir()); mkdir_(dir);
+    char dir[600], path[800]; snprintf(dir, sizeof dir, "%s", mods_dir()); mkdir_(dir);
     snprintf(path, sizeof path, "%s/original_maps.txt", dir); { struct stat st; if (stat(path, &st) != 0) write_original(path); }   /* (rewritten with the shown names at the first Planet list) */
     /* the custom maps installed (mods/maps/*.txt or a level file), for the ones mod_maps.txt does not list */
     char found[MAXC][32]; int nf = 0; char root[600]; snprintf(root, sizeof root, "%s/maps", dir);
@@ -354,7 +357,7 @@ int rs_custom_map_file(const char *rel, char *out, size_t cap){
             if (!strcmp(env, want)) {
                 char lf[32]; level_file(&cm[i], era, lf, sizeof lf);
                 if (cm[i].level_orig) { snprintf(out, cap, "%.*s%s%s", (int)pre, orig, lf, orig + pre + il); return 2; }
-                snprintf(out, cap, "%s/mods/maps/%s/%s.PSP", data_dir(), ERA_DIR[era], cm[i].level); return 1; } }
+                snprintf(out, cap, "%s/maps/%s/%s.PSP", mods_dir(), ERA_DIR[era], cm[i].level); return 1; } }
         /* another file by the map's name: the base map's */
         snprintf(out, cap, "%.*s%s%s", (int)pre, orig, cm[i].base, orig + pre + il); return 2; }
     return 0; }
@@ -368,7 +371,7 @@ int rs_custom_map_dirent(const char *dir, int k, char *name, size_t cap, char *h
         if (seen++ == k) { snprintf(name, cap, "%s.PSP", cm[i].id);
             char lf[32]; level_file(&cm[i], era, lf, sizeof lf);
             if (cm[i].level_orig) snprintf(host, hcap, "%.*s/%s.PSP", (int)l, dir, lf);    /* the game map's own file, in this folder */
-            else snprintf(host, hcap, "%s/mods/maps/%s/%s.PSP", data_dir(), ERA_DIR[era], cm[i].level);
+            else snprintf(host, hcap, "%s/maps/%s/%s.PSP", mods_dir(), ERA_DIR[era], cm[i].level);
             return 1; } }
     return 0; }
 
@@ -376,7 +379,7 @@ int rs_custom_map_dirent(const char *dir, int k, char *name, size_t cap, char *h
  * as tools/asura's character and weapon tools write them).  rel: the path the game opened (without the device). */
 int rs_mod_file(const char *rel, char *out, size_t cap){
     static int any = -1; char root[600];
-    snprintf(root, sizeof root, "%s/mods/files", data_dir());
+    snprintf(root, sizeof root, "%s/files", mods_dir());
     if (any < 0) { struct stat st; any = stat(root, &st) == 0; }
     if (!any) return 0;
     while (*rel == '/' || *rel == '\\') rel++;

@@ -42,6 +42,9 @@ const char *rs_fx_data_dir(void){
     const char *e = getenv("RS_DATA_DIR"); return e ? e : ".";
 #endif
 }
+static const char *mods_dir(void){                       /* <data>/mods, or RS_MODS_DIR (a hosted session's mods_serversession<N>) */
+    static char b[600]; const char *e = getenv("RS_MODS_DIR"); if (e && *e) return e;
+    snprintf(b, sizeof b, "%s/mods", rs_fx_data_dir()); return b; }
 
 /* ---------------------------------------------------------------- settings */
 rs_fx_cfg_t rs_fx;
@@ -90,7 +93,7 @@ static struct {
     double amb_acc[3]; long amb_n; long frames, lit_frames; int frame_lit;
     unsigned gen;                           /* bumped when the sun changes */
 } lt;
-static void light_path(char *out, size_t cap){ snprintf(out, cap, "%s/mods/lights/%s_%s.txt", rs_fx_data_dir(), cur_era, cur_map); }
+static void light_path(char *out, size_t cap){ snprintf(out, cap, "%s/lights/%s_%s.txt", mods_dir(), cur_era, cur_map); }
 static void lights_reset(void){ memset(&lt, 0, sizeof lt); lt.sun_k = 1; lt.gen++; }
 static const float DEG = 3.14159265f / 180.0f;
 static void rot_to_dir(const float r[3], float t[3]){            /* Unity rotation (degrees) -> towards the sun, game axes */
@@ -157,7 +160,7 @@ static void lights_load(void){
       fprintf(stderr, "[FX] lights of %s_%s: %s, sun rotation %.1f %.1f (towards the sun %.2f %.2f %.2f), intensity %.2f, %d local light(s)\n", cur_era, cur_map, p, r[0], r[1], lt.sun[0], lt.sun[1], lt.sun[2], lt.sun_k, lt.nL); } }
 static void lights_write(void){
     if (!lt.have_sun && !lt.nL) return;
-    char d[600]; snprintf(d, sizeof d, "%s/mods/lights", rs_fx_data_dir()); rs_mkdirs(d);
+    char d[600]; snprintf(d, sizeof d, "%s/lights", mods_dir()); rs_mkdirs(d);
     char p[700]; light_path(p, sizeof p); FILE *f = fopen(p, "r"); if (f) { fclose(f); lt.written = 1; return; }
     if (lt.amb_n) { for (int k = 0; k < 3; k++) lt.amb[k] = (float)(lt.amb_acc[k] / lt.amb_n); lt.have_amb = 1; }
     memcpy(lt.game_col, lt.sun_col, 12); lt.have_gcol = 1;
@@ -260,7 +263,7 @@ static void category(const char *res, const dctx_t *c, char *out, size_t cap){
     else snprintf(out, cap, "ui/%s", c->file); }
 static void dump_tex(const char *name, uint32_t key, const uint32_t *rgba, int w, int h, void *ud){
     dctx_t *c = ud; char cat[256], b[128], lb[128]; category(name, c, cat, sizeof cat); base_noext(name, b, sizeof b); label(b, lb, sizeof lb);
-    char dir[800]; snprintf(dir, sizeof dir, "%s/mods/dumps/%s", rs_fx_data_dir(), cat); rs_mkdirs(dir);
+    char dir[800]; snprintf(dir, sizeof dir, "%s/dumps/%s", mods_dir(), cat); rs_mkdirs(dir);
     char p[1100]; snprintf(p, sizeof p, "%s/%08x@%s_RGBA.png", dir, (unsigned)key, lb); c->n_all++;
     struct stat st; if (stat(p, &st) == 0) return;
     if (!strncmp(cat, "players", 7)) {

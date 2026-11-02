@@ -3,3 +3,7 @@ banned.txt
 ip_salt.txt
 *.tmp
 __pycache__/
+sessions/
+mods_serversession*/
+__pycache__/
+User.txt.tmp
