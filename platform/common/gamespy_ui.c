@@ -1,12 +1,14 @@
 /* Online accounts on the RS server (tools/rsserver/rsmaster.py), every build: the game's GameSpy ID screens, changed.
  *
- *   Nickname   as it was: the name shown in online matches.
- *   Username   the "Email" field, renamed.  The game's GameSpy code wants an e-mail address, so it is sent as <username>@rs.id
- *              (rsmaster strips it); the screens' own e-mail check is passed the same way.
- *   Password   gone: the field is hidden and the game hashes a fixed word instead (the server checks names, not secrets).
+ *   Username   the "Nickname" field, renamed: the account's name, shown in online matches.
+ *   Password   the "Email" field, renamed.  The game's GameSpy code wants an e-mail address, so it is sent as <password>@rs.id
+ *              (rsmaster strips it and keeps only a salted hash); the screens' own e-mail check is passed the same way.
+ *              The game's own Password field is hidden; the game hashes a fixed word there for the GameSpy login proof.
+ *   Install id a random id made once per install (net.c, <data>/rs_install_id.txt), sent with every login and account creation;
+ *              the server bans by it, and "I Forgot" finds the account by it.
  *   I Forgot   a new entry at the bottom of the Login menu (Login Using Existing / Create New GameSpy ID): asks the server for the
- *              account made from this address (the server keeps only a hash of it).  Found: the Login screen opens with the
- *              Nickname and Username filled in.  None: the Create screen opens.  Banned / no server: a message.
+ *              account last used from this install.  Found: the Login screen opens with the Username filled in, and the
+ *              password typed next becomes the account's new password (for 10 minutes).  None: the Create screen opens.
  *   Message of the day   what the server's motd.txt says, shown when the online menus start (the game fetches it from
  *              motd.gamespy.com = the RS server, net.c captures it; the original game fetched it but never showed it).
  * Text entry uses the platform's own keyboard (hle.c sceUtilityOsk -> rs_osk_begin: the Vita's IME, the PC keyboard panel, ...).
@@ -143,16 +145,27 @@ static int patch_gui(const char *src, const char *dst){
 
 /* ------------------------------------------------------------------ the texts (HTXT: id, characters with the NUL, UTF-16) */
 static const struct { u32 id; const char *name, *text; } texts[] = {
-    {0x05c24b9c, 0, "Username"},
-    {0xab85e454, 0, "Enter Username"},
-    {0x1e4c3e36, 0, "No account found with that username"},
-    {0xf0ea7ee7, 0, "Please enter a valid username"},
-    {0xc3b2bf70, 0, "Please enter a valid username"},
-    {0x62c073a2, 0, "That username is already taken - please choose another one"},
-    {0xe5a889c1, 0, "This game could not log in to the RS server"},
+    {0x0436a86e, 0, "Username"},                           /* the Nickname field: the name shown in matches */
+    {0x28ffb4b6, 0, "Enter Username"},
+    {0x05c24b9c, 0, "Password"},                           /* the Email field */
+    {0xab85e454, 0, "Enter Password"},
+    {0xd7b3e989, 0, "Incorrect username or password"},
+    {0x1e4c3e36, 0, "Incorrect username or password"},
+    {0xe5a889c1, 0, "Incorrect username or password"},
+    {0x62c073a2, 0, "Incorrect username or password"},
+    {0xee05705a, 0, "Unknown username"},
+    {0x4b40041c, 0, "Username already in use"},
+    {0x4884414b, 0, "Suggest Username"},
+    {0x6c8eefa0, 0, "Username Suggestions"},
+    {0x6ae24eb8, 0, "Invalid username - it must be between 3 and 20 characters long and must not start with a number."},
+    {0x4a71fff9, 0, "That username is not registered. Create a new account to register it."},
+    {0xf0ea7ee7, 0, "Please enter a valid password"},
+    {0xc3b2bf70, 0, "Please enter a valid password"},
+    {0xb917a466, 0, "Log In"},
+    {0x043e6d59, 0, "Create New Account"},
     {0x2a5d0871, 0, "Remember Me"},
-    {0x4889ba9b, 0, ""},                                   /* the hidden Password field's label */
-    {0xbf5273e7, 0, "Forgot your username? Choose I Forgot on the Login menu."},
+    {0x4889ba9b, 0, ""},                                   /* the hidden (game's own) Password field's label */
+    {0xbf5273e7, 0, "Forgot your password? Choose I Forgot on the Login menu."},
     {0x2f7d4c1b, 0, "No RS server was found. Set RS_SERVER in settings.txt, or start one on this network."},
     {TXT_FORGOT, "RS_I_FORGOT", "I Forgot"},
 };
@@ -237,10 +250,11 @@ u32 rs_pad_inject(u32 buttons){                          /* hle.c sceCtrlReadBuf
 static rv_t forgot_cmd(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19){
     (void)a0; (void)a1; (void)a2; (void)a3; (void)t0; (void)t1; (void)t2; (void)t3; (void)f12; (void)f13; (void)f14; (void)f15; (void)f16; (void)f17; (void)f18; (void)f19;
     char n[32], u[64]; int r = rs_net_recover(n, sizeof n, u, sizeof u);
-    fprintf(stderr, "[GAMESPY] I Forgot: %s\n", r > 0 ? "account found" : r == 0 ? "no account from this address" : r == -1 ? "banned" : "no server");
-    if (r > 0) { snprintf(rec_nick, sizeof rec_nick, "%s", n); snprintf(rec_user, sizeof rec_user, "%s", u); rec_pending = 1;
+    fprintf(stderr, "[GAMESPY] I Forgot: %s\n", r > 0 ? "account found" : r == 0 ? "no account from this install" : r == -1 ? "banned" : "no server");
+    if (r > 0) { snprintf(rec_nick, sizeof rec_nick, "%s", n); rec_user[0] = 0; rec_pending = 1; (void)u;
         if (var_nick) uput(var_nick, 21, rec_nick);
-        if (var_user) uput(var_user, 51, rec_user);
+        if (var_user) uput(var_user, 51, "");
+        snprintf(msg, sizeof msg, "Account found: %s. Enter a new password on the Log In screen within 10 minutes: it replaces the old one.", rec_nick); msg_on = 1;
         static const u32 s[] = {0x10, 0x10, 0x4000}; inject(s, 3); }
     else if (r == 0) { static const u32 s[] = {0x10, 0x4000}; inject(s, 2); }
     else { snprintf(msg, sizeof msg, "%s", r == -1 ? "This account is banned from this server." : "The RS server could not be reached."); msg_on = 1; }
@@ -254,7 +268,7 @@ void rs_gs_loaded(void){                                 /* after FE_LoadGamespy
     if (!rec_pending) return; rec_pending = 0;
     if (var_nick) uput(var_nick, 21, rec_nick);
     if (var_user) uput(var_user, 51, rec_user);
-    fprintf(stderr, "[GAMESPY] recovered account %s (%s) in the Login fields\n", rec_user, rec_nick); }
+    fprintf(stderr, "[GAMESPY] recovered account %s in the Login fields\n", rec_nick); }
 
 /* ------------------------------------------------------------------ message of the day (net.c), and the messages above */
 void rs_motd_set(const char *text){

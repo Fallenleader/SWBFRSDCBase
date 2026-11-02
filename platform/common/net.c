@@ -145,11 +145,41 @@ static u32 rs_server(void){
             fprintf(stderr, "[NET] no RS server on the LAN; RS_SERVER=%s -> %s\n", h, ip ? "found" : "cannot be resolved"); }
         else fprintf(stderr, "[NET] no RS server on the LAN and none in settings.txt (RS_SERVER)\n"); }
     rs_big_lock(); server_ip = ip; return ip; }
-/* "I Forgot" (gamespy_ui.c): the RS server's account for this address (TCP 29910).  1 found, 0 none, -1 banned, -2 no server */
+/* This install's id: 32 random hex digits made once and kept in <data>/rs_install_id.txt.  Sent to the RS server with every login and
+ * account creation (an extra \rsuuid\ key in the GameSpy message, see h_Send) and by "I Forgot"; the server bans by it. */
+extern const char *rs_platform_data_dir(void);
+static void rand_bytes(unsigned char *b, int n){
+    int got = 0;
+#if defined(_WIN32)
+    extern long __stdcall BCryptGenRandom(void *, unsigned char *, unsigned long, unsigned long);
+    if (BCryptGenRandom(0, b, (unsigned long)n, 2) == 0) got = n;                       /* BCRYPT_USE_SYSTEM_PREFERRED_RNG */
+#elif !defined(__vita__)
+    FILE *f = fopen("/dev/urandom", "rb"); if (f) { got = (int)fread(b, 1, (size_t)n, f); fclose(f); }
+#endif
+    if (got == n) return;
+    /* no system source: the clock at several moments, addresses and the previous bytes, mixed (FNV-1a over 64 bits) */
+    unsigned long long h = 1469598103934665603ull;
+    for (int i = 0; i < n; i++) {
+        struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); unsigned long long x = (unsigned long long)t.tv_nsec ^ ((unsigned long long)t.tv_sec << 20) ^ (unsigned long long)(uintptr_t)&t ^ (unsigned long long)time(0) ^ ((unsigned long long)i << 40);
+        for (int k = 0; k < 8; k++) { h ^= (x >> (8 * k)) & 255; h *= 1099511628211ull; }
+        b[i] = (unsigned char)(h >> 29); }
+}
+const char *rs_install_id(void){
+    static char id[33];
+    if (id[0]) return id;
+    char p[600]; snprintf(p, sizeof p, "%s/rs_install_id.txt", rs_platform_data_dir());
+    FILE *f = fopen(p, "r");
+    if (f) { char b[64] = ""; if (fgets(b, sizeof b, f)) { int ok = 1; for (int i = 0; i < 32; i++) if (!((b[i] >= '0' && b[i] <= '9') || (b[i] >= 'a' && b[i] <= 'f'))) ok = 0;
+                if (ok) { memcpy(id, b, 32); id[32] = 0; } } fclose(f); }
+    if (!id[0]) { unsigned char r[16]; rand_bytes(r, 16); for (int i = 0; i < 16; i++) snprintf(id + 2 * i, 3, "%02x", r[i]);
+        f = fopen(p, "w"); if (f) { fprintf(f, "%s\n", id); fclose(f); }
+        fprintf(stderr, "[NET] new install id (%s)\n", p); }
+    return id; }
+/* "I Forgot" (gamespy_ui.c): the RS server's account last used from this install (TCP 29910).  1 found, 0 none, -1 banned, -2 no server */
 int rs_net_recover(char *nick, int nn, char *user, int un){
     net_start(); u32 ip = rs_server(); if (!ip) return -2;
     rs_big_unlock();
-    int res = -2; sock_t s = socket(AF_INET, SOCK_STREAM, 0);
+    int res = -2; sock_t s = socket(AF_INET, SOCK_STREAM, 0); char rq[64]; snprintf(rq, sizeof rq, "RSREC %s\n", rs_install_id());
     if (s != BADSOCK) {
         struct sockaddr_in a; memset(&a, 0, sizeof a); a.sin_family = AF_INET; a.sin_port = htons(29910); a.sin_addr.s_addr = ip;
 #ifdef _WIN32
@@ -158,7 +188,7 @@ int rs_net_recover(char *nick, int nn, char *user, int un){
         struct timeval to = {4, 0};
 #endif
         setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&to, sizeof to);
-        if (connect(s, (struct sockaddr *)&a, sizeof a) == 0 && send(s, "RSREC\n", 6, 0) == 6) {
+        if (connect(s, (struct sockaddr *)&a, sizeof a) == 0 && send(s, rq, (int)strlen(rq), 0) == (int)strlen(rq)) {
             char b[256]; int n = 0, r;
             while (n < 255 && (r = (int)recv(s, b + n, 255 - n, 0)) > 0) { n += r; if (memchr(b, '\n', (size_t)n)) break; }
             b[n] = 0; char *e = strchr(b, '\n'); if (e) *e = 0;
@@ -206,9 +236,19 @@ static int host_flags(u32 f){ int o = 0; if (f & 1) o |= MSG_OOB; if (f & 2) o |
     if (f & 0x80) o |= MSG_DONTWAIT;
 #endif
     return o; }
+static u32 gp_add_install_id(u8 *b, u32 n){
+    if (!((n > 7 && !memcmp(b, "\\login\\", 7)) || (n > 9 && !memcmp(b, "\\newuser\\", 9)))) return n;
+    u8 *f = 0; for (u32 i = 0; i + 7 <= n; i++) if (!memcmp(b + i, "\\final\\", 7)) { f = b + i; break; }
+    if (!f) return n;
+    char add[48]; int k = snprintf(add, sizeof add, "\\rsuuid\\%s", rs_install_id());
+    if (n + (u32)k > 65536) return n;
+    memmove(f + k, f, (size_t)(b + n - f)); memcpy(f, add, (size_t)k); return n + (u32)k; }
 static void h_Send(sdkcall_t *c){
     sock_t s = sk(A0); u32 n = A2 > 65536 ? 65536 : A2; if (s == BADSOCK) { perr = 9; V0 = 0xFFFFFFFFu; return; }
-    gread(A1, iobuf, n); int r = (int)send(s, (const char *)iobuf, (int)n, host_flags(A3) & ~MSG_PEEK);
+    gread(A1, iobuf, n); int r;
+    u32 m = gp_add_install_id(iobuf, n);                          /* a GameSpy login / account creation: + this install's id */
+    if (m != n) { r = (int)send(s, (const char *)iobuf, (int)m, host_flags(A3) & ~MSG_PEEK); if (r == (int)m) r = (int)n; }
+    else r = (int)send(s, (const char *)iobuf, (int)n, host_flags(A3) & ~MSG_PEEK);
     if (n > 20 && !memcmp(iobuf, "GET /motd/motd.asp", 18)) { socks[A0].motd = 1; motd_len = 0; }
     NLOG("send %d %u -> %d", A0, n, r); V0 = r >= 0 ? (u32)r : fail(serrno()); }
 static void h_Sendto(sdkcall_t *c){
