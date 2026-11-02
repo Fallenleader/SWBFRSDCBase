@@ -518,6 +518,32 @@ static void exec_draw(const u32 *payload){
             emit_scr(&C, &b, a.px, b.py, bz, a.u * iw, b.v * ih); emit_scr(&D, &b, b.px, b.py, bz, b.u * iw, b.v * ih);
             out[n++] = A; out[n++] = B; out[n++] = C; out[n++] = B; out[n++] = D; out[n++] = C; }
         gfx_draw(&st, out, n); st_draws++; return; }
+    /* sprites in 3D (billboards: the Galactic Conquest cursor, effects): both corners through world, view, projection and the
+     * viewport, then the screen rectangle between them at the second corner's depth */
+    if (ptype == 6 && !through) {
+        gfx_state_t st; build_state(&st, 1, 0);
+        float w4[16], v4[16], wv[16], mvp[16]; to44(X.world, w4); to44(X.view, v4); mul44(w4, v4, wv); mul44(wv, X.proj, mvp);
+        float ox = (float)(X.ofs_x & 0xFFFF) / 16.0f, oy = (float)(X.ofs_y & 0xFFFF) / 16.0f;
+        static gfx_vtx_t *out; static int ocap; if (ocap < count * 3 + 6) { ocap = count * 3 + 64; out = realloc(out, sizeof *out * (size_t)ocap); }
+        int n = 0;
+        for (int i = 0; i + 1 < count; i += 2) {
+            rawv_t c2[2]; float sc[2][3]; int ok = 1;
+            for (int k = 0; k < 2; k++) {
+                decode_vertex(vt, vb + (size_t)(ix ? ix[i + k] : i + k) * d->vsz, off, &c2[k]);
+                float x = c2[k].px, y = c2[k].py, z = c2[k].pz, cl[4];
+                for (int j = 0; j < 4; j++) cl[j] = x * mvp[0 * 4 + j] + y * mvp[1 * 4 + j] + z * mvp[2 * 4 + j] + mvp[3 * 4 + j];
+                if (cl[3] <= 1e-6f) { ok = 0; break; }
+                sc[k][0] = cl[0] / cl[3] * X.xs + X.xc - ox; sc[k][1] = cl[1] / cl[3] * X.ys + X.yc - oy; sc[k][2] = cl[2] / cl[3] * X.zs + X.zc; }
+            if (!ok) continue;
+            rawv_t *a = &c2[0], *b = &c2[1];
+            if (!b->hascol) for (int k = 0; k < 4; k++) b->col[k] = defc[k];
+            float u0 = a->u * X.su + X.ou, v0 = a->v * X.sv + X.ov, u1 = b->u * X.su + X.ou, v1 = b->v * X.sv + X.ov;
+            float bz = sc[1][2] < 0 ? 0 : (sc[1][2] > 65535 ? 65535 : sc[1][2]); gfx_vtx_t A, B, C, D;
+            emit_scr(&A, b, sc[0][0], sc[0][1], bz, u0, v0); emit_scr(&B, b, sc[1][0], sc[0][1], bz, u1, v0);
+            emit_scr(&C, b, sc[0][0], sc[1][1], bz, u0, v1); emit_scr(&D, b, sc[1][0], sc[1][1], bz, u1, v1);
+            out[n++] = A; out[n++] = B; out[n++] = C; out[n++] = B; out[n++] = D; out[n++] = C; }
+        if (n) { gfx_draw(&st, out, n); st_draws++; }
+        return; }
     static int warned[8]; if (ptype < 8 && !warned[ptype]++) fprintf(stderr, "[GU] primitive type %d%s is not drawn natively\n", ptype, through ? " (2D)" : ""); }
 
 static void exec_clear(const rop_t *r){

@@ -431,8 +431,15 @@ static void *game_main(void *unused){
     fprintf(stderr, "[RS] module_start returned %d; waiting for game threads\n", (int)r.v0);
     hle_wait_all_threads(); hle_report(); fflush(stderr); game_done = 1; return 0; }
 
+#ifndef _WIN32
+#include <signal.h>
+static void report_sig(int s){ (void)s; extern void hle_report(void); hle_report(); fflush(stderr); }   /* kill -USR1: what each game thread is doing */
+#endif
 int main(int argc, char **argv){
     (void)argc; (void)argv;
+#ifndef _WIN32
+    signal(SIGUSR1, report_sig);
+#endif
     find_data_dir(); settings_load(); log_init();
     double t0 = now_s();
 #define STEP(...) do { fprintf(stderr, "[PC] %7.3fs ", now_s() - t0); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } while (0)
