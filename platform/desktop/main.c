@@ -198,7 +198,7 @@ static void *spawn_entry(void *p){
 void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ (void)at; (void)psp_stack; }
 int rs_thread_spawn(pthread_t *t, pthread_attr_t *at, void *(*fn)(void *), void *arg){
     spawn_t *s = malloc(sizeof *s); s->fn = fn; s->arg = arg; s->stack = rs_guest_stack(STACK_SZ);
-    pthread_attr_t a; pthread_attr_init(&a); pthread_attr_setstacksize(&a, 256 * 1024); (void)at;
+    pthread_attr_t a; pthread_attr_init(&a); pthread_attr_setstacksize(&a, 256 * 1024); pthread_attr_setdetachstate(&a, PTHREAD_CREATE_DETACHED); (void)at;
     return pthread_create(t, &a, spawn_entry, s); }
 #endif
 

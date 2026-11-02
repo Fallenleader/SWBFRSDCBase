@@ -204,13 +204,24 @@ static void h_MaxFreeMemSize(sdkcall_t *c){ V0 = heap_free_max(); }
 static void h_TotalFreeMemSize(sdkcall_t *c){ V0 = heap_free_total(); }
 
 /* ---------------- threads ---------------- */
-typedef struct kthread { int uid; u32 entry, stack, stacksize, prio; char name[32]; pthread_t th; sdkcall_t cpu; int started, exited, status, blk, last, prev; u64 *p_us, *p_n, p_hle, hold_us, holds; unsigned long ncalls_t; u32 last_ra, last_a0; u32 argc, argp; u8 argbuf[4096]; volatile int in; } kthread_t;      /* in: 1 + index of the firmware call it is inside (0 = guest code) */
+typedef struct kthread { int uid; u32 entry, stack, stacksize, prio; char name[32]; pthread_t th; sdkcall_t cpu; int started, exited, status, blk, last, prev; u64 *p_us, *p_n, p_hle, hold_us, holds; unsigned long ncalls_t; u32 last_ra, last_a0; u32 argc, argp; u8 argbuf[4096]; volatile int in; int deleted; } kthread_t;      /* in: 1 + index of the firmware call it is inside (0 = guest code) */
 static kthread_t *threads[256]; static int nthreads;
 static pthread_key_t k_cur, k_cpu; static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 static void mk_keys(void){ pthread_key_create(&k_cur, 0); pthread_key_create(&k_cpu, 0); }
 #define cur_thread ((kthread_t *)pthread_getspecific(k_cur))
 static kthread_t *thr_find(int uid){ for (int i = 0; i < nthreads; i++) if (threads[i]->uid == uid) return threads[i]; return 0; }
+/* Finished threads give back what they hold: the PSP stack block at exit, the thread itself once deleted (sceKernelDeleteThread, or
+ * sceKernelExitDeleteThread).  The game starts a new thread for every voice line (Atrac Playing[1]); before this they all stayed, until
+ * the memory for a new thread ran out and the game hung waiting for one that never ran. */
+static void thr_release_stack(kthread_t *t){ if (t->blk > 0) { heap_free(t->blk); t->blk = 0; } }
+static void thr_reap(void){
+    int k = 0; kthread_t *self = cur_thread;
+    for (int i = 0; i < nthreads; i++) { kthread_t *t = threads[i];
+        if (t->exited && t->deleted && t != self) { thr_release_stack(t); free(t); continue; }
+        threads[k++] = t; }
+    nthreads = k; }
 static void h_CreateThread(sdkcall_t *c){
+    thr_reap(); if (nthreads >= 256) { fprintf(stderr, "[HLE] CreateThread '%s': too many threads\n", gstr(A0)); V0 = 0x80020064u; return; }
     kthread_t *t = calloc(1, sizeof *t); t->uid = next_uid++; strncpy(t->name, gstr(A0), 31); t->entry = A1; t->prio = A2; t->stacksize = A3 ? A3 : 0x4000;
     t->blk = heap_alloc(t->stacksize, 1, 256); blk_t *b = blk_find(t->blk); t->stack = b ? b->addr : 0; threads[nthreads++] = t; V0 = t->uid;
     fprintf(stderr, "[HLE] CreateThread '%s' entry=%08x prio=%d stack=%x\n", t->name, t->entry, t->prio, t->stacksize); }
@@ -222,22 +233,29 @@ static void *thread_main(void *p){
     fprintf(stderr, "[HLE] thread '%s' start: arglen=%u argp=%08x sp=%08x\n", t->name, t->argc, t->argp, sp);
     c->r[4] = t->argc; c->r[29] = sp; c->r[28] = 0; c->r[31] = 0;
     CALLDYN(c, t->entry);
-    t->status = c->r[2]; t->exited = 1; g_alive_threads--; fprintf(stderr, "[HLE] thread '%s' returned %d\n", t->name, t->status);
+    t->status = c->r[2]; t->exited = 1; thr_release_stack(t); g_alive_threads--; fprintf(stderr, "[HLE] thread '%s' returned %d\n", t->name, t->status);
     rc_broadcast(&gcv); pthread_mutex_unlock(&big); return 0; }
 static void h_StartThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t || t->started) { V0 = 0x800201A6u; return; }
     fprintf(stderr, "[HLE] StartThread '%s' from ra=%08x fn=%08x arg=%08x\n", t->name, c->r[31], A2 ? LW(A2) : 0, A2 ? LW(A2 + 4) : 0); if (strstr(t->name, "Atrac")) { extern void rc_dump_stack(sdkcall_t *, const char *); rc_dump_stack(c, "atrac start"); }
     t->started = 1; t->argc = A1 > sizeof t->argbuf ? (u32)sizeof t->argbuf : A1; t->argp = A2; if (t->argc) memcpy(t->argbuf, g_mem + GADDR(A2), t->argc); g_alive_threads++;
     pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32 psp_stack); rs_thread_attr(&at, t->stacksize); }
+    pthread_attr_setdetachstate(&at, PTHREAD_CREATE_DETACHED);                       /* nobody joins game threads: their resources go at exit */
 #ifdef RS_DESKTOP
-    { extern int rs_thread_spawn(pthread_t *, pthread_attr_t *, void *(*)(void *), void *); rs_thread_spawn(&t->th, &at, thread_main, t); } V0 = 0; }   /* platform/desktop (Windows: stack switch) */
+    extern int rs_thread_spawn(pthread_t *, pthread_attr_t *, void *(*)(void *), void *); int e = rs_thread_spawn(&t->th, &at, thread_main, t);   /* platform/desktop (Windows: stack switch) */
 #else
-    pthread_create(&t->th, &at, thread_main, t); V0 = 0; }
+    int e = pthread_create(&t->th, &at, thread_main, t);
 #endif
+    pthread_attr_destroy(&at);
+    if (e) { fprintf(stderr, "[HLE] StartThread '%s': the thread could not be created (%d)\n", t->name, e); t->started = 0; g_alive_threads--; V0 = 0x80020190u; return; }
+    V0 = 0; }
 /* a thread's end: the platform may leave its thread its own way (Windows: back to the stack switch, platform/desktop/main.c) */
 __attribute__((weak)) void rs_thread_exit(void){ pthread_exit(0); }
-static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; g_alive_threads--; rc_broadcast(&gcv); pthread_mutex_unlock(&big); rs_thread_exit(); } }
-static void h_DeleteThread(sdkcall_t *c){ V0 = 0; }
-static void h_WaitThreadEnd(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t) { V0 = 0x800201A5u; return; } while (!t->exited) big_wait(&gcv); V0 = t->status; }
+static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; thr_release_stack(t); g_alive_threads--; rc_broadcast(&gcv); pthread_mutex_unlock(&big); rs_thread_exit(); } }
+static void h_ExitDeleteThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) t->deleted = 1; h_ExitThread(c); }
+static void h_DeleteThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t) { V0 = 0x800201A5u; return; } if (!t->exited && t->started) { V0 = 0x800201ADu; return; } t->deleted = 1; if (!t->started) t->exited = 1; V0 = 0; }
+static void h_WaitThreadEnd(sdkcall_t *c){ int uid = (int)A0; kthread_t *t = thr_find(uid); if (!t) { V0 = 0x800201A5u; return; }
+    while ((t = thr_find(uid)) && !t->exited) big_wait(&gcv);                       /* looked up again: an ended, deleted thread can be reaped meanwhile */
+    V0 = t ? (u32)t->status : 0; }
 static void h_Delay(sdkcall_t *c){ unsigned us = A0; if (us == 1000000) fprintf(stderr, "[DBG] 1s poll: s0(r16)=%08x ra=%08x\n", c->r[16], c->r[31]); if (us < 500) { yield_big(); } else unlocked_sleep(us > 200000 ? 200000 : us); V0 = 0; }
 static void h_GetThreadId(sdkcall_t *c){ V0 = cur_thread ? cur_thread->uid : 0x1; }
 static void h_GetThreadPrio(sdkcall_t *c){ V0 = cur_thread ? cur_thread->prio : 32; }
@@ -656,7 +674,7 @@ static const hle_t tbl[] = {
  {0xB6D61D02,"sceKernelFreePartitionMemory",h_FreePartitionMemory},{0xA291F107,"sceKernelMaxFreeMemSize",h_MaxFreeMemSize},
  {0xF919F628,"sceKernelTotalFreeMemSize",h_TotalFreeMemSize},
  {0x446D8DE6,"sceKernelCreateThread",h_CreateThread},{0xF475845D,"sceKernelStartThread",h_StartThread},{0xAA73C935,"sceKernelExitThread",h_ExitThread},
- {0x809CE29B,"sceKernelExitDeleteThread",h_ExitThread},{0x9FA03CD3,"sceKernelDeleteThread",h_DeleteThread},{0x278C0DF5,"sceKernelWaitThreadEnd",h_WaitThreadEnd},{0x840E8133,"sceKernelWaitThreadEndCB",h_WaitThreadEnd},{0xEBD177D6,"scePowerSetClockFrequency",h_Zero},
+ {0x809CE29B,"sceKernelExitDeleteThread",h_ExitDeleteThread},{0x9FA03CD3,"sceKernelDeleteThread",h_DeleteThread},{0x278C0DF5,"sceKernelWaitThreadEnd",h_WaitThreadEnd},{0x840E8133,"sceKernelWaitThreadEndCB",h_WaitThreadEnd},{0xEBD177D6,"scePowerSetClockFrequency",h_Zero},
  {0xCEADEB47,"sceKernelDelayThread",h_Delay},{0x293B45B8,"sceKernelGetThreadId",h_GetThreadId},{0x94AA61EE,"sceKernelGetThreadCurrentPriority",h_GetThreadPrio},
  {0x71BC9871,"sceKernelChangeThreadPriority",h_ChangePrio},{0x369ED59D,"sceKernelGetSystemTimeLow",h_SysTimeLow},
  {0xD6DA4BA1,"sceKernelCreateSema",h_CreateSema},{0x28B6489C,"sceKernelDeleteSema",h_DeleteSema},{0x3F53E640,"sceKernelSignalSema",h_SignalSema},
