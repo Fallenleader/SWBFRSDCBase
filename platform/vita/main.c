@@ -320,6 +320,9 @@ int main(void){
     pthread_attr_t at; pthread_attr_init(&at); pthread_attr_setstacksize(&at, 1024 * 1024);
     watchdog_start();
     pthread_t th; if (pthread_create(&th, &at, game_main, 0) != 0) fatal("cannot create the game thread");
+#ifdef RS_VITA_PROF
+    { extern void rs_vita_prof_start(void); rs_vita_prof_start(); }
+#endif
 
     u64 last = 0, frames = 0;
     for (;;) {

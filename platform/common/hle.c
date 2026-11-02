@@ -253,7 +253,12 @@ static void h_GetThreadId(sdkcall_t *c){ V0 = cur_thread ? cur_thread->uid : 0x1
 static void h_GetThreadPrio(sdkcall_t *c){ V0 = cur_thread ? cur_thread->prio : 32; }
 static void h_ChangePrio(sdkcall_t *c){ kthread_t *t = A0 ? thr_find(A0) : cur_thread; if (t) t->prio = A1; V0 = 0; }
 static int fl_tick2, fl_rtc; static u32 tl_ra[8]; static int tl_n[8];
-static void h_SysTimeLow(sdkcall_t *c){ V0 = (u32)guest_us(); { static unsigned k; if ((++k & 31) == 0) yield_big(); } fl_tick2++;   /* yielding on every call cost ~85 us each (x100/frame in big battles) */
+#ifdef __vita__
+#define CLOCK_YIELD 127              /* Vita: each hand-over costs the main thread a turn of whichever thread waits (7-19 ms a frame at 1 in 32) */
+#else
+#define CLOCK_YIELD 31
+#endif
+static void h_SysTimeLow(sdkcall_t *c){ V0 = (u32)guest_us(); { static unsigned k; if ((++k & CLOCK_YIELD) == 0) yield_big(); } fl_tick2++;   /* yielding on every call cost ~85 us each (x100/frame in big battles) */
     }
 static void h_SleepThread(sdkcall_t *c){ for (;;) unlocked_sleep(100000); }
 

@@ -50,12 +50,23 @@ set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/gu_nativ
 set(VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/main.c" "${CMAKE_CURRENT_SOURCE_DIR}/stdio_lock.c" "${CMAKE_CURRENT_SOURCE_DIR}/gxm_core.c" "${CMAKE_CURRENT_SOURCE_DIR}/gfx_gxm.c"
              "${CMAKE_CURRENT_SOURCE_DIR}/convert_screen.c")
 
+# RS_VITA_PROF=ON: the profiling build (prof.c): game code with -finstrument-functions, counts written to ux0:data/SWBFRS/prof_vita.txt
+option(RS_VITA_PROF "function profiler build" OFF)
+if(RS_VITA_PROF)
+  list(APPEND VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/prof.c")
+endif()
 add_executable(swbfrs ${GAME_SRC} "${RS_DATA_C}" ${COMMON_SRC} "${GLUE_C}" ${VITA_SRC} ${AT3_SRC})
 target_include_directories(swbfrs PRIVATE "${ROOT}/src/game" "${ROOT}/platform/common" "${ROOT}/platform/linux_test" "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/platform/common/ext/at3")
 # RS_TLS_STRUCT: the Vita's thread-local storage is emulated (a call per access); the game's per-thread state is one block instead
 target_compile_definitions(swbfrs PRIVATE RS_TLS_STRUCT HOST_BUILD _GNU_SOURCE)
 target_compile_options(swbfrs PRIVATE -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=hard -mthumb -fomit-frame-pointer -fsigned-char -fno-strict-aliasing -ffp-contract=off -fno-math-errno -w)   # no-math-errno: sqrtf stays one instruction
-set_source_files_properties(${GAME_SRC} "${RS_DATA_C}" PROPERTIES COMPILE_OPTIONS "${RS_GAME_OPT}")
+if(RS_VITA_PROF)
+  target_compile_definitions(swbfrs PRIVATE RS_VITA_PROF)
+  set_source_files_properties(${GAME_SRC} PROPERTIES COMPILE_OPTIONS "${RS_GAME_OPT};-finstrument-functions")
+  set_source_files_properties("${RS_DATA_C}" PROPERTIES COMPILE_OPTIONS "${RS_GAME_OPT}")
+else()
+  set_source_files_properties(${GAME_SRC} "${RS_DATA_C}" PROPERTIES COMPILE_OPTIONS "${RS_GAME_OPT}")
+endif()
 set_source_files_properties(${COMMON_SRC} "${GLUE_C}" ${VITA_SRC} PROPERTIES COMPILE_OPTIONS "-O3")
 set_source_files_properties(${AT3_SRC} PROPERTIES COMPILE_OPTIONS "-O3;-ffast-math")
 
