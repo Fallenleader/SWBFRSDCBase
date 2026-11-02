@@ -228,13 +228,36 @@ void rs_atrac_note_read(const char *path, long off, u32 len){
     if (!path || !path[0] || off < 0) return; size_t l = strlen(path); if (l < 3 || strcasecmp(path + l - 3, ".am")) return;
     int k = nrread++ % 32; rreads[k].off = off; rreads[k].len = len; strncpy(rreads[k].path, path, sizeof rreads[k].path - 1); }
 /* find the sound whose first bytes are b among the recent bundle reads; returns its offset in the file, or -1 */
+/* An index of every RIFF sound in a bundle file (offset + a hash of its first 64 bytes), made once per bundle by one pass over the
+ * file; a streamed sound is then found by its first bytes without reading the file again. */
+typedef struct { char path[600]; int n; u32 *off; u32 *key; } bidx_t; static bidx_t bidx[4]; static int nbidx;
+static u32 hash64(const u8 *p){ u32 h = 2166136261u; for (int i = 0; i < 64; i++) h = (h ^ p[i]) * 16777619u; return h; }
+static bidx_t *bundle_index(const char *path){
+    for (int i = 0; i < nbidx; i++) if (!strcmp(bidx[i].path, path)) return &bidx[i];
+    if (nbidx >= 4) return 0;
+    FILE *f = vfs_fopen(path, "rb"); if (!f) return 0;
+    bidx_t *x = &bidx[nbidx++]; memset(x, 0, sizeof *x); strncpy(x->path, path, sizeof x->path - 1); int cap = 0;
+    enum { BL = 1 << 20 }; u8 *buf = malloc(BL + 64); long pos = 0; size_t have = 0;
+    for (;;) {
+        size_t got = fread(buf + have, 1, BL - have, f); have += got; if (have < 64) break;
+        size_t lim = got ? have - 63 : have - 63;
+        for (size_t o = 0; o < lim; o++) if (buf[o] == 'R' && buf[o + 1] == 'I' && buf[o + 2] == 'F' && buf[o + 3] == 'F' && !memcmp(buf + o + 8, "WAVE", 4)) {
+            if (x->n == cap) { cap = cap ? cap * 2 : 1024; x->off = realloc(x->off, cap * 4); x->key = realloc(x->key, cap * 4); }
+            x->off[x->n] = (u32)(pos + (long)o); x->key[x->n] = hash64(buf + o); x->n++; }
+        if (!got) break;
+        memmove(buf, buf + lim, have - lim); pos += (long)lim; have -= lim; }
+    free(buf); fclose(f);
+    fprintf(stderr, "[ATRAC] %s: %d sounds indexed\n", path, x->n); return x; }
 static long bundle_find(const u8 *b, u32 n, const char **path){
-    if (n > 256) n = 256; u8 *chunk = 0;
-    for (int k = 0; k < 32; k++) { int j = (nrread - 1 - k + 320) % 32; if (!rreads[j].path[0]) continue;
-        u32 len = rreads[j].len > (1u << 20) ? (1u << 20) : rreads[j].len; FILE *f = vfs_fopen(rreads[j].path, "rb"); if (!f) continue;
-        chunk = realloc(chunk, len); fseek(f, rreads[j].off, SEEK_SET); size_t got = fread(chunk, 1, len, f); fclose(f);
-        for (size_t o = 0; o + n <= got; o++) if (chunk[o] == 'R' && !memcmp(chunk + o, b, n)) { free(chunk); *path = rreads[j].path; return rreads[j].off + (long)o; } }
-    free(chunk); return -1; }
+    if (n < 64) return -1; u32 k = hash64(b);
+    for (int r = 0; r < 32; r++) { int j = (nrread - 1 - r + 320) % 32; if (!rreads[j].path[0]) continue;
+        bidx_t *x = bundle_index(rreads[j].path); if (!x) continue;
+        u32 m = n > 256 ? 256 : n; u8 chk[256];
+        for (int i = 0; i < x->n; i++) if (x->key[i] == k) {                      /* same first bytes: compare the first 256 to be sure */
+            FILE *f = vfs_fopen(x->path, "rb"); int ok = f && fseek(f, (long)x->off[i], SEEK_SET) == 0 && fread(chk, 1, m, f) == m && !memcmp(chk, b, m);
+            if (f) fclose(f);
+            if (ok) { *path = x->path; return (long)x->off[i]; } } }
+    return -1; }
 void rs_atrac_note_file(const char *host_path){
     size_t l = strlen(host_path); if (l < 4 || strcasecmp(host_path + l - 4, ".at3")) return;
     FILE *f = vfs_fopen(host_path, "rb"); if (!f) return;
@@ -279,8 +302,12 @@ void ha_SetDataAndGetID(sdkcall_t *c){
         if (w) { a->pcm = fopen(w, "rb"); if (a->pcm) setvbuf(a->pcm, 0, _IOFBF, 64 * 1024); }
         if (!a->pcm) a->f = vfs_fopen(match, "rb"); }
     if (!match && size < a->data_off + a->data_len)
-        { const char *bp = 0; long o = bundle_find(b, size, &bp); if (o >= 0 && (a->f = vfs_fopen(bp, "rb"))) { a->base = (u32)o; match = bp; } }
-    if (!a->f && !a->pcm) { if (size >= a->data_off + a->data_len) { a->mem = malloc(size); if (a->mem) memcpy(a->mem, b, size); }   /* whole file in the buffer */
+        { const char *bp = 0; long o = bundle_find(b, size, &bp); FILE *bf = o >= 0 ? vfs_fopen(bp, "rb") : 0;
+          if (bf) { match = bp;                                   /* the whole sound into memory: one read, not one per decoded frame */
+              u32 need = a->data_off + a->data_len; if (need < riff_total) need = riff_total;
+              a->mem = malloc(need); if (a->mem && fseek(bf, o, SEEK_SET) == 0 && fread(a->mem, 1, need, bf) == need) fclose(bf);
+              else { free(a->mem); a->mem = 0; a->f = bf; a->base = (u32)o; } } }
+    if (!a->f && !a->pcm && !a->mem) { if (size >= a->data_off + a->data_len) { a->mem = malloc(size); if (a->mem) memcpy(a->mem, b, size); }   /* whole file in the buffer */
         else fprintf(stderr, "[ATRAC] id %d: no source file found for a streamed buffer (%u of %u bytes) - silent\n", id, size, riff_total); }
     a->nframes = a->data_len / (u32)a->ba; if (!a->total) a->total = a->nframes * (a->codec ? 2048u : 1024u);
     if (!a->pcm) a->dec = a->codec ? rs_at3p_alloc(a->ch, a->ba) : rs_at3_alloc(a->ch, a->ba, el ? extra : 0, el);

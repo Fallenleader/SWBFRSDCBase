@@ -43,7 +43,7 @@ void rs_avc_close(void *dec){ ff_t *d = dec; if (!d) return; avcodec_free_contex
 #include <psp2/videodec.h>
 #include <psp2/kernel/sysmem.h>
 #include <psp2/sysmodule.h>
-typedef struct { SceAvcdecCtrl ctl; SceUID mem, pic_mem, es_mem; uint8_t *pic, *es; size_t es_cap; int w, h, pp; } vd_t;
+typedef struct { SceAvcdecCtrl ctl; SceUID mem, pic_mem, es_mem; uint8_t *pic, *es; size_t es_cap; int w, h, pp, variant, es_main, ok; } vd_t;
 static int lib_up, lib_w, lib_h;
 int rs_avc_available(void){ return 1; }
 /* the decoder's frame memory: physically contiguous main memory, in 1 MB units (what the decoder takes; CDRAM was refused with
@@ -78,15 +78,28 @@ int rs_avc_decode(void *dec, const uint8_t *au, int size, uint8_t *rgba, int pit
     vd_t *d = dec; if (!d || !au || size <= 0) return 0;
     if ((size_t)size > d->es_cap) {                                  /* the stream data in physically contiguous memory, as the decoder reads it */
         if (d->es) sceKernelFreeMemBlock(d->es_mem); d->es_cap = ((size_t)size + 0xFFFFF) & ~(size_t)0xFFFFF;
-        d->es = alloc_cdram(&d->es_mem, d->es_cap, 1024 * 1024); if (!d->es) { d->es_cap = 0; return -1; } }
+        d->es = d->es_main ? alloc_phycont(&d->es_mem, d->es_cap) : alloc_cdram(&d->es_mem, d->es_cap, 1024 * 1024); if (!d->es) { d->es_cap = 0; return -1; } }
     memcpy(d->es, au, (size_t)size);
     SceAvcdecAu a; memset(&a, 0, sizeof a); a.es.pBuf = d->es; a.es.size = (uint32_t)size;
     a.pts.upper = a.pts.lower = a.dts.upper = a.dts.lower = 0xFFFFFFFFu;
-    SceAvcdecPicture pic; memset(&pic, 0, sizeof pic); SceAvcdecPicture *pp = &pic;
-    pic.size = sizeof pic; pic.frame.pixelType = SCE_AVCDEC_PIXELFORMAT_RGBA8888; pic.frame.framePitch = (uint32_t)d->pp; pic.frame.frameWidth = (uint32_t)d->pp; pic.frame.frameHeight = (uint32_t)d->h;
-    pic.frame.pPicture[0] = d->pic;
-    SceAvcdecArrayPicture ap; memset(&ap, 0, sizeof ap); ap.numOfElm = 1; ap.pPicture = &pp;
-    int r = sceAvcdecDecode(&d->ctl, &a, &ap); if (r < 0) { static int n; if (n++ < 5) fprintf(stderr, "[MPEG] sceAvcdecDecode %08x\n", r); return -1; }
+    /* the picture layout: the decoder refuses some with 0x8062000D; until one has worked, the next layout is tried on that error
+     * (frame width = pitch / = the picture width; pitch 64- or 16-aligned; then the stream data in main instead of video memory) */
+    static const int VAR = 6;
+    SceAvcdecPicture pic; SceAvcdecPicture *pp = &pic; SceAvcdecArrayPicture ap; int r;
+    for (;;) {
+        int v = d->variant % 3, wpitch = v == 2 ? ((d->w + 15) & ~15) : d->pp, fwid = v == 0 ? wpitch : d->w;
+        memset(&pic, 0, sizeof pic);
+        pic.size = sizeof pic; pic.frame.pixelType = SCE_AVCDEC_PIXELFORMAT_RGBA8888; pic.frame.framePitch = (uint32_t)wpitch; pic.frame.frameWidth = (uint32_t)fwid; pic.frame.frameHeight = (uint32_t)d->h;
+        pic.frame.pPicture[0] = d->pic;
+        memset(&ap, 0, sizeof ap); ap.numOfElm = 1; ap.pPicture = &pp;
+        r = sceAvcdecDecode(&d->ctl, &a, &ap);
+        if (r >= 0) { if (!d->ok) { d->ok = 1; fprintf(stderr, "[MPEG] decoding: picture layout %d (pitch %d, width %d%s)\n", d->variant, wpitch, fwid, d->es_main ? ", stream in main memory" : ""); } d->pp = wpitch; break; }
+        if (d->ok || (unsigned)r != 0x8062000Du || d->variant + 1 >= VAR) { static int n; if (n++ < 5) fprintf(stderr, "[MPEG] sceAvcdecDecode %08x (layout %d)\n", r, d->variant); return -1; }
+        d->variant++;
+        if (d->variant == 3 && !d->es_main) {                        /* the stream data from physically contiguous main memory instead */
+            d->es_main = 1; sceKernelFreeMemBlock(d->es_mem); d->es = alloc_phycont(&d->es_mem, d->es_cap); if (!d->es) { d->es_cap = 0; return -1; }
+            memcpy(d->es, au, (size_t)size); a.es.pBuf = d->es; }
+    }
     if (ap.numOfOutput < 1) return 0;
     int fw = (int)pic.frame.horizontalSize, fh = (int)pic.frame.verticalSize; if (fw <= 0 || fw > d->pp) fw = d->w; if (fh <= 0 || fh > d->h) fh = d->h;
     for (int y = 0; y < fh; y++) memcpy(rgba + (size_t)y * pitch * 4, d->pic + (size_t)y * d->pp * 4, (size_t)fw * 4);
