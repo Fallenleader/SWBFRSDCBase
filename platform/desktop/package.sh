@@ -22,7 +22,7 @@ deck)    set_kv RS_RES_SCALE 3; set_kv RS_RESOLUTION 720; sed -i -e '/^RS_RENDER
 windows) set_kv RS_RES_SCALE 4; set_kv RS_RESOLUTION 1080; set_kv RS_RT 0 ;;
 rtx)     set_kv RS_RES_SCALE 6; set_kv RS_RESOLUTION 1440; set_kv RS_RT 1; set_kv RS_RTAO_RAYS 4; set_kv RS_RTGI_RAYS 2; set_kv RS_RT_DISTANCE 400; set_kv RS_GPU_VENDOR 0x10DE ;;
 esac
-cp "$R/platform/desktop/README.txt" "$D/README.txt"; rm -f "$D"/*.lib "$D"/*.pdb
+cp "$R/platform/desktop/README.txt" "$D/README.txt"; mkdir -p "$D/mods"; cp "$R/docs/how_to_mod_maps.md" "$D/mods/"; rm -f "$D"/*.lib "$D"/*.pdb
 if [ $V != deck ]; then cp "$R/../ext/SDL2-2.30.9/x86_64-w64-mingw32/bin/SDL2.dll" "$D/"
     # the DirectX 12 renderer: Mesa's Dozen (Vulkan on Direct3D 12, MSYS2 mingw-w64-x86_64-mesa) with its DLLs, and Microsoft's
     # DXIL signer (dxil.dll, from the Microsoft.Direct3D.DXC package, redistributable under LICENSE-MS.txt)
