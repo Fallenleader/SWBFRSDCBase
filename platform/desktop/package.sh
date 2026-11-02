@@ -10,8 +10,8 @@ sed -e '/^RS_OUTPUT=/d' -e '1s/.*/# SWBF Renegade Squadron (PC) settings: next t
 set_kv(){ if grep -q "^$1=" "$S"; then sed -i "s/^$1=.*/$1=$2/" "$S"; else echo "$1=$2" >> "$S"; fi; }
 cat >> "$S" <<'X'
 # ---- PC
-# 1 = full screen (F11 or Alt+Enter switches), 0 = a window
-RS_FULLSCREEN=0
+# 1 = full screen (F11 or Alt+Enter switches; the choice is kept), 0 = a window
+RS_FULLSCREEN=1
 # 1 = in step with the screen (no tearing), 0 = as fast as possible
 RS_VSYNC=1
 # the GPU to use when there are several: its PCI vendor id (0x10DE NVIDIA, 0x1002 AMD, 0x8086 Intel); empty = a discrete one first

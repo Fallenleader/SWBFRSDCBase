@@ -221,6 +221,20 @@ void *rs_at3_alloc(int ch, int ba, const u8 *extra, int extra_size); int rs_at3_
 typedef struct { char path[600]; u32 size; u8 head[512]; int n; } at3file_t;
 static at3file_t files[16]; static int nfile;
 #include "vfs.h"
+/* RIFF data read from inside a larger file (the speech bundle SOUNDS/GMSND.AM): where it came from, so a stream started from that
+ * buffer reads the rest of the sound from the same file */
+static struct { long off; u32 len; char path[600]; } rreads[32]; static int nrread;
+void rs_atrac_note_read(const char *path, long off, u32 len){
+    if (!path || !path[0] || off < 0) return; size_t l = strlen(path); if (l < 3 || strcasecmp(path + l - 3, ".am")) return;
+    int k = nrread++ % 32; rreads[k].off = off; rreads[k].len = len; strncpy(rreads[k].path, path, sizeof rreads[k].path - 1); }
+/* find the sound whose first bytes are b among the recent bundle reads; returns its offset in the file, or -1 */
+static long bundle_find(const u8 *b, u32 n, const char **path){
+    if (n > 256) n = 256; u8 *chunk = 0;
+    for (int k = 0; k < 32; k++) { int j = (nrread - 1 - k + 320) % 32; if (!rreads[j].path[0]) continue;
+        u32 len = rreads[j].len > (1u << 20) ? (1u << 20) : rreads[j].len; FILE *f = vfs_fopen(rreads[j].path, "rb"); if (!f) continue;
+        chunk = realloc(chunk, len); fseek(f, rreads[j].off, SEEK_SET); size_t got = fread(chunk, 1, len, f); fclose(f);
+        for (size_t o = 0; o + n <= got; o++) if (chunk[o] == 'R' && !memcmp(chunk + o, b, n)) { free(chunk); *path = rreads[j].path; return rreads[j].off + (long)o; } }
+    free(chunk); return -1; }
 void rs_atrac_note_file(const char *host_path){
     size_t l = strlen(host_path); if (l < 4 || strcasecmp(host_path + l - 4, ".at3")) return;
     FILE *f = vfs_fopen(host_path, "rb"); if (!f) return;
@@ -228,8 +242,8 @@ void rs_atrac_note_file(const char *host_path){
     e->n = (int)fread(e->head, 1, sizeof e->head, f); fseek(f, 0, SEEK_END); e->size = (u32)ftell(f); fclose(f); }
 
 typedef struct {
-    int used, codec, ch, ba; void *dec; FILE *f; u8 *mem; FILE *pcm; u32 pcm_next;   /* pcm: converted copy (convert.c), frames read instead of decoded */ u32 data_off, data_len, nframes, cur, total, skip; int loop_start, loop_end, done;
-    u32 buf, bufsize;
+    int used, codec, ch, ba; void *dec; FILE *f; u8 *mem; FILE *pcm; u32 pcm_next;   /* pcm: converted copy (convert.c), frames read instead of decoded */ u32 base, data_off, data_len, nframes, cur, total, skip; int loop_start, loop_end, done;
+    u32 buf, bufsize, riff_total, fed;   /* fed: bytes of the sound the game has put in its buffer (initial fill + AddStreamData) */
 } atrac_t;
 static atrac_t at[8];
 #define ATRAC_ERR_BAD_ID 0x80630005u
@@ -256,7 +270,7 @@ void ha_SetDataAndGetID(sdkcall_t *c){
     atrac_t *a = &at[id]; memset(a, 0, sizeof *a); u8 extra[32]; int el = 0;
     if (riff_parse(b, size, a, extra, &el) || a->codec < 0 || a->ba <= 0) { V0_ = ATRAC_ERR_UNKNOWN_FORMAT; return; }
     a->buf = buf; a->bufsize = size;
-    u32 riff_total; memcpy(&riff_total, b + 4, 4); riff_total += 8;
+    u32 riff_total; memcpy(&riff_total, b + 4, 4); riff_total += 8; a->riff_total = riff_total; a->fed = size;
     int cmp = size < 512 ? (int)size : 512; const char *match = 0;
     for (int k = 0; k < 16 && !match; k++) { at3file_t *e = &files[(nfile - 1 - k + 64) % 16]; if (!e->path[0]) continue;
         if (e->size == riff_total && e->n >= cmp && !memcmp(e->head, b, (size_t)cmp)) match = e->path; }
@@ -264,6 +278,8 @@ void ha_SetDataAndGetID(sdkcall_t *c){
         const char *w = rs_convert_output_for ? rs_convert_output_for(match, ".wav") : 0;
         if (w) { a->pcm = fopen(w, "rb"); if (a->pcm) setvbuf(a->pcm, 0, _IOFBF, 64 * 1024); }
         if (!a->pcm) a->f = vfs_fopen(match, "rb"); }
+    if (!match && size < a->data_off + a->data_len)
+        { const char *bp = 0; long o = bundle_find(b, size, &bp); if (o >= 0 && (a->f = vfs_fopen(bp, "rb"))) { a->base = (u32)o; match = bp; } }
     if (!a->f && !a->pcm) { if (size >= a->data_off + a->data_len) { a->mem = malloc(size); if (a->mem) memcpy(a->mem, b, size); }   /* whole file in the buffer */
         else fprintf(stderr, "[ATRAC] id %d: no source file found for a streamed buffer (%u of %u bytes) - silent\n", id, size, riff_total); }
     a->nframes = a->data_len / (u32)a->ba; if (!a->total) a->total = a->nframes * (a->codec ? 2048u : 1024u);
@@ -278,8 +294,15 @@ void ha_Release(sdkcall_t *c){ atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_
 void ha_GetSoundSample(sdkcall_t *c){ atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; }
     if (A1_) SW(A1_, a->total ? a->total - 1 : 0); if (A2_) SW(A2_, (u32)a->loop_start); if (A3_) SW(A3_, (u32)a->loop_end); V0_ = 0; }
 void ha_GetStreamDataInfo(sdkcall_t *c){ atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; }
-    if (A1_) SW(A1_, a->buf); if (A2_) SW(A2_, 0); if (A3_) SW(A3_, 0); V0_ = 0; }     /* everything is "in memory": nothing to stream */
-void ha_AddStreamData(sdkcall_t *c){ V0_ = aid(A0_) ? 0 : ATRAC_ERR_BAD_ID; }
+    /* The sound is read from its file here, but the game still streams it into its ring buffer and waits for room before decoding
+     * more: report the room a real decoder would have freed (the frames decoded so far), so the game keeps feeding and playing. */
+    u32 used = a->data_off + a->cur * (u32)a->ba, wr = 0, pos = a->fed;
+    if (a->fed < a->riff_total && a->bufsize) { u32 room = used + a->bufsize > a->fed ? used + a->bufsize - a->fed : 0, off = a->fed % a->bufsize;
+        wr = room; if (wr > a->bufsize - off) wr = a->bufsize - off; if (wr > a->riff_total - a->fed) wr = a->riff_total - a->fed;
+        if (A1_) SW(A1_, a->buf + off); }
+    else if (A1_) SW(A1_, a->buf);
+    if (A2_) SW(A2_, wr); if (A3_) SW(A3_, pos); V0_ = 0; }
+void ha_AddStreamData(sdkcall_t *c){ atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; } a->fed += A1_; V0_ = 0; }
 void ha_DecodeData(sdkcall_t *c){
     atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; }
     u32 out = A1_, pn = A2_, pfin = A3_, prem = T0_;
@@ -295,13 +318,13 @@ void ha_DecodeData(sdkcall_t *c){
         V0_ = 0; return; }
     static u8 fb[4096]; static float L[4096], R[4096]; int ns = 0, ok = 0;
     if (a->ba <= (int)sizeof fb) {
-        if (a->f) { fseek(a->f, (long)(a->data_off + a->cur * (u32)a->ba), SEEK_SET); ok = fread(fb, 1, (size_t)a->ba, a->f) == (size_t)a->ba; }
+        if (a->f) { fseek(a->f, (long)a->base + (long)(a->data_off + a->cur * (u32)a->ba), SEEK_SET); ok = fread(fb, 1, (size_t)a->ba, a->f) == (size_t)a->ba; }
         else if (a->mem) { memcpy(fb, a->mem + a->data_off + a->cur * (u32)a->ba, (size_t)a->ba); ok = 1; } }
     if (ok && a->dec && rs_patch_audio()) { int r = a->codec ? rs_at3p_decode(a->dec, L, R, &ns, fb, a->ba) : rs_at3_decode(a->dec, L, R, &ns, fb, a->ba); if (r < 0) ns = 0; }
     if (ns <= 0) { ns = spf; memset(L, 0, sizeof(float) * (size_t)ns); memset(R, 0, sizeof(float) * (size_t)ns); }
     if (a->ch == 1) memcpy(R, L, sizeof(float) * (size_t)ns);
     if (out) { s16 *o = (s16 *)(g_mem + GADDR(out)); for (int i = 0; i < ns; i++) { int l = (int)(L[i] * 32768.0f), r = (int)(R[i] * 32768.0f); o[i * 2] = clamp16(l); o[i * 2 + 1] = clamp16(r); } }
     a->cur++;
-    int fin = a->cur >= a->nframes; if (fin) a->done = 1;
+    int fin = a->cur >= a->nframes; if (fin) { a->done = 1; fprintf(stderr, "[ATRAC] id %d: finished (%u frames)\n", (int)A0_, a->nframes); }
     if (pn) SW(pn, (u32)ns); if (pfin) SW(pfin, (u32)fin); if (prem) SW(prem, (u32)-1);
     V0_ = 0; }

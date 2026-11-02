@@ -204,7 +204,7 @@ static void h_MaxFreeMemSize(sdkcall_t *c){ V0 = heap_free_max(); }
 static void h_TotalFreeMemSize(sdkcall_t *c){ V0 = heap_free_total(); }
 
 /* ---------------- threads ---------------- */
-typedef struct kthread { int uid; u32 entry, stack, stacksize, prio; char name[32]; pthread_t th; sdkcall_t cpu; int started, exited, status, blk, last, prev; u64 *p_us, *p_n, p_hle, hold_us, holds; unsigned long ncalls_t; u32 last_ra, last_a0; u32 argc, argp; u8 argbuf[256]; volatile int in; } kthread_t;      /* in: 1 + index of the firmware call it is inside (0 = guest code) */
+typedef struct kthread { int uid; u32 entry, stack, stacksize, prio; char name[32]; pthread_t th; sdkcall_t cpu; int started, exited, status, blk, last, prev; u64 *p_us, *p_n, p_hle, hold_us, holds; unsigned long ncalls_t; u32 last_ra, last_a0; u32 argc, argp; u8 argbuf[4096]; volatile int in; } kthread_t;      /* in: 1 + index of the firmware call it is inside (0 = guest code) */
 static kthread_t *threads[256]; static int nthreads;
 static pthread_key_t k_cur, k_cpu; static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 static void mk_keys(void){ pthread_key_create(&k_cur, 0); pthread_key_create(&k_cpu, 0); }
@@ -226,14 +226,16 @@ static void *thread_main(void *p){
     rc_broadcast(&gcv); pthread_mutex_unlock(&big); return 0; }
 static void h_StartThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t || t->started) { V0 = 0x800201A6u; return; }
     fprintf(stderr, "[HLE] StartThread '%s' from ra=%08x fn=%08x arg=%08x\n", t->name, c->r[31], A2 ? LW(A2) : 0, A2 ? LW(A2 + 4) : 0); if (strstr(t->name, "Atrac")) { extern void rc_dump_stack(sdkcall_t *, const char *); rc_dump_stack(c, "atrac start"); }
-    t->started = 1; t->argc = A1 > 256 ? 256 : A1; t->argp = A2; if (t->argc) memcpy(t->argbuf, g_mem + GADDR(A2), t->argc); g_alive_threads++;
+    t->started = 1; t->argc = A1 > sizeof t->argbuf ? (u32)sizeof t->argbuf : A1; t->argp = A2; if (t->argc) memcpy(t->argbuf, g_mem + GADDR(A2), t->argc); g_alive_threads++;
     pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32 psp_stack); rs_thread_attr(&at, t->stacksize); }
 #ifdef RS_DESKTOP
     { extern int rs_thread_spawn(pthread_t *, pthread_attr_t *, void *(*)(void *), void *); rs_thread_spawn(&t->th, &at, thread_main, t); } V0 = 0; }   /* platform/desktop (Windows: stack switch) */
 #else
     pthread_create(&t->th, &at, thread_main, t); V0 = 0; }
 #endif
-static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; g_alive_threads--; rc_broadcast(&gcv); pthread_mutex_unlock(&big); pthread_exit(0); } }
+/* a thread's end: the platform may leave its thread its own way (Windows: back to the stack switch, platform/desktop/main.c) */
+__attribute__((weak)) void rs_thread_exit(void){ pthread_exit(0); }
+static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; g_alive_threads--; rc_broadcast(&gcv); pthread_mutex_unlock(&big); rs_thread_exit(); } }
 static void h_DeleteThread(sdkcall_t *c){ V0 = 0; }
 static void h_WaitThreadEnd(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t) { V0 = 0x800201A5u; return; } while (!t->exited) big_wait(&gcv); V0 = t->status; }
 static void h_Delay(sdkcall_t *c){ unsigned us = A0; if (us == 1000000) fprintf(stderr, "[DBG] 1s poll: s0(r16)=%08x ra=%08x\n", c->r[16], c->r[31]); if (us < 500) { yield_big(); } else unlocked_sleep(us > 200000 ? 200000 : us); V0 = 0; }
@@ -448,9 +450,10 @@ static void h_IoOpen(sdkcall_t *c){
     if (!f) { V0 = ERR_NOENT; fprintf(stderr, "[IO] open FAILED %s\n", p); return; }
     fprintf(stderr, "[IO] open %s\n", p); rs_atrac_note_file(full); { extern void rs_movie_note_file(const char *); rs_movie_note_file(full); }
     { extern void rs_fx_file_opened(const char *) __attribute__((weak)); if (rs_fx_file_opened) rs_fx_file_opened(full); }   /* gfx_fx.c: map, lights, dumps */
-    for (int i = 3; i < 128; i++) if (!fds[i].used) { fds[i] = (fd_t){f, 0, 1, {0}}; V0 = i; return; } fclose(f); V0 = 0x80010018u; }
+    for (int i = 3; i < 128; i++) if (!fds[i].used) { fds[i] = (fd_t){f, 0, 1, {0}}; strncpy(fds[i].path, full, sizeof fds[i].path - 1); V0 = i; return; } fclose(f); V0 = 0x80010018u; }
 static void h_IoClose(sdkcall_t *c){ if (A0 < 128 && fds[A0].used) { if (fds[A0].f) fclose(fds[A0].f); if (fds[A0].d) vfs_closedir(fds[A0].d); fds[A0].used = 0; } V0 = 0; }
-static void h_IoRead(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; return; } { static int dl = -1, df; if (dl < 0) { dl = getenv("RS_IO_DELAY_US") ? atoi(getenv("RS_IO_DELAY_US")) : 0; df = getenv("RS_IO_DELAY_FROM") ? atoi(getenv("RS_IO_DELAY_FROM")) : 0; } if (dl && g_frames >= df) unlocked_sleep((unsigned)dl); } u32 n = A2; u8 *dst = g_mem + GADDR(A1); V0 = (u32)fread(dst, 1, n, fds[A0].f);
+static void h_IoRead(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; return; } { static int dl = -1, df; if (dl < 0) { dl = getenv("RS_IO_DELAY_US") ? atoi(getenv("RS_IO_DELAY_US")) : 0; df = getenv("RS_IO_DELAY_FROM") ? atoi(getenv("RS_IO_DELAY_FROM")) : 0; } if (dl && g_frames >= df) unlocked_sleep((unsigned)dl); } u32 n = A2; u8 *dst = g_mem + GADDR(A1); long rpos = ftell(fds[A0].f); V0 = (u32)fread(dst, 1, n, fds[A0].f);
+    if ((s32)V0 >= 512) { extern void rs_atrac_note_read(const char *, long, u32); rs_atrac_note_read(fds[A0].path, rpos, V0); }   /* a sound read out of a bundle (GMSND.AM speech) */
 #ifdef RS_CENSUS
     { extern u32 *rs_census_shadow; u32 a = GA(dst); if (rs_census_shadow) for (u32 o = 0; o < V0 && a + o < 0x10000000u; o += 4) rs_census_shadow[(a + o) >> 2] = 1; }   /* 1 = loaded from a file */
 #endif
@@ -651,7 +654,7 @@ static const hle_t tbl[] = {
  {0xB6D61D02,"sceKernelFreePartitionMemory",h_FreePartitionMemory},{0xA291F107,"sceKernelMaxFreeMemSize",h_MaxFreeMemSize},
  {0xF919F628,"sceKernelTotalFreeMemSize",h_TotalFreeMemSize},
  {0x446D8DE6,"sceKernelCreateThread",h_CreateThread},{0xF475845D,"sceKernelStartThread",h_StartThread},{0xAA73C935,"sceKernelExitThread",h_ExitThread},
- {0x809CE29B,"sceKernelExitDeleteThread",h_ExitThread},{0x9FA03CD3,"sceKernelDeleteThread",h_DeleteThread},{0x278C0DF5,"sceKernelWaitThreadEnd",h_WaitThreadEnd},
+ {0x809CE29B,"sceKernelExitDeleteThread",h_ExitThread},{0x9FA03CD3,"sceKernelDeleteThread",h_DeleteThread},{0x278C0DF5,"sceKernelWaitThreadEnd",h_WaitThreadEnd},{0x840E8133,"sceKernelWaitThreadEndCB",h_WaitThreadEnd},{0xEBD177D6,"scePowerSetClockFrequency",h_Zero},
  {0xCEADEB47,"sceKernelDelayThread",h_Delay},{0x293B45B8,"sceKernelGetThreadId",h_GetThreadId},{0x94AA61EE,"sceKernelGetThreadCurrentPriority",h_GetThreadPrio},
  {0x71BC9871,"sceKernelChangeThreadPriority",h_ChangePrio},{0x369ED59D,"sceKernelGetSystemTimeLow",h_SysTimeLow},
  {0xD6DA4BA1,"sceKernelCreateSema",h_CreateSema},{0x28B6489C,"sceKernelDeleteSema",h_DeleteSema},{0x3F53E640,"sceKernelSignalSema",h_SignalSema},
@@ -704,6 +707,9 @@ void hle_lock_release_for_main(void){ pthread_mutex_unlock(&big); }
 void hle_wait_all_threads(void){ while (g_alive_threads > 0) big_wait(&gcv); }
 void rs_ge_summary(void);
 void hle_report(void){ rs_ge_summary();
+    { const char *d = getenv("RS_DUMP"); while (d && *d) { unsigned a = 0, n = 0; if (sscanf(d, "%x:%x", &a, &n) != 2) break;
+        fprintf(stderr, "[DUMP] %08x:", a); for (unsigned i = 0; i < n; i += 4) fprintf(stderr, "%s%08x", (i & 31) ? " " : "\n  ", LW(a + i)); fprintf(stderr, "\n");
+        d = strchr(d, ','); if (d) d++; } }
     { extern void rs_audio_summary(void); rs_audio_summary(); } fprintf(stderr, "\n==== RUN SUMMARY ====\nframes(vblank waits)=%d  GE lists queued=%d  live threads=%d\n", g_frames, g_ge_lists, g_alive_threads);
     for (int i = 0; i < nthreads; i++) { kthread_t *t = threads[i]; int l = t->last - 1;
         fprintf(stderr, "  thread %-22s %s last call: %s\n", t->name, t->exited ? "EXITED" : "alive ", l < 0 ? "-" : (handlers[l] ? handlers[l]->name : "<unimplemented>")); fprintf(stderr, "      ra=%08x a0=%x  total HLE calls=%lu\n", t->last_ra, t->last_a0, t->ncalls_t); 

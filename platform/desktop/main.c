@@ -109,11 +109,11 @@ static const struct { const char *k, *v; } defaults[] = {
     {"RS_RT", "1"},                 /* hardware ray tracing (NVIDIA RTX through VK_KHR_ray_query) */
     {"RS_GPU_VENDOR", "0x10DE"},
     {"RS_RTAO_RAYS", "4"}, {"RS_RTGI_RAYS", "2"}, {"RS_RT_DISTANCE", "400"},
-    {"RS_FULLSCREEN", "0"},
+    {"RS_FULLSCREEN", "1"},
 #else
     {"RS_RES_SCALE", "4"},          /* 1920x1088 */
     {"RS_RT", "0"},
-    {"RS_FULLSCREEN", "0"},
+    {"RS_FULLSCREEN", "1"},
 #endif
     {"RS_CROP_169", "1"}, {"RS_FPS", "60"}, {"RS_MAX_PLAYERS", "128"}, {"RS_MIN_TICKETS", "200"}, {"RS_MAX_TICKETS", "5000"},
 };
@@ -181,12 +181,19 @@ __asm__(".globl rs_on_stack\n"
         "  add $40, %rsp\n  pop %rbp\n"
         "  mov %rbp, %rsp\n  pop %rbp\n  ret\n");
 typedef struct { void *(*fn)(void *); void *arg; u8 *stack; } spawn_t;
+/* sceKernelExitThread: back to here with __builtin_longjmp (registers only).  pthread_exit / longjmp unwind with SEH through the
+ * guest stack, which has no unwind data: that crashed Windows when the first game thread ended (loading a match). */
+static __thread void *exit_jb[5]; static __thread void *(*body_fn)(void *);
+static void *thread_body(void *arg){
+    if (__builtin_setjmp(exit_jb) == 0) return body_fn(arg);
+    return NULL; }
+void rs_thread_exit(void){ __builtin_longjmp(exit_jb, 1); }
 static void *spawn_entry(void *p){
     spawn_t s = *(spawn_t *)p; free(p);
     NT_TIB *tib = (NT_TIB *)NtCurrentTeb(); void *ob = tib->StackBase, *ol = tib->StackLimit;
     u8 *top = s.stack + STACK_SZ - 64; top = (u8 *)((uintptr_t)top & ~(uintptr_t)15);
     tib->StackBase = s.stack + STACK_SZ; tib->StackLimit = s.stack;
-    void *r = rs_on_stack(top, s.fn, s.arg);
+    body_fn = s.fn; void *r = rs_on_stack(top, thread_body, s.arg);
     tib->StackBase = ob; tib->StackLimit = ol; return r; }
 void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ (void)at; (void)psp_stack; }
 int rs_thread_spawn(pthread_t *t, pthread_attr_t *at, void *(*fn)(void *), void *arg){
@@ -424,8 +431,15 @@ static void *game_main(void *unused){
     fprintf(stderr, "[RS] module_start returned %d; waiting for game threads\n", (int)r.v0);
     hle_wait_all_threads(); hle_report(); fflush(stderr); game_done = 1; return 0; }
 
+#ifndef _WIN32
+#include <signal.h>
+static void report_sig(int s){ (void)s; extern void hle_report(void); hle_report(); fflush(stderr); }   /* kill -USR1: what each game thread is doing */
+#endif
 int main(int argc, char **argv){
     (void)argc; (void)argv;
+#ifndef _WIN32
+    signal(SIGUSR1, report_sig);
+#endif
     find_data_dir(); settings_load(); log_init();
     double t0 = now_s();
 #define STEP(...) do { fprintf(stderr, "[PC] %7.3fs ", now_s() - t0); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } while (0)
@@ -465,8 +479,9 @@ int main(int argc, char **argv){
             while (SDL_PollEvent(&e)) {
                 if (rs_oskpanel_active()) { osk_event(&e); if (e.type != SDL_QUIT) continue; }
                 if (e.type == SDL_QUIT) { STEP("window closed"); fflush(stderr); _exit(0); }
-                if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F11) { Uint32 f = SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN_DESKTOP; SDL_SetWindowFullscreen(win, f ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP); SDL_ShowCursor(f ? SDL_ENABLE : SDL_DISABLE); }
-                if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_RETURN && (e.key.keysym.mod & KMOD_ALT)) { Uint32 f = SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN_DESKTOP; SDL_SetWindowFullscreen(win, f ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP); } }
+                if (e.type == SDL_KEYDOWN && (e.key.keysym.sym == SDLK_F11 || (e.key.keysym.sym == SDLK_RETURN && (e.key.keysym.mod & KMOD_ALT)))) {
+                    Uint32 f = SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN_DESKTOP; SDL_SetWindowFullscreen(win, f ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
+                    SDL_ShowCursor(f ? SDL_ENABLE : SDL_DISABLE); rs_platform_setting_store("RS_FULLSCREEN", f ? "0" : "1"); } }   /* kept for the next start */
             pad_update(); }
         if (gfx_present_due() || now - last >= 0.25) {
             last = now; present_frame();
