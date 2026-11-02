@@ -394,19 +394,37 @@ int rs_phys_pair(u32 pair, u32 *rv){
     if (unit_side(man) != vs) return 0;
     { static unsigned n; if (++n % 500 == 1 && rs_setting_int("RS_AI_LOG", 0)) fprintf(stderr, "[VEHICLE] friendly soldier contacts passed through: %u\n", n); }
     *rv = 1; return 1; }
-/* Look centring (RS_LOOK_CENTER=0 turns it off).  The player's soldier (func_0899530C, the soldier update: +92 is its input object,
- * the twin-stick one for the player) keeps a look timer at +0x1FC: set to about 1 while the look up / down input is used, counted
- * down otherwise, and when it runs out the view is levelled again (checked on the Linux build: the aim direction at +0x118 returns
- * to level the frame the timer passes 0).  Held just above 0, the timer never runs out and the view stays where it was put. */
+/* Look centring.  The player's soldier (func_0899530C, the soldier update: +92 is its input object, the twin-stick one for the
+ * player) keeps a look timer at +0x1FC: set to about 1 while the look up / down input is used, counted down (1 a second)
+ * otherwise, and when it runs out the view is levelled again (the aim direction at +0x118 returns to level the frame the timer
+ * passes 0).  So the game levels the view about a second after the look input stops.
+ *   RS_LOOK_CENTER_DELAY=<seconds>   how long after the look input stops the view is levelled (default 1: the game's own);
+ *                                    each frame the timer is set to what remains of the delay since the input was last used
+ *   RS_LOOK_CENTER=0                 never level the view (the timer is held above 0) */
 extern u32 rs_input_object(void);
+u64 rs_perf_us(void);
+const char *rs_platform_setting(const char *key);
 void rs_soldier_frame(u32 sol){
-    static int keep = -1; if (keep < 0) keep = !rs_setting_int("RS_LOOK_CENTER", 1);
+    static int keep = -1; static float delay = 1.0f;
+    if (keep < 0) { keep = !rs_setting_int("RS_LOOK_CENTER", 1);
+        const char *d = rs_platform_setting("RS_LOOK_CENTER_DELAY"); if (d && *d) delay = (float)atof(d); if (delay < 0) delay = 0;
+        fprintf(stderr, "[PATCH] look centring: %s\n", keep ? "off" : "on"); if (!keep) fprintf(stderr, "[PATCH] look centring delay %.2f s\n", delay); }
     { static int lg = -1; if (lg < 0) lg = getenv("RS_LOOK_LOG") != 0;
       if (lg) { static u32 seen[64]; static int ns; int f = 0; for (int i = 0; i < ns; i++) if (seen[i] == sol) f = 1;
         static unsigned cnt; if (GU32(sol + 92) && ++cnt % 200 == 0) f = 0;
         if (!f && ns < 64) { if (cnt % 200) seen[ns++] = sol; fprintf(stderr, "[LOOK] soldier %08x input %08x (twin-stick object %08x) timer %.3f\n", sol, GU32(sol + 92), rs_input_object(), GF32(sol + 0x1FC)); } } }
-    if (!keep || !sol || GU32(sol + 92) != rs_input_object()) return;
-    float t = GF32(sol + 0x1FC); if (t < 0.5f) GF32(sol + 0x1FC) = 0.5f; }   /* well above one frame (the timer is also counted down where this does not run) */
+    if (!sol || GU32(sol + 92) != rs_input_object()) return;
+    float t = GF32(sol + 0x1FC);
+    if (keep) { if (t < 0.5f) GF32(sol + 0x1FC) = 0.5f; return; }   /* never: well above one frame */
+    if (delay > 0.999f && delay < 1.001f) return;                    /* the game's own */
+    static u32 who; static double last_use, last_t; static float wrote;
+    double now = (double)rs_perf_us() / 1e6;
+    if (sol != who) { who = sol; last_use = now; wrote = t; last_t = now; }
+    float expect = wrote - (float)(now - last_t);                    /* what the game's countdown would have left of ours */
+    if (t > 0.05f && t > expect + 0.05f) last_use = now;           /* risen: the look input is in use */
+    last_t = now;
+    float left = delay - (float)(now - last_use); if (left < 0) left = 0;
+    if (t > 0 || left > 0) { GF32(sol + 0x1FC) = left > 0 ? left : 0.0001f; wrote = left > 0 ? left : 0.0001f; } }
 
 /* RS_COL_LOG=1 (diagnostics): the masks of the level collision queries (func_088B73C4: the query's +0x24 is the mask of quad flags
  * it ignores), counted by the native caller */
