@@ -198,6 +198,7 @@ int rs_thread_spawn(pthread_t *t, pthread_attr_t *at, void *(*fn)(void *), void 
 /* ---------------------------------------------------------------- input: SDL game controllers (the Steam Deck's controls appear as one)
  * and the keyboard, read on the main thread, handed to the game thread */
 typedef struct { u32 buttons; u8 lx, ly, rx, ry; } rs_pad_t;
+int rs_oskpanel_active(void);
 static SDL_mutex *pad_mx; static rs_pad_t pad_now = {0, 128, 128, 128, 128};
 static SDL_GameController *ctl;
 static u8 axis8(int v){ int d = v / 256; if (d > -24 && d < 24) d = 0; d += 128; return (u8)(d < 0 ? 0 : d > 255 ? 255 : d); }
@@ -220,6 +221,7 @@ static void pad_update(void){
         p.rx = axis8(SDL_GameControllerGetAxis(ctl, SDL_CONTROLLER_AXIS_RIGHTX)); p.ry = axis8(SDL_GameControllerGetAxis(ctl, SDL_CONTROLLER_AXIS_RIGHTY)); }
     /* keyboard: WASD move, arrow keys look, Space / Enter = cross, Esc = start, Backspace = circle, E = triangle, Q = square,
      * Shift / right mouse... L, Ctrl = R, Tab = select, I J K L = d-pad */
+    if (rs_oskpanel_active()) { SDL_LockMutex(pad_mx); pad_now = p; SDL_UnlockMutex(pad_mx); return; }   /* typing: the game gets nothing */
     const Uint8 *k = SDL_GetKeyboardState(NULL);
     if (k[SDL_SCANCODE_SPACE] || k[SDL_SCANCODE_RETURN]) p.buttons |= 0x4000;
     if (k[SDL_SCANCODE_BACKSPACE]) p.buttons |= 0x2000;
@@ -233,6 +235,26 @@ static void pad_update(void){
     if (k[SDL_SCANCODE_A]) p.lx = 0; if (k[SDL_SCANCODE_D]) p.lx = 255; if (k[SDL_SCANCODE_W]) p.ly = 0; if (k[SDL_SCANCODE_S]) p.ly = 255;
     if (k[SDL_SCANCODE_LEFT]) p.rx = 0; if (k[SDL_SCANCODE_RIGHT]) p.rx = 255; if (k[SDL_SCANCODE_UP]) p.ry = 0; if (k[SDL_SCANCODE_DOWN]) p.ry = 255;
     SDL_LockMutex(pad_mx); pad_now = p; SDL_UnlockMutex(pad_mx); }
+/* the game's on-screen keyboard: typed on the PC keyboard (platform/common/osk_panel.c draws it) */
+int rs_oskpanel_begin(const u16 *, const u16 *, int); int rs_oskpanel_poll(u16 *, int); int rs_oskpanel_active(void);
+void rs_oskpanel_char(unsigned); void rs_oskpanel_backspace(void); void rs_oskpanel_finish(int);
+int rs_osk_begin(const u16 *title, const u16 *initial, int max_len){ return rs_oskpanel_begin(title, initial, max_len); }
+int rs_osk_poll(u16 *out, int max_len){ return rs_oskpanel_poll(out, max_len); }
+static void osk_event(const SDL_Event *e){
+    if (e->type == SDL_TEXTINPUT) {
+        const unsigned char *t = (const unsigned char *)e->text.text;
+        while (*t) { unsigned c = *t++, n = 0;                                    /* UTF-8 -> code points */
+            if (c >= 0xF0) { c &= 7; n = 3; } else if (c >= 0xE0) { c &= 15; n = 2; } else if (c >= 0xC0) { c &= 31; n = 1; }
+            while (n-- && (*t & 0xC0) == 0x80) c = c << 6 | (*t++ & 63);
+            if (c < 0x10000) rs_oskpanel_char(c); } }
+    else if (e->type == SDL_KEYDOWN) {
+        SDL_Keycode k = e->key.keysym.sym;
+        if (k == SDLK_RETURN || k == SDLK_KP_ENTER) rs_oskpanel_finish(1);
+        else if (k == SDLK_ESCAPE) rs_oskpanel_finish(0);
+        else if (k == SDLK_BACKSPACE) rs_oskpanel_backspace(); }
+    else if (e->type == SDL_CONTROLLERBUTTONDOWN) {
+        if (e->cbutton.button == SDL_CONTROLLER_BUTTON_START) rs_oskpanel_finish(1);
+        else if (e->cbutton.button == SDL_CONTROLLER_BUTTON_B) rs_oskpanel_backspace(); } }
 void rs_script_read_pad(rs_pad_t *p);
 void rs_backend_read_pad(rs_pad_t *p){ static int scr = -1; if (scr < 0) scr = getenv("RS_SCRIPT") != 0; if (scr) { rs_script_read_pad(p); return; }
     SDL_LockMutex(pad_mx); *p = pad_now; SDL_UnlockMutex(pad_mx); }
@@ -439,7 +461,9 @@ int main(int argc, char **argv){
         double now = now_s();
         if (now - lastpad > 0.004) {
             lastpad = now; SDL_Event e;
+            { static int ti; int a = rs_oskpanel_active(); if (a != ti) { ti = a; if (a) SDL_StartTextInput(); else SDL_StopTextInput(); } }
             while (SDL_PollEvent(&e)) {
+                if (rs_oskpanel_active()) { osk_event(&e); if (e.type != SDL_QUIT) continue; }
                 if (e.type == SDL_QUIT) { STEP("window closed"); fflush(stderr); _exit(0); }
                 if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F11) { Uint32 f = SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN_DESKTOP; SDL_SetWindowFullscreen(win, f ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP); SDL_ShowCursor(f ? SDL_ENABLE : SDL_DISABLE); }
                 if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_RETURN && (e.key.keysym.mod & KMOD_ALT)) { Uint32 f = SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN_DESKTOP; SDL_SetWindowFullscreen(win, f ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP); } }

@@ -321,7 +321,7 @@ static void h_UmdRegCb(sdkcall_t *c){ cb_notify(A0, 0x32); V0 = 0; }
 __attribute__((weak)) int rs_osk_begin(const u16 *title, const u16 *initial, int max_len){ (void)title; (void)initial; (void)max_len; return 0; }
 __attribute__((weak)) int rs_osk_poll(u16 *out, int max_len){ (void)out; (void)max_len; return -1; }   /* 0 running, 1 entered, -1 cancelled */
 static int osk_state; static u32 osk_params; static int osk_polls, osk_native;
-static u32 osk_data(void){ return LW(osk_params + 60); }
+static u32 osk_data(void){ return LW(osk_params + 52); }          /* SceUtilityOskParams: base (48 bytes), datacount, data */
 static int ustrcpy_in(u16 *dst, u32 src, int max){ int n = 0; if (src) while (n < max - 1 && LH(src + n * 2)) { dst[n] = LH(src + n * 2); n++; } dst[n] = 0; return n; }
 static void osk_finish(const u16 *text, int result){         /* result: 0 unchanged, 1 cancelled, 2 changed (PSP_UTILITY_OSK_RESULT_*) */
     u32 data = osk_data();
@@ -692,6 +692,8 @@ static const char *hname(int i){ return handlers[i] ? handlers[i]->name : "?"; }
 void hle_init(const char *root, u32 heap_lo, u32 heap_hi){
     if (root) strncpy(g_root, root, sizeof g_root - 1); { rs_region_add(rs_scratchpad_addr(), 0x4000); } vol_base = heap_hi - 0x400000u; hle_heap_lo = heap_lo; hle_heap_hi = vol_base; heap_init(); rs_ge_reset(); ge_intr_start(); trace_all = getenv("RS_TRACE") != 0;
     for (int i = 0; i < RC_NSTUBS; i++) for (int k = 0; k < NTBL; k++) if (tbl[k].nid == rc_stubs[i].nid) handlers[i] = &tbl[k];
+    { extern const hle_t rs_net_tbl[]; extern const int rs_net_ntbl;                    /* networking: net.c */
+      for (int i = 0; i < RC_NSTUBS; i++) for (int k = 0; k < rs_net_ntbl; k++) if (rs_net_tbl[k].nid == rc_stubs[i].nid) handlers[i] = &rs_net_tbl[k]; }
     big_lock();
 }
 void hle_lock_release_for_main(void){ pthread_mutex_unlock(&big); }
