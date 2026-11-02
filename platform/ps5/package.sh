@@ -90,7 +90,7 @@ for f in icon0.png pic0.dds pic1.dds snd0.at9; do [[ -f $root/platform/ps5/sce_s
 [[ -f $app/sce_sys/pic0.dds && ! -f $app/sce_sys/pic1.dds ]] && cp "$app/sce_sys/pic0.dds" "$app/sce_sys/pic1.dds"   # the launch picture: the same art
 "$tool" self --inspect --file "$app/eboot.bin" | head -12
 # the zip: the title folder (-> /data/homebrew/) and SWBFRS/settings.txt (-> /data/SWBFRS/settings.txt)
-rm -rf "$out/SWBFRS"; mkdir -p "$out/SWBFRS"; cp "$root/platform/ps5/settings.txt" "$out/SWBFRS/settings.txt"
+rm -rf "$out/SWBFRS"; mkdir -p "$out/SWBFRS"; cp "$root/platform/ps5/settings.txt" "$out/SWBFRS/settings.txt"; mkdir -p "$out/SWBFRS/mods"; cp "$root/docs/how_to_mod_maps.md" "$out/SWBFRS/mods/"
 (cd "$out" && rm -f "$title.zip" && python3 -c 'import os,sys,zipfile
 z = zipfile.ZipFile(sys.argv[1] + ".zip", "w", zipfile.ZIP_DEFLATED)
 for top in (sys.argv[1], "SWBFRS"):
