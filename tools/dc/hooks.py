@@ -10,7 +10,7 @@ import re, sys, os
 
 # address -> {'before': call, 'replace': call, 'after': call}; argument names are the decompiled parameter names
 HOOKS = {
-    '088FDCC0': {'after': 'rs_input_after_pad(), rs_picker_pad(), rs_savemgr_pad(), rs_parts_frame(), rs_loadout_frame(), rs_patches_frame()'},          # pad read (game_11.c): twin_stick.c, colour_picker.c, save_manager.c
+    '088FDCC0': {'after': 'rs_input_after_pad(), rs_picker_pad(), rs_savemgr_pad(), rs_parts_frame(), rs_loadout_frame(), rs_patches_frame(), rs_gs_frame()'},          # pad read (game_11.c): twin_stick.c, colour_picker.c, save_manager.c
     '08A5F1A4': {'after': 'rs_input_after_scheme(a0, a1)'},                   # a control scheme's bindings built (game_26.c): twin_stick.c
     '08897814': {'before': 'rs_game_var_range(a0, a1, &a2, &a3)'},                # a game option registered with its range (game_06.c)
     '088977A0': {'before': 'rs_game_var_bool(a0, a1, a2, a3)'},                  # a bool game option registered (game_06.c): renderer_option.c
@@ -45,6 +45,11 @@ HOOKS = {
     '089775E0': {'before': 'rs_map_played(&a1)'},                              # the profile's times-played count (22 slots)
     '08A31C38': {'replace': 'rs_fe_list_all_maps(a0, a1, a2, &r_)'},          # FE_ListAllMaps (game_24.c)
     '08A31918': {'replace': 'rs_fe_select_planet(a0, a1, a2, &r_)'},          # FE_SelectMapPlanet
+    '0889FE7C': {'after': 'rs_gs_register()'},                                 # the GameSpy menu commands registered (game_06.c): gamespy_ui.c
+    '08897890': {'before': 'rs_gs_string_var(a0, a1)'},                         # a string variable registered (Menus.GameSpyNick ...)
+    '088A0408': {'before': 'rs_gs_login(&a0, &a1, &a2)'},                       # GameSpy login (nickname, e-mail, password)
+    '088A0560': {'before': 'rs_gs_login(&a0, &a1, &a2)'},                       # GameSpy new account
+    '08A2EFF0': {'after': 'rs_gs_loaded()'},                                    # FE_LoadGamespyLoginInfo (game_24.c)
 }
 # data symbols (symbols.h) redirected to native data: address -> expression
 DATA = {

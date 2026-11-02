@@ -41,7 +41,7 @@ GAME_OBJ := $(patsubst src/game/%.c,$(B)/game/%.o,$(GAME_SRC)) $(B)/game/data.o
 T := platform/linux_test
 C := platform/common
 T_SRC := $(T)/main.c $(T)/gfx_gl.c $(T)/pc_egl.c $(T)/texrep.c $(T)/prof.c
-C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c $(C)/gfx_fx.c $(C)/gfx_backend.c $(C)/renderer_option.c $(C)/blueprints.c $(C)/custom_maps.c $(C)/mpeg.c $(C)/rs_avc.c $(C)/mp4demux.c $(C)/convert.c $(C)/gfx_menu.c
+C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/tex_mips.c $(C)/guest64.c $(C)/gfx_fx.c $(C)/gfx_backend.c $(C)/renderer_option.c $(C)/blueprints.c $(C)/custom_maps.c $(C)/mpeg.c $(C)/rs_avc.c $(C)/mp4demux.c $(C)/convert.c $(C)/gfx_menu.c $(C)/net.c $(C)/osk_panel.c $(C)/gamespy_ui.c
 ifeq ($(GE_REF),1)
 C_SRC += $(C)/ge.c
 else
@@ -201,12 +201,12 @@ deck: build/data.c $(deck_OBJ)
 	bash platform/desktop/package.sh deck $(deck_B)/SWBFRS
 windows: build/data.c $(windows_OBJ)
 	@mkdir -p $(windows_B)/SWBFRS
-	$(ZIG) c++ -target x86_64-windows-gnu -o $(windows_B)/SWBFRS/SWBFRS.exe $(windows_OBJ) $(call FF_LIBS,win) $(EXT)/SDL2-2.30.9/x86_64-w64-mingw32/lib/libSDL2.dll.a -lbcrypt -lole32 -Wl,--subsystem,windows -Wl,--gc-sections -s
+	$(ZIG) c++ -target x86_64-windows-gnu -o $(windows_B)/SWBFRS/SWBFRS.exe $(windows_OBJ) $(call FF_LIBS,win) $(EXT)/SDL2-2.30.9/x86_64-w64-mingw32/lib/libSDL2.dll.a -lws2_32 -lbcrypt -lole32 -Wl,--subsystem,windows -Wl,--gc-sections -s
 	bash platform/desktop/package.sh windows $(windows_B)/SWBFRS
 rtx_OBJ := $(filter-out $(windows_B)/main.o,$(windows_OBJ)) $(rtx_B)/main.o
 rtx: build/data.c $(rtx_OBJ)
 	@mkdir -p $(rtx_B)/SWBFRS
-	$(ZIG) c++ -target x86_64-windows-gnu -o $(rtx_B)/SWBFRS/SWBFRS.exe $(rtx_OBJ) $(call FF_LIBS,win) $(EXT)/SDL2-2.30.9/x86_64-w64-mingw32/lib/libSDL2.dll.a -lbcrypt -lole32 -Wl,--subsystem,windows -Wl,--gc-sections -s
+	$(ZIG) c++ -target x86_64-windows-gnu -o $(rtx_B)/SWBFRS/SWBFRS.exe $(rtx_OBJ) $(call FF_LIBS,win) $(EXT)/SDL2-2.30.9/x86_64-w64-mingw32/lib/libSDL2.dll.a -lws2_32 -lbcrypt -lole32 -Wl,--subsystem,windows -Wl,--gc-sections -s
 	bash platform/desktop/package.sh rtx $(rtx_B)/SWBFRS
 decktest: build/data.c $(decktest_OBJ)
 	@mkdir -p $(decktest_B)/SWBFRS
