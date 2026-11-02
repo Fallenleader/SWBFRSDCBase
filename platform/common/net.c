@@ -78,7 +78,13 @@ static u32 fail(int host_err){ perr = psp_errno(host_err); return 0xFFFFFFFFu; }
 
 /* ------------------------------------------------------------------ sockets */
 #define NS 256
-static struct { sock_t s; int used, nonblock, type; } socks[NS];
+static struct { sock_t s; int used, nonblock, type, motd; } socks[NS];
+/* the message of the day: the game's request to motd.asp, its answer collected and shown (gamespy_ui.c) */
+static char motd_buf[2048]; static int motd_len;
+void rs_motd_set(const char *text);
+static void motd_done(void){
+    motd_buf[motd_len] = 0; char *b = strstr(motd_buf, "\r\n\r\n"); if (b) { b += 4; while (*b == '\r' || *b == '\n') b++; size_t n = strlen(b); while (n && (b[n - 1] == '\r' || b[n - 1] == '\n' || b[n - 1] == ' ')) b[--n] = 0; rs_motd_set(b); }
+    motd_len = 0; }
 static int net_up;
 static void net_start(void){
     if (net_up) return; net_up = 1;
@@ -86,7 +92,7 @@ static void net_start(void){
     WSADATA w; WSAStartup(MAKEWORD(2, 2), &w);
 #endif
 }
-static int sk_new(sock_t s, int type){ for (int i = 1; i < NS; i++) if (!socks[i].used) { socks[i].used = 1; socks[i].s = s; socks[i].nonblock = 0; socks[i].type = type; return i; } sclose(s); return -1; }
+static int sk_new(sock_t s, int type){ for (int i = 1; i < NS; i++) if (!socks[i].used) { socks[i].used = 1; socks[i].s = s; socks[i].nonblock = 0; socks[i].type = type; socks[i].motd = 0; return i; } sclose(s); return -1; }
 static sock_t sk(u32 id){ return id < NS && socks[id].used ? socks[id].s : BADSOCK; }
 static void set_nb(sock_t s, int on){
 #ifdef _WIN32
@@ -126,6 +132,29 @@ static u32 rs_server(void){
             fprintf(stderr, "[NET] no RS server on the LAN; RS_SERVER=%s -> %s\n", h, ip ? "found" : "cannot be resolved"); }
         else fprintf(stderr, "[NET] no RS server on the LAN and none in settings.txt (RS_SERVER)\n"); }
     rs_big_lock(); server_ip = ip; return ip; }
+/* "I Forgot" (gamespy_ui.c): the RS server's account for this address (TCP 29910).  1 found, 0 none, -1 banned, -2 no server */
+int rs_net_recover(char *nick, int nn, char *user, int un){
+    net_start(); u32 ip = rs_server(); if (!ip) return -2;
+    rs_big_unlock();
+    int res = -2; sock_t s = socket(AF_INET, SOCK_STREAM, 0);
+    if (s != BADSOCK) {
+        struct sockaddr_in a; memset(&a, 0, sizeof a); a.sin_family = AF_INET; a.sin_port = htons(29910); a.sin_addr.s_addr = ip;
+#ifdef _WIN32
+        DWORD to = 4000;
+#else
+        struct timeval to = {4, 0};
+#endif
+        setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&to, sizeof to);
+        if (connect(s, (struct sockaddr *)&a, sizeof a) == 0 && send(s, "RSREC\n", 6, 0) == 6) {
+            char b[256]; int n = 0, r;
+            while (n < 255 && (r = (int)recv(s, b + n, 255 - n, 0)) > 0) { n += r; if (memchr(b, '\n', (size_t)n)) break; }
+            b[n] = 0; char *e = strchr(b, '\n'); if (e) *e = 0;
+            if (!strncmp(b, "OK ", 3)) { char *t = strchr(b + 3, '\t');
+                if (t) { *t = 0; snprintf(nick, (size_t)nn, "%s", b + 3); snprintf(user, (size_t)un, "%s", t + 1); res = 1; } }
+            else if (!strcmp(b, "NONE")) res = 0;
+            else if (!strcmp(b, "BANNED")) res = -1; }
+        sclose(s); }
+    rs_big_lock(); return res; }
 void rs_net_forget_server(void){ server_tried = 0; server_ip = 0; }     /* search again (the menu's Search for Servers) */
 
 static void h_Zero(sdkcall_t *c){ V0 = 0; }
@@ -139,7 +168,7 @@ static void h_Socket(sdkcall_t *c){
     sock_t s = socket(AF_INET, type, 0); if (s == BADSOCK) { V0 = fail(serrno()); return; }
     if (type == SOCK_STREAM) { int on = 1; setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&on, sizeof on); }
     int id = sk_new(s, type); NLOG("socket %s -> %d", type == SOCK_STREAM ? "tcp" : "udp", id); V0 = (u32)id; }
-static void h_Close(sdkcall_t *c){ sock_t s = sk(A0); if (s == BADSOCK) { perr = 9; V0 = 0xFFFFFFFFu; return; } sclose(s); socks[A0].used = 0; NLOG("close %d", A0); V0 = 0; }
+static void h_Close(sdkcall_t *c){ sock_t s = sk(A0); if (s == BADSOCK) { perr = 9; V0 = 0xFFFFFFFFu; return; } sclose(s); if (socks[A0].motd == 2) motd_done(); socks[A0].used = 0; NLOG("close %d", A0); V0 = 0; }
 static void h_Shutdown(sdkcall_t *c){ sock_t s = sk(A0); V0 = s == BADSOCK ? (perr = 9, 0xFFFFFFFFu) : shutdown(s, (int)A1) == 0 ? 0 : fail(serrno()); }
 static void h_Bind(sdkcall_t *c){
     sock_t s = sk(A0); struct sockaddr_in a; sa_in(A1, &a); if (s == BADSOCK) { perr = 9; V0 = 0xFFFFFFFFu; return; }
@@ -167,6 +196,7 @@ static int host_flags(u32 f){ int o = 0; if (f & 1) o |= MSG_OOB; if (f & 2) o |
 static void h_Send(sdkcall_t *c){
     sock_t s = sk(A0); u32 n = A2 > 65536 ? 65536 : A2; if (s == BADSOCK) { perr = 9; V0 = 0xFFFFFFFFu; return; }
     gread(A1, iobuf, n); int r = (int)send(s, (const char *)iobuf, (int)n, host_flags(A3) & ~MSG_PEEK);
+    if (n > 20 && !memcmp(iobuf, "GET /motd/motd.asp", 18)) { socks[A0].motd = 1; motd_len = 0; }
     NLOG("send %d %u -> %d", A0, n, r); V0 = r >= 0 ? (u32)r : fail(serrno()); }
 static void h_Sendto(sdkcall_t *c){
     sock_t s = sk(A0); u32 n = A2 > 65536 ? 65536 : A2; if (s == BADSOCK) { perr = 9; V0 = 0xFFFFFFFFu; return; }
@@ -191,6 +221,8 @@ static void h_Recv(sdkcall_t *c){
     if ((A3 & 0x80) && !socks[A0].nonblock) set_nb(s, 0);
 #endif
     if (r > 0) gwrite(A1, iobuf, (u32)r);
+    if (socks[A0].motd && r > 0) { int k = r; if (motd_len + k > (int)sizeof motd_buf - 1) k = (int)sizeof motd_buf - 1 - motd_len; memcpy(motd_buf + motd_len, iobuf, (size_t)k); motd_len += k; socks[A0].motd = 2; }
+    if (socks[A0].motd == 2 && r == 0) { motd_done(); socks[A0].motd = 3; }
     if (r >= 0 || nlog > 0) NLOG("recv %d %u -> %d", A0, n, r);
     V0 = r >= 0 ? (u32)r : fail(e); }
 static void h_Recvfrom(sdkcall_t *c){

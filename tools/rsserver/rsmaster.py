@@ -5,18 +5,22 @@ original matchmaking keeps working; game name "swbfffpsp").
   UDP 27950  LAN discovery: a game on the LAN that has no server address asks "RSSRV?" by broadcast; this answers "RSSRV!".
   UDP 27900  QR2 (query & reporting 2): the availability check, and the hosts' heartbeats (a host registers its match here).
   TCP 28910  server browsing 2: the match list, encrypted with the game's key (GOA cipher), and single-match info.
-  TCP 29900  GameSpy Presence (gpcm): GameSpy ID login and account creation.  Accounts live in accounts.json (next to this
-             file, or --data): a GameSpy ID is created from the game's "Create New GameSpy ID", then used to log in.
-  TCP 29901  GameSpy search (gpsp): e-mail / nickname checks for the account screens.
+  TCP 29900  GameSpy Presence (gpcm): log in and make accounts.  An account is a Nickname (shown in matches) and a Username;
+             there are no passwords.  User.txt holds them (plain text, with a salted hash of the address each was made from).
+  TCP 29901  GameSpy search (gpsp): the account screens' checks.
+  TCP 29910  account recovery ("I Forgot" on the game's Login menu): the account made from the asker's address.
   TCP 80     HTTP: the message of the day and version check (motd.gamespy.com), the stats pages (gamestats.gamespy.com).
              Port 80 needs administrator rights on Linux (or --http-port with a redirect); Windows allows it.
 
 The game (built with platform/common/net.c) resolves every *.gamespy.com name to this machine: found on the LAN first, else the
 address in its settings.txt (RS_SERVER=).  Run on the machine of the dedicated host (rsserver), or anywhere both can reach.
 
-    python3 rsmaster.py [--bind 0.0.0.0] [-v]
+    python3 rsmaster.py [--bind 0.0.0.0] [--data <folder>] [-v]
+    python3 rsmaster.py ban <username>      bans the account and the address it was made from (banned.txt)
+    python3 rsmaster.py unban <username>
+Files (next to this file, or --data): User.txt, banned.txt, motd.txt (the message of the day the game shows), ip_salt.txt.
 Python 3.7+, no other packages."""
-import argparse, base64, hashlib, http.server, json, os, re, random, socket, socketserver, struct, sys, threading, time
+import argparse, hashlib, http.server, os, re, random, socket, socketserver, struct, sys, threading, time
 
 GAME = 'swbfffpsp'
 SECRET = b'fytErP'                    # the game's secret key (func_08A6246C)
@@ -228,41 +232,55 @@ class SBHandler(socketserver.BaseRequestHandler):
         self.send(struct.pack('>H', len(out) + 2) + bytes(out))
 
 
-# ------------------------------------------------------------------ GameSpy Presence (TCP 29900) and search (TCP 29901)
+# ------------------------------------------------------------------ accounts: User.txt
+# GameSpy IDs, the RS way: a Nickname (shown in matches) and a Username (the game's "Email" field, now "Username"); no passwords.
+# User.txt holds one account per line:   profile id <TAB> nickname <TAB> username <TAB> address hash <TAB> created
+# The address is never stored: only a salted SHA-256 of it (the salt is made once, in ip_salt.txt), so an account can be found
+# again from the same address ("I Forgot") and a cheater's address can be banned (banned.txt: address hashes or usernames).
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 ACC_LOCK = threading.Lock()
-def acc_path(): return os.path.join(DATA_DIR, 'accounts.json')
-def accounts():
-    try: return json.load(open(acc_path()))
-    except (OSError, ValueError): return {'next': 100000, 'users': []}
-def acc_save(a):
-    tmp = acc_path() + '.tmp'; json.dump(a, open(tmp, 'w'), indent=1); os.replace(tmp, acc_path())
-def acc_find(a, nick=None, email=None, uniquenick=None, pid=None):
-    for u in a['users']:
-        if pid is not None and u['pid'] == pid: return u
-        if uniquenick is not None and u.get('uniquenick', '').lower() == uniquenick.lower(): return u
-        if nick is not None and u['nick'].lower() == nick.lower() and (email is None or u['email'].lower() == email.lower()): return u
-        if nick is None and uniquenick is None and pid is None and email is not None and u['email'].lower() == email.lower(): return u
+GAME_PASSWORD = 'RS'                  # what the game hashes in place of a password (platform/common/gamespy_ui.c)
+USER_SUFFIX = '@rs.id'                # the game sends a username as username@rs.id (its GameSpy code wants an e-mail address)
+def dpath(n): return os.path.join(DATA_DIR, n)
+def ip_hash(ip):
+    sp = dpath('ip_salt.txt')
+    try: salt = open(sp).read().strip()
+    except OSError: salt = ''
+    if not salt:
+        salt = ''.join(random.SystemRandom().choice('0123456789abcdef') for _ in range(32)); open(sp, 'w').write(salt + '\n')
+    return hashlib.sha256((salt + ip).encode()).hexdigest()
+class User:
+    def __init__(self, pid, nick, user, iph, created): self.pid, self.nick, self.user, self.iph, self.created = int(pid), nick, user, iph, created
+def users():
+    out = []
+    try:
+        for ln in open(dpath('User.txt'), encoding='utf-8'):
+            if ln.startswith('#') or not ln.strip(): continue
+            f = ln.rstrip('\n').split('\t')
+            if len(f) >= 5: out.append(User(*f[:5]))
+    except OSError: pass
+    return out
+def users_save(us):
+    tmp = dpath('User.txt.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        f.write('# RS server accounts: profile id, nickname, username, address hash (salted SHA-256, see ip_salt.txt), created\n')
+        for u in us: f.write('%d\t%s\t%s\t%s\t%s\n' % (u.pid, u.nick, u.user, u.iph, u.created))
+    os.replace(tmp, dpath('User.txt'))
+def banned(iph=None, user=None):
+    try: bl = [l.strip().lower() for l in open(dpath('banned.txt'), encoding='utf-8') if l.strip() and not l.startswith('#')]
+    except OSError: return False
+    return (iph and iph.lower() in bl) or (user and user.lower() in bl)
+def find_user(us, user=None, nick=None, pid=None, iph=None):
+    for u in reversed(us):                                            # the newest first (I Forgot: the last account made there)
+        if user is not None and u.user.lower() == user.lower(): return u
+        if nick is not None and u.nick.lower() == nick.lower(): return u
+        if pid is not None and u.pid == pid: return u
+        if iph is not None and u.iph == iph: return u
     return None
+def strip_user(e):
+    e = e.strip()
+    return e[:-len(USER_SUFFIX)] if e.lower().endswith(USER_SUFFIX) else e
 
-def gs_b64dec(t):
-    t = t.replace('[', '+').replace(']', '/').replace('_', '=')
-    t += '=' * (-len(t) % 4)
-    return base64.b64decode(t)
-def gslame(num):
-    c = (num >> 16) & 0xffff; a = num & 0xffff
-    c = (c * 0x41a7) & 0xffffffff; a = (a * 0x41a7) & 0xffffffff
-    a = (a + ((c & 0x7fff) << 16)) & 0xffffffff
-    if a & 0x80000000: a = (a & 0x7fffffff) + 1
-    a = (a + (c >> 15)) & 0xffffffff
-    if a & 0x80000000: a = (a & 0x7fffffff) + 1
-    return a
-def gspassenc(b):
-    num = 0x79707367 & 0x7fffffff; out = bytearray(b)
-    for i in range(len(out)):
-        num = gslame(num); out[i] ^= num % 0xff
-    return bytes(out)
-def gs_password(enc): return gspassenc(gs_b64dec(enc)).split(b'\0')[0].decode('latin1')
 def md5(s): return hashlib.md5(s.encode('latin1')).hexdigest()
 SPACES = ' ' * 48
 
@@ -275,7 +293,7 @@ def kv_parse(msg):
     return cmd, d
 
 class GPBase(socketserver.BaseRequestHandler):
-    def out(self, m): vlog('%s -> %s' % (self.tag, m)); self.request.sendall((m + '\\final\\').encode('latin1'))
+    def out(self, m): vlog('%s -> %s' % (self.tag, m)); self.request.sendall((m + '\\final\\').encode('latin1', 'replace'))
     def error(self, code, msg, oid='1', fatal=False):
         self.out('\\error\\\\err\\%d%s\\errmsg\\%s\\id\\%s' % (code, '\\fatal\\' if fatal else '', msg, oid))
     def messages(self):
@@ -289,6 +307,7 @@ class GPBase(socketserver.BaseRequestHandler):
             m = m.decode('latin1'); vlog('%s <- %s' % (self.tag, re.sub(r'(\\pass\w*\\)[^\\]*', r'\1...', m)))
             yield m
 
+# ------------------------------------------------------------------ GameSpy Presence (TCP 29900): log in, make an account
 class GPCM(GPBase):
     def handle(self):
         self.tag = 'GP %s' % self.client_address[0]; self.user = None
@@ -307,74 +326,95 @@ class GPCM(GPBase):
         except (OSError, ValueError) as ex: vlog('%s: %r' % (self.tag, ex))
     def login(self, d, oid):
         cchal = d.get('challenge', ''); resp = d.get('response', '')[:32]
-        with ACC_LOCK: a = accounts()
-        user_str = None; u = None
-        if 'uniquenick' in d: user_str = d['uniquenick']; u = acc_find(a, uniquenick=user_str) or acc_find(a, nick=user_str)
-        elif 'user' in d:
-            user_str = d['user']; nick, _, email = user_str.partition('@')
-            u = acc_find(a, nick=nick, email=email or None)
-        if not u:
-            log('GP: login %s: no such GameSpy ID on this server' % user_str)
-            return self.error(258 if 'user' in d else 265, 'There is no GameSpy ID with that name on this server - choose Create New GameSpy ID first.', oid, True)
-        h = md5(u['password'])
-        names = [user_str]
-        if d.get('partnerid', '0') not in ('0', ''): names = ['%s@%s' % (d['partnerid'], user_str), user_str]
+        iph = ip_hash(self.client_address[0])
+        with ACC_LOCK: us = users()
+        user_str = d.get('user') or d.get('uniquenick') or ''
+        if 'user' in d:
+            nick, _, uname = user_str.partition('@'); uname = strip_user(uname)
+            u = find_user(us, user=uname)
+            if not u: log('GP: login %s: no account' % uname); return self.error(259, 'No account found with that username.', oid, True)
+            if u.nick.lower() != nick.lower(): log('GP: login %s: nickname %s does not match' % (uname, nick)); return self.error(258, 'Incorrect nickname.', oid, True)
+        else:
+            u = find_user(us, nick=user_str)
+            if not u: return self.error(265, 'Bad unique nickname.', oid, True)
+        if banned(iph, u.user) or banned(u.iph): log('GP: login %s refused: banned' % u.user); return self.error(256, 'This account is banned from this server.', oid, True)
+        h = md5(GAME_PASSWORD); proof = None
+        names = [user_str] + (['%s@%s' % (d['partnerid'], user_str)] if d.get('partnerid', '0') not in ('0', '') else [])
         for name in names:
             if md5(h + SPACES + name + cchal + self.chal + h) == resp: proof = md5(h + SPACES + name + self.chal + cchal + h); break
             if md5(h + SPACES + name + self.chal + cchal + h) == resp: proof = md5(h + SPACES + name + cchal + self.chal + h); break
-        else:
-            log('GP: login %s: wrong password' % user_str)
-            return self.error(260, 'The password provided was incorrect.', oid, True)
-        self.user = u; sess = random.randint(100000, 999999)
-        log('GP: %s logged in (profile %d)' % (u['nick'], u['pid']))
+        if proof is None:
+            log('GP: login %s: the game did not use the RS login (an unpatched game?)' % u.user)
+            return self.error(260, 'This game is not set up for the RS server.', oid, True)
+        self.user = u
+        log('GP: %s (%s) logged in, profile %d' % (u.nick, u.user, u.pid))
         self.out('\\lc\\2\\sesskey\\%d\\proof\\%s\\userid\\%d\\profileid\\%d\\uniquenick\\%s\\lt\\%s\\id\\%s' % (
-            sess, proof, u['uid'], u['pid'], u.get('uniquenick') or u['nick'], ''.join(random.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(22)) + '__', oid))
+            random.randint(100000, 999999), proof, u.pid - 1, u.pid, u.nick, ''.join(random.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(22)) + '__', oid))
     def newuser(self, d, oid):
-        nick = d.get('nick', ''); email = d.get('email', ''); un = d.get('uniquenick', '') or nick
-        pw = gs_password(d['passwordenc']) if 'passwordenc' in d else d.get('password', '')
-        if not nick or not pw: return self.error(513, 'A nickname and a password are needed.', oid)
+        nick = d.get('nick', '').strip(); uname = strip_user(d.get('email', ''))
+        iph = ip_hash(self.client_address[0])
+        if not nick or not uname: return self.error(516, 'A nickname and a username are needed.', oid)
+        if banned(iph): log('GP: new account %s refused: banned address' % uname); return self.error(516, 'This address is banned from this server.', oid)
         with ACC_LOCK:
-            a = accounts()
-            if acc_find(a, nick=nick, email=email) or acc_find(a, uniquenick=un): return self.error(513, 'A GameSpy ID with that name already exists on this server.', oid)
-            u = {'uid': a['next'], 'pid': a['next'] + 1, 'nick': nick, 'uniquenick': un, 'email': email, 'password': pw, 'created': time.strftime('%Y-%m-%d %H:%M:%S')}
-            a['next'] += 2; a['users'].append(u); acc_save(a)
-        log('GP: new GameSpy ID %s (%s), profile %d' % (nick, email, u['pid']))
-        self.out('\\nur\\0\\userid\\%d\\profileid\\%d\\id\\%s' % (u['uid'], u['pid'], oid))
+            us = users()
+            if find_user(us, user=uname): log('GP: new account: username %s taken' % uname); return self.error(514, 'That username is already taken.', oid)
+            pid = max([u.pid for u in us] + [100000]) + 2
+            u = User(pid, nick, uname, iph, time.strftime('%Y-%m-%d %H:%M:%S')); us.append(u); users_save(us)
+        log('GP: new account %s, nickname %s, profile %d' % (uname, nick, pid))
+        self.out('\\nur\\0\\userid\\%d\\profileid\\%d\\id\\%s' % (pid - 1, pid, oid))
     def getprofile(self, d):
         pid = int(d.get('profileid', '0') or 0)
-        with ACC_LOCK: u = acc_find(accounts(), pid=pid)
+        with ACC_LOCK: u = find_user(users(), pid=pid)
         if not u: return self.out('\\pi\\\\profileid\\%d\\nick\\\\uniquenick\\\\id\\%s' % (pid, d.get('id', '1')))
-        self.out('\\pi\\\\profileid\\%d\\nick\\%s\\uniquenick\\%s\\email\\%s\\sig\\%s\\id\\%s' % (pid, u['nick'], u.get('uniquenick') or u['nick'], u['email'], md5(str(pid)), d.get('id', '1')))
+        self.out('\\pi\\\\profileid\\%d\\nick\\%s\\uniquenick\\%s\\email\\%s%s\\sig\\%s\\id\\%s' % (pid, u.nick, u.nick, u.user, USER_SUFFIX, md5(str(pid)), d.get('id', '1')))
 
+# ------------------------------------------------------------------ GameSpy search (TCP 29901): the account screens' checks
 class GPSP(GPBase):
     def handle(self):
         self.tag = 'GPSP %s' % self.client_address[0]
         try:
             for m in self.messages():
                 cmd, d = kv_parse(m)
-                with ACC_LOCK: a = accounts()
-                if cmd == 'valid': self.out('\\vr\\%d' % (1 if acc_find(a, email=d.get('email', '')) else 0))
+                with ACC_LOCK: us = users()
+                if cmd == 'valid': self.out('\\vr\\%d' % (1 if find_user(us, user=strip_user(d.get('email', ''))) else 0))
                 elif cmd == 'nicks':
-                    us = [u for u in a['users'] if u['email'].lower() == d.get('email', '').lower()]
-                    self.out('\\nr\\%d' % len(us) + ''.join('\\nick\\%s\\uniquenick\\%s' % (u['nick'], u.get('uniquenick') or u['nick']) for u in us) + '\\ndone\\')
+                    u = find_user(us, user=strip_user(d.get('email', '')))
+                    self.out('\\nr\\%d' % (1 if u else 0) + ('\\nick\\%s\\uniquenick\\%s' % (u.nick, u.nick) if u else '') + '\\ndone\\')
                 elif cmd == 'check':
-                    u = acc_find(a, nick=d.get('nick', ''), email=d.get('email') or None)
-                    self.out('\\cur\\0\\pid\\%d' % u['pid'] if u else '\\cur\\265')
+                    u = find_user(us, user=strip_user(d.get('email', ''))) if d.get('email') else find_user(us, nick=d.get('nick', ''))
+                    self.out('\\cur\\0\\pid\\%d' % u.pid if u else '\\cur\\265')
                 elif cmd == 'uniquesearch': self.out('\\us\\1\\nick\\%s\\usdone\\' % d.get('preferrednick', ''))
                 elif cmd == 'search': self.out('\\bsrdone\\')
                 elif cmd == 'newuser': GPCM.newuser(self, d, d.get('id', '1'))
                 else: vlog('%s: %s not handled' % (self.tag, cmd)); self.out('\\error\\\\err\\0\\errmsg\\not supported')
         except (OSError, ValueError) as ex: vlog('%s: %r' % (self.tag, ex))
 
+# ------------------------------------------------------------------ RS account recovery (TCP 29910): "I Forgot"
+class Recover(socketserver.BaseRequestHandler):
+    """RSREC -> 'OK <nickname> <TAB> <username>' for the newest account made from the asker's address, or 'NONE' / 'BANNED'"""
+    def handle(self):
+        c = self.request; c.settimeout(10)
+        try:
+            if not c.recv(64).startswith(b'RSREC'): return
+            iph = ip_hash(self.client_address[0])
+            with ACC_LOCK: u = find_user(users(), iph=iph)
+            if banned(iph) or (u and banned(None, u.user)): c.sendall(b'BANNED\n'); log('RECOVER: %s banned' % self.client_address[0]); return
+            if not u: c.sendall(b'NONE\n'); log('RECOVER: no account for that address'); return
+            c.sendall(('OK %s\t%s\n' % (u.nick, u.user)).encode('utf-8')); log('RECOVER: %s (%s)' % (u.user, u.nick))
+        except OSError: pass
+
 # ------------------------------------------------------------------ HTTP (TCP 80): message of the day, version check, stats
-MOTD = 'Welcome to the Renegade Squadron server.'
+def motd():
+    p = dpath('motd.txt')
+    if not os.path.exists(p): open(p, 'w', encoding='utf-8').write('This is a test\n')
+    return open(p, encoding='utf-8').read().strip()
 class HTTPHandler(http.server.BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.0'
     def do_GET(self):
         log('HTTP: %s %s (%s)' % (self.client_address[0], self.path, self.headers.get('Host', '')))
         path = self.path.split('?')[0].lower()
         body = b''
-        if path.endswith('/motd.asp'): body = MOTD.encode('latin1', 'replace')
+        if path.endswith('/motd.asp'): body = motd().encode('latin1', 'replace')
         elif path.endswith('/vercheck.asp'): body = b''                 # empty: no newer version
         self.send_response(200); self.send_header('Content-Type', 'text/plain'); self.send_header('Content-Length', str(len(body))); self.end_headers()
         self.wfile.write(body)
@@ -384,10 +424,26 @@ class HTTPHandler(http.server.BaseHTTPRequestHandler):
 class TCPServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True; daemon_threads = True
 
+def ban(args, on):
+    global DATA_DIR
+    if '--data' in args: DATA_DIR = args[args.index('--data') + 1]
+    name = args[-1]
+    with ACC_LOCK: u = find_user(users(), user=name) or find_user(users(), nick=name)
+    if not u: print('no account %s' % name); return 1
+    p = dpath('banned.txt')
+    try: lines = [l.rstrip('\n') for l in open(p, encoding='utf-8')]
+    except OSError: lines = ['# banned accounts and addresses (address hashes from User.txt), one per line']
+    keys = {u.user.lower(), u.iph.lower()}
+    lines = [l for l in lines if l.strip().lower() not in keys]
+    if on: lines += [u.user, u.iph]
+    open(p, 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
+    print('%s %s (nickname %s)' % ('banned' if on else 'unbanned', u.user, u.nick)); return 0
+
 def main():
     global VERBOSE
+    if len(sys.argv) > 2 and sys.argv[1] in ('ban', 'unban'): sys.exit(ban(sys.argv[2:], sys.argv[1] == 'ban'))
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--data', default=None, help='folder for accounts.json (default: next to this file)')
+    ap.add_argument('--data', default=None, help='folder for User.txt, banned.txt, motd.txt (default: next to this file)')
     ap.add_argument('--bind', default='0.0.0.0'); ap.add_argument('--http-port', type=int, default=80); ap.add_argument('-v', action='store_true')
     a = ap.parse_args(); VERBOSE = a.v
     global DATA_DIR
@@ -396,7 +452,8 @@ def main():
     threading.Thread(target=udp_loop, args=(27900, qr2_packet, a.bind), daemon=True).start()
     sb = TCPServer((a.bind, 28910), SBHandler); log('TCP 28910 listening')
     threading.Thread(target=sb.serve_forever, daemon=True).start()
-    for port, h in ((29900, GPCM), (29901, GPSP)):
+    motd(); ip_hash('')                                                # motd.txt and ip_salt.txt exist from the start
+    for port, h in ((29900, GPCM), (29901, GPSP), (29910, Recover)):
         srv = TCPServer((a.bind, port), h); log('TCP %d listening' % port); threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
         hs = http.server.ThreadingHTTPServer((a.bind, a.http_port), HTTPHandler); log('TCP %d (HTTP) listening' % a.http_port)

@@ -322,29 +322,32 @@ __attribute__((weak)) int rs_osk_begin(const u16 *title, const u16 *initial, int
 __attribute__((weak)) int rs_osk_poll(u16 *out, int max_len){ (void)out; (void)max_len; return -1; }   /* 0 running, 1 entered, -1 cancelled */
 static int osk_state; static u32 osk_params; static int osk_polls, osk_native;
 static u32 osk_data(void){ return LW(osk_params + 52); }          /* SceUtilityOskParams: base (48 bytes), datacount, data */
+/* the field's length: SceUtilityOskData +36 (outtextlength: the most characters the game takes), else +48 / +52 */
+static u32 osk_limit(u32 d){ u32 l = LW(d + 36); if (!l || l > 512) l = LW(d + 48); if (!l || l > 512) l = LW(d + 52); if (!l || l > 512) l = 64; return l; }
 static int ustrcpy_in(u16 *dst, u32 src, int max){ int n = 0; if (src) while (n < max - 1 && LH(src + n * 2)) { dst[n] = LH(src + n * 2); n++; } dst[n] = 0; return n; }
 static void osk_finish(const u16 *text, int result){         /* result: 0 unchanged, 1 cancelled, 2 changed (PSP_UTILITY_OSK_RESULT_*) */
     u32 data = osk_data();
-    if (data) { u32 in = LW(data + 32), out = LW(data + 40), lim = LW(data + 48); int n = 0;
+    if (data) { u32 in = LW(data + 32), out = LW(data + 40), lim = osk_limit(data); int n = 0;
         if (out && lim) { if (text) while (n < (int)lim - 1 && text[n]) { SH(out + n * 2, text[n]); n++; }
                           else if (in) while (n < (int)lim - 1 && LH(in + n * 2)) { SH(out + n * 2, LH(in + n * 2)); n++; }
                           SH(out + n * 2, 0); }
-        SW(data + 36, n); SW(data + 44, (u32)result); }
+        SW(data + 44, (u32)result);
+        fprintf(stderr, "[UTIL] OSK done: result %d, %d chars to %08x (limit %u, in %08x)\n", result, n, out, lim, in); }
     SW(osk_params + 28, 0); }
 static void h_OskInit(sdkcall_t *c){ osk_params = A0; osk_state = 2; osk_polls = 0; osk_native = 0; fprintf(stderr, "[UTIL] OSK start params=%08x\n", A0);
     u32 data = osk_data();
-    if (data) { static u16 title[128], init[512]; int lim = (int)LW(data + 48); if (lim <= 0 || lim > 512) lim = 512;
+    if (data) { static u16 title[128], init[512]; int lim = (int)osk_limit(data);
         ustrcpy_in(title, LW(data + 28), 128); ustrcpy_in(init, LW(data + 32), 512); osk_native = rs_osk_begin(title, init, lim - 1); }
     V0 = 0; }
 static void osk_step(void){
     if (osk_state != 2) return;
     if (!osk_native) { if (++osk_polls > 6) { osk_finish(0, 2); osk_state = 3; } return; }
-    static u16 out[512]; u32 data = osk_data(); int lim = data ? (int)LW(data + 48) : 512; if (lim <= 0 || lim > 512) lim = 512;
+    static u16 out[512]; u32 data = osk_data(); int lim = data ? (int)osk_limit(data) : 512;
     int r = rs_osk_poll(out, lim);
     if (r > 0) { osk_finish(out, 2); osk_state = 3; } else if (r < 0) { osk_finish(0, 1); osk_state = 3; } }
-static void h_OskStatus(sdkcall_t *c){ osk_step(); V0 = osk_state; yield_big(); }
+static void h_OskStatus(sdkcall_t *c){ osk_step(); V0 = osk_state; if (osk_state == 4) osk_state = 0; yield_big(); }   /* 4 finished (after shutdown), then 0 */
 static void h_OskUpdate(sdkcall_t *c){ osk_step(); V0 = 0; }
-static void h_OskShutdown(sdkcall_t *c){ osk_state = 0; V0 = 0; }
+static void h_OskShutdown(sdkcall_t *c){ osk_state = 4; V0 = 0; }
 static int mod_uid = 0x2000;
 static void h_LoadModule(sdkcall_t *c){ fprintf(stderr, "[MOD] LoadModule %s\n", gstr(A0)); V0 = mod_uid++; }
 static void h_StartModule(sdkcall_t *c){ if (A3) SW(A3, 0); V0 = 0; }
@@ -481,7 +484,8 @@ void rs_script_read_pad(rs_pad_t *p){                  /* RS_SCRIPT (tests): scr
     free(s); }
 __attribute__((weak)) void rs_backend_read_pad(rs_pad_t *p){ rs_script_read_pad(p); }
 u8 rs_right_stick[2] = {128, 128};   /* the right stick (raw, as the PSP reports the left one): read by platform/common/twin_stick.c */
-static void h_CtrlRead(sdkcall_t *c){ rs_pad_t p; rs_backend_read_pad(&p); u32 b = A0;
+u32 rs_pad_inject(u32 buttons);
+static void h_CtrlRead(sdkcall_t *c){ rs_pad_t p; rs_backend_read_pad(&p); u32 b = A0; p.buttons = rs_pad_inject(p.buttons);   /* gamespy_ui.c */
     /* The PSP has one analog stick: the left stick goes to the game as it. The right stick is kept for twin_stick.c (turn / look). */
     SW(b, (u32)guest_us()); SW(b + 4, p.buttons); SB(b + 8, p.lx); SB(b + 9, p.ly);
     rs_right_stick[0] = p.rx; rs_right_stick[1] = p.ry; V0 = 1; yield_big(); }
