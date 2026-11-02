@@ -458,7 +458,9 @@ static void mod_redirect(char *full, size_t cap){
     if (strncmp(full, g_root, rl) || !rs_mod_file(full + rl, mf, sizeof mf)) return;
     strncpy(full, mf, cap - 1); full[cap - 1] = 0; }
 static void h_IoGetstat(sdkcall_t *c){ char full[1500]; int isdir; unsigned sz; resolve_ci(strip_dev(gstr(A0)), full, sizeof full);
-    { char cf[1500]; if (rs_custom_map_file(strip_dev(gstr(A0)), cf, sizeof cf) == 1) { strncpy(full, cf, sizeof full - 1); full[sizeof full - 1] = 0; } }   /* custom maps */
+    { char cf[1500]; int r = rs_custom_map_file(strip_dev(gstr(A0)), cf, sizeof cf); int isd0; unsigned sz0;   /* custom maps */
+      if (r == 1) { strncpy(full, cf, sizeof full - 1); full[sizeof full - 1] = 0; }
+      else if (r == 2 && vfs_stat(full, &isd0, &sz0) != 0) { char alt[1500]; resolve_ci(cf, alt, sizeof alt); if (vfs_stat(alt, &isd0, &sz0) == 0) { strncpy(full, alt, sizeof full - 1); full[sizeof full - 1] = 0; } } }
     mod_redirect(full, sizeof full);
     if (vfs_stat(full, &isdir, &sz) != 0) { fprintf(stderr, "[IO] getstat MISSING %s\n", gstr(A0)); V0 = ERR_NOENT; return; } memset(g_mem + GADDR(A1), 0, 88); SW(A1, isdir ? 0x1000 : 0x2000); u32 esz = isdir ? (u32)sz : eff_size(full, (u32)sz); SW(A1 + 8, esz); SW(A1 + 12, 0); if (!isdir) SW(A1 + 0x40, lbn_for(full, esz)); V0 = 0; }
 
