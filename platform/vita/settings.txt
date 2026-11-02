@@ -99,3 +99,9 @@ RS_ANY_HEAD_CIS=0
 # game's file, e.g. OPENING_LOGOS.mp4, INTRO.mp4; H.264 video, AAC sound, any resolution: drawn over the whole screen).
 # 0 = no movies
 RS_MOVIES=1
+
+# ---- online (Multiplayer > Infrastructure: the RS server, tools/rsserver)
+# The game looks for an RS server on the local network first; if none answers it uses this address (a name or an IP).
+RS_SERVER=
+# 1 = look on the local network first, 0 = only RS_SERVER
+RS_LAN_SEARCH=1

@@ -16731,7 +16731,7 @@ L_08897884:;
 }
 
 /* 08897890 */
-void func_08897890(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
+static void func_08897890__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
 {
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
@@ -16751,6 +16751,12 @@ L_08897890:;
 L_088978B8:;
     sp = sp + 32;
     return;
+}
+
+void func_08897890(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
+{
+    rs_gs_string_var(a0, a1);   /* native hook (tools/dc/hooks.py) */
+    func_08897890__orig(a0, a1, a2, a3, t0);
 }
 
 /* 088978C4 */
@@ -29744,7 +29750,7 @@ L_0889FE74:;
 }
 
 /* 0889FE7C */
-void func_0889FE7C(void)
+static void func_0889FE7C__orig(void)
 {
     u32 v0 = 0, v1 = 0, a0 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, t1 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0;
     float f0 = 0;
@@ -30034,6 +30040,12 @@ L_088A01DC:;
     goto L_0889FEA8;
 }
 
+void func_0889FE7C(void)
+{
+    func_0889FE7C__orig();
+    rs_gs_register();   /* native hook (tools/dc/hooks.py) */
+}
+
 /* 088A01E8 */
 void func_088A01E8(u32 t1, u32 t2, u32 t3)
 {
@@ -30258,7 +30270,7 @@ L_088A0400:;
 }
 
 /* 088A0408 */
-rv_t func_088A0408(u32 a0, u32 a1, u32 a2, u32 t1, u32 t2, u32 t3)
+static rv_t func_088A0408__orig(u32 a0, u32 a1, u32 a2, u32 t1, u32 t2, u32 t3)
 {
     u32 v0 = 0, v1 = 0, a3 = 0, t0 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0;
     float f0 = 0;
@@ -30371,8 +30383,14 @@ L_088A0558:;
     goto L_088A054C;
 }
 
+rv_t func_088A0408(u32 a0, u32 a1, u32 a2, u32 t1, u32 t2, u32 t3)
+{
+    rs_gs_login(&a0, &a1, &a2);   /* native hook (tools/dc/hooks.py) */
+    return func_088A0408__orig(a0, a1, a2, t1, t2, t3);
+}
+
 /* 088A0560 */
-rv_t func_088A0560(u32 a0, u32 a1, u32 a2, u32 a3, u32 t1, u32 t2, u32 t3)
+static rv_t func_088A0560__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t1, u32 t2, u32 t3)
 {
     u32 v0 = 0, v1 = 0, t0 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0;
     float f0 = 0;
@@ -30617,6 +30635,12 @@ L_088A07BC:;
 L_088A07C0:;
     v1 = 259;
     goto L_088A0610;
+}
+
+rv_t func_088A0560(u32 a0, u32 a1, u32 a2, u32 a3, u32 t1, u32 t2, u32 t3)
+{
+    rs_gs_login(&a0, &a1, &a2);   /* native hook (tools/dc/hooks.py) */
+    return func_088A0560__orig(a0, a1, a2, a3, t1, t2, t3);
 }
 
 /* 088A07C8 */

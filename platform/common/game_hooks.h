@@ -41,3 +41,9 @@ int  rs_map_index(uint32_t name, uint32_t *rv);
 void rs_map_played(uint32_t *idx);
 int  rs_fe_list_all_maps(uint32_t n, uint32_t f1, uint32_t f2, void *rv);
 int  rs_fe_select_planet(uint32_t n, uint32_t f1, uint32_t f2, void *rv);
+/* gamespy_ui.c: RS server accounts (nickname + username, no password, I Forgot) and the message of the day */
+void rs_gs_frame(void);
+void rs_gs_register(void);
+void rs_gs_string_var(uint32_t name, uint32_t buf);
+void rs_gs_login(uint32_t *nick, uint32_t *email, uint32_t *pass);
+void rs_gs_loaded(void);

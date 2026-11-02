@@ -44,7 +44,8 @@ set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/gu_nativ
                "${ROOT}/platform/common/vfs.c" "${ROOT}/platform/common/gfx_jobs.c" "${ROOT}/platform/common/convert.c" "${ROOT}/platform/common/asura_tex.c"
                "${ROOT}/platform/common/twin_stick.c" "${ROOT}/platform/common/game_patches.c" "${ROOT}/platform/common/custom_maps.c" "${ROOT}/platform/common/mpeg.c" "${ROOT}/platform/common/rs_avc.c" "${ROOT}/platform/common/mp4demux.c"
                "${ROOT}/platform/common/colour_picker.c"
-               "${ROOT}/platform/common/overlay_ui.c" "${ROOT}/platform/common/game_ui.c" "${ROOT}/platform/common/save_manager.c" "${ROOT}/platform/common/parts_swap.c" "${ROOT}/platform/common/loadout_slots.c" "${ROOT}/platform/common/blueprints.c" "${ROOT}/platform/common/tex_mips.c")
+               "${ROOT}/platform/common/overlay_ui.c" "${ROOT}/platform/common/game_ui.c" "${ROOT}/platform/common/save_manager.c" "${ROOT}/platform/common/parts_swap.c" "${ROOT}/platform/common/loadout_slots.c" "${ROOT}/platform/common/blueprints.c" "${ROOT}/platform/common/tex_mips.c"
+               "${ROOT}/platform/common/net.c" "${ROOT}/platform/common/osk_panel.c" "${ROOT}/platform/common/gamespy_ui.c")
 # renderer: GXM, the Vita's native GPU API (no GL layer)
 set(VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/main.c" "${CMAKE_CURRENT_SOURCE_DIR}/stdio_lock.c" "${CMAKE_CURRENT_SOURCE_DIR}/gxm_core.c" "${CMAKE_CURRENT_SOURCE_DIR}/gfx_gxm.c"
              "${CMAKE_CURRENT_SOURCE_DIR}/convert_screen.c")
@@ -60,7 +61,7 @@ set_source_files_properties(${AT3_SRC} PROPERTIES COMPILE_OPTIONS "-O3;-ffast-ma
 
 # media conversion (convert.c): FFmpeg from the VitaSDK (H.264 MPEG-PS -> MP4 with AAC audio)
 set(RS_LIBS avformat avcodec swresample avutil mp3lame mpg123 m SceKernelDmacMgr_stub SceVideodec_stub SceTouch_stub SceHid_stub SceMotion_stub SceAudioIn_stub
-            SceGxm_stub SceDisplay_stub SceCtrl_stub SceAudio_stub ScePower_stub SceSysmodule_stub SceAppMgr_stub SceAppUtil_stub SceCommonDialog_stub
+            SceGxm_stub SceDisplay_stub SceCtrl_stub SceAudio_stub ScePower_stub SceSysmodule_stub SceAppMgr_stub SceAppUtil_stub SceCommonDialog_stub SceNet_stub SceNetCtl_stub
             SceIofilemgr_stub vitashark SceShaccCg_stub SceShaccCgExt taihen_stub)
 target_link_libraries(swbfrs ${RS_LIBS} stdc++ pthread m)
 # newlib's FILE functions are not thread-safe in VitaSDK: route them through one lock (stdio_lock.c)
