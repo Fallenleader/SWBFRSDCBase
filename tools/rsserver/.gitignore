@@ -1,0 +1,5 @@
+User.txt
+banned.txt
+ip_salt.txt
+*.tmp
+__pycache__/
