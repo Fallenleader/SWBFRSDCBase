@@ -46,6 +46,11 @@ void rs_avc_close(void *dec){ ff_t *d = dec; if (!d) return; avcodec_free_contex
 typedef struct { SceAvcdecCtrl ctl; SceUID mem, pic_mem, es_mem; uint8_t *pic, *es; size_t es_cap; int w, h, pp; } vd_t;
 static int lib_up, lib_w, lib_h;
 int rs_avc_available(void){ return 1; }
+/* the decoder's frame memory: physically contiguous main memory, in 1 MB units (what the decoder takes; CDRAM was refused with
+ * 0x80620009 at sceAvcdecCreateDecoder) */
+static void *alloc_phycont(SceUID *uid, size_t size){
+    size = (size + 0xFFFFF) & ~(size_t)0xFFFFF; *uid = sceKernelAllocMemBlock("rs_avc_frames", SCE_KERNEL_MEMBLOCK_TYPE_USER_MAIN_PHYCONT_NC_RW, size, NULL);
+    if (*uid < 0) return NULL; void *p = NULL; sceKernelGetMemBlockBase(*uid, &p); return p; }
 static void *alloc_cdram(SceUID *uid, size_t size, size_t align){
     size = (size + align - 1) & ~(align - 1); *uid = sceKernelAllocMemBlock("rs_avc", SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW, size, NULL);
     if (*uid < 0) { *uid = sceKernelAllocMemBlock("rs_avc", SCE_KERNEL_MEMBLOCK_TYPE_USER_MAIN_PHYCONT_NC_RW, (size + 0xFFFFF) & ~0xFFFFFu, NULL); if (*uid < 0) return NULL; }
@@ -63,9 +68,9 @@ void *rs_avc_open(int width, int height){
     SceAvcdecQueryDecoderInfo q; memset(&q, 0, sizeof q); q.horizontal = (uint32_t)w; q.vertical = (uint32_t)h; q.numOfRefFrames = 5;
     SceAvcdecDecoderInfo di; memset(&di, 0, sizeof di);
     int r = sceAvcdecQueryDecoderMemSize(SCE_VIDEODEC_TYPE_HW_AVCDEC, &q, &di); if (r < 0) { fprintf(stderr, "[MPEG] sceAvcdecQueryDecoderMemSize %08x\n", r); free(d); return NULL; }
-    void *fm = alloc_cdram(&d->mem, di.frameMemSize, 256 * 1024); if (!fm) { fprintf(stderr, "[MPEG] no memory for the decoder (%u bytes)\n", di.frameMemSize); free(d); return NULL; }
+    void *fm = alloc_phycont(&d->mem, di.frameMemSize); if (!fm) { fprintf(stderr, "[MPEG] no memory for the decoder (%u bytes)\n", di.frameMemSize); free(d); return NULL; }
     d->pic = alloc_cdram(&d->pic_mem, (size_t)d->pp * h * 4, 256 * 1024); if (!d->pic) { sceKernelFreeMemBlock(d->mem); free(d); return NULL; }
-    d->ctl.frameBuf.pBuf = fm; d->ctl.frameBuf.size = di.frameMemSize;
+    d->ctl.frameBuf.pBuf = fm; d->ctl.frameBuf.size = (di.frameMemSize + 0xFFFFF) & ~0xFFFFFu;
     r = sceAvcdecCreateDecoder(SCE_VIDEODEC_TYPE_HW_AVCDEC, &d->ctl, &q);
     if (r < 0) { fprintf(stderr, "[MPEG] sceAvcdecCreateDecoder %08x\n", r); sceKernelFreeMemBlock(d->pic_mem); sceKernelFreeMemBlock(d->mem); free(d); return NULL; }
     return d; }
