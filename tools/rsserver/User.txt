@@ -1,2 +1,0 @@
-# RS server accounts: profile id, nickname, username, address hash (salted SHA-256, see ip_salt.txt), created
-100002	Pilot	tester	313a82735415fb01f01f7fb52a49526370d1b4733188283b53f6991aabb89ffb	2026-11-01 21:50:09

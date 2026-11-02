@@ -1,1 +1,0 @@
-# banned accounts and addresses (address hashes from User.txt), one per line
