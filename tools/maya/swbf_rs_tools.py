@@ -120,6 +120,8 @@ def import_map(*_):
     folder = os.path.join(work_dir(), 'maps', mp, era)
     if not os.path.exists(os.path.join(folder, '.maptool', 'manifest.json')):
         _log('unpacking %s %s -> %s' % (mp, era, folder)); _run(maptool.unpack, os.path.join(e, era, mp + '.PSP'), folder, _log)
+    elif ' scripts/' in open(os.path.join(folder, 'map.txt')).read() and '.txt\n' in open(os.path.join(folder, 'map.txt')).read():
+        _run(maptool.convert, folder, _log)                     # unpacked by an older maptool: its text scripts -> Lua
     g = _import_fbx(os.path.join(folder, 'env', 'Env.fbx'), 'RS_Map_%s_%s' % (mp, era)); _tag(g, 'swbfMapFolder', folder)
     _log('%s %s imported (meshes o<N>_... = level objects, col_... = collision).  Folder: %s' % (mp, era, folder))
 
