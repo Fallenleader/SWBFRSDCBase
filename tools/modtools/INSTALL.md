@@ -3,7 +3,7 @@
 | Folder | What it is |
 |---|---|
 | `maya/swbf_rs_tools.py` | The Maya 2025 plug-in: the **SWBF** menu |
-| `maptool/` | Levels: unpack, edit, bake the AI navigation graph, pack, install as a custom map (`MAPS.md`) |
+| `maptool/` | Levels: unpack, edit (scripts as Lua), bake the AI navigation graph, pack, install as a custom map (`MAPS.md`) |
 | `character/` | Characters: export to FBX (mesh, joints, skin weights, texture, LODs, hit boxes), import back (`CHARACTERS.md`) |
 | `weapon/` | Weapons: the same, for weapons |
 | `lib/` | The shared Python code (keep it next to the other folders) |
@@ -11,6 +11,8 @@
 All of it is Python 3. Maya 2025 has Python 3.11 with numpy built in.
 
 To use the tools outside Maya, install Python 3.9 or later from python.org, then run `pip install numpy`. numpy is only needed for baking navigation.
+
+Map scripts are Lua files. `pack` reads the plain lists itself; scripts that contain Lua code (loops, functions) need Lua 5.3 or 5.4 on the PATH (Windows: e.g. `winget install DEVCOM.Lua`, or a `lua54.exe` from luabinaries.sourceforge.net renamed `lua.exe`). Folders unpacked by the previous version (`.txt` scripts) still pack; `maptool convert <era folder>` turns them into Lua, and Maya's Import Map does it automatically.
 
 ## Installing the Maya plug-in (Maya 2025)
 

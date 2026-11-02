@@ -59,6 +59,10 @@ if [[ -n ${PS5_VULKAN:-} ]]; then
     mkdir -p "$out/stubs"; "$sdk/bin/prospero-lld" --shared -soname libSceAgcDriver.prx -o "$out/stubs/libSceAgcDriver.so" "$out/agcdrv_stub.o"
     agcdrv="$out/stubs/libSceAgcDriver.so"
 fi
+# the keyboard dialog's companion (sceCommonDialogInitialize): a link stub, the system's library at run time
+mkdir -p "$out/stubs"; echo 'int sceCommonDialogInitialize(void){ return 0; } int sceCommonDialogIsUsed(void){ return 0; }' > "$out/commondialog_stub.c"
+cc -std=c11 -O2 -fPIC -c "$out/commondialog_stub.c" -o "$out/commondialog_stub.o"
+"$sdk/bin/prospero-lld" --shared -soname libSceCommonDialog.prx -o "$out/stubs/libSceCommonDialog.so" "$out/commondialog_stub.o"
 "$sdk/bin/prospero-lld" \
     --defsym=__cxa_thread_atexit_impl=0 -L "$lib" \
     --defsym=__dlopen=0 --defsym=__dlsym=0 --defsym=__dladdr=0 --defsym=__dlclose=0 --defsym=__dlerror=0 \
@@ -70,13 +74,13 @@ fi
     ${PS5_FFMPEG:+"$PS5_FFMPEG/lib/libavformat.a" "$PS5_FFMPEG/lib/libavcodec.a" "$PS5_FFMPEG/lib/libavutil.a"} \
     "$lib/libc++.a" "$lib/libc++abi.a" "$lib/libunwind.a" --end-group \
     --as-needed "$gl/lib/libSceAgc.so" "$agcdrv" "$lib/libSceVideoOut.so" "$lib/libSceSystemService.so" \
-    "$lib/libScePad.so" "$lib/libSceAudioOut.so" "$lib/libSceUserService.so" \
+    "$lib/libScePad.so" "$lib/libSceAudioOut.so" "$lib/libSceUserService.so" "$lib/libSceImeDialog.so" "$out/stubs/libSceCommonDialog.so" \
     "$lib/libSceLibcInternal.so" "$lib/libkernel.so" "$lib/libc.a"
 
 # PS5 ELF + development FSELF (the boilerplate's cross-firmware SDK profile)
 stubs=()
 for s in "$lib"/*.so; do case "${s##*/}" in libSceAgc.so|libSceAgcDriver.so) continue ;; esac; stubs+=(--stub "$s"); done
-stubs+=(--stub "$gl/lib/libSceAgc.so" --stub "$agcdrv")
+stubs+=(--stub "$gl/lib/libSceAgc.so" --stub "$agcdrv" --stub "$out/stubs/libSceCommonDialog.so")
 "$tool" link --in "$out/llvm-pie.elf" --out "$out/eboot.elf" "${stubs[@]}" --module-sdk 0x02000009 --companion-sdk 0x08050001 --file-name eboot.elf
 app="$out/$title"; rm -rf -- "$app"; mkdir -p "$app/sce_sys" "$app/sce_module"
 "$tool" self --sign --in "$out/eboot.elf" --out "$app/eboot.bin" --magic 0x1D3D154F
