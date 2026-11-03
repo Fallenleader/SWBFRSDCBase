@@ -215,7 +215,7 @@ static void project(const rawv_t *r, int through, int skin, int nw, int lit, gv_
 static void build_state(gfx_state_t *s, int through, int clear){
     memset(s, 0, sizeof *s);
     s->fbfmt = R[0xD2] & 3; s->fbstride = R[0x9D] & 0xFFFF; if (!s->fbstride) s->fbstride = 512;
-    s->fbaddr = vram_addr((R[0x9C] & 0xFFFFFF) | ((R[0x9D] & 0xFF0000) << 8));
+    s->fbaddr = vram_addr((R[0x9C] & 0xFFFFFF) | ((R[0x9D] & 0xFF0000) << 8)); rs_gfx_next_fb = s->fbaddr;
     s->sx1 = R[0xD4] & 0x3FF; s->sy1 = (R[0xD4] >> 10) & 0x3FF; s->sx2 = R[0xD5] & 0x3FF; s->sy2 = (R[0xD5] >> 10) & 0x3FF;
     s->cmr = (R[0xE8] & 0xFF) != 0xFF; s->cmg = ((R[0xE8] >> 8) & 0xFF) != 0xFF; s->cmb = ((R[0xE8] >> 16) & 0xFF) != 0xFF; s->cma = (R[0xE9] & 0xFF) != 0xFF;
     s->cull_en = (R[0x1D] & 1) && !through && !clear; s->cull_mode = R[0x9B] & 1;
