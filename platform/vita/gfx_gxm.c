@@ -73,7 +73,7 @@ static int RS_S = 2, SA = 2, SURF_H = 512, S_GAME = 1, S_MENU = 1;
 #define PXH (SURF_H * RS_S)
 #define UVF 1.0f
 static void *dmem; static unsigned rt_scn = 16;
-typedef struct { u32 addr; int stride, psz, fmt, used, drawn; unsigned stamp; void *mem; SceGxmColorSurface cs; SceGxmTexture tex; } surf_t;
+typedef struct { u32 addr, ext; int stride, psz, fmt, used, drawn; unsigned stamp; void *mem; SceGxmColorSurface cs; SceGxmTexture tex; } surf_t;
 static surf_t surfs[SURF_N]; static unsigned surf_stamp; static surf_t *scene_surf;
 static SceGxmRenderTarget *srt; static SceGxmDepthStencilSurface sds;
 static u32 disp_addr, disp_stride = 512, disp_fmt;
@@ -100,18 +100,21 @@ static surf_t *surf_create(u32 addr, int fmt, int stride){
     for (int i = 0; i < SURF_N; i++) { if (!surfs[i].used) { s = &surfs[i]; break; } if (surfs[i].stamp < old->stamp) old = &surfs[i]; }
     if (!s) { s = old; if (scene_surf == s) end_scene(); }
     if (!s->mem && surf_mem(s)) { fprintf(stderr, "[GXM] out of video memory for a render surface\n"); return NULL; }
-    s->used = 1; s->addr = addr; s->fmt = fmt; s->stride = stride ? stride : 512; s->psz = fmt == 3 ? 4 : 2; s->drawn = 0; s->stamp = ++surf_stamp;
+    s->used = 1; s->ext = 0; s->addr = addr; s->fmt = fmt; s->stride = stride ? stride : 512; s->psz = fmt == 3 ? 4 : 2; s->drawn = 0; s->stamp = ++surf_stamp;
     { float black[4] = {0, 0, 0, 1}; clear_rect_internal(s, 0, 0, SZ - 1, SURF_H - 1, black, 1.0f, 1, 1, 1, 0); }
     return s; }
 static surf_t *surf_for_addr(u32 a, int *y0, int *x0){
     a = akey(a);
+    surf_t *best = 0;                       /* the nearest surface that starts at or below the address: an exact match wins over a bigger surface
+                                             * that overlaps it (Tatooine's bloom ping-pongs between 0x154000 and 0x164000, 64 KB apart) */
     for (int i = 0; i < SURF_N; i++) { surf_t *s = &surfs[i]; if (!s->used || !s->drawn || a < s->addr) continue;
-        u32 off = a - s->addr, rowb = (u32)(s->stride * s->psz); if (off >= rowb * 272u || (off % rowb) % (u32)s->psz) continue;
-        *y0 = (int)(off / rowb); *x0 = (int)((off % rowb) / (u32)s->psz); return s; }
-    return 0; }
+        u32 off = a - s->addr, rowb = (u32)(s->stride * s->psz); if (off >= (s->ext ? s->ext : rowb * 272u) || (off % rowb) % (u32)s->psz) continue;    /* only the rows drawn: RS packs textures right after small targets */
+        if (!best || s->addr > best->addr) best = s; }
+    if (best) { u32 off = a - best->addr, rowb = (u32)(best->stride * best->psz); *y0 = (int)(off / rowb); *x0 = (int)((off % rowb) / (u32)best->psz); }
+    return best; }
 static surf_t *target_for(const gfx_state_t *st){
     surf_t *t = surf_find(st->fbaddr); if (!t) t = surf_create(st->fbaddr, st->fbfmt, st->fbstride); if (!t) return NULL;
-    t->stamp = ++surf_stamp; t->drawn = 1; t->fmt = st->fbfmt; t->psz = st->fbfmt == 3 ? 4 : 2; if (st->fbstride) t->stride = st->fbstride;
+    t->stamp = ++surf_stamp; t->drawn = 1; t->fmt = st->fbfmt; t->psz = st->fbfmt == 3 ? 4 : 2; if (st->fbstride) t->stride = st->fbstride; { int rows = st->sy2 >= 0 && st->sy2 < 512 ? st->sy2 + 1 : 272; u32 e = (u32)(rows * t->stride * t->psz); if (e > t->ext) t->ext = e; }
     begin_scene(t); return t; }
 static void scissor_psp(int x1, int y1, int x2, int y2){
     if (x1 < 0) x1 = 0; if (y1 < 0) y1 = 0; if (x2 > SZ - 1) x2 = SZ - 1; if (y2 > SURF_H - 1) y2 = SURF_H - 1;
@@ -423,10 +426,28 @@ static int tex_mipped(tent_t *e, const gtex_key_t *k, const gtex_src_t *src){
     rs_mip_build(scratch, k->w, k->h, L, 8, m);
     sceGxmTextureInitLinear(&e->tex, m, SCE_GXM_TEXTURE_FORMAT_U8U8U8U8_ABGR, (unsigned)k->w, (unsigned)k->h, (unsigned)L);
     e->mem = m; e->bytes = need; e->mips = L; return 1; }
+
+static int gxm_read_region(surf_t *s, int x0, int y0, int w, int h, u32 *out){
+    end_scene(); sceGxmFinish(gxm_ctx()); rs_perf.readback_n++;
+    const u32 *m = s->mem;
+    for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) out[y * w + x] = m[(size_t)((y0 + y) * RS_S + RS_S / 2) * PX + (x0 + x) * RS_S + RS_S / 2];
+    return 1; }
+
+/* A palette lookup of a render target (Tatooine's bloom: the 16x16 blur is looked up through a CLUT, one colour channel at a time).
+ * The palette is applied on the CPU: the surface's pixels (1x, the centre of each internal-resolution pixel) are written back into
+ * the PSP memory they stand for, and the texture is then decoded from memory like any other.  Only 32-bit surfaces; a sync point, but
+ * the effect reads 16x16 pixels once per pass. */
+static int surf_to_memory(surf_t *s, int x0, int y0, u32 addr, int bufw, int w, int h){
+    if (s->psz != 4 || w <= 0 || h <= 0 || x0 + w > SZ || y0 + h > 512 || bufw < w) return 0;
+    static u32 px[512 * 512]; if (!gxm_read_region(s, x0, y0, w, h, px)) return 0;
+    for (int y = 0; y < h; y++) memcpy(gfx_gp(addr + (u32)(y * bufw * 4)), &px[y * w], (size_t)w * 4);
+    rs_gfx_epoch++; return 1; }
 unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4]){
     uvs[0] = uvs[1] = 1; uvs[2] = uvs[3] = 0;
     if (k->w <= 0 || k->h <= 0 || k->w > 1024 || k->h > 1024) return 0;
     int y0, x0; surf_t *s = surf_for_addr(k->addr, &y0, &x0);
+    if (s && s == scene_surf && akey(rs_gfx_next_fb) != s->addr) end_scene();   /* drawn so far, sampled by a draw into another target */
+    if (s && k->fmt >= 4 && k->fmt <= 7) { if (s == scene_surf || !surf_to_memory(s, x0, y0, k->addr, k->bufw, k->w, k->h)) { uvs[0] = -1; return 0; } s = 0; }   /* palette lookup of a render target: on the CPU */
     if (s) { if (s == scene_surf) return 0; uvs[0] = (float)k->w / SZ * UVF; uvs[1] = (float)k->h / SURF_H * UVF; uvs[2] = (float)y0 / SURF_H * UVF; uvs[3] = (float)x0 / SZ * UVF; return 0x10000u + (unsigned)(s - surfs); }
     tent_t *e = 0, *old = &tc[0];
     for (int i = tc_head[tk_hash(k)]; i; i = tc[i - 1].hnext) if (tk_eq(&tc[i - 1].k, k)) { e = &tc[i - 1]; break; }

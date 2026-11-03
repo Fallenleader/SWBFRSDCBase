@@ -407,13 +407,16 @@ static u32 tex_hash_cb(void *ud){
     size_t step = words / 256; u32 h = fnv_step(p, words, step);
     for (size_t i = 0; i < 8; i++) h = (h ^ p[i] ^ (p[words - 1 - i] * 31u)) * 16777619u;
     return h; }
-static void tex_decode_cb(u32 *dst, void *ud){ const gtex_key_t *k = ud; for (int y = 0; y < k->h; y++) for (int x = 0; x < k->w; x++) dst[y * k->w + x] = tex_fetch(x, y, k->addr, k->bufw, k->fmt, k->swz); }
+static void tex_decode_cb(u32 *dst, void *ud){ const gtex_key_t *k = ud; for (int y = 0; y < k->h; y++) for (int x = 0; x < k->w; x++) dst[y * k->w + x] = tex_fetch(x, y, k->addr, k->bufw, k->fmt, k->swz);
+}
 
 /* ---- draw state for the renderer (the same derivation as the reference path, from typed state) ---- */
 static void rgb24(u32 v, float *o){ o[0] = (v & 255) / 255.0f; o[1] = ((v >> 8) & 255) / 255.0f; o[2] = ((v >> 16) & 255) / 255.0f; }
+unsigned rs_gfx_next_fb;
+static int tex_skip;                       /* the renderer cannot do the texture lookup of this draw (gfx_tex_acquire set uvs[0] < 0): it is skipped */
 static void build_state(gfx_state_t *s, int through, int clear){
-    memset(s, 0, sizeof *s);
-    s->fbfmt = X.fbpsm; s->fbstride = X.fbw ? X.fbw : 512; s->fbaddr = gfx_vram(X.fbp & 0x1FFFFFFFu);
+    memset(s, 0, sizeof *s); tex_skip = 0;
+    s->fbfmt = X.fbpsm; s->fbstride = X.fbw ? X.fbw : 512; s->fbaddr = gfx_vram(X.fbp & 0x1FFFFFFFu); rs_gfx_next_fb = s->fbaddr;
     s->sx1 = X.sx1; s->sy1 = X.sy1; s->sx2 = X.sx2; s->sy2 = X.sy2;
     s->cmr = (X.pm_rgb & 0xFF) != 0xFF; s->cmg = ((X.pm_rgb >> 8) & 0xFF) != 0xFF; s->cmb = ((X.pm_rgb >> 16) & 0xFF) != 0xFF; s->cma = (X.pm_a & 0xFF) != 0xFF;
     s->cull_en = X.en[5] && !through && !clear; s->cull_mode = X.cull_mode;
@@ -430,7 +433,7 @@ static void build_state(gfx_state_t *s, int through, int clear){
         u32 c5 = (u32)X.cpsm | ((u32)X.cshift << 2) | ((u32)X.cmask << 8) | ((u32)X.cstart << 16);
         key.clut = (key.fmt >= 4 && key.fmt <= 7) ? (X.clut_hash ^ (c5 * 2654435761u)) : 0;
         gtex_src_t src = {tex_hash_cb, tex_decode_cb, &key};
-        s->texid = gfx_tex_acquire(&key, &src, s->uvs); s->tex = s->texid != 0;
+        s->texid = gfx_tex_acquire(&key, &src, s->uvs); s->tex = s->texid != 0; tex_skip = !s->tex && s->uvs[0] < 0;
         if (s->tex) gfx_tex_maps(&s->texmr, &s->texn, &s->texhd);
         s->tfunc = X.tfx; s->trgba = X.tcc; s->tdbl = X.frag2x; s->tclampu = X.twu; s->tclampv = X.twv;
         s->tfilter = (X.tmin & 1) || X.tmag; s->tenv = 0xFFFFFF; } }
@@ -495,10 +498,19 @@ static void exec_draw(const u32 *payload){
     const drawhdr_t *d = (const drawhdr_t *)payload; const u8 *vb = (const u8 *)(d + 1); const u16 *ix = d->idxf ? (const u16 *)(vb + (size_t)d->nvert * d->vsz) : NULL;
     u32 vt = d->vt; int ptype = (int)d->prim, count = (int)d->count, through = (vt >> 23) & 1; int off[5]; int vsz = vt_layout(vt, off); (void)vsz;
     st_prims++;
+#ifndef __vita__
+    { static int lg = -1, n; if (lg < 0) lg = getenv("RS_GU_LOG") != 0;           /* debug: touch the file named by RS_GU_LOG to log the next 4000 draws */
+      if (lg && (n || !(st_prims & 255))) { if (!n) { FILE *t = fopen(getenv("RS_GU_LOG"), "r"); if (t) { fclose(t); remove(getenv("RS_GU_LOG")); n = 4000; } }
+        if (n) { n--; fprintf(stderr, "[GU] p=%d n=%d vt=%06x thr=%d fb=%08x/%d tex=%d %08x %dx%d fmt=%d sc=%d,%d-%d,%d bl=%d %d/%d z=%d/%d at=%d\n", (int)d->prim, (int)d->count, vt, through,
+            X.fbp, X.fbw, X.en[9], X.lv[0].addr, 1 << X.lv[0].lw, 1 << X.lv[0].lh, X.tpsm, X.sx1, X.sy1, X.sx2, X.sy2, X.en[4], X.bsrc, X.bdst, X.en[1], X.zmask, X.en[0]);
+          if (through && d->vsz == 10 && d->count <= 4) { const short *v = (const short *)vb; for (int i = 0; i < (int)d->count; i++) fprintf(stderr, "[GU]   uv %u,%u xy %d,%d\n", (unsigned short)v[i*5], (unsigned short)v[i*5+1], v[i*5+2], v[i*5+3]);
+            fprintf(stderr, "[GU]   op=%d defc=%08x fix %06x %06x tfx=%d tcc=%d cpsm=%d csh=%d cm=%x cst=%d\n", X.bop, X.mat_amb | (X.mat_a << 24), X.bfixa, X.bfixb, X.tfx, X.tcc, X.cpsm, X.cshift, X.cmask, X.cstart); } } } }
+#endif
     float defc[4] = {(float)(X.mat_amb & 255), (float)((X.mat_amb >> 8) & 255), (float)((X.mat_amb >> 16) & 255), (float)(X.mat_a & 255)};
     /* the renderer reads the PSP vertex format itself (triangles, strips, fans): native draw */
     if (ptype >= 3 && ptype <= 5) {
         gfx_state_t st; build_state(&st, through, 0); static gfx_hw_t h;
+        if (tex_skip) return;
         if (!through) build_hw(&h, vt, off);
         else { memset(&h, 0, sizeof h); h.uvt[0] = st.tex ? 1.0f / (float)(1 << X.lv[0].lw) : 1.0f; h.uvt[1] = st.tex ? 1.0f / (float)(1 << X.lv[0].lh) : 1.0f; }
         static u8 *idx8; static int icap; const u8 *ip = NULL; int idxf = 0;
@@ -509,6 +521,7 @@ static void exec_draw(const u32 *payload){
     /* sprites (2D rectangles) and the rest: corners on the CPU */
     if (ptype == 6 && through) {
         gfx_state_t st; build_state(&st, 1, 0);
+        if (tex_skip) return;
         static gfx_vtx_t *out; static int ocap; if (ocap < count * 3 + 6) { ocap = count * 3 + 64; out = realloc(out, sizeof *out * (size_t)ocap); }
         float iw = st.tex ? 1.0f / (float)(1 << X.lv[0].lw) : 1.0f, ih = st.tex ? 1.0f / (float)(1 << X.lv[0].lh) : 1.0f; int n = 0;
         for (int i = 0; i + 1 < count; i += 2) {
@@ -523,6 +536,7 @@ static void exec_draw(const u32 *payload){
      * viewport, then the screen rectangle between them at the second corner's depth */
     if (ptype == 6 && !through) {
         gfx_state_t st; build_state(&st, 1, 0);
+        if (tex_skip) return;
         float w4[16], v4[16], wv[16], mvp[16]; to44(X.world, w4); to44(X.view, v4); mul44(w4, v4, wv); mul44(wv, X.proj, mvp);
         float ox = (float)(X.ofs_x & 0xFFFF) / 16.0f, oy = (float)(X.ofs_y & 0xFFFF) / 16.0f;
         static gfx_vtx_t *out; static int ocap; if (ocap < count * 3 + 6) { ocap = count * 3 + 64; out = realloc(out, sizeof *out * (size_t)ocap); }
@@ -551,6 +565,9 @@ static void exec_clear(const rop_t *r){
     gfx_state_t st; build_state(&st, 1, 1);
     u32 col = r->a[1]; float rgba[4] = {(col & 255) / 255.0f, ((col >> 8) & 255) / 255.0f, ((col >> 16) & 255) / 255.0f, (col >> 24) / 255.0f};
     int w = (int)r->a[3], h = (int)r->a[4], fl = (int)r->a[0];
+#ifndef __vita__
+    { static int lg = -1; if (lg < 0) lg = getenv("RS_GU_LOG") != 0; if (lg && X.fbp != 0 && X.fbp != 0x88000) fprintf(stderr, "[GU] CLEAR fb=%08x/%d %dx%d col=%08x fl=%d\n", X.fbp, X.fbw, w, h, col, fl); }
+#endif
     gfx_clear(&st, 0, 0, w - 1, h - 1, rgba, (float)r->a[2] / 65535.0f, fl & 1, (fl >> 1) & 1, (fl >> 2) & 1); }
 
 static void exec_copy(const rop_t *r, const u32 *q){
