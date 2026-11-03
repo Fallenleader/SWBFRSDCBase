@@ -1,10 +1,10 @@
-// Cross-game maps (BF1 / BF2 / Elite Squadron -> Renegade Squadron) for Maya 2020.
+// Cross-game maps (BF1 / BF2 / Elite Squadron -> Renegade Squadron) for Maya 2025 (and 2020).
 //
 // Install: copy the ToolsCrossTest folder anywhere, then in the Script Editor (MEL tab):
 //     python("import sys; sys.path.insert(0, 'C:/path/to/ToolsCrossTest')");
 //     source "C:/path/to/ToolsCrossTest/rs_crosstest.mel"; rsCrossMenu();
-// (add those lines to Documents/maya/2020/scripts/userSetup.mel to get the menu every start)
-// Needs Python 3 installed outside Maya (menu > Settings sets the command; default "py -3" on Windows).
+// (add those lines to Documents/maya/2025/scripts/userSetup.mel to get the menu every start)
+// Maya 2022+ runs the converters itself.  Maya 2020 needs Python 3 installed outside Maya (menu > Settings > Python 3 command).
 
 global proc rsCrossPy(string $cmd) { python("import rs_crosstest"); python("rs_crosstest." + $cmd); }
 
