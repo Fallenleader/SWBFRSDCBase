@@ -1,7 +1,8 @@
-"""Cross-game map import for Maya 2020: Star Wars Battlefront (BF1), Battlefront II (BF2) and Elite Squadron (ES) maps -> Maya / Renegade Squadron.
+"""Cross-game map import for Maya: Star Wars Battlefront (BF1), Battlefront II (BF2) and Elite Squadron (ES) maps -> Maya / Renegade Squadron.
 
-Loaded by rs_crosstest.mel (menu "RS Cross-Game Maps").  Maya 2020's Python is 2.7, so the converters (bf2rs.py / es2rs.py, Python 3)
-run as an outside process; this file only asks for the inputs, runs them and imports the FBX they write.
+Loaded by rs_crosstest.mel (menu "RS Cross-Game Maps").  Maya 2025 (Python 3.11): the converters run inside Maya.  Maya 2020 and older
+(Python 2.7): they run with an outside Python 3 (Settings > Python 3 command).  This file asks for the inputs, runs the converters and
+imports the FBX they write.
 
     import rs_crosstest; rs_crosstest.import_bf()      # a BF1/BF2 .wld (mod tools world) or munged .lvl -> FBX in the scene
     import rs_crosstest; rs_crosstest.import_es()      # an Elite Squadron map folder (ENVS/<ERA>/<MAP>) -> FBX in the scene
@@ -17,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 def _opt(name, default=''):
     return cmds.optionVar(q=name) if cmds.optionVar(exists=name) else default
 def _setopt(name, val): cmds.optionVar(sv=(name, val))
-def _py(): return _opt('rsxPython') or ('py -3' if os.name == 'nt' else 'python3')
+def _py(): return _opt('rsxPython') or ('py -3' if os.name == 'nt' else 'python3')     # only used by Maya 2020 and older (Python 2)
 def _work():
     d = _opt('rsxWork') or os.path.join(os.path.expanduser('~'), 'rs_crosstest_work')
     if not os.path.isdir(d): os.makedirs(d)
@@ -28,7 +29,7 @@ def settings():
     if cmds.window(w, exists=True): cmds.deleteUI(w)
     cmds.window(w, title='Cross-game maps - settings'); cmds.columnLayout(adj=True, rs=4)
     f = {}
-    for key, label, dflt in (('rsxPython', 'Python 3 command', _py()), ('rsxGame', 'Renegade Squadron game folder (contains PSP_GAME)', ''),
+    for key, label, dflt in (('rsxPython', 'Python 3 command (Maya 2020 only; leave empty in Maya 2022+)', _opt('rsxPython')), ('rsxGame', 'Renegade Squadron game folder (contains PSP_GAME)', ''),
                              ('rsxWork', 'Work folder (converted files)', _work()), ('rsxData', 'Data folder to install maps into (holds mods/)', '')):
         cmds.text(l=label, al='left'); f[key] = cmds.textFieldButtonGrp(tx=_opt(key) or dflt, bl='...', adj=1)
         cmds.textFieldButtonGrp(f[key], e=True, bc=lambda k=key: _browse(f[k], 3))
@@ -41,6 +42,24 @@ def _browse(fld, mode):
     if r: cmds.textFieldButtonGrp(fld, e=True, tx=r[0])
 
 def _run(script, args):
+    if sys.version_info[0] >= 3 and not _opt('rsxPython'):        # Maya 2022+: run the converter here, its output to the Script Editor
+        import runpy, io, contextlib, traceback
+        buf = io.StringIO(); old = sys.argv[:]; ok = True
+        if HERE not in sys.path: sys.path.insert(0, HERE)
+        cmds.waitCursor(state=True)
+        try:
+            sys.argv = [os.path.join(HERE, script)] + list(args)
+            with contextlib.redirect_stdout(buf):
+                runpy.run_path(sys.argv[0], run_name='__main__')
+        except SystemExit as e:
+            if e.code not in (None, 0): ok = False; buf.write('\n%s\n' % e.code)
+        except Exception:
+            ok = False; buf.write(traceback.format_exc())
+        finally:
+            sys.argv = old; cmds.waitCursor(state=False)
+        out = buf.getvalue(); print(out)
+        if not ok: cmds.confirmDialog(t='Conversion failed', m=out[-1500:], b=['OK'])
+        return ok
     cmd = _py().split() + [os.path.join(HERE, script)] + args
     print('running:', ' '.join('"%s"' % c if ' ' in c else c for c in cmd))
     cmds.waitCursor(state=True)

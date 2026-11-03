@@ -1,4 +1,4 @@
-"""Renegade Squadron (PSP, Asura engine) <-> Maya 2020 bridge.  Loaded by rs_asura.mel; everything here also works from the Script Editor:
+"""Renegade Squadron (PSP, Asura engine) <-> Maya 2025 (and 2020) bridge.  Loaded by rs_asura.mel; everything here also works from the Script Editor:
 
     import rs_maya; rs_maya.import_model()            # pick a .PSP level file, then a model
     import rs_maya; rs_maya.import_level()            # level geometry ('Env') of a .PSP

@@ -1,10 +1,10 @@
-// Renegade Squadron (PSP / Asura engine) tools for Maya 2020.
+// Renegade Squadron (PSP / Asura engine) tools for Maya 2025 (also 2020).
 //
 // Install:
 //   1. Copy the whole "maya" folder of the mod kit (rs_asura.mel, rs_maya.py and the "asura" folder) to
-//      Documents/maya/2020/scripts/            (Windows)   or   ~/maya/2020/scripts/   (macOS / Linux)
+//      Documents/maya/2025/scripts/            (Windows)   or   ~/maya/2025/scripts/   (macOS / Linux)
 //   2. In Maya: Script Editor > MEL tab:   source "rs_asura.mel"; rsAsuraMenu();
-//      (or add those two lines to Documents/maya/2020/scripts/userSetup.mel to get the menu every start)
+//      (or add those two lines to Documents/maya/2025/scripts/userSetup.mel to get the menu every start)
 //   3. Renegade Squadron > Settings...: point "Game folder" at the extracted game (the folder that contains PSP_GAME) and pick a mod folder.
 //
 // Menu:
