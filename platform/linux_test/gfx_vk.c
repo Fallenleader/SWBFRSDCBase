@@ -135,7 +135,7 @@ static VkDeviceSize ring_alloc(VkDeviceSize n, VkDeviceSize align, u8 **p){
 static int RS_S = 1, SURF_H = 512;
 #define PX (SZ * RS_S)
 #define PXH (SURF_H * RS_S)
-typedef struct { u32 addr; int stride, psz, fmt, used, drawn; unsigned img, stamp; } surf_t;
+typedef struct { u32 addr, ext; int stride, psz, fmt, used, drawn; unsigned img, stamp; } surf_t;
 static surf_t surfs[SURF_N]; static unsigned surf_stamp, depth_img; static surf_t *rp_surf;   /* rp_surf: the surface being rendered to */
 static u32 disp_addr, disp_stride = 512, disp_fmt;
 static unsigned st_draws, st_batches, st_tris, st_texup, st_clears, st_passes;
@@ -178,19 +178,22 @@ static surf_t *surf_create(u32 addr, int fmt, int stride){
                          VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 1, VK_IMAGE_ASPECT_COLOR_BIT);
         if (!s->img) return 0;
         end_render(); to_general(cmd(), imgs[s->img].img, VK_IMAGE_ASPECT_COLOR_BIT, 1); }
-    s->used = 1; s->addr = addr; s->fmt = fmt; s->stride = stride ? stride : 512; s->psz = fmt == 3 ? 4 : 2; s->drawn = 0; s->stamp = ++surf_stamp;
+    s->used = 1; s->ext = 0; s->addr = addr; s->fmt = fmt; s->stride = stride ? stride : 512; s->psz = fmt == 3 ? 4 : 2; s->drawn = 0; s->stamp = ++surf_stamp;
     clear_surface(s);
     return s; }
 static surf_t *surf_for_addr(u32 a, int *y0, int *x0){
     a = akey(a);
+    surf_t *best = 0;                       /* the nearest surface that starts at or below the address: an exact match wins over a bigger surface
+                                             * that overlaps it (Tatooine's bloom ping-pongs between 0x154000 and 0x164000, 64 KB apart) */
     for (int i = 0; i < SURF_N; i++) { surf_t *s = &surfs[i]; if (!s->used || !s->drawn || a < s->addr) continue;
-        u32 off = a - s->addr, rowb = (u32)(s->stride * s->psz); if (off >= rowb * 272u || (off % rowb) % (u32)s->psz) continue;
-        *y0 = (int)(off / rowb); *x0 = (int)((off % rowb) / (u32)s->psz); return s; }
-    return 0; }
+        u32 off = a - s->addr, rowb = (u32)(s->stride * s->psz); if (off >= (s->ext ? s->ext : rowb * 272u) || (off % rowb) % (u32)s->psz) continue;    /* only the rows drawn: RS packs textures right after small targets */
+        if (!best || s->addr > best->addr) best = s; }
+    if (best) { u32 off = a - best->addr, rowb = (u32)(best->stride * best->psz); *y0 = (int)(off / rowb); *x0 = (int)((off % rowb) / (u32)best->psz); }
+    return best; }
 static surf_t *target_for(const gfx_state_t *s){
     surf_t *t = surf_find(s->fbaddr); if (!t) t = surf_create(s->fbaddr, s->fbfmt, s->fbstride);
     if (!t) return 0;
-    t->stamp = ++surf_stamp; t->drawn = 1; t->fmt = s->fbfmt; t->psz = s->fbfmt == 3 ? 4 : 2; if (s->fbstride) t->stride = s->fbstride; return t; }
+    t->stamp = ++surf_stamp; t->drawn = 1; t->fmt = s->fbfmt; t->psz = s->fbfmt == 3 ? 4 : 2; if (s->fbstride) t->stride = s->fbstride; { int rows = s->sy2 >= 0 && s->sy2 < 512 ? s->sy2 + 1 : 272; u32 e = (u32)(rows * t->stride * t->psz); if (e > t->ext) t->ext = e; } return t; }
 
 /* ------------------------------------------------------------------ pipelines */
 enum { PR_MAIN, PR_HW, PR_FILL, PR_SHADOW, PR_PRESENT, PR_FXAA, PR_N };
@@ -355,11 +358,35 @@ static int try_replace(tent_t *e, const gtex_key_t *k){
     if (p[2]) e->nrm = upload_png(p[2], &bytes);
     tc_bytes += bytes - e->bytes; e->bytes = bytes; return 1; }
 
+
+static vbuf_t rb_buf;
+static int vk_read_region(surf_t *s, int x0, int y0, int w, int h, u32 *out){
+    int W = w * RS_S, H = h * RS_S; VkDeviceSize need = (VkDeviceSize)W * H * 4;
+    if (rb_buf.size < need) { buf_free(&rb_buf); if (buf_make(&rb_buf, need, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1)) return 0; }
+    flush_batch(); end_render(); VkCommandBuffer c = cmd();
+    VkBufferImageCopy r = {0, 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {x0 * RS_S, y0 * RS_S, 0}, {(uint32_t)W, (uint32_t)H, 1}};
+    vkCmdCopyImageToBuffer(c, imgs[s->img].img, VK_IMAGE_LAYOUT_GENERAL, rb_buf.buf, 1, &r);
+    sync_flush(); rs_perf.readback_n++;
+    const u32 *m = (const u32 *)rb_buf.map;
+    for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) out[y * w + x] = m[(size_t)(y * RS_S + RS_S / 2) * W + x * RS_S + RS_S / 2];
+    return 1; }
+
+/* A palette lookup of a render target (Tatooine's bloom: the 16x16 blur is looked up through a CLUT, one colour channel at a time).
+ * The palette is applied on the CPU: the surface's pixels (1x, the centre of each internal-resolution pixel) are written back into
+ * the PSP memory they stand for, and the texture is then decoded from memory like any other.  Only 32-bit surfaces; a sync point, but
+ * the effect reads 16x16 pixels once per pass. */
+static int surf_to_memory(surf_t *s, int x0, int y0, u32 addr, int bufw, int w, int h){
+    if (s->psz != 4 || w <= 0 || h <= 0 || x0 + w > SZ || y0 + h > 512 || bufw < w) return 0;
+    static u32 px[512 * 512]; if (!vk_read_region(s, x0, y0, w, h, px)) return 0;
+    for (int y = 0; y < h; y++) memcpy(gfx_gp(addr + (u32)(y * bufw * 4)), &px[y * w], (size_t)w * 4);
+    rs_gfx_epoch++; return 1; }
 unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4]){
     uvs[0] = uvs[1] = 1; uvs[2] = uvs[3] = 0; last_mr = last_nrm = 0; last_hd = 0;
     { int lim = (k->addr >= 0x0BF00000u && k->addr < 0x0C000000u) ? 2048 : 1024;           /* overlay textures (a movie's pictures) may be larger */
       if (k->w <= 0 || k->h <= 0 || k->w > lim || k->h > lim) return 0; }
     int y0, x0; surf_t *s = surf_for_addr(k->addr, &y0, &x0);
+    if (s && s == rp_surf && akey(rs_gfx_next_fb) != s->addr) { flush_batch(); end_render(); }   /* drawn so far, sampled by a draw into another target */
+    if (s && k->fmt >= 4 && k->fmt <= 7) { if (s == rp_surf || !surf_to_memory(s, x0, y0, k->addr, k->bufw, k->w, k->h)) { uvs[0] = -1; return 0; } s = 0; }   /* palette lookup of a render target: on the CPU */
     if (s) { if (s == rp_surf) return 0; flush_batch(); uvs[0] = (float)k->w / SZ; uvs[1] = (float)k->h / SURF_H; uvs[2] = (float)y0 / SURF_H; uvs[3] = (float)x0 / SZ; return s->img; }
     tent_t *e = 0, *old = &tc[0];
     for (int i = tc_head[tk_hash(k)]; i; i = tc[i - 1].hnext) if (tk_eq(&tc[i - 1].k, k)) { e = &tc[i - 1]; break; }

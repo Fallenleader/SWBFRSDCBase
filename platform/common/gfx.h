@@ -34,6 +34,8 @@ extern volatile unsigned rs_gfx_epoch;                   /* bump once per displa
 
 /* ---- GL-thread API ---- */
 int  gfx_init(void);
+extern unsigned rs_gfx_next_fb;                          /* the target (fbaddr) of the draw whose texture is being acquired: a texture that is the
+                                                            * target being drawn now is flushed first unless it is also this draw's target */
 unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4]);
 void gfx_tex_maps(unsigned *mr, unsigned *nrm, int *hd);              /* PBR maps of the texture the last gfx_tex_acquire returned */
 void gfx_draw(const gfx_state_t *st, const gfx_vtx_t *tris, int nverts);
