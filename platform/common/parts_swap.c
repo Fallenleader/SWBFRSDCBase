@@ -64,14 +64,20 @@ static const u16 *body_text(u32 faction, u32 body, u32 key){
 /* The carousel (a list widget) has as many entries as it has entry slots (widget +408, made from its template by
  * func_0888FC44), three in the menu's file; populating stops at the first item the list function has no name for.  The Head
  * list needs nine: the slots are set each frame, after the pad is read (outside the menu's update), for the list shown. */
+/* Finding the widget walks the whole widget tree (func_0888818C: two virtual calls per node), which in a match - where it is never
+ * found - cost more than half of the game's own CPU time.  So it is looked for only while the carousel is being listed: the game
+ * lists it (rs_parts_list) when it is opened or its category changes, and the slots are set in the frames after that. */
+static unsigned pf_frame, pf_listed;
 void rs_parts_frame(void){
-    if (!enabled()) return;
+    pf_frame++;
+    if (!enabled() || !pf_listed || pf_frame - pf_listed > 30) return;
     u32 w = func_0888B320(0x7EA08E83u, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).v0;
     if ((s32)w <= 0) return;
     u32 want = category() == 1 && faction_ok(func_08A28C68()) ? NB * NB : NB;
     if (W32(w + 408) != want) func_0888FC44(w, want); }
 
 int rs_parts_list(u32 index, u32 flag, void *rv){
+    pf_listed = pf_frame ? pf_frame : 1;
     if (!enabled() || (flag & 0xFF) || category() != 1 || !faction_ok(func_08A28C68())) return 0;
     rv_t *r = rv; r->v0 = 0; r->v1 = 0; r->f0 = 0;
     u32 faction = func_08A28C68(), last = IMG(0x08B1C2D0), cat = category();
