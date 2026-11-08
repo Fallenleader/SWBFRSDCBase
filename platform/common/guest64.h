@@ -11,6 +11,8 @@
 #endif
 #define RS_G_STACKS       0x0E000000u
 #define RS_G_STACKS_SIZE  (32u << 20)
+#define RS_G_STACKS2      0x05000000u           /* more thread stacks, used after the first area (unused PSP addresses: above the VRAM, */
+#define RS_G_STACKS2_SIZE (48u << 20)           /*  below the PSP's kernel memory at 0x08000000) */
 #define RS_G_PLAT         0x01000000u           /* below the VRAM: its low 28 bits (the GE's view) overlap no other region */
 #define RS_G_PLAT_SIZE    (16u << 20)
 #define RS_G_WINDOW       0x10000000u           /* bytes the platform maps at rs_gbase */

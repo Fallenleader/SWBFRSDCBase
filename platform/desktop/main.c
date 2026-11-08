@@ -187,7 +187,10 @@ __asm__(".globl rs_on_stack\n"
         "  mov %r8, %rcx\n  call *%rdx\n"
         "  add $40, %rsp\n  pop %rbp\n"
         "  mov %rbp, %rsp\n  pop %rbp\n  ret\n");
-typedef struct { void *(*fn)(void *); void *arg; u8 *stack; } spawn_t;
+typedef struct { void *(*fn)(void *); void *arg; u8 *stack; size_t size; } spawn_t;
+/* the next game thread's stack size, from the PSP thread's own (rs_thread_attr, then rs_thread_spawn, both under the big lock): a
+ * sound thread (32 KB on the PSP) gets 512 KB instead of 1 MB, so the stack area lasts longer while stacks are not reused here */
+static size_t next_stack = STACK_SZ;
 /* sceKernelExitThread: back to here with __builtin_longjmp (registers only).  pthread_exit / longjmp unwind with SEH through the
  * guest stack, which has no unwind data: that crashed Windows when the first game thread ended (loading a match). */
 static __thread void *exit_jb[5]; static __thread void *(*body_fn)(void *);
@@ -198,15 +201,15 @@ void rs_thread_exit(void){ __builtin_longjmp(exit_jb, 1); }
 static void *spawn_entry(void *p){
     spawn_t s = *(spawn_t *)p; free(p);
     NT_TIB *tib = (NT_TIB *)NtCurrentTeb(); void *ob = tib->StackBase, *ol = tib->StackLimit;
-    u8 *top = s.stack + STACK_SZ - 64; top = (u8 *)((uintptr_t)top & ~(uintptr_t)15);
-    tib->StackBase = s.stack + STACK_SZ; tib->StackLimit = s.stack;
+    u8 *top = s.stack + s.size - 64; top = (u8 *)((uintptr_t)top & ~(uintptr_t)15);
+    tib->StackBase = s.stack + s.size; tib->StackLimit = s.stack;
     body_fn = s.fn; void *r = rs_on_stack(top, thread_body, s.arg);
     tib->StackBase = ob; tib->StackLimit = ol;
-    rs_guest_stack_release(s.stack, STACK_SZ, 5.0);                  /* reusable 5 s later: game data on a finished thread's stack can still be read for a moment (released at once, Windows crashed) */
+    rs_guest_stack_release(s.stack, s.size, 5.0);                  /* reusable 5 s later: game data on a finished thread's stack can still be read for a moment (released at once, Windows crashed) */
     return r; }
-void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ (void)at; (void)psp_stack; }
+void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ (void)at; next_stack = psp_stack && psp_stack <= 0x8000 ? STACK_SZ / 2 : STACK_SZ; }
 int rs_thread_spawn(pthread_t *t, pthread_attr_t *at, void *(*fn)(void *), void *arg){
-    spawn_t *s = malloc(sizeof *s); s->fn = fn; s->arg = arg; s->stack = rs_guest_stack(STACK_SZ);
+    spawn_t *s = malloc(sizeof *s); s->fn = fn; s->arg = arg; s->size = next_stack; next_stack = STACK_SZ; s->stack = rs_guest_stack(s->size);
     pthread_attr_t a; pthread_attr_init(&a); pthread_attr_setstacksize(&a, 256 * 1024); pthread_attr_setdetachstate(&a, PTHREAD_CREATE_DETACHED); (void)at;
     return pthread_create(t, &a, spawn_entry, s); }
 #endif

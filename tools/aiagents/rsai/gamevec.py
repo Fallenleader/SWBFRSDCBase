@@ -52,6 +52,7 @@ class GameVecEnv(VecEnv):
         self.bridge = None; self.slot_id = [None] * slots; self.side_index = 0; self.side = None
         self.tracker = spaces.Tracker(); self.last = None; self.prev_owner = {}; self.prev_alive_ids = set()
         self.stats = Stats(); self.matches = 0; self.no_bots_since = None; self.actions = None
+        self.t_wait = 0.0; self.n_read = 0; self.t_step = 0.0
         self.restarts = 0; self.stop_flag = stop or (lambda: False); self.speed = [None, None]   # (game s, real s) at the window start
 
     # ---------------------------------------------------------------- game connection
@@ -81,7 +82,8 @@ class GameVecEnv(VecEnv):
             if self.stop_flag():
                 raise StopTraining()
             try:
-                return self.bridge.read()
+                t = time.perf_counter(); s = self.bridge.read(); self.t_wait += time.perf_counter() - t; self.n_read += 1
+                return s
             except Exception as e:
                 self._restart(f"bridge: {e}")
 
@@ -164,7 +166,19 @@ class GameVecEnv(VecEnv):
         except Exception as e:
             self._restart(f"reply: {e}")
 
+    def timing(self):
+        """per snapshot: ms waiting for the game, ms in the trainer's step (since the last call)"""
+        n = max(self.n_read, 1); out = (1000 * self.t_wait / n, 1000 * max(self.t_step - self.t_wait, 0.0) / n)
+        self.t_wait = self.t_step = 0.0; self.n_read = 0; return out
+
     def step_wait(self):
+        t0 = time.perf_counter()
+        try:
+            return self._step_wait()
+        finally:
+            self.t_step += time.perf_counter() - t0
+
+    def _step_wait(self):
         prev = self._pending_snapshot
         self._send(prev)
         s = self._read()

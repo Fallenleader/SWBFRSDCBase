@@ -144,12 +144,15 @@ void rs_big_lock(void){ big_lock(); }
 __attribute__((weak)) void rs_perf_mem(char *b, int n){ (void)b; (void)n; }
 void rs_perf_extra(char *b, int n){ extern void gfx_cache_stats(char *, int); char m[200] = "", g[200] = ""; rs_perf_mem(m, sizeof m); gfx_cache_stats(g, sizeof g);
     snprintf(b, (size_t)n, "[PERF]   frame %d | %s | %s\n", g_frames, g, m); }
-__attribute__((weak)) void rs_perf_write(const char *line){ static int on = -1; if (on < 0) on = getenv("RS_PERF") != 0; if (on) fprintf(stderr, "%s", line); }
+__attribute__((weak)) void rs_perf_write(const char *line){ fprintf(stderr, "%s", line); }   /* only called when the report is on (perf_on) */
 static const char *hname(int i);
 static int perf_on = -1;
 static void perf_threads(double fr, double ms);
 static void perf_report(void){
     if (perf_on < 0) { const char *e = getenv("RS_PERF"); perf_on = e ? atoi(e) != 0 : 0;
+#ifdef RS_DESKTOP
+        { extern int rs_setting_int(const char *, int); if (!perf_on) perf_on = rs_setting_int("RS_PERF", 0); }   /* settings.txt too */
+#endif
 #ifdef __vita__
         { extern int rs_setting_int(const char *, int); perf_on = rs_setting_int("RS_PERF_LOG", 0); }    /* the on-screen HUD replaces the log */
 #endif

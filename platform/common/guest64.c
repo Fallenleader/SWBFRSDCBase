@@ -36,7 +36,7 @@ void rs_guest64_init(void *window, size_t size){
     ht = calloc(n, sizeof *ht); hmask = n - 1;
     for (int i = 0; i < rs_fn_count; i++) { u32 h = hslot(rs_fn_table[i].addr); while (ht[h].addr) h = (h + 1) & hmask; ht[h] = rs_fn_table[i]; }
     rs_vram_base = RS_G_VRAM; rs_vram_size = RS_G_VRAM_SIZE;
-    rs_region_add(RS_G_IMAGE, rs_image_size); rs_region_add(RS_G_HEAP, RS_G_HEAP_SIZE); rs_region_add(RS_G_STACKS, RS_G_STACKS_SIZE);
+    rs_region_add(RS_G_IMAGE, rs_image_size); rs_region_add(RS_G_HEAP, RS_G_HEAP_SIZE); rs_region_add(RS_G_STACKS, RS_G_STACKS_SIZE); rs_region_add(RS_G_STACKS2, RS_G_STACKS2_SIZE);
     rs_region_add(RS_G_PLAT, RS_G_PLAT_SIZE);
     fprintf(stderr, "[GUEST] 64-bit guest window at %p (%u MB), %d functions callable by address\n", window, (unsigned)(size >> 20), rs_fn_count); }
 
@@ -87,7 +87,10 @@ void *rs_guest_stack(size_t size){
     double t = stk_now();
     for (int i = 0; i < stk_n; i++) if (stk_free[i].size == size && stk_free[i].t <= t) {
         void *p = rs_gbase + stk_free[i].off; stk_free[i] = stk_free[--stk_n]; pthread_mutex_unlock(&stk_m); return p; }
-    if (next + size > RS_G_STACKS + RS_G_STACKS_SIZE) { pthread_mutex_unlock(&stk_m); fprintf(stderr, "[GUEST] out of thread stacks\n"); abort(); }
+    static u32 next2 = RS_G_STACKS2;
+    if (next + size > RS_G_STACKS + RS_G_STACKS_SIZE) {                                  /* the first area is used up: the second */
+        if (next2 + size > RS_G_STACKS2 + RS_G_STACKS2_SIZE) { pthread_mutex_unlock(&stk_m); fprintf(stderr, "[GUEST] out of thread stacks\n"); abort(); }
+        void *p = rs_gbase + next2; next2 += (u32)size; pthread_mutex_unlock(&stk_m); return p; }
     void *p = rs_gbase + next; next += (u32)size; pthread_mutex_unlock(&stk_m); return p; }
 #else
 u32 rs_fn_alias(void *fn){ return (u32)(uintptr_t)fn; }          /* 32-bit: the game calls native addresses */
