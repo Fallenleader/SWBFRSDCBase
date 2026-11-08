@@ -23,6 +23,7 @@
 #include "psp_impl.h"
 #include "guest.h"
 #include "game_hooks.h"
+#include "ai_bridge.h"
 
 extern int rs_setting_int(const char *, int);
 #define IMG(va) GIMG(va)     /* game data address -> this build's address */
@@ -52,6 +53,9 @@ void rs_game_var_range(u32 name, u32 var, u32 *min, u32 *max){
 /* every frame (after the pad read): a network game keeps the game's own ticket range */
 void rs_renderer_frame(void);
 void rs_patches_frame(void){
+#ifdef RS_DESKTOP
+    { extern void rs_ai_bridge_frame(void); rs_ai_bridge_frame(); }   /* ai_bridge.c: RS_AI_BRIDGE=<host:port> */
+#endif
     rs_renderer_frame();                                                  /* renderer_option.c */
     { extern void rs_ai_frame(void); rs_ai_frame(); }                    /* idle squads (below) */
     if (!on() || GU8(IMG(MODE_NETWORK)) != 1) return;
@@ -173,6 +177,25 @@ void rs_ai_bots(unsigned fr){
                 GU32(o + 12), p[0], p[1], p[2], d, idle[k] * 2, alive, o, sq, sq ? GU32(sq + 0x4C) : 0, sq ? GU32(sq + 0x3C) : 0, GU32(o + 0xF0), GU8(o + 0xE8), GU32(o + 0xF8), GU32(o + 0x54));
         if ((idle[k] >= 3 || getenv("RS_AI_BOTS_ALL")) && !sq) fprintf(stderr, "[BOT]    no squad: ctl %u flags %08x b0 %08x goal %d 149 %u\n", GU32(o + 0x54), GU32(o + 0xC8), GU32(o + 0xB0), ai_goal(o), GU8(o + 0x149)); }
     fprintf(stderr, "[BOT] f%u: %d soldiers, %d idle 6 s or more\n", fr, nb, nidle); }
+/* The AI bridge's view of the bots (ai_bridge.c, AIAgents branch): one record per AI-driven soldier in the game's AI object
+ * table, with the fields traced above.  raw (may be 0) gets the first rawn bytes of each AI object, for finding the fields that
+ * are not traced yet (health, ammunition, weapon, facing). */
+int rs_ai_snapshot(struct rs_ai_rec *out, int max, u8 *raw, int rawn){
+    u32 tb = IMG(0x08C2A880u), bk = GU32(tb), nbk = GU32(tb + 4); if (!gok(bk) || nbk > 4096) return 0;
+    int n = 0;
+    for (u32 bi = 0; bi < nbk; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd) && n < max; nd = GU32(nd + 4)) {
+        if (GU8(nd + 8)) continue; u32 o = GU32(nd); if (!gok(o) || !gok(GU32(o))) continue;
+        u32 so = o + GU32(GU32(o) - 16); if (!gok(so)) continue;
+        const float *p = soldier_pos(o); if (!p) continue;
+        struct rs_ai_rec *r = &out[n]; memset(r, 0, sizeof *r);
+        u32 sq = GU32(o + 0xE4); if (!gok(sq)) sq = 0;
+        r->id = GU32(so + 4); r->obj = o; r->team = GU32(o + 12); r->alive = GU8(o + 5) && GU8(o + 0x40);
+        r->pos[0] = p[0]; r->pos[1] = p[1]; r->pos[2] = p[2];
+        r->goal = ai_goal(o); r->squad_order = sq ? GU32(sq + 0x4C) : 0; r->squad_post = sq ? GU32(sq + 0x3C) : 999; r->has_squad = sq != 0;
+        r->vehicle = GU32(o + 0xF8); r->ctl = GU32(o + 0x54); r->flags = GU32(o + 0xC8);
+        if (raw && rawn > 0) memcpy(raw + (size_t)n * rawn, GP(o), (size_t)rawn);
+        n++; }
+    return n; }
 /* Bots that stand about (traced with RS_AI_BOTS=1).  Two causes, both fixed here every second (offline, RS_AI_IDLE_FIX):
  *  - a bot taken out of its squad by func_0892CC00 (it marks the bot +0xC8 bit 0x20 and removes it; the squad-filling pass,
  *    func_0892774C, never takes a bot with that bit again) is left with no goal and no squad until it dies: a bot with no squad

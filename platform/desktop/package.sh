@@ -16,6 +16,13 @@ RS_FULLSCREEN=1
 RS_VSYNC=1
 # the GPU to use when there are several: its PCI vendor id (0x10DE NVIDIA, 0x1002 AMD, 0x8086 Intel); empty = a discrete one first
 RS_GPU_VENDOR=
+# ---- AI agents (AIAgents branch: the training bridge, tools/aiagents).  RS_AI_BRIDGE=127.0.0.1:47800 streams the bots' state
+# to the trainer (python -m rsai.bridge record ...); empty = off.  HZ = snapshots per second; SYNC=1 waits for the trainer each
+# snapshot; RAW = bytes of each bot's AI object also sent (field finding)
+RS_AI_BRIDGE=
+RS_AI_BRIDGE_HZ=5
+RS_AI_BRIDGE_SYNC=0
+RS_AI_BRIDGE_RAW=0
 X
 case $V in
 deck)    set_kv RS_RES_SCALE 3; set_kv RS_RESOLUTION 720; sed -i -e '/^RS_RENDERER=/d' -e '/^# renderer:/d' -e '/^# If the chosen one cannot start/d' -e '/^# The game.s Options menu has a "Graphics Settings"/d' -e '/^# carousels that rewrite/d' -e 's/The menu sets this and RS_RES_SCALE together; also the window size/Sets RS_RES_SCALE to match/' "$S"; set_kv RS_RT 0; set_kv RS_SHADOW_RES 2048; set_kv RS_FULLSCREEN 1; set_kv RS_MAX_PLAYERS 64 ;;

@@ -1,0 +1,26 @@
+# Infantry policy v0: tactical decisions (rsai/spaces.py ACTIONS) from numeric observations (rsai/spaces.py OBS_NAMES).
+name: infantry_v0
+env: pipeline_check          # pipeline_check (tooling check, NOT the game) | game (needs a build that applies actions)
+game:
+  port: 47800
+  decision_hz: 5             # the game's RS_AI_BRIDGE_HZ
+  agents: 15                 # bots under the policy (PSP parity: 16 players)
+seeds: [1, 2, 3]
+total_timesteps: 50000
+n_envs: 4
+policy:
+  hidden: [64, 64]           # MLP; 66 -> 64 -> 64 -> 10: ~9k weights (~9 KB int8, ~36 KB fp32)
+  activation: tanh
+ppo:
+  learning_rate: 3.0e-4
+  n_steps: 512
+  batch_size: 256
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+checkpoint_every: 10000
+eval_every: 10000
+eval_episodes: 10
+reward_weights: {}           # overrides for rsai/rewards.py TERMS
