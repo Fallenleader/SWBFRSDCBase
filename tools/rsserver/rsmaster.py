@@ -508,6 +508,14 @@ def console():
         except Exception as ex: print('error: %r' % ex)
 
 sessions = None
+def find_game():
+    """the PC game folder (SWBFRS.exe and GAME/) when --game is not given: next to the server, or the project's Windows build"""
+    here = os.path.dirname(os.path.abspath(__file__)); up = os.path.dirname(here); up2 = os.path.dirname(up)
+    cands = [here, up, os.path.join(up, 'SWBFRS'), os.path.join(up2, 'Windows', 'SWBFRS_windows', 'SWBFRS'), os.path.join(up, 'Windows', 'SWBFRS_windows', 'SWBFRS')]
+    for c in cands:
+        if os.path.isdir(os.path.join(c, 'GAME')) and any(os.path.exists(os.path.join(c, e)) for e in ('SWBFRS.exe', 'swbfrs')): return c
+    return None
+
 def main():
     global VERBOSE, DATA_DIR, sessions
     if len(sys.argv) > 2 and sys.argv[1] in ('ban', 'unban'):
@@ -533,7 +541,9 @@ def main():
         threading.Thread(target=hs.serve_forever, daemon=True).start()
     except OSError as ex: log('HTTP port %d: %s (the game\'s news and version check will fail)' % (a.http_port, ex))
     import sessions as sessmod
-    sessions = sessmod.Manager(DATA_DIR, os.path.abspath(a.game) if a.game else None, log); sessions.start_all()
+    game = os.path.abspath(a.game) if a.game else find_game()
+    if game and not a.game: log('SESSIONS: no --game given: using the PC game found at %s' % game)
+    sessions = sessmod.Manager(DATA_DIR, game, log); sessions.start_all()
     log('RS master for %s running' % GAME)
     try:
         if sys.stdin and sys.stdin.isatty(): console()
