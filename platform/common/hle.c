@@ -106,8 +106,21 @@ static u64 now_us(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); 
     return base_game + (u64)((double)(real - base_real) * scale); }
 /* the clock the game reads.  RS_VCLOCK=1 (testing, with RS_FAST=1 and a frame-numbered RS_SCRIPT): it advances 1/60 s per vertical
  * blank plus 1 us per read, independent of the host's speed, so two runs of different builds can be compared frame by frame. */
-static u64 guest_us(void){ static int vc = -1; static u64 reads; if (vc < 0) vc = getenv("RS_VCLOCK") != 0;
-    return vc ? (u64)g_frames * 16667ull + ++reads : now_us(); }
+/* RS_VCLOCK=2 (AI training): the virtual clock only while a match is being played (rs_vclock_match, from game_patches.c); the real
+ * clock otherwise, so loading and the front end - which wait on the clock with short sleeps, and Windows sleeps last at least ~15 ms -
+ * run at their normal speed.  The clock stays continuous across the switches. */
+volatile int rs_vclock_match;
+static u64 guest_us(void){ static int vc = -1; static u64 reads; if (vc < 0) { const char *e = getenv("RS_VCLOCK"); vc = e ? atoi(e) : 0; }
+    if (vc == 1) return (u64)g_frames * 16667ull + ++reads;
+    if (vc != 2) return now_us();
+    static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER; static int virt; static u64 last, base_v, off_r; static int f0;
+    pthread_mutex_lock(&m);
+    int want = rs_vclock_match != 0; u64 t;
+    if (want && !virt) { virt = 1; base_v = last; f0 = g_frames; reads = 0; }
+    if (!want && virt) { virt = 0; off_r = last - now_us(); }
+    t = virt ? base_v + (u64)(g_frames - f0) * 16667ull + ++reads : now_us() + off_r;
+    if (t < last) t = last + 1;
+    last = t; pthread_mutex_unlock(&m); return t; }
 #include "gfx.h"
 static void unlocked_sleep(unsigned us){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); usleep(us); big_lock(); rs_perf.sleeps++; rs_perf.sleep_us += rs_perf_us() - t; }
 /* Let another guest thread run.  On the Vita sched_yield() is a 1 ms sleep (pthread-embedded: pte_osThreadSleep(1)), which cost the

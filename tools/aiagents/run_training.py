@@ -54,7 +54,7 @@ class Supervisor(BaseCallback):
         if n >= self.next_report:
             self.next_report += self.cfg["report_every_steps"]
             s = self.venv.stats.summary(); self.venv.stats.reset()
-            s.update(steps=n, wall_hours=(time.time() - self.t0) / 3600, matches=self.venv.matches, game_restarts=self.venv.restarts)
+            s.update(steps=n, wall_hours=(time.time() - self.t0) / 3600, matches=self.venv.matches, game_restarts=self.venv.restarts, game_speed_x=self.venv.game_speed())
             new = not os.path.exists(self.csv)
             with open(self.csv, "a", newline="") as f:
                 wr = csv.DictWriter(f, fieldnames=list(s.keys()))
@@ -64,7 +64,7 @@ class Supervisor(BaseCallback):
             for k, v in s.items():
                 if isinstance(v, (int, float)):
                     self.logger.record(f"game/{k}", v)
-            line = (f"[train] {n} steps, {s['wall_hours']:.2f} h, {s['matches']} matches | deaths/bot-min policy {s['policy_deaths_per_bot_min']:.2f}"
+            line = (f"[train] {n} steps, {s['wall_hours']:.2f} h, {s['matches']} matches, game {s['game_speed_x']:.1f}x real time | deaths/bot-min policy {s['policy_deaths_per_bot_min']:.2f}"
                     f" vs original {s['game_deaths_per_bot_min']:.2f} | posts held {s['policy_posts_held']:.2f} vs {s['game_posts_held']:.2f}"
                     f" | enemies downed nearby/bot-min {s['policy_enemy_down_nearby_per_bot_min']:.2f} vs {s['game_enemy_down_nearby_per_bot_min']:.2f}"
                     f" | score {s['score']:+.2f} (best {'none yet' if self.best < -1e8 else format(self.best, '+.2f')})")
@@ -73,6 +73,12 @@ class Supervisor(BaseCallback):
                 self.best = s["score"]; self.model.save(os.path.join(self.run, "best"))
                 open(os.path.join(self.run, "best_score.txt"), "w").write(f"{self.best}\n")
                 self.log(f"[train] new best (score {self.best:+.2f}): best.zip")
+        if os.path.exists(os.path.join(self.run, "STOP")):                 # stop_training.bat (or any program) asks it to finish
+            try:
+                os.remove(os.path.join(self.run, "STOP"))
+            except OSError:
+                pass
+            self.log("[train] STOP file found: saving and finishing"); STOP.set()
         return not STOP.is_set()
 
 
@@ -109,11 +115,17 @@ def main():
     model.set_logger(configure(run, ["csv", "tensorboard"]))
     threading.Thread(target=watch_stdin, daemon=True).start()
     signal.signal(signal.SIGINT, lambda *_: (print("\n[train] Ctrl+C: saving..."), STOP.set()))
-    log("[train] training: type  stop  and press Enter (or press Ctrl+C) to save and finish")
+    try:
+        os.remove(os.path.join(run, "STOP"))                                # a leftover request from before
+    except OSError:
+        pass
+    log("[train] training: type  stop  and press Enter, press Ctrl+C, or run stop_training.bat to save and finish")
     try:
         model.learn(total_timesteps=int(cfg.get("total_timesteps", 10 ** 12)), callback=Supervisor(run, cfg, venv, log), reset_num_timesteps=False, progress_bar=False)
     except StopTraining:
         pass
+    except Exception:
+        import traceback; log("[train] stopped by an error:\n" + traceback.format_exc())
     finally:
         model.save(os.path.join(run, "latest")); log(f"[train] saved {latest} ({model.num_timesteps} steps)")
         venv.close()

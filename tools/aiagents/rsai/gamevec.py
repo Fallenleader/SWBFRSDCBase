@@ -52,7 +52,7 @@ class GameVecEnv(VecEnv):
         self.bridge = None; self.slot_id = [None] * slots; self.side_index = 0; self.side = None
         self.tracker = spaces.Tracker(); self.last = None; self.prev_owner = {}; self.prev_alive_ids = set()
         self.stats = Stats(); self.matches = 0; self.no_bots_since = None; self.actions = None
-        self.restarts = 0; self.stop_flag = stop or (lambda: False)
+        self.restarts = 0; self.stop_flag = stop or (lambda: False); self.speed = [None, None]   # (game s, real s) at the window start
 
     # ---------------------------------------------------------------- game connection
     def _connect(self):
@@ -135,6 +135,14 @@ class GameVecEnv(VecEnv):
         return out, idx
 
     # ---------------------------------------------------------------- VecEnv API
+    def game_speed(self):
+        """game seconds per real second since the last call (the game's speed-up)"""
+        s = self._pending_snapshot if hasattr(self, "_pending_snapshot") else None
+        if s is None:
+            return 0.0
+        g0, r0 = self.speed; self.speed = [s.game_s, time.time()]
+        return 0.0 if g0 is None or time.time() <= r0 else max(s.game_s - g0, 0.0) / (time.time() - r0)
+
     def reset(self):
         if self.bridge is None:
             self._connect()

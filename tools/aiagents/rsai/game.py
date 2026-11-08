@@ -21,7 +21,7 @@ class GameProcess:
                  RS_AI_BRIDGE=f"127.0.0.1:{self.port}", RS_AI_BRIDGE_HZ=str(self.hz), RS_AI_BRIDGE_SYNC="1", RS_AI_BRIDGE_CONTROL="1",
                  RS_AI_WINDOW="1" if self.window else "0")
         if self.fast:
-            e.update(RS_FAST="1", RS_VCLOCK="1")
+            e.update(RS_FAST="1", RS_VCLOCK="2")      # the fixed game clock only during matches (hle.c guest_us)
         if not self.window:
             e.update(SDL_AUDIODRIVER="dummy")
             if sys.platform != "win32":

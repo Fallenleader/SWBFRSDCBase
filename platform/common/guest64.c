@@ -67,6 +67,8 @@ static pthread_mutex_t stk_m = PTHREAD_MUTEX_INITIALIZER;
 static struct { u32 off, size; double t; } stk_free[64]; static int stk_n;
 static double stk_now(void){ struct timespec ts; timespec_get(&ts, TIME_UTC); return ts.tv_sec + ts.tv_nsec * 1e-9; }
 void rs_guest_stack_release(void *p, size_t size, double delay){
+    extern int rs_setting_int(const char *, int);
+    static int on = -1; if (on < 0) on = rs_setting_int("RS_STACK_REUSE", 1); if (!on) return;   /* 0: never reuse (diagnostics) */
     pthread_mutex_lock(&stk_m);
     if (stk_n < 64) { stk_free[stk_n].off = (u32)((u8 *)p - rs_gbase); stk_free[stk_n].size = (u32)size; stk_free[stk_n].t = stk_now() + delay; stk_n++; }
     pthread_mutex_unlock(&stk_m); }

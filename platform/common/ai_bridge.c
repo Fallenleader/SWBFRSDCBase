@@ -83,13 +83,22 @@ void rs_ai_bridge_frame(void){
     int n = rs_ai_snapshot(recs, MAX_BOTS, rawn ? raw : 0, rawn);
     struct rs_ai_hdr h; memcpy(h.magic, "RSAI", 4); h.version = RS_AI_BRIDGE_VERSION; h.frame = frame; h.time_s = (float)(now_s() - t0);
     h.n = (uint32_t)n; h.rec_size = sizeof(struct rs_ai_rec); h.raw_size = (uint32_t)rawn; h.caps = control ? 1u : 0u;
-    if (!send_all(&h, sizeof h) || (n && !send_all(recs, sizeof(struct rs_ai_rec) * (size_t)n)) || (n && rawn && !send_all(raw, (size_t)n * rawn))) { drop("send"); return; }
-    { struct rs_ai_post ps[8]; uint32_t np = (uint32_t)rs_ai_posts(ps, 8); if (!send_all(&np, 4) || (np && !send_all(ps, sizeof ps[0] * np))) { drop("send"); return; } }
+    /* one send per snapshot: several small sends meet Nagle / delayed-ACK waits (about 200 ms each on Windows) */
+    { static uint8_t *out; static size_t cap; struct rs_ai_post ps[8]; uint32_t np = (uint32_t)rs_ai_posts(ps, 8);
+      size_t need = sizeof h + sizeof(struct rs_ai_rec) * (size_t)n + (size_t)n * (size_t)rawn + 4 + sizeof ps[0] * np;
+      if (need > cap) { cap = need + 4096; out = realloc(out, cap); }
+      size_t k = 0; memcpy(out + k, &h, sizeof h); k += sizeof h;
+      memcpy(out + k, recs, sizeof(struct rs_ai_rec) * (size_t)n); k += sizeof(struct rs_ai_rec) * (size_t)n;
+      if (rawn) { memcpy(out + k, raw, (size_t)n * rawn); k += (size_t)n * rawn; }
+      memcpy(out + k, &np, 4); k += 4; memcpy(out + k, ps, sizeof ps[0] * np); k += sizeof ps[0] * np;
+      if (!send_all(out, k)) { drop("send"); return; } }
     if (!sync_mode) return;
     char m[4]; uint32_t na;
     if (!recv_all(m, 4) || memcmp(m, "RSAA", 4) || !recv_all(&na, 4)) { drop("reply"); return; }
     nacts = 0;
-    for (uint32_t i = 0; i < na; i++) { struct rs_ai_act a; if (!recv_all(&a, sizeof a)) { drop("actions"); return; } if (nacts < MAX_BOTS) acts[nacts++] = a; }
+    if (na > MAX_BOTS) { drop("too many actions"); return; }
+    if (na && !recv_all(acts, sizeof acts[0] * na)) { drop("actions"); return; }
+    nacts = (int)na;
     if (control) { static unsigned why[6], nb; int bad = 0;
         for (int i = 0; i < nacts; i++) if (acts[i].param[3] == 1.0f) { int r = rs_ai_command(acts[i].id, 1, acts[i].param); if (r < 0) { bad++; why[-r < 6 ? -r : 0]++; } }
         if (bad && (nb += (unsigned)bad) / 200 != (nb - (unsigned)bad) / 200)

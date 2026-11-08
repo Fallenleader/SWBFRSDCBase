@@ -60,7 +60,7 @@ void rs_patches_frame(void){
     { extern void rs_ai_frame(void); rs_ai_frame(); }                    /* idle squads (below) */
 #ifdef RS_DESKTOP
     { extern void rs_dedicated_after_match(unsigned); static unsigned fr, nb; if (fr++ % 30 == 0) { static struct rs_ai_rec tmp[256]; nb = (unsigned)rs_ai_snapshot(tmp, 256, 0, 0); }
-      rs_dedicated_after_match(nb); }                                                                       /* RS_DEDICATED=2 (AI training): through team selection and results */
+      rs_dedicated_after_match(nb); { extern volatile int rs_vclock_match; rs_vclock_match = nb > 0; } }                                                                       /* RS_DEDICATED=2 (AI training): through team selection and results */
 #endif
     if (!on() || GU8(IMG(MODE_NETWORK)) != 1) return;
     u32 t = GU32(IMG(VAR_TICKETS));
