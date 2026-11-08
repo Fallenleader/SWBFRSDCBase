@@ -83,6 +83,10 @@ Map          = ENDOR CLASSIC CQST
 Maps are the game's own (as in `mods/original_maps.txt`) or custom maps installed in that session's `mods_serversession<N>/maps/`.
 Each map line is checked: the map must have a level for that era and offer that mode.
 
+**Where the game is.** `--game` (or `GAME_DIR` in `RSServer.bat`) names the PC game folder. Without it the server looks next to
+itself and in `..\..\Windows\SWBFRS_windows\SWBFRS`; if no game is found the sessions are only checked, not hosted (the
+server window says so).
+
 **How a session hosts.** The game starts in dedicated mode (no window, nothing drawn) and, about 12 seconds after start
 (`RS_SESSION_HOST_DELAY`), does by itself what the Online menu and the Launch button do (platform/common/dedicated_host.c):
 it starts the network (internet), puts the `Map` lines into the game's map rotation, sets the player, AI, ticket and hero
