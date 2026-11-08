@@ -97,7 +97,9 @@ RS_WEAPONS=1
 RS_ANY_HEAD_CIS=0
 # movies (the intro logos, the cut-scenes): played from MP4.  The first start converts the game's PMF movies to MP4 (H.264 + AAC)
 # and its AT3 sound to WAV, into converted/ next to this file; a replacement movie goes in mods/movies/<NAME>.mp4 (NAME as the
-# game's file, e.g. OPENING_LOGOS.mp4, INTRO.mp4; H.264 video, AAC sound, any resolution: drawn over the whole screen).
+# game's file, e.g. OPENING_LOGOS.mp4, INTRO.mp4), in the Vita movie format: 960x544 or smaller, H.264 Main profile level 3.1,
+# 30 fps, 5000 kbps (8000 peak, 2-pass VBR), YUV 4:2:0 8-bit, AAC-LC 128-192 kbps, MP4 (tools/movies/vita_movie.bat makes one).
+# A replacement outside that format is not played (log.txt says why): the game's own movie is.
 # 0 = no movies
 RS_MOVIES=1
 

@@ -4,6 +4,9 @@
  * frame decoded by the ext/at3 decoder, converted to 16-bit with the same rounding, always stereo (mono is duplicated).  Frame k
  * therefore lives at data offset k * spf * 4, and playback becomes a file read.
  *
+ * Output format (the Vita's movie format): MP4, H.264 copied (Main, level <= 3.1, <= 960x544, <= 30 fps, 4:2:0 8-bit: the PSP's
+ * streams already are), AAC-LC 160 kbps, moov box first.
+ *
  * Video: the PMF is an MPEG program stream behind a 2 KB PSMF header.  Stream 0xE0 is H.264 (Annex B, an access-unit delimiter
  * before every picture); private stream 1 sub-stream 0 is ATRAC3plus (4 header bytes per PES packet, then frames, each an 8-byte
  * 0x0FD0 header + the frame).  The demuxer streams the file in 64 KB reads, so memory use does not grow with the video. */
@@ -24,7 +27,7 @@
 void *rs_at3p_alloc(int ch, int ba); int rs_at3p_decode(void *c, float *l, float *r, int *ns, const unsigned char *buf, int size); void rs_at3p_free(void *c);
 void *rs_at3_alloc(int ch, int ba, const unsigned char *extra, int extra_size); int rs_at3_decode(void *c, float *l, float *r, int *ns, const unsigned char *buf, int size); void rs_at3_free(void *c);
 
-#define MANIFEST_VERSION "rsconv 1"
+#define MANIFEST_VERSION "rsconv 2"   /* 2: videos in the Vita movie format (AAC 160 kbps, moov first); a "rsconv 1" manifest keeps its audio */
 #define MAXJOB 512
 typedef struct { char rel[256]; char src[1100]; int kind; unsigned size; uint32_t sig; uint64_t out_size; int state; } job_t;   /* kind 0 audio, 1 video; state 0 ok, 1 todo, 2 done, 3 failed */
 static job_t jobs[MAXJOB]; static int njobs, next_job;
@@ -88,12 +91,13 @@ static void check_all(void){
     FILE *f = fopen(p, "r"); char line[512]; int ver_ok = 0;
     typedef struct { char rel[256]; unsigned size; uint32_t sig; unsigned long long out; } ment_t;
     static ment_t m[MAXJOB]; int nm = 0;
-    if (f) { if (fgets(line, sizeof line, f) && !strncmp(line, MANIFEST_VERSION, strlen(MANIFEST_VERSION))) ver_ok = 1;
+    int old1 = 0;                                                      /* a version-1 manifest: its audio still stands, its videos are redone */
+    if (f) { if (fgets(line, sizeof line, f)) { if (!strncmp(line, MANIFEST_VERSION, strlen(MANIFEST_VERSION))) ver_ok = 1; else if (!strncmp(line, "rsconv 1", 8) && (line[8] == '\n' || line[8] == '\r' || !line[8])) ver_ok = old1 = 1; }
         while (ver_ok && nm < MAXJOB && fgets(line, sizeof line, f)) if (sscanf(line, "%255s %u %x %llu", m[nm].rel, &m[nm].size, &m[nm].sig, &m[nm].out) == 4) nm++;
         fclose(f); }
     for (int i = 0; i < njobs; i++) {
         job_t *j = &jobs[i]; j->sig = src_sig(j->src); j->state = 1;
-        for (int k = 0; k < nm; k++) if (!strcmp(m[k].rel, j->rel)) {
+        for (int k = 0; k < nm; k++) if (!(old1 && j->kind == 1) && !strcmp(m[k].rel, j->rel)) {
             if (m[k].size != j->size || m[k].sig != j->sig) break;               /* different source file: convert again */
             char o[1300]; out_path(o, sizeof o, j->rel, j->kind); struct stat s;
             if (stat(o, &s) == 0 && (unsigned long long)s.st_size == m[k].out && m[k].out > 0) { j->state = 0; j->out_size = m[k].out; }
@@ -194,7 +198,14 @@ static int write_header(mux_t *m){
     vp->extradata = av_mallocz((size_t)m->ext_len + AV_INPUT_BUFFER_PADDING_SIZE); memcpy(vp->extradata, m->extradata, (size_t)m->ext_len); vp->extradata_size = m->ext_len;
     m->vs->time_base = (AVRational){1, 90000};
     if (m->as) { avcodec_parameters_from_context(m->as->codecpar, m->enc); m->as->time_base = (AVRational){1, 44100}; }
-    if (avformat_write_header(m->fc, 0) < 0) return -1;
+    /* The H.264 is copied, not re-encoded (the Vita's FFmpeg has no H.264 encoder, and the PSP's 480x272 Main-profile streams are
+     * already inside the Vita movie format: Main, level 3.1 or lower, up to 960x544, up to 30 fps, 4:2:0 8-bit).  Checked here. */
+    if (m->ext_len >= 8) { int prof = m->extradata[5], lev = m->extradata[7];
+        int ok = (prof == 66 || prof == 77) && lev <= 31 && m->width <= 960 && m->height <= 544;
+        fprintf(stderr, "[CONV] video: H.264 profile %d level %d.%d %dx%d%s\n", prof, lev / 10, lev % 10, m->width, m->height, ok ? "" : ": OUTSIDE the Vita movie format"); }
+    /* the moov box at the front (faststart): the player starts without seeking to the end of the file */
+    AVDictionary *o = 0; av_dict_set(&o, "movflags", "+faststart", 0); int r = avformat_write_header(m->fc, &o); av_dict_free(&o);
+    if (r < 0) return -1;
     m->header_done = 1; return 0; }
 
 static void put_video(mux_t *m, const unsigned char *d, int n, int64_t pts, int key){
@@ -286,11 +297,12 @@ static int conv_video(job_t *j, const char *tmp, uint64_t *out_size){
     uint32_t off = ((uint32_t)hdr[8] << 24) | ((uint32_t)hdr[9] << 16) | ((uint32_t)hdr[10] << 8) | hdr[11];
     mux_t m; memset(&m, 0, sizeof m); m.dur = 3003; int has_audio = pmf_has_audio(in);
     if (avformat_alloc_output_context2(&m.fc, 0, "mp4", tmp) < 0 || !m.fc) { fclose(in); return -3; }
+    { char u[1400]; snprintf(u, sizeof u, "file:%s", tmp); av_free(m.fc->url); m.fc->url = av_strdup(u); }   /* faststart re-opens it by URL */
     m.vs = avformat_new_stream(m.fc, 0); m.pkt = av_packet_alloc();
     if (has_audio) {
         const AVCodec *c = avcodec_find_encoder(AV_CODEC_ID_AAC); if (!c) { fclose(in); avformat_free_context(m.fc); return -6; }
         m.as = avformat_new_stream(m.fc, 0); m.enc = avcodec_alloc_context3(c);
-        m.enc->sample_rate = 44100; m.enc->sample_fmt = AV_SAMPLE_FMT_FLTP; m.enc->bit_rate = 128000; av_channel_layout_default(&m.enc->ch_layout, 2);
+        m.enc->sample_rate = 44100; m.enc->sample_fmt = AV_SAMPLE_FMT_FLTP; m.enc->bit_rate = 160000;   /* AAC-LC, 128-192 kbps (the Vita movie format) */ av_channel_layout_default(&m.enc->ch_layout, 2);
         m.enc->time_base = (AVRational){1, 44100}; m.enc->profile = 1 /* AAC LC */;
         if (m.fc->oformat->flags & AVFMT_GLOBALHEADER) m.enc->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
         AVDictionary *o = 0; av_dict_set(&o, "aac_coder", "fast", 0);

@@ -84,6 +84,22 @@ static void close_movie(void){
     free(M.es); free(M.ab); free(M.ps); free(M.rgba); free(M.pcm);
     int log = M.log; memset(&M, 0, sizeof M); M.log = log;
     pthread_mutex_lock(&fmx); shown_on = 0; pthread_mutex_unlock(&fmx); }
+#if defined(__vita__)
+/* The Vita's movie format (its H.264 decoder and memory budget): H.264 Main profile (Baseline also decodes), level 3.1 or lower,
+ * at most 960x544, at most 30 frames a second, 4:2:0 8-bit (implied by Baseline / Main), AAC-LC sound.  The bit rate (5 Mbps
+ * average, 8 Mbps peak, two-pass VBR) is how tools/movies/vita_movie.bat encodes; it is not checked here. */
+static int vita_movie_ok(const mp4_t *m, char *why, size_t n){
+    const mp4_track_t *v = &m->video; const u8 *c = v->cfg;
+    if (v->cfg_len < 4) { snprintf(why, n, "no H.264 configuration"); return 0; }
+    int prof = c[1], level = c[3];
+    if (prof != 66 && prof != 77) { snprintf(why, n, "H.264 profile %d (needs Main)", prof); return 0; }
+    if (level > 31) { snprintf(why, n, "H.264 level %d.%d (needs 3.1 or lower)", level / 10, level % 10); return 0; }
+    if (v->width > 960 || v->height > 544) { snprintf(why, n, "%dx%d (needs 960x544 or smaller)", v->width, v->height); return 0; }
+    if (v->n > 1 && v->duration && v->timescale) { double fps = (double)v->n * v->timescale / (double)v->duration;
+        if (fps > 30.5) { snprintf(why, n, "%.2f fps (needs 30 or fewer)", fps); return 0; } }
+    if (m->audio.cfg_len >= 1 && (m->audio.cfg[0] >> 3) != 2) { snprintf(why, n, "audio is not AAC-LC"); return 0; }
+    return 1; }
+#endif
 static int open_movie(void){
     if (M.open_tried) return M.have; M.open_tried = 1; M.log = rs_setting_int("RS_MPEG_LOG", 0);
     if (!rs_setting_int("RS_MOVIES", 1) || !pmf_path[0]) return 0;
@@ -96,6 +112,16 @@ static int open_movie(void){
         const char *o = rs_convert_output_for ? rs_convert_output_for(pmf_path, ".mp4") : 0; snprintf(path, sizeof path, "%s", o ? o : ""); }
     if (!path[0] || !exists(path)) { fprintf(stderr, "[MOVIE] %s: no MP4 (not converted yet?): skipped\n", pmf_path); return 0; }
     if (mp4_open(&M.mp4, path)) { fprintf(stderr, "[MOVIE] %s: not an MP4 with H.264 video: skipped\n", path); return 0; }
+#if defined(__vita__)
+    if (strstr(path, "/mods/movies/")) { char why[160];                 /* a replacement outside the Vita's movie format: the game's own */
+        if (!vita_movie_ok(&M.mp4, why, sizeof why)) {
+            fprintf(stderr, "[MOVIE] %s: %s (Vita movies: H.264 Main, level 3.1 or lower, up to 960x544, up to 30 fps, 4:2:0 8-bit, AAC-LC; "
+                "tools/movies/vita_movie.bat makes one): the game's own movie is played\n", path, why);
+            mp4_close(&M.mp4); memset(&M.mp4, 0, sizeof M.mp4);
+            const char *rs_convert_output_for(const char *, const char *) __attribute__((weak));
+            const char *o = rs_convert_output_for ? rs_convert_output_for(pmf_path, ".mp4") : 0; snprintf(path, sizeof path, "%s", o ? o : "");
+            if (!path[0] || !exists(path) || mp4_open(&M.mp4, path)) { fprintf(stderr, "[MOVIE] %s: no converted MP4 either: skipped\n", pmf_path); return 0; } } }
+#endif
     M.have = 1; mp4_track_t *v = &M.mp4.video;
     /* the avcC record: NAL length size, SPS and PPS -> Annex B */
     const u8 *c = v->cfg; int cl = v->cfg_len;
