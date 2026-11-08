@@ -459,7 +459,27 @@ static void dedicated_main(double t0){
     while (!game_done) { if (gfx_present_due()) continue; gfx_pump(16); }
     fflush(stderr); }
 
+#ifdef _WIN32
+/* a crash: where (offsets from the executable's base; resolve with the unstripped build's symbols), into log.txt */
+static LONG WINAPI crash_filter(EXCEPTION_POINTERS *e){
+    HMODULE m = GetModuleHandleA(NULL); uintptr_t base = (uintptr_t)m, end = base + 64u * 1024 * 1024;
+    CONTEXT *c = e->ContextRecord;
+    fprintf(stderr, "[CRASH] exception %08lx at exe+%llx (rip %p), access %llx %p; thread %lu\n", (unsigned long)e->ExceptionRecord->ExceptionCode,
+        (unsigned long long)(c->Rip - base), (void *)c->Rip, e->ExceptionRecord->NumberParameters > 0 ? (unsigned long long)e->ExceptionRecord->ExceptionInformation[0] : 0ull,
+        e->ExceptionRecord->NumberParameters > 1 ? (void *)e->ExceptionRecord->ExceptionInformation[1] : NULL, (unsigned long)GetCurrentThreadId());
+    fprintf(stderr, "[CRASH] stack (return addresses in the exe, nearest first):");
+    uintptr_t *sp = (uintptr_t *)c->Rsp; int n = 0;
+    { extern u32 rs_guest_fn_near(const void *, size_t *); size_t d; u32 g = rs_guest_fn_near((void *)c->Rip, &d); fprintf(stderr, " [func_%08X+%zx]", g, d); }
+    for (int i = 0; i < 4096 && n < 40; i++) { uintptr_t v; if (IsBadReadPtr(sp + i, sizeof v)) break; v = sp[i]; if (v > base + 0x1000 && v < end) {
+        extern u32 rs_guest_fn_near(const void *, size_t *); size_t d; u32 g = rs_guest_fn_near((void *)v, &d);
+        fprintf(stderr, " %llx(func_%08X+%zx)", (unsigned long long)(v - base), g, d); n++; } }
+    fprintf(stderr, "\n"); fflush(stderr);
+    return EXCEPTION_CONTINUE_SEARCH; }
+#endif
 int main(int argc, char **argv){
+#ifdef _WIN32
+    SetUnhandledExceptionFilter(crash_filter);
+#endif
     (void)argc; (void)argv;
 #ifndef _WIN32
     signal(SIGUSR1, report_sig);

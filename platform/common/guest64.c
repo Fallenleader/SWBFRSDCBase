@@ -23,6 +23,11 @@ extern u32 rs_image_init[]; extern const u32 rs_image_size;
 static fent_t *ht; static u32 hmask;
 static u32 hslot(u32 a){ return ((a >> 2) * 2654435761u) & hmask; }
 
+/* the game function whose code contains a native address (crash reports): its guest address, 0 if none is below it */
+u32 rs_guest_fn_near(const void *p, size_t *delta){
+    u32 best = 0; const char *bf = 0;
+    for (int i = 0; i < rs_fn_count; i++) { const char *f = (const char *)rs_fn_table[i].fn; if (f <= (const char *)p && (!bf || f > bf)) { bf = f; best = rs_fn_table[i].addr; } }
+    if (delta) *delta = bf ? (size_t)((const char *)p - bf) : 0; return best; }
 void rs_guest64_init(void *window, size_t size){
     rs_gbase = window; g_mem = window;
     if (size < RS_G_WINDOW) { fprintf(stderr, "[GUEST] window too small (%zu bytes)\n", size); abort(); }
@@ -68,7 +73,11 @@ static struct { u32 off, size; double t; } stk_free[64]; static int stk_n;
 static double stk_now(void){ struct timespec ts; timespec_get(&ts, TIME_UTC); return ts.tv_sec + ts.tv_nsec * 1e-9; }
 void rs_guest_stack_release(void *p, size_t size, double delay){
     extern int rs_setting_int(const char *, int);
+#ifdef _WIN32
+    static int on = -1; if (on < 0) on = rs_setting_int("RS_STACK_REUSE", 0); if (!on) return;   /* Windows: off (reuse crashed the next thread start there; not understood yet) */
+#else
     static int on = -1; if (on < 0) on = rs_setting_int("RS_STACK_REUSE", 1); if (!on) return;   /* 0: never reuse (diagnostics) */
+#endif
     pthread_mutex_lock(&stk_m);
     if (stk_n < 64) { stk_free[stk_n].off = (u32)((u8 *)p - rs_gbase); stk_free[stk_n].size = (u32)size; stk_free[stk_n].t = stk_now() + delay; stk_n++; }
     pthread_mutex_unlock(&stk_m); }
