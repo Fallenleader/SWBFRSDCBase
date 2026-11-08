@@ -1,7 +1,7 @@
 # A hosted session (see README.md).
 Name         = Classic Era Rotation
-MaxPlayers   = 16
-Bots         = 32
+MaxPlayers   = 8
+Bots         = 16
 AIDifficulty = 1
 Tickets      = 300
 TimeLimit    = 20

@@ -255,6 +255,7 @@ static void h_Sendto(sdkcall_t *c){
     sock_t s = sk(A0); u32 n = A2 > 65536 ? 65536 : A2; if (s == BADSOCK) { perr = 9; V0 = 0xFFFFFFFFu; return; }
     struct sockaddr_in a; int has = sa_in(T0, &a); gread(A1, iobuf, n);
     if (has && a.sin_addr.s_addr == htonl(INADDR_BROADCAST)) { int on = 1; setsockopt(s, SOL_SOCKET, SO_BROADCAST, (const char *)&on, sizeof on); }
+    if (has && ntohs(a.sin_port) == 27900) { extern u32 rs_dedicated_qr2(u8 *p, u32 n, u32 cap); n = rs_dedicated_qr2(iobuf, n, sizeof iobuf); }   /* dedicated_host.c: the session's name */
     int r = (int)(has ? sendto(s, (const char *)iobuf, (int)n, host_flags(A3), (struct sockaddr *)&a, sizeof a) : send(s, (const char *)iobuf, (int)n, host_flags(A3)));
     NLOG("sendto %d %u %s -> %d", A0, n, has ? sa_str(&a) : "-", r); V0 = r >= 0 ? (u32)r : fail(serrno()); }
 static int rd_wait(sock_t s, int idx, u32 flags){

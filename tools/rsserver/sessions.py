@@ -38,8 +38,8 @@ GAME_MAPS = {
     'SPACE_KESSEL': ('C', 'CQST CTF1'), 'SPACE_MYGEETO': ('P', 'CQST CTF1'), 'SPACE_YAVIN': ('C', 'CQST CTF1'),
 }
 NUMERIC = {  # key: (game setting, low, high, default)
-    'MaxPlayers': ('RS_SESSION_MAX_PLAYERS', 2, 16, 16), 'Bots': ('RS_SESSION_BOTS', 0, 64, 16), 'AIDifficulty': ('RS_SESSION_AI_DIFFICULTY', 0, 2, 1),
-    'Tickets': ('RS_SESSION_TICKETS', 50, 1000, 200), 'TimeLimit': ('RS_SESSION_TIME_LIMIT', 0, 60, 20), 'HeroTime': ('RS_SESSION_HERO_TIME', 0, 600, 60),
+    'MaxPlayers': ('RS_SESSION_MAX_PLAYERS', 2, 8, 8), 'Bots': ('RS_SESSION_BOTS', 0, 16, 16), 'AIDifficulty': ('RS_SESSION_AI_DIFFICULTY', 0, 2, 1),
+    'Tickets': ('RS_SESSION_TICKETS', 50, 1000, 200), 'TimeLimit': ('RS_SESSION_TIME_LIMIT', 0, 60, 20), 'HeroTime': ('RS_SESSION_HERO_TIME', 60, 600, 60),
     'AutoBalance': ('RS_SESSION_AUTO_BALANCE', 0, 1, 1)}
 FILE_RE = re.compile(r'^serversession([1-9][0-9]{0,2})\.txt$')
 
@@ -142,7 +142,8 @@ class Manager:
             settings += ['%s=%d' % (NUMERIC[k][0], cfg[k]) for k in NUMERIC]
             open(os.path.join(home, 'settings.txt'), 'w').write('\n'.join(settings) + '\n')
             exe = self.game_exe()
-            env = dict(os.environ, RS_DATA_DIR=home, RS_GAME_DIR=os.path.join(self.game, 'GAME'), RS_MODS_DIR=self.mods_dir(n), RS_DEDICATED='1',
+            env = dict(os.environ, **dict(l.split('=', 1) for l in settings if l.startswith('RS_')))   # the session, for dedicated_host.c
+            env.update(RS_DATA_DIR=home, RS_GAME_DIR=os.path.join(self.game, 'GAME'), RS_MODS_DIR=self.mods_dir(n), RS_DEDICATED='1',
                        SDL_AUDIODRIVER='dummy', SDL_VIDEODRIVER='dummy' if sys.platform != 'win32' else os.environ.get('SDL_VIDEODRIVER', ''))
             try:
                 flags = 0x08000000 if sys.platform == 'win32' else 0                 # CREATE_NO_WINDOW: no console either
