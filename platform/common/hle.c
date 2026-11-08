@@ -508,7 +508,8 @@ void rs_script_read_pad(rs_pad_t *p){                  /* RS_SCRIPT (tests): scr
 __attribute__((weak)) void rs_backend_read_pad(rs_pad_t *p){ rs_script_read_pad(p); }
 u8 rs_right_stick[2] = {128, 128};   /* the right stick (raw, as the PSP reports the left one): read by platform/common/twin_stick.c */
 u32 rs_pad_inject(u32 buttons);
-static void h_CtrlRead(sdkcall_t *c){ rs_pad_t p; rs_backend_read_pad(&p); u32 b = A0; p.buttons = rs_pad_inject(p.buttons);   /* gamespy_ui.c */
+void rs_dedicated_tick(void);  /* dedicated_host.c */
+static void h_CtrlRead(sdkcall_t *c){ rs_dedicated_tick(); rs_pad_t p; rs_backend_read_pad(&p); u32 b = A0; p.buttons = rs_pad_inject(p.buttons);   /* gamespy_ui.c */
     /* The PSP has one analog stick: the left stick goes to the game as it. The right stick is kept for twin_stick.c (turn / look). */
     SW(b, (u32)guest_us()); SW(b + 4, p.buttons); SB(b + 8, p.lx); SB(b + 9, p.ly);
     rs_right_stick[0] = p.rx; rs_right_stick[1] = p.ry; V0 = 1; yield_big(); }

@@ -69,12 +69,12 @@ nothing drawn and no sound (the null renderer), so it shows nothing on the scree
 
 ```
 Name         = Classic Era Rotation     # the name shown in the server browser (1-31 characters)
-MaxPlayers   = 16                       # players who can join, 2..16
-Bots         = 32                       # AI soldiers in total, 0..64
+MaxPlayers   = 8                        # people who can join, 2..8 (the game's online limit)
+Bots         = 16                       # the match is filled with AI up to this many soldiers in total, 0..16
 AIDifficulty = 1                        # 0 easy, 1 medium, 2 hard
 Tickets      = 300                      # reinforcements per team, 50..1000
 TimeLimit    = 20                       # minutes, 0 = none, up to 60
-HeroTime     = 60                       # seconds before heroes unlock, 0..600
+HeroTime     = 60                       # seconds before heroes unlock, 60..600 (the game counts whole minutes)
 AutoBalance  = 1                        # 0 / 1
 Map          = HOTH CLASSIC CQST        # the rotation, one line per map: map, era (CLASSIC / PREQUEL), mode (CQST / CTF1 / CTF2 / HCTF)
 Map          = ENDOR CLASSIC CQST
@@ -83,9 +83,12 @@ Map          = ENDOR CLASSIC CQST
 Maps are the game's own (as in `mods/original_maps.txt`) or custom maps installed in that session's `mods_serversession<N>/maps/`.
 Each map line is checked: the map must have a level for that era and offer that mode.
 
-**State of hosting.** The server finds, checks and starts the sessions, and each starts the game in dedicated mode (checked: no
-window, the game runs, its mods come from its own folder). Making that game open its match by itself (log in, set up the rotation
-and settings, host) is the next step and is not done yet; until it is, the sessions do not appear in the server browser.
+**How a session hosts.** The game starts in dedicated mode (no window, nothing drawn) and, about 12 seconds after start
+(`RS_SESSION_HOST_DELAY`), does by itself what the Online menu and the Launch button do (platform/common/dedicated_host.c):
+it starts the network (internet), puts the `Map` lines into the game's map rotation, sets the player, AI, ticket and hero
+settings, and hosts. The match is then reported to this server and listed in the server browser under the session's `Name`.
+The game moves through the rotation by itself. `AIDifficulty`, `TimeLimit` and `AutoBalance` are checked but not yet applied:
+the game's defaults are used.
 
 ## Files
 
