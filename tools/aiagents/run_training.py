@@ -15,6 +15,8 @@ Files: runs/<name>/ (latest.zip, best.zip, checkpoints/, progress_game.csv, tens
 data folder with its log.txt).
 """
 import argparse, csv, os, signal, sys, threading, time
+os.environ.setdefault("OMP_NUM_THREADS", "1")       # a 10k-weight network: one thread is fastest; more spin on every step (Windows)
+os.environ.setdefault("MKL_NUM_THREADS", "1")
 import numpy as np
 import torch
 import yaml
@@ -97,7 +99,7 @@ def main():
         log(f"[train] the game was not found: {exe} (configs: game.exe)"); return 1
     if not os.path.isdir(os.path.join(gdir, "GAME")):
         log(f"[train] no GAME folder in {gdir} (configs: game.game_dir = the PC game folder that has GAME\\)"); return 1
-    seed = int(cfg.get("seed", 1)); config.seed_everything(seed); torch.set_num_threads(max(1, (os.cpu_count() or 2) // 2))
+    seed = int(cfg.get("seed", 1)); config.seed_everything(seed); torch.set_num_threads(int(cfg.get("torch_threads", 1)))
     with open(os.path.join(run, "config.yaml"), "w") as f:
         yaml.safe_dump(cfg, f)
     open(os.path.join(run, "available_rewards.txt"), "w").write("\n".join(rewards.available_terms()) + "\n")

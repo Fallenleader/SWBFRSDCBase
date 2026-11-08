@@ -70,8 +70,12 @@ class GameVecEnv(VecEnv):
     def _restart(self, why):
         if self.stop_flag():
             raise StopTraining()
-        code = self.game.exit_code()
         import os, subprocess
+        for _ in range(20):                         # a game that has just died: give it a moment to report its exit code
+            if self.game.exit_code() is not None:
+                break
+            time.sleep(0.1)
+        code = self.game.exit_code()
         if os.environ.get("RS_AI_DEBUG_GDB") and code is None and self.game.proc:      # development: where the game was stuck
             subprocess.run(["gdb", "-p", str(self.game.proc.pid), "-batch", "-ex", "thread apply all bt 25"], stdout=open(os.path.join(self.game.home, f"stuck_{self.restarts}.txt"), "w"), stderr=subprocess.STDOUT, timeout=120)
         self.restarts += 1; self.log(f"[train] restarting the game ({why}{'' if code is None else f'; it exited with code {code}'}; its log: game/log_previous.txt)")

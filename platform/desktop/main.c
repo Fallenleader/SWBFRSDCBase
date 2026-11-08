@@ -479,9 +479,17 @@ static LONG WINAPI crash_filter(EXCEPTION_POINTERS *e){
     fprintf(stderr, "\n"); fflush(stderr);
     return EXCEPTION_CONTINUE_SEARCH; }
 #endif
+#ifdef _WIN32
+static void abort_report(int sig){
+    void *f[48]; USHORT n = RtlCaptureStackBackTrace(1, 48, f, NULL); uintptr_t base = (uintptr_t)GetModuleHandleA(NULL);
+    fprintf(stderr, "[CRASH] signal %d (abort / runtime error); stack:", sig);
+    for (USHORT i = 0; i < n; i++) { extern u32 rs_guest_fn_near(const void *, size_t *); size_t d; u32 g = rs_guest_fn_near(f[i], &d);
+        fprintf(stderr, " %llx(func_%08X+%zx)", (unsigned long long)((uintptr_t)f[i] - base), g, d); }
+    fprintf(stderr, "\n"); fflush(stderr); _exit(3); }
+#endif
 int main(int argc, char **argv){
 #ifdef _WIN32
-    SetUnhandledExceptionFilter(crash_filter);
+    SetUnhandledExceptionFilter(crash_filter); signal(SIGABRT, abort_report); signal(SIGSEGV, abort_report); signal(SIGILL, abort_report); signal(SIGFPE, abort_report);
 #endif
     (void)argc; (void)argv;
 #ifndef _WIN32
