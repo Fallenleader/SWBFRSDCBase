@@ -1,0 +1,32 @@
+# Unattended training against the real game (run_training.py / train_forever.bat).
+name: infantry_v1
+seed: 1
+game:
+  # the AIAgents build of the game, and the PC game folder that has GAME\ in it (the game files are read from there)
+  exe: ../../builds/AIAgents/SWBFRS.exe
+  game_dir: ../../builds/Windows/SWBFRS_windows/SWBFRS
+  port: 47800
+  decision_hz: 5            # policy decisions per second of game time
+  agents: 8                 # the policy's side (16 players: 8 a side, PSP parity)
+  fast: true                # fixed game clock, as fast as the PC allows (no window, no sound)
+  window: false             # true: watch it in a window (slower)
+  # map rotation MAP:ERA:MODE (classic / prequel; CQST conquest).  Several maps keep the policy from learning one map only.
+  # (the names are the game's own, as in mods/mod_maps.txt; ground maps for infantry)
+  maps: [TATOOINE:CLASSIC:CQST, KASHYYYK:PREQUEL:CQST, ENDOR:CLASSIC:CQST, MUSTAFAR:PREQUEL:CQST, YAVIN_IV:CLASSIC:CQST,
+         NABOO:PREQUEL:CQST, KORRIBAN:CLASSIC:CQST, SULLUST:PREQUEL:CQST]
+policy:
+  hidden: [64, 64]
+  activation: tanh
+ppo:
+  learning_rate: 3.0e-4
+  n_steps: 1024             # x 8 agents = 8192 decisions per update
+  batch_size: 512
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+checkpoint_every_steps: 100000
+report_every_steps: 50000
+min_game_minutes_for_best: 20   # a window shorter than this never becomes best.zip
+reward_weights: {}               # overrides for rsai/rewards.py TERMS

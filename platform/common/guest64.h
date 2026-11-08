@@ -17,3 +17,4 @@
 
 void rs_guest64_init(void *window, size_t size);   /* after mapping RS_G_WINDOW bytes: copies the image, builds the function table */
 void *rs_guest_stack(size_t size);                  /* stack memory for a thread that runs game code */
+void rs_guest_stack_release(void *p, size_t size, double delay);   /* its thread has ended: reusable after delay seconds */

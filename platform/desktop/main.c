@@ -167,6 +167,8 @@ void rs_thread_init(void){ static u8 (*blocks)[256]; static int n; if (!blocks) 
 void rs_break(u32 code, u32 where){ fprintf(stderr, "[GAME] break/trap code 0x%x at guest pc %08x\n", code, where); fflush(stderr); _exit(3); }
 #ifndef _WIN32
 void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ (void)psp_stack; pthread_attr_setstack(at, rs_guest_stack(STACK_SZ), STACK_SZ); }
+/* a game thread is ending (hle.c): its guest stack is reused two seconds later, by when the thread has long left it */
+void rs_thread_stack_done(void){ pthread_attr_t a; void *p; size_t n; if (pthread_getattr_np(pthread_self(), &a) == 0) { if (pthread_attr_getstack(&a, &p, &n) == 0 && n == STACK_SZ) rs_guest_stack_release(p, n, 2.0); pthread_attr_destroy(&a); } }
 int rs_thread_spawn(pthread_t *t, pthread_attr_t *at, void *(*fn)(void *), void *arg){ return pthread_create(t, at, fn, arg); }
 #else
 /* Windows threads cannot be given a stack: each game thread switches to its stack in the guest window (the game's stack frames must
@@ -195,7 +197,9 @@ static void *spawn_entry(void *p){
     u8 *top = s.stack + STACK_SZ - 64; top = (u8 *)((uintptr_t)top & ~(uintptr_t)15);
     tib->StackBase = s.stack + STACK_SZ; tib->StackLimit = s.stack;
     body_fn = s.fn; void *r = rs_on_stack(top, thread_body, s.arg);
-    tib->StackBase = ob; tib->StackLimit = ol; return r; }
+    tib->StackBase = ob; tib->StackLimit = ol;
+    rs_guest_stack_release(s.stack, STACK_SZ, 0.0);                  /* back on this thread's own stack: the guest stack is free */
+    return r; }
 void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ (void)at; (void)psp_stack; }
 int rs_thread_spawn(pthread_t *t, pthread_attr_t *at, void *(*fn)(void *), void *arg){
     spawn_t *s = malloc(sizeof *s); s->fn = fn; s->arg = arg; s->stack = rs_guest_stack(STACK_SZ);
@@ -466,6 +470,8 @@ int main(int argc, char **argv){
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "0");
     /* RS_DEDICATED=1 (a session hosted by the RS server, tools/rsserver/sessions.py): no window, nothing drawn, no sound device */
     int dedicated = rs_setting_int("RS_DEDICATED", 0) || (getenv("RS_DEDICATED") && atoi(getenv("RS_DEDICATED")));
+    /* RS_DEDICATED=2 (AI training, tools/aiagents): headless as well, unless RS_AI_WINDOW=1 (to watch the bots) */
+    if (dedicated && ((getenv("RS_DEDICATED") && atoi(getenv("RS_DEDICATED")) == 2) || rs_setting_int("RS_DEDICATED", 0) == 2) && (rs_setting_int("RS_AI_WINDOW", 0) || (getenv("RS_AI_WINDOW") && atoi(getenv("RS_AI_WINDOW"))))) dedicated = 0;
     if (SDL_Init(dedicated ? SDL_INIT_EVENTS : (SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS)) != 0) fatal(SDL_GetError());
     pad_mx = SDL_CreateMutex();
     if (dedicated) { dedicated_main(t0); return 0; }

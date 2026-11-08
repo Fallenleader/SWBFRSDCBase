@@ -26,7 +26,7 @@ def eval_env_policy(policy, env_kind, seeds, episodes):
 
 def eval_recording(path, idle_dist=0.5):
     from rsai import protocol
-    d = np.load(path); recs = d["recs"]; counts = d["counts"]; t = d["time_s"]
+    d = np.load(path); recs = d["recs"]; counts = d["counts"]; t = d["frame"].astype(np.float64) / 60.0   # game time
     offs = np.concatenate([[0], np.cumsum(counts)]); life, deaths, idle, spacing_e, spacing_a = {}, 0, [], [], []
     prev, last_seen = {}, {}
     for k in range(len(counts)):

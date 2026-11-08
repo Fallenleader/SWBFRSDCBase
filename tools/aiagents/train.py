@@ -1,4 +1,4 @@
-"""Train the infantry policy with PPO (Stable-Baselines3).
+"""Tooling check: PPO on the stand-in task (pipeline_check, NOT the game).  Training against the game is run_training.py.
 
     python train.py --config configs/infantry_v0.yaml [--seed 1] [--timesteps N] [--env pipeline_check|game]
 
@@ -11,14 +11,13 @@ from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 from stable_baselines3.common.logger import configure
 from rsai import config, rewards
 from rsai.envs.pipeline_check import PipelineCheckEnv
-from rsai.envs.game_env import GameBridgeEnv
 
 
 def make_env(cfg, kind):
     if kind == "pipeline_check":
         return PipelineCheckEnv
     if kind == "game":
-        return lambda: GameBridgeEnv(port=cfg["game"]["port"])
+        raise SystemExit("training against the game: run_training.py (train_forever.bat)")
     raise SystemExit(f"unknown env {kind}")
 
 

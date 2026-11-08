@@ -1,22 +1,25 @@
 """Wire format of the game's AI bridge (platform/common/ai_bridge.h).  Keep in step with RS_AI_BRIDGE_VERSION."""
 import numpy as np
 
-VERSION = 1
+VERSION = 2
 HDR = np.dtype([("magic", "S4"), ("version", "<u4"), ("frame", "<u4"), ("time_s", "<f4"), ("n", "<u4"),
                 ("rec_size", "<u4"), ("raw_size", "<u4"), ("caps", "<u4")])
 REC = np.dtype([("id", "<u4"), ("obj", "<u4"), ("team", "<u4"), ("alive", "<u4"), ("pos", "<f4", 3), ("goal", "<i4"),
                 ("squad_order", "<u4"), ("squad_post", "<u4"), ("has_squad", "<u4"), ("vehicle", "<u4"), ("ctl", "<u4"),
-                ("flags", "<u4")])
+                ("flags", "<u4"), ("health", "<f4"), ("policy", "<u4")])
+POST = np.dtype([("pos", "<f4", 3), ("id", "<u4"), ("owner", "<u4")])
 ACT = np.dtype([("id", "<u4"), ("action", "<u4"), ("param", "<f4", 4)])
 CAP_ACTIONS_APPLIED = 1
-assert HDR.itemsize == 32 and REC.itemsize == 56 and ACT.itemsize == 24
+assert HDR.itemsize == 32 and REC.itemsize == 64 and ACT.itemsize == 24 and POST.itemsize == 20
 
 
 class Snapshot:
-    """One snapshot of the game: header fields, the bots' records (numpy structured array) and the optional raw object bytes."""
-    def __init__(self, hdr, recs, raw):
+    """One snapshot of the game: header fields, the bots' records (numpy structured array), the optional raw object bytes and the
+    command posts (position, owner team)."""
+    def __init__(self, hdr, recs, raw, posts=None):
         self.frame = int(hdr["frame"]); self.time_s = float(hdr["time_s"]); self.caps = int(hdr["caps"])
-        self.recs = recs; self.raw = raw
+        self.recs = recs; self.raw = raw; self.posts = posts if posts is not None else np.zeros(0, POST)
+        self.game_s = self.frame / 60.0          # game time (frames at 60 per second; with RS_VCLOCK=1 exactly the game's clock)
 
     @property
     def actions_applied(self):
@@ -41,10 +44,13 @@ def read_snapshot(sock):
     raw = None
     if hdr["raw_size"] and n:
         raw = np.frombuffer(read_exact(sock, n * int(hdr["raw_size"])), np.uint8).reshape(n, int(hdr["raw_size"]))
-    return Snapshot(hdr, recs, raw)
+    npost = int(np.frombuffer(read_exact(sock, 4), "<u4")[0])
+    posts = np.frombuffer(read_exact(sock, npost * POST.itemsize), POST) if npost else np.zeros(0, POST)
+    return Snapshot(hdr, recs, raw, posts)
 
 
 def write_actions(sock, ids, actions, params=None):
+    """params[:, 0:3] = destination, params[:, 3] = 1 to send the bot there (RS_AI_BRIDGE_CONTROL=1), 0 to leave it"""
     a = np.zeros(len(ids), ACT); a["id"] = ids; a["action"] = actions
     if params is not None:
         a["param"] = params

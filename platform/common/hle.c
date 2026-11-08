@@ -204,6 +204,7 @@ static void h_MaxFreeMemSize(sdkcall_t *c){ V0 = heap_free_max(); }
 static void h_TotalFreeMemSize(sdkcall_t *c){ V0 = heap_free_total(); }
 
 /* ---------------- threads ---------------- */
+void rs_thread_stack_done(void);
 typedef struct kthread { int uid; u32 entry, stack, stacksize, prio; char name[32]; pthread_t th; sdkcall_t cpu; int started, exited, status, blk, last, prev; u64 *p_us, *p_n, p_hle, hold_us, holds; unsigned long ncalls_t; u32 last_ra, last_a0; u32 argc, argp; u8 argbuf[4096]; volatile int in; int deleted; } kthread_t;      /* in: 1 + index of the firmware call it is inside (0 = guest code) */
 static kthread_t *threads[256]; static int nthreads;
 static pthread_key_t k_cur, k_cpu; static pthread_once_t key_once = PTHREAD_ONCE_INIT;
@@ -234,7 +235,7 @@ static void *thread_main(void *p){
     c->r[4] = t->argc; c->r[29] = sp; c->r[28] = 0; c->r[31] = 0;
     CALLDYN(c, t->entry);
     t->status = c->r[2]; t->exited = 1; thr_release_stack(t); g_alive_threads--; fprintf(stderr, "[HLE] thread '%s' returned %d\n", t->name, t->status);
-    rc_broadcast(&gcv); pthread_mutex_unlock(&big); return 0; }
+    rc_broadcast(&gcv); pthread_mutex_unlock(&big); rs_thread_stack_done(); return 0; }
 static void h_StartThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t || t->started) { V0 = 0x800201A6u; return; }
     fprintf(stderr, "[HLE] StartThread '%s' from ra=%08x fn=%08x arg=%08x\n", t->name, c->r[31], A2 ? LW(A2) : 0, A2 ? LW(A2 + 4) : 0); if (strstr(t->name, "Atrac")) { extern void rc_dump_stack(sdkcall_t *, const char *); rc_dump_stack(c, "atrac start"); }
     t->started = 1; t->argc = A1 > sizeof t->argbuf ? (u32)sizeof t->argbuf : A1; t->argp = A2; if (t->argc) memcpy(t->argbuf, g_mem + GADDR(A2), t->argc); g_alive_threads++;
@@ -250,7 +251,8 @@ static void h_StartThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t || 
     V0 = 0; }
 /* a thread's end: the platform may leave its thread its own way (Windows: back to the stack switch, platform/desktop/main.c) */
 __attribute__((weak)) void rs_thread_exit(void){ pthread_exit(0); }
-static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; thr_release_stack(t); g_alive_threads--; rc_broadcast(&gcv); pthread_mutex_unlock(&big); rs_thread_exit(); } }
+__attribute__((weak)) void rs_thread_stack_done(void){}                    /* platform: the ending thread's guest stack can be reused */
+static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; thr_release_stack(t); g_alive_threads--; rc_broadcast(&gcv); pthread_mutex_unlock(&big); rs_thread_stack_done(); rs_thread_exit(); } }
 static void h_ExitDeleteThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) t->deleted = 1; h_ExitThread(c); }
 static void h_DeleteThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t) { V0 = 0x800201A5u; return; } if (!t->exited && t->started) { V0 = 0x800201ADu; return; } t->deleted = 1; if (!t->started) t->exited = 1; V0 = 0; }
 static void h_WaitThreadEnd(sdkcall_t *c){ int uid = (int)A0; kthread_t *t = thr_find(uid); if (!t) { V0 = 0x800201A5u; return; }

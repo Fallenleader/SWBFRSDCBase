@@ -1,0 +1,255 @@
+"""GameVecEnv: the real game as a Stable-Baselines3 vector environment.
+
+One side's bots are the policy's agents (K slots, one shared policy); the other side is the game's original AI - the opponent and,
+in the same match, the baseline.  The controlled side alternates each match.  Each slot holds one bot life: when the bot dies its
+episode ends and the slot takes the next bot of that side.  The game runs in lockstep (RS_AI_BRIDGE_SYNC=1), headless and on a
+fixed game clock as fast as the PC allows (game.py).
+"""
+import time
+import numpy as np
+from stable_baselines3.common.vec_env import VecEnv
+import gymnasium as gym
+from . import spaces, rewards
+from .bridge import Bridge
+
+
+class Stats:
+    """Per-side counters over a window of game time: the policy's side vs the game's side."""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.t0 = None; self.t1 = None
+        self.bot_s = {"policy": 0.0, "game": 0.0}; self.deaths = {"policy": 0, "game": 0}
+        self.posts = {"policy": 0.0, "game": 0.0}; self.post_samples = 0; self.captures = {"policy": 0, "game": 0}
+        self.enemy_down = {"policy": 0, "game": 0}; self.idle = {"policy": [0, 0], "game": [0, 0]}
+
+    def summary(self):
+        mins = lambda k: self.bot_s[k] / 60.0
+        out = {"game_minutes": ((self.t1 or 0) - (self.t0 or 0)) / 60.0}
+        for k in ("policy", "game"):
+            out[f"{k}_deaths_per_bot_min"] = self.deaths[k] / max(mins(k), 1e-6)
+            out[f"{k}_posts_held"] = self.posts[k] / max(self.post_samples, 1)
+            out[f"{k}_captures"] = self.captures[k]
+            out[f"{k}_enemy_down_nearby_per_bot_min"] = self.enemy_down[k] / max(mins(k), 1e-6)
+            out[f"{k}_idle_frac"] = self.idle[k][0] / max(self.idle[k][1], 1)
+        # higher is better for the policy: fewer deaths than the original AI, more posts, more enemies downed
+        out["score"] = (out["game_deaths_per_bot_min"] - out["policy_deaths_per_bot_min"]) + 2.0 * (out["policy_posts_held"] - out["game_posts_held"]) \
+            + 0.5 * (out["policy_enemy_down_nearby_per_bot_min"] - out["game_enemy_down_nearby_per_bot_min"])
+        return out
+
+
+class StopTraining(Exception):
+    pass
+
+
+class GameVecEnv(VecEnv):
+    def __init__(self, game, slots=8, port=47800, reward_weights=None, read_timeout=180, log=print, stop=None):
+        obs_space = gym.spaces.Box(-np.inf, np.inf, (spaces.OBS_DIM,), np.float32)
+        super().__init__(slots, obs_space, gym.spaces.Discrete(spaces.N_ACTIONS))
+        self.game, self.port, self.timeout, self.log = game, port, read_timeout, log
+        self.w = rewards.weights(reward_weights)
+        self.bridge = None; self.slot_id = [None] * slots; self.side_index = 0; self.side = None
+        self.tracker = spaces.Tracker(); self.last = None; self.prev_owner = {}; self.prev_alive_ids = set()
+        self.stats = Stats(); self.matches = 0; self.no_bots_since = None; self.actions = None
+        self.restarts = 0; self.stop_flag = stop or (lambda: False)
+
+    # ---------------------------------------------------------------- game connection
+    def _connect(self):
+        if self.bridge:
+            self.bridge.close()
+        self.bridge = Bridge(self.port, timeout=self.timeout)
+        self.game.start()
+        try:
+            self.bridge.accept(); self.bridge.conn.settimeout(self.timeout)
+        except Exception as e:
+            raise RuntimeError(f"the game did not connect within {self.timeout} s: {e}")
+        self.slot_id = [None] * self.num_envs; self.last = None; self.side = None; self.tracker = spaces.Tracker()
+
+    def _restart(self, why):
+        if self.stop_flag():
+            raise StopTraining()
+        code = self.game.exit_code()
+        import os, subprocess
+        if os.environ.get("RS_AI_DEBUG_GDB") and code is None and self.game.proc:      # development: where the game was stuck
+            subprocess.run(["gdb", "-p", str(self.game.proc.pid), "-batch", "-ex", "thread apply all bt 25"], stdout=open(os.path.join(self.game.home, f"stuck_{self.restarts}.txt"), "w"), stderr=subprocess.STDOUT, timeout=120)
+        self.restarts += 1; self.log(f"[train] restarting the game ({why}{'' if code is None else f'; it exited with code {code}'}; its log: game/log_previous.txt)")
+        self.game.stop(); self._connect()
+
+    def _read(self):
+        while True:
+            if self.stop_flag():
+                raise StopTraining()
+            try:
+                return self.bridge.read()
+            except Exception as e:
+                self._restart(f"bridge: {e}")
+
+    def _reply_idle(self, s):
+        try:
+            self.bridge.reply(s.recs["id"], np.zeros(len(s.recs), np.uint32))
+        except Exception as e:
+            self._restart(f"reply: {e}")
+
+    def _wait_for_match(self):
+        """Read (and answer) snapshots until the match has bots of both sides."""
+        while True:
+            s = self._read()
+            teams = np.unique(s.recs["team"][(s.recs["health"] > 0)]) if len(s.recs) else []
+            if len(teams) >= 2:
+                if self.no_bots_since is not None or self.side is None:     # a new match: switch sides
+                    self.matches += 1; self.side_index ^= 1; self.no_bots_since = None
+                    self.side = int(sorted(teams)[self.side_index]); self.slot_id = [None] * self.num_envs
+                    self.tracker = spaces.Tracker(); self.prev_owner = {}; self.prev_alive_ids = set()
+                    self.log(f"[train] match {self.matches}: the policy plays team {self.side}, the original AI the other")
+                return s
+            if self.no_bots_since is None:
+                self.no_bots_since = time.time()
+            elif time.time() - self.no_bots_since > 600:
+                self._restart("no match for 10 minutes"); self.no_bots_since = time.time()
+            self._reply_idle(s)
+
+    # ---------------------------------------------------------------- slots
+    def _assign(self, s):
+        recs = s.recs; ids = [int(i) for i in recs["id"]]
+        alive_ours = [int(r["id"]) for r in recs if r["team"] == self.side and r["health"] > 0]
+        taken = set(i for i in self.slot_id if i is not None)
+        new = [False] * self.num_envs
+        for k in range(self.num_envs):
+            if self.slot_id[k] is None or self.slot_id[k] not in ids:
+                free = [i for i in alive_ours if i not in taken]
+                self.slot_id[k] = free[0] if free else None
+                if free:
+                    taken.add(free[0])
+                new[k] = True
+        return new
+
+    def _obs(self, s):
+        dt = (s.game_s - self.last.game_s) if self.last else 0.0
+        allobs = spaces.build_obs(s.recs, s.posts, self.tracker, dt)
+        idx = {int(i): j for j, i in enumerate(s.recs["id"])}
+        out = np.zeros((self.num_envs, spaces.OBS_DIM), np.float32)
+        for k, i in enumerate(self.slot_id):
+            if i is not None and i in idx:
+                out[k] = allobs[idx[i]]
+        return out, idx
+
+    # ---------------------------------------------------------------- VecEnv API
+    def reset(self):
+        if self.bridge is None:
+            self._connect()
+        s = self._wait_for_match(); self._assign(s); obs, _ = self._obs(s); self.last = s; self.tracker.update(s.recs)
+        self._pending_snapshot = s
+        return obs
+
+    def step_async(self, actions):
+        self.actions = np.asarray(actions)
+
+    def _send(self, s):
+        recs = s.recs; idx = {int(i): j for j, i in enumerate(recs["id"])}
+        par = np.zeros((len(recs), 4), np.float32); act = np.zeros(len(recs), np.uint32)
+        for k, i in enumerate(self.slot_id):
+            if i is not None and i in idx:
+                j = idx[i]; par[j, :3] = spaces.destination(self.actions[k], j, recs, s.posts); par[j, 3] = 1.0; act[j] = self.actions[k]
+        try:
+            self.bridge.reply(recs["id"], act, par)
+        except Exception as e:
+            self._restart(f"reply: {e}")
+
+    def step_wait(self):
+        prev = self._pending_snapshot
+        self._send(prev)
+        s = self._read()
+        if not len(s.recs) or len(np.unique(s.recs["team"][s.recs["health"] > 0])) < 2:
+            # the match ended (or the game restarted): every slot's episode ends; wait for the next match
+            self.no_bots_since = time.time()
+            self._reply_idle(s)                     # lockstep: every snapshot is answered before the next is read
+            s = self._wait_for_match()
+            obs_prev = np.zeros((self.num_envs, spaces.OBS_DIM), np.float32)
+            dones = np.ones(self.num_envs, bool); rews = np.zeros(self.num_envs, np.float32)
+            self._assign(s); obs, _ = self._obs(s); self.last = s; self.tracker.update(s.recs); self._pending_snapshot = s
+            return obs, rews, dones, [{"terminal_observation": obs_prev[k]} for k in range(self.num_envs)]
+        rews, dones, infos, term_obs = self._rewards(prev, s)
+        new = self._assign(s)
+        obs, _ = self._obs(s)
+        for k in range(self.num_envs):
+            if dones[k]:
+                infos[k]["terminal_observation"] = term_obs[k]
+        self.last = s; self.tracker.update(s.recs); self._pending_snapshot = s
+        return obs, rews, dones, infos
+
+    def _rewards(self, prev, s):
+        w = self.w; n = self.num_envs
+        rews = np.zeros(n, np.float32); dones = np.zeros(n, bool); infos = [{} for _ in range(n)]
+        pidx = {int(i): j for j, i in enumerate(prev.recs["id"])}; cidx = {int(i): j for j, i in enumerate(s.recs["id"])}
+        old_obs = spaces.build_obs(prev.recs, prev.posts, self.tracker, 0.0)
+        term_obs = np.zeros((n, spaces.OBS_DIM), np.float32)
+        dt = max(s.game_s - prev.game_s, 0.0)
+        # deaths of each side since the last snapshot (records gone or health <= 0), and where they were
+        died = [j for i, j in pidx.items() if prev.recs["health"][j] > 0 and (i not in cidx or s.recs["health"][cidx[i]] <= 0)]
+        # posts: captures
+        owner = {int(p["id"]): int(p["owner"]) for p in s.posts}
+        gained = sum(1 for p, o in owner.items() if o == self.side and self.prev_owner.get(p, o) != self.side)
+        lost = sum(1 for p, o in owner.items() if o != self.side and self.prev_owner.get(p) == self.side)
+        other_gained = sum(1 for p, o in owner.items() if o not in (0, self.side) and self.prev_owner.get(p, o) != o)
+        held = np.mean([o == self.side for o in owner.values()]) if owner else 0.0
+        held_other = np.mean([o not in (0, self.side) for o in owner.values()]) if owner else 0.0
+        self.prev_owner = owner
+        # stats for both sides
+        st = self.stats; st.t0 = st.t0 if st.t0 is not None else prev.game_s; st.t1 = s.game_s
+        for side_name, is_ours in (("policy", True), ("game", False)):
+            m = (s.recs["team"] == self.side) if is_ours else (s.recs["team"] != self.side)
+            st.bot_s[side_name] += dt * float(np.sum(m & (s.recs["health"] > 0)))
+            st.deaths[side_name] += sum(1 for j in died if (prev.recs["team"][j] == self.side) == is_ours)
+            for j in np.where(m & (s.recs["health"] > 0))[0]:
+                i = int(s.recs["id"][j])
+                if i in pidx:
+                    mv = float(np.hypot(*(s.recs["pos"][j] - prev.recs["pos"][pidx[i]])[[0, 2]])); st.idle[side_name][1] += 1; st.idle[side_name][0] += mv < 0.5
+        st.posts["policy"] += held; st.posts["game"] += held_other; st.post_samples += 1
+        st.captures["policy"] += gained; st.captures["game"] += other_gained
+        for j in died:   # enemies downed near a living bot of the other side (both sides counted, for the comparison)
+            dp = prev.recs["pos"][j]; dteam = prev.recs["team"][j]
+            for side_name, is_ours in (("policy", True), ("game", False)):
+                m = ((prev.recs["team"] == self.side) if is_ours else (prev.recs["team"] != self.side)) & (prev.recs["team"] != dteam) & (prev.recs["health"] > 0)
+                if np.any(np.hypot(*(prev.recs["pos"][m] - dp)[:, [0, 2]].T) < 35.0):
+                    st.enemy_down[side_name] += 1
+        # per-slot rewards
+        for k, i in enumerate(self.slot_id):
+            if i is None or i not in pidx:
+                continue
+            j = pidx[i]; me = prev.recs["pos"][j]
+            if j in died or i not in cidx or prev.recs["health"][j] <= 0:
+                rews[k] += w["death"] if j in died else 0.0; dones[k] = True; term_obs[k] = old_obs[j]; continue
+            c = cidx[i]; h0, h1 = float(prev.recs["health"][j]), float(s.recs["health"][c]); hm = max(self.tracker.hmax.get(i, h0), h0, 1e-3)
+            r = w["survival"] + w["damage_taken"] * max(h0 - h1, 0.0) / hm
+            for d in died:
+                if prev.recs["team"][d] != self.side and float(np.hypot(*(prev.recs["pos"][d] - me)[[0, 2]])) < 35.0:
+                    r += w["enemy_down_nearby"]
+            r += w["objective"] * (gained - lost) + w["posts_held"] * held
+            mv = float(np.hypot(*(s.recs["pos"][c] - me)[[0, 2]]))
+            enemies = prev.recs["pos"][(prev.recs["team"] != self.side) & (prev.recs["health"] > 0)]
+            if mv < 0.5 and (not len(enemies) or np.min(np.hypot(*(enemies - me)[:, [0, 2]].T)) > 50.0):
+                r += w["inactivity"]
+            rews[k] = r
+        return rews, dones, infos, term_obs
+
+    def close(self):
+        if self.bridge:
+            self.bridge.close()
+        self.game.stop()
+
+    # the rest of the VecEnv interface (single process: nothing to forward)
+    def get_attr(self, attr_name, indices=None):
+        return [getattr(self, attr_name)] * self.num_envs
+
+    def set_attr(self, attr_name, value, indices=None):
+        setattr(self, attr_name, value)
+
+    def env_method(self, method_name, *args, indices=None, **kw):
+        return [None] * self.num_envs
+
+    def env_is_wrapped(self, wrapper_class, indices=None):
+        return [False] * self.num_envs
+
+    def seed(self, seed=None):
+        return [seed] * self.num_envs

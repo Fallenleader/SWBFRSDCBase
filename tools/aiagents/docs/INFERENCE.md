@@ -11,10 +11,10 @@
 | TensorFlow Lite Micro | Small and portable, but C++. It would add a second training stack (TensorFlow) or a conversion step for a three-layer MLP. |
 | ggml / llama.cpp-style runtimes | Built for large models. Unnecessary here. |
 
-## Model format and size (default `infantry_v0`)
+## Model format and size (default `infantry_v1`)
 
-- The network is 66 inputs → 64 → 64 → 10 logits, with tanh. That is about 9,000 weights.
-- The file is 36 KB in fp32, or 10 KB in int8 (one scale per output row).
+- The network is 77 inputs → 64 → 64 → 11 logits, with tanh. That is about 10,000 weights.
+- The file is about 40 KB in fp32, or 11 KB in int8 (one scale per output row).
 - int8 matched every action of fp32 on 256 random inputs (largest logit error 0.007). Run `tests/check_native.py` to repeat this check.
 - Measured cost: 6.5 µs per agent (fp32) on the build machine's x86 CPU.
 - On the 3DS ARM11 (268 MHz, VFP) the cost is **estimated** at roughly 0.1–0.3 ms per agent per decision. At 5 decisions a second for 15 bots that is about 1–2% of one core. It must be measured on hardware before it's relied on.

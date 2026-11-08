@@ -240,6 +240,7 @@ static char rec_nick[32], rec_user[64]; static int rec_pending;
 static u32 inj[8]; static int inj_n, inj_i, inj_t;
 static char msg[256]; static int msg_on, msg_hold;     /* msg_hold: closed, the game gets nothing until the buttons are let go */
 static void inject(const u32 *seq, int n){ for (int i = 0; i < n && i < 8; i++) inj[i] = seq[i]; inj_n = n; inj_i = 0; inj_t = 0; }
+void rs_pad_press(u32 b){ if (inj_i >= inj_n) { u32 q[1] = {b}; inject(q, 1); } }   /* one press (dedicated_host.c) */
 u32 rs_pad_inject(u32 buttons){                          /* hle.c sceCtrlReadBuffer: injected presses, 6 reads down, 6 up */
     if (msg_on) return 0;
     if (msg_hold) { if (buttons & 0xF3F9) return 0; msg_hold = 0; }

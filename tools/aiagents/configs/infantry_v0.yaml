@@ -1,5 +1,5 @@
 # Infantry policy v0: tactical decisions (rsai/spaces.py ACTIONS) from numeric observations (rsai/spaces.py OBS_NAMES).
-name: infantry_v0
+name: infantry_v0   # the tooling check (pipeline_check); game training: configs/infantry_game.yaml
 env: pipeline_check          # pipeline_check (tooling check, NOT the game) | game (needs a build that applies actions)
 game:
   port: 47800
@@ -9,7 +9,7 @@ seeds: [1, 2, 3]
 total_timesteps: 50000
 n_envs: 4
 policy:
-  hidden: [64, 64]           # MLP; 66 -> 64 -> 64 -> 10: ~9k weights (~9 KB int8, ~36 KB fp32)
+  hidden: [64, 64]           # MLP; 77 -> 64 -> 64 -> 11: ~10k weights (~11 KB int8, ~40 KB fp32)
   activation: tanh
 ppo:
   learning_rate: 3.0e-4

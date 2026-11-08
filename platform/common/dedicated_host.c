@@ -82,12 +82,15 @@ void rs_dedicated_tick(void){
      * (1 starting, 2 or 7..10 up, 3 failed: func_088A4B54).  FE_HostGame hosts on the internet only once it is up. */
     static int net = 0; static double tn;
     u32 ns = *(u32 *)PTR(0x08B2AE28u);
+    /* RS_DEDICATED=2 (AI training, tools/aiagents): an offline instant-action match with the same rotation; no network */
+    static int offline = -1; if (offline < 0) offline = (setting("RS_DEDICATED") && atoi(setting("RS_DEDICATED")) == 2) || rs_setting_int("RS_DEDICATED", 0) == 2;
+    if (offline) { net = 1; ns = 2; }
     if (!net) { fprintf(stderr, "[HOST] network startup (internet)\n"); func_088A49D4(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); net = 1; tn = now(); return; }
     if (!(ns == 2 || (ns >= 7 && ns <= 10))) {
         static u32 last = 99; if (ns != last) { fprintf(stderr, "[HOST] network state %u\n", ns); last = ns; }
         if (ns == 3 || now() - tn > 60) { fprintf(stderr, "[HOST] the network did not come up (state %u): retrying\n", ns); net = 0; t0 = now() - 1e6; }
         return; }
-    fprintf(stderr, "[HOST] network up (state %u)\n", ns);
+    fprintf(stderr, offline ? "[HOST] offline match (RS_DEDICATED=2)\n" : "[HOST] network up (state %u)\n", ns);
     state = 1;
     char names[6][64];
     for (int m = 0; m < 6; m++) { wide_to_utf8(func_08973540((u32)m), names[m], 64); fprintf(stderr, "[HOST] game mode %d: \"%s\"\n", m, names[m]); }
@@ -107,3 +110,15 @@ void rs_dedicated_tick(void){
     rv_t r = func_08A31E2C(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     fprintf(stderr, "[HOST] FE_HostGame %s\n", r.v0 ? "accepted: loading the first map" : "refused (empty rotation?)");
     state = 2; }
+
+/* RS_DEDICATED=2: the screens after loading and after a match wait for a button.  With no soldiers for 20 s, Cross is pressed every
+ * 3 s until a map has soldiers again (gamespy_ui.c rs_pad_press). */
+void rs_pad_press(u32 buttons);
+void rs_dedicated_after_match(unsigned soldiers){
+    static int offline = -1; if (offline < 0) offline = (setting("RS_DEDICATED") && atoi(setting("RS_DEDICATED")) == 2) || rs_setting_int("RS_DEDICATED", 0) == 2;
+    if (!offline) return;
+    static double since = -1, last;
+    double t = now();
+    if (since < 0 || soldiers) { since = t; return; }
+    if (t - since < 20 || t - last < 3) return;
+    last = t; rs_pad_press(0x4000u); }

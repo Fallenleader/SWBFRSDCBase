@@ -58,11 +58,26 @@ void *rs_guest_alloc(size_t size, size_t align){
     if (a + size > RS_G_PLAT + RS_G_PLAT_SIZE) { fprintf(stderr, "[GUEST] out of platform guest memory\n"); abort(); }
     next = a + (u32)size; memset(rs_gbase + a, 0, size); return rs_gbase + a; }
 
-/* a stack for a thread that runs game code, inside the window (so its frames have guest addresses) */
+/* a stack for a thread that runs game code, inside the window (so its frames have guest addresses).  Stacks of threads that have
+ * ended come back (rs_guest_stack_release) and are used again: the game starts a thread for every voice line and sound stream, and
+ * with one megabyte each the 32 MB area used to run out after about 30 of them ("out of thread stacks") in a long session. */
+#include <pthread.h>
+#include <time.h>
+static pthread_mutex_t stk_m = PTHREAD_MUTEX_INITIALIZER;
+static struct { u32 off, size; double t; } stk_free[64]; static int stk_n;
+static double stk_now(void){ struct timespec ts; timespec_get(&ts, TIME_UTC); return ts.tv_sec + ts.tv_nsec * 1e-9; }
+void rs_guest_stack_release(void *p, size_t size, double delay){
+    pthread_mutex_lock(&stk_m);
+    if (stk_n < 64) { stk_free[stk_n].off = (u32)((u8 *)p - rs_gbase); stk_free[stk_n].size = (u32)size; stk_free[stk_n].t = stk_now() + delay; stk_n++; }
+    pthread_mutex_unlock(&stk_m); }
 void *rs_guest_stack(size_t size){
     static u32 next = RS_G_STACKS;
-    if (next + size > RS_G_STACKS + RS_G_STACKS_SIZE) { fprintf(stderr, "[GUEST] out of thread stacks\n"); abort(); }
-    void *p = rs_gbase + next; next += (u32)size; return p; }
+    pthread_mutex_lock(&stk_m);
+    double t = stk_now();
+    for (int i = 0; i < stk_n; i++) if (stk_free[i].size == size && stk_free[i].t <= t) {
+        void *p = rs_gbase + stk_free[i].off; stk_free[i] = stk_free[--stk_n]; pthread_mutex_unlock(&stk_m); return p; }
+    if (next + size > RS_G_STACKS + RS_G_STACKS_SIZE) { pthread_mutex_unlock(&stk_m); fprintf(stderr, "[GUEST] out of thread stacks\n"); abort(); }
+    void *p = rs_gbase + next; next += (u32)size; pthread_mutex_unlock(&stk_m); return p; }
 #else
 u32 rs_fn_alias(void *fn){ return (u32)(uintptr_t)fn; }          /* 32-bit: the game calls native addresses */
 void *rs_guest_alloc(size_t size, size_t align){
