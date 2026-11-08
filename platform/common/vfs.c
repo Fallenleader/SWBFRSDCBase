@@ -80,7 +80,7 @@ int vfs_stat(const char *full, int *isdir, unsigned *size){
     struct stat st; if (stat(full, &st)) return -1; *isdir = S_ISDIR(st.st_mode) ? 1 : 0; *size = (u32)st.st_size; return 0; }
 
 /* a file inside the image as a FILE * */
-#if defined(__vita__) || defined(RS_PS5)
+#if defined(__vita__) || defined(RS_PS5) || defined(__3DS__)
 typedef off_t vfs_off_t;                         /* newlib's cookie seek takes off_t */
 #else
 typedef off64_t vfs_off_t;

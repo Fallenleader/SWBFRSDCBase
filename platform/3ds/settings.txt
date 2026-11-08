@@ -1,0 +1,49 @@
+# SWBF Renegade Squadron - Nintendo 3DS settings (sdmc:/3ds/SWBFRS/settings.txt).  KEY=VALUE; a missing key keeps its default.
+
+# ---- picture and speed
+# frame rate the game is paced at: 30 (3D off).  20 is the target with stereoscopic 3D (not in this build yet).
+RS_FPS=30
+# fog distance in percent of each map's own (100 = the PSP's)
+RS_FOG=100
+# face culling on the GPU: 0 off (safe), 1 on (faster; turn it off again if parts of models disappear)
+RS_CULL=0
+# texture memory in MB (the 3DS's GPU heap holds textures, vertices and spare render surfaces)
+RS_TEX_BUDGET_MB=6
+# 1 = keep textures in 32-bit colour (more memory); 0 = 16-bit formats chosen per texture without losing its alpha
+RS_TEX_32BIT=0
+# vertex memory per frame in MB (two of them)
+RS_VTX_MB=2
+# the game's memory in MB (the PSP gave it about 20)
+RS_HEAP_MB=22
+
+# ---- controls
+# twin-stick controls (left stick move + strafe, C-stick turn + look): New 3DS only; the Old 3DS always plays with the PSP's controls
+RS_TWIN_STICK=1
+# twin-stick turning acceleration, percent (100 = the game's)
+RS_TURN_ACCEL=130
+# look centring after you stop looking up / down (seconds; 1 = the game's own); RS_LOOK_CENTER=0 never levels the view
+RS_LOOK_CENTER=1
+RS_LOOK_CENTER_DELAY=1
+
+# ---- game
+# the original game's player limits (bots included) and tickets
+RS_MAX_PLAYERS=16
+RS_MAX_TICKETS=200
+# Weapons_Mod.txt next to this file: changes to weapons and new weapons; 0 = the game's own weapons
+RS_WEAPONS=1
+# any colour (the Personalisation colour picker), any weapon in either slot, any head on any body: on.  CIS heads: off.
+RS_COLOUR_PICKER=1
+RS_ANY_SLOT=1
+RS_ANY_HEAD=1
+RS_ANY_HEAD_CIS=0
+# custom maps from mods/maps (mods/mod_maps.txt), mods/files, mods/textures
+RS_CUSTOM_MAPS=1
+
+# ---- sound and diagnostics
+# 0 = no sound (sound needs sdmc:/3ds/dspfirm.cdc: run DSP1 once)
+RS_AUDIO=1
+# the bottom screen: 1 = the profiler's figures, 0 = black
+RS_HUD=1
+# log.txt size limit (MB); RS_PERF_LOG=1 also writes perf.log
+RS_LOG_MB=2
+RS_PERF_LOG=0
