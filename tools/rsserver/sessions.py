@@ -94,6 +94,9 @@ def parse(path, mods):
         _, lo, hi, _ = NUMERIC[key]
         if not re.fullmatch(r'-?\d+', v): err.append('line %d: %s must be a whole number' % (no, key)); continue
         n = int(v)
+        if key in ('MaxPlayers', 'Bots', 'HeroTime') and n >= 0 and not lo <= n <= hi:      # the game's own limits: used, with a note
+            print('  %s line %d: %s = %d is outside the game\'s %d..%d: %d is used' % (os.path.basename(path), no, key, n, lo, hi, min(max(n, lo), hi)))
+            n = min(max(n, lo), hi)
         if not lo <= n <= hi: err.append('line %d: %s = %d is outside %d..%d' % (no, key, n, lo, hi)); continue
         cfg[key] = n
     if 'Name' not in cfg: err.append('Name is missing')
