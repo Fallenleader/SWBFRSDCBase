@@ -1,0 +1,180 @@
+; The PSP's vertex processing on the 3DS GPU (PICA200): skinning, transform, lighting.  gfx_c3d.c turns every PSP vertex into one
+; canonical vertex (floats) on the CPU and folds the PSP viewport into the clip matrix, so one program serves every PSP vertex format;
+; 2D (through-mode) vertices, clears, copies and the screen pass arrive already in clip space with an identity matrix.
+;
+;   v0 position   v1 texture coordinate   v2 colour (0..1)   v3 normal   v4, v5 the 8 skinning weights
+
+.fvec clip[4]                   ; the full transform to the 3DS's clip space (PSP world*view*projection*viewport, rows)
+.fvec uvt                       ; texture coordinate: u * x + z, v * y + w (PSP scale/offset, texture padding and the 3DS's v flip)
+.fvec wld[3]                    ; world matrix (rows), for lighting
+.fvec mamb, mdif, memi, msca    ; material ambient, diffuse, emissive; scene ambient
+.fvec lsel                      ; x: ambient from the vertex colour, y: diffuse from the vertex colour (0 / 1)
+.fvec lpos[4]                   ; xyz: point light position or directional light direction (normalised), w: 1 point, 0 directional
+.fvec latt[4]                   ; attenuation: constant, linear, quadratic (1, 0, 0 for directional lights)
+.fvec la[4], ld[4]              ; light ambient, diffuse colours
+.fvec bone[24]                  ; 8 bone matrices, 3 rows each
+.ivec nlight                    ; for-loop counter: lights - 1, 0, 1
+.bool skin, lit, anylight
+
+.constf k0(0.0, 1.0, 0.5, 0.0)
+.alias zero k0.xxxx
+.alias one  k0.yyyy
+
+.out opos position
+.out ocol color
+.out otc0 texcoord0
+
+.alias ipos v0
+.alias itc  v1
+.alias icol v2
+.alias inrm v3
+.alias iw0  v4
+.alias iw1  v5
+
+.proc main
+	mov r0.xyz, ipos
+	mov r0.w, one
+	mov r1.xyz, inrm
+	mov r1.w, zero
+	ifu skin
+		call skinning
+	.end
+	dp4 opos.x, clip[0], r0
+	dp4 opos.y, clip[1], r0
+	dp4 opos.z, clip[2], r0
+	dp4 opos.w, clip[3], r0
+	mov r2, itc
+	mul r2.xy, uvt.xyyy, r2.xyyy
+	add r2.xy, uvt.zwww, r2.xyyy
+	mov r2.zw, zero
+	mov otc0, r2
+	ifu lit
+		call lighting
+	.else
+		mov ocol, icol
+	.end
+	end
+.end
+
+; position and normal: the sum of the 8 bone transforms, weighted (unused weights are 0)
+.proc skinning
+	mov r2, zero
+	mov r3, zero
+	dp4 r4.x, bone[0], r0
+	dp4 r4.y, bone[1], r0
+	dp4 r4.z, bone[2], r0
+	dp4 r5.x, bone[0], r1
+	dp4 r5.y, bone[1], r1
+	dp4 r5.z, bone[2], r1
+	mad r2.xyz, r4, iw0.xxxx, r2
+	mad r3.xyz, r5, iw0.xxxx, r3
+	dp4 r4.x, bone[3], r0
+	dp4 r4.y, bone[4], r0
+	dp4 r4.z, bone[5], r0
+	dp4 r5.x, bone[3], r1
+	dp4 r5.y, bone[4], r1
+	dp4 r5.z, bone[5], r1
+	mad r2.xyz, r4, iw0.yyyy, r2
+	mad r3.xyz, r5, iw0.yyyy, r3
+	dp4 r4.x, bone[6], r0
+	dp4 r4.y, bone[7], r0
+	dp4 r4.z, bone[8], r0
+	dp4 r5.x, bone[6], r1
+	dp4 r5.y, bone[7], r1
+	dp4 r5.z, bone[8], r1
+	mad r2.xyz, r4, iw0.zzzz, r2
+	mad r3.xyz, r5, iw0.zzzz, r3
+	dp4 r4.x, bone[9], r0
+	dp4 r4.y, bone[10], r0
+	dp4 r4.z, bone[11], r0
+	dp4 r5.x, bone[9], r1
+	dp4 r5.y, bone[10], r1
+	dp4 r5.z, bone[11], r1
+	mad r2.xyz, r4, iw0.wwww, r2
+	mad r3.xyz, r5, iw0.wwww, r3
+	dp4 r4.x, bone[12], r0
+	dp4 r4.y, bone[13], r0
+	dp4 r4.z, bone[14], r0
+	dp4 r5.x, bone[12], r1
+	dp4 r5.y, bone[13], r1
+	dp4 r5.z, bone[14], r1
+	mad r2.xyz, r4, iw1.xxxx, r2
+	mad r3.xyz, r5, iw1.xxxx, r3
+	dp4 r4.x, bone[15], r0
+	dp4 r4.y, bone[16], r0
+	dp4 r4.z, bone[17], r0
+	dp4 r5.x, bone[15], r1
+	dp4 r5.y, bone[16], r1
+	dp4 r5.z, bone[17], r1
+	mad r2.xyz, r4, iw1.yyyy, r2
+	mad r3.xyz, r5, iw1.yyyy, r3
+	dp4 r4.x, bone[18], r0
+	dp4 r4.y, bone[19], r0
+	dp4 r4.z, bone[20], r0
+	dp4 r5.x, bone[18], r1
+	dp4 r5.y, bone[19], r1
+	dp4 r5.z, bone[20], r1
+	mad r2.xyz, r4, iw1.zzzz, r2
+	mad r3.xyz, r5, iw1.zzzz, r3
+	dp4 r4.x, bone[21], r0
+	dp4 r4.y, bone[22], r0
+	dp4 r4.z, bone[23], r0
+	dp4 r5.x, bone[21], r1
+	dp4 r5.y, bone[22], r1
+	dp4 r5.z, bone[23], r1
+	mad r2.xyz, r4, iw1.wwww, r2
+	mad r3.xyz, r5, iw1.wwww, r3
+	mov r0.xyz, r2
+	mov r1.xyz, r3
+.end
+
+; the PSP's lighting: emissive + scene ambient * ambient + per light (light ambient * ambient + N.L * light diffuse * diffuse) * attenuation
+.proc lighting
+	dp4 r4.x, wld[0], r0
+	dp4 r4.y, wld[1], r0
+	dp4 r4.z, wld[2], r0
+	dp4 r5.x, wld[0], r1
+	dp4 r5.y, wld[1], r1
+	dp4 r5.z, wld[2], r1
+	dp3 r6.x, r5, r5
+	rsq r6.x, r6.xxxx
+	mul r5.xyz, r5, r6.xxxx
+	mov r7, icol
+	add r8, -mamb, r7
+	mul r8, lsel.xxxx, r8
+	add r8, mamb, r8
+	add r9, -mdif, r7
+	mul r9, lsel.yyyy, r9
+	add r9, mdif, r9
+	mul r10, msca, r8
+	add r10, memi, r10
+	ifu anylight
+		for nlight
+			mul r12.xyz, lpos[aL].wwww, r4
+			add r12.xyz, lpos[aL], -r12
+			dp3 r13.x, r12, r12
+			rsq r13.y, r13.xxxx
+			mul r12.xyz, r12, r13.yyyy
+			mul r13.z, r13.xxxx, r13.yyyy
+			mov r14.x, one
+			mov r14.y, r13.z
+			mov r14.z, r13.x
+			mov r14.w, zero
+			dp3 r14.w, latt[aL], r14
+			rcp r14.w, r14.wwww
+			min r14.w, one, r14.wwww
+			dp3 r15.x, r5, r12
+			max r15.x, zero, r15.xxxx
+			mul r6, la[aL], r8
+			mul r11, ld[aL], r9
+			mad r6, r11, r15.xxxx, r6
+			mad r10.xyz, r6, r14.wwww, r10
+		.end
+	.end
+	max r10, zero, r10
+	min r10, one, r10
+	mov r10.w, r8.w
+	max r10.w, zero, r10.wwww
+	min r10.w, one, r10.wwww
+	mov ocol, r10
+.end
