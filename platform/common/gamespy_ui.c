@@ -37,12 +37,7 @@
 #include "overlay_ui.h"
 
 const char *rs_platform_data_dir(void);
-#ifdef RS_GUEST64
-u32 rs_fn_alias(void *fn);
-#else                                   /* 32-bit (PS Vita): guest addresses are native pointers */
-static u32 rs_fn_alias(void *fn){ return (u32)(uintptr_t)fn; }
-static void *rs_guest_alloc(size_t size, size_t align){ (void)align; void *p = calloc(1, size + 16); return (void *)(((uintptr_t)p + 15) & ~(uintptr_t)15); }
-#endif
+u32 rs_fn_alias(void *fn);                                        /* guest64.c (32-bit: the native address) */
 int rs_net_recover(char *nick, int nn, char *user, int un);       /* net.c: 1 found, 0 none, -1 banned, -2 no server */
 
 #define TXT_FORGOT 0x46525352u          /* "RSRF" */

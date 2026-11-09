@@ -44,7 +44,7 @@ set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/lift.c" 
                "${ROOT}/platform/common/vfs.c" "${ROOT}/platform/common/gfx_jobs.c" "${ROOT}/platform/common/convert.c" "${ROOT}/platform/common/asura_tex.c"
                "${ROOT}/platform/common/twin_stick.c" "${ROOT}/platform/common/game_patches.c" "${ROOT}/platform/common/custom_maps.c" "${ROOT}/platform/common/dedicated_host.c" "${ROOT}/platform/common/mpeg.c" "${ROOT}/platform/common/rs_avc.c" "${ROOT}/platform/common/mp4demux.c"
                "${ROOT}/platform/common/colour_picker.c"
-               "${ROOT}/platform/common/overlay_ui.c" "${ROOT}/platform/common/game_ui.c" "${ROOT}/platform/common/save_manager.c" "${ROOT}/platform/common/parts_swap.c" "${ROOT}/platform/common/loadout_slots.c" "${ROOT}/platform/common/blueprints.c" "${ROOT}/platform/common/tex_mips.c" "${ROOT}/platform/common/guest64.c" "${ROOT}/platform/common/renderer_option.c"
+               "${ROOT}/platform/common/overlay_ui.c" "${ROOT}/platform/common/game_ui.c" "${ROOT}/platform/common/save_manager.c" "${ROOT}/platform/common/parts_swap.c" "${ROOT}/platform/common/loadout_slots.c" "${ROOT}/platform/common/blueprints.c" "${ROOT}/platform/common/tex_mips.c" "${ROOT}/platform/common/guest64.c" "${ROOT}/platform/common/renderer_option.c" "${ROOT}/platform/common/gfx_menu.c"
                "${ROOT}/platform/common/net.c" "${ROOT}/platform/common/osk_panel.c" "${ROOT}/platform/common/gamespy_ui.c")
 # renderer: GXM, the Vita's native GPU API (no GL layer)
 set(VITA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/main.c" "${CMAKE_CURRENT_SOURCE_DIR}/stdio_lock.c" "${CMAKE_CURRENT_SOURCE_DIR}/gxm_core.c" "${CMAKE_CURRENT_SOURCE_DIR}/gfx_gxm.c"
