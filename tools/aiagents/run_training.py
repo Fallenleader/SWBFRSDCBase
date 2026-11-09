@@ -25,7 +25,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import configure
 from rsai import config, rewards, spaces
 from rsai.game import GameProcess
-from rsai.gamevec import GameVecEnv, MultiGameVecEnv, StopTraining
+from rsai.gamevec import GameVecEnv, MultiGameVecEnv, ProcGameVecEnv, StopTraining
 
 STOP = threading.Event()
 
@@ -84,6 +84,8 @@ class Supervisor(BaseCallback):
             except OSError:
                 pass
             self.log("[train] STOP file found: saving and finishing"); STOP.set()
+        if STOP.is_set() and hasattr(self.venv, "set_stop"):
+            self.venv.set_stop()
         return not STOP.is_set()
 
 
@@ -110,14 +112,24 @@ def main():
     # different map of the rotation and has its own port and data folder (game/, game2/, ...)
     n = g.get("game_instances", "auto")
     n = max(1, min(8, ((os.cpu_count() or 2) - 2) // 2)) if str(n).lower() == "auto" else max(1, int(n))
-    envs = []
-    for i in range(n):
+    def game_args(i):
         maps = g["maps"][i % len(g["maps"]):] + g["maps"][:i % len(g["maps"])]
-        game = GameProcess(exe, gdir, os.path.abspath(os.path.join(run, "game" if i == 0 else f"game{i + 1}")), g["port"] + i, maps,
-                           g["decision_hz"], g.get("fast", True), g.get("window", False), g.get("extra_env"),
-                           log if n == 1 else (lambda m, i=i: log(m.replace("[train]", f"[train g{i + 1}]", 1))))
-        envs.append(GameVecEnv(game, slots=g["agents"], port=g["port"] + i, reward_weights=cfg.get("reward_weights"), log=game.log, stop=STOP.is_set))
-    venv = envs[0] if n == 1 else MultiGameVecEnv(envs)
+        return (exe, gdir, os.path.abspath(os.path.join(run, "game" if i == 0 else f"game{i + 1}")), g["port"] + i, maps,
+                g["decision_hz"], g.get("fast", True), g.get("window", False), g.get("extra_env"))
+    if n == 1:
+        venv = GameVecEnv(GameProcess(*game_args(0), log), slots=g["agents"], port=g["port"], reward_weights=cfg.get("reward_weights"), log=log, stop=STOP.is_set)
+    else:                                   # each game with its own Python process (game_processes: false = threads, the older way)
+        if g.get("game_processes", True):
+            import gymnasium as gym
+            venv = ProcGameVecEnv([dict(index=i, game_args=game_args(i), slots=g["agents"], port=g["port"] + i, reward_weights=cfg.get("reward_weights"),
+                                        log_file=os.path.abspath(os.path.join(run, "train_log.txt"))) for i in range(n)], g["agents"],
+                                  gym.spaces.Box(-np.inf, np.inf, (spaces.OBS_DIM,), np.float32), gym.spaces.Discrete(spaces.N_ACTIONS))
+        else:
+            envs = []
+            for i in range(n):
+                game = GameProcess(*game_args(i), (lambda m, i=i: log(m.replace("[train]", f"[train g{i + 1}]", 1))))
+                envs.append(GameVecEnv(game, slots=g["agents"], port=g["port"] + i, reward_weights=cfg.get("reward_weights"), log=game.log, stop=STOP.is_set))
+            venv = MultiGameVecEnv(envs)
     # the same amount of play per policy update however many games: n_steps (per agent slot) is divided among the games
     n_steps = max(64, int(cfg["ppo"]["n_steps"]) // n); cfg["ppo"]["n_steps"] = n_steps
     log(f"[train] {n} game{'s' if n > 1 else ''} at once ({n * g['agents']} policy agents, {n_steps} steps each per update)")

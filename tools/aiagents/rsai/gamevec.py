@@ -355,3 +355,135 @@ class MultiGameVecEnv(VecEnv):
 
     def seed(self, seed=None):
         return [seed] * self.num_envs
+
+
+# ---------------------------------------------------------------- one Python process per game
+def _game_worker(conn, spec, stop_event):
+    """runs one game and its GameVecEnv in its own process, so the per-step Python work of the games runs on separate cores"""
+    import os, signal as _sig, time as _time
+    _sig.signal(_sig.SIGINT, _sig.SIG_IGN)                       # Ctrl+C is the main process's business
+    os.environ["OMP_NUM_THREADS"] = "1"
+    from rsai.game import GameProcess
+    logf = open(spec["log_file"], "a", buffering=1)
+    def log(msg):
+        line = _time.strftime("%Y-%m-%d %H:%M:%S ") + msg.replace("[train]", f"[train g{spec['index'] + 1}]", 1)
+        print(line, flush=True); logf.write(line + "\n")
+    game = GameProcess(*spec["game_args"], log)
+    env = GameVecEnv(game, slots=spec["slots"], port=spec["port"], reward_weights=spec["reward_weights"], log=log, stop=stop_event.is_set)
+    while True:
+        cmd, arg = conn.recv()
+        try:
+            if cmd == "reset":
+                conn.send(("ok", env.reset()))
+            elif cmd == "step":
+                env.step_async(arg); conn.send(("ok", env.step_wait()))
+            elif cmd == "info":
+                conn.send(("ok", (env.stats, env.matches, env.restarts, env.game_speed(), env.timing())))
+            elif cmd == "reset_stats":
+                env.stats.reset(); conn.send(("ok", None))
+            elif cmd == "close":
+                env.close(); conn.send(("ok", None)); return
+        except StopTraining:
+            conn.send(("stop", None))
+        except Exception as e:
+            import traceback; conn.send(("error", traceback.format_exc()))
+
+
+class ProcGameVecEnv(VecEnv):
+    """Several games, each with its own Python process (the game connection, observations and rewards of each game are computed in
+    parallel; with threads they shared one Python interpreter and took turns).  The policy's slots of every game side by side."""
+    def __init__(self, specs, slots, obs_space, act_space):
+        import multiprocessing as mp
+        ctx = mp.get_context("fork" if hasattr(__import__("os"), "fork") else "spawn")
+        self.stop_event = ctx.Event(); self.k = slots; self.conns = []; self.procs = []
+        for sp in specs:
+            a, b = ctx.Pipe()
+            p = ctx.Process(target=_game_worker, args=(b, sp, self.stop_event), daemon=True); p.start()
+            self.conns.append(a); self.procs.append(p)
+        super().__init__(slots * len(specs), obs_space, act_space)
+        self._info = None; self._speed = 0.0; self._timing = (0.0, 0.0)
+
+    def _ask(self, cmds):
+        for c, x in zip(self.conns, cmds):
+            c.send(x)
+        out = []; stop = False; err = None
+        for c in self.conns:
+            st, v = c.recv()
+            if st == "stop":
+                stop = True
+            elif st == "error":
+                err = v
+            out.append(v)
+        if err:
+            raise RuntimeError("a game worker failed:\n" + err)
+        if stop:
+            raise StopTraining()
+        return out
+
+    def set_stop(self):
+        self.stop_event.set()
+
+    def reset(self):
+        return np.concatenate(self._ask([("reset", None)] * len(self.conns)))
+
+    def step_async(self, actions):
+        a = np.asarray(actions); self._acts = [("step", a[i * self.k:(i + 1) * self.k]) for i in range(len(self.conns))]
+
+    def step_wait(self):
+        r = self._ask(self._acts)
+        return (np.concatenate([x[0] for x in r]), np.concatenate([x[1] for x in r]), np.concatenate([x[2] for x in r]),
+                [i for x in r for i in x[3]])
+
+    def _refresh(self):
+        self._info = self._ask([("info", None)] * len(self.conns))
+
+    class _Stats:
+        def __init__(self, outer): self.o = outer
+        def summary(self):
+            self.o._refresh(); return merge_stats([i[0] for i in self.o._info]).summary()
+        def reset(self):
+            self.o._ask([("reset_stats", None)] * len(self.o.conns))
+
+    @property
+    def stats(self): return ProcGameVecEnv._Stats(self)
+    @property
+    def matches(self): return sum(i[1] for i in (self._info or [])) if self._info else 0
+    @property
+    def restarts(self): return sum(i[2] for i in (self._info or [])) if self._info else 0
+    def game_speed(self): return sum(i[3] for i in (self._info or [])) if self._info else 0.0
+    def timing(self):
+        if not self._info:
+            return 0.0, 0.0
+        t = [i[4] for i in self._info]; return sum(a for a, _ in t) / len(t), sum(b for _, b in t) / len(t)
+
+    def close(self):
+        self.stop_event.set()
+        for c in self.conns:
+            try:
+                c.send(("close", None))
+            except Exception:
+                pass
+        for c, p in zip(self.conns, self.procs):
+            try:
+                if c.poll(60):
+                    c.recv()
+            except Exception:
+                pass
+            p.join(10)
+            if p.is_alive():
+                p.terminate()
+
+    def get_attr(self, attr_name, indices=None):
+        return [getattr(self, attr_name, None)] * self.num_envs
+
+    def set_attr(self, attr_name, value, indices=None):
+        pass
+
+    def env_method(self, method_name, *args, indices=None, **kw):
+        return [None] * self.num_envs
+
+    def env_is_wrapped(self, wrapper_class, indices=None):
+        return [False] * self.num_envs
+
+    def seed(self, seed=None):
+        return [seed] * self.num_envs
