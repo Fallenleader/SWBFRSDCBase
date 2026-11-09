@@ -40,7 +40,7 @@ def watch_stdin():
 class Supervisor(BaseCallback):
     def __init__(self, run, cfg, venv, log):
         super().__init__(); self.run, self.cfg, self.venv, self.log = run, cfg, venv, log
-        self.best = -1e9; self.next_report = cfg["report_every_steps"]; self.next_ckpt = cfg["checkpoint_every_steps"]
+        self.best = -1e9; self.next_report = None; self.next_ckpt = None      # set from the model's step count at the first step (resumed runs)
         self.csv = os.path.join(run, "progress_game.csv"); self.t0 = time.time()
         bp = os.path.join(run, "best_score.txt")
         if os.path.exists(bp):
@@ -48,6 +48,8 @@ class Supervisor(BaseCallback):
 
     def _on_step(self):
         n = self.num_timesteps
+        if self.next_report is None:
+            self.next_report = n + self.cfg["report_every_steps"]; self.next_ckpt = n + self.cfg["checkpoint_every_steps"]
         if n >= self.next_ckpt:
             self.next_ckpt += self.cfg["checkpoint_every_steps"]
             os.makedirs(os.path.join(self.run, "checkpoints"), exist_ok=True)

@@ -290,7 +290,7 @@ void rs_audio_host_write(const s16 *stereo, int frames){
     while (SDL_GetQueuedAudioSize(adev) > 4096 * 4) SDL_Delay(1);                    /* paced by the output, as the consoles' blocking writes */
     SDL_QueueAudio(adev, stereo, (Uint32)frames * 4); }
 
-void rs_perf_write(const char *line){ (void)line; }
+void rs_perf_write(const char *line){ fprintf(stderr, "%s", line); }   /* RS_PERF=1 (environment or settings.txt): the report into log.txt */
 void rs_perf_mem(char *b, int n){ snprintf(b, (size_t)n, "-"); }
 void rs_prof_dump(void){}
 
