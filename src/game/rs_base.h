@@ -145,3 +145,4 @@ static inline void *rs_census_memcpy(void *d, const void *s, size_t n, u32 pc){ 
     return __builtin_memcpy(d, s, n); }
 #define memcpy(d, s, n) ({ __label__ M_; M_: __attribute__((unused)); rs_census_memcpy((d), (s), (n), (u32)(uintptr_t)&&M_); })
 #endif
+#include "hotness.h"                 /* tools/perf/hotness.py: the functions a match runs, placed together */
