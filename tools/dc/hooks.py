@@ -46,7 +46,9 @@ HOOKS = {
     '08897890': {'before': 'rs_gs_string_var(a0, a1)'},                         # a string variable registered (Menus.GameSpyNick ...)
     '088A0408': {'before': 'rs_gs_login(&a0, &a1, &a2)'},                       # GameSpy login (nickname, e-mail, password)
     '088A0560': {'before': 'rs_gs_login(&a0, &a1, &a2)'},                       # GameSpy new account
-    '08A2EFF0': {'after': 'rs_gs_loaded()'},                                    # FE_LoadGamespyLoginInfo (game_24.c)
+    '08A2EFF0': {'after': 'rs_gs_loaded()'},
+    '08833F0C': {'replace': 'rs_lift_raybox(a0, a1, a2, a3, &r_)'},           # lifted (lift.c): ray / box test (game_02.c)
+    '08833440': {'replace': 'rs_lift_boxtree(a0, a1, a2, a3, t0, &r_)'},      # lifted: ray cast through a box tree                                    # FE_LoadGamespyLoginInfo (game_24.c)
 }
 # data symbols (symbols.h) redirected to native data: address -> expression
 DATA = {

@@ -25,6 +25,8 @@ RS_HW_TL=1
 RS_CPU_PIN=1
 # 1 = experimental: the game does not wait for the renderer at GU sync points
 RS_GU_PIPELINE=0
+# lifted game functions (native rewrites of the hottest game code: collision ray casts so far); 0 = the original code, to compare
+RS_LIFT=1
 
 # ---- controls
 # 1 = left stick move + strafe, right stick turn + look; 0 = the PSP's one-stick controls

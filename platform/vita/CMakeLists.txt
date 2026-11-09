@@ -40,7 +40,7 @@ file(GLOB GAME_SRC "${ROOT}/src/game/game_*.c")
 file(GLOB AT3_SRC "${ROOT}/platform/common/ext/at3/*.cpp")
 # GPU: the game's GU calls run natively (gu_native.c); ge.c (the GE command-list interpreter) is not built: it stays in the tree as the
 # reference for porting the renderer to other native APIs (Makefile GE_REF=1 on PC)
-set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/gu_native.c" "${ROOT}/platform/common/audio.c" "${ROOT}/platform/common/settings.c"
+set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/lift.c" "${ROOT}/platform/common/gu_native.c" "${ROOT}/platform/common/audio.c" "${ROOT}/platform/common/settings.c"
                "${ROOT}/platform/common/vfs.c" "${ROOT}/platform/common/gfx_jobs.c" "${ROOT}/platform/common/convert.c" "${ROOT}/platform/common/asura_tex.c"
                "${ROOT}/platform/common/twin_stick.c" "${ROOT}/platform/common/game_patches.c" "${ROOT}/platform/common/custom_maps.c" "${ROOT}/platform/common/mpeg.c" "${ROOT}/platform/common/rs_avc.c" "${ROOT}/platform/common/mp4demux.c"
                "${ROOT}/platform/common/colour_picker.c"

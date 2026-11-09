@@ -47,3 +47,6 @@ void rs_gs_register(void);
 void rs_gs_string_var(uint32_t name, uint32_t buf);
 void rs_gs_login(uint32_t *nick, uint32_t *email, uint32_t *pass);
 void rs_gs_loaded(void);
+/* lift.c: hot game functions rewritten natively (RS_LIFT=0 runs the originals) */
+int  rs_lift_raybox(uint32_t o, uint32_t d, uint32_t box, uint32_t t, void *rv);
+int  rs_lift_boxtree(uint32_t tree, uint32_t org, uint32_t dir, uint32_t tmaxp, uint32_t cb, void *rv);
