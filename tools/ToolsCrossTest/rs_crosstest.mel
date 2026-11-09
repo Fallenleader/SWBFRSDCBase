@@ -1,0 +1,24 @@
+// Cross-game maps (BF1 / BF2 / Elite Squadron -> Renegade Squadron) for Maya 2025 (and 2020).
+//
+// Install: copy the ToolsCrossTest folder anywhere, then in the Script Editor (MEL tab):
+//     python("import sys; sys.path.insert(0, 'C:/path/to/ToolsCrossTest')");
+//     source "C:/path/to/ToolsCrossTest/rs_crosstest.mel"; rsCrossMenu();
+// (add those lines to Documents/maya/2025/scripts/userSetup.mel to get the menu every start)
+// Maya 2022+ runs the converters itself.  Maya 2020 needs Python 3 installed outside Maya (menu > Settings > Python 3 command).
+
+global proc rsCrossPy(string $cmd) { python("import rs_crosstest"); python("rs_crosstest." + $cmd); }
+
+global proc rsCrossMenu()
+{
+    global string $gMainWindow;
+    if (`menu -exists rsCrossMainMenu`) deleteUI rsCrossMainMenu;
+    menu -p $gMainWindow -l "RS Cross-Game Maps" -tearOff true rsCrossMainMenu;
+        menuItem -l "Import BF1 / BF2 World (.wld / .lvl)..." -c "rsCrossPy(\"import_bf()\")";
+        menuItem -l "Import Elite Squadron Map (ground)..." -c "rsCrossPy(\"import_es()\")";
+        menuItem -l "Import Elite Squadron Map (space)..." -c "rsCrossPy(\"import_es(part='SP')\")";
+        menuItem -divider true;
+        menuItem -l "Build Renegade Squadron Map..." -c "rsCrossPy(\"build_map()\")";
+        menuItem -divider true;
+        menuItem -l "Settings..." -c "rsCrossPy(\"settings()\")";
+        menuItem -l "Reload Scripts" -c "python(\"import rs_crosstest\\ntry:\\n    reload(rs_crosstest)\\nexcept NameError:\\n    import importlib; importlib.reload(rs_crosstest)\")";
+}
