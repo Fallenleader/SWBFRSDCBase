@@ -91,6 +91,10 @@ void rs_ai_bridge_frame(void){
       memcpy(out + k, recs, sizeof(struct rs_ai_rec) * (size_t)n); k += sizeof(struct rs_ai_rec) * (size_t)n;
       if (rawn) { memcpy(out + k, raw, (size_t)n * rawn); k += (size_t)n * rawn; }
       memcpy(out + k, &np, 4); k += 4; memcpy(out + k, ps, sizeof ps[0] * np); k += sizeof ps[0] * np;
+      { static struct rs_ai_evt ev[512]; static struct rs_ai_veh vh[32]; uint32_t ne = (uint32_t)rs_ai_events(ev, 512), nv = (uint32_t)rs_ai_vehicles(vh, 32);
+        size_t more = 8 + sizeof ev[0] * ne + sizeof vh[0] * nv; if (k + more > cap) { cap = k + more + 4096; out = realloc(out, cap); }
+        memcpy(out + k, &ne, 4); k += 4; memcpy(out + k, ev, sizeof ev[0] * ne); k += sizeof ev[0] * ne;
+        memcpy(out + k, &nv, 4); k += 4; memcpy(out + k, vh, sizeof vh[0] * nv); k += sizeof vh[0] * nv; }
       if (!send_all(out, k)) { drop("send"); return; } }
     if (!sync_mode) return;
     char m[4]; uint32_t na;

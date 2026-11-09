@@ -9,7 +9,7 @@ import time
 import numpy as np
 from stable_baselines3.common.vec_env import VecEnv
 import gymnasium as gym
-from . import spaces, rewards
+from . import spaces, rewards, weapons
 from .bridge import Bridge
 
 
@@ -22,7 +22,7 @@ class Stats:
         self.t0 = None; self.t1 = None
         self.bot_s = {"policy": 0.0, "game": 0.0}; self.deaths = {"policy": 0, "game": 0}
         self.posts = {"policy": 0.0, "game": 0.0}; self.post_samples = 0; self.captures = {"policy": 0, "game": 0}
-        self.enemy_down = {"policy": 0, "game": 0}; self.idle = {"policy": [0, 0], "game": [0, 0]}
+        self.enemy_down = {"policy": 0, "game": 0}; self.kills = {"policy": 0, "game": 0}; self.idle = {"policy": [0, 0], "game": [0, 0]}
 
     def summary(self):
         mins = lambda k: self.bot_s[k] / 60.0
@@ -32,10 +32,11 @@ class Stats:
             out[f"{k}_posts_held"] = self.posts[k] / max(self.post_samples, 1)
             out[f"{k}_captures"] = self.captures[k]
             out[f"{k}_enemy_down_nearby_per_bot_min"] = self.enemy_down[k] / max(mins(k), 1e-6)
+            out[f"{k}_kills_per_bot_min"] = self.kills[k] / max(mins(k), 1e-6)
             out[f"{k}_idle_frac"] = self.idle[k][0] / max(self.idle[k][1], 1)
-        # higher is better for the policy: fewer deaths than the original AI, more posts, more enemies downed
+        # higher is better for the policy: fewer deaths than the original AI, more posts, more kills (credited by the game's hits)
         out["score"] = (out["game_deaths_per_bot_min"] - out["policy_deaths_per_bot_min"]) + 2.0 * (out["policy_posts_held"] - out["game_posts_held"]) \
-            + 0.5 * (out["policy_enemy_down_nearby_per_bot_min"] - out["game_enemy_down_nearby_per_bot_min"])
+            + 0.5 * (out["policy_kills_per_bot_min"] - out["game_kills_per_bot_min"])
         return out
 
 
@@ -132,7 +133,7 @@ class GameVecEnv(VecEnv):
 
     def _obs(self, s):
         dt = (s.game_s - self.last.game_s) if self.last else 0.0
-        allobs = spaces.build_obs(s.recs, s.posts, self.tracker, dt)
+        allobs = spaces.build_obs(s, self.tracker, dt)
         idx = {int(i): j for j, i in enumerate(s.recs["id"])}
         out = np.zeros((self.num_envs, spaces.OBS_DIM), np.float32)
         for k, i in enumerate(self.slot_id):
@@ -152,7 +153,7 @@ class GameVecEnv(VecEnv):
     def reset(self):
         if self.bridge is None:
             self._connect()
-        s = self._wait_for_match(); self._assign(s); obs, _ = self._obs(s); self.last = s; self.tracker.update(s.recs)
+        s = self._wait_for_match(); self._assign(s); obs, _ = self._obs(s); self.last = s; self.tracker.update(s.recs, s.events, s.game_s)
         self._pending_snapshot = s
         return obs
 
@@ -164,7 +165,7 @@ class GameVecEnv(VecEnv):
         par = np.zeros((len(recs), 4), np.float32); act = np.zeros(len(recs), np.uint32)
         for k, i in enumerate(self.slot_id):
             if i is not None and i in idx:
-                j = idx[i]; par[j, :3] = spaces.destination(self.actions[k], j, recs, s.posts); par[j, 3] = 1.0; act[j] = self.actions[k]
+                j = idx[i]; par[j, :3] = spaces.destination(self.actions[k], j, s, self.tracker); par[j, 3] = 1.0; act[j] = self.actions[k]
         try:
             self.bridge.reply(recs["id"], act, par)
         except Exception as e:
@@ -193,7 +194,7 @@ class GameVecEnv(VecEnv):
             s = self._wait_for_match()
             obs_prev = np.zeros((self.num_envs, spaces.OBS_DIM), np.float32)
             dones = np.ones(self.num_envs, bool); rews = np.zeros(self.num_envs, np.float32)
-            self._assign(s); obs, _ = self._obs(s); self.last = s; self.tracker.update(s.recs); self._pending_snapshot = s
+            self._assign(s); obs, _ = self._obs(s); self.last = s; self.tracker.update(s.recs, s.events, s.game_s); self._pending_snapshot = s
             return obs, rews, dones, [{"terminal_observation": obs_prev[k]} for k in range(self.num_envs)]
         rews, dones, infos, term_obs = self._rewards(prev, s)
         new = self._assign(s)
@@ -201,14 +202,14 @@ class GameVecEnv(VecEnv):
         for k in range(self.num_envs):
             if dones[k]:
                 infos[k]["terminal_observation"] = term_obs[k]
-        self.last = s; self.tracker.update(s.recs); self._pending_snapshot = s
+        self.last = s; self.tracker.update(s.recs, s.events, s.game_s); self._pending_snapshot = s
         return obs, rews, dones, infos
 
     def _rewards(self, prev, s):
         w = self.w; n = self.num_envs
         rews = np.zeros(n, np.float32); dones = np.zeros(n, bool); infos = [{} for _ in range(n)]
         pidx = {int(i): j for j, i in enumerate(prev.recs["id"])}; cidx = {int(i): j for j, i in enumerate(s.recs["id"])}
-        old_obs = spaces.build_obs(prev.recs, prev.posts, self.tracker, 0.0)
+        old_obs = spaces.build_obs(prev, self.tracker, 0.0)
         term_obs = np.zeros((n, spaces.OBS_DIM), np.float32)
         dt = max(s.game_s - prev.game_s, 0.0)
         # deaths of each side since the last snapshot (records gone or health <= 0), and where they were
@@ -239,19 +240,56 @@ class GameVecEnv(VecEnv):
                 m = ((prev.recs["team"] == self.side) if is_ours else (prev.recs["team"] != self.side)) & (prev.recs["team"] != dteam) & (prev.recs["health"] > 0)
                 if np.any(np.hypot(*(prev.recs["pos"][m] - dp)[:, [0, 2]].T) < 35.0):
                     st.enemy_down[side_name] += 1
+        # hits since the last snapshot (the game's damage events): kills, damage dealt / taken, friendly fire, assists
+        team_of = {int(r["id"]): int(r["team"]) for r in prev.recs}; team_of.update({int(r["id"]): int(r["team"]) for r in s.recs})
+        hmax = lambda i: max(self.tracker.hmax.get(i, 0.0), 1.0)
+        dealt, ff, killsby, taken, killed_ids = {}, {}, {}, {}, set()
+        for e in s.events:
+            tg, src, am = int(e["target"]), int(e["source"]), float(min(e["amount"], e["before"]))
+            tt, ts = team_of.get(tg), team_of.get(src)
+            if tt is None:
+                continue
+            taken[tg] = taken.get(tg, 0.0) + am / hmax(tg)
+            if e["before"] > 0 >= e["after"]:
+                killed_ids.add(tg)
+                if ts is not None and ts != tt:
+                    killsby[src] = killsby.get(src, 0) + 1
+                    st.kills["policy" if ts == self.side else "game"] += 1
+            if ts is None or src == tg:
+                continue
+            if ts == tt:
+                ff[src] = ff.get(src, 0.0) + am / hmax(tg)
+            else:
+                dealt[src] = dealt.get(src, 0.0) + am / hmax(tg)
+        assist = {}
+        for (t, tg, src, am, kl) in self.tracker.recent(5.0):
+            if tg in killed_ids and team_of.get(src) is not None and team_of.get(src) != team_of.get(tg):
+                assist[src] = assist.get(src, 0) + 1
         # per-slot rewards
         for k, i in enumerate(self.slot_id):
             if i is None or i not in pidx:
                 continue
             j = pidx[i]; me = prev.recs["pos"][j]
-            if j in died or i not in cidx or prev.recs["health"][j] <= 0:
-                rews[k] += w["death"] if j in died else 0.0; dones[k] = True; term_obs[k] = old_obs[j]; continue
+            dead = j in died or i in killed_ids
+            if dead or i not in cidx or prev.recs["health"][j] <= 0:
+                rews[k] += (w["death"] if dead else 0.0) + w["kill"] * killsby.get(i, 0) + w["damage_dealt"] * dealt.get(i, 0.0)
+                dones[k] = True; term_obs[k] = old_obs[j]; continue
             c = cidx[i]; h0, h1 = float(prev.recs["health"][j]), float(s.recs["health"][c]); hm = max(self.tracker.hmax.get(i, h0), h0, 1e-3)
             r = w["survival"] + w["damage_taken"] * max(h0 - h1, 0.0) / hm
-            for d in died:
-                if prev.recs["team"][d] != self.side and float(np.hypot(*(prev.recs["pos"][d] - me)[[0, 2]])) < 35.0:
-                    r += w["enemy_down_nearby"]
+            r += w["kill"] * killsby.get(i, 0) + w["damage_dealt"] * dealt.get(i, 0.0) + w["friendly_fire"] * ff.get(i, 0.0)
+            r += w["assist"] * max(assist.get(i, 0) - killsby.get(i, 0), 0)
             r += w["objective"] * (gained - lost) + w["posts_held"] * held
+            if len(s.posts):
+                pd = np.hypot(s.posts["pos"][:, 0] - s.recs["pos"][c][0], s.posts["pos"][:, 2] - s.recs["pos"][c][2])
+                if np.any((pd < spaces.POST_RADIUS) & (s.posts["owner"] != self.side)):
+                    r += w["capturing"]
+            # range keeping: an enemy in sight within 50% of my weapon's ideal range
+            ideal = weapons.ideal_range(s.recs["kit"][c][0]); nid = [int(x) for x in s.recs["near_id"][c]]; nlos = s.recs["near_los"][c]
+            for q, eid in enumerate(nid):
+                if eid and nlos[q] and eid in cidx:
+                    de = float(np.hypot(*(s.recs["pos"][cidx[eid]] - s.recs["pos"][c])[[0, 2]]))
+                    if abs(de - ideal) < 0.5 * ideal:
+                        r += w["range_keeping"]; break
             mv = float(np.hypot(*(s.recs["pos"][c] - me)[[0, 2]]))
             enemies = prev.recs["pos"][(prev.recs["team"] != self.side) & (prev.recs["health"] > 0)]
             if mv < 0.5 and (not len(enemies) or np.min(np.hypot(*(enemies - me)[:, [0, 2]].T)) > 50.0):
@@ -288,7 +326,7 @@ def merge_stats(parts):
         m.t1 += (p.t1 or 0) - (p.t0 or 0); m.post_samples += p.post_samples
         for k in ("policy", "game"):
             m.bot_s[k] += p.bot_s[k]; m.deaths[k] += p.deaths[k]; m.posts[k] += p.posts[k]; m.captures[k] += p.captures[k]
-            m.enemy_down[k] += p.enemy_down[k]; m.idle[k][0] += p.idle[k][0]; m.idle[k][1] += p.idle[k][1]
+            m.enemy_down[k] += p.enemy_down[k]; m.kills[k] += p.kills[k]; m.idle[k][0] += p.idle[k][0]; m.idle[k][1] += p.idle[k][1]
     return m
 
 

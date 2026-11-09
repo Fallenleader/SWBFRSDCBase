@@ -27,6 +27,7 @@ HOOKS = {
     '08A0ADFC': {'replace': 'rs_unit_list_remove(a0, &r_)'},
     '08834304': {'replace': 'rs_stdtext_get(a0, &r_)'},
     '089D7D08': {'replace': 'rs_vehicle_hit(a0, a1)'},                         # vehicle against soldier contact: friendly pass, enemy run over (game_20.c)                       # STDTEXT line n: Weapons_Mod.txt names past the file's own (game_02.c)                    # and removed
+    '089E1FDC': {'before': 'rs_ai_dmg_pre(a0, a1)', 'after': 'rs_ai_dmg_post(a0, a1)'},   # damage taken (game_21.c): AI bridge events
     '088BBDEC': {'replace': 'rs_phys_pair(a0, &r_)'},                          # physics pair test: vehicles pass through friendly soldiers (game_08.c)
     '0899530C': {'before': 'rs_soldier_frame(a0)'},                           # the soldier update (game_17.c): look centring off
     '08926220': {'after': 'rs_ai_squad_caps(a0)'},                              # AI: a team's squad sizes (game_12.c): game_patches.c

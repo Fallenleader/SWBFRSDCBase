@@ -1,5 +1,5 @@
 # Unattended training against the real game (run_training.py / train_forever.bat).
-name: infantry_v1
+name: infantry_v2               # v2: observations with hits, weapons, line of sight, cover; 16 tactical actions (a new model)
 seed: 1
 game:
   # the AIAgents build of the game, and the PC game folder that has GAME\ in it (the game files are read from there)
@@ -16,7 +16,7 @@ game:
   maps: [TATOOINE:CLASSIC:CQST, KASHYYYK:PREQUEL:CQST, ENDOR:CLASSIC:CQST, MUSTAFAR:PREQUEL:CQST, YAVIN_IV:CLASSIC:CQST,
          NABOO:PREQUEL:CQST, KORRIBAN:CLASSIC:CQST, SULLUST:PREQUEL:CQST]
 policy:
-  hidden: [64, 64]
+  hidden: [128, 128]
   activation: tanh
 ppo:
   learning_rate: 3.0e-4

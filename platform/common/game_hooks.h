@@ -50,3 +50,5 @@ void rs_gs_register(void);
 void rs_gs_string_var(uint32_t name, uint32_t buf);
 void rs_gs_login(uint32_t *nick, uint32_t *email, uint32_t *pass);
 void rs_gs_loaded(void);
+void rs_ai_dmg_pre(uint32_t o, uint32_t msg);
+void rs_ai_dmg_post(uint32_t o, uint32_t msg);

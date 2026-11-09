@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 089DA674 */
 rv_t func_089DA674(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
@@ -11410,7 +11411,7 @@ L_089E1FA0:;
 }
 
 /* 089E1FDC */
-rv_t func_089E1FDC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static rv_t func_089E1FDC__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0, s0 = 0;
     float f0 = 0, f1 = 0, f20 = 0;
@@ -11631,6 +11632,14 @@ L_089E21F8:;
     goto L_089E2204;
 L_089E2204:;
     goto L_089E20C8;
+}
+
+rv_t func_089E1FDC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rs_ai_dmg_pre(a0, a1);   /* native hook (tools/dc/hooks.py) */
+    rv_t v_ = func_089E1FDC__orig(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
+    rs_ai_dmg_post(a0, a1);   /* native hook (tools/dc/hooks.py) */
+    return v_;
 }
 
 /* 089E220C */

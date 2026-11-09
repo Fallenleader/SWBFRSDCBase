@@ -57,7 +57,7 @@ void rs_patches_frame(void){
     { extern void rs_ai_bridge_frame(void); rs_ai_bridge_frame(); }   /* ai_bridge.c: RS_AI_BRIDGE=<host:port> */
 #endif
     rs_renderer_frame();                                                  /* renderer_option.c */
-    { extern void rs_ai_frame(void); rs_ai_frame(); }                    /* idle squads (below) */
+    { extern void rs_ai_frame(void); rs_ai_frame(); }                     /* idle squads (below) */
 #ifdef RS_DESKTOP
     { extern void rs_dedicated_after_match(unsigned); static unsigned fr, nb; if (fr++ % 30 == 0) { static struct rs_ai_rec tmp[256]; nb = (unsigned)rs_ai_snapshot(tmp, 256, 0, 0); }
       rs_dedicated_after_match(nb); { extern volatile int rs_vclock_match; rs_vclock_match = nb > 0; } }                                                                       /* RS_DEDICATED=2 (AI training): through team selection and results */
@@ -133,7 +133,7 @@ static u32 ai_best_post(u32 cmd){
 void rs_ai_debug(unsigned fr); void rs_ai_bots(unsigned fr); static void ai_unstick(unsigned fr);
 void rs_ai_frame(void){
     static unsigned fr;
-    if (GU32(IMG(UL_COUNT)) == 0) { ai_cmd[0] = ai_cmd[1] = 0; { extern void rs_ai_release_all(void); rs_ai_release_all(); } return; }   /* between matches: no squads */
+    if (GU32(IMG(UL_COUNT)) == 0) { ai_cmd[0] = ai_cmd[1] = 0; { extern void rs_ai_release_all(void); rs_ai_release_all(); } { extern void rs_ai_events_reset(void); rs_ai_events_reset(); } return; }   /* between matches: no squads */
     if (!on() || GU8(IMG(MODE_NETWORK)) == 1 || ++fr % 30) return;
     { static int dbg = -1; if (dbg < 0) dbg = getenv("RS_AI_DEBUG") != 0; if (dbg && fr % 300 == 0) rs_ai_debug(fr); }
     { static int bl = -1; if (bl < 0) bl = getenv("RS_AI_BOTS") != 0; if (bl && fr % 60 == 0) rs_ai_bots(fr); }
@@ -195,6 +195,7 @@ int rs_ai_posts(struct rs_ai_post *out, int max){
         struct rs_ai_post *q = &out[n++]; q->pos[0] = p[0]; q->pos[1] = p[1]; q->pos[2] = p[2]; q->id = id; q->owner = 0;
         for (int c = 0; c < 2; c++) { u32 cmd = ai_cmd[c]; if (cmd && GU32(cmd + 4) && ((GU8(cmd + 0x4A) >> k) & 1)) q->owner = GU32(GU32(cmd + 4) + 0x4C); } }
     return n; }
+void rs_ai_extras(struct rs_ai_rec *r, int n);
 int rs_ai_snapshot(struct rs_ai_rec *out, int max, u8 *raw, int rawn){
     u32 tb = IMG(0x08C2A880u), bk = GU32(tb), nbk = GU32(tb + 4); if (!gok(bk) || nbk > 4096) return 0;
     int n = 0;
@@ -214,6 +215,7 @@ int rs_ai_snapshot(struct rs_ai_rec *out, int max, u8 *raw, int rawn){
         r->policy = pol_bot(r->id);
         if (raw && rawn > 0) memcpy(raw + (size_t)n * rawn, GP(o), (size_t)rawn);
         n++; }
+    rs_ai_extras(out, n);
     return n; }
 /* Bots that stand about (traced with RS_AI_BOTS=1).  Two causes, both fixed here every second (offline, RS_AI_IDLE_FIX):
  *  - a bot taken out of its squad by func_0892CC00 (it marks the bot +0xC8 bit 0x20 and removes it; the squad-filling pass,
@@ -534,3 +536,63 @@ void rs_col_ray(u32 ray){
     if (i == nh && nh < 96) { h[nh].ex = ex; h[nh].ra = ra; h[nh].req = req; h[nh].n = 0; nh++; }
     if (i < 96) h[i].n++;
     if (++tot % 3000 == 0) { fprintf(stderr, "[RAY] rays by exclude/require mask:"); for (int k = 0; k < nh; k++) fprintf(stderr, " %x/%x@%p:%u", h[k].ex, h[k].req, h[k].ra, h[k].n); fprintf(stderr, "\n"); } }
+/* Damage (tools/dc/hooks.py: func_089E1FDC is where a soldier or vehicle takes a hit, from its message handler (func_089A7310 for
+ * soldiers, func_089D6CBC): msg +0 the weapon's / projectile's blueprint hash, +4 the source's object id, +8 the source's +0x54,
+ * +12 the amount after the game's scaling).  Each hit becomes an event for the AI bridge: target, source, amount, the target's health
+ * before and after (killed when it goes from above 0 to 0 or below), weapon.  Checked: kills and hits match the bots' health. */
+#define EVT_N 1024
+static struct rs_ai_evt evq[EVT_N]; static unsigned ev_w, ev_r; static float dmg_hp; static u32 dmg_tgt;
+static struct { u32 id, w; } fired[256];
+static float obj_health(u32 o){ if (!gok(o) || !gok(GU32(o))) return 0; u32 sub = o + GU32(GU32(o) - 12); return gok(sub) ? GF32(sub + 0x28) : 0; }
+static u32 fired_by(u32 id){ for (int i = 0; i < 256; i++) if (fired[i].id == id) return fired[i].w; return 0; }
+void rs_ai_dmg_pre(u32 o, u32 msg){ dmg_tgt = o; dmg_hp = obj_health(o); (void)msg; }
+void rs_ai_dmg_post(u32 o, u32 msg){
+    if (o != dmg_tgt || !msg || !gok(o) || !gok(GU32(o))) return;
+    struct rs_ai_evt e = { obj_id(o), GU32(msg + 4), GF32(msg + 12), dmg_hp, obj_health(o), GU32(msg) };
+    if (e.before <= 0.0f) return;                                       /* hits on the dead */
+    evq[ev_w++ % EVT_N] = e; if (ev_w - ev_r > EVT_N) ev_r = ev_w - EVT_N;
+    { int k = -1; for (int i = 0; i < 256 && k < 0; i++) if (fired[i].id == e.source) k = i; for (int i = 0; i < 256 && k < 0; i++) if (!fired[i].id) k = i;
+      if (k < 0) k = (int)(e.source % 256); fired[k].id = e.source; fired[k].w = e.weapon; }
+    { static FILE *f; const char *pf = getenv("RS_AI_EVLOG"); if (pf) { if (!f) f = fopen(pf, "w"); if (f) { fprintf(f, "%x %x %.2f %.2f %.2f %x\n", e.target, e.source, e.amount, e.before, e.after, e.weapon); fflush(f); } } } }
+int rs_ai_events(struct rs_ai_evt *out, int max){ int n = 0; while (ev_r != ev_w && n < max) out[n++] = evq[ev_r++ % EVT_N]; return n; }
+void rs_ai_events_reset(void){ ev_r = ev_w; memset(fired, 0, sizeof fired); }
+
+/* Line of sight for the AI bridge: the level ray the game's AI uses (func_0883506C builds it: +0 origin, +12 direction (unit), +36 an
+ * object id to ignore (999 none), +40 length, +48 the mask of surface kinds to skip (8, as the AI's own ground probe func_0891E3F0);
+ * func_08834E84 casts it and returns the hit: +0 the distance along the ray, +32 non-zero on a hit).  Eye height to eye height.
+ * Checked on Tatooine: of 1193 hits between bots, 1180 had a clear line by this test at the time. */
+extern rv_t func_08834E84(u32); extern void func_0883506C(u32, u32, u32, u32, u32, u32, float);
+int rs_ai_los(const float *a, const float *b){
+    static u32 ray, o3, d3; if (!ray) { ray = GA(rs_guest_alloc(128, 16)); o3 = GA(rs_guest_alloc(16, 16)); d3 = GA(rs_guest_alloc(16, 16)); }
+    float o[3] = { a[0], a[1] + 1.5f, a[2] }, t[3] = { b[0], b[1] + 1.5f, b[2] }, d[3] = { t[0] - o[0], t[1] - o[1], t[2] - o[2] };
+    float L = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]); if (L < 0.5f) return 1;
+    for (int k = 0; k < 3; k++) { GF32(o3 + 4u * (u32)k) = o[k]; GF32(d3 + 4u * (u32)k) = d[k] / L; }
+    func_0883506C(ray, o3, d3, 999, 0, 8, L);
+    u32 hit = func_08834E84(ray).v0; if (!hit) return 1;
+    return !(GU8(hit + 32) && GF32(hit) < L - 1.0f); }
+/* the bridge's extras for the policy's bots: the nearest enemies, whether each is in sight, and a nearby point hidden from the
+ * nearest one (8 directions at 6 and 10 units; the nearest such point that the bot itself can reach in a straight line) */
+void rs_ai_extras(struct rs_ai_rec *r, int n){
+    for (int i = 0; i < n; i++) { struct rs_ai_rec *a = &r[i];
+        a->kit[0] = GU32(a->obj + 0xB4); a->kit[1] = GU32(a->obj + 0xB8); a->kit[2] = GU32(a->obj + 0xBC); a->fired = fired_by(a->id);
+        if (!a->policy || !a->alive || a->health <= 0) continue;
+        int best[3] = { -1, -1, -1 }; float bd[3] = { 1e30f, 1e30f, 1e30f };
+        for (int j = 0; j < n; j++) { struct rs_ai_rec *e = &r[j]; if (e->team == a->team || !e->alive || e->health <= 0) continue;
+            float dx = e->pos[0] - a->pos[0], dz = e->pos[2] - a->pos[2], d = dx * dx + dz * dz;
+            for (int k = 0; k < 3; k++) if (d < bd[k]) { for (int m = 2; m > k; m--) { bd[m] = bd[m - 1]; best[m] = best[m - 1]; } bd[k] = d; best[k] = j; break; } }
+        for (int k = 0; k < 3; k++) if (best[k] >= 0) { a->near_id[k] = r[best[k]].id; a->near_los[k] = bd[k] < 150.0f * 150.0f ? (u8)rs_ai_los(a->pos, r[best[k]].pos) : 0; }
+        if (best[0] >= 0 && bd[0] < 80.0f * 80.0f) {
+            const float *e = r[best[0]].pos; float bestd = 1e30f;
+            for (int ring = 0; ring < 2; ring++) for (int k = 0; k < 8; k++) { float ang = 6.2831853f * (float)k / 8.0f, rad = ring ? 10.0f : 6.0f;
+                float c[3] = { a->pos[0] + rad * cosf(ang), a->pos[1], a->pos[2] + rad * sinf(ang) };
+                if (rs_ai_los(e, c) || !rs_ai_los(a->pos, c)) continue;
+                float dd = (c[0] - a->pos[0]) * (c[0] - a->pos[0]) + (c[2] - a->pos[2]) * (c[2] - a->pos[2]);
+                if (dd < bestd) { bestd = dd; memcpy(a->cover, c, 12); a->cover_ok = 1; } } } } }
+/* vehicles for the bridge: every object of a vehicle type in the game's object table, its position and who is aboard */
+int rs_ai_vehicles(struct rs_ai_veh *out, int max){
+    u32 tab = GU32(IMG(0x08C2C31Cu)), sz = GU32(IMG(0x08C2C320u)); if (!gok(tab) || !sz || sz > 65536) return 0; int n = 0;
+    for (u32 b = 0; b < sz && n < max; b++) for (u32 nd = GU32(tab + 4u * b); gok(nd) && n < max; nd = GU32(nd + 4)) { u32 o = GU32(nd); if (!gok(o) || !gok(GU32(o))) continue;
+        u32 so = o + GU32(GU32(o) - 16); if (!gok(so) || (GU32(so + 16) & 1)) continue; if (!is_veh((int)GU16(so + 8))) continue;
+        const float *p = soldier_pos(o); if (!p) continue;
+        struct rs_ai_veh *v = &out[n++]; memcpy(v->pos, p, 12); v->id = GU32(so + 4); v->side = vehicle_side(o); }
+    return n; }

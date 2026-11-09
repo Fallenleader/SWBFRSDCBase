@@ -26,11 +26,15 @@ class PipelineCheckEnv(gym.Env):
         super().reset(seed=seed)
         n = 1 + self.na + self.ne
         self.pos = np.zeros((n, 3), np.float32); self.pos[:, [0, 2]] = self.np_random.uniform(-60, 60, (n, 2))
-        self.t = 0; self.tr = spaces.Tracker(); r = self._recs(); obs = spaces.build_obs(r, self.posts(), self.tr, 0.2); self.tr.update(r)
+        self.t = 0; self.tr = spaces.Tracker(); r = self._recs(); obs = spaces.build_obs(self._snap(r), self.tr, 0.2); self.tr.update(r)
         return obs[0], {}
 
     def posts(self):
         return np.zeros(0, protocol.POST)
+
+    def _snap(self, r):
+        class S: pass
+        s = S(); s.recs = r; s.posts = self.posts(); s.events = np.zeros(0, protocol.EVT); s.vehicles = np.zeros(0, protocol.VEH); return s
 
     def step(self, a):
         me = self.pos[0]; en = self.pos[1 + self.na:]
@@ -42,5 +46,5 @@ class PipelineCheckEnv(gym.Env):
         self.t += 1
         dist = float(np.min(np.hypot(*(en[:, [0, 2]] - me[[0, 2]]).T)))
         r = (0.05 if 15 <= dist <= 30 else -0.01) - (0.01 if np.hypot(*(me - old)[[0, 2]]) < 0.5 else 0.0)
-        rec = self._recs(); obs = spaces.build_obs(rec, self.posts(), self.tr, 0.2); self.tr.update(rec)
+        rec = self._recs(); obs = spaces.build_obs(self._snap(rec), self.tr, 0.2); self.tr.update(rec)
         return obs[0], r, False, self.t >= self.max_steps, {"dist": dist}

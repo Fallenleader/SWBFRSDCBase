@@ -1,20 +1,21 @@
-"""Reward terms for the infantry policy.  Each says whether the game gives what it needs yet; terms not available contribute 0 and
-are listed by `available_terms()` so a run records what it was actually trained on."""
+"""Reward terms for the infantry policy (v2).  Each says where it comes from; terms whose source the game does not give contribute 0
+and are left out of `available_terms()`, so a run records what it was trained on."""
 
 # name: (default weight, available now?, source)
 TERMS = {
-    "survival":          (0.002, True,  "per decision step alive"),
-    "death":             (-1.0,  True,  "the bot's record leaving the AI table / health reaching 0"),
-    "damage_taken":      (-0.5,  True,  "health fraction lost (soldier sub-object +0x28)"),
-    "enemy_down_nearby": (0.5,   True,  "PROXY for kills: an enemy within 35 units of the agent dies (no killer id yet)"),
-    "objective":         (1.0,   True,  "its side takes (+) or loses (-) a command post (shared by the side's agents)"),
-    "posts_held":        (0.01,  True,  "per step, the fraction of posts its side owns"),
-    "inactivity":        (-0.01, True,  "moved < 0.5 units with no enemy within 50 units"),
-    "kill":              (1.0,   False, "kill events with the killer's id"),
-    "damage_dealt":      (0.02,  False, "damage events with the source id"),
-    "friendly_fire":     (-0.5,  False, "damage events with the source's team"),
-    "flank":             (0.2,   False, "facing of the target (hit from its side/back)"),
-    "positioning":       (0.01,  False, "cover / line-of-sight data"),
+    "survival":       (0.002, True,  "per decision step alive"),
+    "death":          (-1.0,  True,  "the bot is killed (a hit takes its health to 0, or its record ends)"),
+    "damage_taken":   (-0.4,  True,  "health fraction lost (hit events / soldier sub-object +0x28)"),
+    "kill":           (1.0,   True,  "hit events: a hit by this bot that takes an enemy's health to 0"),
+    "assist":         (0.3,   True,  "an enemy this bot hit in the last 5 s is killed by someone else"),
+    "damage_dealt":   (0.4,   True,  "hit events: damage this bot did to enemies, as a fraction of their health"),
+    "friendly_fire":  (-0.5,  True,  "hit events: damage this bot did to its own side, as a fraction of their health"),
+    "objective":      (1.0,   True,  "its side takes (+) or loses (-) a command post (shared by the side's agents)"),
+    "posts_held":     (0.01,  True,  "per step, the fraction of posts its side owns"),
+    "capturing":      (0.01,  True,  "per step within 15 units of a post its side does not own (taking it)"),
+    "range_keeping":  (0.003, True,  "per step with an enemy in sight within 50% of its weapon's ideal range (rsai/weapons.py)"),
+    "inactivity":     (-0.01, True,  "moved < 0.5 units with no enemy within 50 units"),
+    "flank":          (0.2,   False, "facing of the target (hit from its side/back): the soldiers' facing is not traced yet"),
 }
 
 

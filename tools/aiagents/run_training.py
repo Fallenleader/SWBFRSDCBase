@@ -71,7 +71,7 @@ class Supervisor(BaseCallback):
                     self.logger.record(f"game/{k}", v)
             line = (f"[train] {n} steps, {s['wall_hours']:.2f} h, {s['matches']} matches, game {s['game_speed_x']:.1f}x real time (per decision: {s['ms_wait_game']:.1f} ms waiting for the game, {s['ms_trainer_step']:.1f} ms in the trainer) | deaths/bot-min policy {s['policy_deaths_per_bot_min']:.2f}"
                     f" vs original {s['game_deaths_per_bot_min']:.2f} | posts held {s['policy_posts_held']:.2f} vs {s['game_posts_held']:.2f}"
-                    f" | enemies downed nearby/bot-min {s['policy_enemy_down_nearby_per_bot_min']:.2f} vs {s['game_enemy_down_nearby_per_bot_min']:.2f}"
+                    f" | kills/bot-min {s['policy_kills_per_bot_min']:.2f} vs {s['game_kills_per_bot_min']:.2f}"
                     f" | score {s['score']:+.2f} (best {'none yet' if self.best < -1e8 else format(self.best, '+.2f')})")
             self.log(line)
             if s["game_minutes"] >= self.cfg["min_game_minutes_for_best"] and s["score"] > self.best:
