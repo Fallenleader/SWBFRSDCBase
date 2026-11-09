@@ -264,8 +264,9 @@ static void h_SysTimeLow(sdkcall_t *c){ V0 = (u32)guest_us(); { static unsigned 
     }
 static void h_SleepThread(sdkcall_t *c){ for (;;) unlocked_sleep(100000); }
 
-/* semaphores */
-typedef struct { int uid; int count, max; u64 wait_us, waits; void *sig_th; int sig_prev; char name[24]; void *owner; u64 t_acq; } sema_t; static sema_t semas[256]; static int nsema;
+/* semaphores.  Each semaphore and event flag has its own wait queue: a signal wakes only the threads waiting on that object (one
+ * shared queue woke every waiting thread of the game on every signal, each of them then queueing for the guest lock to re-check). */
+typedef struct { int uid; int count, max; u64 wait_us, waits; void *sig_th; int sig_prev; char name[24]; void *owner; u64 t_acq; rs_cond_t cv; } sema_t; static sema_t semas[256]; static int nsema;
 static sema_t *sema_find(int uid){ for (int i = 0; i < nsema; i++) if (semas[i].uid == uid) return &semas[i]; return 0; }
 static void h_CreateSema(sdkcall_t *c){ sema_t *s = &semas[nsema++]; s->uid = next_uid++; strncpy(s->name, gstr(A0), 23); s->count = A2; s->max = A3; V0 = s->uid; }
 static void h_DeleteSema(sdkcall_t *c){ V0 = 0; }
@@ -280,23 +281,23 @@ void perf_sema_report(char *b, int n, double fr){ int o = 0;
         kthread_t *t = s->sig_th; o += snprintf(b + o, n - o, " | sema '%s' %x waits %.1f %.2f ms, signalled by '%s' after %s", s->name, s->uid, s->waits / fr, s->wait_us / fr / 1000, t ? t->name : "?", s->sig_prev > 0 ? hname(s->sig_prev - 1) : "-");
         s->wait_us = 0; s->waits = 0; if (o > n - 120) break; }
     for (int i = 0; i < nsema; i++) semas[i].wait_us = semas[i].waits = 0; }
-static void h_SignalSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } if (s->owner && s->max == 1) { kthread_t *o = s->owner; o->hold_us += rs_perf_us() - s->t_acq; o->holds++; s->owner = 0; } s->count += A1; s->sig_th = cur_thread; s->sig_prev = cur_thread ? cur_thread->prev : 0; rc_broadcast(&gcv); V0 = 0; }
-static void h_WaitSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } u64 t = rs_perf_us(); while (s->count < (int)A1) big_wait(&gcv); s->count -= A1; s->wait_us += rs_perf_us() - t; s->waits++; s->owner = cur_thread; s->t_acq = rs_perf_us(); V0 = 0; }
+static void h_SignalSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } if (s->owner && s->max == 1) { kthread_t *o = s->owner; o->hold_us += rs_perf_us() - s->t_acq; o->holds++; s->owner = 0; } s->count += A1; s->sig_th = cur_thread; s->sig_prev = cur_thread ? cur_thread->prev : 0; rc_broadcast(&s->cv); V0 = 0; }
+static void h_WaitSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } u64 t = rs_perf_us(); while (s->count < (int)A1) big_wait(&s->cv); s->count -= A1; s->wait_us += rs_perf_us() - t; s->waits++; s->owner = cur_thread; s->t_acq = rs_perf_us(); V0 = 0; }
 static void h_PollSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } if (s->count >= (int)A1) { s->count -= A1; s->owner = cur_thread; s->t_acq = rs_perf_us(); V0 = 0; } else V0 = ERR_SEMA_ZERO; yield_big(); }
 
 /* event flags */
-typedef struct { int uid; u32 pat; } evf_t; static evf_t evfs[256]; static int nevf;
+typedef struct { int uid; u32 pat; rs_cond_t cv; } evf_t; static evf_t evfs[256]; static int nevf;
 static evf_t *evf_find(int uid){ for (int i = 0; i < nevf; i++) if (evfs[i].uid == uid) return &evfs[i]; return 0; }
 static void h_CreateEvf(sdkcall_t *c){ evf_t *e = &evfs[nevf++]; e->uid = next_uid++; e->pat = A2; fprintf(stderr, "[EVF] CREATE '%s' uid=%x pat=%x by '%s' ra=%08x\n", gstr(A0), e->uid, e->pat, cur_thread ? cur_thread->name : "?", c->r[31]); V0 = e->uid; }
 static int evlog;
-static void h_SetEvf(sdkcall_t *c){ evf_t *e = evf_find(A0); if (evlog++ < 80) fprintf(stderr, "[EVF] SET   uid=%x bits=%x by '%s' ra=%08x\n", A0, A1, cur_thread ? cur_thread->name : "?", c->r[31]); if (!e) { V0 = 0x80020 | 0x80000000u; return; } e->pat |= A1; rc_broadcast(&gcv); V0 = 0; }
+static void h_SetEvf(sdkcall_t *c){ evf_t *e = evf_find(A0); if (evlog++ < 80) fprintf(stderr, "[EVF] SET   uid=%x bits=%x by '%s' ra=%08x\n", A0, A1, cur_thread ? cur_thread->name : "?", c->r[31]); if (!e) { V0 = 0x80020 | 0x80000000u; return; } e->pat |= A1; rc_broadcast(&e->cv); V0 = 0; }
 static void h_ClearEvf(sdkcall_t *c){ evf_t *e = evf_find(A0); if (e) e->pat &= A1; V0 = 0; }
 static void h_WaitEvf(sdkcall_t *c){ evf_t *e = evf_find(A0); u32 bits = A1, mode = A2;
     if (!e) { V0 = 0x80020000u; return; }
     if (evlog++ < 80) fprintf(stderr, "[EVF] WAIT  uid=%x bits=%x mode=%x pat=%x by '%s' ra=%08x\n", A0, bits, mode, e->pat, cur_thread ? cur_thread->name : "?", c->r[31]);
     for (;;) { int ok = (mode & 1) ? ((e->pat & bits) != 0) : ((e->pat & bits) == bits);
         if (ok) { if (A3) SW(A3, e->pat); if (mode & 0x10) e->pat = 0; if (mode & 0x20) e->pat &= ~bits; V0 = 0; return; }
-        big_wait(&gcv); } }
+        big_wait(&e->cv); } }
 
 
 /* fixed-length pools (the game builds its main heap from one big FPL block) */
