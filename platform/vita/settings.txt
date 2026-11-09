@@ -115,3 +115,5 @@ RS_MOVIES=1
 RS_SERVER=
 # 1 = look on the local network first, 0 = only RS_SERVER
 RS_LAN_SEARCH=1
+# diagnostics: log every frame that takes longer than this many milliseconds, with the files opened during it (0 = off)
+RS_SPIKE_MS=0
