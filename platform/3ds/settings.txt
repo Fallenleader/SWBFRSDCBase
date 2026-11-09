@@ -11,6 +11,10 @@ RS_CULL=0
 RS_TEX_BUDGET_MB=6
 # 1 = keep textures in 32-bit colour (more memory); 0 = 16-bit formats chosen per texture without losing its alpha
 RS_TEX_32BIT=0
+# picture orientation diagnostics (leave at 0): 1 = store CPU-made pictures the other way up (textures, text, the menu background)
+RS_TEX_ROWS_UP=0
+# 1 = turn the whole displayed picture upside down
+RS_FLIP_DISPLAY=0
 # vertex memory per frame in MB (two of them)
 RS_VTX_MB=2
 # the game's memory in MB (the PSP gave it about 20)

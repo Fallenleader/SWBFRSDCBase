@@ -118,7 +118,10 @@ static void tent_free(tent_t *e){ if (!e->used) return; tc_unlink(e); tex_free_l
 void gfx_tex_maps(unsigned *mr, unsigned *nrm, int *hd){ *mr = 0; *nrm = 0; *hd = 0; }
 static inline u32 morton8(u32 x, u32 y){ return (x & 1) | ((y & 1) << 1) | ((x & 2) << 1) | ((y & 2) << 2) | ((x & 4) << 2) | ((y & 4) << 3); }
 static int pow2_at_least(int v){ int p = 8; while (p < v) p <<= 1; return p; }
-/* RGBA8 (0xAABBGGRR, PSP row 0 first) -> a 3DS texture: 8x8 tiles in Morton order, the first tile row the BOTTOM of the picture */
+/* RGBA8 (0xAABBGGRR, PSP row 0 first) -> a 3DS texture: 8x8 tiles in Morton order, PSP row 0 in the first tile row.
+ * (Stored the other way up, every picture the CPU made - textures, the menu background, text - showed upside down within its own
+ *  rectangle on hardware, while everything placed by geometry was the right way up: the rows are the GPU's own convention, used the
+ *  same way by rendering and sampling, so only the CPU's layout here had to change.  RS_TEX_ROWS_UP=1 restores the old layout.) */
 static int tex_store(C3D_Tex *t, const u32 *px, int w, int h, int *tw_out, int *th_out, long *bytes){
     int tw = pow2_at_least(w), th = pow2_at_least(h);
     static int force32 = -1; if (force32 < 0) force32 = rs_setting_int("RS_TEX_32BIT", 0);
@@ -126,7 +129,8 @@ static int tex_store(C3D_Tex *t, const u32 *px, int w, int h, int *tw_out, int *
     GPU_TEXCOLOR f = force32 ? GPU_RGBA8 : (amin == 255 ? GPU_RGB565 : (a1 ? GPU_RGBA5551 : GPU_RGBA4));
     if (!C3D_TexInit(t, (u16)tw, (u16)th, f)) return 0;
     int bpp = f == GPU_RGBA8 ? 4 : 2; u8 *dst = t->data; memset(dst, 0, (size_t)tw * th * bpp);
-    for (int y = 0; y < h; y++) { int gy = th - 1 - y; const u32 *row = px + (size_t)y * w;
+    static int up = -1; if (up < 0) up = rs_setting_int("RS_TEX_ROWS_UP", 0);
+    for (int y = 0; y < h; y++) { int gy = up ? th - 1 - y : y; const u32 *row = px + (size_t)y * w;
         for (int x = 0; x < w; x++) {
             u32 c = row[x], r = c & 255, g = (c >> 8) & 255, b = (c >> 16) & 255, a = c >> 24;
             u32 o = (u32)(((gy >> 3) * (tw >> 3) + (x >> 3)) * 64) + morton8((u32)x & 7, (u32)gy & 7);
@@ -442,9 +446,9 @@ void gfx_c3d_present(void){
         if (v) {
             C3D_Mtx proj; Mtx_OrthoTilt(&proj, 0.0f, 400.0f, 240.0f, 0.0f, 1.0f, -1.0f, true);
             C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, u_clip, &proj);
-            /* a GPU surface holds the picture bottom row first within its band (seen on hardware: the whole picture was upside down);
-             * a picture stored from the CPU (tex_store) has row 0 at v = 1.  RS_FLIP_DISPLAY=0/1 overrides for surfaces. */
-            static int fl = -1; if (fl < 0) fl = rs_setting_int("RS_FLIP_DISPLAY", 1);
+            /* surfaces are drawn and read in the GPU's own convention (row 0 at v = 1); flipping the whole picture here (RS_FLIP_DISPLAY=1)
+             * only hid that the CPU-made pictures were stored upside down (tex_store): it turned the menus upside down on hardware */
+            static int fl = -1; if (fl < 0) fl = rs_setting_int("RS_FLIP_DISPLAY", 0);
             float vt = 1.0f, vbm = vb; if (s && fl) { vt = vb; vbm = 1.0f; }
             float q[4][4] = {{0, 0, 0, vt}, {400, 0, um, vt}, {0, 240, 0, vbm}, {400, 240, um, vbm}};
             for (int i = 0; i < 4; i++) { float *d = v + i * 9; d[0] = q[i][0]; d[1] = q[i][1]; d[2] = 0; d[3] = q[i][2]; d[4] = q[i][3]; d[5] = d[6] = d[7] = d[8] = 1; }
