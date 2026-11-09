@@ -101,7 +101,7 @@ int rs_fs_open(const char *p, int mode){
     if ((mode & RS_FS_CREATE) && !(mode & RS_FS_TRUNC) && !vfs_iso_active()) { FILE *t = fopen(full, "ab"); if (t) fclose(t); }
     FILE *f = vfs_fopen(full, fm); if (!f && (mode & 3) == RS_FS_RW) f = vfs_fopen(full, "rb");
     if (!f) { fprintf(stderr, "[IO] open FAILED %s\n", p); return (int)ERR_NOENT; }
-    fprintf(stderr, "[IO] open %s\n", p); rs_atrac_note_file(full); rs_movie_note_file(full);
+    fprintf(stderr, "[IO] open %s\n", p); { extern unsigned rs_spike_opens; extern char rs_spike_last[160]; rs_spike_opens++; snprintf(rs_spike_last, sizeof rs_spike_last, "%s", full); } rs_atrac_note_file(full); rs_movie_note_file(full);
     { extern void rs_fx_file_opened(const char *) __attribute__((weak)); if (rs_fx_file_opened) rs_fx_file_opened(full); }   /* gfx_fx.c: map, lights, dumps */
     int fd = new_fd(f, 0, full); if (fd < 0) { fclose(f); return (int)ERR_MFILE; } return fd; }
 
