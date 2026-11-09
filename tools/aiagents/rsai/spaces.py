@@ -94,6 +94,24 @@ def _fill_class(o, base, h):
         o[base + c] = 1.0
 
 
+def vehicle_state(s):
+    """who is in which vehicle: a soldier aboard sits exactly at the vehicle's position (measured on Kashyyyk: the original AI's
+    bots in vehicles are within 0.05 units of one; the bridge's own vehicle field stays 0).  Returns (in_vehicle[n] bool,
+    side per vehicle: the team aboard, -1 empty)."""
+    recs, vehs = s.recs, s.vehicles
+    inv = np.zeros(len(recs), bool); side = np.full(len(vehs), -1, np.int64)
+    if len(vehs) and len(recs):
+        alive = (recs["alive"] != 0) & (recs["health"] > 0)
+        d = np.hypot(recs["pos"][:, None, 0] - vehs["pos"][None, :, 0], recs["pos"][:, None, 2] - vehs["pos"][None, :, 2])
+        hit = (d < 0.1) & alive[:, None]
+        inv = hit.any(1)
+        for v in range(len(vehs)):
+            w = np.where(hit[:, v])[0]
+            if len(w):
+                side[v] = int(recs["team"][w[0]])
+    return inv, side
+
+
 def _xz(v):
     return np.array([v[0], v[2]], np.float32)
 
@@ -108,6 +126,7 @@ def build_obs(s, tracker, dt):
         return obs
     pos = recs["pos"].astype(np.float32); team = recs["team"]; alive = (recs["alive"] != 0) & (recs["health"] > 0)
     ids = recs["id"].astype(np.int64); idx = {int(i): j for j, i in enumerate(ids)}
+    in_veh, veh_side = vehicle_state(s)
     diff = pos[None, :, :] - pos[:, None, :]
     dist = np.sqrt(diff[..., 0] ** 2 + diff[..., 2] ** 2)
     hfrac = np.array([float(recs["health"][j]) / max(tracker.hmax.get(int(ids[j]), 0.0), float(recs["health"][j]), 1e-3) for j in range(n)], np.float32)
@@ -133,7 +152,7 @@ def build_obs(s, tracker, dt):
         o = obs[i]; me = pos[i]; rid = int(ids[i]); tm = team[i]
         o[_O["alive"]] = float(alive[i]); o[_O["health_frac"]] = hfrac[i]; o[_O["health_abs"]] = float(recs["health"][i]) / 200.0
         o[_O["vel_x"]] = vel[i, 0] / 10.0; o[_O["vel_z"]] = vel[i, 2] / 10.0; o[_O["speed"]] = float(np.hypot(vel[i, 0], vel[i, 2])) / 10.0
-        o[_O["in_vehicle"]] = float(recs["vehicle"][i] not in (0, 999)); o[_O["has_squad"]] = float(recs["has_squad"][i] != 0)
+        o[_O["in_vehicle"]] = float(in_veh[i]); o[_O["has_squad"]] = float(recs["has_squad"][i] != 0)
         kit = recs["kit"][i]
         _fill_class(o, _O["w1_close"], kit[0]); _fill_class(o, _O["w2_close"], kit[1]); o[_O["has_explosive"]] = float(kit[2] != 0)
         ideal = weapons.ideal_range(kit[0]); mx = weapons.max_range(kit[0])
@@ -160,7 +179,7 @@ def build_obs(s, tracker, dt):
             o[b + 12] = float(tid in hit_by.get(rid, ()))
             to_me = -diff[i, t] / max(dist[i, t], 1e-3)
             o[b + 13] = float(vel[t, 0] * to_me[0] + vel[t, 2] * to_me[2]) / 10.0
-            o[b + 14] = float(recs["vehicle"][t] not in (0, 999)); o[b + 15] = float(np.clip(dist[i, t] / ideal - 1.0, -1.0, 3.0))
+            o[b + 14] = float(in_veh[t]); o[b + 15] = float(np.clip(dist[i, t] / ideal - 1.0, -1.0, 3.0))
         aidx = np.where(al)[0]; aidx = aidx[np.argsort(dist[i, aidx])][:K_ALLIES]
         for k, t in enumerate(aidx):
             b = _O[f"ally{k}_dx"]
@@ -179,7 +198,7 @@ def build_obs(s, tracker, dt):
             o[_O["posts_ours_frac"]] = float(np.mean(owners == tm)); o[_O["posts_theirs_frac"]] = float(np.mean((owners != tm) & (owners != 0)))
         if len(vehs):
             vd = vehs["pos"] - me; vdist = np.hypot(vd[:, 0], vd[:, 2])
-            for sel, b in ((vehs["side"] < 0, _O["empty_veh_dx"]), ((vehs["side"] >= 0) & (vehs["side"] != tm), _O["enemy_veh_dx"])):
+            for sel, b in ((veh_side < 0, _O["empty_veh_dx"]), ((veh_side >= 0) & (veh_side != tm), _O["enemy_veh_dx"])):
                 w = np.where(sel)[0]
                 if len(w):
                     j = w[np.argmin(vdist[w])]; o[b] = vd[j, 0] / D; o[b + 1] = vd[j, 2] / D; o[b + 2] = vdist[j] / D; o[b + 3] = 1.0
@@ -229,7 +248,7 @@ def destination(action, i, s, tracker):
         return posts["pos"][order[min(1, len(order) - 1) if a == "capture_second" else 0]].copy()
     if a == "get_vehicle":
         if len(vehs):
-            w = np.where(vehs["side"] < 0)[0]
+            w = np.where(vehicle_state(s)[1] < 0)[0]
             if len(w):
                 vd = np.hypot(*(vehs["pos"][w] - me)[:, [0, 2]].T); return vehs["pos"][w[np.argmin(vd)]].copy()
         return me

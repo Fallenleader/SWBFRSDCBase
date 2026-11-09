@@ -57,7 +57,7 @@ void rs_patches_frame(void){
     { extern void rs_ai_bridge_frame(void); rs_ai_bridge_frame(); }   /* ai_bridge.c: RS_AI_BRIDGE=<host:port> */
 #endif
     rs_renderer_frame();                                                  /* renderer_option.c */
-    { extern void rs_ai_frame(void); rs_ai_frame(); }                     /* idle squads (below) */
+    { extern void rs_ai_frame(void); rs_ai_frame(); }                      /* idle squads (below) */
 #ifdef RS_DESKTOP
     { extern void rs_dedicated_after_match(unsigned); static unsigned fr, nb; if (fr++ % 30 == 0) { static struct rs_ai_rec tmp[256]; nb = (unsigned)rs_ai_snapshot(tmp, 256, 0, 0); }
       rs_dedicated_after_match(nb); { extern volatile int rs_vclock_match; rs_vclock_match = nb > 0; } }                                                                       /* RS_DEDICATED=2 (AI training): through team selection and results */
@@ -496,7 +496,9 @@ int rs_phys_pair(u32 pair, u32 *rv){
 extern u32 rs_input_object(void);
 u64 rs_perf_us(void);
 const char *rs_platform_setting(const char *key);
+static u32 hum_vt;
 void rs_soldier_frame(u32 sol){
+    if (!hum_vt && gok(sol)) hum_vt = GU32(sol);
     static int keep = -1; static float delay = 1.0f;
     if (keep < 0) { keep = !rs_setting_int("RS_LOOK_CENTER", 1);
         const char *d = rs_platform_setting("RS_LOOK_CENTER_DELAY"); if (d && *d) delay = (float)atof(d); if (delay < 0) delay = 0;
@@ -540,6 +542,7 @@ void rs_col_ray(u32 ray){
  * soldiers, func_089D6CBC): msg +0 the weapon's / projectile's blueprint hash, +4 the source's object id, +8 the source's +0x54,
  * +12 the amount after the game's scaling).  Each hit becomes an event for the AI bridge: target, source, amount, the target's health
  * before and after (killed when it goes from above 0 to 0 or below), weapon.  Checked: kills and hits match the bots' health. */
+static unsigned probe_fr;
 #define EVT_N 1024
 static struct rs_ai_evt evq[EVT_N]; static unsigned ev_w, ev_r; static float dmg_hp; static u32 dmg_tgt;
 static struct { u32 id, w; } fired[256];
@@ -553,7 +556,7 @@ void rs_ai_dmg_post(u32 o, u32 msg){
     evq[ev_w++ % EVT_N] = e; if (ev_w - ev_r > EVT_N) ev_r = ev_w - EVT_N;
     { int k = -1; for (int i = 0; i < 256 && k < 0; i++) if (fired[i].id == e.source) k = i; for (int i = 0; i < 256 && k < 0; i++) if (!fired[i].id) k = i;
       if (k < 0) k = (int)(e.source % 256); fired[k].id = e.source; fired[k].w = e.weapon; }
-    { static FILE *f; const char *pf = getenv("RS_AI_EVLOG"); if (pf) { if (!f) f = fopen(pf, "w"); if (f) { fprintf(f, "%x %x %.2f %.2f %.2f %x\n", e.target, e.source, e.amount, e.before, e.after, e.weapon); fflush(f); } } } }
+    { static FILE *f; const char *pf = getenv("RS_AI_EVLOG"); if (pf) { if (!f) f = fopen(pf, "w"); if (f) { fprintf(f, "%u %x %x %.2f %.2f %.2f %x\n", probe_fr, e.target, e.source, e.amount, e.before, e.after, e.weapon); fflush(f); } } } }
 int rs_ai_events(struct rs_ai_evt *out, int max){ int n = 0; while (ev_r != ev_w && n < max) out[n++] = evq[ev_r++ % EVT_N]; return n; }
 void rs_ai_events_reset(void){ ev_r = ev_w; memset(fired, 0, sizeof fired); }
 
@@ -572,7 +575,9 @@ int rs_ai_los(const float *a, const float *b){
     return !(GU8(hit + 32) && GF32(hit) < L - 1.0f); }
 /* the bridge's extras for the policy's bots: the nearest enemies, whether each is in sight, and a nearby point hidden from the
  * nearest one (8 directions at 6 and 10 units; the nearest such point that the bot itself can reach in a straight line) */
+static int extras_live;
 void rs_ai_extras(struct rs_ai_rec *r, int n){
+    { int live = 0; for (int i = 0; i < n; i++) live += r[i].alive && r[i].health > 0; extras_live = live; }
     for (int i = 0; i < n; i++) { struct rs_ai_rec *a = &r[i];
         a->kit[0] = GU32(a->obj + 0xB4); a->kit[1] = GU32(a->obj + 0xB8); a->kit[2] = GU32(a->obj + 0xBC); a->fired = fired_by(a->id);
         if (!a->policy || !a->alive || a->health <= 0) continue;
@@ -596,3 +601,11 @@ int rs_ai_vehicles(struct rs_ai_veh *out, int max){
         const float *p = soldier_pos(o); if (!p) continue;
         struct rs_ai_veh *v = &out[n++]; memcpy(v->pos, p, 12); v->id = GU32(so + 4); v->side = vehicle_side(o); }
     return n; }
+/* a soldier's humanoid (the part the game's soldier update runs on, with the weapon inventory at +0xEC): an object next to the AI
+ * object with the humanoid vtable and the same object id (its offset differs per soldier); cached per id */
+static struct { u32 id, o, h; } humc[256];
+u32 rs_ai_humanoid(u32 o){
+    if (!hum_vt || !gok(o)) return 0; u32 id = obj_id(o); int k = (int)(id % 256);
+    if (humc[k].id == id && humc[k].o == o && gok(humc[k].h) && GU32(humc[k].h) == hum_vt) return humc[k].h;
+    for (u32 off = 0; off < 0x2000; off += 4) if (GU32(o + off) == hum_vt && obj_id(o + off) == id) { humc[k].id = id; humc[k].o = o; humc[k].h = o + off; return o + off; }
+    return 0; }
