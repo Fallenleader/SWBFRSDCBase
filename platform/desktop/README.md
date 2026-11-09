@@ -1,6 +1,6 @@
 # Desktop builds (platform/desktop)
 
-**This branch (WindowsExperimental): `make windows`** builds its target (the other targets build here too).
+**This branch (WindowsRTXExperimental): `make rtx`** builds its target (the other targets build here too).
 
 The PS5 setup (64-bit guest, the Vulkan renderer with PBR, shadow maps, ray tracing where wanted, movies from MP4, mods) on a PC:
 an SDL2 window with a Vulkan swapchain (`gfx_vk_setup_window`), SDL2 game controllers and keyboard, SDL2 audio.  Everything lives next to
