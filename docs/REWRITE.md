@@ -14,7 +14,7 @@ This branch removes that layer. Each system is replaced by a native module behin
 | Threads (threads, semaphores, event flags, callbacks, delays, interrupts) | ~40 | 76 | `rs_thread`: native threads and locks, no big lock |
 | Graphics (Ge, sceGu) | ~15 + GU | 72 | `rs_gfx`: native renderer calls, no GE lists |
 | Files (Io, Umd) | 18 | 26 | `rs_fs`: **done (native_io.c)**, except the UMD inserted notification, which waits for native callbacks |
-| Kernel misc, cache, modules | ~30 | 50 | removed (no meaning natively) |
+| Kernel misc, cache, modules | ~30 | 50 | **done (native_kernel.c)**: cache maintenance, interrupt masking, version stamps, module stop/unload, GPO, debug print, control/display/power setup calls are no-ops; the clocks are native |
 | Audio (Audio, Sas, Atrac) | 27 | 18 | `rs_audio`: native mixer and decoder |
 | Movies (Mpeg, Psmf) | ~20 | 9 | `rs_video`: device decoder (sceAvcdec, MVD, FFmpeg) |
 | Memory (Fpl, partitions) | ~8 | 7 | the device's own heap |

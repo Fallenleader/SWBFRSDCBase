@@ -29,9 +29,10 @@ endif()
 # SDK call glue (generated from the list of SDK functions the game imports)
 find_program(PYTHON3 NAMES python3 python)
 set(GLUE_C "${ROOT}/build/vita_glue.c")
+file(GLOB NATIVE_SRC "${ROOT}/platform/common/native_*.c")      # native modules: the glue leaves out what they define
 if(PYTHON3)
   add_custom_command(OUTPUT "${GLUE_C}" COMMAND ${PYTHON3} "${ROOT}/platform/common/mkglue.py" "${ROOT}/src/game/psp_sdk.h" "${GLUE_C}"
-                     DEPENDS "${ROOT}/src/game/psp_sdk.h" "${ROOT}/platform/common/mkglue.py")
+                     DEPENDS "${ROOT}/src/game/psp_sdk.h" "${ROOT}/platform/common/mkglue.py" ${NATIVE_SRC})
 elseif(NOT EXISTS "${GLUE_C}")
   message(FATAL_ERROR "python3 is needed to generate ${GLUE_C} (or generate it beforehand: python3 platform/common/mkglue.py src/game/psp_sdk.h build/vita_glue.c)")
 endif()
@@ -40,7 +41,7 @@ file(GLOB GAME_SRC "${ROOT}/src/game/game_*.c")
 file(GLOB AT3_SRC "${ROOT}/platform/common/ext/at3/*.cpp")
 # GPU: the game's GU calls run natively (gu_native.c); ge.c (the GE command-list interpreter) is not built: it stays in the tree as the
 # reference for porting the renderer to other native APIs (Makefile GE_REF=1 on PC)
-set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/lift.c" "${ROOT}/platform/common/native_io.c" "${ROOT}/platform/common/gu_native.c" "${ROOT}/platform/common/audio.c" "${ROOT}/platform/common/settings.c"
+set(COMMON_SRC "${ROOT}/platform/common/hle.c" "${ROOT}/platform/common/lift.c" "${ROOT}/platform/common/native_io.c" "${ROOT}/platform/common/native_kernel.c" "${ROOT}/platform/common/gu_native.c" "${ROOT}/platform/common/audio.c" "${ROOT}/platform/common/settings.c"
                "${ROOT}/platform/common/vfs.c" "${ROOT}/platform/common/gfx_jobs.c" "${ROOT}/platform/common/convert.c" "${ROOT}/platform/common/asura_tex.c"
                "${ROOT}/platform/common/twin_stick.c" "${ROOT}/platform/common/game_patches.c" "${ROOT}/platform/common/custom_maps.c" "${ROOT}/platform/common/dedicated_host.c" "${ROOT}/platform/common/mpeg.c" "${ROOT}/platform/common/rs_avc.c" "${ROOT}/platform/common/mp4demux.c"
                "${ROOT}/platform/common/colour_picker.c"

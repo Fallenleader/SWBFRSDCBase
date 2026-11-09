@@ -15,6 +15,9 @@
 #include <sys/stat.h>
 #include <strings.h>
 
+/* environment switches read on every frame: looked up once */
+static const char *envc(const char *k, const char **slot, int *done){ if (!*done) { *slot = getenv(k); *done = 1; } return *slot; }
+#define ENV_ONCE(k) ({ static const char *v_; static int d_; envc(k, &v_, &d_); })
 #define A0 (c->r[4])
 #define A1 (c->r[5])
 #define A2 (c->r[6])
@@ -286,8 +289,11 @@ static int fl_tick2, fl_rtc; static u32 tl_ra[8]; static int tl_n[8];
 #else
 #define CLOCK_YIELD 31
 #endif
-static void h_SysTimeLow(sdkcall_t *c){ V0 = (u32)guest_us(); { static unsigned k; if ((++k & CLOCK_YIELD) == 0) yield_big(); } fl_tick2++;   /* yielding on every call cost ~85 us each (x100/frame in big battles) */
-    }
+/* the game's clock and yields, for the native kernel calls (native_kernel.c) */
+u64 rs_guest_clock_us(void){ return guest_us(); }
+u64 rs_real_clock_us(void){ return now_us(); }
+void rs_guest_yield(void){ yield_big(); }
+int rs_guest_clock_yield_every(void){ return CLOCK_YIELD; }
 static void h_SleepThread(sdkcall_t *c){ for (;;) unlocked_sleep(100000); }
 
 /* semaphores.  Each semaphore and event flag has its own wait queue: a signal wakes only the threads waiting on that object (one
@@ -477,7 +483,7 @@ static void present_dump_job(void *a){ pdump_t *d = a; extern u32 *gfx_present_i
         for (int y = d->h - 1; y >= 0; y--) for (int x = 0; x < d->w; x++) { u32 c = b[y * d->w + x]; u8 rgb[3] = {c & 255, (c >> 8) & 255, (c >> 16) & 255}; fwrite(rgb, 1, 3, f); } fclose(f); }
     free(b); }
 static void dump_frame(const char *dir, int n){
-    { const char *pd = getenv("RS_DUMP_PRESENT"); int w, h; if (pd && sscanf(pd, "%dx%d", &w, &h) == 2) { char p[600]; snprintf(p, sizeof p, "%s/present_%05d.ppm", dir, n);
+    { const char *pd = ENV_ONCE("RS_DUMP_PRESENT"); int w, h; if (pd && sscanf(pd, "%dx%d", &w, &h) == 2) { char p[600]; snprintf(p, sizeof p, "%s/present_%05d.ppm", dir, n);
         pdump_t d = {p, w, h}; extern void gfx_run(void (*)(void *), void *); gfx_run(present_dump_job, &d); } }
     static u32 buf[480 * 272]; if (!rs_display_read(buf)) return; char p[600]; snprintf(p, sizeof p, "%s/frame_%05d.ppm", dir, n); FILE *f = fopen(p, "wb"); if (!f) return;
     fprintf(f, "P6\n480 272\n255\n"); for (int i = 0; i < 480 * 272; i++) { u8 rgb[3] = {buf[i] & 255, (buf[i] >> 8) & 255, (buf[i] >> 16) & 255}; fwrite(rgb, 1, 3, f); } fclose(f); }
@@ -505,7 +511,7 @@ static int since_flip;                   /* vblanks since the game last flipped 
 static void pace_frame(void){
     static u64 epoch; bench_tick(); int fps = rs_bench_active ? 0 : (int)rs_patch_fps(); rs_patch_apply_fps_cap();
     if (fps <= 0) { yield_big(); static u64 last, work; static int n; u64 t = now_us(); if (last) work += t - last; last = t;
-        if (getenv("RS_FRAMELOG") && ++n == 600) { fprintf(stderr, "[PACE] unlocked: %.2f ms per frame\n", work / 600e3); n = 0; work = 0; } return; }
+        if (ENV_ONCE("RS_FRAMELOG") && ++n == 600) { fprintf(stderr, "[PACE] unlocked: %.2f ms per frame\n", work / 600e3); n = 0; work = 0; } return; }
     u64 period = 1000000ull / (u64)fps, now = now_us(); if (!epoch) epoch = now;
     /* at most fps frames per second.  A frame that took longer than the period is not held back to the next period boundary (that
      * turned ~37 ms frames into 50 ms ones at 60 fps); the next deadline then counts from now. */
@@ -513,12 +519,12 @@ static void pace_frame(void){
     if (now >= next) { next = now; epoch = now; yield_big(); }
     else { unlocked_sleep((unsigned)(next - now)); epoch = next; }
     { static u64 req, act, last, work; static int n; u64 t = now_us(); req += next - now; act += t - now; if (last) work += now - last; last = t;
-      if (getenv("RS_FRAMELOG") && ++n == 600) { fprintf(stderr, "[PACE] per frame: work %.2f ms, sleep requested %.2f ms, slept %.2f ms\n", work / 600e3, req / 600e3, act / 600e3); n = 0; req = act = work = 0; } } }
-static void h_WaitVblank(sdkcall_t *c){ static int fast = -1; if (fast < 0) fast = getenv("RS_FAST") != 0; if (fast) { rs_patch_apply_fps_cap(); yield_big(); } else pace_frame(); rs_patch_vblank(); g_frames++; { const char *md = getenv("RS_MEMDUMP"); if (md) { char b[200]; snprintf(b, sizeof b, "%s", md); for (char *s = strtok(b, ","); s; s = strtok(0, ",")) if (atoi(s) == g_frames) { extern const u32 rs_image_size; char p[300]; snprintf(p, sizeof p, "%s/d_%d.img", getenv("RS_MEMDIR"), g_frames); FILE *f = fopen(p, "wb"); fwrite(GP(GIMG(0x08804000u)), 1, rs_image_size, f); fclose(f); snprintf(p, sizeof p, "%s/d_%d.heap", getenv("RS_MEMDIR"), g_frames); f = fopen(p, "wb"); fwrite(GP(0x0A000000u), 1, 64u << 20, f); fclose(f); } } }   /* TEMP */ if (++since_flip >= 30) { since_flip = 0; gfx_frame_ready(); } perf_report();   /* no flip for half a second: show what there is */
-    if (getenv("RS_FRAMELOG")) { fl_vb++; fl_note_ra(c->r[31]); if (fl_vb >= 600) { fprintf(stderr, "[FRAME] %d vblank waits, %d frame-buffer flips, %d SystemTimeLow + %d RtcTick queries; vblank callers:", fl_vb, fl_fb, fl_tick2, fl_rtc);
+      if (ENV_ONCE("RS_FRAMELOG") && ++n == 600) { fprintf(stderr, "[PACE] per frame: work %.2f ms, sleep requested %.2f ms, slept %.2f ms\n", work / 600e3, req / 600e3, act / 600e3); n = 0; req = act = work = 0; } } }
+static void h_WaitVblank(sdkcall_t *c){ static int fast = -1; if (fast < 0) fast = getenv("RS_FAST") != 0; if (fast) { rs_patch_apply_fps_cap(); yield_big(); } else pace_frame(); rs_patch_vblank(); g_frames++; { const char *md = ENV_ONCE("RS_MEMDUMP"); if (md) { char b[200]; snprintf(b, sizeof b, "%s", md); for (char *s = strtok(b, ","); s; s = strtok(0, ",")) if (atoi(s) == g_frames) { extern const u32 rs_image_size; char p[300]; snprintf(p, sizeof p, "%s/d_%d.img", getenv("RS_MEMDIR"), g_frames); FILE *f = fopen(p, "wb"); fwrite(GP(GIMG(0x08804000u)), 1, rs_image_size, f); fclose(f); snprintf(p, sizeof p, "%s/d_%d.heap", getenv("RS_MEMDIR"), g_frames); f = fopen(p, "wb"); fwrite(GP(0x0A000000u), 1, 64u << 20, f); fclose(f); } } }   /* TEMP */ if (++since_flip >= 30) { since_flip = 0; gfx_frame_ready(); } perf_report();   /* no flip for half a second: show what there is */
+    if (ENV_ONCE("RS_FRAMELOG")) { fl_vb++; fl_note_ra(c->r[31]); if (fl_vb >= 600) { fprintf(stderr, "[FRAME] %d vblank waits, %d frame-buffer flips, %d SystemTimeLow + %d RtcTick queries; vblank callers:", fl_vb, fl_fb, fl_tick2, fl_rtc);
         for (int i = 0; i < 8 && fl_ran[i]; i++) fprintf(stderr, " %08x x%d", fl_ra[i], fl_ran[i]);
         fprintf(stderr, "; time callers:"); for (int i = 0; i < 8 && tl_n[i]; i++) fprintf(stderr, " %08x x%d", tl_ra[i], tl_n[i]); memset(tl_n, 0, sizeof tl_n); fprintf(stderr, "\n"); fl_vb = fl_fb = fl_tick = fl_tick2 = fl_rtc = 0; memset(fl_ran, 0, sizeof fl_ran); } }
-    const char *d = getenv("RS_DUMP_DIR"); if (d) { int every = getenv("RS_DUMP_EVERY") ? atoi(getenv("RS_DUMP_EVERY")) : 60; static int from = -1, to; if (from < 0) { from = getenv("RS_DUMP_FROM") ? atoi(getenv("RS_DUMP_FROM")) : 0; to = getenv("RS_DUMP_TO") ? atoi(getenv("RS_DUMP_TO")) : 1 << 30; }
+    const char *d = ENV_ONCE("RS_DUMP_DIR"); if (d) { int every = getenv("RS_DUMP_EVERY") ? atoi(getenv("RS_DUMP_EVERY")) : 60; static int from = -1, to; if (from < 0) { from = getenv("RS_DUMP_FROM") ? atoi(getenv("RS_DUMP_FROM")) : 0; to = getenv("RS_DUMP_TO") ? atoi(getenv("RS_DUMP_TO")) : 1 << 30; }
         if (every > 0 && g_frames % every == 0 && g_frames >= from && g_frames <= to) dump_frame(d, g_frames); }
     V0 = 0; }
 void rs_display_set(u32, u32, u32); int rs_display_read(u32 *); int rs_ge_enqueue(u32, u32); void rs_ge_update_stall(int, u32); void rs_ge_reset(void);
@@ -528,7 +534,6 @@ static sdkcall_t *tl_get(void){ pthread_once(&key_once, mk_keys); return (sdkcal
  * own display flip) once per vblank kept the renderer thread blocked while the game waited for it to run its GPU lists. */
 /* vblanks so far, from the clock (60 Hz): the movie player paces itself by it (a picture every 2 vblanks).  Counting the game's
  * own vblank waits instead ran movies at the game's frame cap - half speed (15 fps) when the cap is 30. */
-static void h_GetVcount(sdkcall_t *c){ static u64 t0; u64 t = now_us(); if (!t0) t0 = t - (u64)g_frames * 16667u; V0 = (u32)((t - t0) * 60u / 1000000u); }
 static void h_SetFrameBuf(sdkcall_t *c){ rs_display_set(A0, A1, A2); V0 = 0; fl_fb++; since_flip = 0; }   /* rs_display_set signals the new frame once drawn */
 void rs_ge_finish_hook(int id){
     sdkcall_t *c = tl_get(); if (!c || !rs_ge_cb_finish_func) return;
@@ -571,7 +576,6 @@ static void h_GeEdramAddr(sdkcall_t *c){ V0 = rs_vram_base; }
 static void h_Zero(sdkcall_t *c){ V0 = 0; }
 static void h_RotateQueue(sdkcall_t *c){ unlocked_sleep(200); V0 = 0; }
 static void h_One(sdkcall_t *c){ V0 = 1; }
-static void h_UmdStat(sdkcall_t *c){ V0 = 0x32; }
 static void h_ExitGame(sdkcall_t *c){ fprintf(stderr, "[HLE] sceKernelExitGame called\n"); fflush(stderr); _exit(0); }
 /* ---------------- savedata (sceUtilitySavedata*): the game's profile.  The PSP's save dialog is not shown: the operation runs at once
  * and the status goes init -> visible -> finished -> shutdown as the game polls.  Files live in rs_platform_save_dir()/<gameName><saveName>/
@@ -612,7 +616,6 @@ static void h_SaveStatus(sdkcall_t *c){
     int s = sd_status; if (s == 1 || s == 2) sd_status++; else if (s == 4) sd_status = 0; V0 = (u32)s; }
 static void h_SaveShutdown(sdkcall_t *c){ sd_status = 4; V0 = 0; }
 static void h_UtilParam(sdkcall_t *c){ if (A0 == 7) SW(A1, 1); else if (A0 == 8) SW(A1, 1); else SW(A1, 0); V0 = 0; }
-static void h_RtcTick(sdkcall_t *c){ fl_rtc++; u64 us = guest_us() + 62135596800000000ull; SW(A0, (u32)us); SW(A0 + 4, (u32)(us >> 32)); V0 = 0; }
 static void h_Printf(sdkcall_t *c){ fprintf(stderr, "[GAME] %s\n", gstr(A0)); V0 = 0; }
 
 /* movies (mpeg.c) */
@@ -623,27 +626,27 @@ static const hle_t tbl[] = {
  {0xB6D61D02,"sceKernelFreePartitionMemory",h_FreePartitionMemory},{0xA291F107,"sceKernelMaxFreeMemSize",h_MaxFreeMemSize},
  {0xF919F628,"sceKernelTotalFreeMemSize",h_TotalFreeMemSize},
  {0x446D8DE6,"sceKernelCreateThread",h_CreateThread},{0xF475845D,"sceKernelStartThread",h_StartThread},{0xAA73C935,"sceKernelExitThread",h_ExitThread},
- {0x809CE29B,"sceKernelExitDeleteThread",h_ExitDeleteThread},{0x9FA03CD3,"sceKernelDeleteThread",h_DeleteThread},{0x278C0DF5,"sceKernelWaitThreadEnd",h_WaitThreadEnd},{0x840E8133,"sceKernelWaitThreadEndCB",h_WaitThreadEnd},{0xEBD177D6,"scePowerSetClockFrequency",h_Zero},
+ {0x809CE29B,"sceKernelExitDeleteThread",h_ExitDeleteThread},{0x9FA03CD3,"sceKernelDeleteThread",h_DeleteThread},{0x278C0DF5,"sceKernelWaitThreadEnd",h_WaitThreadEnd},{0x840E8133,"sceKernelWaitThreadEndCB",h_WaitThreadEnd},
  {0xCEADEB47,"sceKernelDelayThread",h_Delay},{0x293B45B8,"sceKernelGetThreadId",h_GetThreadId},{0x94AA61EE,"sceKernelGetThreadCurrentPriority",h_GetThreadPrio},
- {0x71BC9871,"sceKernelChangeThreadPriority",h_ChangePrio},{0x369ED59D,"sceKernelGetSystemTimeLow",h_SysTimeLow},
+ {0x71BC9871,"sceKernelChangeThreadPriority",h_ChangePrio},
  {0xD6DA4BA1,"sceKernelCreateSema",h_CreateSema},{0x28B6489C,"sceKernelDeleteSema",h_DeleteSema},{0x3F53E640,"sceKernelSignalSema",h_SignalSema},
  {0x4E3A1105,"sceKernelWaitSema",h_WaitSema},{0x58B1F937,"sceKernelPollSema",h_PollSema},
  {0x55C20A00,"sceKernelCreateEventFlag",h_CreateEvf},{0x1FB15A32,"sceKernelSetEventFlag",h_SetEvf},{0x812346E4,"sceKernelClearEventFlag",h_ClearEvf},{0x402FCF22,"sceKernelWaitEventFlag",h_WaitEvf},
  
  
- {0x1F803938,"sceCtrlReadBufferPositive",h_CtrlRead},{0x1F4011E6,"sceCtrlSetSamplingMode",h_Zero},{0x6A2774F3,"sceCtrlSetSamplingCycle",h_Zero},
- {0x984C27E7,"sceDisplayWaitVblankStart",h_WaitVblank},{0x46F186C3,"sceDisplayWaitVblankStartCB",h_WaitVblank},{0x289D82FE,"sceDisplaySetFrameBuf",h_SetFrameBuf},{0x9C6EAAD7,"sceDisplayGetVcount",h_GetVcount},{0x0E20F177,"sceDisplaySetMode",h_Zero},
+ {0x1F803938,"sceCtrlReadBufferPositive",h_CtrlRead},
+ {0x984C27E7,"sceDisplayWaitVblankStart",h_WaitVblank},{0x46F186C3,"sceDisplayWaitVblankStartCB",h_WaitVblank},{0x289D82FE,"sceDisplaySetFrameBuf",h_SetFrameBuf},
  {0xAB49E76A,"sceGeListEnQueue",h_GeEnqueue},{0x1C0D95A6,"sceGeListEnQueueHead",h_GeEnqueue},{0xE47E40E4,"sceGeEdramGetAddr",h_GeEdramAddr},
  {0x03444EB4,"sceGeListSync",h_GeListSync},{0xB287BD61,"sceGeDrawSync",h_GeDrawSync},{0xE0D68148,"sceGeListUpdateStallAddr",h_GeUpdateStall},{0xA4FC06A4,"sceGeSetCallback",h_GeSetCallback},
  
- {0x05572A5F,"sceKernelExitGame",h_ExitGame},{0xA5DA2406,"sceUtilityGetSystemParamInt",h_UtilParam},{0x50C4CD57,"sceUtilitySavedataInitStart",h_SaveInit},{0x8874DBE0,"sceUtilitySavedataGetStatus",h_SaveStatus},{0x9790B33C,"sceUtilitySavedataShutdownStart",h_SaveShutdown},{0x3F7AD767,"sceRtcGetCurrentTick",h_RtcTick},
- {0x172D316E,"sceKernelStdout",h_Zero},
+ {0x05572A5F,"sceKernelExitGame",h_ExitGame},{0xA5DA2406,"sceUtilityGetSystemParamInt",h_UtilParam},{0x50C4CD57,"sceUtilitySavedataInitStart",h_SaveInit},{0x8874DBE0,"sceUtilitySavedataGetStatus",h_SaveStatus},{0x9790B33C,"sceUtilitySavedataShutdownStart",h_SaveShutdown},
+ 
  {0x912354A7,"sceKernelRotateThreadReadyQueue",h_RotateQueue},
  {0xF6269B82,"sceUtilityOskInitStart",h_OskInit},{0xF3F76017,"sceUtilityOskGetStatus",h_OskStatus},{0x4B85C861,"sceUtilityOskUpdate",h_OskUpdate},{0x3DFAEBA9,"sceUtilityOskShutdownStart",h_OskShutdown},
- {0x2A2B3DE0,"sceUtilityLoadModule",h_Zero},{0x34B78343,"sceUtilityGetSystemParamString",h_SysParamString},
- {0x977DE386,"sceKernelLoadModule",h_LoadModule},{0x50F0C1EC,"sceKernelStartModule",h_StartModule},{0xD1FF982A,"sceKernelStopModule",h_Zero},{0x2E0911AA,"sceKernelUnloadModule",h_Zero},{0xD8B73127,"sceKernelGetModuleIdByAddress",h_ModuleIdByAddr},
- {0x3E0271D3,"sceKernelVolatileMemLock",h_VolLock},{0xA569E425,"sceKernelVolatileMemUnlock",h_Zero},{0x4AC57943,"sceKernelRegisterExitCallback",h_Zero},{0x04B7766E,"scePowerRegisterCallback",h_Zero},
- {0x79D1C3FA,"sceKernelDcacheWritebackAll",h_Zero},{0x3EE30821,"sceKernelDcacheWritebackRange",h_Zero},{0xB435DEC5,"sceKernelDcacheWritebackInvalidateAll",h_Zero},{0xBFA98062,"sceKernelDcacheInvalidateRange",h_Zero},{0x34B9FA9E,"sceKernelDcacheWritebackInvalidateRange",h_Zero},{0x13A5ABEF,"sceKernelPrintf",h_Zero},
+ {0x34B78343,"sceUtilityGetSystemParamString",h_SysParamString},
+ {0x977DE386,"sceKernelLoadModule",h_LoadModule},{0x50F0C1EC,"sceKernelStartModule",h_StartModule},{0xD8B73127,"sceKernelGetModuleIdByAddress",h_ModuleIdByAddr},
+ {0x3E0271D3,"sceKernelVolatileMemLock",h_VolLock},{0xA569E425,"sceKernelVolatileMemUnlock",h_Zero},
+ 
  
  {0x01562BA3,"sceAudioOutput2Reserve",h_Au2Reserve},{0x43196845,"sceAudioOutput2Release",h_Au2Release},{0x2D53F36E,"sceAudioOutput2OutputBlocking",h_Au2Output},
  {0x5EC81C55,"sceAudioChReserve",h_AuChReserve},{0x6FC46853,"sceAudioChRelease",h_Zero},{0x136CAF51,"sceAudioOutputBlocking",h_AuOutBlocking},{0x13F592BC,"sceAudioOutputPannedBlocking",h_AuOutBlocking},
@@ -659,8 +662,8 @@ static const hle_t tbl[] = {
 
  {0x682A619B,"sceMpegInit",hm_MpegInit},{0x874624D6,"sceMpegFinish",hm_MpegFinish},{0xC132E22F,"sceMpegQueryMemSize",hm_MpegQueryMemSize},{0xD7A29F46,"sceMpegRingbufferQueryMemSize",hm_MpegRingbufferQueryMemSize},{0x37295ED8,"sceMpegRingbufferConstruct",hm_MpegRingbufferConstruct},{0x13407F13,"sceMpegRingbufferDestruct",hm_MpegRingbufferDestruct},{0xD8C5F121,"sceMpegCreate",hm_MpegCreate},{0x606A4649,"sceMpegDelete",hm_MpegDelete},{0x21FF80E4,"sceMpegQueryStreamOffset",hm_MpegQueryStreamOffset},{0x611E9E11,"sceMpegQueryStreamSize",hm_MpegQueryStreamSize},{0x42560F23,"sceMpegRegistStream",hm_MpegRegistStream},{0x591A4AA2,"sceMpegUnRegistStream",hm_MpegUnRegistStream},{0xA780CF7E,"sceMpegMallocAvcEsBuf",hm_MpegMallocAvcEsBuf},{0xCEB870B1,"sceMpegFreeAvcEsBuf",hm_MpegFreeAvcEsBuf},{0x167AFD9E,"sceMpegInitAu",hm_MpegInitAu},{0xF8DCB679,"sceMpegQueryAtracEsSize",hm_MpegQueryAtracEsSize},{0xB240A59E,"sceMpegRingbufferPut",hm_MpegRingbufferPut},{0xB5F6DC87,"sceMpegRingbufferAvailableSize",hm_MpegRingbufferAvailableSize},{0xFE246728,"sceMpegGetAvcAu",hm_MpegGetAvcAu},{0x0E3C2E9D,"sceMpegAvcDecode",hm_MpegAvcDecode},{0x740FCCD1,"sceMpegAvcDecodeStop",hm_MpegAvcDecodeStop},{0xE1CE83A7,"sceMpegGetAtracAu",hm_MpegGetAtracAu},{0x800C44DF,"sceMpegAtracDecode",hm_MpegAtracDecode},{0xC22C8327,"scePsmfSetPsmf",hm_PsmfSetPsmf},{0x68D42328,"scePsmfGetNumberOfSpecificStreams",hm_PsmfGetNumberOfSpecificStreams},
  {0xC07BB470,"sceKernelCreateFpl",h_CreateFpl},{0x623AE665,"sceKernelAllocateFpl",h_AllocateFpl},{0xF6414A71,"sceKernelFreeFpl",h_FreeFpl},
- {0x68DA9E36,"sceKernelDelayThreadCB",h_DelayCB},{0xE81CAF8F,"sceKernelCreateCallback",h_CreateCallback},{0x54F5FB11,"sceIoDevctl",h_Devctl},{0xAEE7404D,"sceUmdRegisterUMDCallBack",h_UmdRegCb},{0x6AD345D7,"sceKernelSetGPO",h_Zero},{0x092968F4,"sceKernelCpuSuspendIntr",h_Zero},{0x5F10D406,"sceKernelCpuResumeIntr",h_Zero},
- {0x7591C7DB,"sceKernelSetCompiledSdkVersion",h_Zero},{0xF77D77CB,"sceKernelSetCompilerVersion",h_Zero},
+ {0x68DA9E36,"sceKernelDelayThreadCB",h_DelayCB},{0xE81CAF8F,"sceKernelCreateCallback",h_CreateCallback},{0x54F5FB11,"sceIoDevctl",h_Devctl},{0xAEE7404D,"sceUmdRegisterUMDCallBack",h_UmdRegCb},
+ 
 };
 #define NTBL (int)(sizeof tbl / sizeof tbl[0])
 static const hle_t *handlers[512]; static unsigned char seen[512]; static unsigned long ncalls[512];

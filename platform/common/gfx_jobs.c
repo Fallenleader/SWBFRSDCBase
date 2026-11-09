@@ -35,15 +35,19 @@ static job_t q[QN]; static unsigned q_head, q_tail;           /* q_tail: next to
 static unsigned long done_seq;                                  /* jobs completed */
 static pthread_mutex_t jm = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t jc_post = PTHREAD_COND_INITIALIZER, jc_done = PTHREAD_COND_INITIALIZER;
 static int gl_ready; static pthread_t gl_th;
+/* who is waiting (jm held): the renderer for a job, other threads for a job to finish.  Signals go only to a waiter: a signal per
+ * job (and on the Vita a kernel semaphore signal per job, each a renderer wake-up) cost the game thread a system call per draw job. */
+static int pump_waiting, done_waiting;
+static void wait_done(void){ done_waiting++; pthread_cond_wait(&jc_done, &jm); done_waiting--; }
 
 void gfx_thread_register(void){ pthread_mutex_lock(&jm); gl_th = pthread_self(); gl_ready = 1; pthread_cond_broadcast(&jc_done); pthread_mutex_unlock(&jm); }
 static int on_gl(void){ return gl_ready && pthread_equal(pthread_self(), gl_th); }
 static void run_queue_here(void);
 /* enqueue (jm held); returns the job's sequence number */
 static unsigned long push(void (*fn)(void *), const void *arg, size_t n, void *ptr, int sync){
-    while (!gl_ready || q_head - q_tail >= QN) pthread_cond_wait(&jc_done, &jm);
+    while (!gl_ready || q_head - q_tail >= QN) wait_done();
     job_t *j = &q[q_head % QN]; j->fn = fn; j->ptr = ptr; j->sync = sync; if (n) memcpy(j->arg, arg, n);
-    q_head++; pthread_cond_signal(&jc_post); wake_gfx();
+    q_head++; if (pump_waiting) { pthread_cond_signal(&jc_post); wake_gfx(); }
     return done_seq + (q_head - q_tail); }
 void gfx_post(void (*fn)(void *), const void *arg, size_t n){
     if (n > GFX_JOB_ARG) { fprintf(stderr, "[GFX] job argument too large\n"); abort(); }
@@ -54,7 +58,7 @@ void gfx_run(void (*fn)(void *), void *arg){
     pthread_mutex_lock(&jm);
     u64 t0 = rs_perf_us();
     unsigned long my = push(fn, 0, 0, arg, 1);
-    while (done_seq < my) pthread_cond_wait(&jc_done, &jm);
+    while (done_seq < my) wait_done();
     rs_perf.run_n++; rs_perf.run_wait_us += rs_perf_us() - t0;
     pthread_mutex_unlock(&jm); }
 static void (*volatile running_fn)(void *); static volatile u64 running_since;            /* the job the renderer is in (hang reports) */
@@ -69,14 +73,15 @@ static void run_queue_here(void){
     pthread_mutex_lock(&jm);
     while (q_tail != q_head) { job_t j = q[q_tail % QN]; pthread_mutex_unlock(&jm);
         run_one(&j);
-        pthread_mutex_lock(&jm); q_tail++; done_seq++; pthread_cond_broadcast(&jc_done); }
+        pthread_mutex_lock(&jm); q_tail++; done_seq++; if (done_waiting) pthread_cond_broadcast(&jc_done); }
     pthread_mutex_unlock(&jm); }
 int gfx_pump(int wait_ms){
 #ifdef __vita__
-    if (wait_ms > 0) { pthread_mutex_lock(&jm); int empty = q_tail == q_head; pthread_mutex_unlock(&jm); if (empty) wait_wake(wait_ms * 1000); wait_ms = 0; }
+    if (wait_ms > 0) { pthread_mutex_lock(&jm); int empty = q_tail == q_head; if (empty) pump_waiting = 1; pthread_mutex_unlock(&jm);
+        if (empty) { wait_wake(wait_ms * 1000); pthread_mutex_lock(&jm); pump_waiting = 0; pthread_mutex_unlock(&jm); } wait_ms = 0; }
 #endif
     pthread_mutex_lock(&jm);
-    if (q_tail == q_head && wait_ms > 0) { struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts); ts.tv_nsec += (long)wait_ms * 1000000L; ts.tv_sec += ts.tv_nsec / 1000000000L; ts.tv_nsec %= 1000000000L; pthread_cond_timedwait(&jc_post, &jm, &ts); }
+    if (q_tail == q_head && wait_ms > 0) { struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts); ts.tv_nsec += (long)wait_ms * 1000000L; ts.tv_sec += ts.tv_nsec / 1000000000L; ts.tv_nsec %= 1000000000L; pump_waiting = 1; pthread_cond_timedwait(&jc_post, &jm, &ts); pump_waiting = 0; }
     int ran = q_tail != q_head;
     pthread_mutex_unlock(&jm);
     if (ran) run_queue_here();

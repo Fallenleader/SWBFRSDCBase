@@ -25,7 +25,7 @@ OUT := $(B)/SWBFRS
 GAME_SRC := $(wildcard src/game/game_*.c)
 C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c \
          $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/blueprints.c \
-         $(C)/custom_maps.c $(C)/tex_mips.c $(C)/gu_native.c $(C)/native_io.c $(C)/lift.c $(C)/guest64.c $(C)/renderer_option.c $(C)/gfx_menu.c $(C)/dedicated_host.c
+         $(C)/custom_maps.c $(C)/tex_mips.c $(C)/gu_native.c $(C)/native_io.c $(C)/native_kernel.c $(C)/lift.c $(C)/guest64.c $(C)/renderer_option.c $(C)/gfx_menu.c $(C)/dedicated_host.c
 P_SRC := $(P)/main.c $(P)/gfx_c3d.c $(P)/no_movies.c
 SHADERS := $(P)/psp.v.pica
 
@@ -59,7 +59,7 @@ $(B)/game/data.o: build/data.c ; @mkdir -p $(B)/game; $(CC) $(CFLAGS_GAME) -c $<
 $(B)/c_%.o: $(C)/%.c ; @mkdir -p $(B); $(CC) $(CFLAGS_PLAT) -c $< -o $@
 $(B)/p_%.o: $(P)/%.c $(patsubst $(P)/%.v.pica,$(B)/%_shbin.h,$(SHADERS)) ; @mkdir -p $(B); $(CC) $(CFLAGS_PLAT) -c $< -o $@
 $(B)/at3_%.o: $(C)/ext/at3/%.cpp ; @mkdir -p $(B); $(CXX) -O3 -ffast-math $(ARCH) $(DEFS) -w -fno-exceptions -fno-rtti $(INC) -c $< -o $@
-$(B)/glue.c: src/game/psp_sdk.h $(C)/mkglue.py ; @mkdir -p $(B); python3 $(C)/mkglue.py $< $@
+$(B)/glue.c: src/game/psp_sdk.h $(C)/mkglue.py $(wildcard $(C)/native_*.c) ; @mkdir -p $(B); python3 $(C)/mkglue.py $< $@
 $(B)/glue.o: $(B)/glue.c ; $(CC) $(CFLAGS_PLAT) -c $< -o $@
 # vertex shader: picasso -> .shbin -> an object with the binary (psp_shbin / psp_shbin_size) and its header
 $(B)/%.shbin: $(P)/%.v.pica ; @mkdir -p $(B); $(PICASSO) -o $@ $<
