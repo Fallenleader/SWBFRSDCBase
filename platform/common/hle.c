@@ -108,6 +108,8 @@ static u64 now_us(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); 
 static u64 guest_us(void){ static int vc = -1; static u64 reads; if (vc < 0) vc = getenv("RS_VCLOCK") != 0;
     return vc ? (u64)g_frames * 16667ull + ++reads : now_us(); }
 #include "gfx.h"
+void rs_guest_unlock(void){ pthread_mutex_unlock(&big); }
+void rs_guest_lock(void){ big_lock(); }
 static void unlocked_sleep(unsigned us){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); usleep(us); big_lock(); rs_perf.sleeps++; rs_perf.sleep_us += rs_perf_us() - t; }
 /* Let another guest thread run.  On the Vita sched_yield() is a 1 ms sleep (pthread-embedded: pte_osThreadSleep(1)), which cost the
  * game's main thread ~5 ms per frame (it yields when it reads the pad, when a frame is late and every 32 clock reads).  There the
@@ -416,75 +418,7 @@ HSW(ha_SetDataAndGetID) HSH(ha_DecodeData) HSW(ha_GetSoundSample) HSW(ha_GetStre
 #undef HSH
 void rs_atrac_note_file(const char *host_path);
 
-/* ---------------- file IO ---------------- */
-#include "vfs.h"
-typedef struct { FILE *f; void *d; int used; char path[1400]; int extra; } fd_t;   /* extra: custom maps listed so far (custom_maps.c) */
-int rs_custom_map_file(const char *rel, char *out, size_t cap); int rs_custom_map_dirent(const char *dir, int k, char *name, size_t cap, char *host, size_t hcap); static fd_t fds[128];
-static int resolve_ci(const char *rel, char *out, size_t cap){   /* case-insensitive path walk under g_root */
-    if (vfs_iso_active()) return vfs_iso_resolve(rel, out, cap);        /* game files from an ISO image (vfs.c) */
-    char cur[1024]; strncpy(cur, g_root, sizeof cur); char tmp[1024]; strncpy(tmp, rel, sizeof tmp); char *save = 0;
-    for (char *tok = strtok_r(tmp, "/\\", &save); tok; tok = strtok_r(0, "/\\", &save)) {
-        char probe[1400]; snprintf(probe, sizeof probe, "%s/%s", cur, tok); struct stat st;
-        if (stat(probe, &st) == 0) { strncpy(cur, probe, sizeof cur); continue; }
-        DIR *d = opendir(cur); if (!d) return 0; struct dirent *e; int found = 0;
-        while ((e = readdir(d))) if (!strcasecmp(e->d_name, tok)) { snprintf(probe, sizeof probe, "%s/%s", cur, e->d_name); strncpy(cur, probe, sizeof cur); found = 1; break; }
-        closedir(d); if (!found) { snprintf(probe, sizeof probe, "%s/%s", cur, tok); strncpy(cur, probe, sizeof cur); return 0 + (snprintf(out, cap, "%s", cur) & 0); } }
-    snprintf(out, cap, "%s", cur); return 1; }
-
-/* UMD raw-sector emulation: directory entries report a fake start LBN; "sce_lbn0xLBN_size0xSIZE" paths map back to the file. */
-typedef struct { u32 lbn, sectors; char path[1400]; } lbn_t; static lbn_t *lbns; static int nlbn, caplbn; static u32 next_lbn = 0x100;
-static u32 lbn_for(const char *full, u32 size){
-    for (int i = 0; i < nlbn; i++) if (!strcmp(lbns[i].path, full)) return lbns[i].lbn;
-    if (nlbn == caplbn) { caplbn = caplbn ? caplbn * 2 : 1024; lbns = realloc(lbns, caplbn * sizeof(lbn_t)); }
-    lbn_t *e = &lbns[nlbn++]; e->lbn = next_lbn; e->sectors = (size + 2047) / 2048 + 1; strncpy(e->path, full, sizeof e->path - 1); e->path[sizeof e->path - 1] = 0; next_lbn += e->sectors; return e->lbn; }
-static const char *lbn_lookup(u32 lbn){ for (int i = 0; i < nlbn; i++) if (lbn >= lbns[i].lbn && lbn < lbns[i].lbn + lbns[i].sectors) return lbns[i].path; return 0; }
-/* size the game should see for a file: a mod / override replacement may be larger or smaller than the disc file */
-static u32 eff_size(const char *full, u32 base){
-    if (vfs_iso_active()) return base;
-    size_t rl = strlen(g_root); if (strncmp(full, g_root, rl)) return base;
-    const char *alt = rs_patch_file(full + rl, full); struct stat st; if (alt && stat(alt, &st) == 0) return (u32)st.st_size; return base; }
-static const char *strip_dev(const char *p){ const char *q = strchr(p, ':'); return q ? q + 1 : p; }
-static void h_IoOpen(sdkcall_t *c){
-    char *p = gstr(A0); u32 fl = A1; char full[1500]; unsigned lb = 0, lsz = 0;
-    if (sscanf(strip_dev(p), "/sce_lbn0x%x_size0x%x", &lb, &lsz) == 2 || sscanf(strip_dev(p), "sce_lbn0x%x_size0x%x", &lb, &lsz) == 2) {
-        const char *lp = lbn_lookup(lb); if (!lp) { fprintf(stderr, "[IO] unknown raw sector open %s\n", p); V0 = ERR_NOENT; return; } strncpy(full, lp, sizeof full - 1); full[sizeof full - 1] = 0; }
-    else resolve_ci(strip_dev(p), full, sizeof full);
-    if ((fl & 3) == 1) { char cf[1500]; int r = rs_custom_map_file(strip_dev(p), cf, sizeof cf);      /* custom maps (custom_maps.c) */
-        int isd = 0; unsigned fsz = 0;
-        if (r == 1) { strncpy(full, cf, sizeof full - 1); full[sizeof full - 1] = 0; }
-        else if (r == 2 && vfs_stat(full, &isd, &fsz) != 0) { char alt[1500]; resolve_ci(cf, alt, sizeof alt); if (vfs_stat(alt, &isd, &fsz) == 0) { fprintf(stderr, "[MAPS] %s -> %s\n", p, cf); strncpy(full, alt, sizeof full - 1); full[sizeof full - 1] = 0; } } }
-    if ((fl & 3) == 1) { char mf[1500]; extern int rs_mod_file(const char *, char *, size_t);                 /* mods/files (custom_maps.c) */
-        size_t rl0 = strlen(g_root); const char *mrel = strncmp(full, g_root, rl0) ? strip_dev(p) : full + rl0;   /* (raw-sector opens: the file found) */
-        if (rs_mod_file(mrel, mf, sizeof mf)) { fprintf(stderr, "[MODS] %s -> %s\n", p, mf); strncpy(full, mf, sizeof full - 1); full[sizeof full - 1] = 0; } }
-    if ((fl & 3) == 1 && !vfs_iso_active()) { size_t rl = strlen(g_root); const char *rel = strncmp(full, g_root, rl) ? strip_dev(p) : full + rl;
-        const char *alt = rs_patch_file(rel, full); if (alt) { strncpy(full, alt, sizeof full - 1); full[sizeof full - 1] = 0; } }   /* mods / data patches (read-only opens) */
-    const char *mode = (fl & 3) == 1 ? "rb" : ((fl & 3) == 2 ? ((fl & 0x400) ? "wb" : "r+b") : "r+b");
-    if (fl & 0x200 && !(fl & 0x400) && !vfs_iso_active()) { FILE *t = fopen(full, "ab"); if (t) fclose(t); }
-    FILE *f = vfs_fopen(full, mode); if (!f && (fl & 3) == 3) f = vfs_fopen(full, "rb");
-    if (!f) { V0 = ERR_NOENT; fprintf(stderr, "[IO] open FAILED %s\n", p); return; }
-    fprintf(stderr, "[IO] open %s\n", p); rs_atrac_note_file(full); { extern void rs_movie_note_file(const char *); rs_movie_note_file(full); }
-    for (int i = 3; i < 128; i++) if (!fds[i].used) { fds[i] = (fd_t){f, 0, 1, {0}}; strncpy(fds[i].path, full, sizeof fds[i].path - 1); V0 = i; return; } fclose(f); V0 = 0x80010018u; }
-static void h_IoClose(sdkcall_t *c){ if (A0 < 128 && fds[A0].used) { if (fds[A0].f) fclose(fds[A0].f); if (fds[A0].d) vfs_closedir(fds[A0].d); fds[A0].used = 0; } V0 = 0; }
-static void h_IoRead(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; return; } { static int dl = -1, df; if (dl < 0) { dl = getenv("RS_IO_DELAY_US") ? atoi(getenv("RS_IO_DELAY_US")) : 0; df = getenv("RS_IO_DELAY_FROM") ? atoi(getenv("RS_IO_DELAY_FROM")) : 0; } if (dl && g_frames >= df) unlocked_sleep((unsigned)dl); } u32 n = A2; u8 *dst = g_mem + GADDR(A1); long rpos = ftell(fds[A0].f); V0 = (u32)fread(dst, 1, n, fds[A0].f);
-    if ((s32)V0 >= 512) { extern void rs_atrac_note_read(const char *, long, u32); rs_atrac_note_read(fds[A0].path, rpos, V0); }   /* a sound read out of a bundle (GMSND.AM speech) */
-#ifdef RS_CENSUS
-    { extern u32 *rs_census_shadow; u32 a = (u32)(uintptr_t)dst; if (rs_census_shadow) for (u32 o = 0; o < V0 && a + o < 0x10000000u; o += 4) rs_census_shadow[(a + o) >> 2] = 1; }   /* 1 = loaded from a file */
-#endif
-    }
-static void h_IoWrite(sdkcall_t *c){ if (A0 == 1 || A0 == 2) { fwrite(g_mem + GADDR(A1), 1, A2, stderr); V0 = A2; return; } if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; return; } V0 = (u32)fwrite(g_mem + GADDR(A1), 1, A2, fds[A0].f); }
-static void h_IoLseek(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used) { V0 = 0x80010009u; V1 = 0xFFFFFFFFu; return; }
-    s64 off = (s64)(((u64)A3 << 32) | A2); int wh = T0; fseeko(fds[A0].f, off, wh == 0 ? SEEK_SET : (wh == 1 ? SEEK_CUR : SEEK_END)); s64 pos = ftello(fds[A0].f); V0 = (u32)pos; V1 = (u32)((u64)pos >> 32); }
-/* mods/files (custom_maps.c): a game file replaced by a mod, by its host path -> the mod's file (sizes and raw-sector numbers follow it) */
-static void mod_redirect(char *full, size_t cap){
-    extern int rs_mod_file(const char *, char *, size_t); size_t rl = strlen(g_root); char mf[1500];
-    if (strncmp(full, g_root, rl) || !rs_mod_file(full + rl, mf, sizeof mf)) return;
-    strncpy(full, mf, cap - 1); full[cap - 1] = 0; }
-static void h_IoGetstat(sdkcall_t *c){ char full[1500]; int isdir; unsigned sz; resolve_ci(strip_dev(gstr(A0)), full, sizeof full);
-    { char cf[1500]; int r = rs_custom_map_file(strip_dev(gstr(A0)), cf, sizeof cf); int isd0; unsigned sz0;   /* custom maps */
-      if (r == 1) { strncpy(full, cf, sizeof full - 1); full[sizeof full - 1] = 0; }
-      else if (r == 2 && vfs_stat(full, &isd0, &sz0) != 0) { char alt[1500]; resolve_ci(cf, alt, sizeof alt); if (vfs_stat(alt, &isd0, &sz0) == 0) { strncpy(full, alt, sizeof full - 1); full[sizeof full - 1] = 0; } } }
-    mod_redirect(full, sizeof full);
-    if (vfs_stat(full, &isdir, &sz) != 0) { fprintf(stderr, "[IO] getstat MISSING %s\n", gstr(A0)); V0 = ERR_NOENT; return; } memset(g_mem + GADDR(A1), 0, 88); SW(A1, isdir ? 0x1000 : 0x2000); u32 esz = isdir ? (u32)sz : eff_size(full, (u32)sz); SW(A1 + 8, esz); SW(A1 + 12, 0); if (!isdir) SW(A1 + 0x40, lbn_for(full, esz)); V0 = 0; }
+/* file IO: native_io.c */
 
 /* ---------------- misc ---------------- */
 /* Platform backends supply pad state. Defaults below are used by the headless host build. */
@@ -593,17 +527,6 @@ static void h_GeEnqueue(sdkcall_t *c){ g_ge_lists++; V0 = 0x100 + rs_ge_enqueue(
 static void h_GeEdramAddr(sdkcall_t *c){ V0 = rs_vram_base; }
 static void h_Zero(sdkcall_t *c){ V0 = 0; }
 static void h_RotateQueue(sdkcall_t *c){ unlocked_sleep(200); V0 = 0; }
-static void h_Dopen(sdkcall_t *c){ char full[1500]; const char *p = gstr(A0); resolve_ci(strip_dev(p), full, sizeof full); void *d = vfs_opendir(full);
-    if (!d) { fprintf(stderr, "[IO] dopen FAILED %s\n", p); V0 = ERR_NOENT; return; }
-    for (int i = 3; i < 128; i++) if (!fds[i].used) { fds[i] = (fd_t){0, d, 1, {0}}; strncpy(fds[i].path, full, sizeof fds[i].path - 1); V0 = i; return; } vfs_closedir(d); V0 = 0x80010018u; }
-static void h_Dread(sdkcall_t *c){ if (A0 >= 128 || !fds[A0].used || !fds[A0].d) { V0 = 0x80010009u; return; }
-    char name[256], full[2000]; if (!vfs_readdir(fds[A0].d, name, sizeof name, full, sizeof full)) {
-        if (!rs_custom_map_dirent(fds[A0].path, fds[A0].extra, name, sizeof name, full, sizeof full)) { V0 = 0; return; }   /* custom maps after the folder's own */
-        fds[A0].extra++; }
-    memset(g_mem + GADDR(A1), 0, 0x160);
-    mod_redirect(full, sizeof full);
-    int isdir = 0; unsigned fsz = 0; vfs_stat(full, &isdir, &fsz);
-    SW(A1, isdir ? 0x1000 : 0x2000); if (!isdir) { u32 sz = eff_size(full, (u32)fsz); SW(A1 + 8, sz); SW(A1 + 0x40, lbn_for(full, sz)); } strncpy((char *)(g_mem + GADDR(A1 + 0x58)), name, 255); V0 = 1; }
 static void h_One(sdkcall_t *c){ V0 = 1; }
 static void h_UmdStat(sdkcall_t *c){ V0 = 0x32; }
 static void h_ExitGame(sdkcall_t *c){ fprintf(stderr, "[HLE] sceKernelExitGame called\n"); fflush(stderr); _exit(0); }
@@ -663,22 +586,22 @@ static const hle_t tbl[] = {
  {0xD6DA4BA1,"sceKernelCreateSema",h_CreateSema},{0x28B6489C,"sceKernelDeleteSema",h_DeleteSema},{0x3F53E640,"sceKernelSignalSema",h_SignalSema},
  {0x4E3A1105,"sceKernelWaitSema",h_WaitSema},{0x58B1F937,"sceKernelPollSema",h_PollSema},
  {0x55C20A00,"sceKernelCreateEventFlag",h_CreateEvf},{0x1FB15A32,"sceKernelSetEventFlag",h_SetEvf},{0x812346E4,"sceKernelClearEventFlag",h_ClearEvf},{0x402FCF22,"sceKernelWaitEventFlag",h_WaitEvf},
- {0x109F50BC,"sceIoOpen",h_IoOpen},{0x810C4BC3,"sceIoClose",h_IoClose},{0x6A638D83,"sceIoRead",h_IoRead},{0x42EC03AC,"sceIoWrite",h_IoWrite},
- {0x27EB27B8,"sceIoLseek",h_IoLseek},{0xACE946E8,"sceIoGetstat",h_IoGetstat},
+ 
+ 
  {0x1F803938,"sceCtrlReadBufferPositive",h_CtrlRead},{0x1F4011E6,"sceCtrlSetSamplingMode",h_Zero},{0x6A2774F3,"sceCtrlSetSamplingCycle",h_Zero},
  {0x984C27E7,"sceDisplayWaitVblankStart",h_WaitVblank},{0x46F186C3,"sceDisplayWaitVblankStartCB",h_WaitVblank},{0x289D82FE,"sceDisplaySetFrameBuf",h_SetFrameBuf},{0x9C6EAAD7,"sceDisplayGetVcount",h_GetVcount},{0x0E20F177,"sceDisplaySetMode",h_Zero},
  {0xAB49E76A,"sceGeListEnQueue",h_GeEnqueue},{0x1C0D95A6,"sceGeListEnQueueHead",h_GeEnqueue},{0xE47E40E4,"sceGeEdramGetAddr",h_GeEdramAddr},
  {0x03444EB4,"sceGeListSync",h_GeListSync},{0xB287BD61,"sceGeDrawSync",h_GeDrawSync},{0xE0D68148,"sceGeListUpdateStallAddr",h_GeUpdateStall},{0xA4FC06A4,"sceGeSetCallback",h_GeSetCallback},
- {0x46EBB729,"sceUmdCheckMedium",h_One},{0x6B4A146C,"sceUmdGetDriveStat",h_UmdStat},{0x8EF08FCE,"sceUmdWaitDriveStat",h_UmdStat},{0x4A9E5E29,"sceUmdWaitDriveStatCB",h_UmdStat},{0xC6183D47,"sceUmdActivate",h_Zero},
+ 
  {0x05572A5F,"sceKernelExitGame",h_ExitGame},{0xA5DA2406,"sceUtilityGetSystemParamInt",h_UtilParam},{0x50C4CD57,"sceUtilitySavedataInitStart",h_SaveInit},{0x8874DBE0,"sceUtilitySavedataGetStatus",h_SaveStatus},{0x9790B33C,"sceUtilitySavedataShutdownStart",h_SaveShutdown},{0x3F7AD767,"sceRtcGetCurrentTick",h_RtcTick},
  {0x172D316E,"sceKernelStdout",h_Zero},
- {0x912354A7,"sceKernelRotateThreadReadyQueue",h_RotateQueue},{0xB29DDF9C,"sceIoDopen",h_Dopen},
+ {0x912354A7,"sceKernelRotateThreadReadyQueue",h_RotateQueue},
  {0xF6269B82,"sceUtilityOskInitStart",h_OskInit},{0xF3F76017,"sceUtilityOskGetStatus",h_OskStatus},{0x4B85C861,"sceUtilityOskUpdate",h_OskUpdate},{0x3DFAEBA9,"sceUtilityOskShutdownStart",h_OskShutdown},
  {0x2A2B3DE0,"sceUtilityLoadModule",h_Zero},{0x34B78343,"sceUtilityGetSystemParamString",h_SysParamString},
  {0x977DE386,"sceKernelLoadModule",h_LoadModule},{0x50F0C1EC,"sceKernelStartModule",h_StartModule},{0xD1FF982A,"sceKernelStopModule",h_Zero},{0x2E0911AA,"sceKernelUnloadModule",h_Zero},{0xD8B73127,"sceKernelGetModuleIdByAddress",h_ModuleIdByAddr},
  {0x3E0271D3,"sceKernelVolatileMemLock",h_VolLock},{0xA569E425,"sceKernelVolatileMemUnlock",h_Zero},{0x4AC57943,"sceKernelRegisterExitCallback",h_Zero},{0x04B7766E,"scePowerRegisterCallback",h_Zero},
  {0x79D1C3FA,"sceKernelDcacheWritebackAll",h_Zero},{0x3EE30821,"sceKernelDcacheWritebackRange",h_Zero},{0xB435DEC5,"sceKernelDcacheWritebackInvalidateAll",h_Zero},{0xBFA98062,"sceKernelDcacheInvalidateRange",h_Zero},{0x34B9FA9E,"sceKernelDcacheWritebackInvalidateRange",h_Zero},{0x13A5ABEF,"sceKernelPrintf",h_Zero},
- {0xB29DDF9C,"sceIoDopen",h_Dopen},{0xE3EB004C,"sceIoDread",h_Dread},{0xEB092469,"sceIoDclose",h_IoClose},
+ 
  {0x01562BA3,"sceAudioOutput2Reserve",h_Au2Reserve},{0x43196845,"sceAudioOutput2Release",h_Au2Release},{0x2D53F36E,"sceAudioOutput2OutputBlocking",h_Au2Output},
  {0x5EC81C55,"sceAudioChReserve",h_AuChReserve},{0x6FC46853,"sceAudioChRelease",h_Zero},{0x136CAF51,"sceAudioOutputBlocking",h_AuOutBlocking},{0x13F592BC,"sceAudioOutputPannedBlocking",h_AuOutBlocking},
  {0x42778A9F,"__sceSasInit",w_hs_SasInit},{0xA3589D81,"__sceSasCore",w_hs_SasCore},{0x50A14DFC,"__sceSasCoreWithMix",w_hs_SasCoreWithMix},{0x68A46B95,"__sceSasGetEndFlag",w_hs_SasGetEndFlag},
