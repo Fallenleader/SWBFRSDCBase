@@ -290,7 +290,13 @@ int main(void){
     u64 t0 = sceKernelGetProcessTimeWide();
 #define STEP(...) do { fprintf(stderr, "[VITA] %7.3fs ", (sceKernelGetProcessTimeWide() - t0) / 1e6); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } while (0)
     STEP("SWBFRSDCBase (decompiled Star Wars Battlefront: Renegade Squadron) starting");
-    scePowerSetArmClockFrequency(444); scePowerSetBusClockFrequency(222); scePowerSetGpuClockFrequency(222); scePowerSetGpuXbarClockFrequency(166);
+    /* clocks: raised to the firmware's top speeds, never lowered - an overclock already set by a plugin (500 MHz) is left alone */
+    { int arm = scePowerGetArmClockFrequency(), want = rs_setting_int("RS_ARM_MHZ", 444);
+      if (want > 0 && arm < want) scePowerSetArmClockFrequency(want);
+      if (scePowerGetBusClockFrequency() < 222) scePowerSetBusClockFrequency(222);
+      if (scePowerGetGpuClockFrequency() < 222) scePowerSetGpuClockFrequency(222);
+      if (scePowerGetGpuXbarClockFrequency() < 166) scePowerSetGpuXbarClockFrequency(166);
+      fprintf(stderr, "[VITA] clocks: CPU %d MHz (was %d), bus %d, GPU %d, xbar %d\n", scePowerGetArmClockFrequency(), arm, scePowerGetBusClockFrequency(), scePowerGetGpuClockFrequency(), scePowerGetGpuXbarClockFrequency()); }
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
     { SceKernelFreeMemorySizeInfo mi; memset(&mi, 0, sizeof mi); mi.size = sizeof mi; sceKernelGetFreeMemorySize(&mi);
       STEP("free memory: user %d KB, CDRAM %d KB, phycont %d KB", mi.size_user / 1024, mi.size_cdram / 1024, mi.size_phycont / 1024); }

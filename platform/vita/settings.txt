@@ -25,6 +25,8 @@ RS_HW_TL=1
 RS_CPU_PIN=1
 # 1 = use the 4th CPU core when the CapUnlocker plugin is installed (sound threads move there); 0 = 3 cores only
 RS_CORE3=1
+# CPU clock the game raises the Vita to at start (MHz); a higher clock already set (an overclocking plugin) is kept; 0 = leave the clocks alone
+RS_ARM_MHZ=444
 # 1 = experimental: the game does not wait for the renderer at GU sync points
 RS_GU_PIPELINE=0
 # lifted game functions (native rewrites of the hottest game code: collision ray casts so far); 0 = the original code, to compare
