@@ -284,5 +284,7 @@ int main(void){
     /* leave at once: exit() would free the heap under the game's threads (their stacks are in it), and the next one to wake faulted
      * (closing the game from the HOME Menu crashed in Luma).  The process exit ends every thread; the DSP is stopped first. */
     STEP("exiting"); fflush(stderr); if (log_file) fflush(log_file);
-    ndspExit(); gfxExit(); svcExitProcess();
+    /* the services are closed the way exit() does (__appExit: fs, hid, apt (tells the HOME Menu we closed), srv): leaving without
+     * that made the system show "An error has occurred" and restart; only the heap is not given back (the threads still use it) */
+    ndspExit(); gfxExit(); { extern void __appExit(void); __appExit(); } svcExitProcess();
     return 0; }

@@ -442,7 +442,11 @@ void gfx_c3d_present(void){
         if (v) {
             C3D_Mtx proj; Mtx_OrthoTilt(&proj, 0.0f, 400.0f, 240.0f, 0.0f, 1.0f, -1.0f, true);
             C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, u_clip, &proj);
-            float q[4][4] = {{0, 0, 0, 1}, {400, 0, um, 1}, {0, 240, 0, vb}, {400, 240, um, vb}};
+            /* a GPU surface holds the picture bottom row first within its band (seen on hardware: the whole picture was upside down);
+             * a picture stored from the CPU (tex_store) has row 0 at v = 1.  RS_FLIP_DISPLAY=0/1 overrides for surfaces. */
+            static int fl = -1; if (fl < 0) fl = rs_setting_int("RS_FLIP_DISPLAY", 1);
+            float vt = 1.0f, vbm = vb; if (s && fl) { vt = vb; vbm = 1.0f; }
+            float q[4][4] = {{0, 0, 0, vt}, {400, 0, um, vt}, {0, 240, 0, vbm}, {400, 240, um, vbm}};
             for (int i = 0; i < 4; i++) { float *d = v + i * 9; d[0] = q[i][0]; d[1] = q[i][1]; d[2] = 0; d[3] = q[i][2]; d[4] = q[i][3]; d[5] = d[6] = d[7] = d[8] = 1; }
             C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR); C3D_CullFace(GPU_CULL_NONE); C3D_AlphaTest(false, GPU_ALWAYS, 0); C3D_StencilTest(false, GPU_ALWAYS, 0, 0, 0);
             C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
