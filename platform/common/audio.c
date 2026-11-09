@@ -16,6 +16,8 @@
 #include <string.h>
 #include <strings.h>
 #include <pthread.h>
+#include <unistd.h>
+#include "vfs.h"
 #include "psp_impl.h"
 #include "gfx.h"
 
@@ -230,24 +232,44 @@ void rs_atrac_note_read(const char *path, long off, u32 len){
 /* find the sound whose first bytes are b among the recent bundle reads; returns its offset in the file, or -1 */
 /* An index of every RIFF sound in a bundle file (offset + a hash of its first 64 bytes), made once per bundle by one pass over the
  * file; a streamed sound is then found by its first bytes without reading the file again. */
-typedef struct { char path[600]; int n; u32 *off; u32 *key; } bidx_t; static bidx_t bidx[4]; static int nbidx;
+typedef struct { char path[600]; int n; u32 *off; u32 *key; volatile int ready; } bidx_t; static bidx_t bidx[4]; static int nbidx;
+static pthread_mutex_t bidx_mx = PTHREAD_MUTEX_INITIALIZER;
 static u32 hash64(const u8 *p){ u32 h = 2166136261u; for (int i = 0; i < 64; i++) h = (h ^ p[i]) * 16777619u; return h; }
-static bidx_t *bundle_index(const char *path){
-    for (int i = 0; i < nbidx; i++) if (!strcmp(bidx[i].path, path)) return &bidx[i];
-    if (nbidx >= 4) return 0;
-    FILE *f = vfs_fopen(path, "rb"); if (!f) return 0;
-    bidx_t *x = &bidx[nbidx++]; memset(x, 0, sizeof *x); strncpy(x->path, path, sizeof x->path - 1); int cap = 0;
+void rs_guest_unlock(void); void rs_guest_lock(void); const char *rs_game_root(void);
+/* one pass over the file (no lock held: the speech bundle GMSND.AM is 16 MB, which took the PS Vita's memory card 3 s to read - with
+ * the guest lock held that stopped the game the first time a soldier spoke, when the enemy side spawns) */
+static void bundle_scan(bidx_t *x){
+    FILE *f = vfs_fopen(x->path, "rb"); if (!f) return; int cap = 0; int n = 0; u32 *off = 0, *key = 0;
     enum { BL = 1 << 20 }; u8 *buf = malloc(BL + 64); long pos = 0; size_t have = 0;
     for (;;) {
         size_t got = fread(buf + have, 1, BL - have, f); have += got; if (have < 64) break;
-        size_t lim = got ? have - 63 : have - 63;
-        for (size_t o = 0; o < lim; o++) if (buf[o] == 'R' && buf[o + 1] == 'I' && buf[o + 2] == 'F' && buf[o + 3] == 'F' && !memcmp(buf + o + 8, "WAVE", 4)) {
-            if (x->n == cap) { cap = cap ? cap * 2 : 1024; x->off = realloc(x->off, cap * 4); x->key = realloc(x->key, cap * 4); }
-            x->off[x->n] = (u32)(pos + (long)o); x->key[x->n] = hash64(buf + o); x->n++; }
+        size_t lim = have - 63;
+        for (u8 *q = buf, *e = buf + lim; (q = memchr(q, 'R', (size_t)(e - q))); q++)
+            if (q[1] == 'I' && q[2] == 'F' && q[3] == 'F' && !memcmp(q + 8, "WAVE", 4)) {
+                if (n == cap) { cap = cap ? cap * 2 : 1024; off = realloc(off, cap * 4); key = realloc(key, cap * 4); }
+                off[n] = (u32)(pos + (long)(q - buf)); key[n] = hash64(q); n++; }
         if (!got) break;
         memmove(buf, buf + lim, have - lim); pos += (long)lim; have -= lim; }
     free(buf); fclose(f);
-    fprintf(stderr, "[ATRAC] %s: %d sounds indexed\n", path, x->n); return x; }
+    pthread_mutex_lock(&bidx_mx); x->off = off; x->key = key; x->n = n; x->ready = 1; pthread_mutex_unlock(&bidx_mx);
+    fprintf(stderr, "[ATRAC] %s: %d sounds indexed\n", x->path, n); }
+static bidx_t *bidx_slot(const char *path, int *fresh){            /* bidx_mx held */
+    *fresh = 0; for (int i = 0; i < nbidx; i++) if (!strcasecmp(bidx[i].path, path)) return &bidx[i];
+    if (nbidx >= 4) return 0; bidx_t *x = &bidx[nbidx++]; memset(x, 0, sizeof *x); strncpy(x->path, path, sizeof x->path - 1); *fresh = 1; return x; }
+static bidx_t *bundle_index(const char *path){
+    pthread_mutex_lock(&bidx_mx); int fresh; bidx_t *x = bidx_slot(path, &fresh); pthread_mutex_unlock(&bidx_mx); if (!x) return 0;
+    if (x->ready) return x;
+    rs_guest_unlock();                                              /* the game's other threads go on meanwhile */
+    if (fresh) bundle_scan(x); else while (!x->ready) usleep(2000);  /* being made in the background (below) */
+    rs_guest_lock(); return x; }
+/* at start: index the game's sound bundles in the background, before any is needed */
+static void *bundle_prebuild(void *a){ (void)a;
+    char dir[700]; snprintf(dir, sizeof dir, "%s/PSP_GAME/USRDIR/SOUNDS", rs_game_root());
+    void *d = vfs_opendir(dir); if (!d) return 0; char name[256], full[1000];
+    while (vfs_readdir(d, name, sizeof name, full, sizeof full)) { size_t l = strlen(name); if (l < 3 || strcasecmp(name + l - 3, ".am")) continue;
+        pthread_mutex_lock(&bidx_mx); int fresh; bidx_t *x = bidx_slot(full, &fresh); pthread_mutex_unlock(&bidx_mx); if (x && fresh) bundle_scan(x); }
+    vfs_closedir(d); return 0; }
+void rs_atrac_prebuild(void){ static int done; if (done) return; done = 1; pthread_t t; if (pthread_create(&t, 0, bundle_prebuild, 0) == 0) pthread_detach(t); }
 static long bundle_find(const u8 *b, u32 n, const char **path){
     if (n < 64) return -1; u32 k = hash64(b);
     for (int r = 0; r < 32; r++) { int j = (nrread - 1 - r + 320) % 32; if (!rreads[j].path[0]) continue;
@@ -259,6 +281,7 @@ static long bundle_find(const u8 *b, u32 n, const char **path){
             if (ok) { *path = x->path; return (long)x->off[i]; } } }
     return -1; }
 void rs_atrac_note_file(const char *host_path){
+    rs_atrac_prebuild();
     size_t l = strlen(host_path); if (l < 4 || strcasecmp(host_path + l - 4, ".at3")) return;
     FILE *f = vfs_fopen(host_path, "rb"); if (!f) return;
     at3file_t *e = &files[nfile++ % 16]; memset(e, 0, sizeof *e); strncpy(e->path, host_path, sizeof e->path - 1);
