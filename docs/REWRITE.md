@@ -6,6 +6,14 @@ The decompiled game still runs on an imitation of the PSP. Every firmware call (
 
 This branch removes that layer. Each system is replaced by a native module behind one typed interface (`platform/common/rs_platform.h`), and every device implements that interface. Device-specific advantages are added afterwards, on top of a game that no longer assumes it is a PSP. That includes the Vita's cores and CapUnlocker, the 3DS's stereo screen, and the PS5's and PC's headroom.
 
+## Targets
+
+- **PS Vita: 2x the PSP's resolution (960x544, the Vita's screen) at 60 fps.**  Vita defaults: `RS_RES_SCALE=2`, `RS_FPS=60`,
+  `RS_GU_PIPELINE=1`.  Measured so far (profiling build, Hoth, 64 bots, 444 MHz): the main thread is the limit; 14% of it waits on the
+  renderer / frame end, the rest is game logic spread over many functions (per-object update ~20%, world/entity update ~18%,
+  collision rays ~6%).  60 fps needs that logic several times faster: native rewrites of the hot paths and the per-object work spread
+  over the Vita's cores (step 9).  The bot count is the main lever on the workload: 64 bots is 4x the PSP's 16.
+
 ## What the game asks of the PSP (inventory)
 
 | System | Firmware calls | Engine functions calling them | Replaced by |

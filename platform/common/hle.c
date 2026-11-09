@@ -249,23 +249,58 @@ static void h_CreateThread(sdkcall_t *c){
     fprintf(stderr, "[HLE] CreateThread '%s' entry=%08x prio=%d stack=%x\n", t->name, t->entry, t->prio, t->stacksize); }
 /* CPU core placement of each thread (platform hook; the Vita build pins threads to its 3 application cores) */
 __attribute__((weak)) void rs_thread_cores(const char *name){ (void)name; }
-static void *thread_main(void *p){
-    kthread_t *t = p; pthread_once(&key_once, mk_keys); pthread_setspecific(k_cur, t); big_lock(); sdkcall_t *c = &t->cpu; memset(c, 0, sizeof *c); c->thread = t; { extern void rs_thread_init(void); rs_thread_init(); } rs_thread_cores(t->name);
+static void run_guest(kthread_t *t){
+    pthread_once(&key_once, mk_keys); pthread_setspecific(k_cur, t); big_lock(); sdkcall_t *c = &t->cpu; memset(c, 0, sizeof *c); c->thread = t; { static __thread int inited; extern void rs_thread_init(void);
+      if (!inited) { rs_thread_init(); inited = 1; }                    /* once per native thread (a kept thread runs several of the game's) */
+#ifdef RS_TLS_STRUCT
+      else { rs_tls_t *x = rs_tls(); u32 k0 = x->psp_k0; memset(x, 0, sizeof *x); x->psp_k0 = k0; }   /* a fresh processor state */
+#endif
+    }
+    rs_thread_cores(t->name);
     u32 sp = t->stack + t->stacksize - 64; if (t->argc) { sp -= (t->argc + 15) & ~15u; memcpy(g_mem + GADDR(sp), t->argbuf, t->argc); c->r[5] = sp; }
     fprintf(stderr, "[HLE] thread '%s' start: arglen=%u argp=%08x sp=%08x\n", t->name, t->argc, t->argp, sp);
     c->r[4] = t->argc; c->r[29] = sp; c->r[28] = 0; c->r[31] = 0;
     CALLDYN(c, t->entry);
     t->status = c->r[2]; t->exited = 1; thr_release_stack(t); g_alive_threads--; fprintf(stderr, "[HLE] thread '%s' returned %d\n", t->name, t->status);
-    rc_broadcast(&gcv); pthread_mutex_unlock(&big); rs_thread_stack_done(); return 0; }
+    rc_broadcast(&gcv); pthread_mutex_unlock(&big);
+#ifndef RS_POOL_TEST
+    rs_thread_stack_done();
+#endif
+    }
+/* Native threads are kept and reused for the game's next threads (not on the desktop builds, whose threads switch to their own
+ * stacks): the game starts a thread for every voice line, and creating one cost the PS Vita a visible hitch each time (the
+ * profiling build's log: 150-330 ms frames at every line). */
+#if (!defined(RS_DESKTOP) && !defined(RS_GUEST64)) || defined(RS_POOL_TEST)    /* 32-bit consoles (the 64-bit builds' threads run on guest-window stacks given back at exit) */
+#define POOLED 1
+#include <setjmp.h>
+typedef struct worker { pthread_t th; kthread_t *next; rs_cond_t cv; struct worker *link; jmp_buf exit_jb; } worker_t;
+static worker_t *idle_workers; static pthread_key_t k_worker; static pthread_once_t kw_once = PTHREAD_ONCE_INIT;
+static void mk_kw(void){ pthread_key_create(&k_worker, 0); }
+static void *worker_main(void *p){
+    worker_t *w = p; pthread_once(&kw_once, mk_kw); pthread_setspecific(k_worker, w);
+    for (;;) {
+        kthread_t *t = w->next; w->next = 0;
+        if (!setjmp(w->exit_jb)) run_guest(t);                          /* sceKernelExitThread comes back here (h_ExitThread) */
+        big_lock(); w->link = idle_workers; idle_workers = w;           /* parked until the game starts another thread */
+        while (!w->next) big_wait(&w->cv);
+        pthread_mutex_unlock(&big); } }
+#endif
+static void *thread_main(void *p){ run_guest((kthread_t *)p); return 0; }
 static void h_StartThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t || t->started) { V0 = 0x800201A6u; return; }
     fprintf(stderr, "[HLE] StartThread '%s' from ra=%08x fn=%08x arg=%08x\n", t->name, c->r[31], A2 ? LW(A2) : 0, A2 ? LW(A2 + 4) : 0); if (strstr(t->name, "Atrac")) { extern void rc_dump_stack(sdkcall_t *, const char *); rc_dump_stack(c, "atrac start"); }
     t->started = 1; t->argc = A1 > sizeof t->argbuf ? (u32)sizeof t->argbuf : A1; t->argp = A2; if (t->argc) memcpy(t->argbuf, g_mem + GADDR(A2), t->argc); g_alive_threads++;
     pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32 psp_stack); rs_thread_attr(&at, t->stacksize); }
     pthread_attr_setdetachstate(&at, PTHREAD_CREATE_DETACHED);                       /* nobody joins game threads: their resources go at exit */
+#ifndef POOLED
 #ifdef RS_DESKTOP
     extern int rs_thread_spawn(pthread_t *, pthread_attr_t *, void *(*)(void *), void *); int e = rs_thread_spawn(&t->th, &at, thread_main, t);   /* platform/desktop (Windows: stack switch) */
 #else
     int e = pthread_create(&t->th, &at, thread_main, t);
+#endif
+#else
+    int e = 0;
+    if (idle_workers) { worker_t *w = idle_workers; idle_workers = w->link; t->th = w->th; w->next = t; rc_broadcast(&w->cv); }   /* a kept thread */
+    else { worker_t *w = calloc(1, sizeof *w); w->next = t; e = pthread_create(&w->th, &at, worker_main, w); if (!e) t->th = w->th; else free(w); }
 #endif
     pthread_attr_destroy(&at);
     if (e) { fprintf(stderr, "[HLE] StartThread '%s': the thread could not be created (%d)\n", t->name, e); t->started = 0; g_alive_threads--; V0 = 0x80020190u; return; }
@@ -273,7 +308,14 @@ static void h_StartThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t || 
 /* a thread's end: the platform may leave its thread its own way (Windows: back to the stack switch, platform/desktop/main.c) */
 __attribute__((weak)) void rs_thread_exit(void){ pthread_exit(0); }
 __attribute__((weak)) void rs_thread_stack_done(void){}                    /* platform: the ending thread's guest stack can be reused */
-static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; thr_release_stack(t); g_alive_threads--; rc_broadcast(&gcv); pthread_mutex_unlock(&big); rs_thread_stack_done(); rs_thread_exit(); } }
+static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; thr_release_stack(t); g_alive_threads--; rc_broadcast(&gcv); pthread_mutex_unlock(&big);
+#ifndef RS_POOL_TEST
+    rs_thread_stack_done();
+#endif
+#ifdef POOLED
+    { pthread_once(&kw_once, mk_kw); worker_t *w = pthread_getspecific(k_worker); if (w) longjmp(w->exit_jb, 1); }   /* back to the kept thread's loop */
+#endif
+    rs_thread_exit(); } }
 static void h_ExitDeleteThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) t->deleted = 1; h_ExitThread(c); }
 static void h_DeleteThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t) { V0 = 0x800201A5u; return; } if (!t->exited && t->started) { V0 = 0x800201ADu; return; } t->deleted = 1; if (!t->started) t->exited = 1; V0 = 0; }
 static void h_WaitThreadEnd(sdkcall_t *c){ int uid = (int)A0; kthread_t *t = thr_find(uid); if (!t) { V0 = 0x800201A5u; return; }
