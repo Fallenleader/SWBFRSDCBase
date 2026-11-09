@@ -52,6 +52,9 @@ static const char *data_dir(void){
     const char *e = getenv("RS_DATA_DIR"); return e ? e : ".";
 #endif
 }
+static const char *mods_dir(void){                       /* <data>/mods, or RS_MODS_DIR (a hosted session's mods_serversession<N>) */
+    static char b[600]; const char *e = getenv("RS_MODS_DIR"); if (e && *e) return e;
+    snprintf(b, sizeof b, "%s/mods", data_dir()); return b; }
 
 static struct {
     int active, log, open_tried;

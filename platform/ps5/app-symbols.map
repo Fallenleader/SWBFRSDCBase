@@ -1,0 +1,2 @@
+/* Native executable: no application exports (the PS5 OpenGL SDK native-app policy). */
+{ local: *; };

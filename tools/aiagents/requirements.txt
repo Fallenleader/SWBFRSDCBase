@@ -1,0 +1,9 @@
+# Training environment for tools/aiagents (separate from the game: the game never needs Python).
+# Versions verified together on 2026-11-08 (Python 3.13, CPU).  PyTorch's CPU wheels come from its own index (setup_env.*).
+torch==2.15.0
+gymnasium==1.4.0
+stable-baselines3==2.9.2
+numpy==2.5.4
+PyYAML==6.0.3
+tensorboard==2.21.0
+onnx==1.23.2

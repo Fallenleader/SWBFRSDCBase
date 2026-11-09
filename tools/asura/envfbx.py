@@ -22,9 +22,15 @@ def _f(v):
     s = '%.9g' % v
     return s
 def _name(s): return re.sub(r'[^A-Za-z0-9_]', '_', s)
+def _cmat_colour(m):                                    # a distinct colour per collision material, so surfaces can be told apart
+    h = (m * 0.618034) % 1.0; i = int(h * 6); f = h * 6 - i; q = 1 - f
+    r, g, b = [(1, f, 0), (q, 1, 0), (0, 1, f), (0, q, 1), (f, 0, 1), (1, 0, q)][i % 6]
+    return '%.3f,%.3f,%.3f' % (0.3 + 0.7 * r, 0.3 + 0.7 * g, 0.3 + 0.7 * b)
 
-def write(path, e, objects, materials):
-    """e: env.parse() result; objects: [object name] (EMOD order); materials: {material number: (name, texture png path or None)}"""
+def write(path, e, objects, materials, collision=None):
+    """e: env.parse() result; objects: [object name] (EMOD order); materials: {material number: (name, texture png path or None)};
+    collision: [{name, verts (game axes), polys (vertex lists, game winding), mats (collision material per polygon)}] -> col_ meshes"""
+    collision = collision or []
     V = e['verts']; groups = {}
     for st in e['strips']:
         key = (st['flag'], st['layer'])
@@ -46,9 +52,10 @@ def write(path, e, objects, materials):
       '\t\tP: "CoordAxisSign", "int", "Integer", "",1\n\t\tP: "OriginalUpAxis", "int", "Integer", "",1\n\t\tP: "OriginalUpAxisSign", "int", "Integer", "",1\n'
       '\t\tP: "UnitScaleFactor", "double", "Number", "",100\n\t\tP: "OriginalUnitScaleFactor", "double", "Number", "",100\n\t}\n}\n')
     keys = sorted(groups)
-    o('Definitions:  {\n\tVersion: 100\n\tCount: %d\n' % (1 + 2 * len(keys) + len(used_mats) + 2 * len(tex_id)))
-    o('\tObjectType: "GlobalSettings" {\n\t\tCount: 1\n\t}\n\tObjectType: "Model" {\n\t\tCount: %d\n\t}\n\tObjectType: "Geometry" {\n\t\tCount: %d\n\t}\n' % (len(keys), len(keys)))
-    o('\tObjectType: "Material" {\n\t\tCount: %d\n\t}\n' % len(used_mats))
+    cmats = sorted(set(m for c in collision for m in c['mats'])); cmat_id = dict((m, nid()) for m in cmats)
+    o('Definitions:  {\n\tVersion: 100\n\tCount: %d\n' % (1 + 2 * (len(keys) + len(collision)) + len(used_mats) + len(cmats) + 2 * len(tex_id)))
+    o('\tObjectType: "GlobalSettings" {\n\t\tCount: 1\n\t}\n\tObjectType: "Model" {\n\t\tCount: %d\n\t}\n\tObjectType: "Geometry" {\n\t\tCount: %d\n\t}\n' % (len(keys) + len(collision), len(keys) + len(collision)))
+    o('\tObjectType: "Material" {\n\t\tCount: %d\n\t}\n' % (len(used_mats) + len(cmats)))
     if tex_id: o('\tObjectType: "Texture" {\n\t\tCount: %d\n\t}\n\tObjectType: "Video" {\n\t\tCount: %d\n\t}\n' % (len(tex_id), len(tex_id)))
     o('}\nObjects:  {\n')
     conns = []; mesh_of = {}
@@ -83,6 +90,27 @@ def write(path, e, objects, materials):
           '\t\t}\n\t\tShading: T\n\t\tCulling: "CullingOff"\n\t}\n' % (mdl, nm))
         conns.append((mdl, 0, None)); conns.append((g, mdl, None))
         for m in mats: conns.append((mat_id[m], mdl, None))
+    for c in collision:                                                                          # collision meshes (PHEN)
+        pos = []
+        for x, y, z in c['verts']: pos += [x, -y, z]
+        pvi = []
+        for pl in c['polys']:
+            r = list(reversed(pl)); r = r[-1:] + r[:-1]                                           # mirrored: reversed, same first corner
+            pvi += r[:-1] + [-r[-1] - 1]
+        mi = dict((m, i) for i, m in enumerate(sorted(set(c['mats']))))
+        g, mdl = nid(), nid()
+        o('\tGeometry: %d, "Geometry::%s", "Mesh" {\n\t\tVertices: *%d {\n\t\t\ta: %s\n\t\t}\n' % (g, c['name'], len(pos), _arr(pos, '%.9g')))
+        o('\t\tPolygonVertexIndex: *%d {\n\t\t\ta: %s\n\t\t}\n\t\tGeometryVersion: 124\n' % (len(pvi), _arr(pvi, '%d')))
+        o('\t\tLayerElementMaterial: 0 {\n\t\t\tVersion: 101\n\t\t\tName: ""\n\t\t\tMappingInformationType: "ByPolygon"\n\t\t\tReferenceInformationType: "IndexToDirect"\n'
+          '\t\t\tMaterials: *%d {\n\t\t\t\ta: %s\n\t\t\t}\n\t\t}\n' % (len(c['mats']), _arr([mi[m] for m in c['mats']], '%d')))
+        o('\t\tLayer: 0 {\n\t\t\tVersion: 100\n\t\t\tLayerElement:  {\n\t\t\t\tType: "LayerElementMaterial"\n\t\t\t\tTypedIndex: 0\n\t\t\t}\n\t\t}\n\t}\n')
+        o('\tModel: %d, "Model::%s", "Mesh" {\n\t\tVersion: 232\n\t\tProperties70:  {\n\t\t\tP: "DefaultAttributeIndex", "int", "Integer", "",0\n'
+          '\t\t}\n\t\tShading: T\n\t\tCulling: "CullingOff"\n\t}\n' % (mdl, c['name']))
+        conns.append((mdl, 0, None)); conns.append((g, mdl, None))
+        for m in sorted(set(c['mats'])): conns.append((cmat_id[m], mdl, None))
+    for m in cmats:
+        o('\tMaterial: %d, "Material::cmat%d", "" {\n\t\tVersion: 102\n\t\tShadingModel: "lambert"\n\t\tMultiLayer: 0\n\t\tProperties70:  {\n'
+          '\t\t\tP: "DiffuseColor", "Color", "", "A",%s\n\t\t\tP: "TransparencyFactor", "Number", "", "A",0.5\n\t\t}\n\t}\n' % (cmat_id[m], m, _cmat_colour(m)))
     for m in used_mats:
         nm, png = materials.get(m, ('mat', None))
         o('\tMaterial: %d, "Material::%s", "" {\n\t\tVersion: 102\n\t\tShadingModel: "lambert"\n\t\tMultiLayer: 0\n\t\tProperties70:  {\n'
@@ -116,6 +144,7 @@ def read(path, nobjects, bounds, material_for):
     corners = {}; clist = []
     for me in sc['meshes']:
         nm = (me['model'] or me['name']).split(':')[-1]
+        if nm.lower().startswith('col_') or nm.lower().startswith('nav_'): continue              # collision (read_collision); the nav preview
         m = re.match(r'o(\d+)', nm); layer = '__blend' in nm
         M = me['matrix']; pos = [fbxread.transform(M, p) for p in me['pos']]
         ident = all(abs(M[i][j] - (1.0 if i == j else 0.0)) < 1e-9 for i in range(3) for j in range(3)) and up != 2
@@ -179,3 +208,78 @@ def read(path, nobjects, bounds, material_for):
     for vt, n, v0, mat, obj in strips: out += struct.pack('<5I', (vt << 16) | n, v0, v0, mat & 0xFFFFFFFF, obj)
     for u, v, c, nx, ny, nz, x, y, z in verts: out += struct.pack('<hhH3h3f', u, v, c, nx, ny, nz, x, y, z)
     return bytes(out), newb, warn
+
+# ------------------------------------------------------------------ collision (PHEN)
+COL_TYPES = {'static': 0, 'solid': 0, 'kinematic': 4, 'visual': 4, 'hull': 10, 'noai': 8, 'twosided': 1}
+def col_flags_name(v):
+    """the type words for a flag value (col_parse reads them back): known bits as words, the rest as f<hex>"""
+    if v == 0: return 'static'
+    w = []
+    if v & 10 == 10: w.append('hull'); v &= ~10
+    if v & 4: w.append('kinematic'); v &= ~4
+    if v & 8: w.append('noai'); v &= ~8
+    if v & 1: w.append('twosided'); v &= ~1
+    if v: w.append('f%04x' % v)
+    return '_'.join(w)
+def col_parse(name):
+    """'col_[type_...][c<N>_]name' -> (flags, object number or None)"""
+    toks = name.split('_')[1:]; flags = None; obj = None; i = 0
+    while i < len(toks):
+        t = toks[i].lower()
+        if t in COL_TYPES: flags = (flags or 0) | COL_TYPES[t]
+        elif re.match(r'^f[0-9a-f]{4}$', t): flags = (flags or 0) | int(t[1:], 16)
+        elif re.match(r'^c\d+$', t): obj = int(t[1:]); i += 1; break
+        else: break
+        i += 1
+    return (flags or 0), obj
+
+def read_collision(path):
+    """-> (phen.build objects, warnings): every mesh named col_...; meshes naming the same object (c<N>) form one object"""
+    sc = fbxread.load(path); unit = sc['unit']; up = sc['up']; warn = []; groups = {}; nnew = 0
+    for me in sc['meshes']:
+        nm = (me['model'] or me['name']).split(':')[-1]
+        if not nm.lower().startswith('col_'): continue
+        flags, obj = col_parse(nm)
+        if obj is None: obj = 100000 + nnew; nnew += 1
+        g = groups.setdefault(obj, {'verts': [], 'quads': [], 'flags': [], 'mats': [], 'index': {}})
+        M = me['matrix']
+        mats = []
+        for mn in me['materials']:
+            mm = re.match(r'cmat(\d+)', mn.split(':')[-1]); mats.append(int(mm.group(1)) if mm else 0)
+        def vid(p):
+            q = fbxread.transform(M, p); x, y, z = (q[0] * unit, q[1] * unit, q[2] * unit)
+            if up == 2: x, y, z = x, z, -y
+            key = (struct.unpack('<f', struct.pack('<f', x))[0], struct.unpack('<f', struct.pack('<f', -y))[0], struct.unpack('<f', struct.pack('<f', z))[0])
+            i = g['index'].get(key)
+            if i is None: i = g['index'][key] = len(g['verts']); g['verts'].append(key)
+            return i
+        for pi, poly in enumerate(me['polys']):
+            vs = [vid(me['pos'][v]) for v in poly]
+            vs = [vs[0]] + list(reversed(vs[1:]))                                                    # mirrored back
+            mt = mats[me['mat'][pi]] if me['mat'] and me['mat'][pi] < len(mats) else (mats[0] if mats else 0)
+            if len(vs) == 4 and len(set(vs)) == 4: quads = [tuple(vs)]
+            elif len(vs) == 3 and len(set(vs)) == 3: quads = [(vs[0], vs[1], vs[2], 0xFFFF)]
+            else:                                                                                    # fan, two triangles per record
+                quads = []; k = 1
+                while k + 1 < len(vs):
+                    if k + 2 < len(vs): quads.append((vs[k], vs[k + 1], vs[k + 2], vs[0])); k += 2
+                    else: quads.append((vs[0], vs[k], vs[k + 1], 0xFFFF)); k += 1
+                quads = [q if q[3] == 0xFFFF else (q[3], q[0], q[1], q[2]) for q in quads]
+            for q in quads:
+                g['quads'].append(q); g['flags'].append(flags); g['mats'].append(mt)
+    out = []
+    for k in sorted(groups):
+        g = groups[k]; del g['index']
+        if len(g['verts']) > 65534: warn.append('collision object %s has more than 65534 vertices: split it into several meshes' % k)
+        out.append(g)
+    return out, warn
+
+def write_nav_preview(path, nodes):
+    """the baked navigation nodes as flat discs (one mesh per vehicle-class mask, coloured by it), lifted 5 cm off the ground"""
+    by = {}
+    for nd in nodes:
+        x, y, z = nd['pos']; r = nd['r']; m = (nd.get('flags', 0) >> 8) & 15
+        g = by.setdefault(m, {'name': 'nav_preview_closed_to_%x' % m, 'verts': [], 'polys': [], 'mats': []})
+        b = len(g['verts']); g['verts'] += [(x + r * math.cos(a * math.pi / 4), y - 0.05, z + r * math.sin(a * math.pi / 4)) for a in range(8)]
+        g['polys'].append([b + k for k in range(8)]); g['mats'].append(m)
+    write(path, {'verts': [], 'strips': []}, [], {}, [by[k] for k in sorted(by)])

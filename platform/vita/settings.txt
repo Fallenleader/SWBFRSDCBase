@@ -47,7 +47,8 @@ RS_LOOK_CENTER_DELAY=1
 RS_GAME_PATCHES=1
 # highest "Min Players (including AI)": bots fill both teams evenly (the game's own limit is 16)
 RS_MAX_PLAYERS=64
-# highest "Conquest Initial Tickets" (the game's own limit is 200)
+# lowest and highest "Conquest Initial Tickets" (the game's own range is 25 to 200)
+RS_MIN_TICKETS=25
 RS_MAX_TICKETS=1000
 
 # ---- AI

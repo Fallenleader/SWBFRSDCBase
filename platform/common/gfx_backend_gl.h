@@ -1,0 +1,21 @@
+/* compile one renderer back end with its gfx_* functions renamed (gfx_backend.c dispatches) */
+#define gfx_init gl_gfx_init
+#define gfx_tex_acquire gl_gfx_tex_acquire
+#define gfx_tex_maps gl_gfx_tex_maps
+#define gfx_draw gl_gfx_draw
+#define gfx_draw_hw gl_gfx_draw_hw
+#define gfx_draw_native gl_gfx_draw_native
+#define gfx_hw_ok gl_gfx_hw_ok
+#define gfx_clear gl_gfx_clear
+#define gfx_flush gl_gfx_flush
+#define gfx_transfer gl_gfx_transfer
+#define gfx_set_display gl_gfx_set_display
+#define gfx_get_display gl_gfx_get_display
+#define gfx_read_display gl_gfx_read_display
+#define gfx_present_image gl_gfx_present_image
+#define gfx_read_display_full gl_gfx_read_display_full
+#define gfx_present gl_gfx_present
+#define gfx_stats gl_gfx_stats
+#define gfx_cache_stats gl_gfx_cache_stats
+#define gfx_before_job gl_gfx_before_job
+#define gfx_shadow_frame gl_gfx_shadow_frame

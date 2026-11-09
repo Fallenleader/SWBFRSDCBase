@@ -42,29 +42,49 @@ Edit each era separately. The folders do not share files.
 | `sounds/**.wav` | Every sound effect, 16-bit PCM mono. |
 | `env/Env.fbx` | The level geometry, FBX 7.4 (Maya 2025 and earlier, 3ds Max, MotionBuilder, any Autodesk FBX SDK importer). |
 | `models/*.fbx` | The map's props (turrets, dishes, debris): a mesh, a joint per part and a rigid skin. |
-| `scripts/<TAG>/<n>_<name>.txt` | Every other chunk as text. One folder per chunk type; `<n>` is the chunk's number in the file. |
-| `resources/*.txt` | Embedded resources that are neither textures, sounds nor meshes (fragment data, some animation sets), as text. |
+| `scripts/<TAG>/<n>_<name>.lua` | Every other chunk as a Lua script. One folder per chunk type; `<n>` is the chunk's number in the file. |
+| `resources/*.lua` | Embedded resources that are neither textures, sounds nor meshes (fragment data, some animation sets), as Lua scripts. |
+| `rs_map.lua` | The scripts' value constructors, for running a script with Lua 5.3 / 5.4 (not needed by `pack`). |
 | `README.txt` | A short reminder of the above. |
 | `.maptool/` | The original level file and a record of what was unpacked. Do not edit or delete it: `pack` compares against it. |
 
-### The text format (scripts and resources)
+### The script format (Lua)
 
-There is one value per line. Lines are read back in order, and they must give back the same bytes. Anything after `#` is a comment.
+Each script is a Lua file that returns its chunk as a list of typed values, in file order. Comments start with `--`.
+Tables inside the list (`{ ... }`) only group values, such as one record of a list; `pack` flattens them.
+
+```lua
+require "rs_map"
+-- FOG: distance fog
+return chunk "FOG " {
+  f32(0.88235366),                 -- red (0..1)
+  f32(0.8974125),                  -- green
+  f32(0.9025889),                  -- blue
+  u32(0),
+  f32(175),                        -- fog start distance
+  f32(225),                        -- fog end distance
+  u32(0), f32(0.5), f32(0.5),
+}
+```
+
+The value constructors:
 
 ```
-u32 123            unsigned 32-bit integer
-i32 -5             signed 32-bit integer
-x32 0x8a3f0012     32-bit value in hex (name hashes, flags, ids)
-f32 1.5            32-bit float (printed so it reads back exactly)
-u16 7 / u8 3       16 / 8-bit values
+u32(123)           unsigned 32-bit integer
+i32(-5)            signed 32-bit integer
+x32(0x8a3f0012)    32-bit value in hex (name hashes, flags, ids)
+f32(1.5)           32-bit float (printed so it reads back exactly)
+u16(7) / u8(3)     16 / 8-bit values
 str "text"         8-bit text, NUL-terminated, padded with zeros to 4 bytes
 wstr "text"        UTF-16 text
-hex 01 02 ff       raw bytes
+hex "01 02 ff"     raw bytes
 ```
 
-Escapes in strings are `\\  \"  \n  \t  \xNN  \uNNNN`.
+Strings use Lua's escapes: `\\  \"  \n  \t  \xNN` (8-bit) and `\u{XXXX}` (in `wstr`). Resources kept as data use
+`return resource "<name>" { ... }` the same way.
 
-The chunks whose layout is known are written with every field named in a comment:
+The chunks whose layout is known are written with every field named in a comment, and their lists as one table per record
+(`{ -- object 12 ... }`):
 
 * `EMOD`: the level objects and their bounds.
 * `FOG `: colour, start and end distance.
@@ -73,19 +93,26 @@ The chunks whose layout is known are written with every field named in a comment
 * `FNFO`: the file size, set by `pack`.
 * `TTXT`, `hmap`: the map screen.
 
-For example, `scripts/FOG_/2481_*.txt`:
+Other chunks use the generic form, one value at a time. That covers entities, command posts, AI, effects, sound banks,
+cut-scenes, collision and the navigation mesh.
 
-```
-# FOG: distance fog
-f32 0.88235366               # red (0..1)
-f32 0.8974125                # green
-f32 0.9025889                # blue
-u32 0
-f32 175                      # fog start distance
-f32 225                      # fog end distance
+**Plain lists and Lua code.** `pack` reads the plain form above by itself; no Lua is needed. A script can also be real Lua
+code — loops, functions, tables generated from data, `require` of your own modules — as long as it returns
+`chunk "<TAG>" { ... }`. `pack` runs such a script with Lua 5.3 or 5.4 (`lua5.4`, `lua5.3` or `lua` on the PATH), with
+`rs_map.lua` defining the constructors. Run directly by Lua, `chunk` returns the packed bytes, so a converter for another
+game's map format can be written in Lua (or generate these files from any language):
+
+```lua
+require "rs_map"
+local cps = { {"cp1", 10, 0, 20}, {"cp2", -40, 0, 75} }     -- e.g. read from another format
+local t = { u32(#cps) }
+for _, c in ipairs(cps) do t[#t + 1] = { str(c[1]), f32(c[2]), f32(c[3]), f32(c[4]) } end
+return chunk "XXXX" (t)
 ```
 
-Other chunks use the generic form. That covers entities, command posts, AI, effects, sound banks, cut-scenes, collision and the navigation mesh.
+**Older folders.** Folders unpacked by an earlier `maptool` have `.txt` scripts (one `u32 123  # comment` item per line).
+`pack` still reads them; `maptool.py convert <era folder>` turns them into Lua scripts and updates `map.txt`
+(edits are kept, and an unchanged script still counts as unchanged).
 
 **Editing:**
 
@@ -99,7 +126,7 @@ Values that point **into** a chunk by byte offset are not adjusted, so change le
 
 ```
 0002 resource 0 0x0 2 0x208009 "\\graphics\\objects\\rebeldish.tga" textures/graphics/objects/rebeldish.png
-2481 chunk "FOG " 1 0x1 scripts/FOG_/2481.txt
+2481 chunk "FOG " 1 0x1 scripts/FOG_/2481.lua
 ```
 
 Each line is one of these forms:
@@ -111,7 +138,7 @@ Each line is one of these forms:
 
 * **Remove a line** to drop a chunk.
 * **Reorder lines.**
-* **Add a chunk**: write `new` instead of the number and name a file for it, a `.txt` in the text format, or a `.png` / `.wav` for a resource.
+* **Add a chunk**: write `new` instead of the number and name a file for it, a `.lua` script, or a `.png` / `.wav` for a resource.
 
 ## 3. Editing each kind of file
 
@@ -157,12 +184,53 @@ Each vertex carries:
 * A material with no texture uses material 0, and `pack` says so.
 * The triangles are rebuilt into GE strips of at most 160 vertices, the game's own limit being 175.
 
-**Not rebuilt from the FBX:**
+### Collision (the col_ meshes in env/Env.fbx)
 
-* **Collision.** This is the `PHEN` chunk, kept as it was. New walls or floors can be seen but not touched, and removed geometry still blocks.
-* **The AI navigation mesh** (`NAV1`).
+What players, vehicles, shots and the AI collide with is separate from what is drawn (the `PHEN` chunk). `unpack` exports it into `Env.fbx` as meshes whose names start with `col_`, and `pack` rebuilds it from them. Collision can be as simple (a few boxes) or as detailed as the level needs: the game tests every collision triangle it is near, so keep it to what must block.
 
-Keep edits that change where players walk within the old collision.
+**Naming:** `col_[type_...][c<number>_]name`, for example `col_static_c12_Bunker`, `col_kinematic_Fence`, `col_hull_c5_Box01`, `col_wall`.
+
+* **Type words** (any number, in any order; none means `static`). The game marks each collision polygon with "ignored by" bits, and a test skips polygons carrying the bits it excludes. Measured in the game:
+
+| Word | Bits | Effect |
+|---|---|---|
+| `static` | 0 | Blocks everything: soldiers, vehicles, shots, AI line of sight. Use this for walls and floors. |
+| `kinematic` | 4 | Not touched by soldiers or vehicles; shots and AI sight still hit it. The game uses it on the drawn geometry of details (railings, pipes, lights) so you can pass through them but shoot them. A blocker that should not block paths needs this word. |
+| `hull` | 2+8 | The game's invisible `Col` boxes round buildings and at the map's edge: blocks soldiers and vehicles, but the AI sees through it (as `noai`), and one rare test (bit 2) ignores it. |
+| `noai` | 8 | The AI's line-of-sight and path tests pass through it; blocks everything else. |
+| `twosided` | 1 | Hit by rays from both sides. |
+| `f<4 hex digits>` | raw | Any other bits, written as they were. `f0010` is used on terrain; `f0400`, `f0800`, `f1000`, `f2000`, `f4000`, `f8000` make the polygon ignored by one class of mover each (`f1000`: soldiers; the others: vehicle classes). |
+
+* **`c<number>`** names a collision object. Meshes with the same number become one object (the game sorts collision into objects, each with its own bounding tree). A mesh without a number becomes an object of its own. Keep the numbers on exported meshes; give new meshes new numbers or none.
+* **Materials** named `cmat<number>` are collision materials (footstep sound, surface effects). A polygon without one gets `cmat0`. The exported `cmat` colours only tell them apart in the viewport.
+* Quads stay quads (one record, two triangles); triangles stay triangles; bigger polygons are split into fans. A collision object can have up to 65534 vertices.
+* Only the meshes are read: hidden or not, `col_` meshes are never drawn.
+
+`pack` rebuilds the collision only when the `col_` meshes describe a different set of triangles, materials or types from the original; otherwise the original chunk is kept byte for byte. It reports what it did. If `Env.fbx` has no `col_` meshes at all, the original collision is kept.
+
+### The AI navigation graph (nav mesh)
+
+Bots find their way on a graph of walkable circles (the `NAV1` chunk): each node is a circle (0.5 to 6 m) where a soldier can stand,
+linked to the nodes a soldier can walk to in a straight line; nodes and links are closed to the vehicle classes that do not fit
+(four classes, largest first), and one-way links let soldiers drop down ledges.  A level whose walkable ground changed needs a new graph:
+
+    maptool.py bake <era folder>
+
+bakes it from the collision (the `col_` meshes of `env/Env.fbx`; the original collision if there are none) into `nav/navmesh.nav`,
+points `map.txt`'s NAV1 line at it, and writes `nav/navmesh_preview.fbx` (the nodes as discs, one mesh per vehicle-class mask) to look
+at.  `pack` then builds it into the level.  What counts:
+
+* floors: collision polygons sloped less than 50 degrees, not `hull` and not the level's edge, with 1.8 m free above them;
+* walls: collision polygons a soldier collides with (not `kinematic`);
+* steps up to 0.6 m are walked, drops of 0.6 to 4 m become one-way links;
+* walkable areas smaller than 150 m2 (roofs, crates) are left out; the graph covers the area the level's own graph covered (+10 m),
+  or the level's edge box for a new level;
+* vehicle classes need 14 / 6.5 / 3.5 / 2 m of clearance (measured on the shipped levels).
+
+Baking Hoth takes about 30 seconds (Python 3 with numpy: Maya 2025's Python has it; elsewhere `pip install numpy`).
+
+Workflow: unpack, edit (geometry and `col_` meshes), bake, pack (or install), play.
+
 
 **Maya:**
 
@@ -246,8 +314,10 @@ The era choice offers the eras that have a level file: Galactic Civil War for `C
 
 | File | Role |
 |---|---|
-| `maptool.py` | The CLI: unpack, pack, verify, install. |
-| `textdump.py` | The text format, generic and lossless. |
+| `maptool.py` | The CLI: unpack, pack, verify, convert, bake, install. |
+| `luascript.py` | The Lua script format: writing, the plain-form reader, running Lua for scripts with code. |
+| `rs_map.lua` | The constructors in Lua (`chunk` packs the bytes with `string.pack`). |
+| `textdump.py` | The item syntax underneath (and the older `.txt` scripts), generic and lossless. |
 | `chunkfmt.py` | The named-field forms of known chunks. |
 | `envfbx.py` | Env ↔ FBX. |
 | `fbxread.py` | FBX 7.x reader, ASCII and binary. |

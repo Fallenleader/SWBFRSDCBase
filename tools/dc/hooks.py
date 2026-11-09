@@ -10,9 +10,10 @@ import re, sys, os
 
 # address -> {'before': call, 'replace': call, 'after': call}; argument names are the decompiled parameter names
 HOOKS = {
-    '088FDCC0': {'after': 'rs_input_after_pad(), rs_picker_pad(), rs_savemgr_pad(), rs_parts_frame(), rs_loadout_frame(), rs_ai_frame(), rs_gs_frame()'},          # pad read (game_11.c): twin_stick.c, colour_picker.c, save_manager.c
+    '088FDCC0': {'after': 'rs_input_after_pad(), rs_picker_pad(), rs_savemgr_pad(), rs_parts_frame(), rs_loadout_frame(), rs_patches_frame(), rs_gs_frame()'},          # pad read (game_11.c): twin_stick.c, colour_picker.c, save_manager.c
     '08A5F1A4': {'after': 'rs_input_after_scheme(a0, a1)'},                   # a control scheme's bindings built (game_26.c): twin_stick.c
-    '08897814': {'before': 'rs_game_var_range(a1, &a2, &a3)'},                # a game option registered with its range (game_06.c)
+    '08897814': {'before': 'rs_game_var_range(a0, a1, &a2, &a3)'},                # a game option registered with its range (game_06.c)
+    '088977A0': {'before': 'rs_game_var_bool(a0, a1, a2, a3)'},                  # a bool game option registered (game_06.c): renderer_option.c
     '08A359F4': {'replace': 'rs_picker_category(a0, a1, a2, &r_)'},           # Personalisation: list item accepted (game_25.c)
     '0897843C': {'replace': 'rs_colour_lookup(a0, a1, 0, &r_)'},              # a faction's colour 1 (team) as 0xAARRGGBB (game_16.c)
     '0897848C': {'replace': 'rs_colour_lookup(a0, a1, 1, &r_)'},              # a faction's colour 2 (uniform)
@@ -24,13 +25,17 @@ HOOKS = {
     '08956118': {'replace': 'rs_ai_pool_init()'},
     '08A0AD64': {'replace': 'rs_unit_list_add(a0, &r_)'},                       # a soldier added to that list (game_23.c)
     '08A0ADFC': {'replace': 'rs_unit_list_remove(a0, &r_)'},
-    '08834304': {'replace': 'rs_stdtext_get(a0, &r_)'},                       # STDTEXT line n: Weapons_Mod.txt names past the file's own (game_02.c)                    # and removed
-    '089D7D08': {'replace': 'rs_vehicle_hit(a0, a1)'},                         # vehicle against soldier contact: friendly pass, enemy run over (game_20.c)
+    '08834304': {'replace': 'rs_stdtext_get(a0, &r_)'},
+    '089D7D08': {'replace': 'rs_vehicle_hit(a0, a1)'},                         # vehicle against soldier contact: friendly pass, enemy run over (game_20.c)                       # STDTEXT line n: Weapons_Mod.txt names past the file's own (game_02.c)                    # and removed
+    '089A8A98': {'before': 'rs_ai_ctl_pre(a0, a1)'},                     # soldier controls applied (game_18.c): AI bridge
+    '089E1FDC': {'before': 'rs_ai_dmg_pre(a0, a1)', 'after': 'rs_ai_dmg_post(a0, a1)'},   # damage taken (game_21.c): AI bridge events
     '088BBDEC': {'replace': 'rs_phys_pair(a0, &r_)'},                          # physics pair test: vehicles pass through friendly soldiers (game_08.c)
     '0899530C': {'before': 'rs_soldier_frame(a0)'},                           # the soldier update (game_17.c): look centring off
     '08926220': {'after': 'rs_ai_squad_caps(a0)'},                              # AI: a team's squad sizes (game_12.c): game_patches.c
     '08926478': {'replace': 'rs_ai_assign(a0, a1, a2)'},              # AI: a squad sent to a command post
     '088346E0': {'replace': 'rs_text_get(a0, a1, &r_)'},                       # text table string n (bot names past 48): game_patches.c                              # AI object pool (behaviours, goals): game_patches.c
+    '088B73C4': {'before': 'rs_col_query(a1)'},
+    '08834E84': {'before': 'rs_col_ray(a0)'},                                  # a ray against the level: census of its masks (RS_COL_LOG)                               # a collision query against the level (PHEN): census of masks (RS_COL_LOG)
     '089771D8': {'replace': 'rs_map_has_era(a0, a1, &r_)'},                    # custom maps (custom_maps.c): the map table's readers (game_16.c)
     '08977218': {'replace': 'rs_map_mode(a0, a1, &r_)'},
     '089772B4': {'replace': 'rs_map_space(a0, &r_)'},
@@ -46,9 +51,9 @@ HOOKS = {
     '08897890': {'before': 'rs_gs_string_var(a0, a1)'},                         # a string variable registered (Menus.GameSpyNick ...)
     '088A0408': {'before': 'rs_gs_login(&a0, &a1, &a2)'},                       # GameSpy login (nickname, e-mail, password)
     '088A0560': {'before': 'rs_gs_login(&a0, &a1, &a2)'},                       # GameSpy new account
-    '08A2EFF0': {'after': 'rs_gs_loaded()'},
+    '08A2EFF0': {'after': 'rs_gs_loaded()'},                                    # FE_LoadGamespyLoginInfo (game_24.c)
     '08833F0C': {'replace': 'rs_lift_raybox(a0, a1, a2, a3, &r_)'},           # lifted (lift.c): ray / box test (game_02.c)
-    '08833440': {'replace': 'rs_lift_boxtree(a0, a1, a2, a3, t0, &r_)'},      # lifted: ray cast through a box tree                                    # FE_LoadGamespyLoginInfo (game_24.c)
+    '08833440': {'replace': 'rs_lift_boxtree(a0, a1, a2, a3, t0, &r_)'},      # lifted: ray cast through a box tree
 }
 # data symbols (symbols.h) redirected to native data: address -> expression
 DATA = {

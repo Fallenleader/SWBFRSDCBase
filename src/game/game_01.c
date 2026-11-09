@@ -8,7 +8,7 @@ float func_0881A13C(u32 a0, u32 a1, float f12)
     int cnd_;
     float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr112 = v[112], vr113 = v[113], vr114 = v[114], vr115 = v[115], vr116 = v[116], vr117 = v[117], vr118 = v[118], vr119 = v[119], vr122 = v[122], vr123 = v[123], vr124 = v[124];
     u8 stack_[80] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 80);
+    u32 sp = RS_GADDR(stack_ + 80);
 L_0881A13C:;
     v0 = LD32(a0+4);
     v0 = v0 & 0x1;
@@ -176,7 +176,7 @@ void func_0881A370(u32 a0, u32 a1, float f12)
     int cnd_;
     float *v = vfpu_v;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881A370:;
     v0 = LD32(a0+4);
     v0 = v0 & 0x1;
@@ -468,7 +468,7 @@ u64 func_0881A6DC(u32 a0, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a1 = 0, s0 = 0, s1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881A6DC:;
     sp = sp - 16;
     s0 = LD32(a0);
@@ -537,7 +537,7 @@ void func_0881A77C(u32 a0, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a1 = 0, s0 = 0, s1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881A77C:;
     sp = sp - 16;
     s1 = LD32(a0);
@@ -609,7 +609,7 @@ u32 func_0881A824(u32 a0, u32 a1, u32 a2)
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881A824:;
     sp = sp - 32;
     s4 = a0 + 0;
@@ -735,7 +735,7 @@ u64 func_0881A980(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881A980:;
     sp = sp - 16;
     a2 = 1;
@@ -753,7 +753,7 @@ u32 func_0881A99C(u32 a0, u32 a1, u32 a2, u32 a3)
     float f0 = 0, f1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881A99C:;
     sp = sp - 16;
     v1 = 0 + 0;
@@ -791,7 +791,7 @@ rv_t func_0881A9F8(u32 a0, u32 a1, u32 a2, u32 a3)
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881A9F8:;
     sp = sp - 16;
     s0 = a3 + 0;
@@ -824,7 +824,7 @@ rv_t func_0881AA44(u32 a0, u32 a1)
     float f0 = 0, f1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881AA44:;
     sp = sp - 16;
     s0 = a1 + 0;
@@ -866,7 +866,7 @@ rv_t func_0881AAA8(u32 a0, u32 a1, u32 a2)
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881AAA8:;
     sp = sp - 32;
     s4 = D_08B22E40 - (11840);
@@ -939,7 +939,7 @@ void func_0881AB7C(u32 t1, u32 t2, u32 t3)
 {
     u32 a0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881AB7C:;
     a0 = D_08B22E60 - (11872);
     sp = sp - 16;
@@ -956,7 +956,7 @@ void func_0881AB9C(u32 t1, u32 t2, u32 t3)
 {
     u32 a0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881AB9C:;
     a0 = D_08B22E60 - (11872);
     sp = sp - 16;
@@ -973,7 +973,7 @@ void func_0881ABBC(u32 a0)
 {
     u32 s0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881ABBC:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -996,7 +996,7 @@ void func_0881ABF8(u32 a0)
     u32 v0 = 0, v1 = 0, s0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881ABF8:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -1036,7 +1036,7 @@ void func_0881AC54(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881AC54:;
     sp = sp - 16;
     s1 = a1 + 0;
@@ -1107,7 +1107,7 @@ rv_t func_0881ACF8(u32 a0, u32 a1, u32 a2)
     int fcc = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_0881ACF8:;
     sp = sp - 64;
     v0 = a0 + 20;
@@ -1443,7 +1443,7 @@ rv_t func_0881B0E0(u32 a0)
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881B0E0:;
     sp = sp - 16;
     a1 = a0 + 0;
@@ -1485,7 +1485,7 @@ void func_0881B134(u32 a0)
 {
     u32 v0 = 0, v1 = 0, s0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881B134:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -1509,7 +1509,7 @@ L_0881B160:;
 void func_0881B170(u32 a0)
 {
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881B170:;
     sp = sp - 16;
     func_0881B18C(a0);
@@ -1559,7 +1559,7 @@ u64 func_0881B1C8(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881B1C8:;
     sp = sp - 16;
     v0 = a0 ^ 0x1;
@@ -1630,7 +1630,7 @@ rv_t func_0881B278(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881B278:;
     sp = sp - 16;
     a0 = 1;
@@ -1648,7 +1648,7 @@ rv_t func_0881B298(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881B298:;
     sp = sp - 16;
     a0 = 0 + 0;
@@ -1666,7 +1666,7 @@ u32 func_0881B2B8(u32 a0, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, s0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881B2B8:;
     sp = sp - 16;
     v0 = 4;
@@ -1708,7 +1708,7 @@ u64 func_0881B320(u32 a0, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, s0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881B320:;
     sp = sp - 16;
     v0 = 4;
@@ -1749,7 +1749,7 @@ void func_0881B37C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881B37C:;
     sp = sp - 32;
     v0 = 4;
@@ -1864,7 +1864,7 @@ void func_0881B494(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881B494:;
     sp = sp - 16;
     v0 = 3;
@@ -2046,7 +2046,7 @@ void func_0881B618(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881B618:;
     sp = sp - 32;
     s5 = a0 + 0;
@@ -2093,7 +2093,7 @@ void func_0881B6A8(u32 a0, u32 a1, u32 a2, u32 t1, u32 t2, u32 t3)
 {
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881B6A8:;
     sp = sp - 16;
     cnd_ = a2 == 0;
@@ -2124,7 +2124,7 @@ void func_0881B6D8(u32 a0, u32 a1, u32 a2)
     int cnd_;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881B6D8:;
     sp = sp - 16;
     a3 = 1;
@@ -2412,7 +2412,7 @@ void func_0881B9B4(u32 a0, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881B9B4:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -2455,7 +2455,7 @@ u64 func_0881BA1C(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881BA1C:;
     v0 = a0 + 0;
     ST32(v0+8, a1);
@@ -2475,7 +2475,7 @@ u32 func_0881BA44(u32 a0, u32 a1, u32 a2)
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881BA44:;
     sp = sp - 32;
     s3 = a2 + 0;
@@ -2566,7 +2566,7 @@ u64 func_0881BB34(u32 a0, u32 a2, u32 a3)
     u32 v0 = 0, v1 = 0, t0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881BB34:;
     sp = sp - 16;
     t0 = a3 & 0xff;
@@ -2641,7 +2641,7 @@ void func_0881BBC0(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_0881BBC0:;
     sp = sp - 64;
     s3 = a1 + 0;
@@ -2758,7 +2758,7 @@ u64 func_0881BD00(u32 a0, u32 a1)
     u32 v0 = 0, v1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881BD00:;
     sp = sp - 16;
     v1 = a0 + 0;
@@ -2841,7 +2841,7 @@ void func_0881BD90(u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     int cnd_;
     u32 t_;
     u8 stack_[128] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 128);
+    u32 sp = RS_GADDR(stack_ + 128);
 L_0881BD90:;
     sp = sp - 128;
     s2 = a3 + 0;
@@ -3273,7 +3273,7 @@ u64 func_0881C1C0(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a2 = 0, s0 = 0, s1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C1C0:;
     v0 = a0 ^ 0x1;
     a1 = a1 ^ 0xffff;
@@ -3353,7 +3353,7 @@ rv_t func_0881C280(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C280:;
     sp = sp - 16;
     a0 = 1;
@@ -3371,7 +3371,7 @@ rv_t func_0881C2A0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C2A0:;
     sp = sp - 16;
     a0 = 0 + 0;
@@ -3400,7 +3400,7 @@ void func_0881C2D4(u32 a0, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a1 = 0, s0 = 0, s1 = 0, s2 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C2D4:;
     sp = sp - 16;
     s2 = a0 + 0;
@@ -3474,7 +3474,7 @@ void func_0881C380(u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a0 = 0, s0 = 0, s1 = 0, s2 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C380:;
     sp = sp - 16;
     s2 = D_08B22E84 - (11908);
@@ -3512,7 +3512,7 @@ u64 func_0881C3E0(u32 a0, u32 a1, u32 a2)
     u32 v0 = 0, v1 = 0, a3 = 0, s0 = 0, s1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C3E0:;
     sp = sp - 16;
     v1 = 0 + 0;
@@ -3606,7 +3606,7 @@ u32 func_0881C4B0(u32 a0, u32 a1)
     u32 v0 = 0, v1 = 0, s0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C4B0:;
     sp = sp - 16;
     s0 = a1 + 0;
@@ -3642,7 +3642,7 @@ u32 func_0881C500(u32 a0, u32 a1, u32 a2)
     u32 v0 = 0, v1 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881C500:;
     sp = sp - 32;
     s5 = a1 + 0;
@@ -3696,7 +3696,7 @@ u32 func_0881C5AC(u32 a0, u32 a1, u32 a2, u32 a3)
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0, s6 = 0, s7 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0881C5AC:;
     sp = sp - 48;
     s7 = a3 + 0;
@@ -3767,7 +3767,7 @@ void func_0881C688(u32 a0)
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, s0 = 0, s1 = 0, s2 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881C688:;
     sp = sp - 32;
     v0 = func_0881C8B0(a0);
@@ -3828,7 +3828,7 @@ void func_0881C718(u32 a0, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, fl
     float f0 = 0;
     int cnd_;
     u8 stack_[80] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 80);
+    u32 sp = RS_GADDR(stack_ + 80);
 L_0881C718:;
     sp = sp - 80;
     a1 = sp + 16;
@@ -4010,7 +4010,7 @@ void func_0881C8E4(void)
     u32 v0 = 0, v1 = 0, a0 = 0, a1 = 0, a2 = 0, a3 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C8E4:;
     a0 = D_08AD37DC - (14300);
     a1 = D_08B159F5 - (23029);
@@ -4053,7 +4053,7 @@ L_0881C938:;
 void func_0881C940(void)
 {
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C940:;
     sp = sp - 16;
     func_088F3FA4();
@@ -4067,7 +4067,7 @@ L_0881C950:;
 void func_0881C95C(u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C95C:;
     sp = sp - 16;
     func_088F3FC0(a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
@@ -4085,7 +4085,7 @@ void func_0881C978(void)
     int fcc = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C978:;
     sp = sp - 16;
     v0 = D_08B2C223 - (-15837);
@@ -4118,7 +4118,7 @@ L_0881C9C0:;
 void func_0881C9C8(u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C9C8:;
     sp = sp - 16;
     func_088F3FDC(a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
@@ -4133,10 +4133,10 @@ void func_0881C9E4(u32 t1, u32 t2, u32 t3)
 {
     u32 a0 = 0, a1 = 0, a2 = 0, a3 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881C9E4:;
     a0 = D_08AD3840 - (14400);
-    a1 = ((u32)(uintptr_t)func_0881CA14) - (-13804);
+    a1 = RS_FADDR(func_0881CA14, 0x0881CA14u) - (-13804);
     sp = sp - 16;
     a0 = a0 + 14400;
     a1 = a1 - 13804;
@@ -4157,7 +4157,7 @@ rv_t func_0881CA14(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     int fcc = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881CA14:;
     sp = sp - 32;
     v0 = a0 + 0;
@@ -4256,7 +4256,7 @@ L_0881CB08:;
 void func_0881CB10(void)
 {
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881CB10:;
     sp = sp - 16;
     func_0881C940();
@@ -4273,7 +4273,7 @@ L_0881CB28:;
 void func_0881CB34(void)
 {
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881CB34:;
     sp = sp - 16;
     func_0881C938();
@@ -4290,7 +4290,7 @@ L_0881CB4C:;
 void func_0881CB58(void)
 {
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881CB58:;
     sp = sp - 16;
     func_0881C930();
@@ -4727,7 +4727,7 @@ rv_t func_0881D084(float f12, float f13)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f20 = 0;
     float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr4 = v[4], vr8 = v[8], vr12 = v[12];
     u8 stack_[80] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 80);
+    u32 sp = RS_GADDR(stack_ + 80);
 L_0881D084:;
     sp = sp - 80;
     v0 = D_08AEB62C - (-18900);
@@ -4816,7 +4816,7 @@ rv_t func_0881D1D0(float f12, float f13)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f20 = 0;
     float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr4 = v[4], vr8 = v[8], vr12 = v[12];
     u8 stack_[80] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 80);
+    u32 sp = RS_GADDR(stack_ + 80);
 L_0881D1D0:;
     sp = sp - 80;
     v0 = D_08AEB634 - (-18892);
@@ -4926,7 +4926,7 @@ rv_t func_0881D358(void)
     u32 v0 = 0, v1 = 0, a0 = 0, s0 = 0;
     float f0 = 0, f1 = 0, f12 = 0, f13 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881D358:;
     sp = sp - 16;
     v0 = D_08AEB640 - (-18880);
@@ -4975,7 +4975,7 @@ rv_t func_0881D3D4(u32 a0, u32 a1)
     int cnd_;
     float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0], vr1 = v[1], vr2 = v[2], vr3 = v[3], vr16 = v[16], vr17 = v[17], vr18 = v[18], vr100 = v[100], vr101 = v[101], vr102 = v[102], vr103 = v[103];
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0881D3D4:;
     t1 = D_08B159FC - (23036);
     t0 = LD32(t1+23036);
@@ -5160,7 +5160,7 @@ rv_t func_0881D630(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     int cnd_;
     float *v = vfpu_v;
     u8 stack_[224] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 224);
+    u32 sp = RS_GADDR(stack_ + 224);
 L_0881D630:;
     sp = sp - 224;
     s4 = a0 ^ 0x1;
@@ -5293,7 +5293,7 @@ rv_t func_0881D800(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881D800:;
     sp = sp - 16;
     a0 = 1;
@@ -5311,7 +5311,7 @@ rv_t func_0881D820(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881D820:;
     sp = sp - 16;
     a0 = 0 + 0;
@@ -5330,7 +5330,7 @@ rv_t func_0881D840(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881D840:;
     v0 = D_08AF0E28 - (3624);
     sp = sp - 16;
@@ -5375,7 +5375,7 @@ rv_t func_0881D8B4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881D8B4:;
     sp = sp - 16;
     v0 = D_08AF0E28 - (3624);
@@ -5420,7 +5420,7 @@ rv_t func_0881D924(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881D924:;
     sp = sp - 16;
     v0 = D_08AF0E28 - (3624);
@@ -5469,7 +5469,7 @@ u32 func_0881D99C(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     u32 hi = 0, lo = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_0881D99C:;
     sp = sp - 64;
     v0 = 24;
@@ -5880,7 +5880,7 @@ u32 func_0881DD9C(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     int cnd_;
     u32 t_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_0881DD9C:;
     sp = sp - 64;
     s1 = a1 + 0;
@@ -6075,7 +6075,7 @@ L_0881DF78:;
     a1 = lo;
     t_ = v0;
     s0 = s0 + 1;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0881DFA0;
 L_0881DFA0:;
     v1 = LD32(sp+4);
@@ -6136,7 +6136,7 @@ u32 func_0881E030(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0881E030:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -6164,7 +6164,7 @@ u32 func_0881E07C(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0881E07C:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -6193,7 +6193,7 @@ u32 func_0881E0C8(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     u32 v0 = 0, v1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881E0C8:;
     sp = sp - 16;
     v1 = 0 + 0;
@@ -6220,7 +6220,7 @@ u32 func_0881E100(u32 a0, u32 a1)
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0, s6 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881E100:;
     sp = sp - 32;
     s6 = D_08B459C4 - (22980);
@@ -6393,7 +6393,7 @@ u32 func_0881E2D8(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     int cnd_;
     u32 t_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_0881E2D8:;
     sp = sp - 64;
     s1 = a1 + 0;
@@ -6486,7 +6486,7 @@ L_0881E3C4:;
     v0 = LD32(v1+68);
     t_ = v0;
     a2 = s1 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0881E3DC;
 L_0881E3DC:;
     a0 = LD32(sp);
@@ -6565,7 +6565,7 @@ rv_t func_0881E494(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0, f1 = 0, f2 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0881E494:;
     sp = sp - 48;
     s5 = a2 + 0;
@@ -6969,7 +6969,7 @@ rv_t func_0881E86C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881E86C:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -7332,7 +7332,7 @@ rv_t func_0881EBBC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     int cnd_;
     u32 t_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_0881EBBC:;
     sp = sp - 64;
     s2 = a0 + 0;
@@ -7386,7 +7386,7 @@ L_0881EC3C:;
     v0 = LD32(v1+60);
     t_ = v0;
     a0 = s2 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0881EC50;
 L_0881EC50:;
     ST32(sp, v0);
@@ -7677,7 +7677,7 @@ rv_t func_0881EF54(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881EF54:;
     sp = sp - 32;
     s1 = a0 + 0;
@@ -7685,7 +7685,7 @@ L_0881EF54:;
     v0 = LD32(v1+60);
     t_ = v0;
     s0 = a1 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0881EF84;
 L_0881EF84:;
     s3 = LD_U8(s1+76);
@@ -7793,7 +7793,7 @@ u64 func_0881F08C(u32 a0)
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881F08C:;
     sp = sp - 32;
     a1 = D_08B230C0 - (12480);
@@ -7869,7 +7869,7 @@ u32 func_0881F158(u32 a0, u32 a1)
     int cnd_;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881F158:;
     sp = sp - 32;
     s1 = D_08B230C0 - (12480);
@@ -7906,7 +7906,7 @@ L_0881F1CC:;
     v0 = LD32(v1+84);
     t_ = v0;
     a2 = s2 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0881F1E8;
 L_0881F1E8:;
     a0 = LD32(s3);
@@ -8048,7 +8048,7 @@ rv_t func_0881F300(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0881F300:;
     sp = sp - 48;
     s2 = a0 + 0;
@@ -8171,7 +8171,7 @@ rv_t func_0881F45C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881F45C:;
     sp = sp - 16;
     s0 = a1 + 0;
@@ -8207,7 +8207,7 @@ rv_t func_0881F4B8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881F4B8:;
     sp = sp - 32;
     s4 = a1 + 0;
@@ -8332,7 +8332,7 @@ rv_t func_0881F5F8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881F5F8:;
     sp = sp - 16;
     { rv_t r_ = func_0881F2D4(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -8350,7 +8350,7 @@ rv_t func_0881F618(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0881F618:;
     sp = sp - 48;
     s1 = a0 + 0;
@@ -8501,7 +8501,7 @@ rv_t func_0881F7D0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0, s2 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881F7D0:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -8556,7 +8556,7 @@ rv_t func_0881F860(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881F860:;
     sp = sp - 16;
     s2 = a1 + 0;
@@ -8672,7 +8672,7 @@ rv_t func_0881F994(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881F994:;
     sp = sp - 16;
     { rv_t r_ = func_0881F2D4(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -8690,7 +8690,7 @@ rv_t func_0881F9B4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0881F9B4:;
     sp = sp - 32;
     s1 = a0 + 0;
@@ -8746,7 +8746,7 @@ rv_t func_0881FA54(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881FA54:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -8775,7 +8775,7 @@ rv_t func_0881FA9C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881FA9C:;
     sp = sp - 16;
     s2 = a2 + 0;
@@ -8820,7 +8820,7 @@ rv_t func_0881FB1C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881FB1C:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -8856,7 +8856,7 @@ rv_t func_0881FB74(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_0881FB74:;
     sp = sp - 64;
     s2 = a0 + 0;
@@ -9078,7 +9078,7 @@ rv_t func_0881FDF0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0881FDF0:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -9143,7 +9143,7 @@ rv_t func_0881FE90(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0881FE90:;
     sp = sp - 48;
     s5 = a1 + 0;
@@ -9443,7 +9443,7 @@ void func_0882018C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
     int cnd_;
     u32 t_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882018C:;
     sp = sp - 48;
     s1 = a0 + 0;
@@ -9539,7 +9539,7 @@ L_08820278:;
     v0 = LD32(v1+8);
     t_ = v0;
     a0 = s1 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08820290;
 L_08820290:;
     a0 = s0 + 0;
@@ -9677,7 +9677,7 @@ u32 func_088203EC(u32 a0, u32 a1)
     int cnd_;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_088203EC:;
     sp = sp - 32;
     v0 = D_08B230C0 - (12480);
@@ -9735,7 +9735,7 @@ L_0882049C:;
     v0 = LD32(v1+56);
     t_ = v0;
     s0 = LD32(s3);
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_088204AC;
 L_088204AC:;
     v1 = LD32(s0+28);
@@ -9752,7 +9752,7 @@ u32 func_088204BC(u32 a0, u32 a1)
     int cnd_;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088204BC:;
     sp = sp - 16;
     v0 = D_08B230C0 - (12480);
@@ -9784,7 +9784,7 @@ L_0882051C:;
     v0 = LD32(v1+48);
     t_ = v0;
     a2 = s2 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08820538;
 L_08820538:;
     v0 = 1;
@@ -9798,7 +9798,7 @@ rv_t func_08820540(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08820540:;
     sp = sp - 32;
     s1 = a0 + 8;
@@ -9976,7 +9976,7 @@ rv_t func_088206F0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_088206F0:;
     sp = sp - 48;
     s2 = a0 + 0;
@@ -10130,7 +10130,7 @@ rv_t func_08820888(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08820888:;
     sp = sp - 16;
     s0 = a1 + 0;
@@ -10166,7 +10166,7 @@ rv_t func_088208E4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_088208E4:;
     sp = sp - 32;
     s4 = a1 + 0;
@@ -10326,7 +10326,7 @@ rv_t func_08820A6C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08820A6C:;
     sp = sp - 16;
     { rv_t r_ = func_08820540(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -10344,7 +10344,7 @@ rv_t func_08820A8C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08820A8C:;
     sp = sp - 32;
     s1 = a0 + 0;
@@ -10400,7 +10400,7 @@ rv_t func_08820B2C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08820B2C:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -10428,7 +10428,7 @@ rv_t func_08820B74(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08820B74:;
     sp = sp - 16;
     s1 = a2 + 0;
@@ -10461,7 +10461,7 @@ rv_t func_08820BD0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08820BD0:;
     sp = sp - 16;
     { rv_t r_ = func_08820540(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -10479,7 +10479,7 @@ rv_t func_08820BF0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08820BF0:;
     sp = sp - 32;
     s0 = a0 + 0;
@@ -10516,7 +10516,7 @@ rv_t func_08820C58(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08820C58:;
     sp = sp - 16;
     s0 = a1 + 0;
@@ -10539,7 +10539,7 @@ rv_t func_08820C94(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08820C94:;
     sp = sp - 32;
     s1 = a2 + 0;
@@ -10571,7 +10571,7 @@ rv_t func_08820CE8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08820CE8:;
     sp = sp - 16;
     s0 = a0 + 48;
@@ -10670,7 +10670,7 @@ rv_t func_08820DE0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08820DE0:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -10739,7 +10739,7 @@ rv_t func_08820E90(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08820E90:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -10764,7 +10764,7 @@ rv_t func_08820ED0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08820ED0:;
     sp = sp - 16;
     s0 = a2 + 0;
@@ -10844,7 +10844,7 @@ rv_t func_08820F98(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08820F98:;
     sp = sp - 16;
     { rv_t r_ = func_08820540(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -10862,7 +10862,7 @@ rv_t func_08820FB8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08820FB8:;
     sp = sp - 32;
     s0 = a0 + 0;
@@ -10899,7 +10899,7 @@ rv_t func_08821020(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08821020:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -10922,7 +10922,7 @@ rv_t func_0882105C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882105C:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -10948,7 +10948,7 @@ rv_t func_088210A4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088210A4:;
     sp = sp - 16;
     { rv_t r_ = func_08820540(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -10966,7 +10966,7 @@ rv_t func_088210C4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_088210C4:;
     sp = sp - 48;
     s1 = a0 + 0;
@@ -11098,7 +11098,7 @@ rv_t func_08821244(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08821244:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -11147,7 +11147,7 @@ rv_t func_088212BC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088212BC:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -11220,7 +11220,7 @@ rv_t func_08821380(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08821380:;
     sp = sp - 16;
     { rv_t r_ = func_08820540(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -11238,7 +11238,7 @@ rv_t func_088213A0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_088213A0:;
     sp = sp - 32;
     s0 = a0 + 0;
@@ -11275,7 +11275,7 @@ rv_t func_08821408(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08821408:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -11298,7 +11298,7 @@ rv_t func_08821444(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08821444:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -11326,7 +11326,7 @@ u32 func_0882148C(u32 a0, u32 a1)
     int cnd_;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882148C:;
     sp = sp - 32;
     s2 = D_08B230C0 - (12480);
@@ -11360,7 +11360,7 @@ L_088214F4:;
     v0 = LD32(v1+40);
     t_ = v0;
     a2 = s3 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08821518;
 L_08821518:;
     v1 = 1;
@@ -11417,7 +11417,7 @@ rv_t func_08821580(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_08821580:;
     sp = sp - 64;
     s2 = a0 + 0;
@@ -11628,7 +11628,7 @@ rv_t func_088217C0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088217C0:;
     sp = sp - 16;
     s0 = a1 + 0;
@@ -11679,7 +11679,7 @@ rv_t func_08821840(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08821840:;
     sp = sp - 48;
     s5 = a1 + 0;
@@ -11933,7 +11933,7 @@ rv_t func_08821AA8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08821AA8:;
     sp = sp - 16;
     { rv_t r_ = func_08821520(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -11951,7 +11951,7 @@ rv_t func_08821AC8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08821AC8:;
     sp = sp - 48;
     s1 = a0 + 0;
@@ -12064,7 +12064,7 @@ rv_t func_08821C10(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08821C10:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -12108,7 +12108,7 @@ rv_t func_08821C7C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_08821C7C:;
     sp = sp - 64;
     s3 = a1 + 0;
@@ -12441,7 +12441,7 @@ rv_t func_08821FA4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08821FA4:;
     sp = sp - 16;
     { rv_t r_ = func_08821AA8(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -12459,7 +12459,7 @@ rv_t func_08821FC4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08821FC4:;
     sp = sp - 32;
     s1 = a0 + 0;
@@ -12515,7 +12515,7 @@ rv_t func_08822064(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08822064:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -12543,7 +12543,7 @@ rv_t func_088220AC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088220AC:;
     sp = sp - 16;
     s1 = a2 + 0;
@@ -12576,7 +12576,7 @@ rv_t func_08822108(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08822108:;
     sp = sp - 16;
     { rv_t r_ = func_08821520(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -12594,7 +12594,7 @@ rv_t func_08822128(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08822128:;
     sp = sp - 32;
     s1 = a0 + 0;
@@ -12669,7 +12669,7 @@ rv_t func_08822200(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08822200:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -12702,7 +12702,7 @@ rv_t func_08822254(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08822254:;
     sp = sp - 16;
     s1 = a2 + 0;
@@ -12742,7 +12742,7 @@ rv_t func_088222C4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088222C4:;
     sp = sp - 16;
     { rv_t r_ = func_08821520(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -12760,7 +12760,7 @@ rv_t func_088222E4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_088222E4:;
     sp = sp - 32;
     s0 = a0 + 0;
@@ -12797,7 +12797,7 @@ rv_t func_0882234C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882234C:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -12820,7 +12820,7 @@ rv_t func_08822388(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08822388:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -12846,7 +12846,7 @@ rv_t func_088223D0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088223D0:;
     sp = sp - 16;
     { rv_t r_ = func_08821520(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -12864,7 +12864,7 @@ rv_t func_088223F0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_088223F0:;
     sp = sp - 32;
     s1 = a0 + 0;
@@ -12920,7 +12920,7 @@ rv_t func_08822490(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08822490:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -12948,7 +12948,7 @@ rv_t func_088224D8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088224D8:;
     sp = sp - 16;
     s1 = a2 + 0;
@@ -12981,7 +12981,7 @@ rv_t func_08822534(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08822534:;
     sp = sp - 16;
     { rv_t r_ = func_08821520(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -12999,7 +12999,7 @@ rv_t func_08822554(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08822554:;
     sp = sp - 48;
     s0 = a0 + 0;
@@ -13057,7 +13057,7 @@ rv_t func_088225FC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_088225FC:;
     sp = sp - 32;
     s0 = a0 + 0;
@@ -13088,7 +13088,7 @@ rv_t func_08822650(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08822650:;
     sp = sp - 32;
     s0 = a2 + 0;
@@ -13115,7 +13115,7 @@ rv_t func_0882269C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882269C:;
     sp = sp - 16;
     { rv_t r_ = func_08821520(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -13133,7 +13133,7 @@ rv_t func_088226BC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_088226BC:;
     sp = sp - 32;
     s1 = a0 + 0;
@@ -13189,7 +13189,7 @@ rv_t func_0882275C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882275C:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -13218,7 +13218,7 @@ rv_t func_088227A4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088227A4:;
     sp = sp - 16;
     s2 = a2 + 0;
@@ -13262,7 +13262,7 @@ rv_t func_08822824(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08822824:;
     sp = sp - 16;
     { rv_t r_ = func_08821520(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -13280,7 +13280,7 @@ rv_t func_08822844(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08822844:;
     sp = sp - 32;
     s0 = a0 + 0;
@@ -13317,7 +13317,7 @@ rv_t func_088228AC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088228AC:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -13340,7 +13340,7 @@ rv_t func_088228E8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088228E8:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -13367,7 +13367,7 @@ rv_t func_08822930(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08822930:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -13410,7 +13410,7 @@ rv_t func_08822998(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08822998:;
     sp = sp - 32;
     s1 = a0 + 0;
@@ -13534,7 +13534,7 @@ rv_t func_08822AE4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08822AE4:;
     sp = sp - 32;
     s2 = a0 + 0;
@@ -13616,7 +13616,7 @@ rv_t func_08822BBC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08822BBC:;
     sp = sp - 32;
     s3 = a2 + 0;
@@ -13691,7 +13691,7 @@ rv_t func_08822C8C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08822C8C:;
     sp = sp - 16;
     { rv_t r_ = func_08821520(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -13709,7 +13709,7 @@ rv_t func_08822CAC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0;
     int cnd_;
     u8 stack_[128] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 128);
+    u32 sp = RS_GADDR(stack_ + 128);
 L_08822CAC:;
     sp = sp - 128;
     s1 = a0 + 0;
@@ -14207,7 +14207,7 @@ rv_t func_0882327C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882327C:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -14345,7 +14345,7 @@ rv_t func_088233CC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088233CC:;
     sp = sp - 16;
     s1 = a2 + 0;
@@ -14532,7 +14532,7 @@ rv_t func_088235E0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088235E0:;
     sp = sp - 16;
     { rv_t r_ = func_08821520(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -14550,7 +14550,7 @@ rv_t func_08823600(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08823600:;
     sp = sp - 48;
     s1 = a0 + 0;
@@ -14663,7 +14663,7 @@ rv_t func_08823748(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08823748:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -14706,7 +14706,7 @@ rv_t func_088237B4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088237B4:;
     sp = sp - 16;
     s1 = a2 + 0;
@@ -14760,7 +14760,7 @@ rv_t func_0882384C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882384C:;
     sp = sp - 16;
     { rv_t r_ = func_08821520(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -14778,7 +14778,7 @@ rv_t func_0882386C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882386C:;
     sp = sp - 32;
     s1 = a0 + 0;
@@ -14834,7 +14834,7 @@ rv_t func_0882390C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882390C:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -14862,7 +14862,7 @@ rv_t func_08823954(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08823954:;
     sp = sp - 16;
     s1 = a2 + 0;
@@ -14895,7 +14895,7 @@ rv_t func_088239B0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088239B0:;
     sp = sp - 16;
     { rv_t r_ = func_08821520(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
@@ -14913,7 +14913,7 @@ rv_t func_088239D0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_088239D0:;
     sp = sp - 32;
     s1 = a0 + 0;
@@ -14969,7 +14969,7 @@ rv_t func_08823A70(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08823A70:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -14997,7 +14997,7 @@ rv_t func_08823AB8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08823AB8:;
     sp = sp - 16;
     s1 = a2 + 0;
@@ -15031,7 +15031,7 @@ rv_t func_08823B14(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08823B14:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -15065,7 +15065,7 @@ rv_t func_08823B64(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08823B64:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -15134,7 +15134,7 @@ rv_t func_08823C14(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08823C14:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -15159,7 +15159,7 @@ rv_t func_08823C54(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08823C54:;
     sp = sp - 16;
     s0 = a2 + 0;
@@ -15240,7 +15240,7 @@ rv_t func_08823D1C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08823D1C:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -15275,7 +15275,7 @@ rv_t func_08823D70(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08823D70:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -15344,7 +15344,7 @@ rv_t func_08823E20(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08823E20:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -15369,7 +15369,7 @@ rv_t func_08823E60(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08823E60:;
     sp = sp - 16;
     s0 = a2 + 0;
@@ -15450,7 +15450,7 @@ u32 func_08823F28(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     float f0 = 0;
     int cnd_;
     u8 stack_[240] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 240);
+    u32 sp = RS_GADDR(stack_ + 240);
 L_08823F28:;
     sp = sp - 240;
     v1 = 0 + 0;
@@ -15902,7 +15902,7 @@ u32 func_088243A4(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_088243A4:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -15932,7 +15932,7 @@ u32 func_088243F0(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     float f0 = 0;
     int cnd_;
     u8 stack_[304] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 304);
+    u32 sp = RS_GADDR(stack_ + 304);
 L_088243F0:;
     sp = sp - 304;
     a2 = 128;
@@ -16066,7 +16066,7 @@ u32 func_08824564(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08824564:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -16096,7 +16096,7 @@ u32 func_088245B0(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     float f0 = 0;
     int cnd_;
     u8 stack_[176] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 176);
+    u32 sp = RS_GADDR(stack_ + 176);
 L_088245B0:;
     sp = sp - 176;
     v1 = 0 + 0;
@@ -16242,7 +16242,7 @@ u32 func_08824724(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08824724:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -16273,7 +16273,7 @@ void func_08824770(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     int cnd_;
     u32 t_;
     u8 stack_[208] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 208);
+    u32 sp = RS_GADDR(stack_ + 208);
 L_08824770:;
     sp = sp - 208;
     v0 = D_08AF0EE8 - (3816);
@@ -16375,7 +16375,7 @@ L_08824898:;
     v0 = LD32(v1+20);
     t_ = v0;
     a0 = s0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_088248A8;
 L_088248A8:;
     cnd_ = v0 == 0;
@@ -16461,7 +16461,7 @@ L_08824958:;
     v1 = LD32(a0);
     v0 = LD32(v1+20);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08824974;
 L_08824974:;
     cnd_ = v0 == 0;
@@ -16605,7 +16605,7 @@ L_08824AFC:;
 L_08824B04:;
     v0 = LD32(v1+4);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08824B10;
 L_08824B10:;
     ST32(s0+12, s3);
@@ -16619,7 +16619,7 @@ L_08824B20:;
     v0 = LD32(v1+4);
     t_ = v0;
     a0 = s3 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08824B30;
 L_08824B30:;
     goto L_0882499C;
@@ -16841,7 +16841,7 @@ L_08824D5C:;
 L_08824D68:;
     v0 = LD32(v1+4);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08824D74;
 L_08824D74:;
     v0 = LD32(sp+152);
@@ -16856,7 +16856,7 @@ L_08824D88:;
     a0 = v0 + 0;
     v0 = LD32(v1+4);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08824D9C;
 L_08824D9C:;
     a0 = LD_U16(s2+20);
@@ -17066,7 +17066,7 @@ L_08824F8C:;
     goto L_08824F9C;
 L_08824F9C:;
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08824FA4;
 L_08824FA4:;
     a0 = s7 - 28716;
@@ -17244,7 +17244,7 @@ u32 func_08825140(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08825140:;
     sp = sp - 32;
     s3 = a0 + 0;
@@ -17293,7 +17293,7 @@ u32 func_088251C4(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f20 = 0;
     int cnd_;
     u8 stack_[96] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 96);
+    u32 sp = RS_GADDR(stack_ + 96);
 L_088251C4:;
     sp = sp - 96;
     s2 = a1 + 0;
@@ -17683,7 +17683,7 @@ void func_088255FC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     int cnd_;
     u32 t_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_088255FC:;
     sp = sp - 48;
     s2 = a1 + 0;
@@ -17768,7 +17768,7 @@ L_088256DC:;
     v0 = LD32(v1+8);
     t_ = v0;
     a1 = s0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_088256F4;
 L_088256F4:;
     goto L_08825698;
@@ -17776,7 +17776,7 @@ L_088256FC:;
     v1 = LD32(s2);
     v0 = LD32(v1+12);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882570C;
 L_0882570C:;
     v0 = LD_U16(s1+2);
@@ -17796,7 +17796,7 @@ u32 func_08825724(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_08825724:;
     sp = sp - 64;
     s2 = a1 + 0;
@@ -17984,7 +17984,7 @@ u32 func_08825954(u32 a0, u32 a1)
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08825954:;
     sp = sp - 48;
     v1 = 0 + 0;
@@ -18098,7 +18098,7 @@ u32 func_08825A90(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08825A90:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -18128,7 +18128,7 @@ u32 func_08825ADC(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[304] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 304);
+    u32 sp = RS_GADDR(stack_ + 304);
 L_08825ADC:;
     sp = sp - 304;
     s1 = a0 + 0;
@@ -18239,7 +18239,7 @@ u32 func_08825BF4(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08825BF4:;
     sp = sp - 16;
     s1 = D_08B28BDC - (-29732);
@@ -18299,7 +18299,7 @@ u32 func_08825C9C(u32 a0, u32 a1)
     float f12 = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_08825C9C:;
     sp = sp - 64;
     s1 = a1 + 0;
@@ -18367,7 +18367,7 @@ u32 func_08825D40(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[192] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 192);
+    u32 sp = RS_GADDR(stack_ + 192);
 L_08825D40:;
     sp = sp - 192;
     s0 = a0 + 0;
@@ -18660,7 +18660,7 @@ u32 func_0882602C(u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, flo
     float f0 = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_0882602C:;
     sp = sp - 64;
     v0 = D_08AF0F40 - (3904);
@@ -18724,7 +18724,7 @@ u32 func_088260D0(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_088260D0:;
     sp = sp - 48;
     s1 = a1 + 0;
@@ -18834,7 +18834,7 @@ u32 func_088261F8(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_088261F8:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -18864,7 +18864,7 @@ u32 func_08826244(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08826244:;
     sp = sp - 48;
     s3 = a1 + 0;
@@ -18979,7 +18979,7 @@ u32 func_08826374(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08826374:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -19008,7 +19008,7 @@ u32 func_088263C0(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     u32 v0 = 0, v1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088263C0:;
     sp = sp - 16;
     v1 = LD32(a0+8);
@@ -19036,7 +19036,7 @@ u32 func_088263F0(u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, flo
     int cnd_;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_088263F0:;
     sp = sp - 32;
     a0 = a1 + 0;
@@ -19075,7 +19075,7 @@ L_08826454:;
     a1 = s0 + 0;
     t_ = t0;
     a2 = 0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08826470;
 L_08826470:;
     v0 = s1 + 0;
@@ -19087,7 +19087,7 @@ u32 func_08826478(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08826478:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -19116,7 +19116,7 @@ u32 func_088264C4(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     u32 v0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088264C4:;
     sp = sp - 16;
     v0 = LD32(a0+8);
@@ -19144,7 +19144,7 @@ u32 func_088264F8(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     float f0 = 0;
     int cnd_;
     u8 stack_[288] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 288);
+    u32 sp = RS_GADDR(stack_ + 288);
 L_088264F8:;
     sp = sp - 288;
     v1 = 0 + 0;
@@ -19235,7 +19235,7 @@ u32 func_088265D8(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_088265D8:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -19264,7 +19264,7 @@ u32 func_08826624(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     u32 v0 = 0, v1 = 0, a2 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_08826624:;
     sp = sp - 64;
     s2 = a0 + 0;
@@ -19401,7 +19401,7 @@ u32 func_08826794(u32 a0, u32 a1)
     float f0 = 0;
     int cnd_;
     u8 stack_[128] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 128);
+    u32 sp = RS_GADDR(stack_ + 128);
 L_08826794:;
     sp = sp - 128;
     s4 = a1 + 0;
@@ -19793,7 +19793,7 @@ u32 func_08826B98(u32 a1)
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08826B98:;
     sp = sp - 32;
     a0 = 2;
@@ -19958,7 +19958,7 @@ u32 func_08826D38(u32 a0, u32 a1)
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08826D38:;
     sp = sp - 32;
     s3 = a1 + 0;
@@ -20118,7 +20118,7 @@ u32 func_08826EE8(u32 a1)
     u32 v0 = 0, v1 = 0, a0 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08826EE8:;
     sp = sp - 32;
     a0 = 2;
@@ -20204,7 +20204,7 @@ u32 func_08826FC4(u32 a0, u32 a1)
     float f20 = 0, f21 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08826FC4:;
     sp = sp - 48;
     s2 = a0 + 0;
@@ -20447,7 +20447,7 @@ u32 func_08827220(u32 a0, u32 a1)
     int fcc = 0;
     int cnd_;
     u8 stack_[112] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 112);
+    u32 sp = RS_GADDR(stack_ + 112);
 L_08827220:;
     sp = sp - 112;
     s3 = a0 + 0;
@@ -20945,7 +20945,7 @@ u32 func_0882775C(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     int fcc = 0;
     int cnd_;
     u8 stack_[160] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 160);
+    u32 sp = RS_GADDR(stack_ + 160);
 L_0882775C:;
     sp = sp - 160;
     v0 = D_08B2A89C - (-22372);
@@ -21276,7 +21276,7 @@ rv_t func_08827B7C(u32 a0, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08827B7C:;
     sp = sp - 16;
     a1 = 0 + 0;
@@ -21292,7 +21292,7 @@ u32 func_08827B98(u32 a0, u32 a1, u32 t0, u32 t1, u32 t2, u32 t3)
 {
     u32 v0 = 0, v1 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08827B98:;
     sp = sp - 16;
     v0 = LD32(a0+4);
@@ -21332,7 +21332,7 @@ rv_t func_08827BEC(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_08827BEC:;
     sp = sp - 32;
     v0 = D_08B230DC - (12508);
@@ -21395,7 +21395,7 @@ u32 func_08827C9C(u32 a0, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, flo
     int cnd_;
     u32 t_;
     u8 stack_[528] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 528);
+    u32 sp = RS_GADDR(stack_ + 528);
 L_08827C9C:;
     sp = sp - 528;
     a1 = 8;
@@ -21404,7 +21404,7 @@ L_08827C9C:;
     v0 = LD32(v1+8);
     t_ = v0;
     s0 = LD32(a0+28);
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08827CC0;
 L_08827CC0:;
     a1 = D_08AD3B48 - (15176);
@@ -21465,7 +21465,7 @@ u32 func_08827D48(u32 a0, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, 
     int cnd_;
     u32 t_;
     u8 stack_[560] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 560);
+    u32 sp = RS_GADDR(stack_ + 560);
 L_08827D48:;
     sp = sp - 560;
     a1 = sp + 0;
@@ -21563,7 +21563,7 @@ L_08827E2C:;
     a0 = s4 + 0;
     t_ = v0;
     a1 = s0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08827E38;
 L_08827E38:;
     s2 = v0 + 0;
@@ -23212,7 +23212,7 @@ u32 func_08828D70(u32 a0, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, flo
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_08828D70:;
     sp = sp - 64;
     v0 = (u32)-1;
@@ -23309,7 +23309,7 @@ void func_08828E80(u32 a0)
 {
     u32 v0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08828E80:;
     sp = sp - 16;
     v0 = func_0887B098(a0);
@@ -23332,7 +23332,7 @@ void func_08828EA4(u32 a0, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f13, fl
     int cnd_;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08828EA4:;
     sp = sp - 16;
     a2 = D_08B230DC - (12508);
@@ -23384,7 +23384,7 @@ L_08828F34:;
     v1 = LD32(a0);
     v0 = LD32(v1+12);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08828F48;
 L_08828F48:;
     cnd_ = v0 != 0;
@@ -23410,7 +23410,7 @@ L_08828F74:;
     v1 = LD32(a0);
     v0 = LD32(v1+8);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08828F88;
 L_08828F88:;
     { u64 r_ = func_088CF370(0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = (u32)r_; v1 = (u32)(r_ >> 32); }
@@ -23419,7 +23419,7 @@ L_08828F90:;
     goto L_08828F50;
 L_08828F98:;
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08828FA0;
 L_08828FA0:;
     v0 = D_08B230DC - (12508);
@@ -23473,7 +23473,7 @@ u32 func_08829000(u32 a0, u32 a1)
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08829000:;
     sp = sp - 48;
     s1 = a1 + 0;
@@ -23598,7 +23598,7 @@ u32 func_08829158(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08829158:;
     sp = sp - 48;
     s3 = a1 + 0;
@@ -23735,7 +23735,7 @@ u32 func_088292E0(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_088292E0:;
     sp = sp - 32;
     s5 = 0 + 0;
@@ -23946,7 +23946,7 @@ u32 func_088294EC(u32 a0, u32 a1)
     float f0 = 0, f1 = 0, f20 = 0, f21 = 0;
     int cnd_;
     u8 stack_[96] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 96);
+    u32 sp = RS_GADDR(stack_ + 96);
 L_088294EC:;
     sp = sp - 96;
     v1 = D_08B307D8 - (2008);
@@ -24263,7 +24263,7 @@ u32 func_08829838(u32 a0, u32 a1)
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08829838:;
     sp = sp - 48;
     s3 = a0 + 0;
@@ -24417,7 +24417,7 @@ void func_088299DC(void)
 {
     u32 v0 = 0, v1 = 0, a0 = 0, s0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_088299DC:;
     sp = sp - 16;
     a0 = 10;
@@ -24509,7 +24509,7 @@ u32 func_08829AA4(u32 a0, u32 a1)
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_08829AA4:;
     sp = sp - 48;
     s4 = a1 + 0;
@@ -24588,7 +24588,7 @@ u32 func_08829B88(u32 a0, u32 a1)
     int cnd_;
     u32 t_;
     u8 stack_[160] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 160);
+    u32 sp = RS_GADDR(stack_ + 160);
 L_08829B88:;
     sp = sp - 160;
     fp = D_08B20494 - (1172);
@@ -24807,7 +24807,7 @@ L_08829E04:;
     a1 = a1 + v1;
     t_ = v0;
     a1 = a1 << 3;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08829E24;
 L_08829E24:;
     v0 = LD32(sp+40);
@@ -24823,7 +24823,7 @@ L_08829E34:;
     v0 = LD32(v1+12);
     t_ = v0;
     a1 = a1 << 3;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_08829E4C;
 L_08829E4C:;
     v1 = LD32(s3+12);
@@ -25280,7 +25280,7 @@ u32 func_0882A294(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882A294:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -25309,7 +25309,7 @@ u32 func_0882A2E0(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a2 = 0, s0 = 0, s1 = 0, s2 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882A2E0:;
     sp = sp - 16;
     a2 = 0 + 0;
@@ -25347,7 +25347,7 @@ u32 func_0882A350(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a2 = 0, s0 = 0, s1 = 0, s2 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882A350:;
     sp = sp - 16;
     a2 = 0 + 0;
@@ -25385,7 +25385,7 @@ u32 func_0882A3C0(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a2 = 0, s0 = 0, s1 = 0, s2 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882A3C0:;
     sp = sp - 16;
     a2 = 0 + 0;
@@ -25424,7 +25424,7 @@ void func_0882A430(u32 a0, u32 a1, u32 a2)
     float f0 = 0;
     int cnd_;
     u8 stack_[96] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 96);
+    u32 sp = RS_GADDR(stack_ + 96);
 L_0882A430:;
     v0 = D_08AEB6BC - (-18756);
     f0 = BITSF(LD32(v0-18756));
@@ -25813,7 +25813,7 @@ void func_0882A890(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[96] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 96);
+    u32 sp = RS_GADDR(stack_ + 96);
 L_0882A890:;
     sp = sp - 96;
     v0 = D_08AEB6CC - (-18740);
@@ -26134,7 +26134,7 @@ void func_0882ACE0(u32 a0, u32 a1, u32 a2)
     float f0 = 0, f1 = 0;
     int cnd_;
     u8 stack_[96] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 96);
+    u32 sp = RS_GADDR(stack_ + 96);
 L_0882ACE0:;
     sp = sp - 96;
     s7 = D_08AEB6D8 - (-18728);
@@ -26592,7 +26592,7 @@ u32 func_0882B1C4(u32 a0, u32 a1, u32 a2)
     u32 v0 = 0, v1 = 0, a3 = 0, t0 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_0882B1C4:;
     sp = sp - 64;
     s4 = a2 + 0;
@@ -27024,7 +27024,7 @@ u32 func_0882B694(u32 a0, u32 a1)
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882B694:;
     sp = sp - 16;
     a2 = a0 + 0;
@@ -27061,7 +27061,7 @@ u32 func_0882B6E0(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     int fcc = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882B6E0:;
     sp = sp - 32;
     v1 = 0 + 0;
@@ -27121,7 +27121,7 @@ u32 func_0882B78C(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882B78C:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -27152,7 +27152,7 @@ u32 func_0882B7D8(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     int fcc = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882B7D8:;
     sp = sp - 48;
     v1 = 0 + 0;
@@ -27280,7 +27280,7 @@ u32 func_0882B934(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882B934:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -27310,7 +27310,7 @@ u32 func_0882B980(u32 a0, u32 a1)
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882B980:;
     sp = sp - 32;
     v1 = 0 + 0;
@@ -27358,7 +27358,7 @@ u32 func_0882B9F0(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882B9F0:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -27389,7 +27389,7 @@ u32 func_0882BA3C(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     int cnd_;
     u32 t_;
     u8 stack_[224] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 224);
+    u32 sp = RS_GADDR(stack_ + 224);
 L_0882BA3C:;
     sp = sp - 224;
     s2 = a1 + 0;
@@ -27497,7 +27497,7 @@ void func_0882BB60(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882BB60:;
     sp = sp - 32;
     v0 = 32;
@@ -27613,7 +27613,7 @@ u32 func_0882BC80(u32 a1, u32 t1, u32 t2, u32 t3)
     int fcc = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882BC80:;
     sp = sp - 48;
     s0 = a1 + 0;
@@ -27729,7 +27729,7 @@ u32 func_0882BDB8(u32 a1, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a0 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882BDB8:;
     sp = sp - 48;
     s0 = a1 + 0;
@@ -27806,7 +27806,7 @@ u32 func_0882BE88(u32 a0, u32 a1, u32 t0, u32 t1, u32 t2, u32 t3)
 {
     u32 v0 = 0, v1 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882BE88:;
     sp = sp - 16;
     v0 = LD32(a0+4);
@@ -27827,7 +27827,7 @@ u32 func_0882BEB4(u32 a0, u32 a1)
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0;
     int cnd_;
     u8 stack_[96] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 96);
+    u32 sp = RS_GADDR(stack_ + 96);
 L_0882BEB4:;
     sp = sp - 96;
     s0 = a0 + 0;
@@ -27949,7 +27949,7 @@ u32 func_0882C024(u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882C024:;
     sp = sp - 32;
     s0 = a1 + 0;
@@ -28015,7 +28015,7 @@ u32 func_0882C0D8(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882C0D8:;
     sp = sp - 48;
     s5 = D_08B30734 - (1844);
@@ -28087,7 +28087,7 @@ u32 func_0882C1AC(u32 a0, u32 a1)
     int cnd_;
     u32 t_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_0882C1AC:;
     sp = sp - 64;
     s3 = a0 + 0;
@@ -28393,7 +28393,7 @@ L_0882C4A0:;
 L_0882C4A8:;
     v0 = LD32(v1+4);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882C4B4;
 L_0882C4B4:;
     goto L_0882C488;
@@ -28431,7 +28431,7 @@ L_0882C500:;
     goto L_0882C4EC;
 L_0882C508:;
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882C510;
 L_0882C510:;
     v1 = v0 + 0;
@@ -28561,7 +28561,7 @@ u32 func_0882C648(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     int cnd_;
     u32 t_;
     u8 stack_[176] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 176);
+    u32 sp = RS_GADDR(stack_ + 176);
 L_0882C648:;
     sp = sp - 176;
     v1 = 0 + 0;
@@ -28676,7 +28676,7 @@ L_0882C774:;
     v0 = LD32(v1+12);
     t_ = v0;
     a0 = s1 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882C784;
 L_0882C784:;
     v1 = LD32(s2+8);
@@ -28722,7 +28722,7 @@ u32 func_0882C7D8(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882C7D8:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -28752,7 +28752,7 @@ u32 func_0882C824(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     float f0 = 0;
     int cnd_;
     u8 stack_[336] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 336);
+    u32 sp = RS_GADDR(stack_ + 336);
 L_0882C824:;
     sp = sp - 336;
     v1 = 0 + 0;
@@ -29114,7 +29114,7 @@ u32 func_0882CBC4(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882CBC4:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -29144,7 +29144,7 @@ u32 func_0882CC10(u32 a0, u32 a1)
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882CC10:;
     sp = sp - 32;
     v1 = 0 + 0;
@@ -29189,7 +29189,7 @@ u32 func_0882CC84(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882CC84:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -29219,7 +29219,7 @@ u32 func_0882CCD0(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     float f0 = 0;
     int cnd_;
     u8 stack_[336] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 336);
+    u32 sp = RS_GADDR(stack_ + 336);
 L_0882CCD0:;
     sp = sp - 336;
     v1 = 0 + 0;
@@ -29581,7 +29581,7 @@ u32 func_0882D090(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882D090:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -29611,7 +29611,7 @@ u32 func_0882D0DC(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     float f0 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882D0DC:;
     sp = sp - 48;
     v1 = 0 + 0;
@@ -29680,7 +29680,7 @@ void func_0882D190(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     int cnd_;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882D190:;
     sp = sp - 32;
     s1 = a2 + 0;
@@ -29807,7 +29807,7 @@ L_0882D2DC:;
     v1 = LD32(s1);
     v0 = LD32(v1+12);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D2EC;
 L_0882D2EC:;
     a0 = s1 + 0;
@@ -29830,7 +29830,7 @@ u32 func_0882D310(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882D310:;
     sp = sp - 48;
     v0 = D_08AF0F40 - (3904);
@@ -29862,7 +29862,7 @@ u32 func_0882D35C(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     int cnd_;
     float *v = vfpu_v;
     u8 stack_[176] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 176);
+    u32 sp = RS_GADDR(stack_ + 176);
 L_0882D35C:;
     sp = sp - 176;
     v0 = D_08B2AA0C - (-22004);
@@ -30080,7 +30080,7 @@ u32 func_0882D608(u32 a0, u32 a1, u32 t0, u32 t1, u32 t2, u32 t3, float f12, flo
     int cnd_;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882D608:;
     sp = sp - 16;
     v0 = (u32)-1;
@@ -30097,7 +30097,7 @@ L_0882D638:;
     v1 = LD32(a0);
     v0 = LD32(v1+8);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D648;
 L_0882D648:;
     a0 = LD32(s1);
@@ -30122,7 +30122,7 @@ void func_0882D67C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     int cnd_;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882D67C:;
     sp = sp - 32;
     v0 = a1 + 4;
@@ -30142,7 +30142,7 @@ L_0882D6C4:;
     v1 = LD32(a0);
     v0 = LD32(v1+8);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D6D4;
 L_0882D6D4:;
     v1 = LD32(s2);
@@ -30152,7 +30152,7 @@ L_0882D6D4:;
     a0 = s2 + 0;
     t_ = v0;
     s0 = s0 ^ s4;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D6F0;
 L_0882D6F0:;
     v0 = v0 + s1;
@@ -30176,7 +30176,7 @@ void func_0882D72C(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     int cnd_;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882D72C:;
     sp = sp - 16;
     s1 = (u32)-1;
@@ -30190,7 +30190,7 @@ L_0882D750:;
     v1 = LD32(a0);
     v0 = LD32(v1+24);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D760;
 L_0882D760:;
     v1 = LD32(s0+12);
@@ -30209,7 +30209,7 @@ L_0882D780:;
     v1 = LD32(s0);
     v0 = LD32(v1+12);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D790;
 L_0882D790:;
     ST32(s0+4, 0);
@@ -30233,7 +30233,7 @@ rv_t func_0882D7B8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882D7B8:;
     sp = sp - 32;
     s3 = a0 + 0;
@@ -30274,7 +30274,7 @@ rv_t func_0882D824(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     int cnd_;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882D824:;
     sp = sp - 16;
     cnd_ = a1 != 0;
@@ -30289,7 +30289,7 @@ L_0882D83C:;
     v1 = LD32(a0);
     v0 = LD32(v1+12);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D84C;
 L_0882D84C:;
     goto L_0882D834;
@@ -30302,7 +30302,7 @@ rv_t func_0882D854(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882D854:;
     sp = sp - 16;
     a2 = a1 + 0;
@@ -30311,7 +30311,7 @@ L_0882D854:;
     v0 = LD32(v1+8);
     t_ = v0;
     s0 = a0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D878;
 L_0882D878:;
     v0 = s0 + 0;
@@ -30326,7 +30326,7 @@ rv_t func_0882D88C(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882D88C:;
     sp = sp - 32;
     a2 = sp + 0;
@@ -30336,7 +30336,7 @@ L_0882D88C:;
     v0 = LD32(v1+16);
     t_ = v0;
     a1 = 4;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D8B4;
 L_0882D8B4:;
     v0 = s0 + 0;
@@ -30351,7 +30351,7 @@ rv_t func_0882D8C8(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882D8C8:;
     sp = sp - 16;
     a2 = a1 + 0;
@@ -30360,7 +30360,7 @@ L_0882D8C8:;
     v0 = LD32(v1+8);
     t_ = v0;
     s0 = a0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D8EC;
 L_0882D8EC:;
     v0 = s0 + 0;
@@ -30375,7 +30375,7 @@ rv_t func_0882D900(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882D900:;
     sp = sp - 32;
     a2 = sp + 0;
@@ -30385,7 +30385,7 @@ L_0882D900:;
     v0 = LD32(v1+16);
     t_ = v0;
     a1 = 4;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D928;
 L_0882D928:;
     v0 = s0 + 0;
@@ -30400,7 +30400,7 @@ rv_t func_0882D93C(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882D93C:;
     sp = sp - 16;
     a2 = a1 + 0;
@@ -30409,7 +30409,7 @@ L_0882D93C:;
     v0 = LD32(v1+8);
     t_ = v0;
     s0 = a0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D960;
 L_0882D960:;
     v0 = s0 + 0;
@@ -30424,7 +30424,7 @@ rv_t func_0882D974(u32 a0, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, fl
     float f0 = 0;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882D974:;
     sp = sp - 32;
     a1 = 4;
@@ -30434,7 +30434,7 @@ L_0882D974:;
     v0 = LD32(v1+16);
     t_ = v0;
     s0 = a0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D99C;
 L_0882D99C:;
     v0 = s0 + 0;
@@ -30449,7 +30449,7 @@ void func_0882D9B0(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882D9B0:;
     sp = sp - 16;
     a2 = a1 + 0;
@@ -30458,7 +30458,7 @@ L_0882D9B0:;
     v0 = LD32(v1+8);
     t_ = v0;
     s0 = a0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882D9D4;
 L_0882D9D4:;
     v0 = s0 + 0;
@@ -30473,7 +30473,7 @@ void func_0882D9E8(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882D9E8:;
     sp = sp - 32;
     v0 = (u32)(s32)(s16)a1;
@@ -30484,7 +30484,7 @@ L_0882D9E8:;
     v0 = LD32(v1+16);
     t_ = v0;
     s0 = a0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882DA14;
 L_0882DA14:;
     v0 = s0 + 0;
@@ -30499,7 +30499,7 @@ rv_t func_0882DA28(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882DA28:;
     sp = sp - 16;
     a2 = a1 + 0;
@@ -30508,7 +30508,7 @@ L_0882DA28:;
     v0 = LD32(v1+8);
     t_ = v0;
     s0 = a0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882DA4C;
 L_0882DA4C:;
     v0 = s0 + 0;
@@ -30523,7 +30523,7 @@ rv_t func_0882DA60(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882DA60:;
     sp = sp - 32;
     v0 = a1 & 0xffff;
@@ -30534,7 +30534,7 @@ L_0882DA60:;
     v0 = LD32(v1+16);
     t_ = v0;
     s0 = a0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882DA8C;
 L_0882DA8C:;
     v0 = s0 + 0;
@@ -30549,7 +30549,7 @@ void func_0882DAA0(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882DAA0:;
     sp = sp - 16;
     a2 = a1 + 0;
@@ -30558,7 +30558,7 @@ L_0882DAA0:;
     v0 = LD32(v1+8);
     t_ = v0;
     s0 = a0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882DAC4;
 L_0882DAC4:;
     v0 = s0 + 0;
@@ -30573,7 +30573,7 @@ float func_0882DAD8(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, floa
     float f0 = 0;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882DAD8:;
     sp = sp - 16;
     a2 = a1 + 0;
@@ -30582,7 +30582,7 @@ L_0882DAD8:;
     v0 = LD32(v1+8);
     t_ = v0;
     s0 = a0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882DAFC;
 L_0882DAFC:;
     v0 = s0 + 0;
@@ -30597,7 +30597,7 @@ rv_t func_0882DB10(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882DB10:;
     sp = sp - 32;
     v0 = a1 & 0xff;
@@ -30608,7 +30608,7 @@ L_0882DB10:;
     v0 = LD32(v1+16);
     t_ = v0;
     s0 = a0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882DB3C;
 L_0882DB3C:;
     v0 = s0 + 0;
@@ -30622,7 +30622,7 @@ rv_t func_0882DB50(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882DB50:;
     sp = sp - 32;
     s1 = a1 + 0;
@@ -30646,7 +30646,7 @@ rv_t func_0882DB94(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882DB94:;
     sp = sp - 32;
     a2 = sp + 0;
@@ -30656,7 +30656,7 @@ L_0882DB94:;
     v0 = LD32(v1+16);
     t_ = v0;
     a1 = 1;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882DBBC;
 L_0882DBBC:;
     v0 = s0 + 0;
@@ -30671,7 +30671,7 @@ void func_0882DBD0(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882DBD0:;
     sp = sp - 16;
     a2 = a1 + 0;
@@ -30680,7 +30680,7 @@ L_0882DBD0:;
     v0 = LD32(v1+8);
     t_ = v0;
     s0 = a0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882DBF4;
 L_0882DBF4:;
     v0 = s0 + 0;
@@ -30694,7 +30694,7 @@ void func_0882DC08(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882DC08:;
     sp = sp - 16;
     a1 = LD32(a1);
@@ -30711,7 +30711,7 @@ void func_0882DC24(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u32 v0 = 0, v1 = 0, s0 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882DC24:;
     sp = sp - 16;
     s0 = a1 + 0;
@@ -30744,7 +30744,7 @@ rv_t func_0882DC70(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u32 v0 = 0, v1 = 0, s0 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882DC70:;
     sp = sp - 16;
     s0 = a1 + 0;
@@ -30777,7 +30777,7 @@ rv_t func_0882DCBC(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u32 v0 = 0, v1 = 0, s0 = 0;
     float f0 = 0, f12 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882DCBC:;
     f12 = BITSF(LD32(a1));
     sp = sp - 16;
@@ -30810,7 +30810,7 @@ rv_t func_0882DD08(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u32 v0 = 0, v1 = 0, s0 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882DD08:;
     sp = sp - 16;
     s0 = a1 + 0;
@@ -30838,7 +30838,7 @@ rv_t func_0882DD48(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u32 v0 = 0, v1 = 0, s0 = 0;
     float f0 = 0, f12 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882DD48:;
     f12 = BITSF(LD32(a1));
     sp = sp - 16;
@@ -30868,7 +30868,7 @@ float func_0882DD88(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 
     int cnd_;
     u32 t_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882DD88:;
     sp = sp - 48;
     s4 = a2 + 0;
@@ -30887,7 +30887,7 @@ L_0882DDD0:;
     v0 = LD32(v1+8);
     t_ = v0;
     a2 = s0 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882DDE4;
 L_0882DDE4:;
     v1 = 3;
@@ -30928,7 +30928,7 @@ L_0882DE20:;
     a2 = sp + 0;
     t_ = v0;
     s0 = sp + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882DE38;
 L_0882DE38:;
     v1 = 3;
@@ -30969,7 +30969,7 @@ float func_0882DE98(u32 a0, u32 a1)
     float f0 = 0;
     int cnd_;
     u8 stack_[528] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 528);
+    u32 sp = RS_GADDR(stack_ + 528);
 L_0882DE98:;
     sp = sp - 528;
     v0 = D_08AD3BBC - (15292);
@@ -31070,7 +31070,7 @@ rv_t func_0882DF84(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     int cnd_;
     u32 t_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882DF84:;
     sp = sp - 32;
     s1 = a0 + 0;
@@ -31088,7 +31088,7 @@ L_0882DFB0:;
     ST32(sp, 0);
     v0 = LD32(v1+16);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882DFC8;
 L_0882DFC8:;
     a1 = LD32(s0+8);
@@ -31124,7 +31124,7 @@ L_0882E018:;
     v1 = LD32(s1);
     v0 = LD32(v1+16);
     t_ = v0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882E028;
 L_0882E028:;
     v0 = s1 + 0;
@@ -31142,7 +31142,7 @@ void func_0882E040(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u32 v0 = 0, v1 = 0, s0 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882E040:;
     sp = sp - 16;
     s0 = a1 + 0;
@@ -31165,7 +31165,7 @@ rv_t func_0882E074(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u32 v0 = 0, v1 = 0, s0 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882E074:;
     sp = sp - 16;
     s0 = a1 + 0;
@@ -31193,7 +31193,7 @@ rv_t func_0882E0B4(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u32 v0 = 0, v1 = 0, s0 = 0;
     float f0 = 0, f12 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882E0B4:;
     f12 = BITSF(LD32(a1));
     sp = sp - 16;
@@ -31222,7 +31222,7 @@ rv_t func_0882E0F4(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882E0F4:;
     sp = sp - 32;
     v0 = 9;
@@ -31259,7 +31259,7 @@ rv_t func_0882E164(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0, f12 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882E164:;
     sp = sp - 32;
     v0 = 9;
@@ -31297,7 +31297,7 @@ void func_0882E1D8(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882E1D8:;
     sp = sp - 32;
     v0 = 6;
@@ -31334,7 +31334,7 @@ rv_t func_0882E248(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     float f0 = 0, f12 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882E248:;
     sp = sp - 32;
     v0 = 6;
@@ -31372,7 +31372,7 @@ rv_t func_0882E2BC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882E2BC:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -31407,7 +31407,7 @@ rv_t func_0882E318(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882E318:;
     sp = sp - 16;
     s1 = a1 + 0;
@@ -31458,7 +31458,7 @@ rv_t func_0882E378(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882E378:;
     sp = sp - 16;
     a0 = LD32(a0+28);
@@ -31476,7 +31476,7 @@ rv_t func_0882E394(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882E394:;
     sp = sp - 16;
     s1 = a1 + 0;
@@ -31544,7 +31544,7 @@ rv_t func_0882E444(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882E444:;
     sp = sp - 16;
     a3 = 0 + 0;
@@ -31604,7 +31604,7 @@ rv_t func_0882E4F0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882E4F0:;
     sp = sp - 32;
     v1 = a1 + a3;
@@ -31667,7 +31667,7 @@ void func_0882E590(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882E590:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -31727,7 +31727,7 @@ rv_t func_0882E628(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882E628:;
     sp = sp - 16;
     s1 = a0 + 0;
@@ -31781,7 +31781,7 @@ rv_t func_0882E6C4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882E6C4:;
     sp = sp - 16;
     s1 = a1 + 0;
@@ -31824,7 +31824,7 @@ rv_t func_0882E744(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     float f0 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882E744:;
     sp = sp - 16;
     v1 = 0 + 0;
@@ -31862,7 +31862,7 @@ u32 func_0882E79C(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0, f20 = 0;
     int cnd_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_0882E79C:;
     sp = sp - 64;
     s5 = D_08B30AEC - (2796);
@@ -32312,7 +32312,7 @@ u32 func_0882EBF8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882EBF8:;
     sp = sp - 32;
     s3 = a1 + 0;
@@ -32400,7 +32400,7 @@ u32 func_0882ECE4(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882ECE4:;
     sp = sp - 48;
     s2 = a1 + 0;
@@ -32505,7 +32505,7 @@ u32 func_0882EE00(u32 a0, u32 a1)
     u32 v0 = 0, v1 = 0, a2 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0;
     int cnd_;
     u8 stack_[48] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 48);
+    u32 sp = RS_GADDR(stack_ + 48);
 L_0882EE00:;
     sp = sp - 48;
     s4 = a0 + 0;
@@ -32695,7 +32695,7 @@ u32 func_0882F00C(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0;
     int cnd_;
     u8 stack_[96] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 96);
+    u32 sp = RS_GADDR(stack_ + 96);
 L_0882F00C:;
     sp = sp - 96;
     s0 = a1 + 0;
@@ -32872,7 +32872,7 @@ u32 func_0882F1FC(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f12 = 0;
     int cnd_;
     u8 stack_[96] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 96);
+    u32 sp = RS_GADDR(stack_ + 96);
 L_0882F1FC:;
     sp = sp - 96;
     s0 = a0 + 0;
@@ -33027,7 +33027,7 @@ rv_t func_0882F3CC(u32 a0, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, s0 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882F3CC:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -33046,7 +33046,7 @@ u64 func_0882F3F8(u32 a0, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882F3F8:;
     sp = sp - 16;
     v0 = LD32(a0+316);
@@ -33071,7 +33071,7 @@ void func_0882F428(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
 {
     u32 v0 = 0, a2 = 0, s0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882F428:;
     sp = sp - 16;
     v0 = a1 + 0;
@@ -33097,7 +33097,7 @@ void func_0882F46C(u32 a0)
 {
     u32 a1 = 0, a2 = 0, s0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882F46C:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -33132,7 +33132,7 @@ u32 func_0882F4C4(u32 a0, u32 a1, u32 a2, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, a3 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0;
     int cnd_;
     u8 stack_[32] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 32);
+    u32 sp = RS_GADDR(stack_ + 32);
 L_0882F4C4:;
     sp = sp - 32;
     s4 = a2 + 0;
@@ -33275,7 +33275,7 @@ void func_0882F67C(u32 a0, u32 a1, u32 a2)
     u32 v0 = 0, v1 = 0, a3 = 0, t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, s0 = 0, t8 = 0, t9 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882F67C:;
     sp = sp - 16;
     s0 = a1 + 0;
@@ -33369,7 +33369,7 @@ void func_0882F758(u32 a0, u32 a1, u32 a2, u32 a3, u32 t1, u32 t2, u32 t3)
     u32 hi = 0, lo = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882F758:;
     { s64 p_ = (s64)(s32)a1 * (s32)a2; lo = (u32)p_; hi = (u32)((u64)p_ >> 32); }
     sp = sp - 16;
@@ -33402,7 +33402,7 @@ void func_0882F7A4(u32 a0, u32 t1, u32 t2, u32 t3)
     float f0 = 0, f12 = 0, f13 = 0, f14 = 0, f15 = 0, f16 = 0, f17 = 0, f18 = 0, f19 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882F7A4:;
     sp = sp - 16;
     v1 = 0 + 0;
@@ -33491,7 +33491,7 @@ void func_0882F864(u32 a0)
 {
     u32 v0 = 0, v1 = 0, s0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882F864:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -33519,7 +33519,7 @@ void func_0882F89C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t2, u32 t3, float f12, fl
     int cnd_;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882F89C:;
     sp = sp - 16;
     t0 = a1 + 0;
@@ -33583,7 +33583,7 @@ L_0882F95C:;
     return;
 L_0882F964:;
     t_ = t1;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882F96C;
 L_0882F96C:;
     goto L_0882F95C;
@@ -33603,7 +33603,7 @@ u32 func_0882F984(u32 a0, u32 a1, u32 a2)
     int cnd_;
     u32 t_;
     u8 stack_[80] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 80);
+    u32 sp = RS_GADDR(stack_ + 80);
 L_0882F984:;
     sp = sp - 80;
     v0 = a1 << 1;
@@ -33817,7 +33817,7 @@ L_0882FC20:;
 L_0882FC28:;
     t_ = v0;
     a0 = LD_U16(s1+8);
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882FC30;
 L_0882FC30:;
     goto L_0882FBF0;
@@ -33830,7 +33830,7 @@ L_0882FC40:;
 L_0882FC48:;
     t_ = v0;
     a0 = LD_U16(s1+6);
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882FC50;
 L_0882FC50:;
     goto L_0882FAD8;
@@ -33844,7 +33844,7 @@ u32 func_0882FC58(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float 
     int cnd_;
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_0882FC58:;
     sp = sp - 16;
     v1 = a1 << 1;
@@ -33862,7 +33862,7 @@ L_0882FC8C:;
     v0 = LD32(s1+28);
     t_ = v0;
     a0 = LD_U16(s0+6);
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882FC98;
 L_0882FC98:;
     cnd_ = v0 == 0;
@@ -33880,7 +33880,7 @@ L_0882FCB0:;
     v0 = LD32(s1+28);
     t_ = v0;
     a0 = LD_U16(s0+8);
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882FCBC;
 L_0882FCBC:;
     cnd_ = v0 == 0;
@@ -33916,7 +33916,7 @@ u32 func_0882FD00(u32 a0, u32 a1)
     int cnd_;
     u32 t_;
     u8 stack_[64] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 64);
+    u32 sp = RS_GADDR(stack_ + 64);
 L_0882FD00:;
     sp = sp - 64;
     s2 = a0 + 0;
@@ -33975,7 +33975,7 @@ L_0882FDA0:;
     a1 = s3 + 0;
     t_ = s4;
     a2 = s6 + 0;
-    { rv_t r_ = ((ifn_t)PTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    { rv_t r_ = ((ifn_t)RS_FPTR(t_))(a0, a1, a2, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
     goto L_0882FDB0;
 L_0882FDB0:;
     cnd_ = v0 != 0;
@@ -34201,7 +34201,7 @@ void func_08830014(u32 a0, u32 a1, u32 a2, u32 a3)
     int fcc = 0;
     int cnd_;
     u8 stack_[384] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 384);
+    u32 sp = RS_GADDR(stack_ + 384);
 L_08830014:;
     sp = sp - 384;
     v0 = D_08B2325C - (12892);
@@ -35020,7 +35020,7 @@ void func_08830AAC(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08830AAC:;
     sp = sp - 16;
     s1 = a1 + 0;
@@ -35223,7 +35223,7 @@ void func_08830CCC(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0;
     float f0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08830CCC:;
     sp = sp - 16;
     s0 = a0 + 0;
@@ -35248,7 +35248,7 @@ u64 func_08830D10(u32 a0, u32 t1, u32 t2, u32 t3)
     u32 v0 = 0, v1 = 0;
     int cnd_;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08830D10:;
     sp = sp - 16;
     v0 = LD32(a0+12);
@@ -35273,7 +35273,7 @@ void func_08830D40(u32 a0)
 {
     u32 v0 = 0, v1 = 0, a1 = 0, a2 = 0, s0 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
-    u32 sp = (u32)(uintptr_t)(stack_ + 16);
+    u32 sp = RS_GADDR(stack_ + 16);
 L_08830D40:;
     sp = sp - 16;
     a1 = 0 + 0;
@@ -35336,5 +35336,30 @@ L_08830DE0:;
     if (cnd_) { goto L_08830DE0; }
     goto L_08830DF4;
 L_08830DF4:;
+    return;
+}
+
+/* 08830DFC */
+void func_08830DFC(u32 a0, u32 a1, u32 a2)
+{
+    u32 v0 = 0, v1 = 0;
+L_08830DFC:;
+    v0 = LD32(a0);
+    v1 = LD32(a0+12);
+    v0 = v0 + 7;
+    v0 = v0 >> 3;
+    ST32(a2, v0);
+    ST32(a1, v1);
+    return;
+}
+
+/* 08830E18 */
+void func_08830E18(u32 a0, u32 a1, u32 a2)
+{
+    u32 v0 = 0;
+L_08830E18:;
+    v0 = LD32(a0+12);
+    v0 = v0 + a1;
+    ST8(v0, a2);
     return;
 }

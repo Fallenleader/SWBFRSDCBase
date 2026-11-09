@@ -12,3 +12,4 @@ __pycache__/
 build_census/
 build_geref/
 build_prof/
+platform/ps5/sce_sys/snd0.wav

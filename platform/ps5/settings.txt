@@ -1,0 +1,158 @@
+# SWBF Renegade Squadron (PS5) settings: copy to /data/SWBFRS/settings.txt
+# One KEY=VALUE per line; '#' starts a comment line. Every value below is the PS5 default, so deleting a line changes nothing.
+
+# ---- picture
+# The game's Options menu has a "Graphics Settings" entry (the last one): Renderer, Ray Tracing Features and Resolution
+# carousels that rewrite the lines below. A change is used from the next start.
+# renderer: opengl or vulkan (Vulkan: RADV, with ray-traced shadows and reflections). If Vulkan cannot start, the game
+# falls back to OpenGL.
+RS_RENDERER=vulkan
+# resolution: 720, 1080, 1440 or 2160 (4K). The menu sets this, RS_RES_SCALE and RS_OUTPUT together
+# (720 = scale 3 + 720p output, 1080 = 4, 1440 = 6, 2160 = 8). Ray tracing at 4K drops frames: 1440 or 1080 keeps 60.
+RS_RESOLUTION=2160
+# internal resolution x the PSP's 480x272: 1 to 8 (8 = 3840x2176, shown as 4K)
+RS_RES_SCALE=8
+# 1 = exactly 16:9 (one PSP row off the top and the bottom: 3840x2160 at scale 8); 0 = the whole 480x272 with thin bars
+RS_CROP_169=1
+# video output: 2160, 1440, 1080 or 720
+RS_OUTPUT=2160
+# FXAA anti-aliasing: 1 = on, 0 = off
+RS_FXAA=1
+# fog intensity, in percent of each map's own fog: 100 = the game's (set close for the PSP), above 100 closer, below farther
+# (fog distance x (2 - value/100): 25 = 75% farther away)
+RS_FOG=25
+# anisotropic filtering: 1 = off, 2, 4, 8 or 16
+RS_ANISO=16
+# frame rate: 30 or 60
+RS_FPS=60
+# vertex transform and lighting on the GPU: 1 = on (needed by everything in the next section)
+RS_HW_TL=1
+
+# ---- lighting (PS5GFXExperimental)
+# sun shadows from a shadow map: 1 = on; map size in pixels; range around the camera in metres; darkness in percent
+RS_SHADOWS=1
+RS_SHADOW_RES=4096
+RS_SHADOW_RANGE=60
+RS_SHADOW_STRENGTH=50
+# how far each surface's shadow-map lookup is moved off the surface, in shadow-map texels (more on slopes): stops ground
+# shadowing itself in stripes; too high and small shadows start to detach from their objects
+RS_SHADOW_OFFSET=4
+# PBR shading (Vulkan: Burley diffuse, GGX + height-correlated Smith + Schlick): mod textures use their _MSAO / _NM maps
+RS_PBR=1
+# the game's own textures (no _MSAO map): 1 = shaded the same way, with the smoothness and metalness below (0 = the plain look)
+#   RS_PBR_SMOOTHNESS  percent, 100 = mirror smooth (ray-traced reflections need more than 40)
+#   RS_PBR_METALNESS   percent, 0 = not metal (reflects mostly at grazing angles, like glass or water)
+RS_PBR_DEFAULT=1
+RS_PBR_SMOOTHNESS=100
+RS_PBR_METALNESS=0
+# ray tracing (the Vulkan renderer only; OpenGL keeps the shadow map): 1 = on
+#   RS_RT             0 = no ray tracing at all (the Vulkan renderer then uses the shadow map like OpenGL)
+#   RS_RT_SHADOWS     sun shadows by a ray towards the sun from every pixel (replaces the shadow map)
+#   RS_RT_REFLECTIONS reflections on smooth surfaces (every texture, see RS_PBR_SMOOTHNESS; mod textures by their _MSAO map)
+#   RS_RT_DISTANCE    how far the rays reach, in metres
+RS_RT=1
+RS_RT_SHADOWS=1
+RS_RT_REFLECTIONS=1
+RS_RT_DISTANCE=200
+#   RS_RTAO           ray-traced ambient occlusion: short rays around each pixel darken creases, corners and the ground under things
+#   RS_RTAO_RAYS      AO rays per pixel (1-16; more = smoother, slower)
+#   RS_RTAO_RADIUS    how far an AO ray looks, in tenths of a metre (20 = 2 m)
+#   RS_RTAO_STRENGTH  how dark full occlusion gets, percent
+#   RS_RTGI           ray-traced global illumination (one bounce): the sunlit colour of nearby surfaces bleeds onto each pixel
+#   RS_RTGI_RAYS      GI rays per pixel (1-16; each costs two rays: the bounce and its shadow check)
+#   RS_RTGI_STRENGTH  how strong the bounced light is, percent
+#   RS_RTGI_DISTANCE  how far a GI ray looks, in metres
+RS_RTAO=1
+RS_RTAO_RAYS=2
+RS_RTAO_RADIUS=20
+RS_RTAO_STRENGTH=70
+RS_RTGI=1
+RS_RTGI_RAYS=1
+RS_RTGI_STRENGTH=60
+RS_RTGI_DISTANCE=30
+# normal maps (mod textures with _NM maps): how strongly they bend the light, percent (100 = as painted, 200 = twice as deep)
+RS_NORMAL_STRENGTH=100
+# per-map light setup: written to /data/SWBFRS/mods/lights/<era>_<map>.txt from the game's own lights the first time a map is
+# played (after this many frames), then read from there - edit a file to change that map's sun; delete it to capture again
+#   sun_rotation X Y Z = the sun as a Unity Directional Light rotation (X 90 = straight down, Y = compass heading),
+#   sun_color #RRGGBB, sun_intensity 0.5..2.0 (1.0 = the map's own); files from earlier builds are converted (old kept as .old)
+RS_LIGHT_CAPTURE=1
+RS_LIGHT_CAPTURE_FRAMES=600
+
+# ---- modding
+# texture replacements from /data/SWBFRS/mods/textures/ (any subfolders): 1 = on.  Texture set (the name starts with the key
+# of the texture it replaces, as the dumps below are named):
+#   <key>@<name>_RGBA.png  RGB diffuse, A transparency
+#   <key>@<name>_NM.png    RGB normal map (OpenGL, +Y up), A colour mask (characters: white own colour, grey colour 1, black colour 2)
+#   <key>@<name>_MSAO.png  R metalness, G smoothness, B ambient occlusion (A unused)
+# (folders /data/SWBFRS/mods/<mod>/textures/ from earlier builds are still read, before mods/textures; mods/dumps is never read)
+RS_MODS=1
+# texture dumps: 1 = write every texture of the maps, characters, weapons, vehicles and menus the game loads, once, to
+#     /data/SWBFRS/mods/dumps/ (maps/<map>, players/<character>, weapons/..., vehicles/..., objects/..., effects, ui/<file>),
+#     named <key>@<name>_RGBA.png - copy a file into mods/textures and edit it there; 0 = no dumps
+RS_DUMP_ASSETS=1
+# custom maps from /data/SWBFRS/mods/maps (made with tools/asura/maptool.py install): 1 = listed in Instant Action
+RS_CUSTOM_MAPS=1
+
+# ---- online (Multiplayer > Infrastructure: the RS server, tools/rsserver)
+# The game looks for an RS server on the local network first; if none answers it uses this address (a name or an IP).
+RS_SERVER=
+# 1 = look on the local network first, 0 = only RS_SERVER
+RS_LAN_SEARCH=1
+
+# ---- performance
+# 1 = renderer, game main thread and audio on a core each, the game's other threads on the rest; 0 = left to the kernel
+RS_CPU_PIN=1
+
+# ---- controls
+# 1 = left stick move + strafe, right stick turn + look; 0 = the PSP's one-stick controls
+RS_TWIN_STICK=1
+# twin-stick turning acceleration, percent: how fast turning picks up when the right stick is pushed (100 = the game's; 130 = 30% faster)
+RS_TURN_ACCEL=130
+# look centring: after you stop looking up / down, the view is levelled again.  RS_LOOK_CENTER_DELAY: how many seconds after
+# (decimals allowed; 1 = the game's own).  RS_LOOK_CENTER=0 never levels it (odd camera angles, mostly as a hero).
+RS_LOOK_CENTER=1
+RS_LOOK_CENTER_DELAY=1
+
+# ---- game options (offline games only; network games keep the game's 16 players and 25..200 tickets)
+# 0 = the game's original option limits
+RS_GAME_PATCHES=1
+# highest "Min Players (including AI)": bots fill both teams evenly (the game's own limit is 16)
+RS_MAX_PLAYERS=128
+# lowest and highest "Conquest Initial Tickets" (the game's own range is 25 to 200)
+RS_MIN_TICKETS=200
+RS_MAX_TICKETS=5000
+
+# ---- experimental features: 1 = on, 0 = the game's own behaviour
+RS_SAVE_MANAGER=1
+RS_ANY_HEAD=1
+RS_COLOUR_PICKER=1
+RS_ANY_SLOT=1
+# load-out credit allowance (the game's is 100)
+RS_CREDITS=200
+
+# ---- sound and diagnostics
+# 0 = no sound
+RS_AUDIO=1
+
+# ---- AI and weapons
+# most bots sent to hold one of their own command posts: 0 = no defenders (every squad attacks or takes posts); -1 = the game's own choice
+RS_AI_DEFENDERS=0
+# 1 = no bot stands about: squads the game forms but sends nowhere, squads waiting at a post their side owns, and bots the game
+#     takes out of their squads and leaves with nothing to do are sent to the best post to take (checked every second)
+RS_AI_IDLE_FIX=1
+# seconds a bot with no squad may stand still before it is put back into a squad
+RS_AI_IDLE_SECONDS=6
+# vehicles and soldiers: 1 = friendly soldiers do not hold a vehicle up, an enemy soldier hit by a vehicle with someone aboard dies
+RS_VEHICLE_RUNOVER=1
+# Weapons_Mod.txt next to this file: changes to the game's weapons and new weapons (with on-screen names), in sections per
+# faction; read at every start.  Weapons_<CIS|Republic|Imperial|Rebels|HV|All|Vehicles>_Default.txt: the game's own values,
+# rewritten at every start for reference.  0 = the game's own weapons (Weapons_Mod.txt not read)
+RS_WEAPONS=1
+# any head on any body: the CIS too (off: the droids' heads do not fit each other's bodies)
+RS_ANY_HEAD_CIS=0
+# movies (the intro logos, the cut-scenes): played from MP4.  The first start converts the game's PMF movies to MP4 (H.264 + AAC)
+# and its AT3 sound to WAV, into converted/ next to this file; a replacement movie goes in mods/movies/<NAME>.mp4 (NAME as the
+# game's file, e.g. OPENING_LOGOS.mp4, INTRO.mp4; H.264 video, AAC sound, any resolution: drawn over the whole screen).
+# 0 = no movies
+RS_MOVIES=1

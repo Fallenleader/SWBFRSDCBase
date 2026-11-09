@@ -3,12 +3,13 @@
 #include <stdint.h>
 void rs_input_after_pad(void);                                   /* twin_stick.c: right stick into the game's input arrays */
 void rs_input_after_scheme(uint32_t scheme_obj, uint32_t idx);   /* twin_stick.c: control scheme idx built -> twin-stick bindings */
-void rs_game_var_range(uint32_t var, uint32_t *min, uint32_t *max);  /* game_patches.c: option limits (tickets, players) */
+void rs_game_var_range(uint32_t name, uint32_t var, uint32_t *min, uint32_t *max);  /* game_patches.c: option limits (tickets, players) */
+void rs_game_var_bool(uint32_t name, uint32_t var, uint32_t a2, uint32_t a3);    /* renderer_option.c: the Options menu's renderer switch */
+void rs_patches_frame(void);                                     /* game_patches.c: after each pad read: network games keep the game's ticket range */
 int  rs_ai_pool_init(void);                                       /* game_patches.c: the AI object pool, sized for the raised player counts */
 void rs_ai_squad_caps(uint32_t commander);                       /* game_patches.c: squad sizes for teams of more than 16 bots */
 int  rs_ai_assign(uint32_t commander, uint32_t squad, uint32_t post);   /* game_patches.c: at most RS_AI_DEFENDERS bots hold a command post */
 int  rs_unit_list_add(uint32_t unit, uint64_t *rv);
-void rs_ai_frame(void);                                            /* game_patches.c: idle AI squads */
 void rs_soldier_frame(uint32_t soldier);                            /* game_patches.c: RS_LOOK_CENTER */
 int  rs_phys_pair(uint32_t pair, uint32_t *rv);                     /* game_patches.c: physics pairs (vehicles / friendly soldiers) */
 int  rs_vehicle_hit(uint32_t vehicle, uint32_t soldier);              /* game_patches.c: vehicles and soldiers */
@@ -41,6 +42,8 @@ int  rs_map_index(uint32_t name, uint32_t *rv);
 void rs_map_played(uint32_t *idx);
 int  rs_fe_list_all_maps(uint32_t n, uint32_t f1, uint32_t f2, void *rv);
 int  rs_fe_select_planet(uint32_t n, uint32_t f1, uint32_t f2, void *rv);
+void rs_col_query(uint32_t ctx);                                  /* game_patches.c: RS_COL_LOG census of level collision queries */
+void rs_col_ray(uint32_t ray);                                    /* game_patches.c: RS_COL_LOG census of level rays */
 /* gamespy_ui.c: RS server accounts (nickname + username, no password, I Forgot) and the message of the day */
 void rs_gs_frame(void);
 void rs_gs_register(void);
@@ -50,3 +53,6 @@ void rs_gs_loaded(void);
 /* lift.c: hot game functions rewritten natively (RS_LIFT=0 runs the originals) */
 int  rs_lift_raybox(uint32_t o, uint32_t d, uint32_t box, uint32_t t, void *rv);
 int  rs_lift_boxtree(uint32_t tree, uint32_t org, uint32_t dir, uint32_t tmaxp, uint32_t cb, void *rv);
+void rs_ai_dmg_pre(uint32_t o, uint32_t msg);
+void rs_ai_dmg_post(uint32_t o, uint32_t msg);
+void rs_ai_ctl_pre(uint32_t ctl, uint32_t hum);

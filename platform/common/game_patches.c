@@ -1,37 +1,70 @@
-/* Game option limits (Instant Action "Game Options").
+/* Game option limits (Instant Action "Game Options"), offline games only.
  *
  * The game registers each option variable with its range (func_08978CEC -> func_08897814(name, variable, min, max, ...)); the menu
  * widgets take their limits from there (the numbers in GUIMENU/BFF_SERVERSETUP.GUI are not used for this).  rs_game_var_range runs
- * before each registration (hook from tools/dc/hooks.py) and raises the maximum of:
- *   BFF.InitialTickets (0x08C294E4)                         25..200   ->  ..RS_MAX_TICKETS (1000); the menu step stays the game's
- *   BFF.MinPlayers{SinglePlayer,AdHoc,Infrastructure}       ..16      ->  ..RS_MAX_PLAYERS (64 = 32 per team, bots included)
- *   (0x08C294D0 / D4 / D8)
- * Only a registration whose variable and original maximum match is changed.
+ * before each registration (hook from tools/dc/hooks.py) and changes:
+ *   BFF.MinPlayersSinglePlayer (0x08C294D0)   8..16     ->  ..RS_MAX_PLAYERS (bots included; the PS Vita 64, the PS5 128)
+ *   BFF.InitialTickets (0x08C294E4)           25..200   ->  RS_MIN_TICKETS..RS_MAX_TICKETS (the Vita 25..1000, the PS5 200..5000);
+ *                                                           the menu step stays the game's
+ * Only a registration whose variable and original range match is changed.
  *
- * Checked on the Linux build: with 64 the bot fill (func_089809B8) creates 63 bots + the player, 32 per team, and each bot's AI runs
- * (per-bot AI objects scale 16 -> 64 and stay active over time, no fixed pool); conquest tickets per team are the option x the
- * map's team factor (func_089875C8), with no other clamp. */
+ * Offline only: the player count of the network modes is its own variable (BFF.MinPlayersAdHoc 0x08C294D8, ...Infrastructure
+ * 0x08C294D4), left at the game's 16.  The tickets variable is shared by every mode, so while the game is set up for a network game
+ * (the mode byte 0x08C2932C is 1; func_08979D14 chooses the player-count variable by it) the tickets are kept
+ * within the game's own 25..200 (rs_patches_frame), so a network game stays what a PSP or a PS Vita expects.
+ *
+ * Checked on the Linux build: with 64 players the bot fill (func_089809B8) creates 63 bots + the player, 32 per team, and each
+ * bot's AI runs (per-bot AI objects scale with the count; no fixed pool); conquest tickets per team are the option x the map's team
+ * factor (func_089875C8), with no other clamp. */
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
 #include "psp_impl.h"
+#include "guest.h"
 #include "game_hooks.h"
+#include "ai_bridge.h"
 
-extern u32 rs_image_w[];
 extern int rs_setting_int(const char *, int);
-#define IMG(va) (({ u32 b_ = (u32)(uintptr_t)rs_image_w; __asm__("" : "+r"(b_)); b_; }) + ((u32)(va) - 0x08804000u))     /* game data address -> this build's address */
+#define IMG(va) GIMG(va)     /* game data address -> this build's address */
+#define VAR_PLAYERS_SP 0x08C294D0u
+#define VAR_TICKETS    0x08C294E4u
+#define MODE_NETWORK   0x08C2932Cu    /* 1: a network game (0x08C2932D: infrastructure / ad hoc); 0: single player (func_08979D14) */
 
-void rs_game_var_range(u32 var, u32 *min, u32 *max){
-    static int on = -1; if (on < 0) on = rs_setting_int("RS_GAME_PATCHES", 1); if (!on) return;
-    (void)min;
-    if (var == IMG(0x08C294E4) && *max == 200) {
-        int v = rs_setting_int("RS_MAX_TICKETS", 1000); if (v < 200) v = 200;
-        fprintf(stderr, "[PATCH] conquest initial tickets: maximum %u -> %d\n", *max, v); *max = (u32)v; }
-    else if ((var == IMG(0x08C294D0) || var == IMG(0x08C294D4) || var == IMG(0x08C294D8)) && *max == 16) {
+static int on(void){ static int v = -1; if (v < 0) v = rs_setting_int("RS_GAME_PATCHES", 1); return v; }
+static u32 tickets_min(void){ int v = rs_setting_int("RS_MIN_TICKETS", 25); if (v < 1) v = 1; return (u32)v; }
+static u32 tickets_max(void){ int v = rs_setting_int("RS_MAX_TICKETS", 1000); if (v < 200) v = 200; return (u32)v; }
+
+void rs_game_var_range(u32 name, u32 var, u32 *min, u32 *max){
+    if (getenv("RS_VAR_LOG")) { char n[64]; int i = 0; for (; i < 63; i++) { u16 c = GU16(name + 2u * (u32)i); if (!c) break; n[i] = (char)c; } n[i] = 0;
+        fprintf(stderr, "[VAR] %s @%08x %u..%u\n", n, var, *min, *max); }
+    if (!on()) return;
+    if (var == IMG(VAR_TICKETS) && *min == 25 && *max == 200) {
+        u32 lo = tickets_min(), hi = tickets_max(); if (lo > hi) lo = hi;
+        fprintf(stderr, "[PATCH] conquest initial tickets (offline): %u..%u -> %u..%u\n", *min, *max, lo, hi); *min = lo; *max = hi;
+        u32 cur = GU32(var); if (cur < lo) GU32(var) = lo; else if (cur > hi) GU32(var) = hi; }
+    else if (var == IMG(VAR_PLAYERS_SP) && *max == 16) {
         int v = rs_setting_int("RS_MAX_PLAYERS", 64); if (v < 16) v = 16;
-        fprintf(stderr, "[PATCH] min players (including AI): maximum %u -> %d\n", *max, v); *max = (u32)v; }
+        fprintf(stderr, "[PATCH] min players (including AI), offline: maximum %u -> %d\n", *max, v); *max = (u32)v;
+        { const char *t = getenv("RS_TEST_PLAYERS"); if (t) GU32(var) = (u32)atoi(t); }       /* test harness: start with this many */
+        { const char *t = getenv("RS_TEST_TICKETS"); if (t) GU32(IMG(VAR_TICKETS)) = (u32)atoi(t); } }
 }
+
+/* every frame (after the pad read): a network game keeps the game's own ticket range */
+void rs_renderer_frame(void);
+void rs_patches_frame(void){
+#ifdef RS_DESKTOP
+    { extern void rs_ai_bridge_frame(void); rs_ai_bridge_frame(); }   /* ai_bridge.c: RS_AI_BRIDGE=<host:port> */
+#endif
+    rs_renderer_frame();                                                  /* renderer_option.c */
+    { extern void rs_ai_frame(void); rs_ai_frame(); } { extern void rs_ai_frame_count(void); rs_ai_frame_count(); }                      /* idle squads (below) */
+#ifdef RS_DESKTOP
+    { extern void rs_dedicated_after_match(unsigned); static unsigned fr, nb; if (fr++ % 30 == 0) { static struct rs_ai_rec tmp[256]; nb = (unsigned)rs_ai_snapshot(tmp, 256, 0, 0); }
+      rs_dedicated_after_match(nb); { extern volatile int rs_vclock_match; rs_vclock_match = nb > 0; } }                                                                       /* RS_DEDICATED=2 (AI training): through team selection and results */
+#endif
+    if (!on() || GU8(IMG(MODE_NETWORK)) != 1) return;
+    u32 t = GU32(IMG(VAR_TICKETS));
+    if (t > 200) GU32(IMG(VAR_TICKETS)) = 200; else if (t < 25) GU32(IMG(VAR_TICKETS)) = 25; }
 
 /* The AI object pool.  The game's AI (squad behaviours, goals, orders: func_08956D80 and the other factories next to it) takes its
  * objects from one pool built at start-up by func_08956118: 128 blocks of the largest AI object's size (at least 620 bytes), a free
@@ -41,9 +74,8 @@ void rs_game_var_range(u32 var, u32 *min, u32 *max){
 rv_t func_08A94784(u32 a0, u32 t1, u32 t2, u32 t3);
 rv_t func_08A94838(u32 a0, u32 t1, u32 t2, u32 t3);
 u32 func_089560B4(void);
-#define W32(a) (*(volatile u32 *)(uintptr_t)(a))
 int rs_ai_pool_init(void){
-    if (!rs_setting_int("RS_GAME_PATCHES", 1)) return 0;
+    if (!on()) return 0;
     int players = rs_setting_int("RS_MAX_PLAYERS", 64), n = players * 6;
     if (n <= 128) return 0;                                       /* the game's own pool */
     u32 sz = func_089560B4();
@@ -52,23 +84,12 @@ int rs_ai_pool_init(void){
     if (!pool) return 0;
     if (!mem) { fprintf(stderr, "[PATCH] AI object pool: no memory for %d x %u bytes, the game's 128\n", n, sz);
         mem = func_08A94838(sz << 7, 0, 0, 0).v0; n = 128; }
-    W32(pool + 12) = (u32)n; W32(pool) = mem; W32(pool + 8) = sz; W32(pool + 4) = mem; W32(pool + 16) = 0;
-    if (mem) { for (int i = 0; i < n - 1; i++) W32(mem + (u32)i * sz) = mem + (u32)(i + 1) * sz; W32(mem + (u32)(n - 1) * sz) = 0; }
-    W32(IMG(0x08C278D8u)) = pool;
+    GU32(pool + 12) = (u32)n; GU32(pool) = mem; GU32(pool + 8) = sz; GU32(pool + 4) = mem; GU32(pool + 16) = 0;
+    if (mem) { for (int i = 0; i < n - 1; i++) GU32(mem + (u32)i * sz) = mem + (u32)(i + 1) * sz; GU32(mem + (u32)(n - 1) * sz) = 0; }
+    GU32(IMG(0x08C278D8u)) = pool;
     fprintf(stderr, "[PATCH] AI object pool: %d blocks of %u bytes (the game's 128)\n", n, sz);
     return 1; }
 
-#ifndef GU32
-#define GU8(a)  (*(volatile u8 *)(uintptr_t)(a))
-#define GU32(a) (*(volatile u32 *)(uintptr_t)(a))
-#define GU16(a) (*(volatile u16 *)(uintptr_t)(a))
-#define GF32(a) (*(volatile float *)(uintptr_t)(a))
-#endif
-#define VAR_PLAYERS_SP 0x08C294D0u
-#define MODE_NETWORK   0x08C2932Cu
-static int on(void){ static int v = -1; if (v < 0) v = rs_setting_int("RS_GAME_PATCHES", 1); return v; }
-#undef IMG
-#define IMG(va) (({ u32 b_ = (u32)(uintptr_t)rs_image_w; __asm__("" : "+r"(b_)); b_; }) + ((u32)(va) - 0x08804000u))
 /* AI squads and command posts (traced in the decompiled code; Ghidra names FUN_xxx = func_xxx).  Each team's commander
  * (func_089279D4 and the functions next to it) puts its bots in squads and sends squads to command posts:
  *  - squad sizes: func_08926220 counts the team's bots, clamps the count to 16 and copies that row of a table (0x08AD9888, ten
@@ -89,6 +110,7 @@ extern void func_08926478(u32, u32, u32);
 #define CP_COUNT 0x08C25390u
 #define UL_COUNT 0x08C2C56Cu       /* the game's soldier count (the list below) */
 static u32 ai_cmd[2];                                              /* the two commanders (rs_ai_squad_caps sees them) */
+static int pol_squad(u32 sq); static int pol_bot(u32 id);          /* policy control (below) */
 void rs_ai_squad_caps(u32 cmd){
     if (cmd && GU32(cmd + 4)) ai_cmd[GU32(GU32(cmd + 4) + 0x4C) & 1] = cmd;
     if (!on() || GU8(IMG(MODE_NETWORK)) == 1 || !cmd) return;
@@ -111,14 +133,14 @@ static u32 ai_best_post(u32 cmd){
 void rs_ai_debug(unsigned fr); void rs_ai_bots(unsigned fr); static void ai_unstick(unsigned fr);
 void rs_ai_frame(void){
     static unsigned fr;
-    if (GU32(IMG(UL_COUNT)) == 0) { ai_cmd[0] = ai_cmd[1] = 0; return; }
+    if (GU32(IMG(UL_COUNT)) == 0) { ai_cmd[0] = ai_cmd[1] = 0; { extern void rs_ai_release_all(void); rs_ai_release_all(); } { extern void rs_ai_events_reset(void); rs_ai_events_reset(); } return; }   /* between matches: no squads */
     if (!on() || GU8(IMG(MODE_NETWORK)) == 1 || ++fr % 30) return;
     { static int dbg = -1; if (dbg < 0) dbg = getenv("RS_AI_DEBUG") != 0; if (dbg && fr % 300 == 0) rs_ai_debug(fr); }
     { static int bl = -1; if (bl < 0) bl = getenv("RS_AI_BOTS") != 0; if (bl && fr % 60 == 0) rs_ai_bots(fr); }
     if (!rs_setting_int("RS_AI_IDLE_FIX", 1)) return;
     for (int c = 0; c < 2; c++) { u32 cmd = ai_cmd[c]; if (!cmd) continue; u32 team = GU32(cmd + 4); if (!team) continue;
         u32 ns = GU32(team + 0x48); if (ns > 10) ns = 10;
-        for (u32 j = 0; j < ns; j++) { u32 sq = (u32)func_0898BC68(team, j); if (!sq || !GU32(sq + 0xAC) || GU32(sq + 0x3C) != 999 || GU8(sq + 0x2A) || GU8(sq + 0x2C)) continue;
+        for (u32 j = 0; j < ns; j++) { u32 sq = (u32)func_0898BC68(team, j); if (!sq || !GU32(sq + 0xAC) || GU32(sq + 0x3C) != 999 || GU8(sq + 0x2A) || GU8(sq + 0x2C) || pol_squad(sq)) continue;
             u32 best = ai_best_post(cmd); if (best == 999) break;
             if (rs_setting_int("RS_AI_LOG", 0)) fprintf(stderr, "[AI] team %u: idle squad %u (%u bots) sent to post %u\n", GU32(team + 0x4C), j, GU32(sq + 0xAC), best);
             func_08926478(cmd, j, best); } }
@@ -156,10 +178,45 @@ void rs_ai_bots(unsigned fr){
         u32 sq = GU32(o + 0xE4); if (!gok(sq)) sq = 0;
         nb++; if (idle[k] >= 3) nidle++;
         if (idle[k] >= 3 || getenv("RS_AI_BOTS_ALL"))
-            fprintf(stderr, "[BOT] f%u goal %d id %x team %u pos %.0f %.0f %.0f moved %.1f idle %ds alive %d obj %08x squad %08x order %x post %u slot %u insq %u veh %x\n", fr, ai_goal(o), id,
-                GU32(o + 12), p[0], p[1], p[2], d, idle[k] * 2, alive, o, sq, sq ? GU32(sq + 0x4C) : 0, sq ? GU32(sq + 0x3C) : 0, GU32(o + 0xF0), GU8(o + 0xE8), GU32(o + 0xF8));
+            fprintf(stderr, "[BOT] f%u goal %d id %x team %u pos %.0f %.0f %.0f moved %.1f idle %ds alive %d obj %08x squad %08x order %x post %u slot %u insq %u veh %x ctl %u\n", fr, ai_goal(o), id,
+                GU32(o + 12), p[0], p[1], p[2], d, idle[k] * 2, alive, o, sq, sq ? GU32(sq + 0x4C) : 0, sq ? GU32(sq + 0x3C) : 0, GU32(o + 0xF0), GU8(o + 0xE8), GU32(o + 0xF8), GU32(o + 0x54));
         if ((idle[k] >= 3 || getenv("RS_AI_BOTS_ALL")) && !sq) fprintf(stderr, "[BOT]    no squad: ctl %u flags %08x b0 %08x goal %d 149 %u\n", GU32(o + 0x54), GU32(o + 0xC8), GU32(o + 0xB0), ai_goal(o), GU8(o + 0x149)); }
     fprintf(stderr, "[BOT] f%u: %d soldiers, %d idle 6 s or more\n", fr, nb, nidle); }
+/* The AI bridge's view of the bots (ai_bridge.c, AIAgents branch): one record per AI-driven soldier in the game's AI object
+ * table, with the fields traced above.  raw (may be 0) gets the first rawn bytes of each AI object, for finding the fields that
+ * are not traced yet (health, ammunition, weapon, facing). */
+/* the command posts for the AI bridge: position and owner (the team value, AI object +12, of the side whose commander has the
+ * post in its "ours" mask, commander +0x4A; 0 = nobody's) */
+extern u32 func_08ABC6F8(u32, u32, u32);
+int rs_ai_posts(struct rs_ai_post *out, int max){
+    u32 ncp = GU32(IMG(CP_COUNT)); if (ncp > 8) return 0; int n = 0;
+    for (u32 k = 0; k < ncp && n < max; k++) {
+        u32 id = GU32(IMG(CP_IDS) + 4u * k), cpo = func_08ABC6F8(0x08C2BA28u, id, 1); const float *p = gok(cpo) ? soldier_pos(cpo) : 0; if (!p) continue;
+        struct rs_ai_post *q = &out[n++]; q->pos[0] = p[0]; q->pos[1] = p[1]; q->pos[2] = p[2]; q->id = id; q->owner = 0;
+        for (int c = 0; c < 2; c++) { u32 cmd = ai_cmd[c]; if (cmd && GU32(cmd + 4) && ((GU8(cmd + 0x4A) >> k) & 1)) q->owner = GU32(GU32(cmd + 4) + 0x4C); } }
+    return n; }
+void rs_ai_extras(struct rs_ai_rec *r, int n);
+int rs_ai_snapshot(struct rs_ai_rec *out, int max, u8 *raw, int rawn){
+    u32 tb = IMG(0x08C2A880u), bk = GU32(tb), nbk = GU32(tb + 4); if (!gok(bk) || nbk > 4096) return 0;
+    int n = 0;
+    for (u32 bi = 0; bi < nbk; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd) && n < max; nd = GU32(nd + 4)) {
+        if (GU8(nd + 8)) continue; u32 o = GU32(nd); if (!gok(o) || !gok(GU32(o))) continue;
+        u32 so = o + GU32(GU32(o) - 16); if (!gok(so)) continue;
+        const float *p = soldier_pos(o); if (!p) continue;
+        { static int pa = -1; if (pa < 0) pa = getenv("RS_AI_POSADDR") != 0;   /* field finding: where bot positions live (gdb watchpoints) */
+          static unsigned cnt; if (pa && ++cnt % 97 == 1) fprintf(stderr, "[AIPOS] obj %08x id %x pos %p (%.1f %.1f %.1f) sub %08x\n", o, GU32(so + 4), (void *)p, p[0], p[1], p[2], o + GU32(GU32(o) - 12)); }
+        struct rs_ai_rec *r = &out[n]; memset(r, 0, sizeof *r);
+        u32 sq = GU32(o + 0xE4); if (!gok(sq)) sq = 0;
+        r->id = GU32(so + 4); r->obj = o; r->team = GU32(o + 12); r->alive = GU8(o + 5) && GU8(o + 0x40);
+        r->pos[0] = p[0]; r->pos[1] = p[1]; r->pos[2] = p[2];
+        r->goal = ai_goal(o); r->squad_order = sq ? GU32(sq + 0x4C) : 0; r->squad_post = sq ? GU32(sq + 0x3C) : 999; r->has_squad = sq != 0;
+        r->vehicle = GU32(o + 0xF8); r->ctl = GU32(o + 0x54); r->flags = GU32(o + 0xC8);
+        { u32 sub = o + GU32(GU32(o) - 12); r->health = gok(sub) ? GF32(sub + 0x28) : 0.0f; }   /* <= 0: dead (func_0898CD0C, func_089A64F4) */
+        r->policy = pol_bot(r->id);
+        if (raw && rawn > 0) memcpy(raw + (size_t)n * rawn, GP(o), (size_t)rawn);
+        n++; }
+    rs_ai_extras(out, n);
+    return n; }
 /* Bots that stand about (traced with RS_AI_BOTS=1).  Two causes, both fixed here every second (offline, RS_AI_IDLE_FIX):
  *  - a bot taken out of its squad by func_0892CC00 (it marks the bot +0xC8 bit 0x20 and removes it; the squad-filling pass,
  *    func_0892774C, never takes a bot with that bit again) is left with no goal and no squad until it dies: a bot with no squad
@@ -168,6 +225,52 @@ void rs_ai_bots(unsigned fr){
  *  - a squad whose order points at a post its side already owns - it captured it (order 0x3F2 stays) or was told to defend it
  *    (order 0x3F5, func_089266D4) - waits there: with RS_AI_DEFENDERS=0 it is sent to the best post to take. */
 extern rv_t func_089268D0(u32, u32, u32, u32, u32); extern u64 func_0898D728(u32, u32); extern u64 func_089E3BD4(u32); extern u32 func_089E3BC4(u32); extern u32 func_08ABC6F8(u32, u32, u32); extern rv_t func_0898D7A8(u32, u32);
+/* Policy control (AIAgents: ai_bridge.c).  A bot under the trainer's policy gets a squad of its own (func_089268D0) whose order is
+ * "go to a position": order 0x3F2 with the target 999, which makes the squad's destination its own +0x40 (x, y, z) - the game's
+ * func_0898D4F0.  The game then walks, aims and fires as usual.  These squads are left alone by the commander (rs_ai_assign) and
+ * by the idle / stuck fixes here.  Squad: +0x98 member ids, +0xAC member count, +0x3C target, +0x40 position, +0x4C order. */
+#define POL_MAX 64
+static struct { u32 id, sq; } pol[POL_MAX]; static u32 pol_team[POL_MAX];
+static int pol_squad(u32 sq){ if (!sq) return 0; for (int i = 0; i < POL_MAX; i++) if (pol[i].sq == sq) return 1; return 0; }   /* kept while emptied too */
+static int pol_bot(u32 id){ for (int i = 0; i < POL_MAX; i++) if (pol[i].id == id) return 1; return 0; }
+static u32 ai_find(u32 id){
+    u32 tb = IMG(0x08C2A880u), bk = GU32(tb), nbk = GU32(tb + 4); if (!gok(bk) || nbk > 4096) return 0;
+    for (u32 bi = 0; bi < nbk; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
+        if (GU8(nd + 8)) continue; u32 o = GU32(nd); if (!gok(o) || !gok(GU32(o))) continue;
+        u32 so = o + GU32(GU32(o) - 16); if (gok(so) && GU32(so + 4) == id) return o; }
+    return 0; }
+/* a squad pointer is only used while it is one of its side's current squads (an emptied squad can be given back to the AI pool) */
+static int squad_live(u32 cmd, u32 sq){
+    if (!cmd || !GU32(cmd + 4) || !gok(sq)) return 0; u32 team = GU32(cmd + 4), ns = GU32(team + 0x48); if (ns > 10) ns = 10;
+    for (u32 j = 0; j < ns; j++) if ((u32)func_0898BC68(team, j) == sq) return 1; return 0; }
+static u32 cmd_of(u32 o){ for (int c = 0; c < 2; c++) if (ai_cmd[c] && GU32(ai_cmd[c] + 4) && GU32(GU32(ai_cmd[c] + 4) + 0x4C) == GU32(o + 12)) return ai_cmd[c]; return 0; }
+static u32 ai_goto_order(void){ static int o = -1; if (o < 0) { const char *e = getenv("RS_AI_GOTO_ORDER"); o = e ? (int)strtol(e, 0, 0) : 0x3F0; } return (u32)o; }   /* 0x3F0 (1008): go to the target's position */
+/* kind 1: go to dest (x, y, z).  0 = done; < 0 = not possible now (no such bot, no commander, no squad slot) */
+int rs_ai_command(u32 id, int kind, const float *dest){
+    if (kind != 1) return -1;
+    u32 o = ai_find(id); if (!o) return -2;
+    u32 sub = o + GU32(GU32(o) - 12); if (!gok(sub) || GF32(sub + 0x28) <= 0.0f) return -2;
+    /* entries whose bot is gone keep their squad (id 0, sq set): the next bot of that side reuses it - a side has only ten squads */
+    int slot = -1;
+    { u32 c = cmd_of(o); for (int i = 0; i < POL_MAX; i++) { if (pol[i].id == id) slot = i; else if (pol[i].id && !ai_find(pol[i].id)) pol[i].id = 0;
+        if (pol[i].sq && pol_team[i] == GU32(o + 12) && !squad_live(c, pol[i].sq)) { if (slot == i) slot = -1; pol[i].id = 0; pol[i].sq = 0; } } }
+    u32 sq = GU32(o + 0xE4); if (!gok(sq) || !GU8(o + 0xE8)) sq = 0;
+    if (!sq || GU32(sq + 0xAC) != 1 || (slot >= 0 && pol[slot].sq != sq)) {              /* a squad of its own */
+        u32 cmd = cmd_of(o); if (!cmd) return -3;
+        if (sq) func_0898D7A8(sq, id);
+        GU32(o + 0xC8) &= ~0x20u; sq = 0;
+        for (int i = 0; i < POL_MAX && !sq; i++)                                          /* an emptied policy squad of this side */
+            if (!pol[i].id && pol[i].sq && pol_team[i] == GU32(o + 12) && squad_live(cmd, pol[i].sq) && GU32(pol[i].sq + 0xAC) == 0) {
+                func_0898D728(pol[i].sq, id); if (GU32(o + 0xE4) == pol[i].sq) { sq = pol[i].sq; slot = i; } }
+        if (!sq) { sq = func_089268D0(cmd, o, 0, 0, 0).v0; if (!gok(sq)) return -4; } }
+    if (slot < 0) { for (int i = 0; i < POL_MAX && slot < 0; i++) if (!pol[i].id && pol[i].sq == sq) slot = i;
+                    for (int i = 0; i < POL_MAX && slot < 0; i++) if (!pol[i].id && !pol[i].sq) slot = i;
+                    if (slot < 0) return -5; }
+    pol_team[slot] = GU32(o + 12);
+    pol[slot].id = id; pol[slot].sq = sq;
+    GU32(sq + 0x3C) = 999; GF32(sq + 0x40) = dest[0]; GF32(sq + 0x44) = dest[1]; GF32(sq + 0x48) = dest[2]; GU32(sq + 0x4C) = ai_goto_order(); GU8(sq + 0x2A) = 0;
+    return 0; }
+void rs_ai_release_all(void){ memset(pol, 0, sizeof pol); memset(pol_team, 0, sizeof pol_team); }
 static void ai_unstick(unsigned fr){
     static u32 ids[512]; static float last[512][3]; static unsigned seen[512]; static int still[512];
     int log = rs_setting_int("RS_AI_LOG", 0), need = rs_setting_int("RS_AI_IDLE_SECONDS", 6); if (need < 2) need = 2;
@@ -176,7 +279,7 @@ static void ai_unstick(unsigned fr){
     if (rs_setting_int("RS_AI_DEFENDERS", 0) == 0 && ncp <= 8)
         for (int c = 0; c < 2; c++) { u32 cmd = ai_cmd[c]; if (!cmd) continue; u32 team = GU32(cmd + 4); if (!team) continue;
             u32 ns = GU32(team + 0x48); if (ns > 10) ns = 10;
-            for (u32 j = 0; j < ns; j++) { u32 sq = (u32)func_0898BC68(team, j); if (!gok(sq) || !GU32(sq + 0xAC) || GU8(sq + 0x2C)) continue;
+            for (u32 j = 0; j < ns; j++) { u32 sq = (u32)func_0898BC68(team, j); if (!gok(sq) || !GU32(sq + 0xAC) || GU8(sq + 0x2C) || pol_squad(sq)) continue;
                 u32 ord = GU32(sq + 0x4C), cp = GU32(sq + 0x3C); if (ord != 0x3F2 && ord != 0x3F5) continue;
                 u32 k = 0; while (k < ncp && GU32(IMG(CP_IDS) + 4u * k) != cp) k++; if (k == ncp || !((GU8(cmd + 0x4A) >> k) & 1)) continue;
                 u32 best = ai_best_post(cmd); if (best == 999 || best == cp) continue;
@@ -190,6 +293,7 @@ static void ai_unstick(unsigned fr){
         int k = -1, fr_ = -1; for (int j = 0; j < 512; j++) { if (ids[j] == id) { k = j; break; } if (fr_ < 0 && (!ids[j] || fr - seen[j] > 300)) fr_ = j; }
         if (k < 0) { if (fr_ < 0) continue; k = fr_; ids[k] = id; still[k] = 0; last[k][0] = 1e9f; }
         seen[k] = fr;
+        if (pol_bot(id)) { still[k] = 0; continue; }                     /* the policy's bot */
         int alive = GU8(o + 5) && GU8(o + 0x40) && GF32(sub + 0x28) > 0.0f;
         if (!alive || GU32(o + 0x54) == 999 || func_089E3BC4(o) == 0 || (u32)func_089E3BD4(o) != 0) { still[k] = 0; last[k][0] = 1e9f; continue; }
         const float *p = soldier_pos(o); if (!p) continue;
@@ -226,6 +330,7 @@ void rs_ai_debug(unsigned fr){
         fprintf(stderr, "\n"); } }
 int rs_ai_assign(u32 cmd, u32 sq, u32 cp){
     static int inside;
+    if (cmd && GU32(cmd + 4) && pol_squad((u32)func_0898BC68(GU32(cmd + 4), sq))) return 1;    /* the policy's squad: not the commander's */
     if (inside || !on() || !cmd) return 0;
     int lim = rs_setting_int("RS_AI_DEFENDERS", 0); if (lim < 0) return 0;        /* -1: the game's own choice; 0: no defenders */
     u32 team = GU32(cmd + 4); if (!team) return 0;
@@ -252,8 +357,8 @@ int rs_ai_assign(u32 cmd, u32 sq, u32 cp){
 #define UL_SIDE2 0x08C2C574u
 #define UL_FLAG  0x08C2C4E8u
 extern u64 func_08A26FC0(u32);
-static u32 ul_mem[UL_MAX], *ul;
-u32 rs_unit_list(void){ ul = ul_mem; return (u32)(uintptr_t)ul; }
+static u32 *ul;
+u32 rs_unit_list(void){ if (!ul) { ul = rs_guest_alloc(sizeof(u32) * UL_MAX, 16); memset(ul, 0, sizeof(u32) * UL_MAX); } return GA(ul); }
 int rs_unit_list_add(u32 unit, u64 *rv){
     rs_unit_list(); u32 n = GU32(IMG(UL_COUNT));
     if (n >= UL_MAX) { *rv = 0; return 1; }
@@ -275,10 +380,8 @@ int rs_unit_list_remove(u32 unit, u64 *rv){
  * faction's table: a rebel's first name with another rebel's surname, a trooper's letters with a new number ("AG 176" -> "AG 903"),
  * "Unit" / "Alpha" ... with a new number for droids and clones.  Made once per (faction, n), in the game's heap, UTF-16 as the table. */
 #define BOTNAME_MAX 8192
-#ifndef G16
-#define G16(a) (*(volatile u16 *)(uintptr_t)(a))
-#define G32(a) W32(a)
-#endif
+#define G16(a) GU16(a)
+#define G32(a) GU32(a)
 static int botname_faction(u32 hash){ return hash == 0x069928D5u ? 0 : hash == 0xA1EEEAB2u ? 1 : hash == 0x7D0DB56Fu ? 2 : hash == 0x81BE6EFAu ? 3 : -1; }
 static int wlen(u32 s){ int n = 0; while (n < 64 && G16(s + 2u * (u32)n)) n++; return n; }
 static int wsplit(u32 s, int n){ for (int i = n - 1; i > 0; i--) if (G16(s + 2u * (u32)i) == ' ') return i; return -1; }   /* last space */
@@ -320,13 +423,12 @@ int rs_text_get(u32 table, u32 idx, u32 *rv){
 int rs_weapons_text16(u32 id, u16 *out, int max);
 int rs_custom_maps_text16(u32 id, u16 *out, int max);   /* custom_maps.c: custom map names */
 int rs_stdtext_get(u32 id, u32 *rv){
-    static u32 ids[64]; static u16 txt[64][512]; static int n;
-    for (int i = 0; i < n; i++) if (ids[i] == id) { *rv = (u32)(uintptr_t)txt[i]; return 1; }
-    if (n == 64 || (rs_weapons_text16(id, txt[n], 512) <= 0 && rs_custom_maps_text16(id, txt[n], 512) <= 0)) return 0;
-    ids[n] = id; *rv = (u32)(uintptr_t)txt[n]; n++; return 1; }
+    static u32 ids[64], at[64]; static int n;
+    for (int i = 0; i < n; i++) if (ids[i] == id) { *rv = at[i]; return 1; }
+    u16 w[512]; int k = rs_weapons_text16(id, w, 512); if (k <= 0) k = rs_custom_maps_text16(id, w, 512); if (k <= 0 || n == 64) return 0;
+    u16 *g = rs_guest_alloc(sizeof(u16) * (size_t)k, 4); memcpy(g, w, sizeof(u16) * (size_t)k);
+    ids[n] = id; at[n] = GA(g); n++; *rv = GA(g); return 1; }
 
-/* in a match: soldiers in the game's list (gfx_gxm.c draws menus at RS_MENU_RES_SCALE, matches at RS_RES_SCALE) */
-int rs_in_match(void){ return GU32(IMG(UL_COUNT)) > 0; }
 /* Vehicles and soldiers (tools/dc/hooks.py: func_089D7D08 is the game's vehicle-against-soldier contact, reached from
  * func_089D74B4 for a contact with an object of type 0x8005; it reacts to the soldier with the vehicle's and the soldier's physics).
  * RS_VEHICLE_RUNOVER=1: a soldier on the side of whoever is aboard is left alone (no contact reaction, so the vehicle is not
@@ -335,7 +437,7 @@ int rs_in_match(void){ return GU32(IMG(UL_COUNT)) > 0; }
  * soldier that is not in the game's soldier list, keeps the game's own reaction. */
 extern u32 func_089D194C(u32);
 static u32 obj_id(u32 o){ return GU32(o + GU32(GU32(o) - 16) + 4); }
-static int obj_type(u32 o){ return (int)*(volatile u16 *)(uintptr_t)(o + GU32(GU32(o) - 16) + 8); }
+static int obj_type(u32 o){ return (int)GU16(o + GU32(GU32(o) - 16) + 8); }
 static int unit_side(u32 u){ return (int)(u32)func_08A26FC0(GU32(u + 64)); }
 int rs_vehicle_hit(u32 veh, u32 man){
     static int on_ = -1; if (on_ < 0) on_ = rs_setting_int("RS_VEHICLE_RUNOVER", 1);
@@ -346,11 +448,12 @@ int rs_vehicle_hit(u32 veh, u32 man){
         if (side < 0 && func_089D194C(s) == vid) side = unit_side(s); }
     if (!inlist || side < 0) return 0;
     if (unit_side(man) == side) return 1;                               /* friendly: drive on */
-    static u32 msgbuf[4]; u32 msg = (u32)(uintptr_t)msgbuf;
+    static u32 msg; if (!msg) msg = GA(rs_guest_alloc(16, 16));
     GU32(msg) = 0x9E500986u; GU32(msg + 4) = vid; GU32(msg + 8) = GU32(veh + 0x54); GF32(msg + 12) = 100000.0f;
     if (rs_setting_int("RS_AI_LOG", 0)) fprintf(stderr, "[VEHICLE] %08x ran over an enemy soldier %08x\n", veh, man);
-    ((ifn_t)(uintptr_t)GU32(GU32(man) + 8))(man, msg, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    ((ifn_t)GFN(GU32(GU32(man) + 8)))(man, msg, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     return 1; }
+
 /* Physics: vehicles pass through soldiers of the side aboard them.  func_088BBDEC(pair) is the physics engine's test of a pair of
  * bodies (pair +4, +8): 1 = not touching (the bounding boxes apart), else the narrow-phase contact.  Each body carries its game
  * object's id at +364 (the id the game looks up in its object table, 0x08C2C31C / size 0x08C2C320, as func_089D74B4 does).  A pair of
@@ -372,8 +475,12 @@ int rs_phys_pair(u32 pair, u32 *rv){
     static int on_ = -1; if (on_ < 0) on_ = rs_setting_int("RS_VEHICLE_RUNOVER", 1) && on();
     if (!on_ || !GU32(IMG(UL_COUNT))) return 0;
     u32 ba = GU32(pair + 4), bb = GU32(pair + 8); if (!ba || !bb) return 0;
+    { static int lg = -1; static unsigned n; if (lg < 0) lg = getenv("RS_PHYS_LOG") != 0;   /* TEMP */
+      if (lg && ++n % 500 == 1) fprintf(stderr, "[PHYS] call %u: bodies %08x %08x ids %08x %08x objs %08x %08x\n", n, ba, bb, GU32(ba + 364), GU32(bb + 364), obj_by_id(GU32(ba + 364)), obj_by_id(GU32(bb + 364))); }
     u32 oa = obj_by_id(GU32(ba + 364)); if (!oa) return 0; int ta = obj_type(oa); if (ta != 0x8005 && !is_veh(ta)) return 0;
     u32 ob = obj_by_id(GU32(bb + 364)); if (!ob) return 0; int tb = obj_type(ob);
+    { static int lg = -1; static unsigned h[64]; static unsigned n; if (lg < 0) lg = getenv("RS_PHYS_LOG") != 0;     /* TEMP: pair types */
+      if (lg) { h[((ta & 0x1F) * 2 + (tb == 0x8005)) & 63]++; if (++n % 100 == 0) { fprintf(stderr, "[PHYS] pairs by type:"); for (int i = 0; i < 64; i++) if (h[i]) fprintf(stderr, " %x/%s:%u", 0x8000 + i / 2, i & 1 ? "soldier" : "other", h[i]); fprintf(stderr, "\n"); } } }
     u32 veh, man; if (is_veh(ta) && tb == 0x8005) { veh = oa; man = ob; } else if (ta == 0x8005 && is_veh(tb)) { veh = ob; man = oa; } else return 0;
     int vs = vehicle_side(veh); if (vs < 0 || func_089D194C(man) == obj_id(veh)) return 0;
     if (unit_side(man) != vs) return 0;
@@ -389,7 +496,9 @@ int rs_phys_pair(u32 pair, u32 *rv){
 extern u32 rs_input_object(void);
 u64 rs_perf_us(void);
 const char *rs_platform_setting(const char *key);
+static u32 hum_vt;
 void rs_soldier_frame(u32 sol){
+    if (!hum_vt && gok(sol)) hum_vt = GU32(sol);
     static int keep = -1; static float delay = 1.0f;
     if (keep < 0) { keep = !rs_setting_int("RS_LOOK_CENTER", 1);
         const char *d = rs_platform_setting("RS_LOOK_CENTER_DELAY"); if (d && *d) delay = (float)atof(d); if (delay < 0) delay = 0;
@@ -411,3 +520,104 @@ void rs_soldier_frame(u32 sol){
     float left = delay - (float)(now - last_use); if (left < 0) left = 0;
     if (t > 0 || left > 0) { GF32(sol + 0x1FC) = left > 0 ? left : 0.0001f; wrote = left > 0 ? left : 0.0001f; } }
 
+/* RS_COL_LOG=1 (diagnostics): the masks of the level collision queries (func_088B73C4: the query's +0x24 is the mask of quad flags
+ * it ignores), counted by the native caller */
+void rs_col_query(u32 ctx){
+    static int on_ = -1; if (on_ < 0) on_ = getenv("RS_COL_LOG") != 0; if (!on_) return;
+    static struct { u32 mask, fl; void *ra; unsigned n; } h[64]; static int nh; static unsigned tot;
+    void *ra = __builtin_return_address(1); u32 mask = GU16(ctx + 0x24), fl = GU16(ctx + 0x26);
+    int i = 0; for (; i < nh; i++) if (h[i].mask == mask && h[i].ra == ra && h[i].fl == fl) break;
+    if (i == nh && nh < 64) { h[nh].mask = mask; h[nh].ra = ra; h[nh].fl = fl; h[nh].n = 0; nh++; }
+    if (i < 64) h[i].n++;
+    if (++tot % 500 == 0) { fprintf(stderr, "[COL] queries by mask:"); for (int k = 0; k < nh; k++) fprintf(stderr, " %04x/%04x@%p:%u", h[k].mask, h[k].fl, h[k].ra, h[k].n); fprintf(stderr, "\n"); } }
+void rs_col_ray(u32 ray){
+    static int on_ = -1; if (on_ < 0) on_ = getenv("RS_COL_LOG") != 0; if (!on_) return;
+    static struct { u32 ex, req; void *ra; unsigned n; } h[96]; static int nh; static unsigned tot;
+    void *ra = __builtin_return_address(1); u32 ex = GU32(ray + 48), req = GU32(ray + 52);
+    int i = 0; for (; i < nh; i++) if (h[i].ex == ex && h[i].ra == ra && h[i].req == req) break;
+    if (i == nh && nh < 96) { h[nh].ex = ex; h[nh].ra = ra; h[nh].req = req; h[nh].n = 0; nh++; }
+    if (i < 96) h[i].n++;
+    if (++tot % 3000 == 0) { fprintf(stderr, "[RAY] rays by exclude/require mask:"); for (int k = 0; k < nh; k++) fprintf(stderr, " %x/%x@%p:%u", h[k].ex, h[k].req, h[k].ra, h[k].n); fprintf(stderr, "\n"); } }
+/* Damage (tools/dc/hooks.py: func_089E1FDC is where a soldier or vehicle takes a hit, from its message handler (func_089A7310 for
+ * soldiers, func_089D6CBC): msg +0 the weapon's / projectile's blueprint hash, +4 the source's object id, +8 the source's +0x54,
+ * +12 the amount after the game's scaling).  Each hit becomes an event for the AI bridge: target, source, amount, the target's health
+ * before and after (killed when it goes from above 0 to 0 or below), weapon.  Checked: kills and hits match the bots' health. */
+static unsigned probe_fr;
+#define EVT_N 1024
+static struct rs_ai_evt evq[EVT_N]; static unsigned ev_w, ev_r; static float dmg_hp; static u32 dmg_tgt;
+static struct { u32 id, w; } fired[256];
+static float obj_health(u32 o){ if (!gok(o) || !gok(GU32(o))) return 0; u32 sub = o + GU32(GU32(o) - 12); return gok(sub) ? GF32(sub + 0x28) : 0; }
+static u32 fired_by(u32 id){ for (int i = 0; i < 256; i++) if (fired[i].id == id) return fired[i].w; return 0; }
+void rs_ai_dmg_pre(u32 o, u32 msg){ dmg_tgt = o; dmg_hp = obj_health(o); (void)msg; }
+void rs_ai_dmg_post(u32 o, u32 msg){
+    if (o != dmg_tgt || !msg || !gok(o) || !gok(GU32(o))) return;
+    struct rs_ai_evt e = { obj_id(o), GU32(msg + 4), GF32(msg + 12), dmg_hp, obj_health(o), GU32(msg) };
+    if (e.before <= 0.0f) return;                                       /* hits on the dead */
+    evq[ev_w++ % EVT_N] = e; if (ev_w - ev_r > EVT_N) ev_r = ev_w - EVT_N;
+    { int k = -1; for (int i = 0; i < 256 && k < 0; i++) if (fired[i].id == e.source) k = i; for (int i = 0; i < 256 && k < 0; i++) if (!fired[i].id) k = i;
+      if (k < 0) k = (int)(e.source % 256); fired[k].id = e.source; fired[k].w = e.weapon; }
+    { static FILE *f; const char *pf = getenv("RS_AI_EVLOG"); if (pf) { if (!f) f = fopen(pf, "w"); if (f) { fprintf(f, "%u %x %x %.2f %.2f %.2f %x\n", probe_fr, e.target, e.source, e.amount, e.before, e.after, e.weapon); fflush(f); } } } }
+int rs_ai_events(struct rs_ai_evt *out, int max){ int n = 0; while (ev_r != ev_w && n < max) out[n++] = evq[ev_r++ % EVT_N]; return n; }
+void rs_ai_events_reset(void){ ev_r = ev_w; memset(fired, 0, sizeof fired); }
+
+/* Line of sight for the AI bridge: the level ray the game's AI uses (func_0883506C builds it: +0 origin, +12 direction (unit), +36 an
+ * object id to ignore (999 none), +40 length, +48 the mask of surface kinds to skip (8, as the AI's own ground probe func_0891E3F0);
+ * func_08834E84 casts it and returns the hit: +0 the distance along the ray, +32 non-zero on a hit).  Eye height to eye height.
+ * Checked on Tatooine: of 1193 hits between bots, 1180 had a clear line by this test at the time. */
+extern rv_t func_08834E84(u32); extern void func_0883506C(u32, u32, u32, u32, u32, u32, float);
+int rs_ai_los(const float *a, const float *b){
+    static u32 ray, o3, d3; if (!ray) { ray = GA(rs_guest_alloc(128, 16)); o3 = GA(rs_guest_alloc(16, 16)); d3 = GA(rs_guest_alloc(16, 16)); }
+    float o[3] = { a[0], a[1] + 1.5f, a[2] }, t[3] = { b[0], b[1] + 1.5f, b[2] }, d[3] = { t[0] - o[0], t[1] - o[1], t[2] - o[2] };
+    float L = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]); if (L < 0.5f) return 1;
+    for (int k = 0; k < 3; k++) { GF32(o3 + 4u * (u32)k) = o[k]; GF32(d3 + 4u * (u32)k) = d[k] / L; }
+    func_0883506C(ray, o3, d3, 999, 0, 8, L);
+    u32 hit = func_08834E84(ray).v0; if (!hit) return 1;
+    return !(GU8(hit + 32) && GF32(hit) < L - 1.0f); }
+/* the bridge's extras for the policy's bots: the nearest enemies, whether each is in sight, and a nearby point hidden from the
+ * nearest one (8 directions at 6 and 10 units; the nearest such point that the bot itself can reach in a straight line) */
+static int extras_live;
+void rs_ai_extras(struct rs_ai_rec *r, int n){
+    { int live = 0; for (int i = 0; i < n; i++) live += r[i].alive && r[i].health > 0; extras_live = live; }
+    for (int i = 0; i < n; i++) { struct rs_ai_rec *a = &r[i];
+        a->kit[0] = GU32(a->obj + 0xB4); a->kit[1] = GU32(a->obj + 0xB8); a->kit[2] = GU32(a->obj + 0xBC); a->fired = fired_by(a->id);
+        if (!a->policy || !a->alive || a->health <= 0) continue;
+        int best[3] = { -1, -1, -1 }; float bd[3] = { 1e30f, 1e30f, 1e30f };
+        for (int j = 0; j < n; j++) { struct rs_ai_rec *e = &r[j]; if (e->team == a->team || !e->alive || e->health <= 0) continue;
+            float dx = e->pos[0] - a->pos[0], dz = e->pos[2] - a->pos[2], d = dx * dx + dz * dz;
+            for (int k = 0; k < 3; k++) if (d < bd[k]) { for (int m = 2; m > k; m--) { bd[m] = bd[m - 1]; best[m] = best[m - 1]; } bd[k] = d; best[k] = j; break; } }
+        for (int k = 0; k < 3; k++) if (best[k] >= 0) { a->near_id[k] = r[best[k]].id; a->near_los[k] = bd[k] < 150.0f * 150.0f ? (u8)rs_ai_los(a->pos, r[best[k]].pos) : 0; }
+        if (best[0] >= 0 && bd[0] < 80.0f * 80.0f) {
+            const float *e = r[best[0]].pos; float bestd = 1e30f;
+            for (int ring = 0; ring < 2; ring++) for (int k = 0; k < 8; k++) { float ang = 6.2831853f * (float)k / 8.0f, rad = ring ? 10.0f : 6.0f;
+                float c[3] = { a->pos[0] + rad * cosf(ang), a->pos[1], a->pos[2] + rad * sinf(ang) };
+                if (rs_ai_los(e, c) || !rs_ai_los(a->pos, c)) continue;
+                float dd = (c[0] - a->pos[0]) * (c[0] - a->pos[0]) + (c[2] - a->pos[2]) * (c[2] - a->pos[2]);
+                if (dd < bestd) { bestd = dd; memcpy(a->cover, c, 12); a->cover_ok = 1; } } } } }
+/* vehicles for the bridge: every object of a vehicle type in the game's object table, its position and who is aboard */
+int rs_ai_vehicles(struct rs_ai_veh *out, int max){
+    u32 tab = GU32(IMG(0x08C2C31Cu)), sz = GU32(IMG(0x08C2C320u)); if (!gok(tab) || !sz || sz > 65536) return 0; int n = 0;
+    for (u32 b = 0; b < sz && n < max; b++) for (u32 nd = GU32(tab + 4u * b); gok(nd) && n < max; nd = GU32(nd + 4)) { u32 o = GU32(nd); if (!gok(o) || !gok(GU32(o))) continue;
+        u32 so = o + GU32(GU32(o) - 16); if (!gok(so) || (GU32(so + 16) & 1)) continue; if (!is_veh((int)GU16(so + 8))) continue;
+        const float *p = soldier_pos(o); if (!p) continue;
+        struct rs_ai_veh *v = &out[n++]; memcpy(v->pos, p, 12); v->id = GU32(so + 4); v->side = vehicle_side(o); }
+    return n; }
+/* a soldier's humanoid (the part the game's soldier update runs on, with the weapon inventory at +0xEC): an object next to the AI
+ * object with the humanoid vtable and the same object id (its offset differs per soldier); cached per id */
+static struct { u32 id, o, h; } humc[256];
+u32 rs_ai_humanoid(u32 o){
+    if (!hum_vt || !gok(o)) return 0; u32 id = obj_id(o); int k = (int)(id % 256);
+    if (humc[k].id == id && humc[k].o == o && gok(humc[k].h) && GU32(humc[k].h) == hum_vt) return humc[k].h;
+    for (u32 off = 0; off < 0x2000; off += 4) if (GU32(o + off) == hum_vt && obj_id(o + off) == id) { humc[k].id = id; humc[k].o = o; humc[k].h = o + off; return o + off; }
+    return 0; }
+/* the controls the game applies to a soldier each frame (func_089A8A98(control, humanoid): from the AI's or the network's control
+ * message: +120 button bits, +124.. aim / move, +160, +164 weapon slot, +165 secondary slot).  RS_AI_CTLLOG (field finding) logs them. */
+void rs_ai_ctl_pre(u32 ctl, u32 hum){
+    { const char *fs = getenv("RS_AI_FORCESLOT"); if (fs && gok(ctl) && (probe_fr / 600) % 2) GU8(ctl + 164) = (u8)atoi(fs); }
+    const char *pf = getenv("RS_AI_CTLLOG"); if (!pf || !gok(ctl) || !gok(hum)) return;
+    static FILE *f; if (!f) f = fopen(pf, "w"); if (!f) return;
+    static unsigned n; if (++n % 7) return;
+    fprintf(f, "%u %x %08x %u %u", probe_fr, obj_id(hum), GU32(ctl + 120), GU8(ctl + 164), GU8(ctl + 165));
+    for (u32 k = 124; k < 164; k += 4) fprintf(f, " %g", GF32(ctl + k));
+    fprintf(f, " | %x\n", GU32(ctl + 160)); fflush(f); }
+void rs_ai_frame_count(void){ ++probe_fr; }
+int rs_in_match(void){ return GU32(IMG(UL_COUNT)) > 0; }   /* soldiers in the game's list: a match is on (gfx_gxm.c menu / match scale) */

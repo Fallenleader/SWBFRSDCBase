@@ -478,6 +478,8 @@ static void process(const char *host_common, const char *host_text){
     snprintf(dir, sizeof dir, "%s/patched", dd); mkdir(dd, 0777); mkdir(dir, 0777);
     snprintf(out_common, sizeof out_common, "%s/COMMON.ASR", dir);
     snprintf(mod, sizeof mod, "%s/Weapons_Mod.txt", dd);
+    {   const char *ded = getenv("RS_DEDICATED"), *md = getenv("RS_MODS_DIR");                        /* a hosted session: its own mods folder */
+        if (ded && atoi(ded) && md && *md) { snprintf(mod, sizeof mod, "%s/Weapons_Mod.txt", md); fprintf(stderr, "[WEAPONS] hosted session: %s\n", mod); } }
     snprintf(p, sizeof p, "%s/weapons_default.txt", dd); remove(p);           /* the earlier single reference file */
     long tn = 0; u8 *td = slurp(host_text, &tn); if (td) text_read(td, tn);
     long n = 0; u8 *d = slurp(host_common, &n);

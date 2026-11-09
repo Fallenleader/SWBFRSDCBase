@@ -1,0 +1,13 @@
+# A hosted session (see README.md).
+Name         = Classic Era Rotation
+MaxPlayers   = 8
+Bots         = 16
+AIDifficulty = 1
+Tickets      = 300
+TimeLimit    = 20
+HeroTime     = 60
+AutoBalance  = 1
+Map          = HOTH CLASSIC CQST
+Map          = ENDOR CLASSIC CQST
+Map          = TATOOINE CLASSIC CQST
+Map          = YAVIN_IV CLASSIC CQST

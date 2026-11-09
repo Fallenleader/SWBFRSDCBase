@@ -8,6 +8,8 @@
 #include <math.h>
 typedef uint8_t u8; typedef int8_t s8; typedef uint16_t u16; typedef int16_t s16;
 typedef uint32_t u32; typedef int32_t s32; typedef uint64_t u64; typedef int64_t s64;
+#include "guest.h"
+u32 rs_scratchpad_addr(void);
 typedef struct sdkcall_s { u32 r[32]; u32 hi, lo; void *thread; } sdkcall_t;
 typedef struct { u32 addr; const char *lib; u32 nid; } rc_stub_t;
 extern const int RC_NSTUBS; extern const rc_stub_t rc_stubs[];
@@ -42,7 +44,7 @@ typedef struct { u32 v0, v1; float f0; } rv_t;
 typedef struct { u32 fpu_csr; u32 vfpu_cc; u32 psp_k0; u32 pad; float vfpu_v[128]; } rs_tls_t;
 rs_tls_t *rs_tls(void) __attribute__((const));
 typedef rv_t (*ifn_t)(u32, u32, u32, u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
-#define CALLDYN(c, a) do { rv_t r_ = ((ifn_t)(uintptr_t)(a))((c)->r[4], (c)->r[5], (c)->r[6], (c)->r[7], (c)->r[8], (c)->r[9], (c)->r[10], (c)->r[11], 0, 0, 0, 0, 0, 0, 0, 0); (c)->r[2] = r_.v0; (c)->r[3] = r_.v1; } while (0)
+#define CALLDYN(c, a) do { rv_t r_ = ((ifn_t)GFN(a))((c)->r[4], (c)->r[5], (c)->r[6], (c)->r[7], (c)->r[8], (c)->r[9], (c)->r[10], (c)->r[11], 0, 0, 0, 0, 0, 0, 0, 0); (c)->r[2] = r_.v0; (c)->r[3] = r_.v1; } while (0)
 void hle_call(sdkcall_t *c, int idx);
 void rc_dump_stack(sdkcall_t *c, const char *tag);
 /* settings (harness: fixed defaults, original game behaviour) */

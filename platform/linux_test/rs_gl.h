@@ -65,6 +65,7 @@
 #define glReadPixels p_glReadPixels
 #define glPixelStorei p_glPixelStorei
 #define glGetError p_glGetError
+#define glGetIntegerv p_glGetIntegerv
 #define glGenerateMipmap p_glGenerateMipmap
 #define glDrawElements p_glDrawElements
 #define glBindBuffer p_glBindBuffer

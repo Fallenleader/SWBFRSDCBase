@@ -102,6 +102,7 @@ int rs_fs_open(const char *p, int mode){
     FILE *f = vfs_fopen(full, fm); if (!f && (mode & 3) == RS_FS_RW) f = vfs_fopen(full, "rb");
     if (!f) { fprintf(stderr, "[IO] open FAILED %s\n", p); return (int)ERR_NOENT; }
     fprintf(stderr, "[IO] open %s\n", p); rs_atrac_note_file(full); rs_movie_note_file(full);
+    { extern void rs_fx_file_opened(const char *) __attribute__((weak)); if (rs_fx_file_opened) rs_fx_file_opened(full); }   /* gfx_fx.c: map, lights, dumps */
     int fd = new_fd(f, 0, full); if (fd < 0) { fclose(f); return (int)ERR_MFILE; } return fd; }
 
 int rs_fs_close(int fd){
@@ -113,7 +114,7 @@ int64_t rs_fs_read(int fd, void *dst, size_t n){
     rs_guest_unlock(); size_t got = fread(dst, 1, n, e->f); rs_guest_lock();
     if (got >= 512) rs_atrac_note_read(e->path, pos, (u32)got);    /* a sound read out of a bundle (GMSND.AM speech) */
 #ifdef RS_CENSUS
-    { extern u32 *rs_census_shadow; u32 a = (u32)(uintptr_t)dst; if (rs_census_shadow) for (u32 o = 0; o < got && a + o < 0x10000000u; o += 4) rs_census_shadow[(a + o) >> 2] = 1; }
+    { extern u32 *rs_census_shadow; u32 a = GA(dst); if (rs_census_shadow) for (u32 o = 0; o < got && a + o < 0x10000000u; o += 4) rs_census_shadow[(a + o) >> 2] = 1; }
 #endif
     return (int64_t)got; }
 
@@ -161,10 +162,10 @@ int rs_fs_mkdir(const char *p){
 }
 
 /* ======================================================================== the game's file calls (PSP IoFileMgr ABI) -> rs_fs_* */
-static inline void *GP(u32 a){ return (void *)(uintptr_t)GADDR(a); }
-static const char *gs(u32 a){ return (const char *)GP(a); }
+static inline void *GPA(u32 a){ return g_mem + GADDR(a); }    /* a game address as the firmware calls get it */
+static const char *gs(u32 a){ return (const char *)GPA(a); }
 static void put_stat(u32 dst, const rs_fs_stat_t *st){            /* SceIoStat: mode, attr, size (64-bit), times, private[0] = sector */
-    u8 *p = (u8 *)GP(dst); memset(p, 0, 0x58); u32 m = st->is_dir ? 0x1000 : 0x2000; memcpy(p, &m, 4);
+    u8 *p = (u8 *)GPA(dst); memset(p, 0, 0x58); u32 m = st->is_dir ? 0x1000 : 0x2000; memcpy(p, &m, 4);
     if (!st->is_dir || st->size) { u32 lo = (u32)st->size, hi = (u32)(st->size >> 32); memcpy(p + 8, &lo, 4); memcpy(p + 12, &hi, 4); }
     if (!st->is_dir) memcpy(p + 0x40, &st->sector, 4); }
 
@@ -173,8 +174,8 @@ u32 psp_sceIoOpen(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3
     return (u32)rs_fs_open(gs(a0), m); }
 u32 psp_sceIoClose(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3){ (void)a1; (void)a2; (void)a3; (void)t0; (void)t1; (void)t2; (void)t3; return (u32)rs_fs_close((int)a0); }
 u32 psp_sceIoDclose(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3){ (void)a1; (void)a2; (void)a3; (void)t0; (void)t1; (void)t2; (void)t3; return (u32)rs_fs_close((int)a0); }
-u32 psp_sceIoRead(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3){ (void)a3; (void)t0; (void)t1; (void)t2; (void)t3; return (u32)rs_fs_read((int)a0, GP(a1), a2); }
-u32 psp_sceIoWrite(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3){ (void)a3; (void)t0; (void)t1; (void)t2; (void)t3; return (u32)rs_fs_write((int)a0, GP(a1), a2); }
+u32 psp_sceIoRead(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3){ (void)a3; (void)t0; (void)t1; (void)t2; (void)t3; return (u32)rs_fs_read((int)a0, GPA(a1), a2); }
+u32 psp_sceIoWrite(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3){ (void)a3; (void)t0; (void)t1; (void)t2; (void)t3; return (u32)rs_fs_write((int)a0, GPA(a1), a2); }
 u64 psp_sceIoLseek(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3){ (void)a1; (void)t1; (void)t2; (void)t3;
     if (!get_fd((int)a0)) return (u64)0xFFFFFFFF00000000ull | ERR_BADF;
     int64_t off = (int64_t)(((u64)a3 << 32) | a2); return (u64)rs_fs_seek((int)a0, off, t0 == 0 ? SEEK_SET : (t0 == 1 ? SEEK_CUR : SEEK_END)); }
@@ -183,7 +184,7 @@ u32 psp_sceIoGetstat(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32
 u32 psp_sceIoDopen(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3){ (void)a1; (void)a2; (void)a3; (void)t0; (void)t1; (void)t2; (void)t3; return (u32)rs_fs_opendir(gs(a0)); }
 u32 psp_sceIoDread(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3){ (void)a2; (void)a3; (void)t0; (void)t1; (void)t2; (void)t3;
     char name[256]; rs_fs_stat_t st; int r = rs_fs_readdir((int)a0, name, sizeof name, &st); if (r <= 0) return (u32)r;
-    u8 *p = (u8 *)GP(a1); memset(p, 0, 0x160); put_stat(a1, &st); if (st.is_dir) memset(p + 8, 0, 8);
+    u8 *p = (u8 *)GPA(a1); memset(p, 0, 0x160); put_stat(a1, &st); if (st.is_dir) memset(p + 8, 0, 8);
     strncpy((char *)p + 0x58, name, 255); return 1; }
 u32 psp_sceIoMkdir(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3){ (void)a1; (void)a2; (void)a3; (void)t0; (void)t1; (void)t2; (void)t3;
     return rs_fs_mkdir(gs(a0)) == 0 ? 0 : 0x80010011u; }

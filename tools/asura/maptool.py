@@ -11,14 +11,21 @@ Full documentation: docs/MAPS.md.  Python 3 (numpy optional: faster texture pale
           sounds/*.wav       every sound effect
           env/Env.fbx        the level geometry (FBX 7.4: Maya 2025, Blender, 3ds Max), one mesh per level object
           models/*.fbx       the map's props (rigid models with their skeletons)
-          scripts/<TAG>/*.txt  every other chunk as text (entities, objects, effects, sounds, fog, sky, ...)
-          resources/*.txt    resources that are neither textures, sounds nor meshes, as text
+          scripts/<TAG>/*.lua  every other chunk as a Lua script (entities, objects, effects, sounds, fog, sky, ...)
+          resources/*.lua    resources that are neither textures, sounds nor meshes, as Lua scripts
+          rs_map.lua         the scripts' value constructors (to run a script with Lua 5.3 / 5.4)
           .maptool/          the original file and what was unpacked (pack compares against it: do not edit)
   maptool.py pack    <era folder> [-o <file.PSP>]
         Builds the level file from the folder: chunks whose file was not changed are copied from the original; changed or new files
         are converted (PNG -> palette texture, WAV -> VAG, FBX -> strips, text -> binary).  Default output: <era folder>/<MAP>.PSP
+  maptool.py bake    <era folder>
+        Bakes the AI navigation graph from the level's collision (the col_ meshes of env/Env.fbx) into nav/navmesh.nav (+ a preview FBX);
+        pack builds it into the level.  Needs numpy.
   maptool.py verify  <era folder>
         Packs into memory and reports what changed (an untouched folder must give back the original file byte for byte).
+  maptool.py convert <era folder>
+        Turns the text scripts of a folder unpacked by an older maptool (scripts/*.txt, resources/*.txt) into Lua scripts and
+        points map.txt at them.  The level packs the same.
   maptool.py install <map folder> --id <NEWID> --name "<shown name>" --data <data folder> [--base <MAP>]
         Packs every era folder of <map folder> and installs the result as a NEW map: <data>/mods/maps/<NEWID>.txt (definition) and
         <data>/mods/maps/<ERA>/<NEWID>.PSP.  The game lists it in Instant Action's Planet list after the original maps.
@@ -28,7 +35,7 @@ import os, sys, json, struct, hashlib, shutil, re, shlex, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chunks import chunks
 from rscf import rscf
-import texture, texenc, pngw, vag, pack, env, envfbx, fbx, fbxread, model, skeleton, rigid_io, lists, textdump, chunkfmt
+import texture, texenc, pngw, vag, pack, env, envfbx, phen, nav, fbx, fbxread, model, skeleton, rigid_io, lists, textdump, chunkfmt, luascript
 
 ERAS = ('CLASSIC', 'PREQUEL', 'CAMPAIGN')
 VERSION = 1
@@ -61,16 +68,18 @@ Edit the files, then:   maptool.py pack <this folder>      (or install the whole
   map.txt      the order of the chunks in the level file and which file holds each one; lines can be reordered, removed, or added
   textures/    PNG, RGBA.  Keep the size a power of two (sizes may change).  More than 256 colours are reduced to a palette.
   sounds/      WAV, 16-bit PCM.  Stereo is mixed to mono; the sample rate is kept.
-  env/Env.fbx  the level geometry.  Collision is separate (scripts/PHEN) and is not rebuilt from it.
+  env/Env.fbx  the level geometry, and its collision as meshes named col_... (see docs/MAPS.md).
   models/      the props.  Each part follows one joint of the skeleton (rigid skin, weight 1).
-  scripts/     every other chunk as text: one value per line, comments after #.  Lists can grow or shrink (counts are fields: keep
-               them right); values that point into a chunk by offset are not adjusted.
+  scripts/     every other chunk as a Lua script: 'return chunk "TAG" { u32(1), f32(2.5), str "name", ... }', comments after --.
+               Lists can grow or shrink (counts are fields: keep them right); values that point into a chunk by offset are not
+               adjusted.  Plain lists are read by maptool itself; scripts with Lua code (loops, functions) are run with Lua 5.3/5.4
+               (rs_map.lua, in this folder, defines u32/i32/x32/f32/u16/u8/str/wstr/hex and chunk).
 """
 
 MAP_HEAD = """# Level layout, one line per chunk of the file, in file order (maptool.py pack follows this file).
-#   <n> chunk "<TAG>" <version> <flags> <file>                    a chunk; its data is the text file (textdump syntax)
+#   <n> chunk "<TAG>" <version> <flags> <file>                    a chunk; its data is the Lua script (or a .txt in textdump syntax)
 #   <n> resource <version> <flags> <type> <unk> "<name>" <file>   an embedded resource (RSCF): texture (type 2, .png), sound
-#                                                                  (type 3, .wav), mesh (type 0: Env.fbx / models), other (.txt)
+#                                                                  (type 3, .wav), mesh (type 0: Env.fbx / models), other (.lua)
 # <n> is the chunk's number in the original file; use "new" for a chunk you add.  Remove a line to drop a chunk.
 """
 
@@ -130,9 +139,9 @@ def unpack(src, out, log=print):
             except Exception as ex:
                 log('  %s: kept as text (%s)' % (name, ex)); rel = None
             if rel is None:
-                rel = unique('resources/' + safe(name).replace('#', '_') + '.txt'); mkdirs(os.path.dirname(os.path.join(out, rel)))
-                with open(os.path.join(out, rel), 'w') as f:
-                    f.write('# resource "%s" (type %d), as text\n' % (name, typ)); f.write('\n'.join(textdump.dump(blob)) + '\n')
+                rel = unique('resources/' + safe(name).replace('#', '_') + '.lua'); mkdirs(os.path.dirname(os.path.join(out, rel)))
+                with open(os.path.join(out, rel), 'w', encoding='latin1') as f:
+                    f.write(luascript.to_lua(textdump.dump(blob), ['resource "%s" (type %d), as a script' % (name, typ)], 'resource', name))
                 ent['kind'] = 'data'
             ent['file'] = rel
             lines.append('%04d resource %d 0x%x %d 0x%x "%s" %s\n' % (i, v, fl, typ, unk, name.replace('\\', '\\\\').replace('"', '\\"'), _q(rel)))
@@ -142,10 +151,10 @@ def unpack(src, out, log=print):
                 except Exception: pass
             tl = chunkfmt.lines(t, v, body) or textdump.dump(body)
             first = next((x for x in tl if x.startswith('str "')), '')
-            rel = unique('scripts/%s/%04d%s.txt' % (tagdir(t), i, ('_' + label(first[5:-1])) if label(first[5:-1]) else ''))
+            rel = unique('scripts/%s/%04d%s.lua' % (tagdir(t), i, ('_' + label(first[5:-1])) if label(first[5:-1]) else ''))
             mkdirs(os.path.dirname(os.path.join(out, rel)))
-            with open(os.path.join(out, rel), 'w') as f:
-                f.write('# chunk %s (version %d, flags 0x%x), number %d of %s\n' % (t, v, fl, i, os.path.basename(src))); f.write('\n'.join(tl) + '\n')
+            with open(os.path.join(out, rel), 'w', encoding='latin1') as f:
+                f.write(luascript.to_lua(tl, ['chunk %s (version %d, flags 0x%x), number %d of %s' % (t, v, fl, i, os.path.basename(src))], 'chunk', t))
             ent.update({'kind': 'chunk', 'file': rel})
             lines.append('%04d chunk "%s" %d 0x%x %s\n' % (i, t, v, fl, _q(rel)))
         man['chunks'][str(i)] = ent
@@ -158,15 +167,57 @@ def unpack(src, out, log=print):
             mnames[k] = ('m%03d_%s' % (k, label(os.path.splitext(os.path.basename(tn.replace('\\', '/')))[0]) if tn else 'none'),
                          ('../' + png) if png else None)
         mnames[0xFFFFFFFF] = ('m_none', None)
-        mkdirs(os.path.join(out, 'env')); envfbx.write(os.path.join(out, 'env', 'Env.fbx'), env.parse(d[q:q + dsz]), objects, mnames)
+        coll = []
+        phen_i = next((i for i, x in enumerate(lst) if x[1] == 'PHEN'), None)
+        if phen_i is not None:
+            try: coll = collision_meshes(d, lst, phen_i, emod)
+            except Exception as ex: log('  collision not exported (%s)' % ex)
+        man['phen'] = phen_i
+        mkdirs(os.path.join(out, 'env')); envfbx.write(os.path.join(out, 'env', 'Env.fbx'), env.parse(d[q:q + dsz]), objects, mnames, coll)
+        if coll: man['col_hash'] = col_hash(envfbx.read_collision(os.path.join(out, 'env', 'Env.fbx'))[0])
     open(os.path.join(out, 'map.txt'), 'w').write(''.join(lines))
     open(os.path.join(out, 'README.txt'), 'w').write(README)
+    shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'rs_map.lua'), os.path.join(out, 'rs_map.lua'))
     for e in man['chunks'].values():
         f = e.get('file')
         if f and f not in man['files']: man['files'][f] = sha1(os.path.join(out, f))
     man['maptxt'] = sha1(os.path.join(out, 'map.txt'))
     json.dump(man, open(os.path.join(out, '.maptool', 'manifest.json'), 'w'), indent=0, sort_keys=True)
     return man
+
+# ------------------------------------------------------------------ collision
+def collision_meshes(d, lst, phen_i, emod_i):
+    """the level's PHEN as col_ meshes for Env.fbx: one mesh per (object, flag value), named col_<type>_c<object>_<EMOD name>"""
+    p, t, s, v, fl = lst[phen_i]; P = phen.parse(d[p + 16:p + s], fl)
+    boxes = []
+    if emod_i is not None:
+        ep = lst[emod_i]; eb = d[ep[0] + 16:ep[0] + ep[2]]
+        for name, pos, off in chunkfmt.emod_entries(eb):
+            f = struct.unpack_from('<6f', eb, off)
+            boxes.append((name, (pos[0] + f[0], pos[0] + f[1], pos[1] + f[2], pos[1] + f[3], pos[2] + f[4], pos[2] + f[5])))
+    out = []
+    for oi, o in enumerate(phen.objects_of(P)):
+        bb = P['objects'][oi]['bounds']; nm = 'obj'
+        if boxes:
+            k = min(range(len(boxes)), key=lambda k: sum(abs(boxes[k][1][j] - bb[j]) for j in range(6)))
+            if sum(abs(boxes[k][1][j] - bb[j]) for j in range(6)) < 2.0: nm = label(boxes[k][0]) or 'obj'
+        for fv in sorted(set(o['flags'])):
+            ks = [k for k in range(len(o['quads'])) if o['flags'][k] == fv]
+            used = sorted(set(i for k in ks for i in o['quads'][k] if i != 0xFFFF)); remap = dict((i, j) for j, i in enumerate(used))
+            out.append({'name': 'col_%s_c%d_%s' % (envfbx.col_flags_name(fv), oi, nm), 'verts': [o['verts'][i] for i in used],
+                        'polys': [[remap[i] for i in o['quads'][k] if i != 0xFFFF] for k in ks], 'mats': [o['mats'][k] for k in ks]})
+    return out
+
+def col_hash(objs):
+    """the collision as a set of triangles (rounded corners, flags, material) per object: unchanged by vertex order"""
+    h = hashlib.sha1()
+    for o in objs:
+        V = o['verts']; tris = []
+        for q, f, m in zip(o['quads'], o['flags'], o['mats']):
+            for tr in ((q[0], q[1], q[2]),) + (((q[2], q[3], q[0]),) if q[3] != 0xFFFF else ()):
+                tris.append((tuple(sorted(tuple(round(c, 3) for c in V[i]) for i in tr)), f, m))
+        h.update(repr(sorted(tris)).encode()); h.update(b'|')
+    return h.hexdigest()
 
 # ------------------------------------------------------------------ pack
 def _chunk(tag, ver, flags, body):
@@ -188,6 +239,35 @@ def read_maptxt(path):
         if out[-1]['kind'] == 'chunk' and len(out[-1]['tag']) != 4: raise SystemExit('map.txt line %d: a chunk tag has 4 characters' % n)
     return out
 
+def _script(path):
+    """a chunk / resource script: Lua (.lua) or the older text form (.txt) -> bytes"""
+    try:
+        if path.lower().endswith('.lua'): return luascript.parse_file(path)
+        return textdump.parse(_read_text(path))
+    except ValueError as ex: raise SystemExit('%s: %s' % (path, ex))
+
+def convert(folder, log=print):
+    """an era folder unpacked by an older maptool: its .txt scripts -> .lua, map.txt pointed at them (the manifest's hashes follow,
+    so unchanged scripts still count as unchanged)"""
+    mp = os.path.join(folder, 'map.txt'); txt = open(mp).read(); n = 0
+    mf = os.path.join(folder, '.maptool', 'manifest.json'); man = json.load(open(mf)) if os.path.exists(mf) else None
+    for it in read_maptxt(mp):
+        f = it['file']
+        if not f.lower().endswith('.txt') or not (f.startswith('scripts/') or f.startswith('resources/')): continue
+        src = os.path.join(folder, f); new = f[:-4] + '.lua'; dst = os.path.join(folder, new)
+        lua = luascript.from_text(src)
+        if luascript.parse(lua) != textdump.parse(_read_text(src)): raise SystemExit('%s: the Lua form does not give the same data' % f)
+        old_h = sha1(src); open(dst, 'w', encoding='latin1').write(lua); os.remove(src); n += 1
+        txt = txt.replace(' ' + f + '\n', ' ' + new + '\n').replace(' "' + f + '"\n', ' "' + new + '"\n')
+        if man:
+            for e in man['chunks'].values():
+                if e.get('file') == f: e['file'] = new
+            if f in man['files']: man['files'][new] = sha1(dst) if man['files'].pop(f) == old_h else '-'      # an edited script stays 'changed'
+    open(mp, 'w').write(txt.replace('(textdump syntax)', '(Lua script)'))
+    if man: man['maptxt'] = sha1(mp); json.dump(man, open(mf, 'w'), indent=1)
+    shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'rs_map.lua'), os.path.join(folder, 'rs_map.lua'))
+    log('%s: %d scripts converted to Lua' % (folder, n))
+
 def _read_text(path):
     return [l for l in open(path, encoding='latin1').read().split('\n')]
 
@@ -197,6 +277,7 @@ def _model_from_fbx(path, blob, sk):
     bname = dict((((names[i] if i < len(names) else 'bone%02d' % i).replace(' ', '_')), i) for i in range(len(sk['bones']) if sk else nparts))
     verts = []; tris = []
     for me in sc['meshes']:
+        if (me['model'] or me['name']).split(':')[-1].lower().startswith(('col_', 'nav_')): continue    # collision boxes (chartool)
         part_of = {}
         for jn, ws in me['clusters'].items():
             pi = bname.get(jn.split(':')[-1])
@@ -268,6 +349,14 @@ def packdir(folder, log=print):
             report.append('new material %d for %s (texture %s)' % (cache[key], mname, rname)); return cache[key]
         env_new, env_bounds, warns = envfbx.read(os.path.join(folder, env_ent['file']), len(ents), centres, material_for)
         report += warns; report.append('level geometry rebuilt from %s' % env_ent['file'])
+    phen_new = None
+    if env_ent and man.get('phen') is not None and changed(env_ent['file']):
+        cobjs, cw = envfbx.read_collision(os.path.join(folder, env_ent['file']))
+        if cobjs and col_hash(cobjs) != man.get('col_hash'):
+            report += cw; pe = man['chunks'][str(man['phen'])]
+            phen_new = _chunk('PHEN', pe['ver'], pe['flags'] & ~1, phen.build(cobjs))
+            report.append('collision rebuilt from the col_ meshes (%d objects, %d polygons)' % (len(cobjs), sum(len(o['quads']) for o in cobjs)))
+        elif not cobjs: report.append('no col_ meshes in %s: the collision is kept as it was' % env_ent['file'])
     out = [base[:8]]; tex_inserted = False
     last_tex_line = max([k for k, it in enumerate(items) if it['kind'] == 'resource' and it['type'] == 2 and it['idx'] is not None and
                          (man.get('env_text') is None or it['idx'] < man['env_text'])] or [-1])
@@ -277,7 +366,9 @@ def packdir(folder, log=print):
             (it['kind'] == 'chunk' and e['tag'] == it['tag'] and e.get('file') == it['file']) or
             (it['kind'] == 'resource' and e['tag'] == 'RSCF' and e['type'] == it['type'] and e['unk'] == it['unk'] and e['name'] == it['name'] and e.get('file') == it['file']))
         fpath = os.path.join(folder, it['file'])
-        if e is not None and it['idx'] == man.get('env') and env_new is not None:
+        if e is not None and it['idx'] == man.get('phen') and phen_new is not None:
+            ch = phen_new
+        elif e is not None and it['idx'] == man.get('env') and env_new is not None:
             ch = _resource(e, it, env_new)
         elif same_params and not changed(it['file']):
             ch = orig(it['idx'])
@@ -321,7 +412,8 @@ def _resource(e, it, blob):
 
 def _build(it, e, fpath, base, man, folder):
     if it['kind'] == 'chunk':
-        return _chunk(it['tag'], it['ver'], it['flags'], textdump.parse(_read_text(fpath)))
+        if fpath.lower().endswith('.nav'): return _chunk(it['tag'], it['ver'], it['flags'] & ~7, open(fpath, 'rb').read())   # a baked graph (bake)
+        return _chunk(it['tag'], it['ver'], it['flags'], _script(fpath))
     ext = os.path.splitext(fpath)[1].lower()
     if ext == '.png':
         w, h, px = pngw.read(fpath)
@@ -341,7 +433,7 @@ def _build(it, e, fpath, base, man, folder):
             blob = _model_from_fbx(fpath, _orig_blob(e, base), sk)
         else: raise SystemExit('%s: a new mesh resource needs an original to replace (see docs/MAPS.md)' % it['file'])
     else:
-        lines = _read_text(fpath); blob = textdump.parse(lines)
+        blob = _script(fpath)
     return _resource(e if (e and e.get('tag') == 'RSCF') else None, it, blob)
 
 def _orig_blob(e, base):
@@ -395,6 +487,38 @@ def install(mapdir, mid, name, data, basemap=None, log=print):
     open(os.path.join(root, mid + '.txt'), 'w').write(MAPDEF.format(id=mid, name=name, base=basemap.upper()))
     log('%s/%s.txt' % (root, mid))
 
+# ------------------------------------------------------------------ navigation graph
+def bake(folder, log=print, preview=True):
+    """the AI navigation graph (NAV1) baked from the level's collision: the col_ meshes of env/Env.fbx (else the original collision)
+    -> nav/navmesh.nav (+ nav/navmesh_preview.fbx), and map.txt's NAV1 line pointed at it"""
+    import navbake
+    man = json.load(open(os.path.join(folder, '.maptool', 'manifest.json'))); base = open(os.path.join(folder, '.maptool', 'base.PSP'), 'rb').read()
+    env_ent = man['chunks'].get(str(man.get('env'))) if man.get('env') is not None else None
+    objs = None
+    if env_ent and os.path.exists(os.path.join(folder, env_ent['file'])):
+        objs, w = envfbx.read_collision(os.path.join(folder, env_ent['file'])); [log('  ' + x) for x in w]
+        if objs: log('collision from the col_ meshes of %s' % env_ent['file'])
+    if not objs:
+        pe = man['chunks'].get(str(man.get('phen')))
+        if pe is None: raise SystemExit('this level has no collision to bake from')
+        objs = phen.objects_of(phen.parse(base[pe['off'] + 16:pe['off'] + pe['size']], pe['flags'])); log('collision: the original (no col_ meshes)')
+    navi = next((k for k, e in man['chunks'].items() if e['tag'] == 'NAV1'), None)
+    if navi is None: raise SystemExit('this level has no navigation chunk (NAV1) to replace')
+    ne = man['chunks'][navi]; original = nav.parse(base[ne['off'] + 16:ne['off'] + ne['size']])
+    nodes, _, _ = navbake.bake(objs, original, log)
+    body = nav.build(nodes)
+    mkdirs(os.path.join(folder, 'nav')); rel = 'nav/navmesh.nav'; open(os.path.join(folder, rel), 'wb').write(body)
+    log('%s: %d nodes, %d links (the original: %d nodes)' % (rel, len(nodes), sum(len(n['links']) for n in nodes), len(original['nodes'])))
+    if preview:
+        envfbx.write_nav_preview(os.path.join(folder, 'nav', 'navmesh_preview.fbx'), nodes); log('nav/navmesh_preview.fbx: the nodes as discs (to look at, not read back)')
+    # map.txt: the NAV1 line -> the baked file
+    lines = open(os.path.join(folder, 'map.txt')).read().split('\n'); idx = int(navi)
+    for k, l in enumerate(lines):
+        if l.startswith('%04d chunk "NAV1"' % idx):
+            parts = shlex.split(l); lines[k] = '%04d chunk "NAV1" %s %s %s' % (idx, parts[3], parts[4], rel)
+    open(os.path.join(folder, 'map.txt'), 'w').write('\n'.join(lines))
+    log('map.txt: the navigation chunk now comes from %s (pack builds it into the level)' % rel)
+
 # ------------------------------------------------------------------ main
 def main(argv):
     if len(argv) < 2 or argv[1] in ('-h', '--help', 'help'): print(__doc__); return 0
@@ -429,6 +553,10 @@ def main(argv):
         for r in rep: print(' ', r)
         print('identical to the original' if b == base else 'differs from the original (%d -> %d bytes)' % (len(base), len(b)))
         return 0 if (b == base or rep) else 1
+    elif cmd == 'convert':
+        for f in args: convert(f)
+    elif cmd == 'bake':
+        bake(args[0])
     elif cmd == 'install':
         mid = opt('--id'); name = opt('--name'); data = opt('--data'); basemap = opt('--base')
         if not (mid and name and data and args): raise SystemExit('usage: install <map folder> --id NEWID --name "Name" --data <data folder>')

@@ -15,7 +15,13 @@ int rs_aniso_level(void){
 #ifdef __vita__
     (void)a; return 1;                                       /* the Vita GPU has no anisotropic filtering: the shader version cost far too much */
 #else
-    if (a < 0) { a = rs_setting_int("RS_ANISO", 4); a = a >= 8 ? 8 : a >= 4 ? 4 : a >= 2 ? 2 : 1; }
+#ifndef RS_ANISO_MAX
+#define RS_ANISO_MAX 8                                   /* the Vita: 8 (the shader's samples); the PS5's GPU filters up to 16 */
+#endif
+#ifndef RS_ANISO_DEFAULT
+#define RS_ANISO_DEFAULT 4
+#endif
+    if (a < 0) { a = rs_setting_int("RS_ANISO", RS_ANISO_DEFAULT); a = a >= 16 && RS_ANISO_MAX >= 16 ? 16 : a >= 8 ? 8 : a >= 4 ? 4 : a >= 2 ? 2 : 1; }
 #endif
     return a; }
 

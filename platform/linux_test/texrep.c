@@ -1,9 +1,13 @@
 /* Texture replacement (mod support): any texture the game uploads can be replaced by a PNG of any size, plus optional PBR maps.
  *
- *   <mods dir>/<mod name>/textures/<key>.png             replacement colour (RGBA; any resolution, keep the aspect ratio)
- *   <mods dir>/<mod name>/textures/<key>-<pal>.png       same, only for one palette of a CLUT texture (team colours etc.)
- *   ..._mr.png   PBR map: R = ambient occlusion, G = roughness, B = metalness (glTF "ORM" layout)
- *   ..._n.png    tangent-space normal map (OpenGL convention, +Y up)
+ *   <mods dir>/textures/<key>[@<label>]_RGBA.png     replacement colour: RGB diffuse, A transparency (any resolution, keep the
+ *                                                     aspect ratio); any subfolders (e.g. the layout of mods/dumps)
+ *   <mods dir>/textures/<key>-<pal>[@<label>]_RGBA.png same, only for one palette of a CLUT texture (team colours etc.)
+ *   (mods/<mod name>/textures/ folders from earlier builds are still read, before mods/textures)
+ *   ..._NM.png    tangent-space normal map in RGB (OpenGL convention, +Y up); A = characters' colour mask (white: own colour, mid
+ *                 grey: colour 1, black: colour 2), put into the colour's alpha when it is not all white
+ *   ..._MSAO.png  PBR map: R = metalness, G = smoothness, B = ambient occlusion (A unused for now; reserved for a height map)
+ *   (earlier names still read: <key>.png, _ms, _n, _mask)  Suffixes are case-insensitive; the label is ignored.
  *
  * <key> = CRC-32 of the texture's level-0 texel bytes as the game stores them (8 lowercase hex digits; tools/asura/extract.py writes the
  * key of every texture into manifest.json).  <pal> = the runtime palette id; RS_MOD_DUMP=1 writes every texture the game uploads as
@@ -13,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <dirent.h>
 #include <ctype.h>
 #include <sys/stat.h>
@@ -48,40 +53,62 @@ static int cmp(const void *a, const void *b){ unsigned long long x = ((const rep
 static int cmpstr(const void *a, const void *b){ return strcmp(*(char * const *)a, *(char * const *)b); }
 static int hex8(const char *s){ for (int i = 0; i < 8; i++) if (!isxdigit((unsigned char)s[i])) return 0; return 1; }
 
-static void scan_dir(const char *dir){
-    DIR *d = opendir(dir); if (!d) return; struct dirent *e; int n = 0;
+/* <key>[-<pal>][@<label>][_RGBA|_NM|_MSAO|_ms|_n].png, in dir and its subfolders (a mod can keep the layout of mods/dumps) */
+static int scan_dir(const char *dir, int depth){
+    DIR *d = opendir(dir); if (!d) return 0; struct dirent *e; int n = 0;
     while ((e = readdir(d))) {
-        const char *s = e->d_name; size_t l = strlen(s); if (l < 12 || !hex8(s)) continue;
+        const char *s = e->d_name; size_t l = strlen(s); if (s[0] == '.') continue;
+        char p[1200]; snprintf(p, sizeof p, "%s/%s", dir, s);
+        if (l < 12 || !hex8(s)) { struct stat st; if (depth < 6 && stat(p, &st) == 0 && S_ISDIR(st.st_mode)) n += scan_dir(p, depth + 1); continue; }
         const char *ext = s + l - 4; if (strcmp(ext, ".png") && strcmp(ext, ".PNG")) continue;
         char k[9]; memcpy(k, s, 8); k[8] = 0; unsigned long long key = (unsigned long long)strtoul(k, 0, 16) << 32; const char *r = s + 8;
         if (*r == '-' && (size_t)(r + 9 - s) <= l - 4 && hex8(r + 1)) { memcpy(k, r + 1, 8); key |= strtoul(k, 0, 16); r += 9; }
-        size_t rl = (size_t)(ext - r); int slot;
-        if (rl == 0) slot = 0; else if (rl == 3 && !strncmp(r, "_mr", 3)) slot = 1; else if (rl == 2 && !strncmp(r, "_n", 2)) slot = 2; else continue;
-        rep_t *rp = get(key); char p[1200]; snprintf(p, sizeof p, "%s/%s", dir, s); free(rp->path[slot]); rp->path[slot] = strdup(p); n++; }
+        if ((size_t)(ext - r) >= 5 && !strncasecmp(ext - 5, "_mask", 5)) continue;              /* a colour mask: read with its colour file */
+        static const struct { const char *suf; int slot; } SUF[] = {{"_RGBA", 0}, {"_MSAO", 1}, {"_NM", 2}, {"_ms", 1}, {"_n", 2}};
+        int slot = -1; const char *x = ext;
+        for (size_t i = 0; i < sizeof SUF / sizeof SUF[0] && slot < 0; i++) { size_t sl = strlen(SUF[i].suf);
+            if ((size_t)(ext - r) >= sl && !strncasecmp(ext - sl, SUF[i].suf, sl)) { slot = SUF[i].slot; x = ext - sl; } }
+        if (slot < 0) slot = 0;
+        if (*r == '@') r = x;                                                                  /* a label (dumps): ignored */
+        if (r != x) continue;
+        rep_t *rp = get(key); free(rp->path[slot]); rp->path[slot] = strdup(p); n++; }
     closedir(d);
-    if (n) fprintf(stderr, "[MOD] %s: %d texture file(s)\n", dir, n); }
+    if (n && !depth) fprintf(stderr, "[MOD] %s: %d texture file(s)\n", dir, n);
+    return n; }
 
+void rs_mkdirs(const char *path){                                  /* mkdir -p */
+    char p[1024]; snprintf(p, sizeof p, "%s", path);
+    for (char *c = p + 1; *c; c++) if (*c == '/') { *c = 0; MKDIR(p); *c = '/'; }
+    MKDIR(p); }
 static const char *dump_root(void){
 #ifdef __vita__
-    return "ux0:data/RS/dump";
+    return "ux0:data/SWBFRS/mods/dumps/all";
+#elif defined(RS_PS5)
+    return "/data/SWBFRS/mods/dumps/all";
 #else
     return getenv("RS_DUMP_TEX_DIR") ? getenv("RS_DUMP_TEX_DIR") : "dump";
 #endif
 }
 static void init(void){
     inited = 1; crc_init(); enabled = rs_setting_int("RS_MODS", 1); dumping = rs_setting_int("RS_MOD_DUMP", 0);
-    if (dumping) { char p[600]; snprintf(p, sizeof p, "%s", dump_root()); MKDIR(p); snprintf(p, sizeof p, "%s/textures", dump_root()); MKDIR(p);
+    if (dumping) { char p[600]; snprintf(p, sizeof p, "%s/textures", dump_root()); rs_mkdirs(p);
         fprintf(stderr, "[MOD] dumping every texture to %s\n", p); }
     if (!enabled) return;
 #ifdef __vita__
-    const char *root = "ux0:data/RS/mods";
+    const char *root = "ux0:data/SWBFRS/mods";
+#elif defined(RS_PS5)
+    const char *root = "/data/SWBFRS/mods";
 #else
     const char *root = getenv("RS_MODS_DIR") ? getenv("RS_MODS_DIR") : "mods";
 #endif
-    DIR *d = opendir(root); if (!d) return; struct dirent *e; char *names[256]; int nn = 0;
-    while ((e = readdir(d)) && nn < 256) if (e->d_name[0] != '.') names[nn++] = strdup(e->d_name);
-    closedir(d); qsort(names, (size_t)nn, sizeof names[0], cmpstr);          /* alphabetical: later mods override earlier ones */
-    for (int i = 0; i < nn; i++) { char p[1024]; snprintf(p, sizeof p, "%s/%s/textures", root, names[i]); scan_dir(p); free(names[i]); }
+    /* mods/textures/ (any subfolders) is the place for replacement textures and their PBR maps; folders of mods from earlier builds
+     * (mods/<mod>/textures/) are still read first, alphabetically, so mods/textures wins over them.  mods/dumps is never read. */
+    DIR *d = opendir(root); struct dirent *e; char *names[256]; int nn = 0;
+    if (d) { while ((e = readdir(d)) && nn < 256) if (e->d_name[0] != '.' && strcmp(e->d_name, "dumps") && strcmp(e->d_name, "lights") && strcmp(e->d_name, "maps") && strcmp(e->d_name, "textures")) names[nn++] = strdup(e->d_name);
+        closedir(d); }
+    qsort(names, (size_t)nn, sizeof names[0], cmpstr);                      /* alphabetical: later mods override earlier ones */
+    for (int i = 0; i < nn; i++) { char p[1024]; snprintf(p, sizeof p, "%s/%s/textures", root, names[i]); scan_dir(p, 0); free(names[i]); }
+    { char p[1024]; snprintf(p, sizeof p, "%s/textures", root); rs_mkdirs(p); scan_dir(p, 0); }
     for (int i = 0; i < nrep; ) { if (!reps[i].path[0]) { free(reps[i].path[1]); free(reps[i].path[2]); reps[i] = reps[--nrep]; } else i++; }   /* colour file required */
     qsort(reps, (size_t)nrep, sizeof *reps, cmp);
     fprintf(stderr, "[MOD] %d texture replacement(s) active\n", nrep); }
@@ -101,5 +128,26 @@ void rs_texrep_dump(u32 key, u32 pal, int w, int h, const u32 *rgba){
     char p[700]; if (pal) snprintf(p, sizeof p, "%s/textures/%08x-%08x.png", dump_root(), key, pal); else snprintf(p, sizeof p, "%s/textures/%08x.png", dump_root(), key);
     FILE *f = fopen(p, "rb"); if (f) { fclose(f); return; }                  /* already dumped by an earlier session */
     stbi_write_png(p, w, h, 4, rgba, w * 4); }
+/* write RGBA8 as a PNG (0 = written) */
+int rs_png_write(const char *path, int w, int h, const u32 *rgba){ return stbi_write_png(path, w, h, 4, rgba, w * 4) ? 0 : -1; }
 /* decode a PNG to RGBA8 (malloc'd, caller frees with free()) */
-u8 *rs_png_load(const char *path, int *w, int *h){ int c; return stbi_load(path, w, h, &c, 4); }
+/* a PNG as RGBA; a colour file with <name>_mask.png next to it gets its alpha channel from the mask (its grey level: characters'
+ * colour masks, white = the texture's own colour, mid grey = Personalisation colour 1, black = colour 2), scaled to the colour size */
+/* A <name>_RGBA.png colour file takes its alpha from <name>_NM.png's alpha when that is not all opaque (the colour mask). */
+static int find_sibling(const char *path, char *out, size_t cap){
+    size_t l = strlen(path); if (l < 10 || l + 8 > cap) return 0;
+    if (!strcasecmp(path + l - 9, "_RGBA.png")) {
+        const char *nm[2] = {"_NM.png", "_nm.png"};
+        for (int i = 0; i < 2; i++) { memcpy(out, path, l - 9); strcpy(out + l - 9, nm[i]); struct stat st; if (stat(out, &st) == 0) return 2; }
+        return 0; }
+    memcpy(out, path, l - 4); strcpy(out + l - 4, "_mask.png"); struct stat st; return stat(out, &st) == 0 ? 1 : 0; }
+u8 *rs_png_load(const char *path, int *w, int *h){
+    int c; u8 *px = stbi_load(path, w, h, &c, 4); if (!px) return NULL;
+    size_t l = strlen(path); if (l < 5 || l > 1000 || strcasecmp(path + l - 4, ".png")) return px;
+    char mp[1100]; int kind = find_sibling(path, mp, sizeof mp); if (!kind) return px;
+    int mw, mh; u8 *m = stbi_load(mp, &mw, &mh, &c, 4); if (!m) return px;
+    if (kind == 2) { int any = 0; for (size_t i = 0; i < (size_t)mw * mh && !any; i++) if (m[i * 4 + 3] != 255) any = 1;   /* no mask in it */
+        if (!any) { stbi_image_free(m); return px; } }
+    for (int y = 0; y < *h; y++) for (int x = 0; x < *w; x++) { const u8 *q = m + ((size_t)(y * mh / *h) * mw + (size_t)(x * mw / *w)) * 4;
+        px[((size_t)y * *w + x) * 4 + 3] = kind == 2 ? q[3] : (u8)((q[0] * 77 + q[1] * 150 + q[2] * 29 + 128) >> 8); }
+    stbi_image_free(m); return px; }
