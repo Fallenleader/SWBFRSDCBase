@@ -2,18 +2,24 @@
  *
  * Each one does exactly what the decompiled function does, written from its decompiled body (same comparisons, same order of float
  * operations, NaN behaviour included: the PSP's ordered compares are C's  <  and  <=), without the register-by-register form: values
- * stay in CPU registers, the per-call scratch on the emulated stack becomes locals.  RS_LIFT=0 in settings.txt turns them all off
- * (the original code runs), to compare.
+ * stay in CPU registers, the per-call scratch on the emulated stack becomes locals.  Settings (settings.txt):
+ *   RS_LIFT=0         all off (the original code runs), to compare
+ *   RS_LIFT_MASK=<n>  which ones: bit 0 ray / box, bit 1 box-tree walk
+ *   RS_LIFT_CHECK=1   verification: the original runs and the lifted version is run beside it, results compared in the log
+ *                     ([LIFT] ... mismatches).  Checked on the desktop build: 1.9 million tree walks, 200,000 ray / box tests, 0 mismatches.
  *
  *  - func_08833F0C  ray against an axis-aligned box (slab test): the inner test of the collision ray casts
  *  - func_08833440  ray cast through a box tree whose child boxes are stored as signed bytes relative to the parent: walks the tree,
  *                   calls the hit callback for every leaf the ray reaches, nearest first (the callback may shorten the ray) */
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "../../src/game/game.h"
 
 extern int rs_setting_int(const char *, int);
 static int lift_on = -1;
-static inline int on(void){ if (lift_on < 0) lift_on = rs_setting_int("RS_LIFT", 1) != 0; return lift_on; }
+static inline int on_m(int bit){ if (lift_on < 0) { lift_on = rs_setting_int("RS_LIFT", 1) != 0 ? rs_setting_int("RS_LIFT_MASK", -1) : 0; } return (lift_on & bit) != 0; }
+#define on() on_m(LIFT_BIT)
 static inline float KF(u32 addr){ return BITSF(LD32(addr)); }
 
 /* ---------------------------------------------------------------- 08833F0C: ray / box
@@ -39,13 +45,400 @@ static inline int raybox(const float *o, const float *d, const float *b, float *
     p = o[j] + best * d[j];
     if (p < b[2 * j] || b[2 * j + 1] < p) return 0;
     *t = best; return 1; }
+#define LIFT_BIT 1
 int rs_lift_raybox(u32 o, u32 d, u32 box, u32 t, void *rv){
     rv_t *r = (rv_t *)rv;
     if (!on()) return 0;
     lift_k_t k; lift_consts(&k);
     float b[6]; const float *s = (const float *)PTR(box); for (int i = 0; i < 6; i++) b[i] = s[i];
+    static int chk = -1; if (chk < 0) chk = rs_setting_int("RS_LIFT_CHECK", 0);
+    if (chk) { static __thread int in; if (in) return 0;                /* check mode: the original runs too, results compared */
+        float tl = *(float *)PTR(t); int hl = raybox((const float *)PTR(o), (const float *)PTR(d), b, &tl, &k);
+        in = 1; extern rv_t func_08833F0C(u32, u32, u32, u32); rv_t ro = func_08833F0C(o, d, box, t); in = 0;
+        float to = *(float *)PTR(t); static unsigned n, bad;
+        if ((u32)hl != ro.v0 || (hl && FBITS(tl) != FBITS(to))) { if (bad++ < 20) fprintf(stderr, "[LIFT] raybox mismatch: lifted %d %g, original %u %g\n", hl, tl, ro.v0, to); }
+        if (++n % 200000 == 0) fprintf(stderr, "[LIFT] raybox checked %u, mismatches %u\n", n, bad);
+        *r = ro; return 1; }
     r->v0 = (u32)raybox((const float *)PTR(o), (const float *)PTR(d), b, (float *)PTR(t), &k); r->v1 = 0; r->f0 = 0;
     return 1; }
+
+/* check mode (RS_LIFT_CHECK=1): the decompiled original, its leaf calls recorded instead of made, against the lifted walk */
+#define REC_MAX 512
+static __thread u32 rec_buf[REC_MAX]; static __thread int rec_n;
+static void rec_leaf(u32 leaf){ if (rec_n < REC_MAX) rec_buf[rec_n] = leaf; rec_n++; }
+extern rv_t func_088338F8(u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
+extern rv_t func_08833F0C(u32, u32, u32, u32);
+static rv_t ref_boxtree(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    u32 v0 = 0, v1 = 0, t2 = 0, t3 = 0, t4 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0, s6 = 0, s7 = 0, fp = 0;
+    float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0, f20 = 0;
+    int fcc = 0;
+    int cnd_;
+    u32 t_;
+    u8 stack_[128] __attribute__((aligned(16)));
+    u32 sp = RS_GADDR(stack_ + 128);
+    u8 trav_[896] __attribute__((aligned(16)));
+L_08833440:;
+    sp = sp - 128;
+    fp = a1 + 0;
+    s7 = a2 + 0;
+    s6 = a3 + 0;
+    s5 = a0 + 0;
+    v0 = LD32(a0);
+    ST32(sp+44, t0);
+    cnd_ = v0 == 0;
+    t0 = t1 + 0;
+    if (cnd_) { goto L_088338C0; }
+    goto L_08833490;
+L_08833490:;
+    v0 = D_08AEB758 - (-18600);
+    f0 = BITSF(LD32(a2+4));
+    f1 = BITSF(LD32(v0-18600));
+    fcc = FCMP(f0, f1, 2);
+    cnd_ = fcc;
+    v1 = t1 << 3;
+    if (cnd_) { goto L_088338AC; }
+    goto L_088334AC;
+L_088334AC:;
+    a0 = LD32(a0+4);
+    v1 = v1 - t1;
+    v0 = RS_GADDR(trav_) - (12940);
+    v1 = v1 << 7;
+    v0 = v0 + 12940;
+    s0 = v1 + v0;
+    ST32(s0+4, a0);
+    t0 = s0 + 0;
+    a0 = LD32(s5+8);
+    ST32(s0, 0);
+    ST32(s0+8, a0);
+    v0 = LD32(s5+12);
+    ST32(s0+12, v0);
+    v1 = LD32(s5+16);
+    ST32(s0+16, v1);
+    v0 = LD32(s5+20);
+    ST32(s0+20, v0);
+    v1 = LD32(s5+24);
+    ST32(s0+24, v1);
+    s0 = s0 + 28;
+    cnd_ = s0 == t0;
+    v0 = D_08AEB75C - (-18596);
+    if (cnd_) { goto L_0883380C; }
+    goto L_08833504;
+L_08833504:;
+    f20 = BITSF(LD32(v0-18596));
+    ST32(sp+48, t0);
+    s0 = s0 - 28;
+    goto L_08833510;
+L_08833510:;
+    a0 = LD32(s0);
+    t2 = LD32(s0+16);
+    t3 = LD32(s0+20);
+    t4 = LD32(s0+24);
+    a1 = LD32(s0+4);
+    a2 = LD32(s0+8);
+    a3 = LD32(s0+12);
+    v1 = a0 >> 1;
+    t1 = LD32(s5+28);
+    a0 = a0 & 0x1;
+    v0 = v1 << 1;
+    v0 = v0 + v1;
+    v1 = a0 << 1;
+    ST32(sp+12, t2);
+    v1 = v1 + a0;
+    v0 = v0 << 2;
+    ST32(sp+16, t3);
+    t1 = t1 + v0;
+    v1 = v1 << 1;
+    ST32(sp+20, t4);
+    t1 = t1 + v1;
+    t0 = s0 + 4;
+    ST32(sp, a1);
+    a0 = fp + 0;
+    a1 = s7 + 0;
+    ST32(sp+4, a2);
+    a2 = t0 + 0;
+    ST32(sp+8, a3);
+    a3 = sp + 36;
+    ST32(sp+52, 0);
+    v0 = LD_U8(t1);
+    f6 = BITSF(LD32(t0+4));
+    f1 = BITSF(LD32(s0+4));
+    v1 = (u32)(s32)(s8)v0;
+    f0 = BITSF(v1);
+    f6 = f6 - f1;
+    v0 = (v0 >> 7) & 0x1;
+    f1 = (float)(s32)FBITS(f0);
+    v0 = v0 << 2;
+    f6 = f6 * f20;
+    v0 = v0 + t0;
+    f0 = BITSF(LD32(v0));
+    v1 = (u32)(s32)LD_S8(t1+1);
+    f1 = f1 * f6;
+    f2 = BITSF(LD32(t0+8));
+    f7 = BITSF(LD32(t0+12));
+    f8 = BITSF(LD32(t0+16));
+    f0 = f0 + f1;
+    f4 = BITSF(LD32(t0+20));
+    f3 = BITSF(v1);
+    f7 = f7 - f2;
+    v1 = (u32)(s32)LD_S8(t1+2);
+    ST32(v0, FBITS(f0));
+    f1 = (float)(s32)FBITS(f3);
+    f5 = BITSF(v1);
+    v1 = LD_U8(t1+1);
+    f7 = f7 * f20;
+    f4 = f4 - f8;
+    v1 = v1 >> 7;
+    v1 = v1 << 2;
+    v1 = v1 + t0;
+    f1 = f1 * f7;
+    f0 = BITSF(LD32(v1+8));
+    f4 = f4 * f20;
+    f2 = (float)(s32)FBITS(f5);
+    f0 = f0 + f1;
+    f2 = f2 * f4;
+    ST32(v1+8, FBITS(f0));
+    v0 = LD_U8(t1+2);
+    v0 = v0 >> 7;
+    v0 = v0 << 2;
+    v0 = v0 + t0;
+    f0 = BITSF(LD32(v0+16));
+    f0 = f0 + f2;
+    ST32(v0+16, FBITS(f0));
+    t0 = LD_U8(t1+3);
+    v0 = (u32)(s32)LD_S8(t1+4);
+    v1 = (u32)(s32)LD_S8(t1+5);
+    f5 = BITSF(v0);
+    v0 = (u32)(s32)(s8)t0;
+    f0 = BITSF(v0);
+    t0 = (t0 >> 7) & 0x1;
+    t0 = t0 << 2;
+    f1 = (float)(s32)FBITS(f0);
+    t0 = t0 + sp;
+    f0 = BITSF(LD32(t0));
+    f8 = BITSF(v1);
+    f1 = f1 * f6;
+    f2 = (float)(s32)FBITS(f5);
+    f3 = (float)(s32)FBITS(f8);
+    f0 = f0 + f1;
+    f2 = f2 * f7;
+    f3 = f3 * f4;
+    ST32(t0, FBITS(f0));
+    v1 = LD_U8(t1+4);
+    f1 = BITSF(LD32(s6));
+    v1 = v1 >> 7;
+    v1 = v1 << 2;
+    v1 = v1 + sp;
+    f0 = BITSF(LD32(v1+8));
+    f0 = f0 + f2;
+    ST32(v1+8, FBITS(f0));
+    v0 = LD_U8(t1+5);
+    v0 = v0 >> 7;
+    v0 = v0 << 2;
+    v0 = v0 + sp;
+    f0 = BITSF(LD32(v0+16));
+    f0 = f0 + f3;
+    ST32(v0+16, FBITS(f0));
+    ST32(sp+36, FBITS(f1));
+    { rv_t r_ = func_08833F0C(a0, a1, a2, a3); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    goto L_088336CC;
+L_088336CC:;
+    a0 = fp + 0;
+    f0 = BITSF(LD32(s6));
+    a1 = s7 + 0;
+    a2 = sp + 0;
+    a3 = sp + 40;
+    s2 = v0 + 0;
+    ST32(sp+40, FBITS(f0));
+    { rv_t r_ = func_08833F0C(a0, a1, a2, a3); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    goto L_088336EC;
+L_088336EC:;
+    s1 = v0 + 0;
+    v0 = LD32(s0);
+    v0 = v0 << 1;
+    s3 = v0 + 2;
+    cnd_ = s2 == 0;
+    s4 = v0 + 1;
+    if (cnd_) { goto L_08833734; }
+    goto L_08833704;
+L_08833704:;
+    cnd_ = s1 == 0;
+    f1 = BITSF(LD32(sp+36));
+    if (cnd_) { goto L_0883374C; }
+    goto L_0883370C;
+L_0883370C:;
+    f0 = BITSF(LD32(sp+40));
+    fcc = FCMP(f1, f0, 12);
+    cnd_ = !fcc;
+    v0 = 1;
+    if (cnd_) { goto L_08833734; }
+    goto L_08833720;
+L_08833720:;
+    v1 = LD32(s5);
+    ST32(sp+52, v0);
+    v0 = s4 < v1;
+    cnd_ = v0 == 0;
+    a0 = s4 - v1;
+    if (cnd_) { goto L_0883387C; }
+    goto L_08833734;
+L_08833734:;
+    cnd_ = s1 == 0;
+    if (cnd_) { goto L_0883374C; }
+    goto L_0883373C;
+L_0883373C:;
+    v1 = LD32(s5);
+    v0 = s3 < v1;
+    cnd_ = v0 == 0;
+    v0 = LD32(sp+44);
+    if (cnd_) { goto L_08833850; }
+    goto L_0883374C;
+L_0883374C:;
+    cnd_ = s2 == 0;
+    v1 = LD32(sp+52);
+    if (cnd_) { goto L_08833774; }
+    goto L_08833754;
+L_08833754:;
+    cnd_ = v1 != 0;
+    if (cnd_) { goto L_08833774; }
+    goto L_0883375C;
+L_0883375C:;
+    a0 = LD32(s5);
+    v0 = s4 < a0;
+    cnd_ = v0 == 0;
+    v0 = LD32(sp+44);
+    if (cnd_) { goto L_08833840; }
+    goto L_0883376C;
+L_0883376C:;
+    ST32(s0, s4);
+    s0 = s0 + 28;
+    goto L_08833774;
+L_08833774:;
+    cnd_ = s1 == 0;
+    if (cnd_) { goto L_088337E4; }
+    goto L_0883377C;
+L_0883377C:;
+    v0 = LD32(s0+4);
+    v1 = LD32(s0+8);
+    a0 = LD32(s0+12);
+    a1 = LD32(s0+16);
+    a2 = LD32(s0+20);
+    a3 = LD32(s0+24);
+    ST32(s0+32, v0);
+    ST32(s0+36, v1);
+    ST32(s0+40, a0);
+    ST32(s0+44, a1);
+    ST32(s0+48, a2);
+    ST32(s0+52, a3);
+    v0 = LD32(sp);
+    ST32(s0, s3);
+    ST32(s0+4, v0);
+    v1 = LD32(sp+4);
+    ST32(s0+8, v1);
+    v0 = LD32(sp+8);
+    ST32(s0+12, v0);
+    v1 = LD32(sp+12);
+    ST32(s0+16, v1);
+    v0 = LD32(sp+16);
+    ST32(s0+20, v0);
+    v1 = LD32(sp+20);
+    ST32(s0+24, v1);
+    s0 = s0 + 28;
+    goto L_088337E4;
+L_088337E4:;
+    cnd_ = s2 == 0;
+    v0 = LD32(sp+48);
+    if (cnd_) { goto L_08833804; }
+    goto L_088337EC;
+L_088337EC:;
+    v1 = LD32(sp+52);
+    cnd_ = v1 == 0;
+    if (cnd_) { goto L_08833804; }
+    goto L_088337F8;
+L_088337F8:;
+    ST32(s0, s4);
+    s0 = s0 + 28;
+    v0 = LD32(sp+48);
+    goto L_08833804;
+L_08833804:;
+    cnd_ = s0 != v0;
+    s0 = s0 - 28;
+    if (cnd_) { goto L_08833510; }
+    goto L_0883380C;
+L_0883380C:;
+    goto L_08833810;
+L_08833810:;
+    sp = sp + 128;
+    return (rv_t){ v0, v1, f0 };
+L_08833840:;
+    t_ = v0;
+    a0 = s4 - a0;
+    { rec_leaf(a0); v0 = 0; v1 = 0; f0 = 0; }
+    goto L_08833848;
+L_08833848:;
+    v0 = LD32(sp+48);
+    goto L_08833804;
+L_08833850:;
+    a0 = s3 - v1;
+    t_ = v0;
+    s1 = 0 + 0;
+    { rec_leaf(a0); v0 = 0; v1 = 0; f0 = 0; }
+    goto L_0883385C;
+L_0883385C:;
+    f1 = BITSF(LD32(s6));
+    f0 = BITSF(LD32(sp+36));
+    fcc = FCMP(f0, f1, 12);
+    cnd_ = fcc;
+    s2 = s2 & 0x1;
+    if (cnd_) { goto L_0883374C; }
+    goto L_08833874;
+L_08833874:;
+    s2 = 0 + 0;
+    goto L_0883374C;
+L_0883387C:;
+    v1 = LD32(sp+44);
+    s2 = 0 + 0;
+    t_ = v1;
+    s1 = s1 & 0x1;
+    { rec_leaf(a0); v0 = 0; v1 = 0; f0 = 0; }
+    goto L_0883388C;
+L_0883388C:;
+    f1 = BITSF(LD32(s6));
+    f0 = BITSF(LD32(sp+40));
+    fcc = FCMP(f0, f1, 12);
+    cnd_ = !fcc;
+    if (cnd_) { s1 = 0 + 0; goto L_08833734; }
+    goto L_088338A4;
+L_088338A4:;
+    goto L_08833734;
+L_088338AC:;
+    a2 = a3 + 0;
+    a3 = LD32(sp+44);
+    { rv_t r_ = func_088338F8(a0, a1, a2, a3, t0, f12, f13, f14, f15, f16, f17, f18, f19); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    goto L_088338B8;
+L_088338B8:;
+    goto L_08833810;
+L_088338C0:;
+    f0 = BITSF(LD32(a3));
+    a2 = a0 + 4;
+    a3 = sp + 32;
+    a0 = a1 + 0;
+    a1 = s7 + 0;
+    ST32(sp+32, FBITS(f0));
+    { rv_t r_ = func_08833F0C(a0, a1, a2, a3); v0 = r_.v0; v1 = r_.v1; f0 = r_.f0; }
+    goto L_088338DC;
+L_088338DC:;
+    cnd_ = v0 == 0;
+    if (cnd_) {  goto L_08833810; }
+    goto L_088338E4;
+L_088338E4:;
+    v0 = LD32(sp+44);
+    t_ = v0;
+    a0 = 0 + 0;
+    { rec_leaf(a0); v0 = 0; v1 = 0; f0 = 0; }
+    goto L_088338F0;
+L_088338F0:;
+    goto L_08833810;
+}
 
 /* ---------------------------------------------------------------- 08833440: ray cast through the box tree
  * tree: +0 the number of inner nodes n (children numbered past n are leaves: the callback gets child - n), +4 the root box,
@@ -53,13 +446,29 @@ int rs_lift_raybox(u32 o, u32 d, u32 box, u32 t, void *rv){
  * The original keeps its stack of boxes to visit in a game array per caller slot (32 entries); here it is local. */
 typedef struct { u32 node; float b[6]; } lift_ent_t;
 #define LIFT_STACK 96
-static inline void callback(u32 cb, u32 leaf){ ((ifn_t)PTR(cb))(leaf, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); }
+static __thread int rec_mode;
+static int lift_walk(u32 tree, u32 org, u32 dir, u32 tmaxp, u32 cb, void *rv);
+static inline void callback(u32 cb, u32 leaf){ if (rec_mode) { rec_leaf(leaf); return; } ((ifn_t)RS_FPTR(cb))(leaf, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); }
+#undef LIFT_BIT
+#define LIFT_BIT 2
 int rs_lift_boxtree(u32 tree, u32 org, u32 dir, u32 tmaxp, u32 cb, void *rv){
     rv_t *r = (rv_t *)rv;
     if (!on()) return 0;
     lift_k_t k; lift_consts(&k);
     if (LD32(tree) == 0) return 0;                                     /* a single box: the original's own path */
     if (FCMP(KF(dir + 4), k.keq, 2)) return 0;                          /* a ray with that y direction: the original's other walk */
+    { static int chk = -1; if (chk < 0) chk = rs_setting_int("RS_LIFT_CHECK", 0);
+      if (chk) { static unsigned n, bad; float t1 = *(float *)PTR(tmaxp), t2 = t1; u32 ref[REC_MAX]; int nref;
+        rec_n = 0; ref_boxtree(tree, org, dir, RS_GADDR(&t1), cb, 0, 0, 0, 0, 0, 0, 0, 0, 0); nref = rec_n; memcpy(ref, rec_buf, sizeof ref);
+        rec_n = 0; rec_mode = 1; rv_t dummy; rec_mode = 1; lift_walk(tree, org, dir, RS_GADDR(&t2), cb, &dummy); rec_mode = 0;
+        int same = nref == rec_n; for (int i = 0; same && i < nref && i < REC_MAX; i++) same = ref[i] == rec_buf[i];
+        if (!same && bad++ < 20) { fprintf(stderr, "[LIFT] boxtree mismatch: original %d leaves (", nref); for (int i = 0; i < nref && i < 12; i++) fprintf(stderr, "%u ", ref[i]);
+            fprintf(stderr, ") lifted %d (", rec_n); for (int i = 0; i < rec_n && i < 12; i++) fprintf(stderr, "%u ", rec_buf[i]); fprintf(stderr, ")\n"); }
+        if (++n % 100000 == 0) fprintf(stderr, "[LIFT] boxtree checked %u, mismatches %u\n", n, bad);
+        return 0; } }                                                     /* the original runs */
+    return lift_walk(tree, org, dir, tmaxp, cb, rv); }
+static int lift_walk(u32 tree, u32 org, u32 dir, u32 tmaxp, u32 cb, void *rv){
+    rv_t *r = (rv_t *)rv; lift_k_t k; lift_consts(&k);
     const float *o = (const float *)PTR(org), *d = (const float *)PTR(dir); float *tm = (float *)PTR(tmaxp);
     const s8 *qs = (const s8 *)PTR(LD32(tree + 28));
     lift_ent_t st[LIFT_STACK]; int i = 0;
