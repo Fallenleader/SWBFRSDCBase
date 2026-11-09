@@ -102,7 +102,7 @@ void rs_savemgr_poll(void){
 
 /* the game gets no input while the dialog is up, nor from the press that closes it until it is released (pad hook, game thread) */
 extern u32 rs_image_w[];
-#define IMG(va) ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))
+#define IMG(va) (({ u32 b_ = (u32)(uintptr_t)rs_image_w; __asm__("" : "+r"(b_)); b_; }) + ((u32)(va) - 0x08804000u))
 void rs_savemgr_pad(void){
     if (!M.active && !suppress) return;
     u32 btn = *(volatile u32 *)(uintptr_t)IMG(0x08B46204), ax = *(volatile u32 *)(uintptr_t)IMG(0x08B46200); if (!btn || !ax) return;

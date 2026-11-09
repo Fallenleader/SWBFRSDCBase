@@ -67,6 +67,6 @@ $(B)/%_shbin.h $(B)/%.shbin.o: $(B)/%.shbin ; cd $(B) && $(BIN2S) -a 4 -H $*_shb
 
 $(B)/swbfrs.elf: $(GAME_OBJ) $(C_OBJ) $(P_OBJ) $(AT3_OBJ) ; $(CXX) $(LDFLAGS) $^ $(LIBS) -o $@
 $(B)/swbfrs.smdh: $(ICON) ; $(SMDHTOOL) --create "$(APP_TITLE)" "$(APP_DESC)" "$(APP_AUTHOR)" $< $@
-$(OUT)/swbfrs.3dsx: $(B)/swbfrs.elf $(B)/swbfrs.smdh ; @mkdir -p $(OUT); $(TOOL3DSX) $< $@ --smdh=$(B)/swbfrs.smdh
+$(OUT)/swbfrs.3dsx: $(B)/swbfrs.elf $(B)/swbfrs.smdh ; @mkdir -p $(OUT); $(TOOL3DSX) $< $@ --smdh=$(B)/swbfrs.smdh; python3 platform/3ds/check_3dsx.py $@ $< || { rm -f $@; exit 1; }
 
 clean: ; rm -rf $(B)

@@ -32,7 +32,7 @@ extern u32 rs_image_w[];
 extern int rs_setting_int(const char *, int);
 extern u32 func_08A3729C(void);
 extern float func_08A36BA0(u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
-#define IMG(va)  ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))
+#define IMG(va)  (({ u32 b_ = (u32)(uintptr_t)rs_image_w; __asm__("" : "+r"(b_)); b_; }) + ((u32)(va) - 0x08804000u))
 #define B8(a)    (*(volatile u8 *)(uintptr_t)(a))
 #define W32(a)   (*(volatile u32 *)(uintptr_t)(a))
 #define F32(a)   (*(volatile float *)(uintptr_t)(a))

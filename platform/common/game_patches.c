@@ -20,7 +20,7 @@
 
 extern u32 rs_image_w[];
 extern int rs_setting_int(const char *, int);
-#define IMG(va) ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))     /* game data address -> this build's address */
+#define IMG(va) (({ u32 b_ = (u32)(uintptr_t)rs_image_w; __asm__("" : "+r"(b_)); b_; }) + ((u32)(va) - 0x08804000u))     /* game data address -> this build's address */
 
 void rs_game_var_range(u32 var, u32 *min, u32 *max){
     static int on = -1; if (on < 0) on = rs_setting_int("RS_GAME_PATCHES", 1); if (!on) return;
@@ -68,7 +68,7 @@ int rs_ai_pool_init(void){
 #define MODE_NETWORK   0x08C2932Cu
 static int on(void){ static int v = -1; if (v < 0) v = rs_setting_int("RS_GAME_PATCHES", 1); return v; }
 #undef IMG
-#define IMG(va) ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))
+#define IMG(va) (({ u32 b_ = (u32)(uintptr_t)rs_image_w; __asm__("" : "+r"(b_)); b_; }) + ((u32)(va) - 0x08804000u))
 /* AI squads and command posts (traced in the decompiled code; Ghidra names FUN_xxx = func_xxx).  Each team's commander
  * (func_089279D4 and the functions next to it) puts its bots in squads and sends squads to command posts:
  *  - squad sizes: func_08926220 counts the team's bots, clamps the count to 16 and copies that row of a table (0x08AD9888, ten

@@ -32,7 +32,7 @@ extern float func_088FDA34(u32 a0);
 extern void func_088FDAD0(u32 a0, u32 a1, u32 a2, u32 a3);
 extern void func_08896520(u32 a0, u32 a1, u32 a2, u32 a3, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14);
 
-#define IMG(va)      ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))   /* game data address -> this build's address */
+#define IMG(va)      (({ u32 b_ = (u32)(uintptr_t)rs_image_w; __asm__("" : "+r"(b_)); b_; }) + ((u32)(va) - 0x08804000u))   /* game data address -> this build's address */
 #define R32(a)       (*(volatile u32 *)(uintptr_t)(a))
 #define RF(a)        (*(volatile float *)(uintptr_t)(a))
 #define AXIS_PTR     IMG(0x08B46200)          /* -> the axis array */
