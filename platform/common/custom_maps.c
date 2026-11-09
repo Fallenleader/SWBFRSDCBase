@@ -43,7 +43,7 @@
 extern u32 rs_image_w[];
 #define GP(a)     ((void *)(uintptr_t)(uint32_t)(a))
 #define GA(p)     ((uint32_t)(uintptr_t)(p))
-#define GIMG(va)  ((uint32_t)(uintptr_t)rs_image_w + ((uint32_t)(va) - 0x08804000u))
+#define GIMG(va)  (({ uint32_t b_ = (uint32_t)(uintptr_t)rs_image_w; __asm__("" : "+r"(b_)); b_; }) + ((uint32_t)(va) - 0x08804000u))
 #define GU8(a)    (*(volatile uint8_t *)GP(a))
 #define GU32(a)   (*(volatile uint32_t *)GP(a))
 static void *rs_guest_alloc(size_t size, size_t align){ (void)align; void *p = calloc(1, size + 16); return (void *)(((uintptr_t)p + 15) & ~(uintptr_t)15); }

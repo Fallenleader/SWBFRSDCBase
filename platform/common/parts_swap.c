@@ -37,7 +37,7 @@ extern u32 func_08A28C68(void);
 extern u64 func_0888FC44(u32, u32);
 extern rv_t func_08A35D88(u32, u32, u32, u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
 extern rv_t func_08A35BB0(u32, u32, u32, u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
-#define IMG(va)  ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))
+#define IMG(va)  (({ u32 b_ = (u32)(uintptr_t)rs_image_w; __asm__("" : "+r"(b_)); b_; }) + ((u32)(va) - 0x08804000u))
 #define B8(a)    (*(volatile u8 *)(uintptr_t)(a))
 #define W32(a)   (*(volatile u32 *)(uintptr_t)(a))
 

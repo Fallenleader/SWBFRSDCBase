@@ -22,7 +22,7 @@
 extern u32 rs_image_w[];
 extern int rs_setting_int(const char *, int);
 extern u64 func_0888FC44(u32, u32);
-#define IMG(va)  ((u32)(uintptr_t)rs_image_w + ((u32)(va) - 0x08804000u))
+#define IMG(va)  (({ u32 b_ = (u32)(uintptr_t)rs_image_w; __asm__("" : "+r"(b_)); b_; }) + ((u32)(va) - 0x08804000u))
 #define W32(a)   (*(volatile u32 *)(uintptr_t)(a))
 
 static const u32 src_va[5] = {0x08ADC5E8, 0x08ADC610, 0x08ADC630, 0x08ADC648, 0x08ADC668};

@@ -94,12 +94,16 @@ int rs_avc_decode(void *dec, const uint8_t *au, int size, uint8_t *rgba, int pit
     static const int VAR = 6;
     SceAvcdecPicture pic; SceAvcdecPicture *pp = &pic; SceAvcdecArrayPicture ap; int r;
     for (;;) {
-        int v = d->variant % 3, wpitch = v == 2 ? ((d->w + 15) & ~15) : d->pp, fwid = v == 0 ? wpitch : d->w;
+        static const int ORDER[3] = {1, 2, 0};                        /* frame width = picture width first: pitch 64-aligned, then 16-aligned */
+        int v = ORDER[d->variant % 3], wpitch = v == 2 ? ((d->w + 15) & ~15) : d->pp, fwid = v == 0 ? wpitch : d->w;
         memset(&pic, 0, sizeof pic);
         pic.size = sizeof pic; pic.frame.pixelType = SCE_AVCDEC_PIXELFORMAT_RGBA8888; pic.frame.framePitch = (uint32_t)wpitch; pic.frame.frameWidth = (uint32_t)fwid; pic.frame.frameHeight = (uint32_t)d->h;
         pic.frame.pPicture[0] = d->pic;
         memset(&ap, 0, sizeof ap); ap.numOfElm = 1; ap.pPicture = &pp;
         r = sceAvcdecDecode(&d->ctl, &a, &ap);
+        /* a layout counts as working only once a picture came out: the first access units of a stream are accepted with no output
+         * (reference frames), and locking a wrong layout then made every later frame fail with 0x8062000D (dropped: slow, choppy video) */
+        if (r >= 0 && ap.numOfOutput < 1 && !d->ok) return 0;
         if (r >= 0) { if (!d->ok) { d->ok = 1; fprintf(stderr, "[MPEG] decoding: picture layout %d (pitch %d, width %d%s)\n", d->variant, wpitch, fwid, d->es_main ? ", stream in main memory" : ""); } d->pp = wpitch; break; }
         if (!d->ok && d->pic_cached) {                              /* the decoder refused main memory for the picture: video memory */
             sceKernelFreeMemBlock(d->pic_mem); d->pic_cached = 0; d->pic = alloc_cdram(&d->pic_mem, (size_t)d->pp * d->h * 4, 256 * 1024);

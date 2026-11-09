@@ -62,7 +62,7 @@ target_compile_definitions(swbfrs PRIVATE RS_TLS_STRUCT HOST_BUILD _GNU_SOURCE)
 target_compile_options(swbfrs PRIVATE -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=hard -mthumb -fomit-frame-pointer -fsigned-char -fno-strict-aliasing -ffp-contract=off -fno-math-errno -w)   # no-math-errno: sqrtf stays one instruction
 if(RS_VITA_PROF)
   target_compile_definitions(swbfrs PRIVATE RS_VITA_PROF)
-  set_source_files_properties(${GAME_SRC} PROPERTIES COMPILE_OPTIONS "${RS_GAME_OPT};-finstrument-functions")
+  set_source_files_properties(${GAME_SRC} PROPERTIES COMPILE_OPTIONS "${RS_GAME_OPT};-finstrument-functions;-finstrument-functions-exclude-file-list=rs_base.h")
   set_source_files_properties("${RS_DATA_C}" PROPERTIES COMPILE_OPTIONS "${RS_GAME_OPT}")
 else()
   set_source_files_properties(${GAME_SRC} "${RS_DATA_C}" PROPERTIES COMPILE_OPTIONS "${RS_GAME_OPT}")
