@@ -73,7 +73,7 @@ void __system_allocateHeaps(void){
     s64 maxCommit = 0, currentCommit = 0; ResourceLimitType t = RESLIMIT_COMMIT;
     svcGetResourceLimitLimitValues(&maxCommit, reslimit, &t, 1); svcGetResourceLimitCurrentValues(&currentCommit, reslimit, &t, 1); svcCloseHandle(reslimit);
     u32 remaining = (u32)(maxCommit - currentCommit) & ~0xFFFu;
-    u32 lin = (remaining > (100u << 20) ? 24u : 12u) << 20;          /* (runs before the system services: no settings file yet) */
+    u32 lin = (remaining > (100u << 20) ? 24u : 16u) << 20;          /* (runs before the system services: no settings file yet) */
     if (lin > remaining / 2) lin = (remaining / 2) & ~0xFFFu;
     __ctru_linear_heap_size = lin; __ctru_heap_size = remaining - lin;
     if (__ctru_heap_size > (OS_HEAP_AREA_END - OS_HEAP_AREA_BEGIN)) __ctru_heap_size = OS_HEAP_AREA_END - OS_HEAP_AREA_BEGIN;
@@ -281,6 +281,8 @@ int main(void){
             if (presented == 1 || presented % 1800 == 0) STEP("presented %llu frames", (unsigned long long)presented);
             continue; }
         gfx_pump(4); }
-    fflush(stderr);
-    gfxExit(); exit(0);
+    /* leave at once: exit() would free the heap under the game's threads (their stacks are in it), and the next one to wake faulted
+     * (closing the game from the HOME Menu crashed in Luma).  The process exit ends every thread; the DSP is stopped first. */
+    STEP("exiting"); fflush(stderr); if (log_file) fflush(log_file);
+    ndspExit(); gfxExit(); svcExitProcess();
     return 0; }

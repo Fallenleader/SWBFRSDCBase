@@ -163,7 +163,10 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
       { static size_t cap; size_t need = (size_t)k->w * k->h * 4; if (need > cap) { free(scratch); scratch = malloc(need); cap = scratch ? need : 0; } if (!scratch) return 0; }
       src->decode(scratch, src->ud);
       if (!tex_store(&e->tex, scratch, k->w, k->h, &e->tw, &e->th, &e->bytes)) {
+          /* the GPU heap is full before the budget is: free the least recently used textures (not in this frame) until it fits */
           for (int tries = 0; tries < 2 && !e->tex.data; tries++) { collect(); tex_store(&e->tex, scratch, k->w, k->h, &e->tw, &e->th, &e->bytes); }
+          while (!e->tex.data) { tent_t *v = 0; for (int i = 0; i < TC_N; i++) if (&tc[i] != e && tc[i].used && tc[i].tex.data && tc[i].epoch + 2 <= rs_gfx_epoch && (!v || tc[i].stamp < v->stamp)) v = &tc[i];
+              if (!v) break; C3D_TexDelete(&v->tex); memset(&v->tex, 0, sizeof v->tex); tent_free(v);      /* unused for 2 frames: freed now */ tex_store(&e->tex, scratch, k->w, k->h, &e->tw, &e->th, &e->bytes); }
           if (!e->tex.data) { static int w; if (!w++) fprintf(stderr, "[C3D] out of GPU memory for textures (%dx%d)\n", k->w, k->h); tent_free(e); return 0; } }
       tc_bytes += e->bytes; st_texup++; rs_perf.up_n++; rs_perf.up_us += rs_perf_us() - t_u; }
 found:
