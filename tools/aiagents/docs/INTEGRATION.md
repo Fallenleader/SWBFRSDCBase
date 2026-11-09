@@ -9,8 +9,12 @@
 | The game starting a match and moving through team selection and results screens without anyone at the keyboard | **Works** (`RS_DEDICATED=2`). |
 | Fast, headless training clock | **Works.** About 7x real time on the build machine with a fixed game clock, so faster PCs go faster. |
 | Unattended training with a running comparison against the original AI | **Works.** See `run_training.py` and `train_forever.bat`. |
-| Kill credit, damage dealt, friendly fire | **Not yet.** There's no killer id. A proxy rewards an enemy dying within 35 units of the agent. |
-| Ammunition, weapon, class, facing, line of sight, cover | **Not yet.** Each has an observation slot, masked off. |
+| Kill credit, damage dealt, friendly fire | **Works** (bridge v3). Every hit comes from `func_089E1FDC` (hooked): target, source, amount, health before and after, and the weapon's blueprint hash. |
+| Weapons | **Seen, not chosen.** Each soldier's weapon 1, weapon 2 and explosive are blueprint hashes at AI object `+0xB4`, `+0xB8` and `+0xBC`. `rsai/weapons.py` turns them into a class and a good range. Measured on Tatooine: bots fire weapon 1 for 75% of hits, the explosive for 7% and weapon 2 for 1%. Writing the kit doesn't change what a living bot fires. The player's weapons are an inventory at humanoid `+0xEC` (current at `+120`, count at `+122`), and `func_089852FC(inventory, slot)` switches them; the bots' equivalent isn't found yet. |
+| Line of sight | **Works.** The game's level ray (`func_0883506C` builds it, `func_08834E84` casts it), eye to eye, for each policy bot to its 3 nearest enemies. 1180 of 1193 hits between bots had a clear line by this test. |
+| Cover | **Works (derived).** The nearest of 16 points (6 and 10 units around the bot) that is hidden from the nearest enemy and reachable in a straight line. |
+| Vehicles | **Seen.** Position and who is aboard, from the object table (types 0x8004, 0x8014, 0x801D, 0x801E). `get_vehicle` walks the bot to the nearest empty one; whether bots then board by themselves is not checked yet. |
+| Facing, dodge | **Not yet.** Neither is in the soldier object, its brain or its transform (checked against movement and firing directions). |
 
 ## Game-side settings
 
