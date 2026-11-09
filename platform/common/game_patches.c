@@ -57,7 +57,7 @@ void rs_patches_frame(void){
     { extern void rs_ai_bridge_frame(void); rs_ai_bridge_frame(); }   /* ai_bridge.c: RS_AI_BRIDGE=<host:port> */
 #endif
     rs_renderer_frame();                                                  /* renderer_option.c */
-    { extern void rs_ai_frame(void); rs_ai_frame(); }                      /* idle squads (below) */
+    { extern void rs_ai_frame(void); rs_ai_frame(); } { extern void rs_ai_frame_count(void); rs_ai_frame_count(); }                      /* idle squads (below) */
 #ifdef RS_DESKTOP
     { extern void rs_dedicated_after_match(unsigned); static unsigned fr, nb; if (fr++ % 30 == 0) { static struct rs_ai_rec tmp[256]; nb = (unsigned)rs_ai_snapshot(tmp, 256, 0, 0); }
       rs_dedicated_after_match(nb); { extern volatile int rs_vclock_match; rs_vclock_match = nb > 0; } }                                                                       /* RS_DEDICATED=2 (AI training): through team selection and results */
@@ -609,3 +609,14 @@ u32 rs_ai_humanoid(u32 o){
     if (humc[k].id == id && humc[k].o == o && gok(humc[k].h) && GU32(humc[k].h) == hum_vt) return humc[k].h;
     for (u32 off = 0; off < 0x2000; off += 4) if (GU32(o + off) == hum_vt && obj_id(o + off) == id) { humc[k].id = id; humc[k].o = o; humc[k].h = o + off; return o + off; }
     return 0; }
+/* the controls the game applies to a soldier each frame (func_089A8A98(control, humanoid): from the AI's or the network's control
+ * message: +120 button bits, +124.. aim / move, +160, +164 weapon slot, +165 secondary slot).  RS_AI_CTLLOG (field finding) logs them. */
+void rs_ai_ctl_pre(u32 ctl, u32 hum){
+    { const char *fs = getenv("RS_AI_FORCESLOT"); if (fs && gok(ctl) && (probe_fr / 600) % 2) GU8(ctl + 164) = (u8)atoi(fs); }
+    const char *pf = getenv("RS_AI_CTLLOG"); if (!pf || !gok(ctl) || !gok(hum)) return;
+    static FILE *f; if (!f) f = fopen(pf, "w"); if (!f) return;
+    static unsigned n; if (++n % 7) return;
+    fprintf(f, "%u %x %08x %u %u", probe_fr, obj_id(hum), GU32(ctl + 120), GU8(ctl + 164), GU8(ctl + 165));
+    for (u32 k = 124; k < 164; k += 4) fprintf(f, " %g", GF32(ctl + k));
+    fprintf(f, " | %x\n", GU32(ctl + 160)); fflush(f); }
+void rs_ai_frame_count(void){ ++probe_fr; }

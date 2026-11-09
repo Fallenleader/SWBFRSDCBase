@@ -52,3 +52,4 @@ void rs_gs_login(uint32_t *nick, uint32_t *email, uint32_t *pass);
 void rs_gs_loaded(void);
 void rs_ai_dmg_pre(uint32_t o, uint32_t msg);
 void rs_ai_dmg_post(uint32_t o, uint32_t msg);
+void rs_ai_ctl_pre(uint32_t ctl, uint32_t hum);
