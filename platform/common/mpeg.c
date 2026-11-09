@@ -10,6 +10,7 @@
  * The ring's fill level reported to the game follows the MP4: data is left while the MP4 has pictures or sound to give, so the
  * movie lasts as long as the MP4 (the PMF's own data is read and dropped).  No MP4 (RS_MOVIES=0, conversion not done): the movie
  * is reported as empty and the game goes on at once. */
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -62,6 +63,7 @@ static struct {
     s16 *pcm; int pcm_n, pcm_cap; double rs_pos; s16 rs_last[2];   /* 44.1 kHz stereo FIFO; resampler position */
     uint64_t a_out;                                     /* samples given to the game */
     unsigned frames;
+    struct timespec t_open;
 } M;
 static u32 ring_addr;
 static u8 psmf_hdr[0x800]; static int psmf_ok;
@@ -79,7 +81,8 @@ void rs_movie_note_file(const char *full){                /* hle.c sceIoOpen: th
 /* ---------------------------------------------------------------- opening */
 static int exists(const char *p){ struct stat s; return stat(p, &s) == 0 && s.st_size > 0; }
 static void close_movie(void){
-    if (M.avc) rs_avc_close(M.avc); if (M.aac) avcodec_free_context(&M.aac); av_packet_free(&M.pkt); av_frame_free(&M.fr);
+    if (M.avc) { struct timespec te; clock_gettime(CLOCK_MONOTONIC, &te); double el = te.tv_sec - M.t_open.tv_sec + (te.tv_nsec - M.t_open.tv_nsec) / 1e9;
+        fprintf(stderr, "[MOVIE] closed after %.1f s real time, %u pictures shown (movie length %.1f s)\n", el, M.frames, M.mp4.video.timescale ? (double)M.mp4.video.duration / M.mp4.video.timescale : 0.0); rs_avc_close(M.avc); } if (M.aac) avcodec_free_context(&M.aac); av_packet_free(&M.pkt); av_frame_free(&M.fr);
     if (M.have) mp4_close(&M.mp4);
     free(M.es); free(M.ab); free(M.ps); free(M.rgba); free(M.pcm);
     int log = M.log; memset(&M, 0, sizeof M); M.log = log;
@@ -132,7 +135,7 @@ static int open_movie(void){
                 memcpy(M.ps + M.ps_len, "\0\0\0\1", 4); memcpy(M.ps + M.ps_len + 4, c + p, (size_t)l); M.ps_len += 4 + l; p += l; } } }
     int w = v->width > 0 ? v->width : 480, h = v->height > 0 ? v->height : 272;
     M.pitch = (w + 63) & ~63; M.rgba = calloc((size_t)M.pitch * ((h + 15) & ~15), 4);
-    M.avc = rs_avc_open(w, h);
+    M.avc = rs_avc_open(w, h); clock_gettime(CLOCK_MONOTONIC, &M.t_open);
     if (!M.avc) { fprintf(stderr, "[MOVIE] %s: no H.264 decoder for %dx%d: skipped\n", path, w, h); close_movie(); M.open_tried = 1; return 0; }
     if (M.mp4.audio.n) {
         const AVCodec *ac = avcodec_find_decoder(AV_CODEC_ID_AAC);

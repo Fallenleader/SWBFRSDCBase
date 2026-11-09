@@ -43,7 +43,10 @@ void rs_avc_close(void *dec){ ff_t *d = dec; if (!d) return; avcodec_free_contex
 #include <psp2/videodec.h>
 #include <psp2/kernel/sysmem.h>
 #include <psp2/sysmodule.h>
-typedef struct { SceAvcdecCtrl ctl; SceUID mem, pic_mem, es_mem; uint8_t *pic, *es; size_t es_cap, pic_size; int w, h, pp, variant, es_main, ok, pic_cached; } vd_t;
+typedef struct { SceAvcdecCtrl ctl; SceUID mem, pic_mem, es_mem; uint8_t *pic, *es; size_t es_cap, pic_size; int w, h, pp, variant, es_main, ok, pic_cached; unsigned n_au, n_pic, n_err, n_err_logged; uint64_t us_dec, us_copy; } vd_t;
+#include <psp2/kernel/processmgr.h>
+static void nal_list(const uint8_t *au, int size, char *out, int cap){     /* the NAL unit types in an access unit, for the log */
+    int o = 0; out[0] = 0; for (int i = 0; i + 3 < size && o < cap - 6; i++) if (au[i] == 0 && au[i + 1] == 0 && au[i + 2] == 1) { o += snprintf(out + o, (size_t)(cap - o), "%d,", au[i + 3] & 31); i += 3; } }
 static int lib_up, lib_w, lib_h;
 int rs_avc_available(void){ return 1; }
 /* the decoder's frame memory: physically contiguous main memory, in 1 MB units (what the decoder takes; CDRAM was refused with
@@ -86,7 +89,7 @@ int rs_avc_decode(void *dec, const uint8_t *au, int size, uint8_t *rgba, int pit
     if ((size_t)size > d->es_cap) {                                  /* the stream data in physically contiguous memory, as the decoder reads it */
         if (d->es) sceKernelFreeMemBlock(d->es_mem); d->es_cap = ((size_t)size + 0xFFFFF) & ~(size_t)0xFFFFF;
         d->es = d->es_main ? alloc_phycont(&d->es_mem, d->es_cap) : alloc_cdram(&d->es_mem, d->es_cap, 1024 * 1024); if (!d->es) { d->es_cap = 0; return -1; } }
-    memcpy(d->es, au, (size_t)size);
+    memcpy(d->es, au, (size_t)size); d->n_au++; uint64_t t0 = sceKernelGetProcessTimeWide();
     SceAvcdecAu a; memset(&a, 0, sizeof a); a.es.pBuf = d->es; a.es.size = (uint32_t)size;
     a.pts.upper = a.pts.lower = a.dts.upper = a.dts.lower = 0xFFFFFFFFu;
     /* the picture layout: the decoder refuses some with 0x8062000D; until one has worked, the next layout is tried on that error
@@ -108,19 +111,26 @@ int rs_avc_decode(void *dec, const uint8_t *au, int size, uint8_t *rgba, int pit
         if (!d->ok && d->pic_cached) {                              /* the decoder refused main memory for the picture: video memory */
             sceKernelFreeMemBlock(d->pic_mem); d->pic_cached = 0; d->pic = alloc_cdram(&d->pic_mem, (size_t)d->pp * d->h * 4, 256 * 1024);
             if (!d->pic) return -1; fprintf(stderr, "[MPEG] decoder: picture in video memory (main memory refused: %08x)\n", r); continue; }
-        if (d->ok || (unsigned)r != 0x8062000Du || d->variant + 1 >= VAR) { static int n; if (n++ < 5) fprintf(stderr, "[MPEG] sceAvcdecDecode %08x (layout %d)\n", r, d->variant); return -1; }
+        if (d->ok || (unsigned)r != 0x8062000Du || d->variant + 1 >= VAR) {
+            d->n_err++; d->us_dec += sceKernelGetProcessTimeWide() - t0;
+            if (d->n_err_logged++ < 8) { char nl[64]; nal_list(au, size, nl, sizeof nl); fprintf(stderr, "[MPEG] sceAvcdecDecode %08x (layout %d) access unit %u, %d bytes, NAL types %s\n", r, d->variant, d->n_au, size, nl); }
+            return -1; }
         d->variant++;
         if (d->variant == 3 && !d->es_main) {                        /* the stream data from physically contiguous main memory instead */
             d->es_main = 1; sceKernelFreeMemBlock(d->es_mem); d->es = alloc_phycont(&d->es_mem, d->es_cap); if (!d->es) { d->es_cap = 0; return -1; }
             memcpy(d->es, au, (size_t)size); a.es.pBuf = d->es; }
     }
+    uint64_t t1 = sceKernelGetProcessTimeWide(); d->us_dec += t1 - t0;
     if (ap.numOfOutput < 1) return 0;
     int fw = (int)pic.frame.horizontalSize, fh = (int)pic.frame.verticalSize; if (fw <= 0 || fw > d->pp) fw = d->w; if (fh <= 0 || fh > d->h) fh = d->h;
     if (fw == d->pp && pitch == d->pp) memcpy(rgba, d->pic, (size_t)fw * fh * 4);                  /* one block read of the uncached picture */
     else for (int y = 0; y < fh; y++) memcpy(rgba + (size_t)y * pitch * 4, d->pic + (size_t)y * d->pp * 4, (size_t)fw * 4);
     for (int y = 0; y < fh; y++) { uint32_t *o = (uint32_t *)(rgba + (size_t)y * pitch * 4); for (int x = 0; x < fw; x++) o[x] |= 0xFF000000u; }   /* opaque (cached memory) */
+    d->us_copy += sceKernelGetProcessTimeWide() - t1; d->n_pic++;
     *w = fw; *h = fh; return 1; }
-void rs_avc_close(void *dec){ vd_t *d = dec; if (!d) return; sceAvcdecDeleteDecoder(&d->ctl); if (d->es) sceKernelFreeMemBlock(d->es_mem); sceKernelFreeMemBlock(d->pic_mem); sceKernelFreeMemBlock(d->mem); free(d); }
+void rs_avc_close(void *dec){ vd_t *d = dec; if (!d) return;
+    fprintf(stderr, "[MPEG] movie done: %u access units, %u pictures, %u errors; decoder %.2f ms, copy %.2f ms per access unit\n", d->n_au, d->n_pic, d->n_err,
+            d->n_au ? d->us_dec / 1000.0 / d->n_au : 0.0, d->n_pic ? d->us_copy / 1000.0 / d->n_pic : 0.0); sceAvcdecDeleteDecoder(&d->ctl); if (d->es) sceKernelFreeMemBlock(d->es_mem); sceKernelFreeMemBlock(d->pic_mem); sceKernelFreeMemBlock(d->mem); free(d); }
 
 #else
 /* ---------------------------------------------------------------- no decoder in this build */
