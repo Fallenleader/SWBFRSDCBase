@@ -279,3 +279,79 @@ class GameVecEnv(VecEnv):
 
     def seed(self, seed=None):
         return [seed] * self.num_envs
+
+
+def merge_stats(parts):
+    """one Stats over several games' windows (game time adds up: two games for a minute = two game minutes)"""
+    m = Stats(); m.t0 = 0.0; m.t1 = 0.0
+    for p in parts:
+        m.t1 += (p.t1 or 0) - (p.t0 or 0); m.post_samples += p.post_samples
+        for k in ("policy", "game"):
+            m.bot_s[k] += p.bot_s[k]; m.deaths[k] += p.deaths[k]; m.posts[k] += p.posts[k]; m.captures[k] += p.captures[k]
+            m.enemy_down[k] += p.enemy_down[k]; m.idle[k][0] += p.idle[k][0]; m.idle[k][1] += p.idle[k][1]
+    return m
+
+
+class MultiGameVecEnv(VecEnv):
+    """Several games at once (one per CPU core), each a GameVecEnv on its own port, stepped in parallel: the policy's slots of every
+    game side by side.  The games run in lockstep with the trainer as before, so they all wait while the policy is updated."""
+    def __init__(self, envs):
+        from concurrent.futures import ThreadPoolExecutor
+        self.envs = envs; self.k = envs[0].num_envs
+        super().__init__(self.k * len(envs), envs[0].observation_space, envs[0].action_space)
+        self.pool = ThreadPoolExecutor(len(envs))
+
+    class _Stats:
+        def __init__(self, outer): self.o = outer
+        def summary(self): return merge_stats([e.stats for e in self.o.envs]).summary()
+        def reset(self):
+            for e in self.o.envs:
+                e.stats.reset()
+
+    @property
+    def stats(self): return MultiGameVecEnv._Stats(self)
+    @property
+    def matches(self): return sum(e.matches for e in self.envs)
+    @property
+    def restarts(self): return sum(e.restarts for e in self.envs)
+
+    def game_speed(self):
+        return sum(e.game_speed() for e in self.envs)          # game seconds played per real second, all games together
+
+    def timing(self):
+        t = [e.timing() for e in self.envs]
+        return sum(a for a, _ in t) / len(t), sum(b for _, b in t) / len(t)
+
+    def _all(self, fn):
+        return [f.result() for f in [self.pool.submit(fn, e) for e in self.envs]]
+
+    def reset(self):
+        return np.concatenate(self._all(lambda e: e.reset()))
+
+    def step_async(self, actions):
+        a = np.asarray(actions)
+        for i, e in enumerate(self.envs):
+            e.step_async(a[i * self.k:(i + 1) * self.k])
+
+    def step_wait(self):
+        r = self._all(lambda e: e.step_wait())
+        return (np.concatenate([x[0] for x in r]), np.concatenate([x[1] for x in r]), np.concatenate([x[2] for x in r]),
+                [i for x in r for i in x[3]])
+
+    def close(self):
+        self._all(lambda e: e.close()); self.pool.shutdown(wait=False)
+
+    def get_attr(self, attr_name, indices=None):
+        return [getattr(self, attr_name, None)] * self.num_envs
+
+    def set_attr(self, attr_name, value, indices=None):
+        pass
+
+    def env_method(self, method_name, *args, indices=None, **kw):
+        return [None] * self.num_envs
+
+    def env_is_wrapped(self, wrapper_class, indices=None):
+        return [False] * self.num_envs
+
+    def seed(self, seed=None):
+        return [seed] * self.num_envs

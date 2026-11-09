@@ -25,7 +25,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import configure
 from rsai import config, rewards, spaces
 from rsai.game import GameProcess
-from rsai.gamevec import GameVecEnv, StopTraining
+from rsai.gamevec import GameVecEnv, MultiGameVecEnv, StopTraining
 
 STOP = threading.Event()
 
@@ -106,13 +106,25 @@ def main():
         yaml.safe_dump(cfg, f)
     open(os.path.join(run, "available_rewards.txt"), "w").write("\n".join(rewards.available_terms()) + "\n")
     g = cfg["game"]
-    game = GameProcess(exe, gdir, os.path.abspath(os.path.join(run, "game")), g["port"], g["maps"], g["decision_hz"], g.get("fast", True),
-                       g.get("window", False), g.get("extra_env"), log)
-    venv = GameVecEnv(game, slots=g["agents"], port=g["port"], reward_weights=cfg.get("reward_weights"), log=log, stop=STOP.is_set)
+    # several games at once, one per CPU core (game_instances: auto = about half the logical processors, up to 8); each starts on a
+    # different map of the rotation and has its own port and data folder (game/, game2/, ...)
+    n = g.get("game_instances", "auto")
+    n = max(1, min(8, ((os.cpu_count() or 2) - 2) // 2)) if str(n).lower() == "auto" else max(1, int(n))
+    envs = []
+    for i in range(n):
+        maps = g["maps"][i % len(g["maps"]):] + g["maps"][:i % len(g["maps"])]
+        game = GameProcess(exe, gdir, os.path.abspath(os.path.join(run, "game" if i == 0 else f"game{i + 1}")), g["port"] + i, maps,
+                           g["decision_hz"], g.get("fast", True), g.get("window", False), g.get("extra_env"),
+                           log if n == 1 else (lambda m, i=i: log(m.replace("[train]", f"[train g{i + 1}]", 1))))
+        envs.append(GameVecEnv(game, slots=g["agents"], port=g["port"] + i, reward_weights=cfg.get("reward_weights"), log=game.log, stop=STOP.is_set))
+    venv = envs[0] if n == 1 else MultiGameVecEnv(envs)
+    # the same amount of play per policy update however many games: n_steps (per agent slot) is divided among the games
+    n_steps = max(64, int(cfg["ppo"]["n_steps"]) // n); cfg["ppo"]["n_steps"] = n_steps
+    log(f"[train] {n} game{'s' if n > 1 else ''} at once ({n * g['agents']} policy agents, {n_steps} steps each per update)")
     latest = os.path.join(run, "latest.zip")
     act = {"tanh": torch.nn.Tanh, "relu": torch.nn.ReLU}[cfg["policy"]["activation"]]
     if os.path.exists(latest) and not a.fresh:
-        model = PPO.load(latest, env=venv, device="cpu"); log(f"[train] continuing from {latest} ({model.num_timesteps} steps so far)")
+        model = PPO.load(latest, env=venv, device="cpu", n_steps=n_steps); log(f"[train] continuing from {latest} ({model.num_timesteps} steps so far)")
     else:
         model = PPO("MlpPolicy", venv, seed=seed, verbose=0, device="cpu",
                     policy_kwargs=dict(net_arch=dict(pi=cfg["policy"]["hidden"], vf=cfg["policy"]["hidden"]), activation_fn=act), **cfg["ppo"])

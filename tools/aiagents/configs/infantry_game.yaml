@@ -7,6 +7,7 @@ game:
   game_dir: ../../builds/Windows/SWBFRS_windows/SWBFRS
   port: 47800
   decision_hz: 5            # policy decisions per second of game time
+  game_instances: auto      # games at once, one per CPU core (auto = about half your logical processors, up to 8); 1 = one game
   agents: 8                 # the policy's side (16 players: 8 a side, PSP parity)
   fast: true                # fixed game clock, as fast as the PC allows (no window, no sound)
   window: false             # true: watch it in a window (slower)
