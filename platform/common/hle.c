@@ -554,7 +554,9 @@ extern u32 rs_ge_cb_finish_func, rs_ge_cb_finish_arg;
 static sdkcall_t *tl_get(void){ pthread_once(&key_once, mk_keys); return (sdkcall_t *)pthread_getspecific(k_cpu); }
 /* A new frame is shown when the game flips the display buffer, not at every vertical blank: presenting (and waiting for the target's
  * own display flip) once per vblank kept the renderer thread blocked while the game waited for it to run its GPU lists. */
-static void h_GetVcount(sdkcall_t *c){ V0 = (u32)g_frames; }   /* vblanks so far (the movie player paces itself by it) */
+/* vblanks so far, from the clock (60 Hz): the movie player paces itself by it (a picture every 2 vblanks).  Counting the game's
+ * own vblank waits instead ran movies at the game's frame cap - half speed (15 fps) when the cap is 30. */
+static void h_GetVcount(sdkcall_t *c){ static u64 t0; u64 t = now_us(); if (!t0) t0 = t - (u64)g_frames * 16667u; V0 = (u32)((t - t0) * 60u / 1000000u); }
 static void h_SetFrameBuf(sdkcall_t *c){ rs_display_set(A0, A1, A2); V0 = 0; fl_fb++; since_flip = 0; }   /* rs_display_set signals the new frame once drawn */
 void rs_ge_finish_hook(int id){
     sdkcall_t *c = tl_get(); if (!c || !rs_ge_cb_finish_func) return;
