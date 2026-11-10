@@ -237,7 +237,9 @@ static const char *const *hud_update(int *nl){
         snprintf(l[3], sizeof l[3], "PER FRAME: SCENES %.1f DRAWS %.0f UPLOADS %.1f", (sc - sc_last) / pf, (dr - dr_last) / pf, (up - up_last) / pf);
         snprintf(l[4], sizeof l[4], "GPU WAIT %.0f%%  GPU SYNCS %.1f/s  RT %d  SLOW-RAM %u", (double)(gxm_wait_us - wait_last) * 100.0 / dt, (fi - fi_last) * 1e6 / dt, rts, gxm_ram_fallbacks);
         sc_last = sc; dr_last = dr; up_last = up; fi_last = fi; wait_last = gxm_wait_us;
-        t_last = now; p_last = p; pres_last = hud_presented; gfr_last = (u64)g_frames; }
+        t_last = now; p_last = p; pres_last = hud_presented; gfr_last = (u64)g_frames;
+        { static int lg = -1, k; if (lg < 0) lg = rs_setting_int("RS_PERF_LOG", 0);                 /* the overlay's numbers in log.txt every 5 s */
+          if (lg && ++k % 10 == 0) fprintf(stderr, "[HUD] f%d | %s | %s | %s | %s\n", g_frames, l[0], l[1], l[3], l[4]); } }
     *nl = 5; return lines; }
 
 /* ---------------------------------------------------------------- game thread */

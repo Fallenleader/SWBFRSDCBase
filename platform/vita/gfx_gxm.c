@@ -698,7 +698,7 @@ void gfx_present(int ww, int wh){
     if (s) {                                                       /* the internal-resolution picture to the 960x544 screen, filtered */
         SceGxmTexture tx = s->tex; sceGxmTextureSetMinFilter(&tx, SCE_GXM_TEXTURE_FILTER_LINEAR); sceGxmTextureSetMagFilter(&tx, SCE_GXM_TEXTURE_FILTER_LINEAR);
         float um = 480.0f * RS_S / PX, vm = 272.0f * RS_S / PXH;
-        if (use_fxaa && fxaa_fp) {
+        if (use_fxaa && fxaa_fp && RS_S < 2) {                            /* (at 2x the picture is the screen's size: a plain copy, no full-screen FXAA pass) */
             ui_flush(); SceGxmContext *c = gxm_ctx(); float *q = gxm_frame_alloc(16 * sizeof(float), 16);
             if (q) { float v[16] = {-1, 1, 0, 0,  1, 1, um, 0,  -1, -1, 0, vm,  1, -1, um, vm}; memcpy(q, v, sizeof v);
                 sceGxmSetVertexProgram(c, blt_vp); sceGxmSetFragmentProgram(c, fxaa_fp); sceGxmSetFragmentTexture(c, 0, &tx);

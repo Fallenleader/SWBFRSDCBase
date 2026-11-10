@@ -149,6 +149,19 @@ static void mix_voice(voice_t *v, int grain){
     int tpos = rdpos + toread;
     for (int i = 0; i < delay && i < grain; i++) env_step(v);
     u32 frac = v->frac;
+    /* the envelope stays put (sustained with rate 0, or finished): the same arithmetic without stepping it per sample (most voices
+     * most of the time; the per-sample envelope walk was most of the mixing cost on the PS Vita) */
+    int still = ((v->est == E_SUSTAIN && v->sr == 0 && v->st != C_EXP_INC && v->st != C_DIRECT && v->h > 0) || v->est == E_OFF) && delay == 0;
+    if (still) {
+        int e = (env_height(v) + (1 << 14)) >> 15, vl = v->vl, vr = v->vr, interp = v->pitch != 0x1000 || (frac & 0xFFF); u32 pitch = (u32)v->pitch;
+        int *mb = mixbuf + delay * 2;
+        for (int i = delay; i < grain; i++, mb += 2) {
+            const s16 *s = tmp + (frac >> 12); int smp = s[0];
+            if (interp) smp = s[0] - (((s[0] - s[1]) * (int)(frac & 0xFFF)) >> 12);
+            frac += pitch;
+            smp = ((smp * e) + (1 << 14)) >> 15;
+            mb[0] += (smp * vl) >> 12; mb[1] += (smp * vr) >> 12; }
+        goto mixed; }
     for (int i = delay; i < grain; i++) {
         const s16 *s = tmp + (frac >> 12); int smp = s[0];
         if (v->pitch != 0x1000 || (frac & 0xFFF)) smp = s[0] - (((s[0] - s[1]) * (int)(frac & 0xFFF)) >> 12);
@@ -156,6 +169,7 @@ static void mix_voice(voice_t *v, int grain){
         int e = env_height(v); env_step(v); e = (e + (1 << 14)) >> 15;
         smp = ((smp * e) + (1 << 14)) >> 15;
         mixbuf[i * 2] += (smp * v->vl) >> 12; mixbuf[i * 2 + 1] += (smp * v->vr) >> 12; }
+mixed:
     if (tpos >= 2) { v->hist[0] = tmp[tpos - 2]; v->hist[1] = tmp[tpos - 1]; }
     v->frac = frac - (u32)(tpos - 2) * 0x1000;
     st_mixed++; for (int i = 0; i < tpos; i++) { int a = tmp[i] < 0 ? -tmp[i] : tmp[i]; if (a > st_peak) st_peak = a; }

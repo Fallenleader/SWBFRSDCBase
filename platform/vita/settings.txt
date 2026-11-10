@@ -7,7 +7,7 @@
 RS_RES_SCALE=2
 # the same for the title screen and the menus (outside a match): 1 or 2.  Matches, videos and the in-game menus use RS_RES_SCALE
 RS_MENU_RES_SCALE=2
-# FXAA anti-aliasing while the picture is scaled to the screen: 1 = on, 0 = off
+# FXAA anti-aliasing while the picture is scaled to the screen (RS_RES_SCALE=1; at 2 the picture is already the screen's size): 1 = on, 0 = off
 RS_FXAA=1
 # fog intensity, in percent of each map's own fog: 100 = the game's (set close for the PSP), above 100 closer, below farther
 # (fog distance x (2 - value/100): 25 = 75% farther away)
@@ -86,7 +86,7 @@ RS_AUDIO=1
 RS_HUD=1
 # size limit of ux0:data/SWBFRS/log.txt (MB)
 RS_LOG_MB=4
-# 1 = profiler lines every 600 frames to ux0:data/SWBFRS/perf.log
+# 1 = profiler lines every 600 frames to ux0:data/SWBFRS/perf.log, and the overlay's numbers in log.txt every 5 s ([HUD])
 RS_PERF_LOG=0
 
 # ---- AI and weapons
