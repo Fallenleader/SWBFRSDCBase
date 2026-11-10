@@ -211,3 +211,14 @@ rtx: build/data.c $(rtx_OBJ)
 decktest: build/data.c $(decktest_OBJ)
 	@mkdir -p $(decktest_B)/SWBFRS
 	$(ZIG) c++ -target x86_64-linux-gnu.2.31 -o $(decktest_B)/SWBFRS/swbfrs $(decktest_OBJ) $(call FF_LIBS,lin) /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0 -lm -lpthread -ldl -Wl,--gc-sections
+
+# ---- SWBFRS Conversion Tool (tools/conversion_tool): the device media prepared on the PC (3DS: audio -> DSP-ADPCM)
+#   make conversion_tool -> build/conversion_tool/SWBFRS_ConversionTool.exe (Windows x64) and SWBFRS_ConversionTool (Linux x86-64)
+CT_SRC := tools/conversion_tool/main.c $(C)/convert.c $(C)/rs_adpcm.c $(C)/vfs.c
+CT_DEFS := -DRS_CONV_ADPCM -DRS_CONV_NO_VIDEO -DHOST_BUILD -I$(C) -I$(C)/ext/at3 -Isrc/game -O2 -w
+conversion_tool:
+	@mkdir -p build/conversion_tool/win
+	for f in $(wildcard $(C)/ext/at3/*.cpp); do $(ZIG) c++ -target x86_64-windows-gnu -O2 -w -I$(C)/ext/at3 -c $$f -o build/conversion_tool/win/at3_$$(basename $$f .cpp).o || exit 1; done
+	for f in $(CT_SRC); do $(ZIG) cc -target x86_64-windows-gnu -std=gnu11 -include platform/desktop/win_compat.h -D_FILE_OFFSET_BITS=64 $(CT_DEFS) -c $$f -o build/conversion_tool/win/$$(basename $$f .c).o || exit 1; done
+	$(ZIG) c++ -target x86_64-windows-gnu -static -o build/conversion_tool/SWBFRS_ConversionTool.exe build/conversion_tool/win/*.o -lpthread
+	$(ZIG) c++ -target x86_64-linux-gnu.2.31 -O2 -w $(CT_DEFS) -x c $(CT_SRC) -x c++ $(wildcard $(C)/ext/at3/*.cpp) -lpthread -o build/conversion_tool/SWBFRS_ConversionTool
