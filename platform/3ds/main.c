@@ -98,7 +98,12 @@ static void log_init(void){
 /* ---------------------------------------------------------------- threads
  * The application core runs every game thread; a thread runs game code only while it holds the big lock (hle.c), so they take turns
  * there as they did on the PSP.  Native stacks of 512 KB (the decompiled functions keep their PSP stack frames on them). */
-void rs_thread_init(void){ static u8 blocks[64][256] __attribute__((aligned(16))); static int n; rs_tls()->psp_k0 = (u32)(uintptr_t)blocks[__sync_fetch_and_add(&n, 1) & 63]; }
+/* VFP "flush to zero": the ARM11's VFP hands every denormal operand or result to a slow software path (support code), costing
+ * hundreds of cycles each; the PSP's FPU flushed denormals to zero anyway, so this is also the game's own arithmetic.  Per thread
+ * (FPSCR is part of a thread's context).  RS_FLUSH_DENORMALS=0 leaves it off. */
+static void fpu_fast(void){ static int on = -1; if (on < 0) on = rs_setting_int("RS_FLUSH_DENORMALS", 1); if (!on) return;
+    u32 f; __asm__ volatile("vmrs %0, fpscr" : "=r"(f)); f |= 1u << 24; __asm__ volatile("vmsr fpscr, %0" :: "r"(f)); }
+void rs_thread_init(void){ static u8 blocks[64][256] __attribute__((aligned(16))); static int n; rs_tls()->psp_k0 = (u32)(uintptr_t)blocks[__sync_fetch_and_add(&n, 1) & 63]; fpu_fast(); }
 void rs_thread_cores(const char *name){ (void)name; }
 void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ (void)psp_stack; pthread_attr_setstacksize(at, (size_t)rs_setting_int("RS_THREAD_STACK_KB", 512) * 1024); }
 void rs_break(u32 code, u32 where){
@@ -233,7 +238,7 @@ static void fatal(const char *msg){
     gfxExit(); exit(1); }
 
 int main(void){
-    osSetSpeedupEnable(true);                                       /* New 3DS: 804 MHz and the L2 cache (no effect on the Old 3DS) */
+    osSetSpeedupEnable(true); fpu_fast();                                       /* New 3DS: 804 MHz and the L2 cache (no effect on the Old 3DS) */
     { bool n = false; APT_CheckNew3DS(&n); rs_is_new3ds = n; }
     gfxInitDefault(); gfxSet3D(false);
     consoleInit(GFX_BOTTOM, &bottom);

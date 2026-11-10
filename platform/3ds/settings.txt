@@ -3,6 +3,8 @@
 # ---- picture and speed
 # frame rate the game is paced at: 30 (3D off).  20 is the target with stereoscopic 3D (not in this build yet).
 RS_FPS=30
+# VFP flush-to-zero (the PSP's own behaviour; the ARM11 handles denormal numbers in slow software otherwise): 1 = on
+RS_FLUSH_DENORMALS=1
 # fog distance in percent of each map's own (100 = the PSP's)
 RS_FOG=100
 # face culling on the GPU: 0 off (safe), 1 on (faster; turn it off again if parts of models disappear)
@@ -46,6 +48,8 @@ RS_CUSTOM_MAPS=1
 # ---- sound and diagnostics
 # 0 = no sound (sound needs sdmc:/3ds/dspfirm.cdc: run DSP1 once)
 RS_AUDIO=1
+# sound effects decoded once and played from memory (1) or decoded every time (0)
+RS_SAS_WAV=1
 # the bottom screen: 1 = the profiler's figures, 0 = black
 RS_HUD=1
 # log.txt size limit (MB); RS_PERF_LOG=1 also writes perf.log

@@ -114,7 +114,12 @@ static const s16 *sas_wav(u32 addr, u32 size, int *blocks){
     if (!on || size < 32 || size > (8u << 20)) return 0;
     const u8 *d = g_mem + GADDR(addr); u32 k = fnv32(d, size < 64 ? size : 64, fnv32(d + size - 32, 32, 2166136261u));
     for (int i = 0; i < nsw; i++) if (sw[i].addr == addr && sw[i].size == size && sw[i].key == k) { *blocks = sw[i].blocks; return sw[i].pcm; }
-    if (nsw == SAS_WAV_N || sw_bytes > (24u << 20)) { for (int i = 0; i < 32; i++) sas.v[i].wav = 0;    /* (a new level's sounds: playing voices decode on) */
+#ifdef __3DS__
+    enum { SW_CAP = 4u << 20 };                        /* (the Old 3DS: 64 MB for everything) */
+#else
+    enum { SW_CAP = 24u << 20 };
+#endif
+    if (nsw == SAS_WAV_N || sw_bytes > SW_CAP) { for (int i = 0; i < 32; i++) sas.v[i].wav = 0;    /* (a new level's sounds: playing voices decode on) */
         for (int i = 0; i < nsw; i++) free(sw[i].pcm); nsw = 0; sw_bytes = 0; }
     int nb = (int)(size / 16), n = 0; s16 *pcm = malloc((size_t)(nb > 1 ? nb - 1 : 1) * 28 * 2); if (!pcm) return 0;
     u32 full = fnv32(d, size, 2166136261u); char path[1200] = {0};
