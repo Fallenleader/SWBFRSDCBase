@@ -751,13 +751,15 @@ static int rt_make(void){
     sceGxmDepthStencilSurfaceSetForceStoreMode(&sds, SCE_GXM_DEPTH_STENCIL_FORCE_STORE_ENABLED);
     return 0; }
 int gfx_init(void){
-    /* 1x = 480x272 (the PSP), 2x = 960x544 (the Vita screen), 3x = 1440x816 (supersampled down to the screen).  At 3x a surface keeps
-     * the 272 rows of a PSP screen instead of 512, so ten of them fit the video memory (as the GL back end) */
+    /* 1x = 480x272 (the PSP), 2x = 960x544 (the Vita screen), 3x = 1440x816 (supersampled down to the screen) */
     S_GAME = rs_setting_int("RS_RES_SCALE", 1); if (S_GAME < 1) S_GAME = 1; if (S_GAME > 3) S_GAME = 3;
     S_MENU = rs_setting_int("RS_MENU_RES_SCALE", 2); if (S_MENU < 1) S_MENU = 1; if (S_MENU > 2) S_MENU = 2;
     if (S_GAME >= 3) S_MENU = S_GAME;                                  /* 3x: one scale everywhere (surfaces of 272 rows) */
     SA = S_GAME > S_MENU ? S_GAME : S_MENU; RS_S = S_MENU;
-    SURF_H = SA >= 3 ? 272 : 512;
+    /* surfaces of 272 rows (a PSP screen) at 2x and 3x, as the GL back end: every scene is drawn over its whole render target, and
+     * 1024x1024 at 2x was twice the tiles the 960x544 picture needs (the 16-bot match waited ~37 ms a frame for the GPU).
+     * RS_SURF_ROWS=512 keeps the PSP's full buffer height */
+    SURF_H = rs_setting_int("RS_SURF_ROWS", SA >= 2 ? 272 : 512) >= 512 ? 512 : 272;
     use_fxaa = rs_setting_int("RS_FXAA", 1);
     if (rt_make()) return -1;
     for (int i = 0; i < SURF_N; i++) surf_mem(&surfs[i]);            /* render surfaces first (allocated for the larger scale), so they get the video RAM */

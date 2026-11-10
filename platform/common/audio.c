@@ -304,6 +304,7 @@ void rs_atrac_note_file(const char *host_path){
 typedef struct {
     int used, codec, ch, ba; void *dec; FILE *f; u8 *mem; FILE *pcm; u32 pcm_next;   /* pcm: converted copy (convert.c), frames read instead of decoded */ u32 base, data_off, data_len, nframes, cur, total, skip; int loop_start, loop_end, done;
     u32 buf, bufsize, riff_total, fed;   /* fed: bytes of the sound the game has put in its buffer (initial fill + AddStreamData) */
+    struct predec *pre;                  /* a sound held in memory, decoded ahead on another thread (voice lines) */
 } atrac_t;
 static atrac_t at[8];
 #define ATRAC_ERR_BAD_ID 0x80630005u
@@ -322,6 +323,34 @@ static int riff_parse(const u8 *b, u32 n, atrac_t *a, u8 *extra, int *extra_len)
         else if (!memcmp(b + p, "data", 4)) { a->data_off = p + 8; a->data_len = len; return have_fmt ? 0 : -1; }
         p += 8 + len + (len & 1); }
     return -1; }
+
+/* Voice lines (the speech bundle's sounds, held in memory) are decoded ahead on a thread of their own, frame by frame as soon as the
+ * game names the sound: ha_DecodeData then only copies.  Decoding them in the game's audio thread cost the PS Vita ~9 ms per frame of
+ * sound, inside the game's audio lock (the main thread waited on it).  Same decoder, same conversion to 16-bit. */
+typedef struct predec { void *dec; int codec, ch, ba, spf; u8 *mem; u32 data_off, nframes; s16 *out; u16 *ns; volatile u32 n; volatile int cancel, refs; struct predec *next; } predec_t;
+static pthread_mutex_t pd_mx = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t pd_cv = PTHREAD_COND_INITIALIZER; static predec_t *pd_q; static int pd_started;
+static void pd_unref(predec_t *p){ pthread_mutex_lock(&pd_mx); int last = --p->refs == 0; pthread_mutex_unlock(&pd_mx);
+    if (last) { if (p->dec) { if (p->codec) rs_at3p_free(p->dec); else rs_at3_free(p->dec); } free(p->mem); free(p->out); free(p->ns); free(p); } }
+static void *pd_main(void *arg){ (void)arg; static float L[4096], R[4096];
+    for (;;) {
+        pthread_mutex_lock(&pd_mx); while (!pd_q) pthread_cond_wait(&pd_cv, &pd_mx); predec_t *p = pd_q; pd_q = p->next; pthread_mutex_unlock(&pd_mx);
+        for (u32 k = 0; k < p->nframes && !p->cancel; k++) {
+            int ns = 0; if (p->dec) { int r = p->codec ? rs_at3p_decode(p->dec, L, R, &ns, p->mem + p->data_off + k * (u32)p->ba, p->ba) : rs_at3_decode(p->dec, L, R, &ns, p->mem + p->data_off + k * (u32)p->ba, p->ba); if (r < 0) ns = 0; }
+            if (ns <= 0 || ns > p->spf) { ns = p->spf; memset(L, 0, sizeof(float) * (size_t)ns); memset(R, 0, sizeof(float) * (size_t)ns); }
+            if (p->ch == 1) memcpy(R, L, sizeof(float) * (size_t)ns);
+            s16 *o = p->out + (size_t)k * p->spf * 2; for (int i = 0; i < ns; i++) { int l = (int)(L[i] * 32768.0f), r = (int)(R[i] * 32768.0f); o[i * 2] = clamp16(l); o[i * 2 + 1] = clamp16(r); }
+            p->ns[k] = (u16)ns;
+            __sync_synchronize(); p->n = k + 1; }
+        p->n = p->nframes; pd_unref(p); } }
+static predec_t *pd_start(atrac_t *a){
+    int spf = a->codec ? 2048 : 1024; if (a->ch < 1 || a->ch > 2 || !a->mem || !a->dec || !a->nframes || a->nframes > 4096) return 0;
+    predec_t *p = calloc(1, sizeof *p); if (!p) return 0; p->out = malloc((size_t)a->nframes * spf * 4); p->ns = malloc(a->nframes * 2); if (!p->out || !p->ns) { free(p->out); free(p->ns); free(p); return 0; }
+    p->dec = a->dec; p->codec = a->codec; p->ch = a->ch; p->ba = a->ba; p->spf = spf; p->mem = a->mem; p->data_off = a->data_off; p->nframes = a->nframes; p->refs = 2;
+    a->dec = 0; a->mem = 0;                                         /* the decoder and the sound now belong to the job */
+    pthread_mutex_lock(&pd_mx);
+    if (!pd_started) { pthread_t t; if (pthread_create(&t, 0, pd_main, 0) == 0) { pthread_detach(t); pd_started = 1; } }
+    if (!pd_started) { pthread_mutex_unlock(&pd_mx); a->dec = p->dec; a->mem = p->mem; free(p->out); free(p->ns); free(p); return 0; }
+    predec_t **pp = &pd_q; while (*pp) pp = &(*pp)->next; *pp = p; pthread_cond_signal(&pd_cv); pthread_mutex_unlock(&pd_mx); return p; }
 
 void ha_SetDataAndGetID(sdkcall_t *c){
     u32 buf = A0_, size = A1_; const u8 *b = g_mem + GADDR(buf); int id = -1;
@@ -348,12 +377,14 @@ void ha_SetDataAndGetID(sdkcall_t *c){
         else fprintf(stderr, "[ATRAC] id %d: no source file found for a streamed buffer (%u of %u bytes) - silent\n", id, size, riff_total); }
     a->nframes = a->data_len / (u32)a->ba; if (!a->total) a->total = a->nframes * (a->codec ? 2048u : 1024u);
     if (!a->pcm) a->dec = a->codec ? rs_at3p_alloc(a->ch, a->ba) : rs_at3_alloc(a->ch, a->ba, el ? extra : 0, el);
+    if (a->mem && a->dec && match && rs_patch_audio()) a->pre = pd_start(a);   /* a sound out of a bundle: decoded ahead */
     a->used = 1;
     fprintf(stderr, "[ATRAC] id %d: %s, %d ch, %u frames%s%s\n", id, a->codec ? "ATRAC3plus" : "ATRAC3", a->ch, a->nframes, match ? " <- " : "", match ? match : (a->mem ? " (from memory)" : ""));
     if (a->pcm) fprintf(stderr, "[ATRAC] id %d: playing the converted PCM copy\n", id);
     V0_ = (u32)id; }
 static atrac_t *aid(u32 id){ return id < 8 && at[id].used ? &at[id] : 0; }
 void ha_Release(sdkcall_t *c){ atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; }
+    if (a->pre) { a->pre->cancel = 1; pd_unref(a->pre); }
     if (a->f) fclose(a->f); if (a->pcm) fclose(a->pcm); free(a->mem); if (a->dec) { if (a->codec) rs_at3p_free(a->dec); else rs_at3_free(a->dec); } memset(a, 0, sizeof *a); V0_ = 0; }
 void ha_GetSoundSample(sdkcall_t *c){ atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; }
     if (A1_) SW(A1_, a->total ? a->total - 1 : 0); if (A2_) SW(A2_, (u32)a->loop_start); if (A3_) SW(A3_, (u32)a->loop_end); V0_ = 0; }
@@ -378,6 +409,12 @@ void ha_DecodeData(sdkcall_t *c){
         a->pcm_next = a->cur + 1;
         if (fread(o ? o : tmp, 4, (size_t)ns, a->pcm) != (size_t)ns || !rs_patch_audio()) memset(o ? o : tmp, 0, (size_t)ns * 4);
         a->cur++; int fin = a->cur >= a->nframes; if (fin) a->done = 1;
+        if (pn) SW(pn, (u32)ns); if (pfin) SW(pfin, (u32)fin); if (prem) SW(prem, (u32)-1);
+        V0_ = 0; return; }
+    if (a->pre) {                                     /* decoded ahead: wait for the frame if needed (letting the game run), copy it */
+        predec_t *p = a->pre; if (p->n <= a->cur) { rs_guest_unlock(); while (p->n <= a->cur) usleep(500); rs_guest_lock(); }
+        __sync_synchronize(); int ns = p->ns[a->cur]; if (out) memcpy(g_mem + GADDR(out), p->out + (size_t)a->cur * spf * 2, (size_t)ns * 4);
+        a->cur++; int fin = a->cur >= a->nframes; if (fin) { a->done = 1; fprintf(stderr, "[ATRAC] id %d: finished (%u frames)\n", (int)A0_, a->nframes); }
         if (pn) SW(pn, (u32)ns); if (pfin) SW(pfin, (u32)fin); if (prem) SW(prem, (u32)-1);
         V0_ = 0; return; }
     static u8 fb[4096]; static float L[4096], R[4096]; int ns = 0, ok = 0;

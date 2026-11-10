@@ -7,6 +7,9 @@
 RS_RES_SCALE=2
 # the same for the title screen and the menus (outside a match): 1 or 2.  Matches, videos and the in-game menus use RS_RES_SCALE
 RS_MENU_RES_SCALE=2
+# rows of each render surface: 272 (a PSP screen; the default at 2x and 3x, half the GPU work of 512 at 2x) or 512 (the PSP's full
+# buffer height: use if something drawn off-screen goes missing)
+RS_SURF_ROWS=272
 # FXAA anti-aliasing while the picture is scaled to the screen (RS_RES_SCALE=1; at 2 the picture is already the screen's size): 1 = on, 0 = off
 RS_FXAA=1
 # fog intensity, in percent of each map's own fog: 100 = the game's (set close for the PSP), above 100 closer, below farther
