@@ -32,7 +32,7 @@ extern int rs_setting_int(const char *, int);
 static int in_frame, cull_on;
 static u8 *ring[2]; static u32 ring_size, ring_off; static int ring_i;
 static unsigned st_draws, st_tris, st_texup, st_clears, st_verts, st_frames;
-static C3D_RenderTarget *top;
+static C3D_RenderTarget *top, *top_r;
 static void *ring_alloc(u32 n){
     n = (n + 15) & ~15u; if (ring_off + n > ring_size) return NULL;
     void *p = ring[ring_i] + ring_off; ring_off += n; return p; }
@@ -50,7 +50,7 @@ static void cmd_room(void){ if (C3D_GetCmdBufUsage() > 0.8f) { C3D_FrameSplit(0)
 
 /* ===================================================================== surfaces */
 #define SURF_N 6
-typedef struct { u32 addr, ext; int stride, psz, fmt, used, drawn; unsigned stamp; C3D_Tex tex; C3D_RenderTarget *rt; } surf_t;
+typedef struct { u32 addr, ext; int stride, psz, fmt, used, drawn, scr; unsigned stamp; C3D_Tex tex; C3D_RenderTarget *rt; } surf_t;   /* scr: a frame the game displays */
 static surf_t surfs[SURF_N]; static unsigned surf_stamp; static surf_t *cur;
 static void *depth_buf; static u32 disp_addr, disp_stride = 512, disp_fmt;
 static u32 akey(u32 a){ return gfx_vram(a) & 0x0FFFFFFFu; }
@@ -61,6 +61,17 @@ static float RX = 1.0f, RY = 1.0f; static int VW = SZ, VH = SZ;
 static void res_init(void){ static int done; if (done) return; done = 1;
     if (rs_setting_int("RS_3DS_NATIVE_RES", 1)) { RX = 400.0f / 480.0f; RY = 240.0f / 272.0f; }
     VW = (int)(SZ * RX + 0.5f); VH = (int)(SZ * RY + 0.5f); }
+/* Stereo 3D (RS_3D=1, with the 3D slider up).  The frames the game displays are drawn twice, once per eye, side by side in their
+ * surface: each eye RS_3D_EYE_W pixels wide (200 by default: both eyes together cost what the 2D picture does, as the screen's 400
+ * columns are shared between them), then each is stretched to its eye's 400x240 screen.  Each 3D draw moves its vertices sideways in
+ * clip space by +-sep * (w - conv) (RS_3D_STRENGTH, RS_3D_DEPTH: objects at conv sit on the screen, farther ones behind it); 2D
+ * draws (the HUD, the menus) sit on the screen.  Render targets that are not displayed (shadows, effects) are drawn once. */
+static int u_uvt_loc(void);
+static int st3d, EW = SZ; static float st_sep, st_conv = 10.0f;
+static u32 disp_list[3];
+static float uv_last[4] = {1, 1, 0, 0}; static int bound_scr;        /* the texture bound is a displayed frame (sampled per eye) */
+static void uvt(float x, float y, float z, float w){ uv_last[0] = x; uv_last[1] = y; uv_last[2] = z; uv_last[3] = w; C3D_FVUnifSet(GPU_VERTEX_SHADER, u_uvt_loc(), x, y, z, w); }
+static inline int eyes_on(void);
 static surf_t *surf_find(u32 addr){ addr = akey(addr); for (int i = 0; i < SURF_N; i++) if (surfs[i].used && surfs[i].addr == addr) return &surfs[i]; return 0; }
 static void set_target(surf_t *s){
     ensure_frame();
@@ -79,6 +90,7 @@ static surf_t *surf_create(u32 addr, int fmt, int stride){
     for (int i = 0; i < SURF_N; i++) { if (!surfs[i].used && (surfs[i].rt || !s)) { s = &surfs[i]; if (surfs[i].rt) break; } else if (surfs[i].used && surfs[i].stamp < old->stamp) old = &surfs[i]; }
     if (!s) s = old;
     if (surf_mem(s)) { fprintf(stderr, "[C3D] out of memory for a render surface\n"); return NULL; }
+    s->scr = addr == disp_list[0] || addr == disp_list[1] || addr == disp_list[2];
     s->used = 1; s->ext = 0; s->addr = addr; s->fmt = fmt; s->stride = stride ? stride : 512; s->psz = fmt == 3 ? 4 : 2; s->drawn = 0; s->stamp = ++surf_stamp;
     { float black[4] = {0, 0, 0, 1}; clear_rect_internal(s, 0, 0, SZ - 1, SZ - 1, black, 1.0f, 1, 1, 0, 0); }
     return s; }
@@ -95,9 +107,16 @@ static surf_t *target_for(const gfx_state_t *st){
     { int rows = st->sy2 >= 0 && st->sy2 < 512 ? st->sy2 + 1 : 272; u32 e = (u32)(rows * t->stride * t->psz); if (e > t->ext) t->ext = e; }
     set_target(t); return t; }
 /* the scissor: only set when it is smaller than the PSP screen (the 3DS's framebuffer rows run bottom-up) */
-static int sc_full = -1;
+static int sc_full = -1, sc_rect[4] = {0, 0, SZ - 1, SZ - 1};
+static void scissor_eye(int e){                                     /* the last scissor, inside eye e's half of a displayed frame */
+    float ex = (float)EW / SZ; int xo = e ? 256 : 0, x1 = sc_rect[0], y1 = sc_rect[1], x2 = sc_rect[2], y2 = sc_rect[3];
+    if (x2 < x1 || y2 < y1) { x1 = y1 = 0; x2 = y2 = 0; }
+    int a = xo + (int)(x1 * ex), b = xo + (int)((x2 + 1) * ex + 0.5f); if (b > xo + EW) b = xo + EW;
+    C3D_SetScissor(GPU_SCISSOR_NORMAL, (u32)a, (u32)(SZ - (y2 + 1) * RY + 0.5f), (u32)b, (u32)(SZ - y1 * RY + 0.5f)); sc_full = 0; }
 static void scissor_psp(int x1, int y1, int x2, int y2){
     if (x1 < 0) x1 = 0; if (y1 < 0) y1 = 0; if (x2 > SZ - 1) x2 = SZ - 1; if (y2 > SZ - 1) y2 = SZ - 1;
+    sc_rect[0] = x1; sc_rect[1] = y1; sc_rect[2] = x2; sc_rect[3] = y2;
+    if (eyes_on()) return;                                          /* set per eye at the draw */
     if (x1 == 0 && y1 == 0 && x2 >= 479 && y2 >= 271) { if (sc_full != 1) { C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0); sc_full = 1; } return; }
     if (x2 < x1 || y2 < y1) { x1 = y1 = 0; x2 = y2 = 0; }
     C3D_SetScissor(GPU_SCISSOR_NORMAL, (u32)(x1 * RX), (u32)(SZ - (y2 + 1) * RY + 0.5f), (u32)((x2 + 1) * RX + 0.5f), (u32)(SZ - y1 * RY + 0.5f)); sc_full = 0; }
@@ -109,9 +128,22 @@ static void set4(C3D_FVec *p, float x, float y, float z, float w){ p->x = x; p->
 static void unif_vecs(int loc, const float *v, int n){ C3D_FVec *p = C3D_FVUnifWritePtr(GPU_VERTEX_SHADER, loc, n); for (int i = 0; i < n; i++) set4(&p[i], v[i * 4], v[i * 4 + 1], v[i * 4 + 2], v[i * 4 + 3]); }
 static void clip_identity(void){ C3D_FVec *p = C3D_FVUnifWritePtr(GPU_VERTEX_SHADER, u_clip, 4); set4(&p[0], 1, 0, 0, 0); set4(&p[1], 0, 1, 0, 0); set4(&p[2], 0, 0, 1, 0); set4(&p[3], 0, 0, 0, 1); }
 /* texture coordinate: the PSP's (scale, offset), then the texture's place (uvs: scale u, scale v, offset v, offset u), then v flipped */
+static int u_uvt_loc(void){ return u_uvt; }
+static inline int eyes_on(void){ return st3d && cur && cur->scr; }
+/* one draw call, once per eye into a displayed frame; m: the 3D clip matrix (NULL for 2D) */
+static void eye_draw(const C3D_FVec *m, void (*fn)(const void *), const void *arg){
+    if (!eyes_on()) { fn(arg); return; }
+    float u0[4]; memcpy(u0, uv_last, sizeof u0);
+    for (int e = 0; e < 2; e++) { float d = e ? st_sep : -st_sep;
+        C3D_SetViewport(e ? 256u : 0u, (u32)(SZ - VH), (u32)EW, (u32)VH); scissor_eye(e);
+        if (m) { C3D_FVec *p = C3D_FVUnifWritePtr(GPU_VERTEX_SHADER, u_clip, 1);
+            p->x = m[0].x + d * m[3].x; p->y = m[0].y + d * m[3].y; p->z = m[0].z + d * m[3].z; p->w = m[0].w + d * m[3].w - d * st_conv; }
+        if (bound_scr) uvt(u0[0], u0[1], u0[2] + (e ? 256.0f / SZ : 0.0f), u0[3]);
+        fn(arg); }
+    C3D_SetViewport(0, (u32)(SZ - VH), (u32)VW, (u32)VH); }
 static void set_uvt(const float *a, const float *s){
     float ax = a ? a[0] : 1, ay = a ? a[1] : 1, az = a ? a[2] : 0, aw = a ? a[3] : 0;
-    C3D_FVUnifSet(GPU_VERTEX_SHADER, u_uvt, ax * s[0], -ay * s[1], az * s[0] + s[3], 1.0f - (aw * s[1] + s[2])); }
+    uvt(ax * s[0], -ay * s[1], az * s[0] + s[3], 1.0f - (aw * s[1] + s[2])); }
 
 /* ===================================================================== textures */
 #define TC_N 768
@@ -156,7 +188,8 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
     int y0, x0; surf_t *s = surf_for_addr(k->addr, &y0, &x0);
     if (s && k->fmt >= 4 && k->fmt <= 7 && !surf_to_memory()) { uvs[0] = -1; return 0; }
     if (s) { if (s == cur && akey(rs_gfx_next_fb) == s->addr) return 0;
-        uvs[0] = (float)k->w * RX / SZ; uvs[1] = (float)k->h * RY / SZ; uvs[2] = (float)y0 * RY / SZ; uvs[3] = (float)x0 * RX / SZ; return 0x10000u + (unsigned)(s - surfs); }
+        float sx = st3d && s->scr ? (float)EW / SZ : RX;           /* (a displayed frame in 3D: its left eye; the right one at the draw) */
+        uvs[0] = (float)k->w * sx / SZ; uvs[1] = (float)k->h * RY / SZ; uvs[2] = (float)y0 * RY / SZ; uvs[3] = (float)x0 * sx / SZ; return 0x10000u + (unsigned)(s - surfs); }
     tent_t *e = 0, *old = &tc[0];
     for (int i = tc_head[tk_hash(k)]; i; i = tc[i - 1].hnext) if (tk_eq(&tc[i - 1].k, k)) { e = &tc[i - 1]; break; }
     if (!e) for (int i = 0; i < TC_N; i++) { tent_t *t = &tc[i]; if (!t->used) { old = t; break; } if (t->stamp < old->stamp) old = t; }
@@ -253,6 +286,7 @@ static int apply_state(const gfx_state_t *s){
         C3D_TexSetWrap(tx, s->tclampu ? GPU_CLAMP_TO_EDGE : GPU_REPEAT, s->tclampv ? GPU_CLAMP_TO_EDGE : GPU_REPEAT);
         C3D_TexBind(0, tx); tev_psp(s->tfunc, s->trgba, s->tdbl, s->tenv); }
     else tev_flat();
+    bound_scr = tx && st3d && s->texid >= 0x10000u && surfs[s->texid - 0x10000u].scr;
     return 1; }
 
 /* ===================================================================== vertices */
@@ -278,6 +312,8 @@ static void rd_col(const u8 *p, int cf, float *o){
     default: memcpy(&q, p, 2); o[0] = (q & 15) / 15.0f; o[1] = ((q >> 4) & 15) / 15.0f; o[2] = ((q >> 8) & 15) / 15.0f; o[3] = ((q >> 12) & 15) / 15.0f; return; } }
 static const float nscale[4] = {1.0f, 1.0f / 128.0f, 1.0f / 32768.0f, 1.0f};
 
+static void draw_call(const void *p){ const struct { GPU_Primitive_t pt; int n; u16 *ix; } *a = p;
+    if (a->ix) C3D_DrawElements(a->pt, a->n, C3D_UNSIGNED_SHORT, a->ix); else C3D_DrawArrays(a->pt, 0, a->n); }
 int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t *nv){
     if (nv->count <= 0 || nv->vsz <= 0 || nv->off[4] < 0) return 0;
     int n = nv->count; if (n < 3) return 1;
@@ -346,7 +382,9 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
     set_uvt(thr ? h->uvt : h->uvt, st->uvs);
     GPU_Primitive_t pt = nv->ptype == 4 ? GPU_TRIANGLE_STRIP : (nv->ptype == 5 ? GPU_TRIANGLE_FAN : GPU_TRIANGLES);
     rs_perf.setup_us += rs_perf_us() - t_s;
-    if (ix) C3D_DrawElements(pt, n, C3D_UNSIGNED_SHORT, ix); else C3D_DrawArrays(pt, 0, n);
+    { struct { GPU_Primitive_t pt; int n; u16 *ix; } a = {pt, n, ix}; C3D_FVec m[4]; const C3D_FVec *mp = NULL;
+      if (!thr && eyes_on()) { C3D_FVec *p = C3D_FVUnifWritePtr(GPU_VERTEX_SHADER, u_clip, 4); memcpy(m, p, sizeof m); mp = m; }   /* (the matrix just written) */
+      eye_draw(mp, draw_call, &a); }
     rs_perf.batches++; st_draws++; st_tris += (unsigned)(nv->ptype == 3 ? n / 3 : n - 2);
     return 1;
 full:
@@ -357,7 +395,7 @@ full:
 static void draw_quads_clip(const float *v9, int n, GPU_Primitive_t pt){   /* v9: x y z u v r g b a, already in the 3DS's clip space */
     C3D_BindProgram(&prog); static const float dn[4] = {0, 0, 1, 0}; attrs(0, 0, dn); bufinfo(v9, 36, 3);
     C3D_BoolUnifSet(GPU_VERTEX_SHADER, u_skin, false); C3D_BoolUnifSet(GPU_VERTEX_SHADER, u_lit, false);
-    C3D_DrawArrays(pt, 0, n); st_draws++; }
+    struct { GPU_Primitive_t pt; int n; u16 *ix; } a = {pt, n, NULL}; eye_draw(NULL, draw_call, &a); st_draws++; }
 void gfx_draw(const gfx_state_t *st, const gfx_vtx_t *v, int n){
     if (n <= 0) return;
     surf_t *t = target_for(st); if (!t) return;
@@ -405,7 +443,8 @@ static void blit_rect(surf_t *dst, C3D_Tex *src, float su0, float sv0, float su1
     C3D_DepthTest(true, GPU_ALWAYS, GPU_WRITE_COLOR); C3D_CullFace(GPU_CULL_NONE); C3D_AlphaTest(false, GPU_ALWAYS, 0); C3D_StencilTest(false, GPU_ALWAYS, 0, 0, 0);
     C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
     C3D_TexSetFilter(src, GPU_NEAREST, GPU_NEAREST); C3D_TexSetWrap(src, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE); C3D_TexBind(0, src); tev_copy();
-    clip_identity(); { float id[4] = {1, 1, 0, 0}; C3D_FVUnifSet(GPU_VERTEX_SHADER, u_uvt, id[0], id[1], id[2], id[3]); }
+    bound_scr = 0; for (int i = 0; i < SURF_N; i++) if (src == &surfs[i].tex) bound_scr = st3d && surfs[i].scr;
+    clip_identity(); uvt(1, 1, 0, 0);
     draw_quads_clip(vb, 4, GPU_TRIANGLE_STRIP); }
 void gfx_transfer(u32 src, int sbw, int sx, int sy, u32 dst, int dbw, int dx, int dy, int w, int h, int bpp){
     int ys = 0, yd = 0, xs = 0, xd = 0; surf_t *ss = surf_for_addr(src, &ys, &xs), *ds = surf_for_addr(dst, &yd, &xd);
@@ -414,7 +453,7 @@ void gfx_transfer(u32 src, int sbw, int sx, int sy, u32 dst, int dbw, int dx, in
         if (!ds) { ds = surf_create(dst, ss->fmt, dbw); if (!ds) return; ds->drawn = 1; yd = xd = 0; ss = surf_for_addr(src, &ys, &xs); if (!ss) return; }
         if (ds == ss) return;
         rs_perf.copy_n++;
-        float u0 = (float)(sx + xs) * RX / SZ, u1 = (float)(sx + xs + w) * RX / SZ, v0 = 1.0f - (float)(sy + ys) * RY / SZ, v1 = 1.0f - (float)(sy + ys + h) * RY / SZ;
+        float qx = st3d && ss->scr ? (float)EW / SZ : RX; float u0 = (float)(sx + xs) * qx / SZ, u1 = (float)(sx + xs + w) * qx / SZ, v0 = 1.0f - (float)(sy + ys) * RY / SZ, v1 = 1.0f - (float)(sy + ys + h) * RY / SZ;
         blit_rect(ds, &ss->tex, u0, v0, u1, v1, dx + xd, dy + yd, w, h); ds->stamp = ++surf_stamp; }
     else if (ds) {                                             /* memory -> GPU surface: a temporary texture drawn into it */
         int fmt = bpp == 4 ? 3 : (ds->psz == 2 ? ds->fmt : 1);
@@ -426,7 +465,9 @@ void gfx_transfer(u32 src, int sbw, int sx, int sy, u32 dst, int dbw, int dx, in
 
 /* ===================================================================== display */
 void gfx_get_display(u32 *a, u32 *s, u32 *f){ *a = disp_addr; *s = disp_stride; *f = disp_fmt; }
-void gfx_set_display(u32 addr, u32 stride, u32 fmt){ if (addr) { disp_addr = akey(addr); disp_stride = stride ? stride : 512; disp_fmt = fmt & 3; } }
+void gfx_set_display(u32 addr, u32 stride, u32 fmt){ if (addr) { disp_addr = akey(addr); disp_stride = stride ? stride : 512; disp_fmt = fmt & 3;
+    int known = 0; for (int i = 0; i < 3; i++) known |= disp_list[i] == disp_addr; if (!known) { disp_list[2] = disp_list[1]; disp_list[1] = disp_list[0]; disp_list[0] = disp_addr; }
+    surf_t *s = surf_find(addr); if (s) s->scr = 1; } }
 static surf_t *disp_surface(void){ surf_t *s = surf_find(disp_addr); return (s && s->drawn) ? s : 0; }
 int gfx_read_display(u32 *out){
     if (!disp_addr || disp_surface()) return 0;
@@ -446,26 +487,37 @@ void gfx_c3d_present(void){
     else if (disp_addr) {                                          /* the game wrote the frame buffer with the CPU (no GPU surface) */
         static u32 *pix; if (!pix) pix = malloc(480 * 272 * 4);
         if (pix && gfx_read_display(pix)) { tex_free_later(&cpu_disp); int tw, th; long by; if (tex_store(&cpu_disp, pix, 480, 272, &tw, &th, &by)) { tx = &cpu_disp; um = 480.0f / tw; vb = 1.0f - 272.0f / th; } } }
-    C3D_RenderTargetClear(top, C3D_CLEAR_ALL, 0x000000FF, 0);
-    C3D_FrameDrawOn(top); cur = NULL; sc_full = -1;
-    C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
-    if (tx) {
-        float *v = ring_alloc(4 * 36);
-        if (v) {
-            C3D_Mtx proj; Mtx_OrthoTilt(&proj, 0.0f, 400.0f, 240.0f, 0.0f, 1.0f, -1.0f, true);
-            C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, u_clip, &proj);
-            /* surfaces are drawn and read in the GPU's own convention (row 0 at v = 1); flipping the whole picture here (RS_FLIP_DISPLAY=1)
-             * only hid that the CPU-made pictures were stored upside down (tex_store): it turned the menus upside down on hardware */
-            static int fl = -1; if (fl < 0) fl = rs_setting_int("RS_FLIP_DISPLAY", 0);
-            float vt = 1.0f, vbm = vb; if (s && fl) { vt = vb; vbm = 1.0f; }
-            float q[4][4] = {{0, 0, 0, vt}, {400, 0, um, vt}, {0, 240, 0, vbm}, {400, 240, um, vbm}};
-            for (int i = 0; i < 4; i++) { float *d = v + i * 9; d[0] = q[i][0]; d[1] = q[i][1]; d[2] = 0; d[3] = q[i][2]; d[4] = q[i][3]; d[5] = d[6] = d[7] = d[8] = 1; }
-            C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR); C3D_CullFace(GPU_CULL_NONE); C3D_AlphaTest(false, GPU_ALWAYS, 0); C3D_StencilTest(false, GPU_ALWAYS, 0, 0, 0);
-            C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
-            { GPU_TEXTURE_FILTER_PARAM f = (s && RX < 1.0f) ? GPU_NEAREST : GPU_LINEAR; C3D_TexSetFilter(tx, f, f); }   /* (native size: 1:1) */ C3D_TexSetWrap(tx, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE); C3D_TexBind(0, tx); tev_copy();
-            C3D_FVUnifSet(GPU_VERTEX_SHADER, u_uvt, 1, 1, 0, 0);
-            draw_quads_clip(v, 4, GPU_TRIANGLE_STRIP); } }
+    int stereo_frame = st3d && s && s->scr;                         /* this frame was drawn per eye */
+    for (int eye = 0; eye < (st3d ? 2 : 1); eye++) {
+        C3D_RenderTarget *rt = eye ? top_r : top;
+        C3D_RenderTargetClear(rt, C3D_CLEAR_ALL, 0x000000FF, 0);
+        C3D_FrameDrawOn(rt); cur = NULL; sc_full = -1;
+        C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
+        if (!tx) continue;
+        float *v = ring_alloc(4 * 36); if (!v) continue;
+        C3D_Mtx proj; Mtx_OrthoTilt(&proj, 0.0f, 400.0f, 240.0f, 0.0f, 1.0f, -1.0f, true);
+        C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, u_clip, &proj);
+        /* surfaces are drawn and read in the GPU's own convention (row 0 at v = 1); flipping the whole picture here (RS_FLIP_DISPLAY=1)
+         * only hid that the CPU-made pictures were stored upside down (tex_store): it turned the menus upside down on hardware */
+        static int fl = -1; if (fl < 0) fl = rs_setting_int("RS_FLIP_DISPLAY", 0);
+        float vt = 1.0f, vbm = vb; if (s && fl) { vt = vb; vbm = 1.0f; }
+        float ul = 0, ur = um;                                           /* 2D: the picture; 3D: this eye's half, stretched to the screen */
+        if (stereo_frame) { ul = eye ? 256.0f / SZ : 0.0f; ur = ul + (float)EW / SZ; }
+        float q[4][4] = {{0, 0, ul, vt}, {400, 0, ur, vt}, {0, 240, ul, vbm}, {400, 240, ur, vbm}};
+        for (int i = 0; i < 4; i++) { float *d = v + i * 9; d[0] = q[i][0]; d[1] = q[i][1]; d[2] = 0; d[3] = q[i][2]; d[4] = q[i][3]; d[5] = d[6] = d[7] = d[8] = 1; }
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR); C3D_CullFace(GPU_CULL_NONE); C3D_AlphaTest(false, GPU_ALWAYS, 0); C3D_StencilTest(false, GPU_ALWAYS, 0, 0, 0);
+        C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
+        { GPU_TEXTURE_FILTER_PARAM f = (s && RX < 1.0f && !stereo_frame) ? GPU_NEAREST : GPU_LINEAR; C3D_TexSetFilter(tx, f, f); }   /* (2D at native size: 1:1) */
+        C3D_TexSetWrap(tx, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE); C3D_TexBind(0, tx); tev_copy();
+        bound_scr = 0; uvt(1, 1, 0, 0);
+        draw_quads_clip(v, 4, GPU_TRIANGLE_STRIP); }
     C3D_FrameEnd(0); in_frame = 0; cur = NULL; st_frames++;
+    {   static int on = -1, strength, eyew; if (on < 0) { on = rs_setting_int("RS_3D", 1); strength = rs_setting_int("RS_3D_STRENGTH", 6); eyew = rs_setting_int("RS_3D_EYE_W", 200);
+            st_conv = (float)rs_setting_int("RS_3D_DEPTH", 10); if (eyew < 100) eyew = 100; if (eyew > 400) eyew = 400; }
+        float sl = on && top_r ? osGet3DSliderState() : 0.0f; int want = sl > 0.02f;
+        if (want != st3d) { gfxSet3D(want); st3d = want; }
+        st_sep = sl * (float)strength / 100.0f; EW = (int)(SZ * (eyew / 480.0f) + 0.5f);
+        if (EW > 256) EW = 256; }
     gpu_ms = C3D_GetDrawingTime();
     rs_perf.present_n++; rs_perf.present_us += rs_perf_us() - t; }
 void gfx_c3d_counters(unsigned *draws, unsigned *uploads, unsigned *verts, float *gms){ *draws = st_draws; *uploads = st_texup; *verts = st_verts; *gms = gpu_ms; }
@@ -478,6 +530,9 @@ void gfx_before_job(void){ }
 int gfx_init(void){
     if (!C3D_Init((size_t)rs_setting_int("RS_CMDBUF_KB", 1024) * 1024)) { fprintf(stderr, "[C3D] C3D_Init failed\n"); return -1; }
     top = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, -1); if (!top) { fprintf(stderr, "[C3D] no top-screen target\n"); return -1; }
+    top_r = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, -1);       /* the right eye (stereo 3D) */
+    if (top_r) C3D_RenderTargetSetOutput(top_r, GFX_TOP, GFX_RIGHT, GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) |
+                              GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO));
     C3D_RenderTargetSetOutput(top, GFX_TOP, GFX_LEFT, GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) |
                               GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO));
     depth_buf = vramAlloc(SZ * SZ * 4); if (!depth_buf) depth_buf = linearAlloc(SZ * SZ * 4);
