@@ -203,10 +203,11 @@ static const char *FXAA_FS =
     "}\n";
 
 /* the PSP vertex program for vertex type vt (see gfx_gl.c native_vs_src: same shader, Cg) */
-static char *native_vs_src(u32 vt, int lit){
+static char *native_vs_src(u32 vt, int lit, int pp){
     int tf = vt & 3, cf = (vt >> 2) & 7, nf = (vt >> 5) & 3, pf = (vt >> 7) & 3, wf = (vt >> 9) & 3, nw = ((vt >> 14) & 7) + 1, thr = (vt >> 23) & 1;
     static const char *sc[4] = {"1.0", "(1.0 / 128.0)", "(1.0 / 32768.0)", "1.0"};
     if (thr) { nf = 0; wf = 0; lit = 0; }
+    if (!lit) pp = 0;
     sbuf_t b = {0};
     sb(&b, "#define vec2 float2\n#define vec3 float3\n#define vec4 float4\n");
     sb(&b, "uniform vec4 uMVP[4]; uniform vec4 uWVZ; uniform vec4 uWld[3]; uniform vec4 uB[24];\n"
@@ -216,7 +217,7 @@ static char *native_vs_src(u32 vt, int lit){
     if (lit) sb(&b, "#define LIGHT(i, ih) if (uLFl.z > ih) { vec3 L = uLPos[i].xyz; float att = 1.0; if (uLPos[i].w > 0.5) { L = uLPos[i].xyz - wp; float d = length(L); if (d > 0.000001) L = L / d;"
                     " float den = uLAtt[i].x + uLAtt[i].y * d + uLAtt[i].z * d * d; att = (den > 0.000001) ? min(1.0 / den, 1.0) : 1.0;"
                     " if (uLPos[i].w > 1.5) { float cs = -dot(L, uLSpot[i].xyz); if (cs < uLSpot[i].w) att = 0.0; else if (uLAtt[i].w > 0.0) att = att * pow(max(cs, 0.0), uLAtt[i].w); } }"
-                    " float ndl = max(dot(wn, L), 0.0); col += (uLA[i].rgb * amb + ndl * uLD[i].rgb * dif) * att; }\n");
+                    " float ndl = max(dot(wn, L), 0.0); col += (uLA[i].rgb * amb + %s * uLD[i].rgb * dif) * att; }\n", pp ? "0.0" : "ndl");
     const char *an[6]; const char *at[6]; int na = 0;
     an[na] = "aP"; at[na++] = "vec3";
     if (nf) { an[na] = "aN"; at[na++] = "vec3"; }
@@ -225,7 +226,7 @@ static char *native_vs_src(u32 vt, int lit){
     if (wf) { an[na] = "aW0"; at[na++] = "vec4"; if (nw > 4) { an[na] = "aW1"; at[na++] = "vec4"; } }
     sb(&b, "void nvxf(");
     for (int i = 0; i < na; i++) sb(&b, "%s %s, ", at[i], an[i]);
-    sb(&b, "out vec4 oPos, out vec2 oUV, out vec4 oCol, out float oFog, out float oCull) {\n");
+    sb(&b, "out vec4 oPos, out vec2 oUV, out vec4 oCol, out float oFog, out float oCull%s) {\n", pp ? ", out vec3 oDif, out vec3 oWP, out vec3 oWN" : "");
     switch (cf) {
     case 0: sb(&b, "  vec4 c = uDefC;\n"); break;
     case 7: sb(&b, "  vec4 c = aC;\n"); break;
@@ -267,12 +268,14 @@ static char *native_vs_src(u32 vt, int lit){
                "  vec3 col = uMEmi.rgb + uMSca.rgb * amb;\n"
                "  LIGHT(0, 0.5) LIGHT(1, 1.5) LIGHT(2, 2.5) LIGHT(3, 3.5)\n"
                "  oCol = vec4(clamp(col, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0)), clamp(aa, 0.0, 1.0));\n");
+        if (pp) sb(&b, "  oDif = dif; oWP = wp; oWN = wn;\n");   /* per pixel: the ambient part above; diffuse and specular in the fragment program */
         sb(&b, "}\n"); }
     sb(&b, "void main(");
     for (int i = 0; i < na; i++) sb(&b, "%s %s, ", at[i], an[i]);
-    sb(&b, "float4 out vPos : POSITION, float2 out vUV : TEXCOORD0, float4 out vCol : TEXCOORD1, float out vFog : TEXCOORD2, float out vCull : TEXCOORD3) { nvxf(");
+    sb(&b, "float4 out vPos : POSITION, float2 out vUV : TEXCOORD0, float4 out vCol : TEXCOORD1, float out vFog : TEXCOORD2, float out vCull : TEXCOORD3%s) { nvxf(",
+       pp ? ", float3 out vDif : TEXCOORD4, float3 out vWP : TEXCOORD5, float3 out vWN : TEXCOORD6" : "");
     for (int i = 0; i < na; i++) sb(&b, "%s, ", an[i]);
-    sb(&b, "vPos, vUV, vCol, vFog, vCull); }\n");
+    sb(&b, "vPos, vUV, vCol, vFog, vCull%s); }\n", pp ? ", vDif, vWP, vWN" : "");
     return b.p; }
 
 enum { U_MVP, U_WVZ, U_WLD, U_B, U_VP0, U_VP1, U_VP2, U_UVT, U_UVS, U_FOGP, U_DEFC, U_MAMB, U_MDIF, U_MEMI, U_MSCA, U_LFL, U_LPOS, U_LATT, U_LSPOT, U_LA, U_LD, U_NV };
@@ -286,6 +289,47 @@ static int fo_g[6] = {-1, -1, -1, -1, -1, -1}, fo_af[6] = {-1, -1, -1, -1, -1, -
 /* the same fragment program with anisotropic sampling (tex_mips.h), for filtered draws of textures that have a mip chain */
 typedef struct { SceGxmShaderPatcherId id; const SceGxmProgram *gxp; const SceGxmProgramParameter *cfg0, *cfg1, *env, *fog, *mul, *aniso; } fsv_t;
 static fsv_t fs_af; static int af_ok;
+/* Per-pixel lighting (RS_LIGHTING=1; 0 = per vertex, as the PSP lit): lit 3D draws light every pixel with a simplified physically
+ * based model - Lambert diffuse plus a normalised Blinn-Phong highlight with Schlick's Fresnel (RS_ROUGHNESS, RS_SPECULAR: one
+ * material for everything until materials come from mods) - for the game's own 4 lights; the ambient terms stay per vertex. */
+static fsv_t fs_pp; static int pp_ok; static int fo_pp[6] = {-1, -1, -1, -1, -1, -1};
+static int po_lpos = -1, po_latt = -1, po_lspot = -1, po_ld = -1, po_ln = -1, po_eye = -1;
+static const gfx_hw_t *cur_pp;                               /* the lit draw being set up per pixel (its lights), else NULL */
+static int pp_on(void){ static int on = -1; if (on < 0) on = rs_setting_int("RS_LIGHTING", 0) == 1; return on && pp_ok; }
+static float pp_rough = 0.7f, pp_spec = 0.04f;
+static const char *FS_PP_LIGHT =                                         /* (the 4 lights unrolled: constant uniform indices) */
+    "  float4 c = vCol;\n"
+    "  { float3 N = normalize(vWN); float3 V = normalize(uEye.xyz - vWP); float3 acc = float3(0.0, 0.0, 0.0);\n"
+    "    float a = uLN.y * uLN.y; float n = max(2.0 / (a * a) - 2.0, 1.0); float nrm = (n + 8.0) * 0.125;\n"
+    "    if (uLN.x > 0.5) { float3 L = uLPos[0].xyz; float att = 1.0;\n"
+    "      if (uLPos[0].w > 0.5) { L = uLPos[0].xyz - vWP; float d = length(L); L = L / max(d, 0.000001);\n"
+    "        float den = uLAtt[0].x + uLAtt[0].y * d + uLAtt[0].z * d * d; att = (den > 0.000001) ? min(1.0 / den, 1.0) : 1.0;\n"
+    "        if (uLPos[0].w > 1.5) { float cs = -dot(L, uLSpot[0].xyz); att = (cs < uLSpot[0].w) ? 0.0 : ((uLAtt[0].w > 0.0) ? att * pow(max(cs, 0.0), uLAtt[0].w) : att); } }\n"
+    "      float ndl = max(dot(N, L), 0.0); float3 H = normalize(L + V); float ndh = max(dot(N, H), 0.0);\n"
+    "      float f = uLN.z + (1.0 - uLN.z) * pow(1.0 - max(dot(H, V), 0.0), 5.0);\n"
+    "      acc += (vDif * ndl + nrm * pow(ndh, n) * f * ndl) * uLD[0].rgb * att; }\n"
+    "    if (uLN.x > 1.5) { float3 L = uLPos[1].xyz; float att = 1.0;\n"
+    "      if (uLPos[1].w > 0.5) { L = uLPos[1].xyz - vWP; float d = length(L); L = L / max(d, 0.000001);\n"
+    "        float den = uLAtt[1].x + uLAtt[1].y * d + uLAtt[1].z * d * d; att = (den > 0.000001) ? min(1.0 / den, 1.0) : 1.0;\n"
+    "        if (uLPos[1].w > 1.5) { float cs = -dot(L, uLSpot[1].xyz); att = (cs < uLSpot[1].w) ? 0.0 : ((uLAtt[1].w > 0.0) ? att * pow(max(cs, 0.0), uLAtt[1].w) : att); } }\n"
+    "      float ndl = max(dot(N, L), 0.0); float3 H = normalize(L + V); float ndh = max(dot(N, H), 0.0);\n"
+    "      float f = uLN.z + (1.0 - uLN.z) * pow(1.0 - max(dot(H, V), 0.0), 5.0);\n"
+    "      acc += (vDif * ndl + nrm * pow(ndh, n) * f * ndl) * uLD[1].rgb * att; }\n"
+    "    if (uLN.x > 2.5) { float3 L = uLPos[2].xyz; float att = 1.0;\n"
+    "      if (uLPos[2].w > 0.5) { L = uLPos[2].xyz - vWP; float d = length(L); L = L / max(d, 0.000001);\n"
+    "        float den = uLAtt[2].x + uLAtt[2].y * d + uLAtt[2].z * d * d; att = (den > 0.000001) ? min(1.0 / den, 1.0) : 1.0;\n"
+    "        if (uLPos[2].w > 1.5) { float cs = -dot(L, uLSpot[2].xyz); att = (cs < uLSpot[2].w) ? 0.0 : ((uLAtt[2].w > 0.0) ? att * pow(max(cs, 0.0), uLAtt[2].w) : att); } }\n"
+    "      float ndl = max(dot(N, L), 0.0); float3 H = normalize(L + V); float ndh = max(dot(N, H), 0.0);\n"
+    "      float f = uLN.z + (1.0 - uLN.z) * pow(1.0 - max(dot(H, V), 0.0), 5.0);\n"
+    "      acc += (vDif * ndl + nrm * pow(ndh, n) * f * ndl) * uLD[2].rgb * att; }\n"
+    "    if (uLN.x > 3.5) { float3 L = uLPos[3].xyz; float att = 1.0;\n"
+    "      if (uLPos[3].w > 0.5) { L = uLPos[3].xyz - vWP; float d = length(L); L = L / max(d, 0.000001);\n"
+    "        float den = uLAtt[3].x + uLAtt[3].y * d + uLAtt[3].z * d * d; att = (den > 0.000001) ? min(1.0 / den, 1.0) : 1.0;\n"
+    "        if (uLPos[3].w > 1.5) { float cs = -dot(L, uLSpot[3].xyz); att = (cs < uLSpot[3].w) ? 0.0 : ((uLAtt[3].w > 0.0) ? att * pow(max(cs, 0.0), uLAtt[3].w) : att); } }\n"
+    "      float ndl = max(dot(N, L), 0.0); float3 H = normalize(L + V); float ndh = max(dot(N, H), 0.0);\n"
+    "      float f = uLN.z + (1.0 - uLN.z) * pow(1.0 - max(dot(H, V), 0.0), 5.0);\n"
+    "      acc += (vDif * ndl + nrm * pow(ndh, n) * f * ndl) * uLD[3].rgb * att; }\n"
+    "    c.rgb = saturate(c.rgb + acc); }\n";
 static vprog_t cpu_vp;                                       /* gfx_vtx_t program */
 static SceGxmVertexProgram *clr_vp, *blt_vp; static SceGxmFragmentProgram *blt_fp; static const SceGxmProgram *clr_vgxp, *clr_fgxp, *blt_vgxp; static SceGxmShaderPatcherId clr_fid;
 static const SceGxmProgramParameter *clr_uz, *clr_ucol;
@@ -298,14 +342,27 @@ static SceGxmAttributeFormat afmt(int psp_fmt, int is_unsigned){
                        default: return SCE_GXM_ATTRIBUTE_FORMAT_F32; } }
 static int reg_of(const SceGxmProgram *p, const char *name){ const SceGxmProgramParameter *q = sceGxmProgramFindParameterByName(p, name); return q ? (int)sceGxmProgramParameterGetResourceIndex(q) : -1; }
 
-static const vprog_t *native_prog(u32 vt, int lit, int vsz, const int *off){
-    int thr = (vt >> 23) & 1; u32 key = (vt & 0x1C7FFu) | ((u32)thr << 23) | ((u32)(lit && !thr) << 24) | 0x80000000u;
+/* Shader warm-up: every vertex program a match has needed is listed (<shader cache>/programs.txt) and made at startup from the
+ * compiled-shader cache, so a new kind of model never stalls a frame for its compile or load mid-match (only the first time ever). */
+const char *gxm_cache_path(void);
+static int warming;
+static void prog_note(u32 vt, int lit, int vsz, const int *off, int pp){
+    if (warming) return; char p[300]; snprintf(p, sizeof p, "%s/programs.txt", gxm_cache_path());
+    FILE *f = fopen(p, "a"); if (f) { fprintf(f, "%x %d %d %d %d %d %d %d %d\n", (unsigned)vt, lit, pp, vsz, off[0], off[1], off[2], off[3], off[4]); fclose(f); } }
+static const vprog_t *native_prog(u32 vt, int lit, int vsz, const int *off, int pp);
+static void prog_warm(void){
+    char p[300]; snprintf(p, sizeof p, "%s/programs.txt", gxm_cache_path()); FILE *f = fopen(p, "r"); if (!f) return;
+    unsigned vt; int lit, pp, vsz, o[5], n = 0; u64 t0 = rs_perf_us(); warming = 1;
+    while (fscanf(f, "%x %d %d %d %d %d %d %d %d", &vt, &lit, &pp, &vsz, &o[0], &o[1], &o[2], &o[3], &o[4]) == 9) { if (pp && !pp_on()) continue; if (native_prog(vt, lit, vsz, o, pp)) n++; }
+    warming = 0; fclose(f); fprintf(stderr, "[GXM] %d vertex programs ready at start (%.0f ms)\n", n, (rs_perf_us() - t0) / 1000.0); }
+static const vprog_t *native_prog(u32 vt, int lit, int vsz, const int *off, int pp){
+    int thr = (vt >> 23) & 1; pp = pp && lit && !thr; u32 key = (vt & 0x1C7FFu) | ((u32)thr << 23) | ((u32)(lit && !thr) << 24) | ((u32)pp << 25) | 0x80000000u;
     static int li = -1; if (li >= 0 && vps[li].key == key) return vps[li].state > 0 ? &vps[li] : NULL;
     for (int i = 0; i < nvp; i++) if (vps[i].key == key) { li = i; return vps[i].state > 0 ? &vps[i] : NULL; }
     if (nvp >= VP_N) return NULL;
     vprog_t *e = &vps[nvp++]; memset(e, 0, sizeof *e); e->key = key; e->state = -1;
     if (!((vt >> 7) & 3)) return NULL;
-    char *src = native_vs_src(vt, lit); u64 t0 = rs_perf_us();
+    char *src = native_vs_src(vt, lit, pp); u64 t0 = rs_perf_us();
     e->gxp = gxm_shader(src, 0); free(src);
     if (!e->gxp) { fprintf(stderr, "[GXM] vertex type %06x: %s\n", (unsigned)vt, gxm_error()); return NULL; }
     int tf = vt & 3, cf = (vt >> 2) & 7, nf = (vt >> 5) & 3, pf = (vt >> 7) & 3, wf = (vt >> 9) & 3, nw = ((vt >> 14) & 7) + 1;
@@ -323,7 +380,7 @@ static const vprog_t *native_prog(u32 vt, int lit, int vsz, const int *off){
         sceGxmShaderPatcherCreateVertexProgram(gxm_patcher(), id, at, (unsigned)na, &st, 1, &e->vp) < 0) { fprintf(stderr, "[GXM] vertex type %06x: cannot create the program\n", (unsigned)vt); return NULL; }
     for (int i = 0; i < U_NV; i++) { e->u[i] = sceGxmProgramFindParameterByName(e->gxp, U_NAMES[i]); e->uo[i] = uoff(e->u[i]); }
     fprintf(stderr, "[GXM] program for vertex type %06x%s%s ready (%.1f ms)\n", (unsigned)(vt & 0x1C7FFu), thr ? " 2D" : "", lit && !thr ? " lit" : "", (rs_perf_us() - t0) / 1000.0);
-    e->state = 1; return e; }
+    e->state = 1; prog_note(vt, lit, vsz, off, pp); return e; }
 
 /* fragment program variants: blending and colour mask (GXM bakes them into the program) */
 typedef struct { u32 key; SceGxmFragmentProgram *fp; } fprog_t;
@@ -331,7 +388,7 @@ typedef struct { u32 key; SceGxmFragmentProgram *fp; } fprog_t;
 static fprog_t fps[FP_N]; static int nfp;
 static SceGxmFragmentProgram *frag_prog(int blend_on, SceGxmBlendFunc cf, SceGxmBlendFunc af, int cs, int cd, int as, int ad, int mask, SceGxmShaderPatcherId id, const SceGxmProgram *vgxp){
     u32 key = (u32)blend_on | (u32)cf << 1 | (u32)af << 4 | (u32)cs << 7 | (u32)cd << 11 | (u32)as << 15 | (u32)ad << 19 | (u32)mask << 23 | (id == clr_fid ? 1u << 28 : 0) |
-              (af_ok && id == fs_af.id ? 1u << 29 : 0);
+              (af_ok && id == fs_af.id ? 1u << 29 : 0) | (pp_ok && id == fs_pp.id ? 1u << 30 : 0);
     static u32 lk = 0xFFFFFFFFu; static SceGxmFragmentProgram *lf; if (key == lk && lf) return lf;
     for (int i = 0; i < nfp; i++) if (fps[i].key == key) { lk = key; lf = fps[i].fp; return lf; }
     SceGxmBlendInfo bi; memset(&bi, 0, sizeof bi); bi.colorMask = (SceGxmColorMask)mask;
@@ -537,7 +594,8 @@ static SceGxmFragmentProgram *apply_state(const gfx_state_t *s, const SceGxmProg
     const SceGxmTexture *tx = s->tex ? tex_of(s->texid) : NULL; int use = tx != NULL;
     const tent_t *te = use && s->texid < 0x10000u ? &tc[s->texid - 1] : NULL;
     int mipped = te && te->mips > 1 && s->tfilter, aniso = mipped && af_ok;   /* filtered + mip chain: trilinear, anisotropic if the program built */
-    SceGxmShaderPatcherId pid = aniso ? fs_af.id : fs_id;
+    if (cur_pp) aniso = 0;                                              /* (the per-pixel program samples without the anisotropic variant) */
+    SceGxmShaderPatcherId pid = cur_pp ? fs_pp.id : (aniso ? fs_af.id : fs_id);
     int mask = (s->cmr ? SCE_GXM_COLOR_MASK_R : 0) | (s->cmg ? SCE_GXM_COLOR_MASK_G : 0) | (s->cmb ? SCE_GXM_COLOR_MASK_B : 0) | (s->cma ? SCE_GXM_COLOR_MASK_A : 0);
     SceGxmFragmentProgram *fp;
     if (s->blend) {
@@ -551,7 +609,13 @@ static SceGxmFragmentProgram *apply_state(const gfx_state_t *s, const SceGxmProg
     if (!fp) return NULL;
     gs_fp(c, fp);
     void *fb; sceGxmReserveFragmentDefaultUniformBuffer(c, &fb);
-    const int *fo = aniso ? fo_af : fo_g;                          /* uniform offsets: cfg0, cfg1, env, fog, mul, aniso */
+    const int *fo = cur_pp ? fo_pp : (aniso ? fo_af : fo_g);       /* uniform offsets: cfg0, cfg1, env, fog, mul, aniso */
+    if (cur_pp) { const gfx_hw_t *h = cur_pp; float L[16], A[16], S[16], D[16], e[4] = {0, 0, 0, 1};
+        int nl = (int)(h->lfl[2] + 0.5f); if (nl > 4) nl = 4;
+        for (int i = 0; i < 16; i++) { L[i] = h->lpos[i]; A[i] = h->latt[i]; S[i] = h->lspot[i]; D[i] = h->ld[i]; }
+        const float *vw = h->view; for (int j = 0; j < 3; j++) e[j] = -(vw[9] * vw[j * 3] + vw[10] * vw[j * 3 + 1] + vw[11] * vw[j * 3 + 2]);   /* camera: -t * R^T */
+        float ln[4] = {(float)nl, pp_rough, pp_spec, 0};
+        uput(fb, po_lpos, 16, L); uput(fb, po_latt, 16, A); uput(fb, po_lspot, 16, S); uput(fb, po_ld, 16, D); uput(fb, po_ln, 4, ln); uput(fb, po_eye, 4, e); }
     float v[4];
     if (aniso && fo[5] >= 0) { v[0] = (float)te->k.w; v[1] = (float)te->k.h; v[2] = (float)rs_aniso_level(); v[3] = 0; uput(fb, fo[5], 4, v); }
     if (fo[0] >= 0) { v[0] = use ? 1.0f : 0.0f; v[1] = (float)s->tfunc; v[2] = (float)s->trgba; v[3] = (float)s->tdbl; uput(fb, fo[0], 4, v); }
@@ -579,7 +643,7 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
     if (nv->ptype == 3) n -= n % 3;
     u32 vt = nv->vt; int thr = (vt >> 23) & 1;
     u64 b0 = rs_perf_detail ? rs_perf_us() : 0;
-    const vprog_t *P = native_prog(vt, h->lit, nv->vsz, nv->off); if (!P) return 0;
+    int pp = h->lit && !thr && pp_on(); const vprog_t *P = native_prog(vt, h->lit, nv->vsz, nv->off, pp); if (!P) return 0; cur_pp = pp ? h : NULL;
     surf_t *t = target_for(st); if (!t) return 1;
     u64 t_s = rs_perf_us(); if (b0) rs_perf.bk[6] += t_s - b0;
     /* vertices: the copy the native GU made of the game's bytes, into GPU-visible frame memory */
@@ -623,7 +687,7 @@ void gfx_draw(const gfx_state_t *st, const gfx_vtx_t *v, int n){
     if (n <= 0) return;
     surf_t *t = target_for(st); if (!t) return;
     void *vb = gxm_frame_alloc(sizeof(gfx_vtx_t) * (size_t)n, 16); if (!vb) return; memcpy(vb, v, sizeof(gfx_vtx_t) * (size_t)n);
-    SceGxmContext *c = gxm_ctx();
+    SceGxmContext *c = gxm_ctx(); cur_pp = NULL;
     if (!apply_state(st, cpu_vp.gxp)) return;
     gs_vp(c, cpu_vp.vp);
     void *ub; sceGxmReserveVertexDefaultUniformBuffer(c, &ub); set_vu(ub, &cpu_vp, U_UVS, 1, st->uvs);
@@ -795,6 +859,23 @@ int gfx_init(void){
     fu_cfg0g = sceGxmProgramFindParameterByName(fs_gxp, "uCfg0"); fu_cfg1g = sceGxmProgramFindParameterByName(fs_gxp, "uCfg1"); fu_envg = sceGxmProgramFindParameterByName(fs_gxp, "uEnv");
     fu_fogg = sceGxmProgramFindParameterByName(fs_gxp, "uFog"); fu_mulg = sceGxmProgramFindParameterByName(fs_gxp, "uMul");
     fo_g[0] = uoff(fu_cfg0g); fo_g[1] = uoff(fu_cfg1g); fo_g[2] = uoff(fu_envg); fo_g[3] = uoff(fu_fogg); fo_g[4] = uoff(fu_mulg);
+    /* the per-pixel lighting variant of the fragment program (a failure leaves per-vertex lighting) */
+    {   static char out[12288]; const char *in = "float4 main(float2 vUV : TEXCOORD0, float4 vCol : TEXCOORD1, float vFog : TEXCOORD2, float vCull : TEXCOORD3,";
+        const char *u = "uniform float4 uMul) : COLOR", *cv = "  float4 c = vCol;\n";
+        const char *a = strstr(FS_SRC, in), *b = strstr(FS_SRC, u), *c = strstr(FS_SRC, cv);
+        if (a && b && c && a < b && b < c) { char *o = out;
+            o += sprintf(o, "float4 main(float2 vUV : TEXCOORD0, float4 vCol : TEXCOORD1, float vFog : TEXCOORD2, float vCull : TEXCOORD3, float3 vDif : TEXCOORD4, float3 vWP : TEXCOORD5, float3 vWN : TEXCOORD6,");
+            const char *r = a + strlen(in); memcpy(o, r, (size_t)(b - r)); o += b - r;
+            o += sprintf(o, "uniform float4 uMul, uniform float4 uLPos[4], uniform float4 uLAtt[4], uniform float4 uLSpot[4], uniform float4 uLD[4], uniform float4 uLN, uniform float4 uEye) : COLOR");
+            r = b + strlen(u); memcpy(o, r, (size_t)(c - r)); o += c - r; o += sprintf(o, "%s", FS_PP_LIGHT); strcpy(o, c + strlen(cv));
+            fs_pp.gxp = gxm_shader(out, 1);
+            if (fs_pp.gxp && sceGxmShaderPatcherRegisterProgram(gxm_patcher(), fs_pp.gxp, &fs_pp.id) >= 0) { const SceGxmProgram *g = fs_pp.gxp; pp_ok = 1;
+                fo_pp[0] = uoff(sceGxmProgramFindParameterByName(g, "uCfg0")); fo_pp[1] = uoff(sceGxmProgramFindParameterByName(g, "uCfg1")); fo_pp[2] = uoff(sceGxmProgramFindParameterByName(g, "uEnv"));
+                fo_pp[3] = uoff(sceGxmProgramFindParameterByName(g, "uFog")); fo_pp[4] = uoff(sceGxmProgramFindParameterByName(g, "uMul"));
+                po_lpos = uoff(sceGxmProgramFindParameterByName(g, "uLPos")); po_latt = uoff(sceGxmProgramFindParameterByName(g, "uLAtt")); po_lspot = uoff(sceGxmProgramFindParameterByName(g, "uLSpot"));
+                po_ld = uoff(sceGxmProgramFindParameterByName(g, "uLD")); po_ln = uoff(sceGxmProgramFindParameterByName(g, "uLN")); po_eye = uoff(sceGxmProgramFindParameterByName(g, "uEye"));
+                pp_rough = rs_setting_int("RS_ROUGHNESS", 70) / 100.0f; if (pp_rough < 0.05f) pp_rough = 0.05f; pp_spec = rs_setting_int("RS_SPECULAR", 4) / 100.0f; }
+            else fprintf(stderr, "[GXM] per-pixel lighting shader unavailable (%s): per-vertex lighting\n", gxm_error()); } }
     /* the anisotropic variant of the fragment program (a failure leaves trilinear filtering) */
     if (rs_aniso_level() > 1) {
         static char src[8192]; const char *body = strstr(FS_SRC, "float4 main(");
@@ -838,4 +919,5 @@ int gfx_init(void){
       else { fxaa_fp = NULL; fprintf(stderr, "[GXM] FXAA shader unavailable (%s): presenting without it\n", gxm_error()); } }
     fprintf(stderr, "[GXM] renderer ready: surfaces %dx%d (x%d; menus x%d, matches x%d), FXAA %s, anisotropic filtering %s (x%d), texture pool %u MB\n", PXA, PXHA, SA, S_MENU, S_GAME,
             use_fxaa && fxaa_fp ? "on" : "off", rs_aniso_level() < 2 ? "off" : af_ok ? "on" : "trilinear only", rs_aniso_level(), pool_size >> 20);
+    prog_warm();                                                 /* every program the game has used before: ready now, not mid-match */
     return 0; }

@@ -31,6 +31,7 @@ static volatile unsigned *notif; static unsigned scr_fence[NBUF];               
 static void *depth_mem; static int dialog_on;
 void gxm_set_dialog(int on){ dialog_on = on; }
 static char cache_dir[256];
+const char *gxm_cache_path(void){ return cache_dir; }
 
 SceGxmContext *gxm_ctx(void){ return ctx; }
 SceGxmShaderPatcher *gxm_patcher(void){ return patcher; }

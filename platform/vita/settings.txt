@@ -123,3 +123,10 @@ RS_SERVER=
 RS_LAN_SEARCH=1
 # diagnostics: log every frame that takes longer than this many milliseconds, with the files opened during it (0 = off)
 RS_SPIKE_MS=0
+
+# ---- lighting
+# 1 = per pixel (sharper shading and highlights; a simplified physically based model; costs GPU time), 0 = per vertex (as the PSP)
+RS_LIGHTING=0
+# per-pixel lighting: surface roughness and specular level (percent) for every material, until materials come from mods
+RS_ROUGHNESS=70
+RS_SPECULAR=4
