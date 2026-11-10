@@ -84,6 +84,7 @@ static u64 guest_us(void){ static int vc = -1; static u64 reads; if (vc < 0) { c
 #include "gfx.h"
 void rs_guest_unlock(void){ pthread_mutex_unlock(&big); }
 void rs_guest_lock(void){ big_lock(); }
+int rs_guest_trylock(void){ if (pthread_mutex_trylock(&big)) return 0; big_owner = pthread_self(); return 1; }
 void unlocked_sleep(unsigned us){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); usleep(us); big_lock(); rs_perf.sleeps++; rs_perf.sleep_us += rs_perf_us() - t; }
 /* Let another guest thread run.  On the Vita sched_yield() is a 1 ms sleep (pthread-embedded: pte_osThreadSleep(1)), which cost the
  * game's main thread ~5 ms per frame (it yields when it reads the pad, when a frame is late and every 32 clock reads).  There the

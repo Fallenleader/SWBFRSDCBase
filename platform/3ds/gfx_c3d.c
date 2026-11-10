@@ -60,7 +60,7 @@ static u32 akey(u32 a){ return gfx_vram(a) & 0x0FFFFFFFu; }
 static float RX = 1.0f, RY = 1.0f; static int VW = SZ, VH = SZ;
 static void res_init(void){ static int done; if (done) return; done = 1;
     if (rs_setting_int("RS_3DS_NATIVE_RES", 1)) { RX = 400.0f / 480.0f; RY = 240.0f / 272.0f; }
-    VW = (int)(SZ * RX + 0.5f); VH = (int)(SZ * RY + 0.5f); }
+    VW = (int)(SZ * RX + 0.5f); VH = (int)(SZ * RY + 0.5f); fprintf(stderr, "[C3D] drawing at %s (viewport %dx%d of %d)\n", RX < 1.0f ? "400x240" : "480x272", VW, VH, SZ); }
 /* Stereo 3D (RS_3D=1, with the 3D slider up).  The frames the game displays are drawn twice, once per eye, side by side in their
  * surface: each eye RS_3D_EYE_W pixels wide (200 by default: both eyes together cost what the 2D picture does, as the screen's 400
  * columns are shared between them), then each is stretched to its eye's 400x240 screen.  Each 3D draw moves its vertices sideways in
@@ -515,7 +515,7 @@ void gfx_c3d_present(void){
     {   static int on = -1, strength, eyew; if (on < 0) { on = rs_setting_int("RS_3D", 1); strength = rs_setting_int("RS_3D_STRENGTH", 6); eyew = rs_setting_int("RS_3D_EYE_W", 200);
             st_conv = (float)rs_setting_int("RS_3D_DEPTH", 10); if (eyew < 100) eyew = 100; if (eyew > 400) eyew = 400; }
         float sl = on && top_r ? osGet3DSliderState() : 0.0f; int want = sl > 0.02f;
-        if (want != st3d) { gfxSet3D(want); st3d = want; }
+        if (want != st3d) { gfxSet3D(want); st3d = want; fprintf(stderr, "[C3D] stereo 3D %s (slider %.2f)\n", want ? "on" : "off", sl); }
         st_sep = sl * (float)strength / 100.0f; EW = (int)(SZ * (eyew / 480.0f) + 0.5f);
         if (EW > 256) EW = 256; }
     gpu_ms = C3D_GetDrawingTime();

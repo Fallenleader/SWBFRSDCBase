@@ -118,7 +118,9 @@ void rs_break(u32 code, u32 where){
 typedef struct { u32 buttons; u8 lx, ly, rx, ry; } rs_pad_t;
 static u8 axis(int v, int range){ int d = v * 127 / range; if (d > -20 && d < 20) d = 0; if (d > 127) d = 127; if (d < -128) d = -128; return (u8)(128 + d); }
 volatile int rs_dialog_active;
+static volatile int exiting;
 void rs_backend_read_pad(rs_pad_t *p){
+    if (exiting) { memset(p, 0, sizeof *p); p->lx = p->ly = p->rx = p->ry = 128; return; }
     u32 k = hidKeysHeld(), b = 0;
     if (k & KEY_SELECT) b |= 0x000001;
     if (k & KEY_START)  b |= 0x000008;
@@ -239,6 +241,24 @@ static void fatal(const char *msg){
     while (aptMainLoop()) { hidScanInput(); if (hidKeysDown() & KEY_START) break; gspWaitForVBlank(); }
     gfxExit(); exit(1); }
 
+/* ---------------------------------------------------------------- hang watchdog: sdmc:/3ds/SWBFRS/hang.txt
+ * When the game stops reaching vertical blanks for 8 s (after it has started), writes what every game thread, the guest lock, the
+ * renderer jobs and the frontend are doing; again every 15 s while it stays stuck (5 reports at most).  Its own thread, on the
+ * system core where the Old 3DS allows it (else the application core). */
+static volatile unsigned fe_beat, fe_stage;                 /* frontend loop: iterations; 1 OSK, 2 present, 3 renderer jobs */
+static void wd_entry(void *u){ (void)u; extern volatile int g_frames; extern int rs_hang_report(char *, int); extern int gfx_jobs_report(char *, int);
+    static char b[8192]; int last_fr = -1, stall = 0, reports = 0; unsigned last_beat = 0;
+    while (!exiting) { svcSleepThread(1000000000LL);
+        int fr = g_frames; unsigned beat = fe_beat;
+        if (fr != last_fr || fr == 0) { last_fr = fr; stall = 0; last_beat = beat; continue; }
+        stall++; if (stall < 8 || reports >= 5 || (stall - 8) % 15) continue; reports++;
+        int o = snprintf(b, sizeof b, "==== no vertical blank for %d s (report %d) ====\nfrontend: %u loop iterations in that time, now in %s\n", stall, reports, beat - last_beat,
+                         fe_stage == 1 ? "the keyboard" : fe_stage == 2 ? "present" : fe_stage == 3 ? "renderer jobs (gfx_pump)" : "?");
+        o += gfx_jobs_report(b + o, (int)sizeof b - o); if (o < (int)sizeof b) o += rs_hang_report(b + o, (int)sizeof b - o); if (o > (int)sizeof b - 1) o = (int)sizeof b - 1;
+        FILE *f = fopen(RS_DIR "/hang.txt", "a"); if (f) { fwrite(b, 1, (size_t)o, f); fclose(f); } } }
+/* the game's threads must not touch the system services once they are closed: they are stopped at the guest lock first */
+int rs_exiting(void){ return exiting; }
+
 int main(void){
     osSetSpeedupEnable(true); fpu_fast();                                       /* New 3DS: 804 MHz and the L2 cache (no effect on the Old 3DS) */
     { bool n = false; APT_CheckNew3DS(&n); rs_is_new3ds = n; }
@@ -259,7 +279,8 @@ int main(void){
 
     /* first start: the game's audio converted to the 3DS's own format (DSP-ADPCM, convert.c) into sdmc:/3ds/SWBFRS/converted; later
      * starts only check it (seconds).  Before the game heap exists: the converter reads a whole sound bundle (16 MB) at once. */
-    {   if (rs_convert_start(game_root, RS_DIR "/converted", 1, 0) == 0) {
+    {   int cr = rs_convert_start(game_root, RS_DIR "/converted", 1, 0); if (cr) STEP("media conversion could not start (%d): the original audio is played", cr);
+        if (cr == 0) {
             u64 shown = 0; rs_conv_status_t c;
             for (;;) { rs_convert_status(&c); u64 now = osGetTime();
                 if (c.phase == RS_CONV_DONE) { STEP("media conversion: done (%d files)", c.files_total); break; }
@@ -289,23 +310,26 @@ int main(void){
 
     pthread_attr_t at; pthread_attr_init(&at); pthread_attr_setstacksize(&at, 512 * 1024);
     pthread_t th; if (pthread_create(&th, &at, game_main, 0) != 0) fatal("cannot create the game thread");
+    { APT_SetAppCpuTimeLimit(30); Thread w = threadCreate(wd_entry, 0, 0x4000, 0x18, 1, true); if (!w) w = threadCreate(wd_entry, 0, 0x4000, 0x18, -2, true); if (!w) STEP("no hang watchdog"); }
 
     u64 last = 0, presented = 0;
     while (aptMainLoop() && !game_done) {
         u64 now = osGetTime();
-        osk_frontend();
+        fe_beat++; fe_stage = 1; osk_frontend();
         if (gfx_present_due() || now - last >= 250) {               /* once per completed game frame (or 4x a second while it loads) */
             last = now;
             hidScanInput();
             if ((hidKeysHeld() & (KEY_L | KEY_R | KEY_START | KEY_SELECT)) == (KEY_L | KEY_R | KEY_START | KEY_SELECT)) { STEP("exit requested (L+R+START+SELECT)"); break; }
-            extern void gfx_c3d_present(void); gfx_c3d_present(); presented++;
+            fe_stage = 2; extern void gfx_c3d_present(void); gfx_c3d_present(); presented++;
             hud_update(presented);
             if (presented == 1 || presented % 1800 == 0) STEP("presented %llu frames", (unsigned long long)presented);
             continue; }
-        gfx_pump(4); }
+        fe_stage = 3; gfx_pump(4); }
     /* leave at once: exit() would free the heap under the game's threads (their stacks are in it), and the next one to wake faulted
      * (closing the game from the HOME Menu crashed in Luma).  The process exit ends every thread; the DSP is stopped first. */
     STEP("exiting"); fflush(stderr); if (log_file) fflush(log_file);
+    exiting = 1;
+    { extern int rs_guest_trylock(void); u64 t = osGetTime(); while (!rs_guest_trylock() && osGetTime() - t < 1500) svcSleepThread(10000000LL); }   /* the game's threads held at the guest lock */
     /* the services are closed the way exit() does (__appExit: fs, hid, apt (tells the HOME Menu we closed), srv): leaving without
      * that made the system show "An error has occurred" and restart; only the heap is not given back (the threads still use it) */
     { extern void rs_net_exit(void); rs_net_exit(); }                    /* the socket service: left open, the system faulted after the exit */
