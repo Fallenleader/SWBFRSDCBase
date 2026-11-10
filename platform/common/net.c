@@ -86,6 +86,10 @@ static void motd_done(void){
     motd_buf[motd_len] = 0; char *b = strstr(motd_buf, "\r\n\r\n"); if (b) { b += 4; while (*b == '\r' || *b == '\n') b++; size_t n = strlen(b); while (n && (b[n - 1] == '\r' || b[n - 1] == '\n' || b[n - 1] == ' ')) b[--n] = 0; rs_motd_set(b); }
     motd_len = 0; }
 static int net_up;
+#ifdef __3DS__
+#include <3ds.h>
+#include <malloc.h>
+#endif
 #ifdef __vita__
 #include <psp2/sysmodule.h>
 #include <psp2/net/net.h>
@@ -101,6 +105,10 @@ static void net_start(void){
     static char mem[1024 * 1024]; SceNetInitParam p; p.memory = mem; p.size = sizeof mem; p.flags = 0;
     int r = sceNetInit(&p); int r2 = sceNetCtlInit();
     fprintf(stderr, "[NET] PS Vita network: init %08x, connection manager %08x\n", (unsigned)r, (unsigned)r2);
+#elif defined(__3DS__)
+    /* the 3DS: the system's socket service, with a buffer it owns from now on (0x1000-aligned) */
+    { const u32 sz = 0x100000; void *buf = memalign(0x1000, sz); int r = buf ? (int)socInit((u32 *)buf, sz) : -1;
+      fprintf(stderr, "[NET] 3DS sockets: %08x\n", (unsigned)r); }
 #endif
 }
 static int sk_new(sock_t s, int type){ for (int i = 1; i < NS; i++) if (!socks[i].used) { socks[i].used = 1; socks[i].s = s; socks[i].nonblock = 0; socks[i].type = type; socks[i].motd = 0; return i; } sclose(s); return -1; }
@@ -187,7 +195,11 @@ int rs_net_recover(char *nick, int nn, char *user, int un){
 #else
         struct timeval to = {4, 0};
 #endif
+#ifdef SO_RCVTIMEO                                                 /* (not on the 3DS: the request may then wait longer) */
         setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&to, sizeof to);
+#else
+        (void)to;
+#endif
         if (connect(s, (struct sockaddr *)&a, sizeof a) == 0 && send(s, rq, (int)strlen(rq), 0) == (int)strlen(rq)) {
             char b[256]; int n = 0, r;
             while (n < 255 && (r = (int)recv(s, b + n, 255 - n, 0)) > 0) { n += r; if (memchr(b, '\n', (size_t)n)) break; }
@@ -298,7 +310,9 @@ static void h_Setsockopt(sdkcall_t *c){
     if (lvl == 0xFFFF) switch (opt) {
         case 0x1009: socks[A0].nonblock = v != 0; set_nb(s, v != 0); break;                       /* SO_NONBLOCK (PSP) */
         case 0x0004: r = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&v, sizeof v); break;
+#ifdef SO_KEEPALIVE
         case 0x0008: r = setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, (const char *)&v, sizeof v); break;
+#endif
         case 0x0020: r = setsockopt(s, SOL_SOCKET, SO_BROADCAST, (const char *)&v, sizeof v); break;
         case 0x1001: r = setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char *)&v, sizeof v); break;
         case 0x1002: r = setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char *)&v, sizeof v); break;

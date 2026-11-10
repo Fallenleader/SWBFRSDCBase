@@ -18,7 +18,7 @@ This branch removes that layer. Each system is replaced by a native module behin
 
 | System | Firmware calls | Engine functions calling them | Replaced by |
 |---|---|---|---|
-| Network (Net/Inet/Adhoc/Wlan) | ~60 | 83 | `rs_net`: native sockets |
+| Network (Net/Inet/Adhoc/Wlan) | ~60 | 83 | **done (net.c)**: native sockets on every device (POSIX, Winsock, the Vita's, the 3DS's socket service); ad hoc play is not offered |
 | Threads (threads, semaphores, event flags, callbacks, delays, interrupts) | ~40 | 76 | **done (native_thread.c)**: threads, semaphores, event flags, pools, callbacks, delays and the memory-card / disc notifications are native and typed (`rs_sema_*`, `rs_evf_*`, `rs_delay_us`); the guest lock remains as the scheduling token (step 2) |
 | Graphics (Ge, sceGu) | ~15 + GU | 72 | `rs_gfx`: native renderer calls, no GE lists |
 | Files (Io, Umd) | 18 | 26 | `rs_fs`: **done (native_io.c)**, except the UMD inserted notification, which waits for native callbacks |
@@ -28,6 +28,8 @@ This branch removes that layer. Each system is replaced by a native module behin
 | Memory (Fpl, partitions) | ~8 | 7 | **native (native_mem.c, native_thread.c)**: blocks come from the range each platform gives the game; raising that range per device is step 8 |
 | Power, display, input, time | ~20 | 14 | `rs_time`, `rs_input`, `rs_display` |
 | Saves and dialogs (Utility) | ~12 | 4 | `rs_save`, native keyboard and dialogs |
+
+**Status: no firmware is emulated.** Every one of the 226 calls the game imports is native: typed modules (`native_*.c`, `net.c`) or native handlers in the game's register form bound straight to its calls (`RS_BIND`, `hle.c`).
 
 Overall, 223 distinct firmware calls reach the hardware from 274 of the game's 14,760 functions. The other 14,486 functions are game logic. They are already plain C, but in decompiled register form. Hot ones are rewritten as native C as profiles point to them; `lift.c` holds the collision ray casts so far.
 
@@ -45,12 +47,12 @@ Overall, 223 distinct firmware calls reach the hardware from 274 of the game's 1
 2. **Threads.** *Kernel objects done (native_thread.c); the lock is still one token.* The game's threads are `user_main` (32), `loading thread` (32), `Atrac File-Cache[n]` (32), `Callbacks` (16), `Simple-audio thread` (20) and one `Atrac Playing[n]` per voice line (22). The main thread, the loader and the file caches share priority 32. On the PSP, threads of equal priority never interrupt each other: each runs until it blocks. The game relies on that, because it hands data between them without locks. So that contract is kept as an explicit, cheap scheduling token: the game's code paths still run one at a time between blocking points. Everything that is not the game's own code runs outside the token, in parallel: file IO (done), audio mixing and decoding (done), rendering, movies, and later the lifted game work. This is a property of the game's code, not of the PSP hardware. It is relaxed per subsystem as each one's shared data is rewritten to be thread-safe.
 
    The firmware objects themselves become native. Semaphores, event flags and mutexes become native primitives, `sceKernelCpuSuspendIntr` becomes a real critical section, and delays and yields become native sleeps and yields. The big lock becomes the scheduling token described above.
-3. **Time and display pacing.** Real-time clocks replace vblank counts, and frame pacing is driven by the device's present. There is no 60 Hz vblank assumption and no 480×272 framebuffer: the render target is the device's screen.
+3. **Time and display pacing.** *Done: the game's clocks are the device's real clock, frames are paced by it (`pace_frame`), and the render target is the device's resolution.* Real-time clocks replace vblank counts, and frame pacing is driven by the device's present. There is no 60 Hz vblank assumption and no 480×272 framebuffer: the render target is the device's screen.
 4. **Graphics.** The engine's draw functions call the native renderer directly, so no GE list is built and translated. VRAM and eDRAM addresses become textures and render targets.
 5. **Audio.** SAS voices go to a native mixer, Atrac goes to a native decoder, and output goes to the device's audio API.
 6. **Movies.** Movies are decoded with the device's hardware decoder and paced by real time.
 7. **Input, saves, dialogs, network.** Native controls, folders, the system keyboard and sockets.
-8. **Memory.** The PSP heap ceiling and partition sizes give way to the device's memory, which lets bigger battles and higher-resolution assets fit.
+8. **Memory.** *Done for the heap: the game builds its heap from all the memory each platform gives it (61 MB on the desktop, the Vita's and 3DS's own sizes).* The PSP heap ceiling and partition sizes give way to the device's memory, which lets bigger battles and higher-resolution assets fit.
 9. **Hot game code.** The profiled hot paths become native C and, where independent, parallel across cores: AI per bot, animation per soldier, culling per object.
 
 Each step builds for the desktop (Linux test) and the Vita.

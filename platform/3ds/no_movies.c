@@ -43,14 +43,6 @@ void hm_MpegAvcDecodeStop(sdkcall_t *c){ if (T0) SW(T0, 0); V0 = 0; }
 void hm_MpegGetAtracAu(sdkcall_t *c){ V0 = ERR_NO_DATA; }
 void hm_MpegAtracDecode(sdkcall_t *c){ V0 = ERR_NO_DATA; }
 
-const char *rs_gamespy_patch_file(const char *rel, const char *src){ (void)rel; (void)src; return 0; }
-void rs_gs_draw(void){ }
-void rs_gs_frame(void){ }
-void rs_gs_string_var(u32 name, u32 buf){ (void)name; (void)buf; }
-void rs_gs_login(u32 *nick, u32 *email, u32 *pass){ (void)nick; (void)email; (void)pass; }
-void rs_gs_register(void){ }
-void rs_gs_loaded(void){ }
-u32 rs_pad_inject(u32 buttons){ return buttons; }
 void rs_oskpanel_draw(void){ }
 struct gfx_state_s; int rs_movie_draw(void *st){ (void)st; return 0; }
 void rs_movie_note_file(const char *p){ (void)p; }

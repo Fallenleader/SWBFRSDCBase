@@ -55,3 +55,9 @@ RS_HUD=1
 # log.txt size limit (MB); RS_PERF_LOG=1 also writes perf.log
 RS_LOG_MB=2
 RS_PERF_LOG=0
+
+# ---- online (Multiplayer > Infrastructure: the RS server, tools/rsserver; the 3DS uses its own Wi-Fi connection)
+# The game looks for an RS server on the local network first; if none answers it uses this address (a name or an IP).
+RS_SERVER=
+# 1 = look on the local network first, 0 = only RS_SERVER
+RS_LAN_SEARCH=1
