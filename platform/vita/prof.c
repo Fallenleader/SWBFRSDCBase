@@ -25,6 +25,10 @@ static ent_t hist[NH], spk[NH]; static unsigned samples, idle, lost, spk_frames,
 /* Lag spikes: each frame's samples are kept until the frame ends; a frame longer than RS_PROF_SPIKE_MS (70 ms) has its samples added to
  * a second table (prof_spikes.txt), so what makes the slow frames slow (explosions...) is not averaged away by the ordinary ones. */
 #define FS_MAX 1024
+static unsigned spk_ms;
+#ifndef RS_BUILD_ID
+#define RS_BUILD_ID "?"
+#endif
 static unsigned char fs_th[FS_MAX], fs_d[FS_MAX]; static void *fs_st[FS_MAX][DEPTH]; static int fs_n;
 extern volatile int g_frames;
 
@@ -49,12 +53,12 @@ __attribute__((no_instrument_function)) static ent_t *slot_in(ent_t *hist, uintp
     return 0; }
 __attribute__((no_instrument_function)) static void dump(void){
     FILE *f = fopen("ux0:data/SWBFRS/prof_vita.txt", "w"); if (!f) return;
-    fprintf(f, "# samples %u (every 500 us), idle %u (no guest code running), lost %u\n# thread address self inclusive\n", samples, idle, lost);
+    /* one file: every frame, then (after "# spikes") only the frames longer than RS_PROF_SPIKE_MS; the build is named so a profile can
+     * be matched to its ELF */
+    fprintf(f, "# build " RS_BUILD_ID ", samples %u (every 500 us), idle %u (no guest code running), lost %u\n# thread address self inclusive\n", samples, idle, lost);
     for (int i = 0; i < NH; i++) if (hist[i].fn) fprintf(f, "%d %08lx %u %u\n", hist[i].th, (unsigned long)hist[i].fn, hist[i].self, hist[i].incl);
-    fclose(f);
-    f = fopen("ux0:data/SWBFRS/prof_spikes.txt", "w"); if (!f) return;
-    fprintf(f, "# lag spikes: %u frames longer than the threshold, %u samples (every 500 us)\n# thread address self inclusive\n", spk_frames, spk_samples);
-    for (int i = 0; i < NH; i++) if (spk[i].fn) fprintf(f, "%d %08lx %u %u\n", spk[i].th, (unsigned long)spk[i].fn, spk[i].self, spk[i].incl);
+    fprintf(f, "# spikes: %u frames longer than %u ms, %u samples\n", spk_frames, spk_ms, spk_samples);
+    for (int i = 0; i < NH; i++) if (spk[i].fn) fprintf(f, "S%d %08lx %u %u\n", spk[i].th, (unsigned long)spk[i].fn, spk[i].self, spk[i].incl);
     fclose(f); }
 __attribute__((no_instrument_function)) static void frame_end(unsigned long long dur_us, unsigned long long limit_us){
     if (dur_us >= limit_us && fs_n) { spk_frames++; spk_samples += (unsigned)fs_n;
@@ -65,7 +69,7 @@ __attribute__((no_instrument_function)) static void frame_end(unsigned long long
     fs_n = 0; }
 __attribute__((no_instrument_function)) static void *sampler(void *a){
     (void)a; unsigned long long next = 0; int fr0 = g_frames; unsigned long long t0 = sceKernelGetProcessTimeWide();
-    extern int rs_setting_int(const char *, int); unsigned long long limit = (unsigned long long)rs_setting_int("RS_PROF_SPIKE_MS", 70) * 1000ull;
+    extern int rs_setting_int(const char *, int); spk_ms = (unsigned)rs_setting_int("RS_PROF_SPIKE_MS", 70); unsigned long long limit = (unsigned long long)spk_ms * 1000ull;
     for (;;) {
         sceKernelDelayThread(500);
         samples++;
@@ -83,4 +87,4 @@ __attribute__((no_instrument_function)) static void *sampler(void *a){
         if (++next % 30000 == 0) dump(); } }               /* every 15 s */
 __attribute__((no_instrument_function)) void rs_vita_prof_start(void){
     pthread_attr_t at; pthread_attr_init(&at); pthread_attr_setstacksize(&at, 64 * 1024); pthread_t t; pthread_create(&t, &at, sampler, 0);
-    fprintf(stderr, "[PROF] function profiler on: ux0:data/SWBFRS/prof_vita.txt every 15 s\n"); }
+    fprintf(stderr, "[PROF] function profiler (build " RS_BUILD_ID ") on: ux0:data/SWBFRS/prof_vita.txt every 15 s, with the frames over RS_PROF_SPIKE_MS\n"); }
