@@ -43,15 +43,31 @@ typedef struct { u16 op, words; u32 a[6]; } rop_t;                 /* words = to
 #define HDR_WORDS ((int)(sizeof(rop_t) / 4))
 
 typedef struct { u32 *w; size_t n, cap; volatile int busy; } cbuf_t;
+#ifdef __3DS__
+#define NBUF 2                    /* the 3DS: frames recorded in two buffers (each holds a frame's vertex copies; memory is short) */
+#else
 #define NBUF 3
+#endif
 static cbuf_t bufs[NBUF]; static int cur_buf;
 static volatile unsigned posted, executed;
 
+static void submit(void);
 static int rec_sub; typedef struct { u32 list; u32 *w; size_t n, cap; } sublist_t; static sublist_t subs[16]; static int nsub, sub_cur = -1;
 static u32 *emit(int op, int payload_words){
     cbuf_t sb_, *b = &bufs[cur_buf];
     if (rec_sub && sub_cur >= 0) { sublist_t *s = &subs[sub_cur]; sb_.w = s->w; sb_.n = s->n; sb_.cap = s->cap; b = &sb_; } size_t need = (size_t)HDR_WORDS + (size_t)payload_words;
-    if (b->n + need > b->cap) { b->cap = (b->n + need) * 2 + 65536; b->w = realloc(b->w, b->cap * 4); }
+    if (b->n + need > b->cap) {
+        /* grows by half (not double: on the 3DS a doubled block next to the old one did not fit), and survives running out: the
+         * frame recorded so far goes to the renderer and this one starts a new buffer; an op that still does not fit is dropped */
+        size_t want = b->n + need + (b->n >> 1) + 65536; u32 *nw = realloc(b->w, want * 4);
+        if (!nw && b == &bufs[cur_buf] && b->n) { submit(); b = &bufs[cur_buf]; if (b->n + need <= b->cap) goto fits; want = need + 65536; nw = realloc(b->w, want * 4); }
+        if (!nw) { static u32 *spill; static size_t spill_cap; static int warned;
+            if (!warned++) fprintf(stderr, "[GU] out of memory recording a frame (%u KB more): drawing dropped\n", (unsigned)(need * 4 >> 10));
+            if (spill_cap < need) { free(spill); spill = malloc(need * 4); spill_cap = spill ? need : 0; }
+            if (!spill) { static u32 tiny[HDR_WORDS + 64]; return tiny; }   /* (only ops without payload can come here then) */
+            return spill; }                                                 /* written by the caller, never executed */
+        b->w = nw; b->cap = want; }
+  fits:;
     rop_t *r = (rop_t *)(b->w + b->n); memset(r, 0, sizeof *r); r->op = (u16)op; r->words = (u16)(need > 0xFFFF ? 0 : need);
     if (need > 0xFFFF) { r->words = 0; r->a[5] = (u32)need; }        /* big payload: size in a[5] */
     b->n += need;
