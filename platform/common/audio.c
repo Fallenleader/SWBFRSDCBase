@@ -332,6 +332,7 @@ static pthread_mutex_t pd_mx = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t 
 static void pd_unref(predec_t *p){ pthread_mutex_lock(&pd_mx); int last = --p->refs == 0; pthread_mutex_unlock(&pd_mx);
     if (last) { if (p->dec) { if (p->codec) rs_at3p_free(p->dec); else rs_at3_free(p->dec); } free(p->mem); free(p->out); free(p->ns); free(p); } }
 static void *pd_main(void *arg){ (void)arg; static float L[4096], R[4096];
+    { void rs_thread_cores(const char *); rs_thread_cores("Atrac predecode"); }   /* the sound core (PS Vita: core 3, else 2): never the game's own */
     for (;;) {
         pthread_mutex_lock(&pd_mx); while (!pd_q) pthread_cond_wait(&pd_cv, &pd_mx); predec_t *p = pd_q; pd_q = p->next; pthread_mutex_unlock(&pd_mx);
         for (u32 k = 0; k < p->nframes && !p->cancel; k++) {
@@ -348,7 +349,8 @@ static predec_t *pd_start(atrac_t *a){
     p->dec = a->dec; p->codec = a->codec; p->ch = a->ch; p->ba = a->ba; p->spf = spf; p->mem = a->mem; p->data_off = a->data_off; p->nframes = a->nframes; p->refs = 2;
     a->dec = 0; a->mem = 0;                                         /* the decoder and the sound now belong to the job */
     pthread_mutex_lock(&pd_mx);
-    if (!pd_started) { pthread_t t; if (pthread_create(&t, 0, pd_main, 0) == 0) { pthread_detach(t); pd_started = 1; } }
+    if (!pd_started) { pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32); rs_thread_attr(&at, 0x10000); }   /* the decoder needs a real stack */
+        pthread_t t; if (pthread_create(&t, &at, pd_main, 0) == 0) { pthread_detach(t); pd_started = 1; } pthread_attr_destroy(&at); }
     if (!pd_started) { pthread_mutex_unlock(&pd_mx); a->dec = p->dec; a->mem = p->mem; free(p->out); free(p->ns); free(p); return 0; }
     predec_t **pp = &pd_q; while (*pp) pp = &(*pp)->next; *pp = p; pthread_cond_signal(&pd_cv); pthread_mutex_unlock(&pd_mx); return p; }
 
@@ -412,8 +414,10 @@ void ha_DecodeData(sdkcall_t *c){
         if (pn) SW(pn, (u32)ns); if (pfin) SW(pfin, (u32)fin); if (prem) SW(prem, (u32)-1);
         V0_ = 0; return; }
     if (a->pre) {                                     /* decoded ahead: wait for the frame if needed (letting the game run), copy it */
-        predec_t *p = a->pre; if (p->n <= a->cur) { rs_guest_unlock(); while (p->n <= a->cur) usleep(500); rs_guest_lock(); }
-        __sync_synchronize(); int ns = p->ns[a->cur]; if (out) memcpy(g_mem + GADDR(out), p->out + (size_t)a->cur * spf * 2, (size_t)ns * 4);
+        predec_t *p = a->pre; int late = 0;
+        if (p->n <= a->cur) { rs_guest_unlock(); for (int w = 0; p->n <= a->cur && w < 100; w++) usleep(500); rs_guest_lock(); late = p->n <= a->cur; }
+        __sync_synchronize(); int ns = late ? spf : p->ns[a->cur];   /* (not ready after 50 ms: this frame is silence, the game goes on) */
+        if (out) { if (late) memset(g_mem + GADDR(out), 0, (size_t)ns * 4); else memcpy(g_mem + GADDR(out), p->out + (size_t)a->cur * spf * 2, (size_t)ns * 4); }
         a->cur++; int fin = a->cur >= a->nframes; if (fin) { a->done = 1; fprintf(stderr, "[ATRAC] id %d: finished (%u frames)\n", (int)A0_, a->nframes); }
         if (pn) SW(pn, (u32)ns); if (pfin) SW(pfin, (u32)fin); if (prem) SW(prem, (u32)-1);
         V0_ = 0; return; }
