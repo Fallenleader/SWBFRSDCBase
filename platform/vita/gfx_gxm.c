@@ -578,9 +578,10 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
     int n = nv->count; if (n < 3) return 1;
     if (nv->ptype == 3) n -= n % 3;
     u32 vt = nv->vt; int thr = (vt >> 23) & 1;
+    u64 b0 = rs_perf_detail ? rs_perf_us() : 0;
     const vprog_t *P = native_prog(vt, h->lit, nv->vsz, nv->off); if (!P) return 0;
     surf_t *t = target_for(st); if (!t) return 1;
-    u64 t_s = rs_perf_us();
+    u64 t_s = rs_perf_us(); if (b0) rs_perf.bk[6] += t_s - b0;
     /* vertices: the copy the native GU made of the game's bytes, into GPU-visible frame memory */
     u32 lo = 0, hi = (u32)n - 1; const u16 *ix = lin_idx;
     if (nv->idxf == 2 && nv->nvert > 0) {                          /* already rebased (native GU): the indices as they are */
@@ -597,8 +598,10 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
     int nvert = (int)(hi - lo + 1);
     void *vb = gxm_frame_alloc((size_t)nvert * nv->vsz, 16); if (!vb) { static int w; if (!w++) fprintf(stderr, "[GXM] frame memory full: draws dropped this frame\n"); return 1; }
     memcpy(vb, nv->vdata + (size_t)lo * nv->vsz, (size_t)nvert * nv->vsz);
+    u64 b1 = b0 ? rs_perf_us() : 0; if (b0) rs_perf.bk[3] += b1 - t_s;
     SceGxmContext *c = gxm_ctx();
     SceGxmFragmentProgram *fp = apply_state(st, P->gxp); if (!fp) return 1;
+    u64 b2 = b0 ? rs_perf_us() : 0; if (b0) rs_perf.bk[4] += b2 - b1;
     gs_vp(c, P->vp);
     void *ub; sceGxmReserveVertexDefaultUniformBuffer(c, &ub);
     if (!thr) {
@@ -608,6 +611,7 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
         if (h->lit) { set_vu(ub, P, U_LFL, 1, h->lfl); set_vu(ub, P, U_MAMB, 1, h->mamb); set_vu(ub, P, U_MDIF, 1, h->mdif); set_vu(ub, P, U_MEMI, 1, h->memi); set_vu(ub, P, U_MSCA, 1, h->msca);
             set_vu(ub, P, U_LPOS, 4, h->lpos); set_vu(ub, P, U_LATT, 4, h->latt); set_vu(ub, P, U_LSPOT, 4, h->lspot); set_vu(ub, P, U_LA, 4, h->la); set_vu(ub, P, U_LD, 4, h->ld); } }
     set_vu(ub, P, U_UVT, 1, h->uvt); set_vu(ub, P, U_UVS, 1, st->uvs); set_vu(ub, P, U_DEFC, 1, nv->defc);
+    if (b0) rs_perf.bk[5] += rs_perf_us() - b2;
     sceGxmSetVertexStream(c, 0, vb);
     SceGxmPrimitiveType pt = nv->ptype == 4 ? SCE_GXM_PRIMITIVE_TRIANGLE_STRIP : (nv->ptype == 5 ? SCE_GXM_PRIMITIVE_TRIANGLE_FAN : SCE_GXM_PRIMITIVE_TRIANGLES);
     rs_perf.setup_us += rs_perf_us() - t_s; u64 t_d = rs_perf_us();

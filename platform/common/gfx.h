@@ -75,7 +75,10 @@ typedef struct {
     u64 yields, yield_us, sleeps, sleep_us; /* guest-side scheduling */
     u64 shadow_draws, shadow_us;            /* real-time shadow depth pass */
     u64 ge_us, cmds, prep_us, setup_us;     /* GE: time in the list interpreter (incl. prims), commands; per prim: GE state -> draw state, back-end setup before the draw call */
+    u64 bk[8];                              /* per-draw breakdown (rs_perf_detail): 0 draw state (incl. texture), 1 transform state, 2 back end total,
+                                             * 3 vertex / index copies, 4 render state, 5 uniforms, 6 programs + targets */
 } rs_perf_t;
+extern int rs_perf_detail;                  /* the breakdown is measured (RS_PERF_LOG / RS_PERF: costs a clock read per step) */
 extern rs_perf_t rs_perf;
 u64 rs_perf_us(void);
 void gfx_frame_ready(void);                              /* guest: a frame is complete (vblank) -> the frontend may present */

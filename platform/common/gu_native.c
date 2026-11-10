@@ -524,14 +524,18 @@ static void exec_draw(const u32 *payload){
     float defc[4] = {(float)(X.mat_amb & 255), (float)((X.mat_amb >> 8) & 255), (float)((X.mat_amb >> 16) & 255), (float)(X.mat_a & 255)};
     /* the renderer reads the PSP vertex format itself (triangles, strips, fans): native draw */
     if (ptype >= 3 && ptype <= 5) {
+        u64 tq = rs_perf_detail ? rs_perf_us() : 0;
         gfx_state_t st; build_state(&st, through, 0); static gfx_hw_t h;
         if (tex_skip) return;
+        u64 tq2 = rs_perf_detail ? rs_perf_us() : 0; if (tq) rs_perf.bk[0] += tq2 - tq;
         if (!through) build_hw(&h, vt, off);
         else { memset(&h, 0, sizeof h); h.uvt[0] = st.tex ? 1.0f / (float)(1 << X.lv[0].lw) : 1.0f; h.uvt[1] = st.tex ? 1.0f / (float)(1 << X.lv[0].lh) : 1.0f; }
         const u8 *ip = ix ? (const u8 *)ix : NULL; int idxf = ix ? 2 : 0;           /* (recorded rebased to the copied vertices: record_draw) */
         gfx_native_t nv = {vt & ~(3u << 11), (int)d->vsz, count, ptype, idxf, vb, ip, {defc[0] / 255.0f, defc[1] / 255.0f, defc[2] / 255.0f, defc[3] / 255.0f}, {off[0], off[1], off[2], off[3], off[4]}, ix ? (int)d->nvert : 0};
         if (idxf) nv.vt = (vt & ~(3u << 11)) | (2u << 11);
-        if (gfx_draw_native(&st, &h, &nv)) { st_draws++; return; } }
+        u64 tq3 = rs_perf_detail ? rs_perf_us() : 0; if (tq) rs_perf.bk[1] += tq3 - tq2;
+        int ok = gfx_draw_native(&st, &h, &nv); if (tq) rs_perf.bk[2] += rs_perf_us() - tq3;
+        if (ok) { st_draws++; return; } }
     /* sprites (2D rectangles) and the rest: corners on the CPU */
     if (ptype == 6 && through) {
         gfx_state_t st; build_state(&st, 1, 0);

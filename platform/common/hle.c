@@ -108,7 +108,7 @@ void rs_perf_extra(char *b, int n){ extern void gfx_cache_stats(char *, int); ch
     snprintf(b, (size_t)n, "[PERF]   frame %d | %s | %s\n", g_frames, g, m); }
 __attribute__((weak)) void rs_perf_write(const char *line){ fprintf(stderr, "%s", line); }   /* only called when the report is on (perf_on) */
 static const char *hname(int i);
-static int perf_on = -1;
+static int perf_on = -1; int rs_perf_detail;
 static void perf_threads(double fr, double ms);
 static void perf_report(void){
     if (perf_on < 0) { const char *e = getenv("RS_PERF"); perf_on = e ? atoi(e) != 0 : 0;
@@ -119,7 +119,7 @@ static void perf_report(void){
         { extern int rs_setting_int(const char *, int); perf_on = rs_setting_int("RS_PERF_LOG", 0); }    /* the on-screen HUD replaces the log */
 #endif
     }
-    if (!perf_on) return;
+    rs_perf_detail = perf_on; if (!perf_on) return;
     static u64 last; static int n; u64 now = rs_perf_us(); if (!last) { last = now; memset(&rs_perf, 0, sizeof rs_perf); return; }
     if (++n < 600 && !(n >= 10 && now - last >= 5000000ull)) return;      /* every 600 frames or 5 s, whichever first (slow frames still report) */
     double fr = (double)n, ms = (now - last) / 1000.0 / fr; rs_perf_t p = rs_perf; memset(&rs_perf, 0, sizeof rs_perf); n = 0; last = now;
@@ -133,6 +133,9 @@ static void perf_report(void){
     rs_perf_write(b);
     snprintf(b, sizeof b, "[PERF]   GE: %.0f commands, interpreter %.2f ms (prims included); per prim: GE state -> draw state %.2f ms, back-end setup %.2f ms, draw calls %.2f ms (per frame)\n",
         p.cmds / fr, p.ge_us / fr / 1000, p.prep_us / fr / 1000, p.setup_us / fr / 1000, p.draw_us / fr / 1000);
+    rs_perf_write(b);
+    snprintf(b, sizeof b, "[PERF]   per frame: draw state %.2f ms, transform %.2f ms, back end %.2f ms (copies %.2f, render state %.2f, uniforms %.2f, programs/targets %.2f)\n",
+        p.bk[0] / fr / 1000, p.bk[1] / fr / 1000, p.bk[2] / fr / 1000, p.bk[3] / fr / 1000, p.bk[4] / fr / 1000, p.bk[5] / fr / 1000, p.bk[6] / fr / 1000);
     rs_perf_write(b);
     { extern void rs_perf_extra(char *, int); char e[512]; e[0] = 0; rs_perf_extra(e, sizeof e); if (e[0]) rs_perf_write(e); }
     perf_threads(fr, ms);
