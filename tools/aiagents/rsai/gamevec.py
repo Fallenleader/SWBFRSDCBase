@@ -279,10 +279,15 @@ class GameVecEnv(VecEnv):
             r += w["kill"] * killsby.get(i, 0) + w["damage_dealt"] * dealt.get(i, 0.0) + w["friendly_fire"] * ff.get(i, 0.0)
             r += w["assist"] * max(assist.get(i, 0) - killsby.get(i, 0), 0)
             r += w["objective"] * (gained - lost) + w["posts_held"] * held
+            on_post = False
             if len(s.posts):
+                theirs = s.posts["owner"] != self.side
                 pd = np.hypot(s.posts["pos"][:, 0] - s.recs["pos"][c][0], s.posts["pos"][:, 2] - s.recs["pos"][c][2])
-                if np.any((pd < spaces.POST_RADIUS) & (s.posts["owner"] != self.side)):
-                    r += w["capturing"]
+                if np.any((pd < spaces.POST_RADIUS) & theirs):
+                    r += w["capturing"]; on_post = True
+                if np.any(theirs) and w.get("approach", 0.0):     # potential-based: metres closer to the nearest post to take
+                    p0 = np.hypot(s.posts["pos"][:, 0] - me[0], s.posts["pos"][:, 2] - me[2])
+                    r += w["approach"] * float(np.clip(np.min(p0[theirs]) - np.min(pd[theirs]), -3.0, 3.0))
             # range keeping: an enemy in sight within 50% of my weapon's ideal range
             ideal = weapons.ideal_range(s.recs["kit"][c][0]); nid = [int(x) for x in s.recs["near_id"][c]]; nlos = s.recs["near_los"][c]
             for q, eid in enumerate(nid):
@@ -292,7 +297,7 @@ class GameVecEnv(VecEnv):
                         r += w["range_keeping"]; break
             mv = float(np.hypot(*(s.recs["pos"][c] - me)[[0, 2]]))
             enemies = prev.recs["pos"][(prev.recs["team"] != self.side) & (prev.recs["health"] > 0)]
-            if mv < 0.5 and (not len(enemies) or np.min(np.hypot(*(enemies - me)[:, [0, 2]].T)) > 50.0):
+            if mv < 0.5 and not on_post and (not len(enemies) or np.min(np.hypot(*(enemies - me)[:, [0, 2]].T)) > 50.0):
                 r += w["inactivity"]
             rews[k] = r
         return rews, dones, infos, term_obs
