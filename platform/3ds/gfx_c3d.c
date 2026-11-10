@@ -10,7 +10,7 @@
  *    depth, stencil and colour masks are the GPU's fixed functions.
  *  - Textures: decoded to RGBA8 by the native GU and stored as RGB565 / RGBA5551 / RGBA4444 (whichever loses nothing of the alpha the
  *    texture uses; RS_TEX_32BIT=1 keeps RGBA8) in the 3DS's tiled layout, in the GPU heap, under RS_TEX_BUDGET_MB.
- *  - Display: the displayed surface is drawn to the 400x240 top screen, filtered.  The bottom screen is the console (main.c).
+ *  - Display: the game draws at the top screen's 400x240 (RS_3DS_NATIVE_RES), shown 1:1; 0 = drawn at 480x272, filtered down.  The bottom screen is the console (main.c).
  *  Not yet: PSP fog, palette lookups of render targets (the bloom's bright pass is skipped), face culling (RS_CULL=1 turns it on),
  *  stereoscopic 3D. */
 #include <3ds.h>
@@ -54,11 +54,18 @@ typedef struct { u32 addr, ext; int stride, psz, fmt, used, drawn; unsigned stam
 static surf_t surfs[SURF_N]; static unsigned surf_stamp; static surf_t *cur;
 static void *depth_buf; static u32 disp_addr, disp_stride = 512, disp_fmt;
 static u32 akey(u32 a){ return gfx_vram(a) & 0x0FFFFFFFu; }
+/* Render scale: the game's 480x272 picture is drawn straight at the top screen's 400x240 (RS_3DS_NATIVE_RES=1, the default) - 26%
+ * fewer pixels to shade, and no second filtering pass at present; the PSP's coordinates are scaled by the viewport and scissor, and
+ * render targets read back as textures are sampled at the scaled size.  0 = drawn at 480x272 and scaled down when presented. */
+static float RX = 1.0f, RY = 1.0f; static int VW = SZ, VH = SZ;
+static void res_init(void){ static int done; if (done) return; done = 1;
+    if (rs_setting_int("RS_3DS_NATIVE_RES", 1)) { RX = 400.0f / 480.0f; RY = 240.0f / 272.0f; }
+    VW = (int)(SZ * RX + 0.5f); VH = (int)(SZ * RY + 0.5f); }
 static surf_t *surf_find(u32 addr){ addr = akey(addr); for (int i = 0; i < SURF_N; i++) if (surfs[i].used && surfs[i].addr == addr) return &surfs[i]; return 0; }
 static void set_target(surf_t *s){
     ensure_frame();
     if (cur == s) return;
-    C3D_FrameDrawOn(s->rt); C3D_SetViewport(0, 0, SZ, SZ); cur = s; }
+    res_init(); C3D_FrameDrawOn(s->rt); C3D_SetViewport(0, (u32)(SZ - VH), (u32)VW, (u32)VH); cur = s; }
 static int surf_mem(surf_t *s){
     if (s->rt) return 0;
     if (!C3D_TexInitVRAM(&s->tex, SZ, SZ, GPU_RGBA8) && !C3D_TexInit(&s->tex, SZ, SZ, GPU_RGBA8)) return -1;
@@ -93,7 +100,7 @@ static void scissor_psp(int x1, int y1, int x2, int y2){
     if (x1 < 0) x1 = 0; if (y1 < 0) y1 = 0; if (x2 > SZ - 1) x2 = SZ - 1; if (y2 > SZ - 1) y2 = SZ - 1;
     if (x1 == 0 && y1 == 0 && x2 >= 479 && y2 >= 271) { if (sc_full != 1) { C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0); sc_full = 1; } return; }
     if (x2 < x1 || y2 < y1) { x1 = y1 = 0; x2 = y2 = 0; }
-    C3D_SetScissor(GPU_SCISSOR_NORMAL, (u32)x1, (u32)(SZ - 1 - y2), (u32)x2 + 1, (u32)(SZ - y1)); sc_full = 0; }
+    C3D_SetScissor(GPU_SCISSOR_NORMAL, (u32)(x1 * RX), (u32)(SZ - (y2 + 1) * RY + 0.5f), (u32)((x2 + 1) * RX + 0.5f), (u32)(SZ - y1 * RY + 0.5f)); sc_full = 0; }
 
 /* ===================================================================== the vertex program */
 static DVLB_s *dvlb; static shaderProgram_s prog;
@@ -149,7 +156,7 @@ unsigned gfx_tex_acquire(const gtex_key_t *k, const gtex_src_t *src, float uvs[4
     int y0, x0; surf_t *s = surf_for_addr(k->addr, &y0, &x0);
     if (s && k->fmt >= 4 && k->fmt <= 7 && !surf_to_memory()) { uvs[0] = -1; return 0; }
     if (s) { if (s == cur && akey(rs_gfx_next_fb) == s->addr) return 0;
-        uvs[0] = (float)k->w / SZ; uvs[1] = (float)k->h / SZ; uvs[2] = (float)y0 / SZ; uvs[3] = (float)x0 / SZ; return 0x10000u + (unsigned)(s - surfs); }
+        uvs[0] = (float)k->w * RX / SZ; uvs[1] = (float)k->h * RY / SZ; uvs[2] = (float)y0 * RY / SZ; uvs[3] = (float)x0 * RX / SZ; return 0x10000u + (unsigned)(s - surfs); }
     tent_t *e = 0, *old = &tc[0];
     for (int i = tc_head[tk_hash(k)]; i; i = tc[i - 1].hnext) if (tk_eq(&tc[i - 1].k, k)) { e = &tc[i - 1]; break; }
     if (!e) for (int i = 0; i < TC_N; i++) { tent_t *t = &tc[i]; if (!t->used) { old = t; break; } if (t->stamp < old->stamp) old = t; }
@@ -407,7 +414,7 @@ void gfx_transfer(u32 src, int sbw, int sx, int sy, u32 dst, int dbw, int dx, in
         if (!ds) { ds = surf_create(dst, ss->fmt, dbw); if (!ds) return; ds->drawn = 1; yd = xd = 0; ss = surf_for_addr(src, &ys, &xs); if (!ss) return; }
         if (ds == ss) return;
         rs_perf.copy_n++;
-        float u0 = (float)(sx + xs) / SZ, u1 = (float)(sx + xs + w) / SZ, v0 = 1.0f - (float)(sy + ys) / SZ, v1 = 1.0f - (float)(sy + ys + h) / SZ;
+        float u0 = (float)(sx + xs) * RX / SZ, u1 = (float)(sx + xs + w) * RX / SZ, v0 = 1.0f - (float)(sy + ys) * RY / SZ, v1 = 1.0f - (float)(sy + ys + h) * RY / SZ;
         blit_rect(ds, &ss->tex, u0, v0, u1, v1, dx + xd, dy + yd, w, h); ds->stamp = ++surf_stamp; }
     else if (ds) {                                             /* memory -> GPU surface: a temporary texture drawn into it */
         int fmt = bpp == 4 ? 3 : (ds->psz == 2 ? ds->fmt : 1);
@@ -434,7 +441,7 @@ static C3D_Tex cpu_disp; static float gpu_ms;
 void gfx_c3d_present(void){
     u64 t = rs_perf_us();
     ensure_frame();
-    surf_t *s = disp_surface(); C3D_Tex *tx = NULL; float um = 480.0f / SZ, vb = 1.0f - 272.0f / SZ;
+    res_init(); surf_t *s = disp_surface(); C3D_Tex *tx = NULL; float um = 480.0f * RX / SZ, vb = 1.0f - 272.0f * RY / SZ;
     if (s) tx = &s->tex;
     else if (disp_addr) {                                          /* the game wrote the frame buffer with the CPU (no GPU surface) */
         static u32 *pix; if (!pix) pix = malloc(480 * 272 * 4);
@@ -455,7 +462,7 @@ void gfx_c3d_present(void){
             for (int i = 0; i < 4; i++) { float *d = v + i * 9; d[0] = q[i][0]; d[1] = q[i][1]; d[2] = 0; d[3] = q[i][2]; d[4] = q[i][3]; d[5] = d[6] = d[7] = d[8] = 1; }
             C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR); C3D_CullFace(GPU_CULL_NONE); C3D_AlphaTest(false, GPU_ALWAYS, 0); C3D_StencilTest(false, GPU_ALWAYS, 0, 0, 0);
             C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
-            C3D_TexSetFilter(tx, GPU_LINEAR, GPU_LINEAR); C3D_TexSetWrap(tx, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE); C3D_TexBind(0, tx); tev_copy();
+            { GPU_TEXTURE_FILTER_PARAM f = (s && RX < 1.0f) ? GPU_NEAREST : GPU_LINEAR; C3D_TexSetFilter(tx, f, f); }   /* (native size: 1:1) */ C3D_TexSetWrap(tx, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE); C3D_TexBind(0, tx); tev_copy();
             C3D_FVUnifSet(GPU_VERTEX_SHADER, u_uvt, 1, 1, 0, 0);
             draw_quads_clip(v, 4, GPU_TRIANGLE_STRIP); } }
     C3D_FrameEnd(0); in_frame = 0; cur = NULL; st_frames++;

@@ -95,6 +95,10 @@ static int net_up;
 #include <psp2/net/net.h>
 #include <psp2/net/netctl.h>
 #endif
+#ifdef __3DS__
+static int soc_on;
+void rs_net_exit(void){ if (soc_on) { socExit(); soc_on = 0; } }    /* (main.c, before the process exits) */
+#endif
 static void net_start(void){
     if (net_up) return; net_up = 1;
 #ifdef _WIN32
@@ -107,7 +111,7 @@ static void net_start(void){
     fprintf(stderr, "[NET] PS Vita network: init %08x, connection manager %08x\n", (unsigned)r, (unsigned)r2);
 #elif defined(__3DS__)
     /* the 3DS: the system's socket service, with a buffer it owns from now on (0x1000-aligned) */
-    { const u32 sz = 0x100000; void *buf = memalign(0x1000, sz); int r = buf ? (int)socInit((u32 *)buf, sz) : -1;
+    { const u32 sz = 0x100000; void *buf = memalign(0x1000, sz); int r = buf ? (int)socInit((u32 *)buf, sz) : -1; soc_on = r == 0;
       fprintf(stderr, "[NET] 3DS sockets: %08x\n", (unsigned)r); }
 #endif
 }

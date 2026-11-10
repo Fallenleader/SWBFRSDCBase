@@ -25,6 +25,7 @@ RS_HEAP_MB=22
 # ---- controls
 # twin-stick controls (left stick move + strafe, C-stick turn + look): New 3DS only; the Old 3DS always plays with the PSP's controls
 RS_TWIN_STICK=1
+# (the Old 3DS ignores this: it has no right stick)
 # twin-stick turning acceleration, percent (100 = the game's)
 RS_TURN_ACCEL=130
 # look centring after you stop looking up / down (seconds; 1 = the game's own); RS_LOOK_CENTER=0 never levels the view
@@ -61,3 +62,5 @@ RS_PERF_LOG=0
 RS_SERVER=
 # 1 = look on the local network first, 0 = only RS_SERVER
 RS_LAN_SEARCH=1
+# draw straight at the top screen's 400x240 (1, fewer pixels, sharper) or at the PSP's 480x272 scaled down (0)
+RS_3DS_NATIVE_RES=1

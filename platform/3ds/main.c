@@ -58,6 +58,7 @@ static const struct { const char *k, *v; } ds_defaults[] = {
     {"RS_FPS", "30"}, {"RS_RES_SCALE", "1"}, {"RS_ANISO", "1"},
 };
 const char *rs_platform_setting(const char *key){
+    if (!strcmp(key, "RS_TWIN_STICK") && !rs_is_new3ds) return "0";      /* the Old 3DS has no right stick: the PSP's controls, whatever settings.txt says */
     for (int i = 0; i < nkv; i++) if (!strcmp(kv[i].k, key)) return kv[i].v;
     for (unsigned i = 0; i < sizeof ds_defaults / sizeof ds_defaults[0]; i++) if (!strcmp(ds_defaults[i].k, key)) return ds_defaults[i].v;
     if (!strcmp(key, "RS_TWIN_STICK")) return rs_is_new3ds ? "1" : "0";      /* twin-stick controls need the New 3DS's C-stick */
@@ -291,5 +292,6 @@ int main(void){
     STEP("exiting"); fflush(stderr); if (log_file) fflush(log_file);
     /* the services are closed the way exit() does (__appExit: fs, hid, apt (tells the HOME Menu we closed), srv): leaving without
      * that made the system show "An error has occurred" and restart; only the heap is not given back (the threads still use it) */
+    { extern void rs_net_exit(void); rs_net_exit(); }                    /* the socket service: left open, the system faulted after the exit */
     ndspExit(); gfxExit(); { extern void __appExit(void); __appExit(); } svcExitProcess();
     return 0; }
