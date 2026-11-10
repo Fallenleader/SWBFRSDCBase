@@ -27,9 +27,9 @@
 void *rs_at3p_alloc(int ch, int ba); int rs_at3p_decode(void *c, float *l, float *r, int *ns, const unsigned char *buf, int size); void rs_at3p_free(void *c);
 void *rs_at3_alloc(int ch, int ba, const unsigned char *extra, int extra_size); int rs_at3_decode(void *c, float *l, float *r, int *ns, const unsigned char *buf, int size); void rs_at3_free(void *c);
 
-#define MANIFEST_VERSION "rsconv 2"   /* 2: videos in the Vita movie format (AAC 160 kbps, moov first); a "rsconv 1" manifest keeps its audio */
+#define MANIFEST_VERSION "rsconv 3"   /* 3: sound bundles (.AM) -> one WAV per sound; 2: videos in the Vita movie format (AAC 160 kbps, moov first); older manifests keep their audio */
 #define MAXJOB 512
-typedef struct { char rel[256]; char src[1100]; int kind; unsigned size; uint32_t sig; uint64_t out_size; int state; } job_t;   /* kind 0 audio, 1 video; state 0 ok, 1 todo, 2 done, 3 failed */
+typedef struct { char rel[256]; char src[1100]; int kind; unsigned size; uint32_t sig; uint64_t out_size; int state; } job_t;   /* kind 0 audio, 1 video, 2 sound bundle; state 0 ok, 1 todo, 2 done, 3 failed */
 static job_t jobs[MAXJOB]; static int njobs, next_job;
 static char g_root[1024], g_out[1024], g_iso[1024];
 static int g_workers; static uint64_t g_free;
@@ -46,7 +46,10 @@ static void mkdirs(const char *path){            /* mkdir -p of the folder part 
     char t[1400]; snprintf(t, sizeof t, "%s", path); char *s = strrchr(t, '/'); if (!s) return; *s = 0;
     for (char *p = t + 1; *p; p++) if (*p == '/') { *p = 0; mkdir(t, 0777); *p = '/'; }
     mkdir(t, 0777); }
-static void out_path(char *o, size_t cap, const char *rel, int kind){ snprintf(o, cap, "%s/%s%s", g_out, rel, kind ? ".mp4" : ".wav"); }
+static const char *kind_ext(int kind){ return kind == 1 ? ".mp4" : (kind == 2 ? ".idx" : ".wav"); }
+static void out_path(char *o, size_t cap, const char *rel, int kind){ snprintf(o, cap, "%s/%s%s", g_out, rel, kind_ext(kind)); }
+/* a bundle's sounds: <out>/<bundle>.d/<offset of the sound's RIFF header in the bundle, 8 hex digits>.wav */
+static void bundle_wav_path(char *o, size_t cap, const char *rel, uint32_t off){ snprintf(o, cap, "%s/%s.d/%08X.wav", g_out, rel, off); }
 
 const char *rs_convert_output_for(const char *full, const char *ext){
     static __thread char buf[1300];
@@ -58,8 +61,22 @@ const char *rs_convert_output_for(const char *full, const char *ext){
     char up[256]; size_t n = strlen(rel); if (n >= sizeof up) return 0;
     for (size_t i = 0; i <= n; i++) up[i] = (rel[i] >= 'a' && rel[i] <= 'z') ? (char)(rel[i] - 32) : rel[i];
     for (int i = 0; i < njobs; i++) if (!strcmp(jobs[i].rel, up) && jobs[i].state != 3) {
-        if (strcasecmp(ext, jobs[i].kind ? ".mp4" : ".wav")) return 0;
+        if (strcasecmp(ext, kind_ext(jobs[i].kind))) return 0;
         out_path(buf, sizeof buf, up, jobs[i].kind); return buf; }
+    return 0; }
+
+/* the converted media folder (0 before the conversion has started) */
+const char *rs_convert_dir(void){ return active ? g_out : 0; }
+/* the converted WAV of the sound at byte offset off of a sound bundle (full: the bundle's path), or 0 */
+const char *rs_convert_bundle_sound(const char *full, uint32_t off){
+    static __thread char buf[1300];
+    if (!active || !full) return 0;
+    size_t rl = strlen(g_root); if (strncmp(full, g_root, rl)) return 0;
+    const char *rel = full + rl; while (*rel == '/') rel++;
+    char up[256]; size_t n = strlen(rel); if (n >= sizeof up) return 0;
+    for (size_t i = 0; i <= n; i++) up[i] = (rel[i] >= 'a' && rel[i] <= 'z') ? (char)(rel[i] - 32) : rel[i];
+    for (int i = 0; i < njobs; i++) if (jobs[i].kind == 2 && !strcmp(jobs[i].rel, up) && (jobs[i].state == 0 || jobs[i].state == 2)) {
+        bundle_wav_path(buf, sizeof buf, up, off); struct stat s; return stat(buf, &s) == 0 ? buf : 0; }
     return 0; }
 
 /* ------------------------------------------------------------------ discovery + manifest */
@@ -75,7 +92,7 @@ static void scan(const char *full, const char *rel, int depth){
         int isdir = 0; unsigned size = 0; if (vfs_stat(sub, &isdir, &size)) continue;
         if (isdir) { if (depth < 8) scan(sub, r, depth + 1); continue; }
         size_t l = strlen(r); int kind = -1;
-        if (l > 4 && !strcmp(r + l - 4, ".AT3")) kind = 0; else if (l > 4 && !strcmp(r + l - 4, ".PMF")) kind = 1;
+        if (l > 4 && !strcmp(r + l - 4, ".AT3")) kind = 0; else if (l > 4 && !strcmp(r + l - 4, ".PMF")) kind = 1; else if (l > 3 && !strcmp(r + l - 3, ".AM")) kind = 2;
         if (kind < 0 || njobs >= MAXJOB) continue;
         job_t *j = &jobs[njobs++]; memset(j, 0, sizeof *j); snprintf(j->rel, sizeof j->rel, "%s", r); snprintf(j->src, sizeof j->src, "%s", sub); j->kind = kind; j->size = size; }
     vfs_closedir(d); }
@@ -92,7 +109,7 @@ static void check_all(void){
     typedef struct { char rel[256]; unsigned size; uint32_t sig; unsigned long long out; } ment_t;
     static ment_t m[MAXJOB]; int nm = 0;
     int old1 = 0;                                                      /* a version-1 manifest: its audio still stands, its videos are redone */
-    if (f) { if (fgets(line, sizeof line, f)) { if (!strncmp(line, MANIFEST_VERSION, strlen(MANIFEST_VERSION))) ver_ok = 1; else if (!strncmp(line, "rsconv 1", 8) && (line[8] == '\n' || line[8] == '\r' || !line[8])) ver_ok = old1 = 1; }
+    if (f) { if (fgets(line, sizeof line, f)) { if (!strncmp(line, MANIFEST_VERSION, strlen(MANIFEST_VERSION)) || !strncmp(line, "rsconv 2", 8)) ver_ok = 1; else if (!strncmp(line, "rsconv 1", 8) && (line[8] == '\n' || line[8] == '\r' || !line[8])) ver_ok = old1 = 1; }
         while (ver_ok && nm < MAXJOB && fgets(line, sizeof line, f)) if (sscanf(line, "%255s %u %x %llu", m[nm].rel, &m[nm].size, &m[nm].sig, &m[nm].out) == 4) nm++;
         fclose(f); }
     for (int i = 0; i < njobs; i++) {
@@ -354,6 +371,52 @@ static int conv_video(job_t *j, const char *tmp, uint64_t *out_size){
     return rc; }
 
 /* ------------------------------------------------------------------ workers */
+/* A sound bundle (the game's GMSND.AM: 1070 ATRAC3plus voice and effect sounds, one RIFF file after another) -> one WAV per sound,
+ * named after the sound's offset in the bundle, plus an index (offset, channels, frames).  Each WAV holds, frame by frame, what
+ * ha_DecodeData would compute (the same decoder and rounding, a bad frame silence), in the sound's own channel count (the voices are
+ * mono: half the size of stereo); playback reads it instead of decoding (audio.c).  44-byte header, then the samples. */
+static int conv_bundle(job_t *j, const char *tmp, uint64_t *out_size){
+    FILE *in = vfs_fopen(j->src, "rb"); if (!in) return -1;
+    unsigned char *b = malloc(j->size ? j->size : 1); if (!b) { fclose(in); return -12; }
+    if (fread(b, 1, j->size, in) != j->size) { free(b); fclose(in); return -1; }
+    fclose(in);
+    FILE *idx = fopen(tmp, "w"); if (!idx) { free(b); return -4; }
+    float *L = malloc(sizeof(float) * 4096), *R = malloc(sizeof(float) * 4096); int16_t *pcm = malloc(sizeof(int16_t) * 4096 * 2);
+    if (!L || !R || !pcm) { free(L); free(R); free(pcm); free(b); fclose(idx); return -12; }
+    int err = 0, nsound = 0; uint64_t total = 0; uint32_t done_at = 0;
+    for (uint32_t i = 0; i + 64 <= j->size && !err; i++) {
+        if (b[i] != 'R' || memcmp(b + i, "RIFF", 4) || memcmp(b + i + 8, "WAVE", 4)) continue;
+        uint32_t riff_len; memcpy(&riff_len, b + i + 4, 4); riff_t a;
+        uint32_t avail = j->size - i; if (riff_parse(b + i, avail < 4096 ? avail : 4096, &a) || a.codec < 0 || a.ba <= 0 || a.ba > 4096 || a.ch < 1 || a.ch > 2) continue;
+        if (a.data_off + a.data_len > avail) continue;
+        uint32_t nframes = a.data_len / (uint32_t)a.ba; int spf = a.codec ? 2048 : 1024;
+        pthread_mutex_lock(&dec_mx); void *dec = a.codec ? rs_at3p_alloc(a.ch, a.ba) : rs_at3_alloc(a.ch, a.ba, a.extra_len ? a.extra : 0, a.extra_len); pthread_mutex_unlock(&dec_mx);
+        if (!dec) { err = -3; break; }
+        char w[1300], wt[1320]; bundle_wav_path(w, sizeof w, j->rel, i); snprintf(wt, sizeof wt, "%s.part", w); if (!nsound) mkdirs(w);
+        FILE *o = fopen(wt, "wb"); if (!o) { err = -4; } else {
+            unsigned char h[44]; uint32_t data_bytes = nframes * (uint32_t)spf * 2u * (uint32_t)a.ch;
+            memcpy(h, "RIFF", 4); wr32(h + 4, 36 + data_bytes); memcpy(h + 8, "WAVEfmt ", 8); wr32(h + 16, 16); wr16(h + 20, 1); wr16(h + 22, (uint16_t)a.ch);
+            wr32(h + 24, 44100); wr32(h + 28, 44100u * 2u * (uint32_t)a.ch); wr16(h + 32, (uint16_t)(2 * a.ch)); wr16(h + 34, 16); memcpy(h + 36, "data", 4); wr32(h + 40, data_bytes);
+            fwrite(h, 1, 44, o);
+            for (uint32_t k = 0; k < nframes && !err; k++) {
+                int ns = 0; const unsigned char *fb = b + i + a.data_off + k * (uint32_t)a.ba;
+                { int r = a.codec ? rs_at3p_decode(dec, L, R, &ns, fb, a.ba) : rs_at3_decode(dec, L, R, &ns, fb, a.ba); if (r < 0) ns = 0; }
+                if (ns != spf) { ns = spf; memset(L, 0, sizeof(float) * spf); memset(R, 0, sizeof(float) * spf); }
+                if (a.ch == 1) for (int q = 0; q < ns; q++) pcm[q] = clamp16((int)(L[q] * 32768.0f));
+                else for (int q = 0; q < ns; q++) { pcm[q * 2] = clamp16((int)(L[q] * 32768.0f)); pcm[q * 2 + 1] = clamp16((int)(R[q] * 32768.0f)); }
+                if (fwrite(pcm, 2u * (size_t)a.ch, (size_t)ns, o) != (size_t)ns) err = -5; }
+            if (fclose(o)) err = -5;
+            if (!err) { remove(w); if (rename(wt, w)) err = -11; } else remove(wt);
+            fprintf(idx, "%08X %d %u\n", i, a.ch, nframes); total += 44ull + data_bytes; nsound++; }
+        pthread_mutex_lock(&dec_mx); if (a.codec) rs_at3p_free(dec); else rs_at3_free(dec); pthread_mutex_unlock(&dec_mx);
+        uint32_t end = i + a.data_off + a.data_len; add_work(end - done_at); done_at = end; i = end - 1; }
+    add_work(j->size > done_at ? j->size - done_at : 0);
+    free(L); free(R); free(pcm); free(b);
+    if (fclose(idx)) err = -5;
+    { struct stat s; if (!err && stat(tmp, &s) == 0) *out_size = (uint64_t)s.st_size; }
+    fprintf(stderr, "[CONV] %s: %d sounds, %llu MB of WAV\n", j->rel, nsound, (unsigned long long)(total >> 20));
+    return err; }
+
 static void *worker(void *arg){
     int slot = (int)(intptr_t)arg;
     { void rs_thread_cores(const char *) __attribute__((weak)); char nm[32]; snprintf(nm, sizeof nm, "media conversion %d", slot); if (rs_thread_cores) rs_thread_cores(nm); }
@@ -364,7 +427,7 @@ static void *worker(void *arg){
         pthread_mutex_unlock(&mx);
         if (i < 0) break;
         job_t *j = &jobs[i]; char o[1300], t[1320]; out_path(o, sizeof o, j->rel, j->kind); snprintf(t, sizeof t, "%s.part", o); mkdirs(o);
-        uint64_t sz = 0; int rc = j->kind ? conv_video(j, t, &sz) : conv_audio(j, t, &sz);
+        uint64_t sz = 0; int rc = j->kind == 1 ? conv_video(j, t, &sz) : (j->kind == 2 ? conv_bundle(j, t, &sz) : conv_audio(j, t, &sz));
         if (rc == 0) { remove(o); if (rename(t, o)) rc = -11; }
         if (rc) { remove(t); fprintf(stderr, "[CONV] %s failed (%d)\n", j->rel, rc); }
         else fprintf(stderr, "[CONV] %s -> %llu bytes\n", j->rel, (unsigned long long)sz);
@@ -375,7 +438,7 @@ static void *worker(void *arg){
     return 0; }
 
 static uint64_t estimate_out(void){                                        /* output bytes for everything still to convert */
-    uint64_t t = 0; for (int i = 0; i < njobs; i++) if (jobs[i].state == 1) t += jobs[i].kind ? jobs[i].size : (uint64_t)jobs[i].size * 11u + 4096u;   /* ATRAC3plus 132 kbit/s -> PCM 1411 kbit/s */
+    uint64_t t = 0; for (int i = 0; i < njobs; i++) if (jobs[i].state == 1) t += jobs[i].kind == 1 ? jobs[i].size : (uint64_t)jobs[i].size * 11u + 4096u;   /* ATRAC3plus 132 kbit/s -> PCM 1411 kbit/s (bundles: mono at ~64 kbit/s, about the same ratio) */
     return t; }
 
 static void extract_progress(unsigned long long done, unsigned long long total, const char *name){

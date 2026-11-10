@@ -81,6 +81,9 @@ RS_CREDITS=200
 # ---- sound and diagnostics
 # 0 = no sound
 RS_AUDIO=1
+# sound effects (SAS) played from WAV copies: each is decoded once and kept as converted/SAS/<hash>_<bytes>.wav (1), or decoded
+# from the game's ADPCM every time (0).  Voices and effects of the speech bundle, music and cutscene speech are always WAV (first-start conversion)
+RS_SAS_WAV=1
 # 1 = frame-rate / load overlay:
 #   FPS (shown) / VBLANK (game frames); GAME CPU / GE+GPU THREAD busy; HEAP;
 #   per frame: SCENES (render-target switches), DRAWS, texture UPLOADS;
