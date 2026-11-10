@@ -165,6 +165,7 @@ static int ui_init(void){
     return 0; }
 
 static int ui_opaque;
+void gfx_state_forget(void);       /* gfx_gxm.c: the game renderer's record of the context's state */
 void ui_flush(void){
     if (!ui_n || !ui_t) { ui_n = 0; return; }
     uiv_t *v = gxm_frame_alloc(sizeof(uiv_t) * 4 * (size_t)ui_n, 16);
@@ -173,7 +174,7 @@ void ui_flush(void){
         sceGxmSetVertexProgram(ctx, ui_vp); sceGxmSetFragmentProgram(ctx, ui_opaque ? ui_fp_op : ui_fp);
         void *ub; sceGxmReserveVertexDefaultUniformBuffer(ctx, &ub); float sc[4] = {2.0f / GXM_W, 2.0f / GXM_H, 0, 0}; sceGxmSetUniformDataF(ub, ui_scale, 0, 4, sc);
         sceGxmSetFragmentTexture(ctx, 0, &ui_t->tex); sceGxmSetVertexStream(ctx, 0, v);
-        sceGxmDraw(ctx, SCE_GXM_PRIMITIVE_TRIANGLES, SCE_GXM_INDEX_FORMAT_U16, quad_idx, (unsigned)ui_n * 6); }
+        sceGxmDraw(ctx, SCE_GXM_PRIMITIVE_TRIANGLES, SCE_GXM_INDEX_FORMAT_U16, quad_idx, (unsigned)ui_n * 6); gfx_state_forget(); }
     ui_n = 0; }
 
 void ui_quad(const gxm_tex_t *t, float x, float y, float w, float h, float u0, float v0, float u1, float v1, uint32_t c){
@@ -256,7 +257,7 @@ int gxm_init(const char *shader_cache_dir){
 
 void gxm_begin_frame(uint32_t clear_abgr){
     back = (front + 1) % NBUF;
-    sceGxmBeginScene(ctx, 0, rt, NULL, NULL, sync[back], &surf[back], &depth);
+    sceGxmBeginScene(ctx, 0, rt, NULL, NULL, sync[back], &surf[back], &depth); gfx_state_forget();
     sceGxmSetFrontDepthFunc(ctx, SCE_GXM_DEPTH_FUNC_ALWAYS); sceGxmSetFrontDepthWriteEnable(ctx, SCE_GXM_DEPTH_WRITE_DISABLED);
     sceGxmSetFrontStencilFunc(ctx, SCE_GXM_STENCIL_FUNC_ALWAYS, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, 0, 0);
     sceGxmSetTwoSidedEnable(ctx, SCE_GXM_TWO_SIDED_DISABLED);

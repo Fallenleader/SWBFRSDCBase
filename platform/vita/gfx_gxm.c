@@ -83,10 +83,25 @@ static u32 akey(u32 a){ return gfx_vram(a) & 0x0FFFFFFFu; }
 static void end_scene(void){ if (!scene_surf) return; sceGxmEndScene(gxm_ctx(), NULL, NULL); scene_surf = NULL; }
 static void apply_viewport(void){ sceGxmSetViewport(gxm_ctx(), PX / 2.0f, PX / 2.0f, PX / 2.0f, PX / 2.0f, 0.5f, 0.5f); sceGxmSetViewportEnable(gxm_ctx(), SCE_GXM_VIEWPORT_ENABLED); }
 static int sc_set = -1, sc_r[4];
+/* GXM state already set on the context: a draw sets only what differs from the draw before (the game's draws mostly share state;
+ * each GXM call writes to the command buffer).  Unknown (-1 / NULL) after a scene starts and after the clear / copy paths, which set
+ * state themselves. */
+static struct { int dfunc, dwrite, cull, sfunc, sref; const void *vp, *fp; SceGxmTexture tex; int tex_ok; } gs;
+void gfx_state_forget(void){ gs.dfunc = gs.dwrite = gs.cull = gs.sfunc = gs.sref = -1; gs.vp = gs.fp = NULL; gs.tex_ok = 0; }
+static void gs_reset(void){ gs.dfunc = gs.dwrite = gs.cull = gs.sfunc = gs.sref = -1; gs.vp = gs.fp = NULL; gs.tex_ok = 0; }
+static inline void gs_depth(SceGxmContext *c, int f, int w){ if (f != gs.dfunc) { sceGxmSetFrontDepthFunc(c, (SceGxmDepthFunc)f); gs.dfunc = f; }
+    if (w != gs.dwrite) { sceGxmSetFrontDepthWriteEnable(c, (SceGxmDepthWriteMode)w); gs.dwrite = w; } }
+static inline void gs_cull(SceGxmContext *c, int m){ if (m != gs.cull) { sceGxmSetCullMode(c, (SceGxmCullMode)m); gs.cull = m; } }
+static inline void gs_vp(SceGxmContext *c, SceGxmVertexProgram *v){ if (v != gs.vp) { sceGxmSetVertexProgram(c, v); gs.vp = v; } }
+static inline void gs_fp(SceGxmContext *c, SceGxmFragmentProgram *f){ if (f != gs.fp) { sceGxmSetFragmentProgram(c, f); gs.fp = f; } }
+static inline void gs_tex(SceGxmContext *c, const SceGxmTexture *t){ if (!gs.tex_ok || memcmp(&gs.tex, t, sizeof *t)) { sceGxmSetFragmentTexture(c, 0, t); gs.tex = *t; gs.tex_ok = 1; } }
+/* a uniform written straight into the reserved buffer (its resource index counts 32-bit words), instead of a library call each */
+static inline void uput(void *ub, int off, int n, const float *v){ if (off >= 0) memcpy((float *)ub + off, v, (size_t)n * sizeof(float)); }
+static int uoff(const SceGxmProgramParameter *p){ return p ? (int)sceGxmProgramParameterGetResourceIndex(p) : -1; }
 static void begin_scene(surf_t *s){
     if (scene_surf == s) return; end_scene();
     sceGxmBeginScene(gxm_ctx(), 0, srt, NULL, NULL, NULL, &s->cs, &sds); scene_surf = s; st_scenes++;
-    apply_viewport(); sc_set = -1;
+    apply_viewport(); sc_set = -1; gs_reset();
     sceGxmSetTwoSidedEnable(gxm_ctx(), SCE_GXM_TWO_SIDED_DISABLED); }
 static surf_t *surf_find(u32 addr){ addr = akey(addr); for (int i = 0; i < SURF_N; i++) if (surfs[i].used && surfs[i].addr == addr) return &surfs[i]; return 0; }
 static void clear_rect_internal(surf_t *s, int x0, int y0, int x1, int y1, const float rgba[4], float depth, int cc, int ca, int cz, int sval);
@@ -262,11 +277,12 @@ static char *native_vs_src(u32 vt, int lit){
 
 enum { U_MVP, U_WVZ, U_WLD, U_B, U_VP0, U_VP1, U_VP2, U_UVT, U_UVS, U_FOGP, U_DEFC, U_MAMB, U_MDIF, U_MEMI, U_MSCA, U_LFL, U_LPOS, U_LATT, U_LSPOT, U_LA, U_LD, U_NV };
 static const char *const U_NAMES[U_NV] = {"uMVP", "uWVZ", "uWld", "uB", "uVP0", "uVP1", "uVP2", "uUVT", "uUVS", "uFogP", "uDefC", "uMAmb", "uMDif", "uMEmi", "uMSca", "uLFl", "uLPos", "uLAtt", "uLSpot", "uLA", "uLD"};
-typedef struct { u32 key; int state; const SceGxmProgram *gxp; SceGxmVertexProgram *vp; const SceGxmProgramParameter *u[U_NV]; } vprog_t;
+typedef struct { u32 key; int state; const SceGxmProgram *gxp; SceGxmVertexProgram *vp; const SceGxmProgramParameter *u[U_NV]; int uo[U_NV]; } vprog_t;
 #define VP_N 192
 static vprog_t vps[VP_N]; static int nvp;
 static SceGxmShaderPatcherId fs_id; static const SceGxmProgram *fs_gxp;
 static const SceGxmProgramParameter *fu_cfg0g, *fu_cfg1g, *fu_envg, *fu_fogg, *fu_mulg;
+static int fo_g[6] = {-1, -1, -1, -1, -1, -1}, fo_af[6] = {-1, -1, -1, -1, -1, -1};
 /* the same fragment program with anisotropic sampling (tex_mips.h), for filtered draws of textures that have a mip chain */
 typedef struct { SceGxmShaderPatcherId id; const SceGxmProgram *gxp; const SceGxmProgramParameter *cfg0, *cfg1, *env, *fog, *mul, *aniso; } fsv_t;
 static fsv_t fs_af; static int af_ok;
@@ -284,7 +300,8 @@ static int reg_of(const SceGxmProgram *p, const char *name){ const SceGxmProgram
 
 static const vprog_t *native_prog(u32 vt, int lit, int vsz, const int *off){
     int thr = (vt >> 23) & 1; u32 key = (vt & 0x1C7FFu) | ((u32)thr << 23) | ((u32)(lit && !thr) << 24) | 0x80000000u;
-    for (int i = 0; i < nvp; i++) if (vps[i].key == key) return vps[i].state > 0 ? &vps[i] : NULL;
+    static int li = -1; if (li >= 0 && vps[li].key == key) return vps[li].state > 0 ? &vps[li] : NULL;
+    for (int i = 0; i < nvp; i++) if (vps[i].key == key) { li = i; return vps[i].state > 0 ? &vps[i] : NULL; }
     if (nvp >= VP_N) return NULL;
     vprog_t *e = &vps[nvp++]; memset(e, 0, sizeof *e); e->key = key; e->state = -1;
     if (!((vt >> 7) & 3)) return NULL;
@@ -304,7 +321,7 @@ static const vprog_t *native_prog(u32 vt, int lit, int vsz, const int *off){
     SceGxmVertexStream st = {(unsigned short)vsz, SCE_GXM_INDEX_SOURCE_INDEX_16BIT};
     SceGxmShaderPatcherId id; if (sceGxmShaderPatcherRegisterProgram(gxm_patcher(), e->gxp, &id) < 0 ||
         sceGxmShaderPatcherCreateVertexProgram(gxm_patcher(), id, at, (unsigned)na, &st, 1, &e->vp) < 0) { fprintf(stderr, "[GXM] vertex type %06x: cannot create the program\n", (unsigned)vt); return NULL; }
-    for (int i = 0; i < U_NV; i++) e->u[i] = sceGxmProgramFindParameterByName(e->gxp, U_NAMES[i]);
+    for (int i = 0; i < U_NV; i++) { e->u[i] = sceGxmProgramFindParameterByName(e->gxp, U_NAMES[i]); e->uo[i] = uoff(e->u[i]); }
     fprintf(stderr, "[GXM] program for vertex type %06x%s%s ready (%.1f ms)\n", (unsigned)(vt & 0x1C7FFu), thr ? " 2D" : "", lit && !thr ? " lit" : "", (rs_perf_us() - t0) / 1000.0);
     e->state = 1; return e; }
 
@@ -315,7 +332,8 @@ static fprog_t fps[FP_N]; static int nfp;
 static SceGxmFragmentProgram *frag_prog(int blend_on, SceGxmBlendFunc cf, SceGxmBlendFunc af, int cs, int cd, int as, int ad, int mask, SceGxmShaderPatcherId id, const SceGxmProgram *vgxp){
     u32 key = (u32)blend_on | (u32)cf << 1 | (u32)af << 4 | (u32)cs << 7 | (u32)cd << 11 | (u32)as << 15 | (u32)ad << 19 | (u32)mask << 23 | (id == clr_fid ? 1u << 28 : 0) |
               (af_ok && id == fs_af.id ? 1u << 29 : 0);
-    for (int i = 0; i < nfp; i++) if (fps[i].key == key) return fps[i].fp;
+    static u32 lk = 0xFFFFFFFFu; static SceGxmFragmentProgram *lf; if (key == lk && lf) return lf;
+    for (int i = 0; i < nfp; i++) if (fps[i].key == key) { lk = key; lf = fps[i].fp; return lf; }
     SceGxmBlendInfo bi; memset(&bi, 0, sizeof bi); bi.colorMask = (SceGxmColorMask)mask;
     if (blend_on) { bi.colorFunc = cf; bi.alphaFunc = af; bi.colorSrc = (SceGxmBlendFactor)cs; bi.colorDst = (SceGxmBlendFactor)cd; bi.alphaSrc = (SceGxmBlendFactor)as; bi.alphaDst = (SceGxmBlendFactor)ad; }
     else { bi.colorFunc = SCE_GXM_BLEND_FUNC_NONE; bi.alphaFunc = SCE_GXM_BLEND_FUNC_NONE; bi.colorSrc = bi.alphaSrc = SCE_GXM_BLEND_FACTOR_ONE; bi.colorDst = bi.alphaDst = SCE_GXM_BLEND_FACTOR_ZERO; }
@@ -506,15 +524,15 @@ static SceGxmFragmentProgram *apply_state(const gfx_state_t *s, const SceGxmProg
     SceGxmContext *c = gxm_ctx();
     int x1 = s->sx1 < 0 ? 0 : s->sx1, y1 = s->sy1 < 0 ? 0 : s->sy1, x2 = s->sx2 > SZ - 1 ? SZ - 1 : s->sx2, y2 = s->sy2 > SZ - 1 ? SZ - 1 : s->sy2;
     scissor_psp(x1, y1, x2, y2);
-    sceGxmSetFrontDepthFunc(c, s->ztest ? dfunc[s->zfunc & 7] : SCE_GXM_DEPTH_FUNC_ALWAYS);
-    sceGxmSetFrontDepthWriteEnable(c, (s->ztest && s->zwrite) ? SCE_GXM_DEPTH_WRITE_ENABLED : SCE_GXM_DEPTH_WRITE_DISABLED);
+    gs_depth(c, s->ztest ? dfunc[s->zfunc & 7] : SCE_GXM_DEPTH_FUNC_ALWAYS, (s->ztest && s->zwrite) ? SCE_GXM_DEPTH_WRITE_ENABLED : SCE_GXM_DEPTH_WRITE_DISABLED);
     /* rows run downwards in a GXM surface (PSP row 0 = memory row 0), the opposite of GL's window: the winding the GL path culled as
      * back faces (cull_mode 1 = GL_BACK, glFrontFace(GL_CCW)) appears clockwise here */
-    sceGxmSetCullMode(c, !s->cull_en ? SCE_GXM_CULL_NONE : (s->cull_mode == 1 ? SCE_GXM_CULL_CCW : SCE_GXM_CULL_CW));
-    if (s->sten) {
-        sceGxmSetFrontStencilFunc(c, sfuncs[s->sfunc & 7], sops[s->sfail & 7], sops[s->szfail & 7], sops[s->szpass & 7], (u8)s->smask, (u8)s->swmask);
-        sceGxmSetFrontStencilRef(c, (unsigned)s->sref); }
-    else sceGxmSetFrontStencilFunc(c, SCE_GXM_STENCIL_FUNC_ALWAYS, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, 0, 0);
+    gs_cull(c, !s->cull_en ? SCE_GXM_CULL_NONE : (s->cull_mode == 1 ? SCE_GXM_CULL_CCW : SCE_GXM_CULL_CW));
+    { int sk = s->sten ? 1 | (s->sfunc & 7) << 1 | (s->sfail & 7) << 4 | (s->szfail & 7) << 7 | (s->szpass & 7) << 10 | ((u8)s->smask) << 13 | ((u8)s->swmask) << 21 : 0;
+      if (sk != gs.sfunc) { gs.sfunc = sk;
+          if (s->sten) sceGxmSetFrontStencilFunc(c, sfuncs[s->sfunc & 7], sops[s->sfail & 7], sops[s->szfail & 7], sops[s->szpass & 7], (u8)s->smask, (u8)s->swmask);
+          else sceGxmSetFrontStencilFunc(c, SCE_GXM_STENCIL_FUNC_ALWAYS, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, 0, 0); }
+      if (s->sten && (int)s->sref != gs.sref) { sceGxmSetFrontStencilRef(c, (unsigned)s->sref); gs.sref = (int)s->sref; } }
     float mul[3] = {1, 1, 1}; int approx = 0;
     const SceGxmTexture *tx = s->tex ? tex_of(s->texid) : NULL; int use = tx != NULL;
     const tent_t *te = use && s->texid < 0x10000u ? &tc[s->texid - 1] : NULL;
@@ -531,17 +549,16 @@ static SceGxmFragmentProgram *apply_state(const gfx_state_t *s, const SceGxmProg
         fp = frag_prog(1, fn, fn, sf, df, as, ad, mask, pid, vgxp); }
     else fp = frag_prog(0, 0, 0, 0, 0, 0, 0, mask, pid, vgxp);
     if (!fp) return NULL;
-    sceGxmSetFragmentProgram(c, fp);
+    gs_fp(c, fp);
     void *fb; sceGxmReserveFragmentDefaultUniformBuffer(c, &fb);
-    const SceGxmProgramParameter *fu_cfg0 = aniso ? fs_af.cfg0 : fu_cfg0g, *fu_cfg1 = aniso ? fs_af.cfg1 : fu_cfg1g, *fu_env = aniso ? fs_af.env : fu_envg,
-                                 *fu_fog = aniso ? fs_af.fog : fu_fogg, *fu_mul = aniso ? fs_af.mul : fu_mulg;
+    const int *fo = aniso ? fo_af : fo_g;                          /* uniform offsets: cfg0, cfg1, env, fog, mul, aniso */
     float v[4];
-    if (aniso && fs_af.aniso) { v[0] = (float)te->k.w; v[1] = (float)te->k.h; v[2] = (float)rs_aniso_level(); v[3] = 0; sceGxmSetUniformDataF(fb, fs_af.aniso, 0, 4, v); }
-    if (fu_cfg0) { v[0] = use ? 1.0f : 0.0f; v[1] = (float)s->tfunc; v[2] = (float)s->trgba; v[3] = (float)s->tdbl; sceGxmSetUniformDataF(fb, fu_cfg0, 0, 4, v); }
-    if (fu_cfg1) { v[0] = s->atest ? (float)s->afunc : 1.0f; v[1] = (float)s->aref; v[2] = v[3] = 0; sceGxmSetUniformDataF(fb, fu_cfg1, 0, 4, v); }
-    if (fu_env) { v[0] = (s->tenv & 255) / 255.0f; v[1] = ((s->tenv >> 8) & 255) / 255.0f; v[2] = ((s->tenv >> 16) & 255) / 255.0f; v[3] = 1; sceGxmSetUniformDataF(fb, fu_env, 0, 4, v); }
-    if (fu_fog) { v[0] = (s->fogcol & 255) / 255.0f; v[1] = ((s->fogcol >> 8) & 255) / 255.0f; v[2] = ((s->fogcol >> 16) & 255) / 255.0f; v[3] = s->fog ? 1.0f : 0.0f; sceGxmSetUniformDataF(fb, fu_fog, 0, 4, v); }
-    if (fu_mul) { v[0] = mul[0]; v[1] = mul[1]; v[2] = mul[2]; v[3] = 1; sceGxmSetUniformDataF(fb, fu_mul, 0, 4, v); }
+    if (aniso && fo[5] >= 0) { v[0] = (float)te->k.w; v[1] = (float)te->k.h; v[2] = (float)rs_aniso_level(); v[3] = 0; uput(fb, fo[5], 4, v); }
+    if (fo[0] >= 0) { v[0] = use ? 1.0f : 0.0f; v[1] = (float)s->tfunc; v[2] = (float)s->trgba; v[3] = (float)s->tdbl; uput(fb, fo[0], 4, v); }
+    if (fo[1] >= 0) { v[0] = s->atest ? (float)s->afunc : 1.0f; v[1] = (float)s->aref; v[2] = v[3] = 0; uput(fb, fo[1], 4, v); }
+    if (fo[2] >= 0) { v[0] = (s->tenv & 255) / 255.0f; v[1] = ((s->tenv >> 8) & 255) / 255.0f; v[2] = ((s->tenv >> 16) & 255) / 255.0f; v[3] = 1; uput(fb, fo[2], 4, v); }
+    if (fo[3] >= 0) { v[0] = (s->fogcol & 255) / 255.0f; v[1] = ((s->fogcol >> 8) & 255) / 255.0f; v[2] = ((s->fogcol >> 16) & 255) / 255.0f; v[3] = s->fog ? 1.0f : 0.0f; uput(fb, fo[3], 4, v); }
+    if (fo[4] >= 0) { v[0] = mul[0]; v[1] = mul[1]; v[2] = mul[2]; v[3] = 1; uput(fb, fo[4], 4, v); }
     if (use) {
         SceGxmTexture t = *tx;
         SceGxmTextureFilter flt = s->tfilter ? SCE_GXM_TEXTURE_FILTER_LINEAR : SCE_GXM_TEXTURE_FILTER_POINT;
@@ -550,12 +567,12 @@ static SceGxmFragmentProgram *apply_state(const gfx_state_t *s, const SceGxmProg
         if (te && te->mips > 1) { if (mipped) sceGxmTextureSetMipFilter(&t, SCE_GXM_TEXTURE_MIP_FILTER_ENABLED); else sceGxmTextureSetMipmapCount(&t, 0); }   /* point-sampled: the full-size level only, as on the PSP */
         sceGxmTextureSetUAddrMode(&t, s->tclampu ? SCE_GXM_TEXTURE_ADDR_CLAMP : SCE_GXM_TEXTURE_ADDR_REPEAT);
         sceGxmTextureSetVAddrMode(&t, s->tclampv ? SCE_GXM_TEXTURE_ADDR_CLAMP : SCE_GXM_TEXTURE_ADDR_REPEAT);
-        sceGxmSetFragmentTexture(c, 0, &t); }
-    else sceGxmSetFragmentTexture(c, 0, &white_tex);              /* the program samples only when textured, but keep a valid binding */
+        gs_tex(c, &t); }
+    else gs_tex(c, &white_tex);              /* the program samples only when textured, but keep a valid binding */
     return fp; }
 
 /* ===================================================================== draws */
-static void set_vu(void *ub, const vprog_t *P, int i, int n4, const float *v){ if (P->u[i]) sceGxmSetUniformDataF(ub, P->u[i], 0, (unsigned)(n4 * 4), v); }
+static inline void set_vu(void *ub, const vprog_t *P, int i, int n4, const float *v){ uput(ub, P->uo[i], n4 * 4, v); }
 int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t *nv){
     if (nv->count <= 0 || nv->vsz <= 0 || nv->off[4] < 0) return 0;
     int n = nv->count; if (n < 3) return 1;
@@ -580,7 +597,7 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
     memcpy(vb, nv->vdata + (size_t)lo * nv->vsz, (size_t)nvert * nv->vsz);
     SceGxmContext *c = gxm_ctx();
     SceGxmFragmentProgram *fp = apply_state(st, P->gxp); if (!fp) return 1;
-    sceGxmSetVertexProgram(c, P->vp);
+    gs_vp(c, P->vp);
     void *ub; sceGxmReserveVertexDefaultUniformBuffer(c, &ub);
     if (!thr) {
         set_vu(ub, P, U_MVP, 4, h->mvp); set_vu(ub, P, U_WVZ, 1, h->wvz); set_vu(ub, P, U_WLD, 3, h->wld);
@@ -602,7 +619,7 @@ void gfx_draw(const gfx_state_t *st, const gfx_vtx_t *v, int n){
     void *vb = gxm_frame_alloc(sizeof(gfx_vtx_t) * (size_t)n, 16); if (!vb) return; memcpy(vb, v, sizeof(gfx_vtx_t) * (size_t)n);
     SceGxmContext *c = gxm_ctx();
     if (!apply_state(st, cpu_vp.gxp)) return;
-    sceGxmSetVertexProgram(c, cpu_vp.vp);
+    gs_vp(c, cpu_vp.vp);
     void *ub; sceGxmReserveVertexDefaultUniformBuffer(c, &ub); set_vu(ub, &cpu_vp, U_UVS, 1, st->uvs);
     sceGxmSetVertexStream(c, 0, vb);
     sceGxmDraw(c, SCE_GXM_PRIMITIVE_TRIANGLES, SCE_GXM_INDEX_FORMAT_U16, lin_idx, (unsigned)n); st_draws++; st_tris += (unsigned)(n / 3); }
@@ -612,7 +629,7 @@ int gfx_hw_ok(void){ return 1; }
 
 /* clears: a rectangle drawn through the colour / alpha / depth masks (the PSP clears alpha and stencil together) */
 static void clear_rect_internal(surf_t *s, int x0, int y0, int x1, int y1, const float rgba[4], float depth, int cc, int ca, int cz, int sval){
-    begin_scene(s); SceGxmContext *c = gxm_ctx();
+    begin_scene(s); SceGxmContext *c = gxm_ctx(); gs_reset();
     scissor_psp(x0, y0, x1, y1);
     int mask = (cc ? (SCE_GXM_COLOR_MASK_R | SCE_GXM_COLOR_MASK_G | SCE_GXM_COLOR_MASK_B) : 0) | (ca ? SCE_GXM_COLOR_MASK_A : 0);
     SceGxmFragmentProgram *fp = frag_prog(0, 0, 0, 0, 0, 0, 0, mask, clr_fid, clr_vgxp); if (!fp) return;
@@ -637,7 +654,7 @@ void gfx_clear(const gfx_state_t *st, int x0, int y0, int x1, int y1, const floa
 
 /* image copies between GPU surfaces (or into one from memory) */
 static void blit_rect(surf_t *dst, const SceGxmTexture *srct, int tw, int th, float su0, float sv0, float su1, float sv1, int dx, int dy, int w, int h){
-    begin_scene(dst); SceGxmContext *c = gxm_ctx();
+    begin_scene(dst); SceGxmContext *c = gxm_ctx(); gs_reset();
     scissor_psp(dx, dy, dx + w - 1, dy + h - 1);
     sceGxmSetFrontDepthFunc(c, SCE_GXM_DEPTH_FUNC_ALWAYS); sceGxmSetFrontDepthWriteEnable(c, SCE_GXM_DEPTH_WRITE_DISABLED); sceGxmSetCullMode(c, SCE_GXM_CULL_NONE);
     sceGxmSetFrontStencilFunc(c, SCE_GXM_STENCIL_FUNC_ALWAYS, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, SCE_GXM_STENCIL_OP_KEEP, 0, 0);
@@ -771,6 +788,7 @@ int gfx_init(void){
     if (prog_pair(VS_SRC, FS_SRC, &cpu_vp.gxp, &fs_gxp, &vid, &fs_id)) { fprintf(stderr, "[GXM] base shaders: %s\n", gxm_error()); return -1; }
     fu_cfg0g = sceGxmProgramFindParameterByName(fs_gxp, "uCfg0"); fu_cfg1g = sceGxmProgramFindParameterByName(fs_gxp, "uCfg1"); fu_envg = sceGxmProgramFindParameterByName(fs_gxp, "uEnv");
     fu_fogg = sceGxmProgramFindParameterByName(fs_gxp, "uFog"); fu_mulg = sceGxmProgramFindParameterByName(fs_gxp, "uMul");
+    fo_g[0] = uoff(fu_cfg0g); fo_g[1] = uoff(fu_cfg1g); fo_g[2] = uoff(fu_envg); fo_g[3] = uoff(fu_fogg); fo_g[4] = uoff(fu_mulg);
     /* the anisotropic variant of the fragment program (a failure leaves trilinear filtering) */
     if (rs_aniso_level() > 1) {
         static char src[8192]; const char *body = strstr(FS_SRC, "float4 main(");
@@ -787,13 +805,14 @@ int gfx_init(void){
                 if (fs_af.gxp && sceGxmShaderPatcherRegisterProgram(gxm_patcher(), fs_af.gxp, &fs_af.id) >= 0) {
                     const SceGxmProgram *g = fs_af.gxp; af_ok = 1;
                     fs_af.cfg0 = sceGxmProgramFindParameterByName(g, "uCfg0"); fs_af.cfg1 = sceGxmProgramFindParameterByName(g, "uCfg1"); fs_af.env = sceGxmProgramFindParameterByName(g, "uEnv");
-                    fs_af.fog = sceGxmProgramFindParameterByName(g, "uFog"); fs_af.mul = sceGxmProgramFindParameterByName(g, "uMul"); fs_af.aniso = sceGxmProgramFindParameterByName(g, "uAniso"); }
+                    fs_af.fog = sceGxmProgramFindParameterByName(g, "uFog"); fs_af.mul = sceGxmProgramFindParameterByName(g, "uMul"); fs_af.aniso = sceGxmProgramFindParameterByName(g, "uAniso");
+                    fo_af[0] = uoff(fs_af.cfg0); fo_af[1] = uoff(fs_af.cfg1); fo_af[2] = uoff(fs_af.env); fo_af[3] = uoff(fs_af.fog); fo_af[4] = uoff(fs_af.mul); fo_af[5] = uoff(fs_af.aniso); }
                 else fprintf(stderr, "[GXM] anisotropic filtering shader unavailable (%s): trilinear filtering instead\n", gxm_error()); } } }
     { SceGxmVertexAttribute at[4]; int na = 0, r; static const char *nm[4] = {"aPos", "aUV", "aCol", "aFog"}; static const int off[4] = {0, 16, 24, 40}, cnt[4] = {4, 2, 4, 1};
       for (int i = 0; i < 4; i++) if ((r = reg_of(cpu_vp.gxp, nm[i])) >= 0) { at[na] = (SceGxmVertexAttribute){0, (unsigned short)off[i], SCE_GXM_ATTRIBUTE_FORMAT_F32, (unsigned char)cnt[i], (unsigned short)r}; na++; }
       SceGxmVertexStream st = {sizeof(gfx_vtx_t), SCE_GXM_INDEX_SOURCE_INDEX_16BIT};
       if (sceGxmShaderPatcherCreateVertexProgram(gxm_patcher(), vid, at, (unsigned)na, &st, 1, &cpu_vp.vp) < 0) return -1;
-      for (int i = 0; i < U_NV; i++) cpu_vp.u[i] = sceGxmProgramFindParameterByName(cpu_vp.gxp, U_NAMES[i]); cpu_vp.state = 1; }
+      for (int i = 0; i < U_NV; i++) { cpu_vp.u[i] = sceGxmProgramFindParameterByName(cpu_vp.gxp, U_NAMES[i]); cpu_vp.uo[i] = uoff(cpu_vp.u[i]); } cpu_vp.state = 1; }
     /* clears */
     { SceGxmShaderPatcherId cv; const SceGxmProgram *fg; if (prog_pair(CLR_VS, CLR_FS, &clr_vgxp, &fg, &cv, &clr_fid)) return -1; clr_fgxp = fg;
       int r = reg_of(clr_vgxp, "aPos"); SceGxmVertexAttribute at = {0, 0, SCE_GXM_ATTRIBUTE_FORMAT_F32, 2, (unsigned short)(r < 0 ? 0 : r)}; SceGxmVertexStream st = {8, SCE_GXM_INDEX_SOURCE_INDEX_16BIT};
