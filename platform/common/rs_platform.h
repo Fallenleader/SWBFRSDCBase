@@ -32,3 +32,23 @@ int     rs_fs_stat(const char *path, rs_fs_stat_t *st);         /* 0 = found */
 int     rs_fs_opendir(const char *path);                        /* >= 0 handle */
 int     rs_fs_readdir(int fd, char *name, size_t cap, rs_fs_stat_t *st);   /* 1 = an entry, 0 = end, < 0 error */
 int     rs_fs_mkdir(const char *path);
+
+/* ---- threads and synchronisation (native_thread.c) ----
+ * Waits release the guest lock while they block.  Ids are the game's kernel object ids. */
+enum { RS_EVF_AND = 0, RS_EVF_OR = 1, RS_EVF_CLEAR_ALL = 0x10, RS_EVF_CLEAR = 0x20 };
+int  rs_thread_id(void);
+void rs_delay_us(unsigned us);                                 /* < 500 us: a yield */
+int  rs_sema_create(const char *name, int init, int max);      /* >= 0 id */
+int  rs_sema_delete(int id);
+int  rs_sema_signal(int id, int n);                            /* 0 ok, < 0 no such semaphore */
+int  rs_sema_wait(int id, int n);
+int  rs_sema_poll(int id, int n);                              /* 0 taken, 1 not available */
+int  rs_evf_create(const char *name, uint32_t pattern);
+int  rs_evf_set(int id, uint32_t bits);
+int  rs_evf_clear(int id, uint32_t keep);                      /* pattern &= keep */
+int  rs_evf_wait(int id, uint32_t bits, int mode, uint32_t *pattern_out);
+int  rs_evf_poll(int id, uint32_t bits, int mode, uint32_t *pattern_out);   /* 0 matched, 1 not */
+
+/* ---- guest memory blocks (native_mem.c) ---- */
+uint32_t rs_mem_free_total(void);
+uint32_t rs_mem_free_max(void);

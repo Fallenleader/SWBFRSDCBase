@@ -35,61 +35,14 @@ static const char *envc(const char *k, const char **slot, int *done){ if (!*done
 #define ERR_SEMA_ZERO 0x800201ADu
 #define ERR_TIMEOUT 0x800201A8u
 
-static pthread_mutex_t big = PTHREAD_MUTEX_INITIALIZER;
-static volatile int big_waiting;                     /* threads blocked taking the big lock (yield_big hands it over only to them) */
-/* Condition variables for waits between threads (always used as "while (!condition) wait").
- * On the Vita they are built on a kernel semaphore instead of the pthread library's condition variables: a 3-core build froze with the
- * GE interrupt thread and the game's main thread both waiting on one pthread condition variable whose condition had become true
- * (hang.txt: a list-finish callback queued but never picked up).  Here a broadcast posts one token per waiting thread that has none
- * yet (tokens == the semaphore's count, kept under the mutex), so no wake-up is lost, and every wait also gives up after 50 ms and
- * re-checks its condition, so even a lost wake-up would cost 50 ms instead of a freeze. */
-#if defined(__vita__) || defined(RS_SEMCOND)
-#ifdef __vita__
-#include <psp2/kernel/threadmgr.h>
-typedef SceUID rs_sem_t;
-static void rs_sem_new(rs_sem_t *s){ *s = sceKernelCreateSema("rs_cond", 0, 0, 1 << 20, NULL); }
-static int rs_sem_wait(rs_sem_t *s, unsigned us){ SceUInt to = us; return sceKernelWaitSema(*s, 1, &to) >= 0; }
-static void rs_sem_post(rs_sem_t *s, int n){ sceKernelSignalSema(*s, n); }
-#else                                                                   /* RS_SEMCOND: the same on Linux (POSIX semaphores), for testing */
-#include <semaphore.h>
-typedef struct { sem_t s; } rs_sem_t;
-static void rs_sem_new(rs_sem_t *s){ sem_init(&s->s, 0, 0); }
-static int rs_sem_wait(rs_sem_t *s, unsigned us){ struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts); ts.tv_nsec += (long)us * 1000; ts.tv_sec += ts.tv_nsec / 1000000000L; ts.tv_nsec %= 1000000000L;
-    while (sem_timedwait(&s->s, &ts) != 0) if (errno != EINTR) return 0; return 1; }
-static void rs_sem_post(rs_sem_t *s, int n){ while (n-- > 0) sem_post(&s->s); }
-#endif
-typedef struct { rs_sem_t sem; int made, waiters, tokens; } rs_cond_t;
-#define RS_COND_INIT {0}
-static void rc_wait(rs_cond_t *cv, pthread_mutex_t *m){                  /* m held */
-    if (!cv->made) { rs_sem_new(&cv->sem); cv->made = 1; }
-    cv->waiters++; pthread_mutex_unlock(m);
-    int got = rs_sem_wait(&cv->sem, 50000);
-    if (m == &big) __sync_add_and_fetch(&big_waiting, 1);
-    pthread_mutex_lock(m); if (m == &big) __sync_sub_and_fetch(&big_waiting, 1);
-    cv->waiters--; if (got) cv->tokens--; }
-static void rc_broadcast(rs_cond_t *cv){                                 /* m held */
-    if (!cv->made) { rs_sem_new(&cv->sem); cv->made = 1; }
-    int n = cv->waiters - cv->tokens; if (n > 0) { cv->tokens += n; rs_sem_post(&cv->sem, n); } }
-#else
-typedef struct { pthread_cond_t c; } rs_cond_t;
-#define RS_COND_INIT {PTHREAD_COND_INITIALIZER}
-static void rc_wait(rs_cond_t *cv, pthread_mutex_t *m){ pthread_cond_wait(&cv->c, m); }
-static void rc_broadcast(rs_cond_t *cv){ pthread_cond_broadcast(&cv->c); }
-#endif
-static rs_cond_t gcv = RS_COND_INIT;
-/* Per-thread guest state (FPU control word, vector registers, $k0) with RS_TLS_STRUCT: guest code reaches it through the global
- * rs_tls_cur instead of thread-local storage (emulated on the Vita: a library call per access, ~5000 per frame in battles).  Only one
- * guest thread runs at a time - the one holding the big lock - so every acquisition of the big lock points rs_tls_cur at the
- * acquiring thread's own block. */
+#include "guest_sched.h"
+pthread_mutex_t big = PTHREAD_MUTEX_INITIALIZER;
+volatile int big_waiting;
+rs_cond_t gcv = RS_COND_INIT;
+volatile pthread_t big_owner;
 #ifdef RS_TLS_STRUCT
 rs_tls_t *rs_tls_cur;
-#define TLS_RESUME() (rs_tls_cur = rs_tls())
-#else
-#define TLS_RESUME() ((void)0)
 #endif
-static volatile pthread_t big_owner;                 /* last thread to take the big lock (hang reports) */
-static inline void big_lock(void){ __sync_add_and_fetch(&big_waiting, 1); pthread_mutex_lock(&big); __sync_sub_and_fetch(&big_waiting, 1); big_owner = pthread_self(); TLS_RESUME(); }
-static inline void big_wait(rs_cond_t *cv){ rc_wait(cv, &big); big_owner = pthread_self(); TLS_RESUME(); }
 static char g_root[1024] = ".";
 const char *rs_game_root(void){ return g_root; }                   /* the extracted game folder (game_ui.c) */
 u32 hle_heap_lo, hle_heap_hi;
@@ -127,13 +80,13 @@ static u64 guest_us(void){ static int vc = -1; static u64 reads; if (vc < 0) { c
 #include "gfx.h"
 void rs_guest_unlock(void){ pthread_mutex_unlock(&big); }
 void rs_guest_lock(void){ big_lock(); }
-static void unlocked_sleep(unsigned us){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); usleep(us); big_lock(); rs_perf.sleeps++; rs_perf.sleep_us += rs_perf_us() - t; }
+void unlocked_sleep(unsigned us){ u64 t = rs_perf_us(); pthread_mutex_unlock(&big); usleep(us); big_lock(); rs_perf.sleeps++; rs_perf.sleep_us += rs_perf_us() - t; }
 /* Let another guest thread run.  On the Vita sched_yield() is a 1 ms sleep (pthread-embedded: pte_osThreadSleep(1)), which cost the
  * game's main thread ~5 ms per frame (it yields when it reads the pad, when a frame is late and every 32 clock reads).  There the
  * big lock is handed over instead: nothing happens when no thread is waiting for it; otherwise the lock is released and this thread
  * waits (up to 0.3 ms, spinning - the waiter runs on another core) until a waiter has taken it, then queues for it again; if no
  * waiter took it by then (one on this same core cannot run while this thread spins), it sleeps 1 ms as before. */
-static void yield_big(void){ u64 t = rs_perf_us();
+void yield_big(void){ u64 t = rs_perf_us();
 #if defined(__vita__) || defined(RS_SEMCOND)                       /* RS_SEMCOND: the Vita behaviour on Linux, for testing */
     if (!big_waiting) { rs_perf.yields++; return; }
     pthread_t me = pthread_self(); pthread_mutex_unlock(&big);
@@ -180,151 +133,10 @@ static void perf_report(void){
     { extern void rs_perf_extra(char *, int); char e[512]; e[0] = 0; rs_perf_extra(e, sizeof e); if (e[0]) rs_perf_write(e); }
     perf_threads(fr, ms);
     { int o = snprintf(b, sizeof b, "[PERF]   waits:"); extern void perf_sema_report(char *, int, double); perf_sema_report(b + o, (int)(sizeof b - o - 2), fr); strcat(b, "\n"); rs_perf_write(b); } }
-static char *gstr(u32 a){ static char b[4][512]; static int k; char *p = b[k++ & 3]; int i = 0; while (i < 511) { char ch = (char)LB(a + i); p[i++] = ch; if (!ch) break; } p[i < 512 ? i : 511] = 0; return p; }
+#define gstr hle_gstr
+char *hle_gstr(u32 a){ static char b[4][512]; static int k; char *p = b[k++ & 3]; int i = 0; while (i < 511) { char ch = (char)LB(a + i); p[i++] = ch; if (!ch) break; } p[i < 512 ? i : 511] = 0; return p; }
 
-/* ---------------- guest heap (first fit, address ordered) ---------------- */
-typedef struct { u32 addr, size; int used, uid; } blk_t;
-static blk_t blks[8192]; static int nblk; static int next_uid = 0x1000;
-static void heap_init(void){ blks[0] = (blk_t){hle_heap_lo, hle_heap_hi - hle_heap_lo, 0, 0}; nblk = 1; }
-static void blk_insert(int i, blk_t b){ memmove(&blks[i + 1], &blks[i], (nblk - i) * sizeof(blk_t)); blks[i] = b; nblk++; }
-static int heap_alloc(u32 size, int top, u32 align){
-    size = (size + 63) & ~63u; if (align < 64) align = 64;
-    if (!top) {
-        for (int i = 0; i < nblk; i++) if (!blks[i].used) {
-            u32 a = (blks[i].addr + align - 1) & ~(align - 1), pad = a - blks[i].addr;
-            if (blks[i].size >= pad + size) {
-                if (pad) { blk_insert(i, (blk_t){blks[i].addr, pad, 0, 0}); i++; blks[i].addr += pad; blks[i].size -= pad; }
-                if (blks[i].size > size) blk_insert(i + 1, (blk_t){blks[i].addr + size, blks[i].size - size, 0, 0});
-                blks[i].size = size; blks[i].used = 1; blks[i].uid = next_uid++; return blks[i].uid; } }
-    } else {
-        for (int i = nblk - 1; i >= 0; i--) if (!blks[i].used && blks[i].size >= size) {
-            u32 end = blks[i].addr + blks[i].size, a = (end - size) & ~(align - 1);
-            if (a < blks[i].addr) continue;
-            if (a > blks[i].addr) { blks[i].size = a - blks[i].addr; blk_insert(i + 1, (blk_t){a, end - a, 1, next_uid++}); i++; }
-            else { blks[i].used = 1; blks[i].uid = next_uid++; }
-            if (blks[i].size > size) { blks[i].size = size; }
-            return blks[i].uid; }
-    }
-    return -1;
-}
-static blk_t *blk_find(int uid){ for (int i = 0; i < nblk; i++) if (blks[i].used && blks[i].uid == uid) return &blks[i]; return 0; }
-static void heap_free(int uid){
-    for (int i = 0; i < nblk; i++) if (blks[i].used && blks[i].uid == uid) {
-        blks[i].used = 0;
-        if (i + 1 < nblk && !blks[i + 1].used) { blks[i].size += blks[i + 1].size; memmove(&blks[i + 1], &blks[i + 2], (nblk - i - 2) * sizeof(blk_t)); nblk--; }
-        if (i > 0 && !blks[i - 1].used) { blks[i - 1].size += blks[i].size; memmove(&blks[i], &blks[i + 1], (nblk - i - 1) * sizeof(blk_t)); nblk--; }
-        return; } }
-static u32 heap_free_total(void){ u32 t = 0; for (int i = 0; i < nblk; i++) if (!blks[i].used) t += blks[i].size; return t; }
-static u32 heap_free_max(void){ u32 t = 0; for (int i = 0; i < nblk; i++) if (!blks[i].used && blks[i].size > t) t = blks[i].size; return t; }
-
-static void h_AllocPartitionMemory(sdkcall_t *c){ int t = A2; int uid = (t == 2) ? heap_alloc(A3, 0, 64) : heap_alloc(A3, t == 1, 64);
-    V0 = uid < 0 ? 0x80020190u : (u32)uid; }
-static void h_GetBlockHeadAddr(sdkcall_t *c){ blk_t *b = blk_find(A0); V0 = b ? b->addr : 0; }
-static void h_FreePartitionMemory(sdkcall_t *c){ heap_free(A0); V0 = 0; }
-static void h_MaxFreeMemSize(sdkcall_t *c){ V0 = heap_free_max(); }
-static void h_TotalFreeMemSize(sdkcall_t *c){ V0 = heap_free_total(); }
-
-/* ---------------- threads ---------------- */
-void rs_thread_stack_done(void);
-typedef struct kthread { int uid; u32 entry, stack, stacksize, prio; char name[32]; pthread_t th; sdkcall_t cpu; int started, exited, status, blk, last, prev; u64 *p_us, *p_n, p_hle, hold_us, holds; unsigned long ncalls_t; u32 last_ra, last_a0; u32 argc, argp; u8 argbuf[4096]; volatile int in; int deleted; } kthread_t;      /* in: 1 + index of the firmware call it is inside (0 = guest code) */
-static kthread_t *threads[256]; static int nthreads;
-static pthread_key_t k_cur, k_cpu; static pthread_once_t key_once = PTHREAD_ONCE_INIT;
-static void mk_keys(void){ pthread_key_create(&k_cur, 0); pthread_key_create(&k_cpu, 0); }
-#define cur_thread ((kthread_t *)pthread_getspecific(k_cur))
-static kthread_t *thr_find(int uid){ for (int i = 0; i < nthreads; i++) if (threads[i]->uid == uid) return threads[i]; return 0; }
-/* Finished threads give back what they hold: the PSP stack block at exit, the thread itself once deleted (sceKernelDeleteThread, or
- * sceKernelExitDeleteThread).  The game starts a new thread for every voice line (Atrac Playing[1]); before this they all stayed, until
- * the memory for a new thread ran out and the game hung waiting for one that never ran. */
-static void thr_release_stack(kthread_t *t){ if (t->blk > 0) { heap_free(t->blk); t->blk = 0; } }
-static void thr_reap(void){
-    int k = 0; kthread_t *self = cur_thread;
-    for (int i = 0; i < nthreads; i++) { kthread_t *t = threads[i];
-        if (t->exited && t->deleted && t != self) { thr_release_stack(t); free(t); continue; }
-        threads[k++] = t; }
-    nthreads = k; }
-static void h_CreateThread(sdkcall_t *c){
-    thr_reap(); if (nthreads >= 256) { fprintf(stderr, "[HLE] CreateThread '%s': too many threads\n", gstr(A0)); V0 = 0x80020064u; return; }
-    kthread_t *t = calloc(1, sizeof *t); t->uid = next_uid++; strncpy(t->name, gstr(A0), 31); t->entry = A1; t->prio = A2; t->stacksize = A3 ? A3 : 0x4000;
-    t->blk = heap_alloc(t->stacksize, 1, 256); blk_t *b = blk_find(t->blk); t->stack = b ? b->addr : 0; threads[nthreads++] = t; V0 = t->uid;
-    fprintf(stderr, "[HLE] CreateThread '%s' entry=%08x prio=%d stack=%x\n", t->name, t->entry, t->prio, t->stacksize); }
-/* CPU core placement of each thread (platform hook; the Vita build pins threads to its 3 application cores) */
-__attribute__((weak)) void rs_thread_cores(const char *name){ (void)name; }
-static void run_guest(kthread_t *t){
-    pthread_once(&key_once, mk_keys); pthread_setspecific(k_cur, t); big_lock(); sdkcall_t *c = &t->cpu; memset(c, 0, sizeof *c); c->thread = t; { static __thread int inited; extern void rs_thread_init(void);
-      if (!inited) { rs_thread_init(); inited = 1; }                    /* once per native thread (a kept thread runs several of the game's) */
-#ifdef RS_TLS_STRUCT
-      else { rs_tls_t *x = rs_tls(); u32 k0 = x->psp_k0; memset(x, 0, sizeof *x); x->psp_k0 = k0; }   /* a fresh processor state */
-#endif
-    }
-    rs_thread_cores(t->name);
-    u32 sp = t->stack + t->stacksize - 64; if (t->argc) { sp -= (t->argc + 15) & ~15u; memcpy(g_mem + GADDR(sp), t->argbuf, t->argc); c->r[5] = sp; }
-    fprintf(stderr, "[HLE] thread '%s' start: arglen=%u argp=%08x sp=%08x\n", t->name, t->argc, t->argp, sp);
-    c->r[4] = t->argc; c->r[29] = sp; c->r[28] = 0; c->r[31] = 0;
-    CALLDYN(c, t->entry);
-    t->status = c->r[2]; t->exited = 1; thr_release_stack(t); g_alive_threads--; fprintf(stderr, "[HLE] thread '%s' returned %d\n", t->name, t->status);
-    rc_broadcast(&gcv); pthread_mutex_unlock(&big);
-#ifndef RS_POOL_TEST
-    rs_thread_stack_done();
-#endif
-    }
-/* Native threads are kept and reused for the game's next threads (not on the desktop builds, whose threads switch to their own
- * stacks): the game starts a thread for every voice line, and creating one cost the PS Vita a visible hitch each time (the
- * profiling build's log: 150-330 ms frames at every line). */
-#if (!defined(RS_DESKTOP) && !defined(RS_GUEST64)) || defined(RS_POOL_TEST)    /* 32-bit consoles (the 64-bit builds' threads run on guest-window stacks given back at exit) */
-#define POOLED 1
-#include <setjmp.h>
-typedef struct worker { pthread_t th; kthread_t *next; rs_cond_t cv; struct worker *link; jmp_buf exit_jb; } worker_t;
-static worker_t *idle_workers; static pthread_key_t k_worker; static pthread_once_t kw_once = PTHREAD_ONCE_INIT;
-static void mk_kw(void){ pthread_key_create(&k_worker, 0); }
-static void *worker_main(void *p){
-    worker_t *w = p; pthread_once(&kw_once, mk_kw); pthread_setspecific(k_worker, w);
-    for (;;) {
-        kthread_t *t = w->next; w->next = 0;
-        if (!setjmp(w->exit_jb)) run_guest(t);                          /* sceKernelExitThread comes back here (h_ExitThread) */
-        big_lock(); w->link = idle_workers; idle_workers = w;           /* parked until the game starts another thread */
-        while (!w->next) big_wait(&w->cv);
-        pthread_mutex_unlock(&big); } }
-#endif
-static void *thread_main(void *p){ run_guest((kthread_t *)p); return 0; }
-static void h_StartThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t || t->started) { V0 = 0x800201A6u; return; }
-    fprintf(stderr, "[HLE] StartThread '%s' from ra=%08x fn=%08x arg=%08x\n", t->name, c->r[31], A2 ? LW(A2) : 0, A2 ? LW(A2 + 4) : 0); if (strstr(t->name, "Atrac")) { extern void rc_dump_stack(sdkcall_t *, const char *); rc_dump_stack(c, "atrac start"); }
-    t->started = 1; t->argc = A1 > sizeof t->argbuf ? (u32)sizeof t->argbuf : A1; t->argp = A2; if (t->argc) memcpy(t->argbuf, g_mem + GADDR(A2), t->argc); g_alive_threads++;
-    pthread_attr_t at; pthread_attr_init(&at); { extern void rs_thread_attr(pthread_attr_t *, u32 psp_stack); rs_thread_attr(&at, t->stacksize); }
-    pthread_attr_setdetachstate(&at, PTHREAD_CREATE_DETACHED);                       /* nobody joins game threads: their resources go at exit */
-#ifndef POOLED
-#ifdef RS_DESKTOP
-    extern int rs_thread_spawn(pthread_t *, pthread_attr_t *, void *(*)(void *), void *); int e = rs_thread_spawn(&t->th, &at, thread_main, t);   /* platform/desktop (Windows: stack switch) */
-#else
-    int e = pthread_create(&t->th, &at, thread_main, t);
-#endif
-#else
-    int e = 0;
-    if (idle_workers) { worker_t *w = idle_workers; idle_workers = w->link; t->th = w->th; w->next = t; rc_broadcast(&w->cv); }   /* a kept thread */
-    else { worker_t *w = calloc(1, sizeof *w); w->next = t; e = pthread_create(&w->th, &at, worker_main, w); if (!e) t->th = w->th; else free(w); }
-#endif
-    pthread_attr_destroy(&at);
-    if (e) { fprintf(stderr, "[HLE] StartThread '%s': the thread could not be created (%d)\n", t->name, e); t->started = 0; g_alive_threads--; V0 = 0x80020190u; return; }
-    V0 = 0; }
-/* a thread's end: the platform may leave its thread its own way (Windows: back to the stack switch, platform/desktop/main.c) */
-__attribute__((weak)) void rs_thread_exit(void){ pthread_exit(0); }
-__attribute__((weak)) void rs_thread_stack_done(void){}                    /* platform: the ending thread's guest stack can be reused */
-static void h_ExitThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) { t->status = A0; t->exited = 1; thr_release_stack(t); g_alive_threads--; rc_broadcast(&gcv); pthread_mutex_unlock(&big);
-#ifndef RS_POOL_TEST
-    rs_thread_stack_done();
-#endif
-#ifdef POOLED
-    { pthread_once(&kw_once, mk_kw); worker_t *w = pthread_getspecific(k_worker); if (w) longjmp(w->exit_jb, 1); }   /* back to the kept thread's loop */
-#endif
-    rs_thread_exit(); } }
-static void h_ExitDeleteThread(sdkcall_t *c){ kthread_t *t = cur_thread; if (t) t->deleted = 1; h_ExitThread(c); }
-static void h_DeleteThread(sdkcall_t *c){ kthread_t *t = thr_find(A0); if (!t) { V0 = 0x800201A5u; return; } if (!t->exited && t->started) { V0 = 0x800201ADu; return; } t->deleted = 1; if (!t->started) t->exited = 1; V0 = 0; }
-static void h_WaitThreadEnd(sdkcall_t *c){ int uid = (int)A0; kthread_t *t = thr_find(uid); if (!t) { V0 = 0x800201A5u; return; }
-    while ((t = thr_find(uid)) && !t->exited) big_wait(&gcv);                       /* looked up again: an ended, deleted thread can be reaped meanwhile */
-    V0 = t ? (u32)t->status : 0; }
-static void h_Delay(sdkcall_t *c){ unsigned us = A0; if (us == 1000000) fprintf(stderr, "[DBG] 1s poll: s0(r16)=%08x ra=%08x\n", c->r[16], c->r[31]); if (us < 500) { yield_big(); } else unlocked_sleep(us > 200000 ? 200000 : us); V0 = 0; }
-static void h_GetThreadId(sdkcall_t *c){ V0 = cur_thread ? cur_thread->uid : 0x1; }
-static void h_GetThreadPrio(sdkcall_t *c){ V0 = cur_thread ? cur_thread->prio : 32; }
-static void h_ChangePrio(sdkcall_t *c){ kthread_t *t = A0 ? thr_find(A0) : cur_thread; if (t) t->prio = A1; V0 = 0; }
+/* guest memory blocks: native_mem.c; threads, semaphores, event flags, pools, callbacks: native_thread.c */
 static int fl_tick2, fl_rtc; static u32 tl_ra[8]; static int tl_n[8];
 #ifdef __vita__
 #define CLOCK_YIELD 127              /* Vita: each hand-over costs the main thread a turn of whichever thread waits (7-19 ms a frame at 1 in 32) */
@@ -336,77 +148,12 @@ u64 rs_guest_clock_us(void){ return guest_us(); }
 u64 rs_real_clock_us(void){ return now_us(); }
 void rs_guest_yield(void){ yield_big(); }
 int rs_guest_clock_yield_every(void){ return CLOCK_YIELD; }
-static void h_SleepThread(sdkcall_t *c){ for (;;) unlocked_sleep(100000); }
-
-/* semaphores.  Each semaphore and event flag has its own wait queue: a signal wakes only the threads waiting on that object (one
- * shared queue woke every waiting thread of the game on every signal, each of them then queueing for the guest lock to re-check). */
-typedef struct { int uid; int count, max; u64 wait_us, waits; void *sig_th; int sig_prev; char name[24]; void *owner; u64 t_acq; rs_cond_t cv; } sema_t; static sema_t semas[256]; static int nsema;
-static sema_t *sema_find(int uid){ for (int i = 0; i < nsema; i++) if (semas[i].uid == uid) return &semas[i]; return 0; }
-static void h_CreateSema(sdkcall_t *c){ sema_t *s = &semas[nsema++]; s->uid = next_uid++; strncpy(s->name, gstr(A0), 23); s->count = A2; s->max = A3; V0 = s->uid; }
-static void h_DeleteSema(sdkcall_t *c){ V0 = 0; }
 static void perf_threads(double fr, double ms){
-    for (int i = 0; i < nthreads; i++) { kthread_t *t = threads[i]; if (!t || !t->p_us || t->exited) continue; char b[1024];
+    for (int i = 0; i < rs_nthreads; i++) { kthread_t *t = rs_threads[i]; if (!t || !t->p_us || t->exited) continue; char b[1024];
         int o = snprintf(b, sizeof b, "[PERF]   thread %-20s guest %.2f ms, firmware %.2f ms, holds mutexes x%.1f %.2f ms:", t->name, ms - t->p_hle / fr / 1000, t->p_hle / fr / 1000, t->holds / fr, t->hold_us / fr / 1000); t->holds = t->hold_us = 0;
         for (int k = 0; k < 5; k++) { int best = -1; for (int j = 0; j < RC_NSTUBS; j++) if (t->p_us[j] && (best < 0 || t->p_us[j] > t->p_us[best])) best = j; if (best < 0) break;
             o += snprintf(b + o, sizeof b - o, " %s x%.1f %.2f ms;", hname(best), t->p_n[best] / fr, t->p_us[best] / fr / 1000); t->p_us[best] = 0; }
         memset(t->p_us, 0, RC_NSTUBS * 8); memset(t->p_n, 0, RC_NSTUBS * 8); t->p_hle = 0; snprintf(b + o, sizeof b - o, "\n"); rs_perf_write(b); } }
-void perf_sema_report(char *b, int n, double fr){ int o = 0;
-    for (int k = 0; k < 3; k++) { int best = -1; for (int i = 0; i < nsema; i++) if (semas[i].wait_us > 1000 && (best < 0 || semas[i].wait_us > semas[best].wait_us)) best = i; if (best < 0) break; sema_t *s = &semas[best];
-        kthread_t *t = s->sig_th; o += snprintf(b + o, n - o, " | sema '%s' %x waits %.1f %.2f ms, signalled by '%s' after %s", s->name, s->uid, s->waits / fr, s->wait_us / fr / 1000, t ? t->name : "?", s->sig_prev > 0 ? hname(s->sig_prev - 1) : "-");
-        s->wait_us = 0; s->waits = 0; if (o > n - 120) break; }
-    for (int i = 0; i < nsema; i++) semas[i].wait_us = semas[i].waits = 0; }
-static void h_SignalSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } if (s->owner && s->max == 1) { kthread_t *o = s->owner; o->hold_us += rs_perf_us() - s->t_acq; o->holds++; s->owner = 0; } s->count += A1; s->sig_th = cur_thread; s->sig_prev = cur_thread ? cur_thread->prev : 0; rc_broadcast(&s->cv); V0 = 0; }
-static void h_WaitSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } u64 t = rs_perf_us(); while (s->count < (int)A1) big_wait(&s->cv); s->count -= A1; s->wait_us += rs_perf_us() - t; s->waits++; s->owner = cur_thread; s->t_acq = rs_perf_us(); V0 = 0; }
-static void h_PollSema(sdkcall_t *c){ sema_t *s = sema_find(A0); if (!s) { V0 = 0x80020199u; return; } if (s->count >= (int)A1) { s->count -= A1; s->owner = cur_thread; s->t_acq = rs_perf_us(); V0 = 0; } else V0 = ERR_SEMA_ZERO; yield_big(); }
-
-/* event flags */
-typedef struct { int uid; u32 pat; rs_cond_t cv; } evf_t; static evf_t evfs[256]; static int nevf;
-static evf_t *evf_find(int uid){ for (int i = 0; i < nevf; i++) if (evfs[i].uid == uid) return &evfs[i]; return 0; }
-static void h_CreateEvf(sdkcall_t *c){ evf_t *e = &evfs[nevf++]; e->uid = next_uid++; e->pat = A2; fprintf(stderr, "[EVF] CREATE '%s' uid=%x pat=%x by '%s' ra=%08x\n", gstr(A0), e->uid, e->pat, cur_thread ? cur_thread->name : "?", c->r[31]); V0 = e->uid; }
-static int evlog;
-static void h_SetEvf(sdkcall_t *c){ evf_t *e = evf_find(A0); if (evlog++ < 80) fprintf(stderr, "[EVF] SET   uid=%x bits=%x by '%s' ra=%08x\n", A0, A1, cur_thread ? cur_thread->name : "?", c->r[31]); if (!e) { V0 = 0x80020 | 0x80000000u; return; } e->pat |= A1; rc_broadcast(&e->cv); V0 = 0; }
-static void h_ClearEvf(sdkcall_t *c){ evf_t *e = evf_find(A0); if (e) e->pat &= A1; V0 = 0; }
-static void h_WaitEvf(sdkcall_t *c){ evf_t *e = evf_find(A0); u32 bits = A1, mode = A2;
-    if (!e) { V0 = 0x80020000u; return; }
-    if (evlog++ < 80) fprintf(stderr, "[EVF] WAIT  uid=%x bits=%x mode=%x pat=%x by '%s' ra=%08x\n", A0, bits, mode, e->pat, cur_thread ? cur_thread->name : "?", c->r[31]);
-    for (;;) { int ok = (mode & 1) ? ((e->pat & bits) != 0) : ((e->pat & bits) == bits);
-        if (ok) { if (A3) SW(A3, e->pat); if (mode & 0x10) e->pat = 0; if (mode & 0x20) e->pat &= ~bits; V0 = 0; return; }
-        big_wait(&e->cv); } }
-
-
-/* fixed-length pools (the game builds its main heap from one big FPL block) */
-typedef struct { int uid; u32 blocksize, nblocks, base; u32 used[64]; } fpl_t; static fpl_t fpls[32]; static int nfpl;
-static fpl_t *fpl_find(int uid){ for (int i = 0; i < nfpl; i++) if (fpls[i].uid == uid) return &fpls[i]; return 0; }
-static void h_CreateFpl(sdkcall_t *c){ fpl_t *f = &fpls[nfpl++]; f->uid = next_uid++; f->blocksize = A3; f->nblocks = T0 ? T0 : 1;
-    int b = heap_alloc(f->blocksize * f->nblocks, 0, 64); blk_t *bb = b < 0 ? 0 : blk_find(b);
-    if (!bb) { nfpl--; fprintf(stderr, "[HLE] CreateFpl: out of guest memory (%u x %u)\n", f->blocksize, f->nblocks); V0 = 0x80020190u; return; }
-    f->base = bb->addr; fprintf(stderr, "[HLE] CreateFpl '%s' block=%u x %u at %08x\n", gstr(A0), f->blocksize, f->nblocks, f->base); V0 = f->uid; }
-static void h_AllocateFpl(sdkcall_t *c){ fpl_t *f = fpl_find(A0); if (!f) { V0 = 0x80020199u; return; }
-    for (u32 i = 0; i < f->nblocks && i < 64 * 32; i++) if (!(f->used[i >> 5] & (1u << (i & 31)))) { f->used[i >> 5] |= 1u << (i & 31); SW(A1, f->base + i * f->blocksize); V0 = 0; return; }
-    V0 = 0x800201A9u; }
-static void h_FreeFpl(sdkcall_t *c){ fpl_t *f = fpl_find(A0); if (!f) { V0 = 0x80020199u; return; } u32 i = (A1 - f->base) / f->blocksize; if (i < f->nblocks) f->used[i >> 5] &= ~(1u << (i & 31)); V0 = 0; }
-
-
-/* ---------------- callbacks (delivered when the owning thread sleeps in a ...CB call) ---------------- */
-typedef struct { int uid; u32 func, arg, count; kthread_t *owner; u32 pend[8]; int npend; } cb_t; static cb_t cbs[64]; static int ncb;
-static void h_CreateCallback(sdkcall_t *c){ cb_t *b = &cbs[ncb++]; b->uid = next_uid++; b->func = A1; b->arg = A2; b->owner = cur_thread; V0 = b->uid;
-    fprintf(stderr, "[CB] create '%s' uid=%x func=%08x arg=%08x owner='%s'\n", gstr(A0), b->uid, b->func, b->arg, cur_thread ? cur_thread->name : "?"); }
-static void cb_notify(int uid, u32 arg){ for (int i = 0; i < ncb; i++) if (cbs[i].uid == uid && cbs[i].npend < 8) { cbs[i].pend[cbs[i].npend++] = arg; fprintf(stderr, "[CB] notify uid=%x arg=%x\n", uid, arg); } }
-static void run_callbacks(sdkcall_t *c){
-    for (int i = 0; i < ncb; i++) { cb_t *b = &cbs[i]; if (b->owner != cur_thread) continue;
-        while (b->npend) { u32 arg = b->pend[0]; memmove(b->pend, b->pend + 1, (--b->npend) * 4);
-            u32 save[32], hi = c->hi, lo = c->lo; memcpy(save, c->r, sizeof save);
-            fprintf(stderr, "[CB] run uid=%x func=%08x count=%u arg=%x on '%s'\n", b->uid, b->func, b->count + 1, arg, cur_thread ? cur_thread->name : "?");
-            c->r[4] = ++b->count; c->r[5] = arg; c->r[6] = b->arg; c->r[31] = 0; CALLDYN(c, b->func);
-            memcpy(c->r, save, sizeof save); c->hi = hi; c->lo = lo; } } }
-static void h_DelayCB(sdkcall_t *c){ run_callbacks(c); unsigned us = A0; if (us < 500) yield_big(); else unlocked_sleep(us > 200000 ? 200000 : us); run_callbacks(c); V0 = 0; }
-static void h_Devctl(sdkcall_t *c){
-    u32 cmd = A1; V0 = 0;
-    if (cmd == 0x02415821u) cb_notify(LW(A2), 1);               /* register MS insert/eject callback -> report "inserted" */
-    else if (cmd == 0x02425823u) { if (T0) SW(T0, 1); }          /* is memory stick inserted */
-    else if (cmd == 0x02425818u) { u32 p = LW(A2); SW(p, 0x40000); SW(p + 4, 0x30000); SW(p + 8, 0x800000); SW(p + 12, 512); SW(p + 16, 64); }
-}
-static void h_UmdRegCb(sdkcall_t *c){ cb_notify(A0, 0x32); V0 = 0; }
 
 
 /* ---------------- utility dialogs, modules, misc (NIDs identified by SHA-1 of the SDK function name) ---------------- */
@@ -578,7 +325,9 @@ static void h_WaitVblank(sdkcall_t *c){ spike_check(); static int fast = -1; if 
     V0 = 0; }
 void rs_display_set(u32, u32, u32); int rs_display_read(u32 *); int rs_ge_enqueue(u32, u32); void rs_ge_update_stall(int, u32); void rs_ge_reset(void);
 extern u32 rs_ge_cb_finish_func, rs_ge_cb_finish_arg;
-static sdkcall_t *tl_get(void){ pthread_once(&key_once, mk_keys); return (sdkcall_t *)pthread_getspecific(k_cpu); }
+static pthread_key_t k_cpu; static pthread_once_t cpu_once = PTHREAD_ONCE_INIT;
+static void mk_cpu_key(void){ pthread_key_create(&k_cpu, 0); }
+static sdkcall_t *tl_get(void){ pthread_once(&cpu_once, mk_cpu_key); return (sdkcall_t *)pthread_getspecific(k_cpu); }
 /* A new frame is shown when the game flips the display buffer, not at every vertical blank: presenting (and waiting for the target's
  * own display flip) once per vblank kept the renderer thread blocked while the game waited for it to run its GPU lists. */
 /* vblanks so far, from the clock (60 Hz): the movie player paces itself by it (a picture every 2 vblanks).  Counting the game's
@@ -594,7 +343,7 @@ static pthread_mutex_t gi_m = PTHREAD_MUTEX_INITIALIZER; static rs_cond_t gi_wor
 static int gi_q[256]; static unsigned gi_h, gi_t, gi_running; static pthread_t gi_th; static int gi_th_ok;
 void rs_ge_signal_finish(int id){ pthread_mutex_lock(&gi_m); if (gi_h - gi_t < 256) gi_q[gi_h++ % 256] = id; rc_broadcast(&gi_work); pthread_mutex_unlock(&gi_m); }
 static void *ge_intr_thread(void *u){ (void)u; gi_th = pthread_self(); gi_th_ok = 1;
-    pthread_once(&key_once, mk_keys); static sdkcall_t ctx; pthread_setspecific(k_cpu, &ctx); { extern void rs_thread_init(void); rs_thread_init(); } rs_thread_cores("GE interrupt");
+    pthread_once(&cpu_once, mk_cpu_key); static sdkcall_t ctx; pthread_setspecific(k_cpu, &ctx); { extern void rs_thread_init(void); rs_thread_init(); } { extern void rs_thread_cores(const char *); rs_thread_cores("GE interrupt"); }
     for (;;) { pthread_mutex_lock(&gi_m); while (gi_h == gi_t) rc_wait(&gi_work, &gi_m); int id = gi_q[gi_t % 256]; gi_running = 1; pthread_mutex_unlock(&gi_m);
         big_lock(); rs_ge_finish_hook(id); rc_broadcast(&gcv); pthread_mutex_unlock(&big);
         pthread_mutex_lock(&gi_m); gi_t++; gi_running = 0; rc_broadcast(&gi_done); pthread_mutex_unlock(&gi_m); } return 0; }
@@ -623,7 +372,6 @@ static void h_GeUpdateStall(sdkcall_t *c){ rs_ge_update_stall(A0 - 0x100, A1); V
 static void h_GeEnqueue(sdkcall_t *c){ g_ge_lists++; V0 = 0x100 + rs_ge_enqueue(A0, A1); }
 static void h_GeEdramAddr(sdkcall_t *c){ V0 = rs_vram_base; }
 static void h_Zero(sdkcall_t *c){ V0 = 0; }
-static void h_RotateQueue(sdkcall_t *c){ unlocked_sleep(200); V0 = 0; }
 static void h_One(sdkcall_t *c){ V0 = 1; }
 static void h_ExitGame(sdkcall_t *c){ fprintf(stderr, "[HLE] sceKernelExitGame called\n"); fflush(stderr); _exit(0); }
 /* ---------------- savedata (sceUtilitySavedata*): the game's profile.  The PSP's save dialog is not shown: the operation runs at once
@@ -671,32 +419,15 @@ static void h_Printf(sdkcall_t *c){ fprintf(stderr, "[GAME] %s\n", gstr(A0)); V0
 void hm_MpegInit(sdkcall_t *); void hm_MpegFinish(sdkcall_t *); void hm_MpegQueryMemSize(sdkcall_t *); void hm_MpegRingbufferQueryMemSize(sdkcall_t *); void hm_MpegRingbufferConstruct(sdkcall_t *); void hm_MpegRingbufferDestruct(sdkcall_t *); void hm_MpegCreate(sdkcall_t *); void hm_MpegDelete(sdkcall_t *); void hm_MpegQueryStreamOffset(sdkcall_t *); void hm_MpegQueryStreamSize(sdkcall_t *); void hm_MpegRegistStream(sdkcall_t *); void hm_MpegUnRegistStream(sdkcall_t *); void hm_MpegMallocAvcEsBuf(sdkcall_t *); void hm_MpegFreeAvcEsBuf(sdkcall_t *); void hm_MpegInitAu(sdkcall_t *); void hm_MpegQueryAtracEsSize(sdkcall_t *); void hm_MpegRingbufferPut(sdkcall_t *); void hm_MpegRingbufferAvailableSize(sdkcall_t *); void hm_MpegGetAvcAu(sdkcall_t *); void hm_MpegAvcDecode(sdkcall_t *); void hm_MpegAvcDecodeStop(sdkcall_t *); void hm_MpegGetAtracAu(sdkcall_t *); void hm_MpegAtracDecode(sdkcall_t *); void hm_PsmfSetPsmf(sdkcall_t *); void hm_PsmfGetNumberOfSpecificStreams(sdkcall_t *);
 typedef struct { u32 nid; const char *name; void (*fn)(sdkcall_t *); } hle_t;
 static const hle_t tbl[] = {
- {0x237DBD4F,"sceKernelAllocPartitionMemory",h_AllocPartitionMemory},{0x9D9A5BA1,"sceKernelGetBlockHeadAddr",h_GetBlockHeadAddr},
- {0xB6D61D02,"sceKernelFreePartitionMemory",h_FreePartitionMemory},{0xA291F107,"sceKernelMaxFreeMemSize",h_MaxFreeMemSize},
- {0xF919F628,"sceKernelTotalFreeMemSize",h_TotalFreeMemSize},
- {0x446D8DE6,"sceKernelCreateThread",h_CreateThread},{0xF475845D,"sceKernelStartThread",h_StartThread},{0xAA73C935,"sceKernelExitThread",h_ExitThread},
- {0x809CE29B,"sceKernelExitDeleteThread",h_ExitDeleteThread},{0x9FA03CD3,"sceKernelDeleteThread",h_DeleteThread},{0x278C0DF5,"sceKernelWaitThreadEnd",h_WaitThreadEnd},{0x840E8133,"sceKernelWaitThreadEndCB",h_WaitThreadEnd},
- {0xCEADEB47,"sceKernelDelayThread",h_Delay},{0x293B45B8,"sceKernelGetThreadId",h_GetThreadId},{0x94AA61EE,"sceKernelGetThreadCurrentPriority",h_GetThreadPrio},
- {0x71BC9871,"sceKernelChangeThreadPriority",h_ChangePrio},
- {0xD6DA4BA1,"sceKernelCreateSema",h_CreateSema},{0x28B6489C,"sceKernelDeleteSema",h_DeleteSema},{0x3F53E640,"sceKernelSignalSema",h_SignalSema},
- {0x4E3A1105,"sceKernelWaitSema",h_WaitSema},{0x58B1F937,"sceKernelPollSema",h_PollSema},
- {0x55C20A00,"sceKernelCreateEventFlag",h_CreateEvf},{0x1FB15A32,"sceKernelSetEventFlag",h_SetEvf},{0x812346E4,"sceKernelClearEventFlag",h_ClearEvf},{0x402FCF22,"sceKernelWaitEventFlag",h_WaitEvf},
- 
- 
  {0x1F803938,"sceCtrlReadBufferPositive",h_CtrlRead},
  {0x984C27E7,"sceDisplayWaitVblankStart",h_WaitVblank},{0x46F186C3,"sceDisplayWaitVblankStartCB",h_WaitVblank},{0x289D82FE,"sceDisplaySetFrameBuf",h_SetFrameBuf},
  {0xAB49E76A,"sceGeListEnQueue",h_GeEnqueue},{0x1C0D95A6,"sceGeListEnQueueHead",h_GeEnqueue},{0xE47E40E4,"sceGeEdramGetAddr",h_GeEdramAddr},
  {0x03444EB4,"sceGeListSync",h_GeListSync},{0xB287BD61,"sceGeDrawSync",h_GeDrawSync},{0xE0D68148,"sceGeListUpdateStallAddr",h_GeUpdateStall},{0xA4FC06A4,"sceGeSetCallback",h_GeSetCallback},
- 
  {0x05572A5F,"sceKernelExitGame",h_ExitGame},{0xA5DA2406,"sceUtilityGetSystemParamInt",h_UtilParam},{0x50C4CD57,"sceUtilitySavedataInitStart",h_SaveInit},{0x8874DBE0,"sceUtilitySavedataGetStatus",h_SaveStatus},{0x9790B33C,"sceUtilitySavedataShutdownStart",h_SaveShutdown},
- 
- {0x912354A7,"sceKernelRotateThreadReadyQueue",h_RotateQueue},
  {0xF6269B82,"sceUtilityOskInitStart",h_OskInit},{0xF3F76017,"sceUtilityOskGetStatus",h_OskStatus},{0x4B85C861,"sceUtilityOskUpdate",h_OskUpdate},{0x3DFAEBA9,"sceUtilityOskShutdownStart",h_OskShutdown},
  {0x34B78343,"sceUtilityGetSystemParamString",h_SysParamString},
  {0x977DE386,"sceKernelLoadModule",h_LoadModule},{0x50F0C1EC,"sceKernelStartModule",h_StartModule},{0xD8B73127,"sceKernelGetModuleIdByAddress",h_ModuleIdByAddr},
  {0x3E0271D3,"sceKernelVolatileMemLock",h_VolLock},{0xA569E425,"sceKernelVolatileMemUnlock",h_Zero},
- 
- 
  {0x01562BA3,"sceAudioOutput2Reserve",h_Au2Reserve},{0x43196845,"sceAudioOutput2Release",h_Au2Release},{0x2D53F36E,"sceAudioOutput2OutputBlocking",h_Au2Output},
  {0x5EC81C55,"sceAudioChReserve",h_AuChReserve},{0x6FC46853,"sceAudioChRelease",h_Zero},{0x136CAF51,"sceAudioOutputBlocking",h_AuOutBlocking},{0x13F592BC,"sceAudioOutputPannedBlocking",h_AuOutBlocking},
  {0x42778A9F,"__sceSasInit",w_hs_SasInit},{0xA3589D81,"__sceSasCore",w_hs_SasCore},{0x50A14DFC,"__sceSasCoreWithMix",w_hs_SasCoreWithMix},{0x68A46B95,"__sceSasGetEndFlag",w_hs_SasGetEndFlag},
@@ -710,15 +441,12 @@ static const hle_t tbl[] = {
  {0x5D268707,"sceAtracGetStreamDataInfo",w_ha_GetStreamDataInfo},{0x7DB31251,"sceAtracAddStreamData",w_ha_AddStreamData},{0x61EB33F5,"sceAtracReleaseAtracID",w_ha_Release},
 
  {0x682A619B,"sceMpegInit",hm_MpegInit},{0x874624D6,"sceMpegFinish",hm_MpegFinish},{0xC132E22F,"sceMpegQueryMemSize",hm_MpegQueryMemSize},{0xD7A29F46,"sceMpegRingbufferQueryMemSize",hm_MpegRingbufferQueryMemSize},{0x37295ED8,"sceMpegRingbufferConstruct",hm_MpegRingbufferConstruct},{0x13407F13,"sceMpegRingbufferDestruct",hm_MpegRingbufferDestruct},{0xD8C5F121,"sceMpegCreate",hm_MpegCreate},{0x606A4649,"sceMpegDelete",hm_MpegDelete},{0x21FF80E4,"sceMpegQueryStreamOffset",hm_MpegQueryStreamOffset},{0x611E9E11,"sceMpegQueryStreamSize",hm_MpegQueryStreamSize},{0x42560F23,"sceMpegRegistStream",hm_MpegRegistStream},{0x591A4AA2,"sceMpegUnRegistStream",hm_MpegUnRegistStream},{0xA780CF7E,"sceMpegMallocAvcEsBuf",hm_MpegMallocAvcEsBuf},{0xCEB870B1,"sceMpegFreeAvcEsBuf",hm_MpegFreeAvcEsBuf},{0x167AFD9E,"sceMpegInitAu",hm_MpegInitAu},{0xF8DCB679,"sceMpegQueryAtracEsSize",hm_MpegQueryAtracEsSize},{0xB240A59E,"sceMpegRingbufferPut",hm_MpegRingbufferPut},{0xB5F6DC87,"sceMpegRingbufferAvailableSize",hm_MpegRingbufferAvailableSize},{0xFE246728,"sceMpegGetAvcAu",hm_MpegGetAvcAu},{0x0E3C2E9D,"sceMpegAvcDecode",hm_MpegAvcDecode},{0x740FCCD1,"sceMpegAvcDecodeStop",hm_MpegAvcDecodeStop},{0xE1CE83A7,"sceMpegGetAtracAu",hm_MpegGetAtracAu},{0x800C44DF,"sceMpegAtracDecode",hm_MpegAtracDecode},{0xC22C8327,"scePsmfSetPsmf",hm_PsmfSetPsmf},{0x68D42328,"scePsmfGetNumberOfSpecificStreams",hm_PsmfGetNumberOfSpecificStreams},
- {0xC07BB470,"sceKernelCreateFpl",h_CreateFpl},{0x623AE665,"sceKernelAllocateFpl",h_AllocateFpl},{0xF6414A71,"sceKernelFreeFpl",h_FreeFpl},
- {0x68DA9E36,"sceKernelDelayThreadCB",h_DelayCB},{0xE81CAF8F,"sceKernelCreateCallback",h_CreateCallback},{0x54F5FB11,"sceIoDevctl",h_Devctl},{0xAEE7404D,"sceUmdRegisterUMDCallBack",h_UmdRegCb},
- 
 };
 #define NTBL (int)(sizeof tbl / sizeof tbl[0])
 static const hle_t *handlers[512]; static unsigned char seen[512]; static unsigned long ncalls[512];
 static const char *hname(int i){ return handlers[i] ? handlers[i]->name : "?"; }
 void hle_init(const char *root, u32 heap_lo, u32 heap_hi){
-    if (root) strncpy(g_root, root, sizeof g_root - 1); { rs_region_add(rs_scratchpad_addr(), 0x4000); } vol_base = heap_hi - 0x400000u; hle_heap_lo = heap_lo; hle_heap_hi = vol_base; heap_init(); rs_ge_reset(); ge_intr_start(); trace_all = getenv("RS_TRACE") != 0;
+    if (root) strncpy(g_root, root, sizeof g_root - 1); { rs_region_add(rs_scratchpad_addr(), 0x4000); } vol_base = heap_hi - 0x400000u; hle_heap_lo = heap_lo; hle_heap_hi = vol_base; rs_mem_init(hle_heap_lo, hle_heap_hi); rs_ge_reset(); ge_intr_start(); trace_all = getenv("RS_TRACE") != 0;
     for (int i = 0; i < RC_NSTUBS; i++) for (int k = 0; k < NTBL; k++) if (tbl[k].nid == rc_stubs[i].nid) handlers[i] = &tbl[k];
     { extern const hle_t rs_net_tbl[]; extern const int rs_net_ntbl;                    /* networking: net.c */
       for (int i = 0; i < RC_NSTUBS; i++) for (int k = 0; k < rs_net_ntbl; k++) if (rs_net_tbl[k].nid == rc_stubs[i].nid) handlers[i] = &rs_net_tbl[k]; }
@@ -732,7 +460,7 @@ void hle_report(void){ rs_ge_summary();
         fprintf(stderr, "[DUMP] %08x:", a); for (unsigned i = 0; i < n; i += 4) fprintf(stderr, "%s%08x", (i & 31) ? " " : "\n  ", LW(a + i)); fprintf(stderr, "\n");
         d = strchr(d, ','); if (d) d++; } }
     { extern void rs_audio_summary(void); rs_audio_summary(); } fprintf(stderr, "\n==== RUN SUMMARY ====\nframes(vblank waits)=%d  GE lists queued=%d  live threads=%d\n", g_frames, g_ge_lists, g_alive_threads);
-    for (int i = 0; i < nthreads; i++) { kthread_t *t = threads[i]; int l = t->last - 1;
+    for (int i = 0; i < rs_nthreads; i++) { kthread_t *t = rs_threads[i]; int l = t->last - 1;
         fprintf(stderr, "  thread %-22s %s last call: %s\n", t->name, t->exited ? "EXITED" : "alive ", l < 0 ? "-" : (handlers[l] ? handlers[l]->name : "<unimplemented>")); fprintf(stderr, "      ra=%08x a0=%x  total HLE calls=%lu\n", t->last_ra, t->last_a0, t->ncalls_t); 
         if (l >= 0 && !handlers[l]) fprintf(stderr, "      (%s %08X)\n", rc_stubs[l].lib, rc_stubs[l].nid); }
     int un = 0; for (int i = 0; i < RC_NSTUBS; i++) if (!handlers[i] && ncalls[i]) { if (!un++) fprintf(stderr, "Unimplemented firmware calls that were hit (lib NID count):\n"); fprintf(stderr, "  %-18s %08X  x%lu\n", rc_stubs[i].lib, rc_stubs[i].nid, ncalls[i]); }
@@ -740,11 +468,11 @@ void hle_report(void){ rs_ge_summary();
 }
 void hle_call(sdkcall_t *c, int idx){
     if (idx < 0) { fprintf(stderr, "[HLE] bad stub\n"); exit(5); }
-    pthread_once(&key_once, mk_keys); pthread_setspecific(k_cpu, c); ncalls[idx]++; if (cur_thread) { cur_thread->ncalls_t++; cur_thread->prev = cur_thread->last; cur_thread->last = idx + 1; cur_thread->last_ra = c->r[31]; cur_thread->last_a0 = c->r[4]; }
+    pthread_once(&cpu_once, mk_cpu_key); pthread_setspecific(k_cpu, c); ncalls[idx]++; kthread_t *me = rs_kthread_cur(); if (me) { me->ncalls_t++; me->prev = me->last; me->last = idx + 1; me->last_ra = c->r[31]; me->last_a0 = c->r[4]; }
     const hle_t *h = handlers[idx];
     if (!seen[idx]) { seen[idx] = 1; fprintf(stderr, "[HLE] first call: %s %s (%08X) a0=%x a1=%x a2=%x a3=%x\n", rc_stubs[idx].lib, h ? h->name : "<UNIMPLEMENTED>", rc_stubs[idx].nid, A0, A1, A2, A3); }
     else if (trace_all) fprintf(stderr, "[HLE] %s %08X\n", rc_stubs[idx].lib, rc_stubs[idx].nid);
-    if (h) { kthread_t *me = cur_thread; if (me) me->in = idx + 1;
+    if (h) { if (me) me->in = idx + 1;
         if (perf_on && me) { if (!me->p_us) { me->p_us = calloc(RC_NSTUBS, 8); me->p_n = calloc(RC_NSTUBS, 8); }
             u64 t = rs_perf_us(); h->fn(c); t = rs_perf_us() - t; me->p_us[idx] += t; me->p_n[idx]++; me->p_hle += t; } else h->fn(c);
         if (me) me->in = 0; return; }
@@ -760,11 +488,11 @@ int rs_hang_report(char *b, int n){
 #define HP(...) do { if (o < n) o += snprintf(b + o, (size_t)(n - o), __VA_ARGS__); } while (0)
     int held = pthread_mutex_trylock(&big) != 0; if (!held) pthread_mutex_unlock(&big);
     pthread_t ow = big_owner; const char *own = "a host thread (frontend / game start-up / audio)";
-    for (int i = 0; i < nthreads; i++) if (threads[i] && pthread_equal(threads[i]->th, ow)) own = threads[i]->name;
+    for (int i = 0; i < rs_nthreads; i++) if (rs_threads[i] && pthread_equal(rs_threads[i]->th, ow)) own = rs_threads[i]->name;
     if (gi_th_ok && pthread_equal(gi_th, ow)) own = "GE interrupt";
     HP("vblanks %d | big lock %s, last taken by '%s'\n", g_frames, held ? "HELD" : "free", own);
     HP("GE: lists posted %u, finish callbacks queued %u delivered %u (running %u)\n", rs_ge_posted(), gi_h, gi_t, gi_running);
-    for (int i = 0; i < nthreads; i++) { kthread_t *t = threads[i]; if (!t) continue; int in = t->in, l = t->last - 1;
+    for (int i = 0; i < rs_nthreads; i++) { kthread_t *t = rs_threads[i]; if (!t) continue; int in = t->in, l = t->last - 1;
         HP("  %-24s %s  %s%s  last call %s  ra=%08x a0=%x calls=%lu\n", t->name, t->exited ? "exited" : (t->started ? "alive " : "new   "),
            in ? "INSIDE " : "guest code", in ? hname(in - 1) : "", l < 0 ? "-" : hname(l), t->last_ra, t->last_a0, t->ncalls_t); }
 #undef HP

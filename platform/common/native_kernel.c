@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "psp_impl.h"
+#include <time.h>
 
 u64 rs_guest_clock_us(void); u64 rs_real_clock_us(void); void rs_guest_yield(void); int rs_guest_clock_yield_every(void);
 extern volatile int g_frames;
@@ -47,3 +48,10 @@ NOARGS(sceRtcGetCurrentTick)
     u64 us = rs_guest_clock_us() + 62135596800000000ull; u32 lo = (u32)us, hi = (u32)(us >> 32); u8 *p = g_mem + GADDR(a0); memcpy(p, &lo, 4); memcpy(p + 4, &hi, 4); return 0; }
 NOARGS(sceDisplayGetVcount)
     static u64 base; u64 t = rs_real_clock_us(); if (!base) base = t - (u64)g_frames * 16667u; return (u32)((t - base) * 60u / 1000000u); }
+
+/* time of day (seconds since 1970) */
+NOARGS(sceKernelLibcTime)
+    u32 t = (u32)time(0); if (a0) memcpy(g_mem + GADDR(a0), &t, 4); return t; }
+/* the game's own module: one id; stopping / unloading itself at exit does nothing */
+NOARGS(sceKernelGetModuleId) return 0x1F00; }
+NOARGS(ModuleMgrForUser_8F2DF740) return 0; }

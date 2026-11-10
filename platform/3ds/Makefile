@@ -25,7 +25,7 @@ OUT := $(B)/SWBFRS
 GAME_SRC := $(wildcard src/game/game_*.c)
 C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c \
          $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/blueprints.c \
-         $(C)/custom_maps.c $(C)/tex_mips.c $(C)/gu_native.c $(C)/native_io.c $(C)/native_kernel.c $(C)/lift.c $(C)/guest64.c $(C)/renderer_option.c $(C)/gfx_menu.c $(C)/dedicated_host.c
+         $(C)/custom_maps.c $(C)/tex_mips.c $(C)/gu_native.c $(C)/native_io.c $(C)/native_kernel.c $(C)/native_thread.c $(C)/native_mem.c $(C)/lift.c $(C)/guest64.c $(C)/renderer_option.c $(C)/gfx_menu.c $(C)/dedicated_host.c
 P_SRC := $(P)/main.c $(P)/gfx_c3d.c $(P)/no_movies.c
 SHADERS := $(P)/psp.v.pica
 
