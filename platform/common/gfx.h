@@ -43,7 +43,7 @@ void gfx_draw_hw(const gfx_state_t *st, const gfx_hw_t *hw, const gfx_hvtx_t *tr
 /* Native draw (Vita GXM): the PSP vertex buffer as the game wrote it (GE vertex type vt, vsz bytes per vertex) and its index buffer
  * (idxf: 0 none, 1 u8, 2 u16, 3 u32) go to the GPU as they are; the back end reads the PSP vertex formats as GPU vertex attributes and
  * draws the PSP primitive (3 triangles, 4 strip, 5 fan).  Returns 0 if the back end does not take this draw (ge.c then decodes it). */
-typedef struct { u32 vt; int vsz, count, ptype, idxf; const u8 *vdata, *idata; float defc[4]; int off[5]; } gfx_native_t;   /* off: weights, uv, colour, normal, position (-1 = absent) */
+typedef struct { u32 vt; int vsz, count, ptype, idxf; const u8 *vdata, *idata; float defc[4]; int off[5]; int nvert; } gfx_native_t;   /* off: weights, uv, colour, normal, position (-1 = absent); nvert > 0: idata is u16 already rebased to vertex 0, nvert vertices */
 int  gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *hw, const gfx_native_t *nv);
 void ge_clut_palette(u32 *pal, int n);                                /* current CLUT as n RGBA8 entries (index i -> colour), for paletted textures */int  gfx_hw_ok(void);                                                                                   /* HW T&L programs available + enabled */
 void gfx_clear(const gfx_state_t *st, int x0, int y0, int x1, int y1, const float rgba[4], float depth, int clr_c, int clr_a, int clr_z);

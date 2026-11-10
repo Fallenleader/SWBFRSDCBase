@@ -583,7 +583,9 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
     u64 t_s = rs_perf_us();
     /* vertices: the copy the native GU made of the game's bytes, into GPU-visible frame memory */
     u32 lo = 0, hi = (u32)n - 1; const u16 *ix = lin_idx;
-    if (nv->idxf) {                                                /* the vertices the indices use; indices rebased to them (16-bit) */
+    if (nv->idxf == 2 && nv->nvert > 0) {                          /* already rebased (native GU): the indices as they are */
+        u16 *d = gxm_frame_alloc((size_t)n * 2, 16); if (!d) return 1; memcpy(d, nv->idata, (size_t)n * 2); hi = (u32)nv->nvert - 1; ix = d; }
+    else if (nv->idxf) {                                           /* the vertices the indices use; indices rebased to them (16-bit) */
         u16 *d = gxm_frame_alloc((size_t)n * 2, 16); if (!d) return 1;
         const u8 *ip = nv->idata; lo = 0xFFFFFFFFu; hi = 0;
         for (int i = 0; i < n; i++) { u32 x = nv->idxf == 1 ? ip[i] : (nv->idxf == 2 ? ((u32)ip[i * 2] | (u32)ip[i * 2 + 1] << 8) : ((u32)ip[i * 4] | (u32)ip[i * 4 + 1] << 8 | (u32)ip[i * 4 + 2] << 16 | (u32)ip[i * 4 + 3] << 24));

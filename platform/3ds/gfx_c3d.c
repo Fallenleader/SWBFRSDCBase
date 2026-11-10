@@ -284,7 +284,8 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
     int lit = !thr && h->lit && nf, skin = !thr && h->skin && wf;
     /* the vertices the draw uses (indices rebased to them) */
     u32 lo = 0, hi = (u32)n - 1; u16 *ix = NULL;
-    if (nv->idxf) {
+    if (nv->idxf == 2 && nv->nvert > 0) { ix = ring_alloc((u32)n * 2); if (!ix) goto full; memcpy(ix, nv->idata, (size_t)n * 2); hi = (u32)nv->nvert - 1; }   /* already rebased (native GU) */
+    else if (nv->idxf) {
         ix = ring_alloc((u32)n * 2); if (!ix) goto full;
         const u8 *ip = nv->idata; lo = 0xFFFFFFFFu; hi = 0;
         for (int i = 0; i < n; i++) { u32 x = nv->idxf == 1 ? ip[i] : (nv->idxf == 2 ? ((u32)ip[i * 2] | (u32)ip[i * 2 + 1] << 8) : ((u32)ip[i * 4] | (u32)ip[i * 4 + 1] << 8 | (u32)ip[i * 4 + 2] << 16 | (u32)ip[i * 4 + 3] << 24));

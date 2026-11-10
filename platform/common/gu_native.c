@@ -512,9 +512,8 @@ static void exec_draw(const u32 *payload){
         if (tex_skip) return;
         if (!through) build_hw(&h, vt, off);
         else { memset(&h, 0, sizeof h); h.uvt[0] = st.tex ? 1.0f / (float)(1 << X.lv[0].lw) : 1.0f; h.uvt[1] = st.tex ? 1.0f / (float)(1 << X.lv[0].lh) : 1.0f; }
-        static u8 *idx8; static int icap; const u8 *ip = NULL; int idxf = 0;
-        if (ix) { if (icap < count * 2) { icap = count * 2 + 1024; idx8 = realloc(idx8, (size_t)icap); } memcpy(idx8, ix, (size_t)count * 2); ip = idx8; idxf = 2; }
-        gfx_native_t nv = {vt & ~(3u << 11), (int)d->vsz, count, ptype, idxf, vb, ip, {defc[0] / 255.0f, defc[1] / 255.0f, defc[2] / 255.0f, defc[3] / 255.0f}, {off[0], off[1], off[2], off[3], off[4]}};
+        const u8 *ip = ix ? (const u8 *)ix : NULL; int idxf = ix ? 2 : 0;           /* (recorded rebased to the copied vertices: record_draw) */
+        gfx_native_t nv = {vt & ~(3u << 11), (int)d->vsz, count, ptype, idxf, vb, ip, {defc[0] / 255.0f, defc[1] / 255.0f, defc[2] / 255.0f, defc[3] / 255.0f}, {off[0], off[1], off[2], off[3], off[4]}, ix ? (int)d->nvert : 0};
         if (idxf) nv.vt = (vt & ~(3u << 11)) | (2u << 11);
         if (gfx_draw_native(&st, &h, &nv)) { st_draws++; return; } }
     /* sprites (2D rectangles) and the rest: corners on the CPU */
