@@ -42,7 +42,7 @@ static void wait_done(void){ done_waiting++; pthread_cond_wait(&jc_done, &jm); d
 
 void gfx_thread_register(void){ pthread_mutex_lock(&jm); gl_th = pthread_self(); gl_ready = 1; pthread_cond_broadcast(&jc_done); pthread_mutex_unlock(&jm); }
 static int on_gl(void){ return gl_ready && pthread_equal(pthread_self(), gl_th); }
-static void run_queue_here(void);
+static void run_queue_here(void); static void run_queue_until_frame(int stop);
 /* enqueue (jm held); returns the job's sequence number */
 static unsigned long push(void (*fn)(void *), const void *arg, size_t n, void *ptr, int sync){
     while (!gl_ready || q_head - q_tail >= QN) wait_done();
@@ -69,12 +69,18 @@ int gfx_jobs_report(char *b, int n){                            /* unlocked snap
                            (void *)f, (double)(now - since) / 1e6, q_head, q_tail, done_seq, frame_seq, presented_seq);
     return snprintf(b, (size_t)n, "renderer: idle; jobs queued %u, started %u, done %lu; guest frames %u, presented %u\n", q_head, q_tail, done_seq, frame_seq, presented_seq); }
 /* renderer thread: run every queued job */
-static void run_queue_here(void){
+/* stop = 1 (the renderer's own loop): stop after the job that completes a game frame, so the loop presents every frame.  Draining the
+ * whole queue ran two of the game's frames (it prepares the next one while this one is drawn) before one present: the PS Vita drew
+ * every frame and showed every second one (the HUD's FPS was half its VBLANK count). */
+static void run_queue_until_frame(int stop){
+    unsigned fs = frame_seq;
     pthread_mutex_lock(&jm);
     while (q_tail != q_head) { job_t j = q[q_tail % QN]; pthread_mutex_unlock(&jm);
         run_one(&j);
-        pthread_mutex_lock(&jm); q_tail++; done_seq++; if (done_waiting) pthread_cond_broadcast(&jc_done); }
+        pthread_mutex_lock(&jm); q_tail++; done_seq++; if (done_waiting) pthread_cond_broadcast(&jc_done);
+        if (stop && frame_seq != fs) break; }
     pthread_mutex_unlock(&jm); }
+static void run_queue_here(void){ run_queue_until_frame(0); }
 int gfx_pump(int wait_ms){
 #ifdef __vita__
     if (wait_ms > 0) { pthread_mutex_lock(&jm); int empty = q_tail == q_head; if (empty) pump_waiting = 1; pthread_mutex_unlock(&jm);
@@ -84,5 +90,5 @@ int gfx_pump(int wait_ms){
     if (q_tail == q_head && wait_ms > 0) { struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts); ts.tv_nsec += (long)wait_ms * 1000000L; ts.tv_sec += ts.tv_nsec / 1000000000L; ts.tv_nsec %= 1000000000L; pump_waiting = 1; pthread_cond_timedwait(&jc_post, &jm, &ts); pump_waiting = 0; }
     int ran = q_tail != q_head;
     pthread_mutex_unlock(&jm);
-    if (ran) run_queue_here();
+    if (ran) run_queue_until_frame(1);
     return ran; }

@@ -12515,7 +12515,7 @@ float func_08A593F0(float f12, float f13)
     float f0 = 0, f1 = 0, f2 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0];
 L_08A593F0:;
     v0 = D_08C30CAC - (3244);
     v1 = v0 + 3244;
@@ -12532,12 +12532,12 @@ L_08A593F0:;
     f0 = sqrtf(f0);
     f13 = f13 / f0;
     v0 = FBITS(f13);
-    {v[0]=BITSF(v0);}
-    {float s0=v[0];float d0=(s0<-1?-1:(s0>1?1:s0));v[0]=d0;}
-    {float s0=v[0];float d0=asinf(s0)*0.63661977236f;v[0]=d0;}
-    {float s0=v[0];float d0=1.0f-s0;v[0]=d0;}
-    {float s0=v[0];float t0=v[4];float d0=s0*t0;v[0]=d0;}
-    {v0=FBITS(v[0]);}
+    {vr0=BITSF(v0);}
+    {float s0=vr0;float d0=(s0<-1?-1:(s0>1?1:s0));vr0=d0;}
+    {float s0=vr0;float d0=asinf(s0)*0.63661977236f;vr0=d0;}
+    {float s0=vr0;float d0=1.0f-s0;vr0=d0;}
+    {float s0=vr0;float t0=v[4];float d0=s0*t0;vr0=d0;}
+    {v0=FBITS(vr0);}
     f1 = BITSF(v0);
     cnd_ = !fcc;
     v0 = D_08AF05B0 - (1456);
@@ -12549,7 +12549,8 @@ L_08A59454:;
     goto L_08A5945C;
 L_08A5945C:;
     f0 = BITSF(FBITS(f1) ^ 0x80000000u);
-    return f0;
+    { v[0]=vr0;return f0; }
+    v[0]=vr0;
 }
 
 /* 08A59464 */

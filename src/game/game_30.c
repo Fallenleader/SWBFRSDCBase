@@ -8980,7 +8980,7 @@ void func_08AB5274(u32 a0, u32 a1, u32 a2)
     float f0 = 0, f1 = 0;
     int fcc = 0;
     int cnd_;
-    float *v = vfpu_v;
+    float *v = vfpu_v; /* vfpu_regs: locals */ float vr0 = v[0];
     u8 stack_[16] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 16);
 L_08AB5274:;
@@ -9029,8 +9029,8 @@ L_08AB52EC:;
     {float s0=v[32];float s1=v[33];float s2=v[34];float s3=v[35];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[64]=d0;v[65]=d1;v[66]=d2;v[67]=d3;}
     {float s0=v[52];float s1=v[53];float s2=v[54];float s3=v[55];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[68]=d0;v[69]=d1;v[70]=d2;v[71]=d3;}
     {float s0=v[56];float s1=v[57];float s2=v[58];float s3=v[59];float d0=s0;float d1=s1;float d2=s2;float d3=s3;v[72]=d0;v[73]=d1;v[74]=d2;v[75]=d3;}
-    {float t0=v[48];float t1=v[49];float t2=v[50];float o0=0;o0+=v[64]*t0;o0+=v[68]*t1;o0+=v[72]*t2;float o1=0;o1+=v[65]*t0;o1+=v[69]*t1;o1+=v[73]*t2;float o2=0;o2+=v[66]*t0;o2+=v[70]*t1;o2+=v[74]*t2;v[0]=o0;v[1]=o1;v[2]=o2;}
-    {u32 a_=sp+(0);ST32(a_+0,FBITS(v[0]));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
+    {float t0=v[48];float t1=v[49];float t2=v[50];float o0=0;o0+=v[64]*t0;o0+=v[68]*t1;o0+=v[72]*t2;float o1=0;o1+=v[65]*t0;o1+=v[69]*t1;o1+=v[73]*t2;float o2=0;o2+=v[66]*t0;o2+=v[70]*t1;o2+=v[74]*t2;vr0=o0;v[1]=o1;v[2]=o2;}
+    {u32 a_=sp+(0);ST32(a_+0,FBITS(vr0));ST32(a_+4,FBITS(v[1]));ST32(a_+8,FBITS(v[2]));ST32(a_+12,FBITS(v[3]));}
     a0 = LD32(sp+4);
     a1 = LD32(sp+8);
     v1 = LD32(sp+12);
