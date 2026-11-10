@@ -495,3 +495,40 @@ static int lift_walk(u32 tree, u32 org, u32 dir, u32 tmaxp, u32 cb, void *rv){
         if (i == 0) break;
         i--; }
     r->v0 = 0; r->v1 = 0; r->f0 = 0; return 1; }
+
+/* RS_UPDATE_CENSUS=1 (settings.txt): the world's per-object update (08923E30: every registered object's update method, slot 5 of its
+ * vtable, called with the frame time) run here instead, the same calls in the same order, with each call timed by the method it
+ * reached.  Every 600 frames the log lists the costliest methods (ms per frame, calls per frame): the object types worth running on
+ * the other cores or rewriting natively.  Off (the default), the game's own code runs. */
+typedef struct { u32 fn; u32 n; u64 us; } cen_t;
+#define CEN_N 256
+static cen_t cen[CEN_N]; static u64 cen_loop_us, cen_tail_us; static int cen_frames;
+static void cen_add(u32 fn, u64 us){
+    unsigned h = (fn >> 2) * 2654435761u >> 24;
+    for (int k = 0; k < CEN_N; k++) { cen_t *e = &cen[(h + k) & (CEN_N - 1)]; if (e->fn == fn || !e->fn) { e->fn = fn; e->n++; e->us += us; return; } } }
+static int cen_cmp(const void *a, const void *b){ const cen_t *x = a, *y = b; return x->us < y->us ? 1 : x->us > y->us ? -1 : 0; }
+static void cen_report(void){
+    cen_t s[CEN_N]; memcpy(s, cen, sizeof s); qsort(s, CEN_N, sizeof s[0], cen_cmp); double F = cen_frames;
+    fprintf(stderr, "[CENSUS] object updates per frame: %.2f ms in the loop, %.2f ms after it; costliest:", cen_loop_us / 1000.0 / F, cen_tail_us / 1000.0 / F);
+    for (int i = 0; i < 24 && s[i].fn; i++) fprintf(stderr, " %08x %.2f ms x%.1f;", s[i].fn, s[i].us / 1000.0 / F, s[i].n / F);
+    fprintf(stderr, "\n"); memset(cen, 0, sizeof cen); cen_loop_us = cen_tail_us = 0; cen_frames = 0; }
+int rs_update_census(u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f13, float f14, float f15, float f16, float f17, float f18, float f19, void *rv){
+    static int on = -1; if (on < 0) { extern int rs_setting_int(const char *, int); on = rs_setting_int("RS_UPDATE_CENSUS", 0) > 0; if (on) fprintf(stderr, "[CENSUS] object update census on\n"); }
+    if (!on) return 0;
+    u64 rs_perf_us(void);
+    u8 stack_[16] __attribute__((aligned(16))); u32 sp = RS_GADDR(stack_);       /* the list iterator lives on the guest stack, as in the game */
+    float dt = BITSF(LD32(D_08B285A0)); u32 node = LD32(D_08C2520C); rv_t r = {0, 0, 0};
+    ST32(sp, D_08C2520C); ST32(sp + 4, node);
+    u64 t_loop = rs_perf_us();
+    while (node) {
+        u32 obj = LD32(node), fn = LD32(LD32(obj) + 20); u64 t = rs_perf_us();
+        r = ((ifn_t)RS_FPTR(fn))(obj, a1, a2, a3, t0, t1, t2, t3, dt, f13, f14, f15, f16, f17, f18, f19);
+        cen_add(fn, rs_perf_us() - t);
+        func_08ABBDB0(sp); node = LD32(sp + 4); }
+    u64 t_tail = rs_perf_us(); cen_loop_us += t_tail - t_loop;
+    r = func_08836CA4(D_08C25220, a1, a2, a3, t0, t1, t2, t3);
+    r = func_08836CA4(D_08C25280, 0, 0, 0, 0, 0, 0, 0);
+    { u32 o = LD32(D_08C25208); if (o) { u32 fn = LD32(LD32(o) + 12); r = ((ifn_t)RS_FPTR(fn))(o, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); } }
+    cen_tail_us += rs_perf_us() - t_tail;
+    if (++cen_frames >= 600) cen_report();
+    *(rv_t *)rv = r; return 1; }

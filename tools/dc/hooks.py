@@ -52,6 +52,7 @@ HOOKS = {
     '088A0408': {'before': 'rs_gs_login(&a0, &a1, &a2)'},                       # GameSpy login (nickname, e-mail, password)
     '088A0560': {'before': 'rs_gs_login(&a0, &a1, &a2)'},                       # GameSpy new account
     '08A2EFF0': {'after': 'rs_gs_loaded()'},                                    # FE_LoadGamespyLoginInfo (game_24.c)
+    '08923E30': {'replace': 'rs_update_census(a1, a2, a3, t0, t1, t2, t3, f13, f14, f15, f16, f17, f18, f19, &r_)'},   # the world's per-object update (game_12.c): RS_UPDATE_CENSUS times each object type (lift.c)
     '08833F0C': {'replace': 'rs_lift_raybox(a0, a1, a2, a3, &r_)'},           # lifted (lift.c): ray / box test (game_02.c)
     '08833440': {'replace': 'rs_lift_boxtree(a0, a1, a2, a3, t0, &r_)'},      # lifted: ray cast through a box tree
 }

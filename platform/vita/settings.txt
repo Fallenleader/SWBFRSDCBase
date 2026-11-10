@@ -123,6 +123,8 @@ RS_SERVER=
 RS_LAN_SEARCH=1
 # diagnostics: log every frame that takes longer than this many milliseconds, with the files opened during it (0 = off)
 RS_SPIKE_MS=0
+# diagnostics: 1 = time the world's object updates by object type, listed in the log every 600 frames ([CENSUS] lines)
+RS_UPDATE_CENSUS=0
 
 # ---- lighting
 # 1 = per pixel (sharper shading and highlights; a simplified physically based model; costs GPU time), 0 = per vertex (as the PSP)
