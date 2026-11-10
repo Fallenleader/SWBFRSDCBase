@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <time.h>
 #include "psp_impl.h"
 #include "vfs.h"
 #include "rs_platform.h"
@@ -33,7 +34,14 @@ void rs_movie_note_file(const char *host_path);
 #define MAXFD 128
 #define PATHMAX 1500
 
-typedef struct { FILE *f; void *d; int used; char path[PATHMAX]; int extra; } fd_t;   /* extra: custom maps listed so far */
+typedef struct { FILE *f; void *d; int used; char path[PATHMAX]; int extra; struct dlist *dl; int dpos; } fd_t;   /* extra: custom maps listed so far; dl: a cached listing */
+/* Directory listings are cached: the game counts the files of a folder tree over and over during a match (func_088FCDF0, 3% of the
+ * Vita's main thread: a stat of every entry each time).  A listing is read once and kept until the game writes a file or makes a
+ * folder through these calls (or 10 s pass). */
+typedef struct { char name[64]; rs_fs_stat_t st; } dent_t;
+typedef struct dlist { char path[PATHMAX]; int n, cap; dent_t *e; unsigned gen; u64 t; int refs; } dlist_t;
+#define DL_N 32
+static dlist_t dls[DL_N]; static unsigned dl_gen = 1, dl_rr;
 static fd_t fds[MAXFD];
 static pthread_mutex_t fs_mx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&fs_mx)
@@ -99,6 +107,7 @@ int rs_fs_open(const char *p, int mode){
             const char *alt = rs_patch_file(rel, full); if (alt) snprintf(full, sizeof full, "%s", alt); } }
     const char *fm = rd ? "rb" : (((mode & 3) == RS_FS_WRITE && (mode & RS_FS_TRUNC)) ? "wb" : "r+b");
     if ((mode & RS_FS_CREATE) && !(mode & RS_FS_TRUNC) && !vfs_iso_active()) { FILE *t = fopen(full, "ab"); if (t) fclose(t); }
+    if (!rd) dl_gen++;                                                  /* (a folder's contents may change: listings are read again) */
     FILE *f = vfs_fopen(full, fm); if (!f && (mode & 3) == RS_FS_RW) f = vfs_fopen(full, "rb");
     if (!f) { fprintf(stderr, "[IO] open FAILED %s\n", p); return (int)ERR_NOENT; }
     fprintf(stderr, "[IO] open %s\n", p); { extern unsigned rs_spike_opens; extern char rs_spike_last[160]; rs_spike_opens++; snprintf(rs_spike_last, sizeof rs_spike_last, "%s", full); } rs_atrac_note_file(full); rs_movie_note_file(full);
@@ -106,7 +115,7 @@ int rs_fs_open(const char *p, int mode){
     int fd = new_fd(f, 0, full); if (fd < 0) { fclose(f); return (int)ERR_MFILE; } return fd; }
 
 int rs_fs_close(int fd){
-    LOCK(); fd_t *e = get_fd(fd); if (e) { if (e->f) fclose(e->f); if (e->d) vfs_closedir(e->d); e->used = 0; } UNLOCK(); return 0; }
+    LOCK(); fd_t *e = get_fd(fd); if (e) { if (e->f) fclose(e->f); if (e->d) vfs_closedir(e->d); if (e->dl) e->dl->refs--; e->dl = 0; e->used = 0; } UNLOCK(); return 0; }
 
 int64_t rs_fs_read(int fd, void *dst, size_t n){
     fd_t *e = get_fd(fd); if (!e || !e->f) return (int32_t)ERR_BADF;
@@ -134,13 +143,41 @@ int rs_fs_stat(const char *p, rs_fs_stat_t *st){
     st->is_dir = isdir; st->size = isdir ? sz : eff_size(full, (u32)sz);
     LOCK(); st->sector = isdir ? 0 : lbn_for(full, (u32)st->size); UNLOCK(); return 0; }
 
+static int readdir_raw(fd_t *e, char *name, size_t cap, rs_fs_stat_t *st);
+static u64 io_now_us(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (u64)t.tv_sec * 1000000ull + (u64)t.tv_nsec / 1000; }
+static dlist_t *dl_get(const char *full){                             /* a fresh cached listing, read now if needed (LOCK held by no one) */
+    u64 now = io_now_us();
+    for (int i = 0; i < DL_N; i++) if (dls[i].n >= 0 && dls[i].e && !strcmp(dls[i].path, full)) {
+        if (dls[i].gen == dl_gen && now - dls[i].t < 10000000ull) return &dls[i];
+        if (dls[i].refs) return 0;                                    /* stale but being read by an open handle: read uncached */
+        free(dls[i].e); dls[i].e = 0; break; }
+    dlist_t *l = 0; for (int k = 0; k < DL_N; k++) { dlist_t *c = &dls[(dl_rr + k) % DL_N]; if (!c->refs) { l = c; dl_rr = (unsigned)((c - dls) + 1); break; } }
+    if (!l) return 0;
+    free(l->e); memset(l, 0, sizeof *l); snprintf(l->path, sizeof l->path, "%s", full);
+    void *d = vfs_opendir(full); if (!d) return 0;
+    fd_t tmp; memset(&tmp, 0, sizeof tmp); tmp.d = d; snprintf(tmp.path, sizeof tmp.path, "%s", full);
+    char nm[256]; rs_fs_stat_t st;
+    while (readdir_raw(&tmp, nm, sizeof nm, &st) > 0) {
+        if (strlen(nm) >= sizeof l->e[0].name) continue;
+        if (l->n == l->cap) { int nc = l->cap ? l->cap * 2 : 32; dent_t *ne = realloc(l->e, sizeof *ne * (size_t)nc); if (!ne) break; l->e = ne; l->cap = nc; }
+        snprintf(l->e[l->n].name, sizeof l->e[0].name, "%s", nm); l->e[l->n].st = st; l->n++; }
+    vfs_closedir(d);
+    if (!l->e) { l->e = malloc(sizeof(dent_t)); if (!l->e) return 0; }
+    l->gen = dl_gen; l->t = now; return l; }
 int rs_fs_opendir(const char *p){
-    char full[PATHMAX]; resolve_ci(strip_dev(p), full, sizeof full); void *d = vfs_opendir(full);
+    char full[PATHMAX]; resolve_ci(strip_dev(p), full, sizeof full);
+    dlist_t *l = dl_get(full);
+    if (l) { int fd = new_fd(0, 0, full); if (fd < 0) return (int)ERR_MFILE; LOCK(); fd_t *e = get_fd(fd); if (e) { e->dl = l; e->dpos = 0; l->refs++; } UNLOCK(); return fd; }
+    void *d = vfs_opendir(full);
     if (!d) { fprintf(stderr, "[IO] dopen FAILED %s\n", p); return (int)ERR_NOENT; }
     int fd = new_fd(0, d, full); if (fd < 0) { vfs_closedir(d); return (int)ERR_MFILE; } return fd; }
 
 int rs_fs_readdir(int fd, char *name, size_t cap, rs_fs_stat_t *st){
-    fd_t *e = get_fd(fd); if (!e || !e->d) return (int)ERR_BADF;
+    fd_t *e = get_fd(fd); if (!e) return (int)ERR_BADF;
+    if (e->dl) { if (e->dpos >= e->dl->n) return 0; const dent_t *d = &e->dl->e[e->dpos++]; snprintf(name, cap, "%s", d->name); *st = d->st; return 1; }
+    return readdir_raw(e, name, cap, st); }
+static int readdir_raw(fd_t *e, char *name, size_t cap, rs_fs_stat_t *st){
+    if (!e->d) return (int)ERR_BADF;
     char full[2000];
     if (!vfs_readdir(e->d, name, cap, full, sizeof full)) {
         if (!rs_custom_map_dirent(e->path, e->extra, name, cap, full, sizeof full)) return 0;   /* custom maps after the folder's own */
@@ -152,7 +189,7 @@ int rs_fs_readdir(int fd, char *name, size_t cap, rs_fs_stat_t *st){
 
 int rs_fs_mkdir(const char *p){
     if (vfs_iso_active() && !strncmp(p, "disc0:", 6)) return -1;
-    char full[PATHMAX]; resolve_ci(strip_dev(p), full, sizeof full);
+    char full[PATHMAX]; resolve_ci(strip_dev(p), full, sizeof full); dl_gen++;
 #ifdef _WIN32
     int r = mkdir(full);
 #else

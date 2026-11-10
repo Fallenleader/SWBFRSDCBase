@@ -131,12 +131,15 @@ static void check_all(void){
     if (f) { if (fgets(line, sizeof line, f)) { if (!strncmp(line, MANIFEST_VERSION, strlen(MANIFEST_VERSION)) || (!ADPCM_BUILD && !strncmp(line, "rsconv 2", 8))) ver_ok = 1; else if (!strncmp(line, "rsconv 1", 8) && (line[8] == '\n' || line[8] == '\r' || !line[8])) ver_ok = old1 = 1; }
         while (ver_ok && nm < MAXJOB && fgets(line, sizeof line, f)) if (sscanf(line, "%255s %u %x %llu", m[nm].rel, &m[nm].size, &m[nm].sig, &m[nm].out) == 4) nm++;
         fclose(f); }
+    fprintf(stderr, "[CONV] %s: %s, %d entries\n", p, !f ? "no manifest" : (ver_ok ? "manifest read" : "manifest of another version (ignored)"), nm);
     for (int i = 0; i < njobs; i++) {
         job_t *j = &jobs[i]; j->sig = src_sig(j->src); j->state = 1;
         for (int k = 0; k < nm; k++) if (!(old1 && j->kind == 1) && !strcmp(m[k].rel, j->rel)) {
-            if (m[k].size != j->size || m[k].sig != j->sig) break;               /* different source file: convert again */
+            if (m[k].size != j->size || m[k].sig != j->sig) {                 /* different source file: convert again */
+                fprintf(stderr, "[CONV] %s: the game file differs from the converted one's (size %u / %u, signature %08x / %08x): converting again\n", j->rel, j->size, m[k].size, j->sig, m[k].sig); break; }
             char o[1300]; out_path(o, sizeof o, j->rel, j->kind); struct stat s;
             if (stat(o, &s) == 0 && (unsigned long long)s.st_size == m[k].out && m[k].out > 0) { j->state = 0; j->out_size = m[k].out; }
+            else fprintf(stderr, "[CONV] %s: converted file %s (%lld bytes, expected %llu): converting again\n", j->rel, stat(o, &s) == 0 ? "has the wrong size" : "missing", stat(o, &s) == 0 ? (long long)s.st_size : -1LL, m[k].out);
             break; }
         pthread_mutex_lock(&mx); st.files_total = njobs; if (j->state == 0) st.files_ok++; else { st.files_todo++; st.work_total += j->size; } pthread_mutex_unlock(&mx); } }
 
