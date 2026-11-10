@@ -54,4 +54,4 @@ u32 rs_pad_inject(u32 buttons){ return buttons; }
 void rs_oskpanel_draw(void){ }
 struct gfx_state_s; int rs_movie_draw(void *st){ (void)st; return 0; }
 void rs_movie_note_file(const char *p){ (void)p; }
-const struct { u32 nid; void *fn; const char *name; } rs_net_tbl[1]; const int rs_net_ntbl = 0;
+

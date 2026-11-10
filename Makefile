@@ -69,7 +69,7 @@ regen: ; python3 tools/dc/gen.py src/game $(EBOOT) && python3 tools/dc/vfpu_loca
 $(B)/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p $(B)/game; $(CC32) $(GAME_FLAGS) -c $< -o $@
 $(B)/game/data.o: build/data.c ; @mkdir -p $(B)/game; $(CC32) $(GAME_FLAGS) -c $< -o $@
 
-$(B)/linux_test/glue.c: src/game/psp_sdk.h $(C)/mkglue.py $(wildcard $(C)/native_*.c) ; @mkdir -p $(B)/linux_test; python3 $(C)/mkglue.py $< $@
+$(B)/linux_test/glue.c: src/game/psp_sdk.h $(C)/mkglue.py $(wildcard $(C)/native_*.c) $(C)/hle.c ; @mkdir -p $(B)/linux_test; python3 $(C)/mkglue.py $< $@
 $(B)/linux_test/glue.o: $(B)/linux_test/glue.c ; $(CC32) -O1 -w -I$(C) -I src/game -c $< -o $@
 $(B)/linux_test/%.o: $(T)/%.c ; @mkdir -p $(B)/linux_test; $(CC32) -O1 -w -DHOST_BUILD -I$(T) -I$(C) -I src/game -c $< -o $@
 $(B)/linux_test/c_%.o: $(C)/%.c ; @mkdir -p $(B)/linux_test; $(CC32) -O1 -w -DHOST_BUILD -I$(C) -I src/game -c $< -o $@
@@ -100,7 +100,7 @@ T64_OBJ := $(patsubst $(T)/%.c,$(B64)/linux_test/%.o,$(T_SRC)) $(patsubst $(C)/%
 AT3_64_OBJ := $(patsubst $(C)/ext/at3/%.cpp,$(B64)/linux_test/at3_%.o,$(wildcard $(C)/ext/at3/*.cpp))
 $(B64)/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p $(B64)/game; $(CC64) $(GAME_FLAGS) -c $< -o $@
 $(B64)/game/data.o: build/data.c ; @mkdir -p $(B64)/game; $(CC64) $(GAME_FLAGS) -c $< -o $@
-$(B64)/linux_test/glue.c: src/game/psp_sdk.h $(C)/mkglue.py $(wildcard $(C)/native_*.c) ; @mkdir -p $(B64)/linux_test; python3 $(C)/mkglue.py $< $@
+$(B64)/linux_test/glue.c: src/game/psp_sdk.h $(C)/mkglue.py $(wildcard $(C)/native_*.c) $(C)/hle.c ; @mkdir -p $(B64)/linux_test; python3 $(C)/mkglue.py $< $@
 $(B64)/linux_test/glue.o: $(B64)/linux_test/glue.c ; $(CC64) -O1 -w -I$(C) -I src/game -c $< -o $@
 $(B64)/linux_test/%.o: $(T)/%.c ; @mkdir -p $(B64)/linux_test; $(CC64) -O1 -w -DHOST_BUILD -I$(T) -I$(C) -I src/game -c $< -o $@
 $(B64)/linux_test/c_%.o: $(C)/%.c ; @mkdir -p $(B64)/linux_test; $(CC64) -O1 -w -DHOST_BUILD -I$(C) -I src/game -c $< -o $@
@@ -132,7 +132,7 @@ PS5_OBJ := $(patsubst src/game/%.c,$(P5)/game/%.o,$(GAME_SRC)) $(P5)/game/data.o
 PS5_INC := -Isrc/game -I$(C) -I$(T) -Iplatform/ps5 -I$(PS5_OPENGL)/include -I$(PS5_FFMPEG)/include
 $(P5)/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p $(P5)/game; $(PS5CC) -std=gnu11 $(PS5_FLAGS) -Isrc/game -c $< -o $@
 $(P5)/game/data.o: build/data.c ; @mkdir -p $(P5)/game; $(PS5CC) -std=gnu11 $(PS5_FLAGS) -Isrc/game -c $< -o $@
-$(P5)/glue.c: src/game/psp_sdk.h $(C)/mkglue.py $(wildcard $(C)/native_*.c) ; @mkdir -p $(P5); python3 $(C)/mkglue.py $< $@
+$(P5)/glue.c: src/game/psp_sdk.h $(C)/mkglue.py $(wildcard $(C)/native_*.c) $(C)/hle.c ; @mkdir -p $(P5); python3 $(C)/mkglue.py $< $@
 $(P5)/glue.o: $(P5)/glue.c ; $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -c $< -o $@
 $(P5)/c_%.o: $(C)/%.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -c $< -o $@
 $(P5)/%.o: $(T)/%.c ; @mkdir -p $(P5); $(PS5CC) -std=gnu11 $(PS5_FLAGS) $(PS5_INC) -c $< -o $@
@@ -181,7 +181,7 @@ $(1)_OBJ := $$(patsubst src/game/%.c,$$($(1)_B)/game/%.o,$(GAME_SRC)) $$($(1)_B)
     $$(patsubst $(C)/ext/at3/%.cpp,$$($(1)_B)/at3_%.o,$$(wildcard $(C)/ext/at3/*.cpp))
 $$($(1)_B)/game/%.o: src/game/%.c src/game/game.h src/game/rs_base.h ; @mkdir -p $$(@D); $$($(1)_CC) -std=gnu11 $$($(1)_FLAGS) -Isrc/game -c $$< -o $$@
 $$($(1)_B)/game/data.o: build/data.c ; @mkdir -p $$(@D); $$($(1)_CC) -std=gnu11 $$($(1)_FLAGS) -Isrc/game -c $$< -o $$@
-$$($(1)_B)/glue.c: src/game/psp_sdk.h $(C)/mkglue.py $(wildcard $(C)/native_*.c) ; @mkdir -p $$(@D); python3 $(C)/mkglue.py $$< $$@
+$$($(1)_B)/glue.c: src/game/psp_sdk.h $(C)/mkglue.py $(wildcard $(C)/native_*.c) $(C)/hle.c ; @mkdir -p $$(@D); python3 $(C)/mkglue.py $$< $$@
 $$($(1)_B)/glue.o: $$($(1)_B)/glue.c ; $$($(1)_CC) -std=gnu11 $$($(1)_FLAGS) $$($(1)_INC) -c $$< -o $$@
 $$($(1)_B)/c_%.o: $(C)/%.c ; @mkdir -p $$(@D); $$($(1)_CC) -std=gnu11 $$($(1)_FLAGS) $$($(1)_INC) -c $$< -o $$@
 $$($(1)_B)/%.o: $(T)/%.c build/vk_spv.h ; @mkdir -p $$(@D); $$($(1)_CC) -std=gnu11 $$($(1)_FLAGS) $$($(1)_INC) -c $$< -o $$@

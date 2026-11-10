@@ -78,3 +78,4 @@ void rs_mem_init(u32 lo, u32 hi);
 int rs_mem_alloc(u32 size, int top, u32 align);   /* block uid, < 0: none */
 u32 rs_mem_addr(int uid);                         /* 0: no such block */
 void rs_mem_free(int uid);
+#include "rs_bind.h"

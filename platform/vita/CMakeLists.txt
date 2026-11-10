@@ -32,7 +32,7 @@ set(GLUE_C "${ROOT}/build/vita_glue.c")
 file(GLOB NATIVE_SRC "${ROOT}/platform/common/native_*.c")      # native modules: the glue leaves out what they define
 if(PYTHON3)
   add_custom_command(OUTPUT "${GLUE_C}" COMMAND ${PYTHON3} "${ROOT}/platform/common/mkglue.py" "${ROOT}/src/game/psp_sdk.h" "${GLUE_C}"
-                     DEPENDS "${ROOT}/src/game/psp_sdk.h" "${ROOT}/platform/common/mkglue.py" ${NATIVE_SRC})
+                     DEPENDS "${ROOT}/src/game/psp_sdk.h" "${ROOT}/platform/common/mkglue.py" ${NATIVE_SRC} "${ROOT}/platform/common/hle.c")
 elseif(NOT EXISTS "${GLUE_C}")
   message(FATAL_ERROR "python3 is needed to generate ${GLUE_C} (or generate it beforehand: python3 platform/common/mkglue.py src/game/psp_sdk.h build/vita_glue.c)")
 endif()

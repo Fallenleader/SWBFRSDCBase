@@ -1,4 +1,7 @@
-/* PSP firmware (HLE) layer: kernel objects, memory, IO, timing + logging stubs for the rest. */
+/* The game's remaining system calls, as native handlers written against its register block and bound straight to its calls (RS_BIND,
+ * rs_bind.h): display pacing, controller, graphics lists, dialogs and saves, audio output, sound and movie entry points.  No firmware is
+ * emulated: every call the game imports is native (native_*.c, these bindings, net.c); mkglue.py generates glue only for an import
+ * nothing handles, which then reports itself as unimplemented. */
 #define _GNU_SOURCE
 #include "psp_impl.h"
 #include "guest.h"
@@ -36,6 +39,7 @@ static const char *envc(const char *k, const char **slot, int *done){ if (!*done
 #define ERR_TIMEOUT 0x800201A8u
 
 #include "guest_sched.h"
+#define NSLOT 512                                    /* call slots (profiler, hang reports) */
 pthread_mutex_t big = PTHREAD_MUTEX_INITIALIZER;
 volatile int big_waiting;
 rs_cond_t gcv = RS_COND_INIT;
@@ -151,9 +155,9 @@ int rs_guest_clock_yield_every(void){ return CLOCK_YIELD; }
 static void perf_threads(double fr, double ms){
     for (int i = 0; i < rs_nthreads; i++) { kthread_t *t = rs_threads[i]; if (!t || !t->p_us || t->exited) continue; char b[1024];
         int o = snprintf(b, sizeof b, "[PERF]   thread %-20s guest %.2f ms, firmware %.2f ms, holds mutexes x%.1f %.2f ms:", t->name, ms - t->p_hle / fr / 1000, t->p_hle / fr / 1000, t->holds / fr, t->hold_us / fr / 1000); t->holds = t->hold_us = 0;
-        for (int k = 0; k < 5; k++) { int best = -1; for (int j = 0; j < RC_NSTUBS; j++) if (t->p_us[j] && (best < 0 || t->p_us[j] > t->p_us[best])) best = j; if (best < 0) break;
+        for (int k = 0; k < 5; k++) { int best = -1; for (int j = 0; j < NSLOT; j++) if (t->p_us[j] && (best < 0 || t->p_us[j] > t->p_us[best])) best = j; if (best < 0) break;
             o += snprintf(b + o, sizeof b - o, " %s x%.1f %.2f ms;", hname(best), t->p_n[best] / fr, t->p_us[best] / fr / 1000); t->p_us[best] = 0; }
-        memset(t->p_us, 0, RC_NSTUBS * 8); memset(t->p_n, 0, RC_NSTUBS * 8); t->p_hle = 0; snprintf(b + o, sizeof b - o, "\n"); rs_perf_write(b); } }
+        memset(t->p_us, 0, NSLOT * 8); memset(t->p_n, 0, NSLOT * 8); t->p_hle = 0; snprintf(b + o, sizeof b - o, "\n"); rs_perf_write(b); } }
 
 
 /* ---------------- utility dialogs, modules, misc (NIDs identified by SHA-1 of the SDK function name) ---------------- */
@@ -418,38 +422,99 @@ static void h_Printf(sdkcall_t *c){ fprintf(stderr, "[GAME] %s\n", gstr(A0)); V0
 /* movies (mpeg.c) */
 void hm_MpegInit(sdkcall_t *); void hm_MpegFinish(sdkcall_t *); void hm_MpegQueryMemSize(sdkcall_t *); void hm_MpegRingbufferQueryMemSize(sdkcall_t *); void hm_MpegRingbufferConstruct(sdkcall_t *); void hm_MpegRingbufferDestruct(sdkcall_t *); void hm_MpegCreate(sdkcall_t *); void hm_MpegDelete(sdkcall_t *); void hm_MpegQueryStreamOffset(sdkcall_t *); void hm_MpegQueryStreamSize(sdkcall_t *); void hm_MpegRegistStream(sdkcall_t *); void hm_MpegUnRegistStream(sdkcall_t *); void hm_MpegMallocAvcEsBuf(sdkcall_t *); void hm_MpegFreeAvcEsBuf(sdkcall_t *); void hm_MpegInitAu(sdkcall_t *); void hm_MpegQueryAtracEsSize(sdkcall_t *); void hm_MpegRingbufferPut(sdkcall_t *); void hm_MpegRingbufferAvailableSize(sdkcall_t *); void hm_MpegGetAvcAu(sdkcall_t *); void hm_MpegAvcDecode(sdkcall_t *); void hm_MpegAvcDecodeStop(sdkcall_t *); void hm_MpegGetAtracAu(sdkcall_t *); void hm_MpegAtracDecode(sdkcall_t *); void hm_PsmfSetPsmf(sdkcall_t *); void hm_PsmfGetNumberOfSpecificStreams(sdkcall_t *);
 typedef struct { u32 nid; const char *name; void (*fn)(sdkcall_t *); } hle_t;
-static const hle_t tbl[] = {
- {0x1F803938,"sceCtrlReadBufferPositive",h_CtrlRead},
- {0x984C27E7,"sceDisplayWaitVblankStart",h_WaitVblank},{0x46F186C3,"sceDisplayWaitVblankStartCB",h_WaitVblank},{0x289D82FE,"sceDisplaySetFrameBuf",h_SetFrameBuf},
- {0xAB49E76A,"sceGeListEnQueue",h_GeEnqueue},{0x1C0D95A6,"sceGeListEnQueueHead",h_GeEnqueue},{0xE47E40E4,"sceGeEdramGetAddr",h_GeEdramAddr},
- {0x03444EB4,"sceGeListSync",h_GeListSync},{0xB287BD61,"sceGeDrawSync",h_GeDrawSync},{0xE0D68148,"sceGeListUpdateStallAddr",h_GeUpdateStall},{0xA4FC06A4,"sceGeSetCallback",h_GeSetCallback},
- {0x05572A5F,"sceKernelExitGame",h_ExitGame},{0xA5DA2406,"sceUtilityGetSystemParamInt",h_UtilParam},{0x50C4CD57,"sceUtilitySavedataInitStart",h_SaveInit},{0x8874DBE0,"sceUtilitySavedataGetStatus",h_SaveStatus},{0x9790B33C,"sceUtilitySavedataShutdownStart",h_SaveShutdown},
- {0xF6269B82,"sceUtilityOskInitStart",h_OskInit},{0xF3F76017,"sceUtilityOskGetStatus",h_OskStatus},{0x4B85C861,"sceUtilityOskUpdate",h_OskUpdate},{0x3DFAEBA9,"sceUtilityOskShutdownStart",h_OskShutdown},
- {0x34B78343,"sceUtilityGetSystemParamString",h_SysParamString},
- {0x977DE386,"sceKernelLoadModule",h_LoadModule},{0x50F0C1EC,"sceKernelStartModule",h_StartModule},{0xD8B73127,"sceKernelGetModuleIdByAddress",h_ModuleIdByAddr},
- {0x3E0271D3,"sceKernelVolatileMemLock",h_VolLock},{0xA569E425,"sceKernelVolatileMemUnlock",h_Zero},
- {0x01562BA3,"sceAudioOutput2Reserve",h_Au2Reserve},{0x43196845,"sceAudioOutput2Release",h_Au2Release},{0x2D53F36E,"sceAudioOutput2OutputBlocking",h_Au2Output},
- {0x5EC81C55,"sceAudioChReserve",h_AuChReserve},{0x6FC46853,"sceAudioChRelease",h_Zero},{0x136CAF51,"sceAudioOutputBlocking",h_AuOutBlocking},{0x13F592BC,"sceAudioOutputPannedBlocking",h_AuOutBlocking},
- {0x42778A9F,"__sceSasInit",w_hs_SasInit},{0xA3589D81,"__sceSasCore",w_hs_SasCore},{0x50A14DFC,"__sceSasCoreWithMix",w_hs_SasCoreWithMix},{0x68A46B95,"__sceSasGetEndFlag",w_hs_SasGetEndFlag},
- {0x440CA7D8,"__sceSasSetVolume",w_hs_SasSetVolume},{0xAD84D37F,"__sceSasSetPitch",w_hs_SasSetPitch},{0x99944089,"__sceSasSetVoice",w_hs_SasSetVoice},{0x019B25EB,"__sceSasSetADSR",w_hs_SasSetADSR},
- {0x76F01ACA,"__sceSasSetKeyOn",w_hs_SasSetKeyOn},{0xA0CF2FA4,"__sceSasSetKeyOff",w_hs_SasSetKeyOff},{0x787D04D5,"__sceSasSetPause",w_hs_SasSetPause},{0xE175EF66,"__sceSasGetOutputmode",w_hs_SasGetOutputmode},
- {0xF983B186,"__sceSasRevVON",h_Zero},{0xD5A229C9,"__sceSasRevEVOL",h_Zero},{0x33D4AB37,"__sceSasRevType",h_Zero},{0x267A6DD2,"__sceSasRevParam",h_Zero},
- {0x9EC3676A,"__sceSasSetADSRmode",w_hs_SasSetADSRmode},{0x5F9529F6,"__sceSasSetSL",w_hs_SasSetSL},{0xCBCD4F79,"__sceSasSetSimpleADSR",w_hs_SasSetSimpleADSR},{0xB7660A23,"__sceSasSetNoise",w_hs_SasSetNoise},
- {0xE855BF76,"__sceSasSetOutputmode",w_hs_SasSetOutputmode},{0xD1E0A01E,"__sceSasSetGrain",w_hs_SasSetGrain},{0xBD11B7C2,"__sceSasGetGrain",w_hs_SasGetGrain},{0x2C8E6AB3,"__sceSasGetPauseFlag",w_hs_SasGetPauseFlag},
- {0x74AE582A,"__sceSasGetEnvelopeHeight",w_hs_SasGetEnvelopeHeight},
- {0x7A20E7AF,"sceAtracSetDataAndGetID",w_ha_SetDataAndGetID},{0x6A8C3CD5,"sceAtracDecodeData",w_ha_DecodeData},{0xA2BBA8BE,"sceAtracGetSoundSample",w_ha_GetSoundSample},
- {0x5D268707,"sceAtracGetStreamDataInfo",w_ha_GetStreamDataInfo},{0x7DB31251,"sceAtracAddStreamData",w_ha_AddStreamData},{0x61EB33F5,"sceAtracReleaseAtracID",w_ha_Release},
-
- {0x682A619B,"sceMpegInit",hm_MpegInit},{0x874624D6,"sceMpegFinish",hm_MpegFinish},{0xC132E22F,"sceMpegQueryMemSize",hm_MpegQueryMemSize},{0xD7A29F46,"sceMpegRingbufferQueryMemSize",hm_MpegRingbufferQueryMemSize},{0x37295ED8,"sceMpegRingbufferConstruct",hm_MpegRingbufferConstruct},{0x13407F13,"sceMpegRingbufferDestruct",hm_MpegRingbufferDestruct},{0xD8C5F121,"sceMpegCreate",hm_MpegCreate},{0x606A4649,"sceMpegDelete",hm_MpegDelete},{0x21FF80E4,"sceMpegQueryStreamOffset",hm_MpegQueryStreamOffset},{0x611E9E11,"sceMpegQueryStreamSize",hm_MpegQueryStreamSize},{0x42560F23,"sceMpegRegistStream",hm_MpegRegistStream},{0x591A4AA2,"sceMpegUnRegistStream",hm_MpegUnRegistStream},{0xA780CF7E,"sceMpegMallocAvcEsBuf",hm_MpegMallocAvcEsBuf},{0xCEB870B1,"sceMpegFreeAvcEsBuf",hm_MpegFreeAvcEsBuf},{0x167AFD9E,"sceMpegInitAu",hm_MpegInitAu},{0xF8DCB679,"sceMpegQueryAtracEsSize",hm_MpegQueryAtracEsSize},{0xB240A59E,"sceMpegRingbufferPut",hm_MpegRingbufferPut},{0xB5F6DC87,"sceMpegRingbufferAvailableSize",hm_MpegRingbufferAvailableSize},{0xFE246728,"sceMpegGetAvcAu",hm_MpegGetAvcAu},{0x0E3C2E9D,"sceMpegAvcDecode",hm_MpegAvcDecode},{0x740FCCD1,"sceMpegAvcDecodeStop",hm_MpegAvcDecodeStop},{0xE1CE83A7,"sceMpegGetAtracAu",hm_MpegGetAtracAu},{0x800C44DF,"sceMpegAtracDecode",hm_MpegAtracDecode},{0xC22C8327,"scePsmfSetPsmf",hm_PsmfSetPsmf},{0x68D42328,"scePsmfGetNumberOfSpecificStreams",hm_PsmfGetNumberOfSpecificStreams},
-};
-#define NTBL (int)(sizeof tbl / sizeof tbl[0])
+/* the game's calls bound to the handlers above (RS_BIND: guest_sched.h) */
+RS_BIND(sceCtrlReadBufferPositive, h_CtrlRead)
+RS_BIND(sceDisplayWaitVblankStart, h_WaitVblank)
+RS_BIND(sceDisplayWaitVblankStartCB, h_WaitVblank)
+RS_BIND(sceDisplaySetFrameBuf, h_SetFrameBuf)
+RS_BIND(sceGeListEnQueue, h_GeEnqueue)
+RS_BIND(sceGeListEnQueueHead, h_GeEnqueue)
+RS_BIND(sceGeEdramGetAddr, h_GeEdramAddr)
+RS_BIND(sceGeListSync, h_GeListSync)
+RS_BIND(sceGeDrawSync, h_GeDrawSync)
+RS_BIND(sceGeListUpdateStallAddr, h_GeUpdateStall)
+RS_BIND(sceGeSetCallback, h_GeSetCallback)
+RS_BIND(sceKernelExitGame, h_ExitGame)
+RS_BIND(sceUtilityGetSystemParamInt, h_UtilParam)
+RS_BIND(sceUtilitySavedataInitStart, h_SaveInit)
+RS_BIND(sceUtilitySavedataGetStatus, h_SaveStatus)
+RS_BIND(sceUtilitySavedataShutdownStart, h_SaveShutdown)
+RS_BIND(sceUtilityOskInitStart, h_OskInit)
+RS_BIND(sceUtilityOskGetStatus, h_OskStatus)
+RS_BIND(sceUtilityOskUpdate, h_OskUpdate)
+RS_BIND(sceUtilityOskShutdownStart, h_OskShutdown)
+RS_BIND(sceUtilityGetSystemParamString, h_SysParamString)
+RS_BIND(sceKernelLoadModule, h_LoadModule)
+RS_BIND(sceKernelStartModule, h_StartModule)
+RS_BIND(sceKernelGetModuleIdByAddress, h_ModuleIdByAddr)
+RS_BIND(sceKernelVolatileMemLock, h_VolLock)
+RS_BIND(sceKernelVolatileMemUnlock, h_Zero)
+RS_BIND(sceAudioOutput2Reserve, h_Au2Reserve)
+RS_BIND(sceAudioOutput2Release, h_Au2Release)
+RS_BIND(sceAudioOutput2OutputBlocking, h_Au2Output)
+RS_BIND(__sceSasInit, w_hs_SasInit)
+RS_BIND(__sceSasCore, w_hs_SasCore)
+RS_BIND(__sceSasCoreWithMix, w_hs_SasCoreWithMix)
+RS_BIND(__sceSasGetEndFlag, w_hs_SasGetEndFlag)
+RS_BIND(__sceSasSetVolume, w_hs_SasSetVolume)
+RS_BIND(__sceSasSetPitch, w_hs_SasSetPitch)
+RS_BIND(__sceSasSetVoice, w_hs_SasSetVoice)
+RS_BIND(__sceSasSetADSR, w_hs_SasSetADSR)
+RS_BIND(__sceSasSetKeyOn, w_hs_SasSetKeyOn)
+RS_BIND(__sceSasSetKeyOff, w_hs_SasSetKeyOff)
+RS_BIND(__sceSasSetPause, w_hs_SasSetPause)
+RS_BIND(__sceSasGetOutputmode, w_hs_SasGetOutputmode)
+RS_BIND(__sceSasRevVON, h_Zero)
+RS_BIND(__sceSasSetSimpleADSR, w_hs_SasSetSimpleADSR)
+RS_BIND(sceAtracSetDataAndGetID, w_ha_SetDataAndGetID)
+RS_BIND(sceAtracDecodeData, w_ha_DecodeData)
+RS_BIND(sceAtracGetSoundSample, w_ha_GetSoundSample)
+RS_BIND(sceAtracGetStreamDataInfo, w_ha_GetStreamDataInfo)
+RS_BIND(sceAtracAddStreamData, w_ha_AddStreamData)
+RS_BIND(sceAtracReleaseAtracID, w_ha_Release)
+RS_BIND(sceMpegInit, hm_MpegInit)
+RS_BIND(sceMpegFinish, hm_MpegFinish)
+RS_BIND(sceMpegQueryMemSize, hm_MpegQueryMemSize)
+RS_BIND(sceMpegRingbufferQueryMemSize, hm_MpegRingbufferQueryMemSize)
+RS_BIND(sceMpegRingbufferConstruct, hm_MpegRingbufferConstruct)
+RS_BIND(sceMpegRingbufferDestruct, hm_MpegRingbufferDestruct)
+RS_BIND(sceMpegCreate, hm_MpegCreate)
+RS_BIND(sceMpegDelete, hm_MpegDelete)
+RS_BIND(sceMpegQueryStreamOffset, hm_MpegQueryStreamOffset)
+RS_BIND(sceMpegQueryStreamSize, hm_MpegQueryStreamSize)
+RS_BIND(sceMpegRegistStream, hm_MpegRegistStream)
+RS_BIND(sceMpegUnRegistStream, hm_MpegUnRegistStream)
+RS_BIND(sceMpegMallocAvcEsBuf, hm_MpegMallocAvcEsBuf)
+RS_BIND(sceMpegFreeAvcEsBuf, hm_MpegFreeAvcEsBuf)
+RS_BIND(sceMpegInitAu, hm_MpegInitAu)
+RS_BIND(sceMpegQueryAtracEsSize, hm_MpegQueryAtracEsSize)
+RS_BIND(sceMpegRingbufferPut, hm_MpegRingbufferPut)
+RS_BIND(sceMpegRingbufferAvailableSize, hm_MpegRingbufferAvailableSize)
+RS_BIND(sceMpegGetAvcAu, hm_MpegGetAvcAu)
+RS_BIND(sceMpegAvcDecode, hm_MpegAvcDecode)
+RS_BIND(sceMpegAvcDecodeStop, hm_MpegAvcDecodeStop)
+RS_BIND(sceMpegGetAtracAu, hm_MpegGetAtracAu)
+RS_BIND(sceMpegAtracDecode, hm_MpegAtracDecode)
+RS_BIND(scePsmfSetPsmf, hm_PsmfSetPsmf)
+RS_BIND(scePsmfGetNumberOfSpecificStreams, hm_PsmfGetNumberOfSpecificStreams)
 static const hle_t *handlers[512]; static unsigned char seen[512]; static unsigned long ncalls[512];
-static const char *hname(int i){ return handlers[i] ? handlers[i]->name : "?"; }
+/* slots: the emulated calls' glue indices (0 .. RC_NSTUBS-1), then one per bound call (RS_BIND), numbered as first called */
+static const char *bind_name[NSLOT];
+static const char *hname(int i){ if (i >= RC_NSTUBS) return i < NSLOT && bind_name[i] ? bind_name[i] : "?"; return handlers[i] ? handlers[i]->name : "?"; }
+/* every bound call: the thread's last-call / inside-call record (hang reports) and, with the profiler on, its time */
+u64 rs_bind_begin(sdkcall_t *c, int *slot, const char *name){
+    static int next = -1; if (*slot < 0) { if (next < 0) next = RC_NSTUBS; int k = __sync_fetch_and_add(&next, 1); if (k >= NSLOT) k = NSLOT - 1; bind_name[k] = name; *slot = k; }
+    pthread_once(&cpu_once, mk_cpu_key); pthread_setspecific(k_cpu, c);
+    kthread_t *me = rs_kthread_cur(); if (!me) return 0;
+    me->ncalls_t++; me->prev = me->last; me->last = *slot + 1; me->last_a0 = c->r[4]; me->in = *slot + 1;
+    if (!perf_on) return 0;
+    if (!me->p_us) { me->p_us = calloc(NSLOT, 8); me->p_n = calloc(NSLOT, 8); }
+    return rs_perf_us(); }
+void rs_bind_end(int slot, u64 t0){
+    kthread_t *me = rs_kthread_cur(); if (!me) return; me->in = 0;
+    if (t0 && me->p_us) { u64 t = rs_perf_us() - t0; me->p_us[slot] += t; me->p_n[slot]++; me->p_hle += t; } }
 void hle_init(const char *root, u32 heap_lo, u32 heap_hi){
     if (root) strncpy(g_root, root, sizeof g_root - 1); { rs_region_add(rs_scratchpad_addr(), 0x4000); } vol_base = heap_hi - 0x400000u; hle_heap_lo = heap_lo; hle_heap_hi = vol_base; rs_mem_init(hle_heap_lo, hle_heap_hi); rs_ge_reset(); ge_intr_start(); trace_all = getenv("RS_TRACE") != 0;
-    for (int i = 0; i < RC_NSTUBS; i++) for (int k = 0; k < NTBL; k++) if (tbl[k].nid == rc_stubs[i].nid) handlers[i] = &tbl[k];
-    { extern const hle_t rs_net_tbl[]; extern const int rs_net_ntbl;                    /* networking: net.c */
-      for (int i = 0; i < RC_NSTUBS; i++) for (int k = 0; k < rs_net_ntbl; k++) if (rs_net_tbl[k].nid == rc_stubs[i].nid) handlers[i] = &rs_net_tbl[k]; }
     big_lock();
 }
 void hle_lock_release_for_main(void){ pthread_mutex_unlock(&big); }
@@ -461,8 +526,8 @@ void hle_report(void){ rs_ge_summary();
         d = strchr(d, ','); if (d) d++; } }
     { extern void rs_audio_summary(void); rs_audio_summary(); } fprintf(stderr, "\n==== RUN SUMMARY ====\nframes(vblank waits)=%d  GE lists queued=%d  live threads=%d\n", g_frames, g_ge_lists, g_alive_threads);
     for (int i = 0; i < rs_nthreads; i++) { kthread_t *t = rs_threads[i]; int l = t->last - 1;
-        fprintf(stderr, "  thread %-22s %s last call: %s\n", t->name, t->exited ? "EXITED" : "alive ", l < 0 ? "-" : (handlers[l] ? handlers[l]->name : "<unimplemented>")); fprintf(stderr, "      ra=%08x a0=%x  total HLE calls=%lu\n", t->last_ra, t->last_a0, t->ncalls_t); 
-        if (l >= 0 && !handlers[l]) fprintf(stderr, "      (%s %08X)\n", rc_stubs[l].lib, rc_stubs[l].nid); }
+        fprintf(stderr, "  thread %-22s %s last call: %s\n", t->name, t->exited ? "EXITED" : "alive ", l < 0 ? "-" : hname(l)); fprintf(stderr, "      ra=%08x a0=%x  total HLE calls=%lu\n", t->last_ra, t->last_a0, t->ncalls_t); 
+        if (l >= 0 && l < RC_NSTUBS && !handlers[l]) fprintf(stderr, "      (%s %08X)\n", rc_stubs[l].lib, rc_stubs[l].nid); }
     int un = 0; for (int i = 0; i < RC_NSTUBS; i++) if (!handlers[i] && ncalls[i]) { if (!un++) fprintf(stderr, "Unimplemented firmware calls that were hit (lib NID count):\n"); fprintf(stderr, "  %-18s %08X  x%lu\n", rc_stubs[i].lib, rc_stubs[i].nid, ncalls[i]); }
     if (!un) fprintf(stderr, "No unimplemented firmware calls were hit.\n");
 }
@@ -473,7 +538,7 @@ void hle_call(sdkcall_t *c, int idx){
     if (!seen[idx]) { seen[idx] = 1; fprintf(stderr, "[HLE] first call: %s %s (%08X) a0=%x a1=%x a2=%x a3=%x\n", rc_stubs[idx].lib, h ? h->name : "<UNIMPLEMENTED>", rc_stubs[idx].nid, A0, A1, A2, A3); }
     else if (trace_all) fprintf(stderr, "[HLE] %s %08X\n", rc_stubs[idx].lib, rc_stubs[idx].nid);
     if (h) { if (me) me->in = idx + 1;
-        if (perf_on && me) { if (!me->p_us) { me->p_us = calloc(RC_NSTUBS, 8); me->p_n = calloc(RC_NSTUBS, 8); }
+        if (perf_on && me) { if (!me->p_us) { me->p_us = calloc(NSLOT, 8); me->p_n = calloc(NSLOT, 8); }
             u64 t = rs_perf_us(); h->fn(c); t = rs_perf_us() - t; me->p_us[idx] += t; me->p_n[idx]++; me->p_hle += t; } else h->fn(c);
         if (me) me->in = 0; return; }
     V0 = 0; V1 = 0;

@@ -55,3 +55,46 @@ NOARGS(sceKernelLibcTime)
 /* the game's own module: one id; stopping / unloading itself at exit does nothing */
 NOARGS(sceKernelGetModuleId) return 0x1F00; }
 NOARGS(ModuleMgrForUser_8F2DF740) return 0; }
+
+/* ---- the rest of the game's system calls, none of which need the firmware ----
+ * Display power: the game asks the system not to dim the screen during movies, and sets the PSP's CPU clock (the platform sets its
+ * own clocks); standard input / error handles (never used for output). */
+NOARGS(scePowerUnregisterCallback) return 0; }
+NOARGS(scePower_EBD177D6) return 0; }                         /* clock request (333 / 166 MHz) */
+NOARGS(sceKernelStdin) return 0; }
+NOARGS(sceKernelStderr) return 0; }
+/* Graphics engine context and list control: drawing is native (gu_native.c); these have nothing to act on. */
+NOARGS(sceGeContinue) return 0; }
+NOARGS(sceGeEdramSetAddrTranslation) return 0; }
+NOARGS(sceGeGetCmd) return 0; }
+NOARGS(sceGeSaveContext) return 0; }
+NOARGS(sceGeRestoreContext) return 0; }
+NOARGS(sceGeUnsetCallback) return 0; }
+/* Message dialogs: the game shows them only for network and save errors, and goes on when none is reported open (status 0). */
+NOARGS(sceUtilityMsgDialogInitStart) return 0; }
+NOARGS(sceUtilityMsgDialogUpdate) return 0; }
+NOARGS(sceUtilityMsgDialogGetStatus) return 0; }
+NOARGS(sceUtilityMsgDialogShutdownStart) return 0; }
+NOARGS(sceUtilitySavedataUpdate) return 0; }
+
+/* Calendar time.  ScePspDateTime: u16 year, month, day, hour, minute, second; u32 microsecond.  Ticks are microseconds since 1 Jan
+ * of year 1. */
+static void put16(u32 a, u16 v){ memcpy(g_mem + GADDR(a), &v, 2); }
+static void date_put(u32 a, const struct tm *t, u32 us){ put16(a, (u16)(t->tm_year + 1900)); put16(a + 2, (u16)(t->tm_mon + 1)); put16(a + 4, (u16)t->tm_mday);
+    put16(a + 6, (u16)t->tm_hour); put16(a + 8, (u16)t->tm_min); put16(a + 10, (u16)t->tm_sec); memcpy(g_mem + GADDR(a + 12), &us, 4); }
+static void clock_now(u32 a, int local){ struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts); time_t s = ts.tv_sec; struct tm t;
+#ifdef _WIN32
+    if (local) localtime_s(&t, &s); else gmtime_s(&t, &s);
+#else
+    if (local) localtime_r(&s, &t); else gmtime_r(&s, &t);
+#endif
+    date_put(a, &t, (u32)(ts.tv_nsec / 1000)); }
+NOARGS(sceRtcGetCurrentClock) if (a0) clock_now(a0, 0); return 0; }
+NOARGS(sceRtcGetCurrentClockLocalTime) if (a0) clock_now(a0, 1); return 0; }
+static s64 days_from_civil(int y, unsigned m, unsigned d){ y -= m <= 2; s64 era = (y >= 0 ? y : y - 399) / 400; unsigned yoe = (unsigned)(y - era * 400);
+    unsigned doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1, doe = yoe * 365 + yoe / 4 - yoe / 100 + doy; return era * 146097 + (s64)doe - 719468; }   /* days since 1970-01-01 */
+NOARGS(sceRtcGetTick)                                           /* (date, out tick) */
+    if (!a0 || !a1) return 0x80010016u; u16 v[6]; u32 us; memcpy(v, g_mem + GADDR(a0), 12); memcpy(&us, g_mem + GADDR(a0 + 12), 4);
+    s64 days = days_from_civil(v[0], v[1], v[2]) + 719162;          /* + days from year 1 to 1970 */
+    u64 tick = (u64)days * 86400000000ull + ((u64)v[3] * 3600 + (u64)v[4] * 60 + v[5]) * 1000000ull + us;
+    memcpy(g_mem + GADDR(a1), &tick, 8); return 0; }

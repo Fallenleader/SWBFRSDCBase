@@ -406,24 +406,60 @@ static void h_EtherNtostr(sdkcall_t *c){ char s[18]; u8 m[6]; gread(A0, m, 6); s
 static void h_EtherStrton(sdkcall_t *c){ char s[32]; unsigned m[6] = {0}; gstr(A0, s, sizeof s); sscanf(s, "%x:%x:%x:%x:%x:%x", &m[0], &m[1], &m[2], &m[3], &m[4], &m[5]); for (int i = 0; i < 6; i++) SB(A1 + i, m[i]); V0 = 0; }
 
 typedef struct { u32 nid; const char *name; void (*fn)(sdkcall_t *); } net_hle_t;
-const net_hle_t rs_net_tbl[] = {
- {0x39AF39A6,"sceNetInit",h_NetInit},{0x281928A9,"sceNetTerm",h_Zero},
- {0x17943399,"sceNetInetInit",h_NetInit},{0xA9ED66B9,"sceNetInetTerm",h_Zero},
- {0x8B7B220F,"sceNetInetSocket",h_Socket},{0x8D7284EA,"sceNetInetClose",h_Close},{0x4CFE4E56,"sceNetInetShutdown",h_Shutdown},
- {0x1A33F9AE,"sceNetInetBind",h_Bind},{0xD10A1A7A,"sceNetInetListen",h_Listen},{0x410B34AA,"sceNetInetConnect",h_Connect},{0xDB094E1B,"sceNetInetAccept",h_Accept},
- {0x7AA671BC,"sceNetInetSend",h_Send},{0x05038FC7,"sceNetInetSendto",h_Sendto},{0xCDA85C99,"sceNetInetRecv",h_Recv},{0xC91142E4,"sceNetInetRecvfrom",h_Recvfrom},
- {0x2FE71FE7,"sceNetInetSetsockopt",h_Setsockopt},{0x4A114C7C,"sceNetInetGetsockopt",h_Getsockopt},{0x162E6FD5,"sceNetInetGetsockname",h_Getsockname},
- {0x5BE8D595,"sceNetInetSelect",h_Select},{0xFBABE411,"sceNetInetGetErrno",h_GetErrno},{0xB75D5B0A,"sceNetInetInetAddr",h_InetAddr},{0xD0792666,"sceNetInetInetNtop",h_InetNtop},
- {0xE2F91F9B,"sceNetApctlInit",h_Zero},{0xB3EDD0EC,"sceNetApctlTerm",h_Zero},{0x8ABADD51,"sceNetApctlAddHandler",h_ApAddHandler},{0x5963991B,"sceNetApctlDelHandler",h_ApDelHandler},
- {0x2BEFDF23,"sceNetApctlGetInfo",h_ApGetInfo},
- {0x4DB1E739,"sceUtilityNetconfInitStart",h_NcInit},{0x6332AA39,"sceUtilityNetconfGetStatus",h_NcStatus},{0x91E70E35,"sceUtilityNetconfUpdate",h_NcUpdate},{0xF88155F6,"sceUtilityNetconfShutdownStart",h_NcShutdown},
- {0xF3370E61,"sceNetResolverInit",h_Zero},{0x6138194A,"sceNetResolverTerm",h_Zero},{0x244172AF,"sceNetResolverCreate",h_ResCreate},{0x94523E09,"sceNetResolverDelete",h_Zero},
- {0x224C5F44,"sceNetResolverStartNtoA",h_ResNtoA},
- {0x0BF0A3AE,"sceNetGetLocalEtherAddr",h_GetEther},{0x89360950,"sceNetEtherNtostr",h_EtherNtostr},{0xD27961C9,"sceNetEtherStrton",h_EtherStrton},
- {0xD7763699,"sceWlanGetSwitchState",h_One},{0x090CCB3F,"sceKernelPowerTick",h_Zero},
- {0xE1D621D7,"sceNetAdhocInit",h_Fail},{0xA62C6F57,"sceNetAdhocTerm",h_Zero},{0x6F92741B,"sceNetAdhocPdpCreate",h_Fail},{0x7F27BB5E,"sceNetAdhocPdpDelete",h_Zero},
- {0xDFE53E03,"sceNetAdhocPdpRecv",h_Fail},{0xABED3790,"sceNetAdhocPdpSend",h_Fail},{0xE26F226E,"sceNetAdhocctlInit",h_Fail},{0x9D689E13,"sceNetAdhocctlTerm",h_Zero},
- {0x20B317A0,"sceNetAdhocctlAddHandler",h_Fail},{0x6402490B,"sceNetAdhocctlDelHandler",h_Zero},{0x0AD043ED,"sceNetAdhocctlConnect",h_Fail},{0x34401D65,"sceNetAdhocctlDisconnect",h_Zero},
- {0x81AEE1BE,"sceNetAdhocctlGetScanInfo",h_Fail},{0x75ECD386,"sceNetAdhocctlGetState",h_Fail},
-};
-const int rs_net_ntbl = (int)(sizeof rs_net_tbl / sizeof rs_net_tbl[0]);
+/* the game's network calls bound to the handlers above (rs_bind.h) */
+#include "rs_bind.h"
+RS_BIND(sceNetInit, h_NetInit)
+RS_BIND(sceNetTerm, h_Zero)
+RS_BIND(sceNetInetInit, h_NetInit)
+RS_BIND(sceNetInetTerm, h_Zero)
+RS_BIND(sceNetInetSocket, h_Socket)
+RS_BIND(sceNetInetClose, h_Close)
+RS_BIND(sceNetInetShutdown, h_Shutdown)
+RS_BIND(sceNetInetBind, h_Bind)
+RS_BIND(sceNetInetListen, h_Listen)
+RS_BIND(sceNetInetConnect, h_Connect)
+RS_BIND(sceNetInetAccept, h_Accept)
+RS_BIND(sceNetInetSend, h_Send)
+RS_BIND(sceNetInetSendto, h_Sendto)
+RS_BIND(sceNetInetRecv, h_Recv)
+RS_BIND(sceNetInetRecvfrom, h_Recvfrom)
+RS_BIND(sceNetInetSetsockopt, h_Setsockopt)
+RS_BIND(sceNetInetGetsockopt, h_Getsockopt)
+RS_BIND(sceNetInetGetsockname, h_Getsockname)
+RS_BIND(sceNetInetSelect, h_Select)
+RS_BIND(sceNetInetGetErrno, h_GetErrno)
+RS_BIND(sceNetInetInetAddr, h_InetAddr)
+RS_BIND(sceNetInetInetNtop, h_InetNtop)
+RS_BIND(sceNetApctlInit, h_Zero)
+RS_BIND(sceNetApctlTerm, h_Zero)
+RS_BIND(sceNetApctlAddHandler, h_ApAddHandler)
+RS_BIND(sceNetApctlDelHandler, h_ApDelHandler)
+RS_BIND(sceNetApctlGetInfo, h_ApGetInfo)
+RS_BIND(sceUtilityNetconfInitStart, h_NcInit)
+RS_BIND(sceUtilityNetconfGetStatus, h_NcStatus)
+RS_BIND(sceUtilityNetconfUpdate, h_NcUpdate)
+RS_BIND(sceUtilityNetconfShutdownStart, h_NcShutdown)
+RS_BIND(sceNetResolverInit, h_Zero)
+RS_BIND(sceNetResolverTerm, h_Zero)
+RS_BIND(sceNetResolverCreate, h_ResCreate)
+RS_BIND(sceNetResolverDelete, h_Zero)
+RS_BIND(sceNetResolverStartNtoA, h_ResNtoA)
+RS_BIND(sceNetGetLocalEtherAddr, h_GetEther)
+RS_BIND(sceNetEtherNtostr, h_EtherNtostr)
+RS_BIND(sceNetEtherStrton, h_EtherStrton)
+RS_BIND(sceWlanGetSwitchState, h_One)
+RS_BIND(sceKernelPowerTick, h_Zero)
+RS_BIND(sceNetAdhocInit, h_Fail)
+RS_BIND(sceNetAdhocTerm, h_Zero)
+RS_BIND(sceNetAdhocPdpCreate, h_Fail)
+RS_BIND(sceNetAdhocPdpDelete, h_Zero)
+RS_BIND(sceNetAdhocPdpRecv, h_Fail)
+RS_BIND(sceNetAdhocPdpSend, h_Fail)
+RS_BIND(sceNetAdhocctlInit, h_Fail)
+RS_BIND(sceNetAdhocctlTerm, h_Zero)
+RS_BIND(sceNetAdhocctlAddHandler, h_Fail)
+RS_BIND(sceNetAdhocctlDelHandler, h_Zero)
+RS_BIND(sceNetAdhocctlConnect, h_Fail)
+RS_BIND(sceNetAdhocctlDisconnect, h_Zero)
+RS_BIND(sceNetAdhocctlGetScanInfo, h_Fail)
+RS_BIND(sceNetAdhocctlGetState, h_Fail)
