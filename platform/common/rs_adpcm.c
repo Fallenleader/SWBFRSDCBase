@@ -80,20 +80,23 @@ defaults:
     {   static const int16_t d[16] = {0, 0, 2048, 0, 0, 0, 1024, 0, 4096, -2048, 3584, -1536, 3072, -1024, 4608, -2560};
         memcpy(coef, d, sizeof d); } }
 
-/* one frame of 14 samples: the best predictor pair and scale (tried against the decoder's own history), encoded */
+/* one frame of 14 samples: the predictor pair that fits best with the input's own history (the two best are kept), then for each the
+ * scale from its largest residual and the one above, quantized against the decoder's own history; the least error wins */
 static void enc_frame(const int16_t *x, int n, const int16_t coef[16], int *h1, int *h2, uint8_t out[8]){
-    int best_err = -1, bp = 0, bs = 0; int8_t bn[14] = {0}; int bh1 = *h1, bh2 = *h2;
+    int cand[2] = {0, 0}; long long ce[2] = {-1, -1}; int cmx[2] = {0, 0};
     for (int p = 0; p < 8; p++) {
-        int c1 = coef[p * 2], c2 = coef[p * 2 + 1];
-        /* the scale from the largest residual with the input's own history */
-        int mx = 0, a1 = *h1, a2 = *h2;
-        for (int i = 0; i < n; i++) { int pred = (c1 * a1 + c2 * a2 + 1024) >> 11; int r = x[i] - pred; if (r < 0) r = -r; if (r > mx) mx = r; a2 = a1; a1 = x[i]; }
-        int s0 = 0; while (s0 < 12 && (7 << s0) < mx) s0++;
-        for (int s = s0 > 0 ? s0 - 1 : 0; s <= s0 + 1 && s <= 12; s++) {
-            int e = 0, q1 = *h1, q2 = *h2; int8_t nb[14];
-            for (int i = 0; i < n; i++) { int P = c1 * q1 + c2 * q2; int num = ((int)x[i] << 11) - P - 1024, den = 2048 << s;
-                int nib = num >= 0 ? (num + den / 2) / den : -((-num + den / 2) / den); if (nib > 7) nib = 7; if (nib < -8) nib = -8;
-                int y = clamp16((((nib << s) << 11) + 1024 + P) >> 11); int d = y - x[i]; e += d * d > (1 << 30) / 14 ? (1 << 30) / 14 : d * d;
+        int c1 = coef[p * 2], c2 = coef[p * 2 + 1], a1 = *h1, a2 = *h2, mx = 0; long long e = 0;
+        for (int i = 0; i < n; i++) { int r = x[i] - ((c1 * a1 + c2 * a2 + 1024) >> 11); e += (long long)r * r; if (r < 0) r = -r; if (r > mx) mx = r; a2 = a1; a1 = x[i]; }
+        if (ce[0] < 0 || e < ce[0]) { cand[1] = cand[0]; ce[1] = ce[0]; cmx[1] = cmx[0]; cand[0] = p; ce[0] = e; cmx[0] = mx; }
+        else if (ce[1] < 0 || e < ce[1]) { cand[1] = p; ce[1] = e; cmx[1] = mx; } }
+    long long best_err = -1; int bp = 0, bs = 0; int8_t bn[14] = {0}; int bh1 = *h1, bh2 = *h2;
+    for (int k = 0; k < 2; k++) {
+        int p = cand[k], c1 = coef[p * 2], c2 = coef[p * 2 + 1], s0 = 0; while (s0 < 12 && (7 << s0) < cmx[k]) s0++;
+        for (int s = s0; s <= s0 + 1 && s <= 12; s++) {
+            long long e = 0; int q1 = *h1, q2 = *h2; int8_t nb[14];
+            for (int i = 0; i < n; i++) { int P = c1 * q1 + c2 * q2; int num = ((int)x[i] << 11) - P - 1024;
+                int nib = (num + (1 << (10 + s))) >> (11 + s); if (nib > 7) nib = 7; if (nib < -8) nib = -8;   /* (rounded, floor of +half) */
+                int y = clamp16((((nib << s) << 11) + 1024 + P) >> 11); int d = y - x[i]; e += (long long)d * d;
                 nb[i] = (int8_t)nib; q2 = q1; q1 = y; }
             if (best_err < 0 || e < best_err) { best_err = e; bp = p; bs = s; memcpy(bn, nb, (size_t)n); bh1 = q1; bh2 = q2; } } }
     out[0] = (uint8_t)(bp << 4 | bs); memset(out + 1, 0, 7);
