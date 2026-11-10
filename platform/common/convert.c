@@ -19,15 +19,34 @@
 #include <sys/stat.h>
 #include "vfs.h"
 #include "convert.h"
+/* RS_CONV_ADPCM (the 3DS): audio is written as DSP-ADPCM (.adp, rs_adpcm.c: the format its sound chip decodes), through a temporary
+ * WAV.  RS_CONV_NO_VIDEO: no movie conversion in this build (no FFmpeg); the movies are left as they are. */
+#ifdef RS_CONV_ADPCM
+#include "rs_adpcm.h"
+#define AUDIO_EXT ".adp"
+#define ADPCM_BUILD 1
+#else
+#define AUDIO_EXT ".wav"
+#define ADPCM_BUILD 0
+#endif
+#ifdef RS_CONV_NO_VIDEO
+#define VIDEO_KIND (-1)
+#else
+#define VIDEO_KIND 1
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/channel_layout.h>
 #include <libavutil/opt.h>
+#endif
 
 void *rs_at3p_alloc(int ch, int ba); int rs_at3p_decode(void *c, float *l, float *r, int *ns, const unsigned char *buf, int size); void rs_at3p_free(void *c);
 void *rs_at3_alloc(int ch, int ba, const unsigned char *extra, int extra_size); int rs_at3_decode(void *c, float *l, float *r, int *ns, const unsigned char *buf, int size); void rs_at3_free(void *c);
 
-#define MANIFEST_VERSION "rsconv 3"   /* 3: sound bundles (.AM) -> one WAV per sound; 2: videos in the Vita movie format (AAC 160 kbps, moov first); older manifests keep their audio */
+#ifdef RS_CONV_ADPCM
+#define MANIFEST_VERSION "rsconv 3a"   /* (ADPCM: never mixed with a WAV manifest) */
+#else
+#define MANIFEST_VERSION "rsconv 3"
+#endif   /* 3: sound bundles (.AM) -> one WAV per sound; 2: videos in the Vita movie format (AAC 160 kbps, moov first); older manifests keep their audio */
 #define MAXJOB 512
 typedef struct { char rel[256]; char src[1100]; int kind; unsigned size; uint32_t sig; uint64_t out_size; int state; } job_t;   /* kind 0 audio, 1 video, 2 sound bundle; state 0 ok, 1 todo, 2 done, 3 failed */
 static job_t jobs[MAXJOB]; static int njobs, next_job;
@@ -46,10 +65,10 @@ static void mkdirs(const char *path){            /* mkdir -p of the folder part 
     char t[1400]; snprintf(t, sizeof t, "%s", path); char *s = strrchr(t, '/'); if (!s) return; *s = 0;
     for (char *p = t + 1; *p; p++) if (*p == '/') { *p = 0; mkdir(t, 0777); *p = '/'; }
     mkdir(t, 0777); }
-static const char *kind_ext(int kind){ return kind == 1 ? ".mp4" : (kind == 2 ? ".idx" : ".wav"); }
+static const char *kind_ext(int kind){ return kind == 1 ? ".mp4" : (kind == 2 ? ".idx" : AUDIO_EXT); }
 static void out_path(char *o, size_t cap, const char *rel, int kind){ snprintf(o, cap, "%s/%s%s", g_out, rel, kind_ext(kind)); }
 /* a bundle's sounds: <out>/<bundle>.d/<offset of the sound's RIFF header in the bundle, 8 hex digits>.wav */
-static void bundle_wav_path(char *o, size_t cap, const char *rel, uint32_t off){ snprintf(o, cap, "%s/%s.d/%08X.wav", g_out, rel, off); }
+static void bundle_wav_path(char *o, size_t cap, const char *rel, uint32_t off){ snprintf(o, cap, "%s/%s.d/%08X" AUDIO_EXT, g_out, rel, off); }
 
 const char *rs_convert_output_for(const char *full, const char *ext){
     static __thread char buf[1300];
@@ -92,7 +111,7 @@ static void scan(const char *full, const char *rel, int depth){
         int isdir = 0; unsigned size = 0; if (vfs_stat(sub, &isdir, &size)) continue;
         if (isdir) { if (depth < 8) scan(sub, r, depth + 1); continue; }
         size_t l = strlen(r); int kind = -1;
-        if (l > 4 && !strcmp(r + l - 4, ".AT3")) kind = 0; else if (l > 4 && !strcmp(r + l - 4, ".PMF")) kind = 1; else if (l > 3 && !strcmp(r + l - 3, ".AM")) kind = 2;
+        if (l > 4 && !strcmp(r + l - 4, ".AT3")) kind = 0; else if (l > 4 && !strcmp(r + l - 4, ".PMF")) kind = VIDEO_KIND; else if (l > 3 && !strcmp(r + l - 3, ".AM")) kind = 2;
         if (kind < 0 || njobs >= MAXJOB) continue;
         job_t *j = &jobs[njobs++]; memset(j, 0, sizeof *j); snprintf(j->rel, sizeof j->rel, "%s", r); snprintf(j->src, sizeof j->src, "%s", sub); j->kind = kind; j->size = size; }
     vfs_closedir(d); }
@@ -109,7 +128,7 @@ static void check_all(void){
     typedef struct { char rel[256]; unsigned size; uint32_t sig; unsigned long long out; } ment_t;
     static ment_t m[MAXJOB]; int nm = 0;
     int old1 = 0;                                                      /* a version-1 manifest: its audio still stands, its videos are redone */
-    if (f) { if (fgets(line, sizeof line, f)) { if (!strncmp(line, MANIFEST_VERSION, strlen(MANIFEST_VERSION)) || !strncmp(line, "rsconv 2", 8)) ver_ok = 1; else if (!strncmp(line, "rsconv 1", 8) && (line[8] == '\n' || line[8] == '\r' || !line[8])) ver_ok = old1 = 1; }
+    if (f) { if (fgets(line, sizeof line, f)) { if (!strncmp(line, MANIFEST_VERSION, strlen(MANIFEST_VERSION)) || (!ADPCM_BUILD && !strncmp(line, "rsconv 2", 8))) ver_ok = 1; else if (!strncmp(line, "rsconv 1", 8) && (line[8] == '\n' || line[8] == '\r' || !line[8])) ver_ok = old1 = 1; }
         while (ver_ok && nm < MAXJOB && fgets(line, sizeof line, f)) if (sscanf(line, "%255s %u %x %llu", m[nm].rel, &m[nm].size, &m[nm].sig, &m[nm].out) == 4) nm++;
         fclose(f); }
     for (int i = 0; i < njobs; i++) {
@@ -167,6 +186,7 @@ static int conv_audio(job_t *j, const char *tmp, uint64_t *out_size){
     fclose(in); if (fclose(o)) err = -5;
     *out_size = 44ull + data_bytes; return err; }
 
+#ifndef RS_CONV_NO_VIDEO
 /* ------------------------------------------------------------------ PMF -> MP4 */
 typedef struct { const unsigned char *p; int n, bit; } br_t;           /* bit reader over an RBSP (emulation bytes removed) */
 static unsigned rb(br_t *b){ if (b->bit >= b->n * 8) return 0; unsigned v = (b->p[b->bit >> 3] >> (7 - (b->bit & 7))) & 1; b->bit++; return v; }
@@ -369,6 +389,9 @@ static int conv_video(job_t *j, const char *tmp, uint64_t *out_size){
     free(m.au); free(m.fl); free(m.frr); free(buf); fclose(in);
     struct stat s; if (rc == 0 && stat(tmp, &s) == 0) *out_size = (uint64_t)s.st_size; else if (rc == 0) rc = -10;
     return rc; }
+#else
+static int conv_video(job_t *j, const char *tmp, uint64_t *out_size){ (void)j; (void)tmp; (void)out_size; return -2; }
+#endif
 
 /* ------------------------------------------------------------------ workers */
 /* A sound bundle (the game's GMSND.AM: 1070 ATRAC3plus voice and effect sounds, one RIFF file after another) -> one WAV per sound,
@@ -406,7 +429,12 @@ static int conv_bundle(job_t *j, const char *tmp, uint64_t *out_size){
                 else for (int q = 0; q < ns; q++) { pcm[q * 2] = clamp16((int)(L[q] * 32768.0f)); pcm[q * 2 + 1] = clamp16((int)(R[q] * 32768.0f)); }
                 if (fwrite(pcm, 2u * (size_t)a.ch, (size_t)ns, o) != (size_t)ns) err = -5; }
             if (fclose(o)) err = -5;
+#ifdef RS_CONV_ADPCM
+            if (!err) { uint64_t as = 0; remove(w); if (rs_adp_from_wav(wt, w, &as)) err = -6; else data_bytes = (uint32_t)as - 44u; }
+            remove(wt);
+#else
             if (!err) { remove(w); if (rename(wt, w)) err = -11; } else remove(wt);
+#endif
             fprintf(idx, "%08X %d %u\n", i, a.ch, nframes); total += 44ull + data_bytes; nsound++; }
         pthread_mutex_lock(&dec_mx); if (a.codec) rs_at3p_free(dec); else rs_at3_free(dec); pthread_mutex_unlock(&dec_mx);
         uint32_t end = i + a.data_off + a.data_len; add_work(end - done_at); done_at = end; i = end - 1; }
@@ -427,7 +455,11 @@ static void *worker(void *arg){
         pthread_mutex_unlock(&mx);
         if (i < 0) break;
         job_t *j = &jobs[i]; char o[1300], t[1320]; out_path(o, sizeof o, j->rel, j->kind); snprintf(t, sizeof t, "%s.part", o); mkdirs(o);
-        uint64_t sz = 0; int rc = j->kind == 1 ? conv_video(j, t, &sz) : (j->kind == 2 ? conv_bundle(j, t, &sz) : conv_audio(j, t, &sz));
+        uint64_t sz = 0; int rc;
+#ifdef RS_CONV_ADPCM
+        if (j->kind == 0) { char tw[1340]; snprintf(tw, sizeof tw, "%s.wav", t); rc = conv_audio(j, tw, &sz); if (!rc) rc = rs_adp_from_wav(tw, t, &sz) ? -6 : 0; remove(tw); } else
+#endif
+        rc = j->kind == 1 ? conv_video(j, t, &sz) : (j->kind == 2 ? conv_bundle(j, t, &sz) : conv_audio(j, t, &sz));
         if (rc == 0) { remove(o); if (rename(t, o)) rc = -11; }
         if (rc) { remove(t); fprintf(stderr, "[CONV] %s failed (%d)\n", j->rel, rc); }
         else fprintf(stderr, "[CONV] %s -> %llu bytes\n", j->rel, (unsigned long long)sz);
@@ -437,7 +469,7 @@ static void *worker(void *arg){
         pthread_mutex_unlock(&mx); }
     return 0; }
 
-static uint64_t estimate_out(void){                                        /* output bytes for everything still to convert */
+static uint64_t estimate_out(void){                                        /* (ADPCM: a quarter of the WAV, plus the temporary WAV) */                                        /* output bytes for everything still to convert */
     uint64_t t = 0; for (int i = 0; i < njobs; i++) if (jobs[i].state == 1) t += jobs[i].kind == 1 ? jobs[i].size : (uint64_t)jobs[i].size * 11u + 4096u;   /* ATRAC3plus 132 kbit/s -> PCM 1411 kbit/s (bundles: mono at ~64 kbit/s, about the same ratio) */
     return t; }
 

@@ -26,6 +26,7 @@
 #include "psp_impl.h"
 #include "gfx.h"
 
+#include "convert.h"
 #define RS_DIR "sdmc:/3ds/SWBFRS"
 #define RS_GAME RS_DIR "/GAME"
 #define RS_ISO RS_DIR "/game.iso"
@@ -255,6 +256,21 @@ int main(void){
     if (stat(RS_ISO, &st) == 0) { extern int vfs_iso_mount(const char *path); if (vfs_iso_mount(RS_ISO) != 0) fatal("game.iso is not a readable UMD image"); game_root = "iso:"; STEP("game files: " RS_ISO); }
     else if (stat(RS_GAME "/PSP_GAME/SYSDIR", &st) == 0) { game_root = RS_GAME; STEP("game files: " RS_GAME); }
     else fatal("Game files not found.\nCopy your UMD image to\n" RS_ISO "\nor extract it so that\n" RS_GAME "/PSP_GAME\nexists.");
+
+    /* first start: the game's audio converted to the 3DS's own format (DSP-ADPCM, convert.c) into sdmc:/3ds/SWBFRS/converted; later
+     * starts only check it (seconds).  Before the game heap exists: the converter reads a whole sound bundle (16 MB) at once. */
+    {   if (rs_convert_start(game_root, RS_DIR "/converted", 1, 0) == 0) {
+            u64 shown = 0; rs_conv_status_t c;
+            for (;;) { rs_convert_status(&c); u64 now = osGetTime();
+                if (c.phase == RS_CONV_DONE) { STEP("media conversion: done (%d files)", c.files_total); break; }
+                if (c.phase == RS_CONV_FAILED) { STEP("media conversion failed: %s", c.message); consoleSelect(&bottom); printf("\x1b[2J\x1b[1;1HAudio conversion failed:\n%s\n(see log.txt)\n", c.message); svcSleepThread(3000000000LL); break; }
+                if (now - shown >= 500) { shown = now; consoleSelect(&bottom);
+                    if (c.phase == RS_CONV_CONVERTING) printf("\x1b[1;1HSWBF Renegade Squadron\n\nFirst start: converting the audio\nfor the 3DS (once).\n\n%3d%%  file %d of %d\n%-40.40s\n",
+                                         c.work_total ? (int)(c.work_done * 100 / c.work_total) : 0, c.files_done + 1, c.files_todo, c.current[0]);
+                    else printf("\x1b[1;1HSWBF Renegade Squadron\n\nChecking the converted audio...\n"); }
+                if (!aptMainLoop()) { svcExitProcess(); }
+                svcSleepThread(100000000LL); }
+            consoleSelect(&bottom); printf("\x1b[2J\x1b[1;1HSWBF Renegade Squadron\n\nStarting...\n"); } }
 
     /* GPU-visible memory of the game: the data image (in this executable), the scratchpad, the VRAM image, the game heap */
     { extern u32 rs_image_w[]; extern const u32 rs_image_size; rs_region_add((u32)(uintptr_t)rs_image_w, rs_image_size); }

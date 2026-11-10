@@ -355,8 +355,15 @@ typedef struct {
     int used, codec, ch, ba; void *dec; FILE *f; u8 *mem; FILE *pcm; u32 pcm_next;   /* pcm: converted copy (convert.c), frames read instead of decoded */ u32 base, data_off, data_len, nframes, cur, total, skip; int loop_start, loop_end, done;
     u32 buf, bufsize, riff_total, fed;   /* fed: bytes of the sound the game has put in its buffer (initial fill + AddStreamData) */
     int pcm_ch;                          /* channels of the converted copy (1: a bundle sound kept mono) */
+    struct rs_adp *adp;                  /* the converted copy as DSP-ADPCM (the 3DS: RS_CONV_ADPCM) */
 } atrac_t;
 static atrac_t at[8];
+#include "rs_adpcm.h"
+#ifdef RS_CONV_ADPCM
+#define CONV_EXT ".adp"
+#else
+#define CONV_EXT ".wav"
+#endif
 #define ATRAC_ERR_BAD_ID 0x80630005u
 #define ATRAC_ERR_ALL_DECODED 0x80630024u
 #define ATRAC_ERR_UNKNOWN_FORMAT 0x80630006u
@@ -386,14 +393,26 @@ void ha_SetDataAndGetID(sdkcall_t *c){
     for (int k = 0; k < 16 && !match; k++) { at3file_t *e = &files[(nfile - 1 - k + 64) % 16]; if (!e->path[0]) continue;
         if (e->size == riff_total && e->n >= cmp && !memcmp(e->head, b, (size_t)cmp)) match = e->path; }
     if (match) { const char *rs_convert_output_for(const char *, const char *) __attribute__((weak));     /* convert.c, where linked */
-        const char *w = rs_convert_output_for ? rs_convert_output_for(match, ".wav") : 0;
-        if (w) { a->pcm = fopen(w, "rb"); if (a->pcm) { setvbuf(a->pcm, 0, _IOFBF, 64 * 1024); a->pcm_ch = 2; } }
-        if (!a->pcm) a->f = vfs_fopen(match, "rb"); }
+        const char *w = rs_convert_output_for ? rs_convert_output_for(match, CONV_EXT) : 0;
+#ifdef RS_CONV_ADPCM
+        if (w) { a->adp = rs_adp_open(w); if (a->adp) a->pcm_ch = 2; }
+        if (0)
+#else
+        if (w)
+#endif
+               { a->pcm = fopen(w, "rb"); if (a->pcm) { setvbuf(a->pcm, 0, _IOFBF, 64 * 1024); a->pcm_ch = 2; } }
+        if (!a->pcm && !a->adp) a->f = vfs_fopen(match, "rb"); }
     if (!match) {                                     /* a sound out of a bundle (the speech and effects bundle GMSND.AM): its converted WAV */
         const char *bp = 0; long o = bundle_find(b, size, &bp);
         const char *rs_convert_bundle_sound(const char *, u32) __attribute__((weak));
         const char *wv = o >= 0 && rs_convert_bundle_sound ? rs_convert_bundle_sound(bp, (u32)o) : 0;
-        if (wv) { a->pcm = fopen(wv, "rb"); if (a->pcm) { u8 h[44]; if (fread(h, 1, 44, a->pcm) == 44 && !memcmp(h, "RIFF", 4) && (h[22] == 1 || h[22] == 2)) { a->pcm_ch = h[22]; setvbuf(a->pcm, 0, _IOFBF, 16 * 1024); match = bp; } else { fclose(a->pcm); a->pcm = 0; } } } }
+#ifdef RS_CONV_ADPCM
+        if (wv) { a->adp = rs_adp_open(wv); if (a->adp) { a->pcm_ch = rs_adp_channels(a->adp); match = bp; } }
+        if (0)
+#else
+        if (wv)
+#endif
+                { a->pcm = fopen(wv, "rb"); if (a->pcm) { u8 h[44]; if (fread(h, 1, 44, a->pcm) == 44 && !memcmp(h, "RIFF", 4) && (h[22] == 1 || h[22] == 2)) { a->pcm_ch = h[22]; setvbuf(a->pcm, 0, _IOFBF, 16 * 1024); match = bp; } else { fclose(a->pcm); a->pcm = 0; } } } }
     if (!match && size < a->data_off + a->data_len)
         { const char *bp = 0; long o = bundle_find(b, size, &bp);
           FILE *bf = o >= 0 ? vfs_fopen(bp, "rb") : 0;
@@ -401,17 +420,17 @@ void ha_SetDataAndGetID(sdkcall_t *c){
               u32 need = a->data_off + a->data_len; if (need < riff_total) need = riff_total;
               a->mem = malloc(need); if (a->mem && fseek(bf, o, SEEK_SET) == 0 && fread(a->mem, 1, need, bf) == need) fclose(bf);
               else { free(a->mem); a->mem = 0; a->f = bf; a->base = (u32)o; } } }
-    if (!a->f && !a->pcm && !a->mem) { if (size >= a->data_off + a->data_len) { a->mem = malloc(size); if (a->mem) memcpy(a->mem, b, size); }   /* whole file in the buffer */
+    if (!a->f && !a->pcm && !a->adp && !a->mem) { if (size >= a->data_off + a->data_len) { a->mem = malloc(size); if (a->mem) memcpy(a->mem, b, size); }   /* whole file in the buffer */
         else fprintf(stderr, "[ATRAC] id %d: no source file found for a streamed buffer (%u of %u bytes) - silent\n", id, size, riff_total); }
     a->nframes = a->data_len / (u32)a->ba; if (!a->total) a->total = a->nframes * (a->codec ? 2048u : 1024u);
-    if (!a->pcm) a->dec = a->codec ? rs_at3p_alloc(a->ch, a->ba) : rs_at3_alloc(a->ch, a->ba, el ? extra : 0, el);
+    if (!a->pcm && !a->adp) a->dec = a->codec ? rs_at3p_alloc(a->ch, a->ba) : rs_at3_alloc(a->ch, a->ba, el ? extra : 0, el);
     a->used = 1;
     fprintf(stderr, "[ATRAC] id %d: %s, %d ch, %u frames%s%s\n", id, a->codec ? "ATRAC3plus" : "ATRAC3", a->ch, a->nframes, match ? " <- " : "", match ? match : (a->mem ? " (from memory)" : ""));
-    if (a->pcm) fprintf(stderr, "[ATRAC] id %d: playing the converted WAV (%d ch)\n", id, a->pcm_ch);
+    if (a->pcm || a->adp) fprintf(stderr, "[ATRAC] id %d: playing the converted %s (%d ch)\n", id, a->adp ? "ADPCM" : "WAV", a->pcm_ch);
     V0_ = (u32)id; }
 static atrac_t *aid(u32 id){ return id < 8 && at[id].used ? &at[id] : 0; }
 void ha_Release(sdkcall_t *c){ atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; }
-    if (a->f) fclose(a->f); if (a->pcm) fclose(a->pcm); free(a->mem); if (a->dec) { if (a->codec) rs_at3p_free(a->dec); else rs_at3_free(a->dec); } memset(a, 0, sizeof *a); V0_ = 0; }
+    if (a->f) fclose(a->f); if (a->pcm) fclose(a->pcm); if (a->adp) rs_adp_close(a->adp); free(a->mem); if (a->dec) { if (a->codec) rs_at3p_free(a->dec); else rs_at3_free(a->dec); } memset(a, 0, sizeof *a); V0_ = 0; }
 void ha_GetSoundSample(sdkcall_t *c){ atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; }
     if (A1_) SW(A1_, a->total ? a->total - 1 : 0); if (A2_) SW(A2_, (u32)a->loop_start); if (A3_) SW(A3_, (u32)a->loop_end); V0_ = 0; }
 void ha_GetStreamDataInfo(sdkcall_t *c){ atrac_t *a = aid(A0_); if (!a) { V0_ = ATRAC_ERR_BAD_ID; return; }
@@ -429,6 +448,12 @@ void ha_DecodeData(sdkcall_t *c){
     u32 out = A1_, pn = A2_, pfin = A3_, prem = T0_;
     if (a->done || a->cur >= a->nframes) { a->done = 1; if (pn) SW(pn, 0); if (pfin) SW(pfin, 1); if (prem) SW(prem, (u32)-1); V0_ = ATRAC_ERR_ALL_DECODED; return; }
     int spf = a->codec ? 2048 : 1024;
+    if (a->adp) {                                     /* converted copy (DSP-ADPCM): frame k is samples k * spf .. */
+        s16 *o = out ? (s16 *)(g_mem + GADDR(out)) : 0; static s16 tmp[4096 * 2]; s16 *d = o ? o : tmp;
+        rs_adp_read(a->adp, a->cur * (u32)spf, spf, d, 2); if (!rs_patch_audio()) memset(d, 0, (size_t)spf * 4);
+        a->cur++; int fin = a->cur >= a->nframes; if (fin) a->done = 1;
+        if (pn) SW(pn, (u32)spf); if (pfin) SW(pfin, (u32)fin); if (prem) SW(prem, (u32)-1);
+        V0_ = 0; return; }
     if (a->pcm) {                                     /* converted copy: frame k is spf stereo samples at 44 + k * spf * 4 */
         int ns = spf; s16 *o = out ? (s16 *)(g_mem + GADDR(out)) : 0; static s16 tmp[4096 * 2];
         int chb = a->pcm_ch == 1 ? 2 : 4;                 /* bytes per sample frame in the file (mono bundle sounds, stereo music) */

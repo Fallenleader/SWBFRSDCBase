@@ -25,7 +25,7 @@ OUT := $(B)/SWBFRS
 GAME_SRC := $(wildcard src/game/game_*.c)
 C_SRC := $(C)/hle.c $(C)/audio.c $(C)/settings.c $(C)/vfs.c $(C)/gfx_jobs.c $(C)/twin_stick.c $(C)/game_patches.c $(C)/colour_picker.c \
          $(C)/overlay_ui.c $(C)/game_ui.c $(C)/asura_tex.c $(C)/save_manager.c $(C)/parts_swap.c $(C)/loadout_slots.c $(C)/blueprints.c \
-         $(C)/custom_maps.c $(C)/tex_mips.c $(C)/gu_native.c $(C)/native_io.c $(C)/native_kernel.c $(C)/net.c $(C)/gamespy_ui.c $(C)/native_thread.c $(C)/native_mem.c $(C)/lift.c $(C)/guest64.c $(C)/renderer_option.c $(C)/gfx_menu.c $(C)/dedicated_host.c
+         $(C)/custom_maps.c $(C)/tex_mips.c $(C)/gu_native.c $(C)/native_io.c $(C)/native_kernel.c $(C)/net.c $(C)/convert.c $(C)/rs_adpcm.c $(C)/gamespy_ui.c $(C)/native_thread.c $(C)/native_mem.c $(C)/lift.c $(C)/guest64.c $(C)/renderer_option.c $(C)/gfx_menu.c $(C)/dedicated_host.c
 P_SRC := $(P)/main.c $(P)/gfx_c3d.c $(P)/no_movies.c
 SHADERS := $(P)/psp.v.pica
 
@@ -37,7 +37,7 @@ AT3_OBJ  := $(patsubst $(C)/ext/at3/%.cpp,$(B)/at3_%.o,$(wildcard $(C)/ext/at3/*
 # ARM11 MPCore with VFPv2: ARM code (the ARMv6 Thumb-1 set is much slower), hard float.  TLS is a call on the 3DS (-mtp=soft), so the
 # game's per-thread state is one block (RS_TLS_STRUCT), as on the Vita.  Game code at -O2 (I-cache: 16 KB); the rest -O3.
 ARCH     := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft -marm
-DEFS     := -D__3DS__ -DRS_3DS -DRS_TLS_STRUCT -DHOST_BUILD -D_GNU_SOURCE
+DEFS     := -D__3DS__ -DRS_3DS -DRS_CONV_ADPCM -DRS_CONV_NO_VIDEO -DRS_TLS_STRUCT -DHOST_BUILD -D_GNU_SOURCE
 COMMON   := $(ARCH) $(DEFS) -fomit-frame-pointer -fsigned-char -fno-strict-aliasing -ffp-contract=off -fno-math-errno -ffunction-sections -fdata-sections -w
 INC      := -Isrc/game -I$(C) -Iplatform/linux_test -I$(P) -I$(B) -I$(C)/ext/at3 -I$(CTRU)/include
 GAME_OPT ?= -O2
