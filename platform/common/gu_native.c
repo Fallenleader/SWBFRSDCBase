@@ -694,7 +694,8 @@ static void exec_buffer(void *arg){
     int idx = *(const int *)arg; cbuf_t *b = &bufs[idx]; u64 t0 = rs_perf_us();
     for (size_t p = 0; p < b->n; ) { const rop_t *r = (const rop_t *)(b->w + p); size_t words = r->words ? r->words : r->a[5]; if (!words) break; exec_op(r); p += words; }
     gfx_flush(); rs_perf.ge_us += rs_perf_us() - t0;
-    { static unsigned nb, c0, cul0; static int lg = -1; if (lg < 0) { extern int rs_setting_int(const char *, int); lg = rs_setting_int("RS_PERF_LOG", 0); }
+    { static unsigned nb, c0, cul0; static int lg = -1; if (lg < 0) { extern int rs_setting_int(const char *, int); lg = rs_setting_int("RS_PERF_LOG", 0);
+          fprintf(stderr, "[GU] batching %s, frustum culling %s, draw counts in the log %s\n", rs_setting_int("RS_GU_BATCH", 1) ? "on" : "off", rs_setting_int("RS_GU_CULL", 1) ? "on" : "off", lg ? "every 300 frames" : "off (RS_PERF_LOG=0)"); }
       if (lg && ++nb == 300) { fprintf(stderr, "[GU] per buffer (300): %.1f draws recorded, %.1f added to the previous (batching), %.1f culled, %.1f the same mesh again with only a matrix between (instancing candidates)\n",
               st_recorded_rec / 300.0, st_batched / 300.0, (st_culled - cul0) / 300.0, st_inst_rec / 300.0); st_recorded_rec = st_batched = st_inst_rec = 0; cul0 = st_culled; nb = 0; (void)c0; } }
     __sync_synchronize(); b->busy = 0; executed++; }

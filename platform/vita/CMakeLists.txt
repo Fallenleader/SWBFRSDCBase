@@ -61,6 +61,9 @@ target_include_directories(swbfrs PRIVATE "${ROOT}/src/game" "${ROOT}/platform/c
 # RS_TLS_STRUCT: the Vita's thread-local storage is emulated (a call per access); the game's per-thread state is one block instead
 target_compile_definitions(swbfrs PRIVATE RS_TLS_STRUCT HOST_BUILD _GNU_SOURCE)
 target_compile_options(swbfrs PRIVATE -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=hard -mthumb -fomit-frame-pointer -fsigned-char -fno-strict-aliasing -ffp-contract=off -fno-math-errno -w)   # no-math-errno: sqrtf stays one instruction
+# the build's id in the log's first line (the git commit, + if the tree has changes): which build a log came from
+execute_process(COMMAND git -C "${ROOT}" describe --always --dirty=+ OUTPUT_VARIABLE RS_GIT_ID OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+set_property(SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.c" APPEND PROPERTY COMPILE_DEFINITIONS "RS_GIT_ID=\"${RS_GIT_ID}\"")
 if(RS_VITA_PROF)
   target_compile_definitions(swbfrs PRIVATE RS_VITA_PROF)
   if(RS_BUILD_ID)

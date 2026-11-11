@@ -291,7 +291,10 @@ int main(void){
     settings_load(); log_init();
     u64 t0 = sceKernelGetProcessTimeWide();
 #define STEP(...) do { fprintf(stderr, "[VITA] %7.3fs ", (sceKernelGetProcessTimeWide() - t0) / 1e6); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } while (0)
-    STEP("SWBFRSDCBase (decompiled Star Wars Battlefront: Renegade Squadron) starting");
+    #ifndef RS_GIT_ID
+#define RS_GIT_ID "?"
+#endif
+    STEP("SWBFRSDCBase (decompiled Star Wars Battlefront: Renegade Squadron) starting, build " RS_GIT_ID);
     /* clocks: raised to the firmware's top speeds, never lowered - an overclock already set by a plugin (500 MHz) is left alone */
     { int arm = scePowerGetArmClockFrequency(), want = rs_setting_int("RS_ARM_MHZ", 444);
       if (want > 0 && arm < want) scePowerSetArmClockFrequency(want);
