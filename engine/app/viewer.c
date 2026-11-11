@@ -227,6 +227,11 @@ int main(int argc, char **argv)
             const char *tm = ak_setting_str("AK_TEST_MOVE", NULL);
             if (tm) sscanf(tm, "%f,%f,%f,%f", &in.lx, &in.ly, &in.rx, &in.ry);
             if (ak_setting_int("AK_TEST_JUMP", -1) == frame) in.pressed |= AK_BTN_CROSS;
+            if (ak_setting_int("AK_TEST_FIRE", 0)) in.held |= AK_BTN_R;
+            if (playing && play.ready && shot && frame == shot_frame - 1)
+                AK_INFO("test", "frame %d: shots %u, dummy 1 health %.0f, hits %u, head %u, kills %u, ammo %d/%d", frame, play.bolts.fired,
+                        play.ndummy ? play.target[0].health : 0.0f, play.ndummy ? play.target[0].hits : 0, play.ndummy ? play.target[0].headshots : 0, play.kills,
+                        play.weapon.ammo, play.weapon.spare);
         }
         if (in.pressed & AK_BTN_SQUARE) playing = !playing;               /* square: play (a soldier on foot) / free camera */
         if (playing && !play.ready) {
@@ -296,7 +301,14 @@ int main(int argc, char **argv)
                 snprintf(line, sizeof line, "%s %s  %s  speed %.1f m/s  %s", ak_faction_name(play.look.faction), models.models[play.look.body].name, sn[play.state],
                          sqrtf(play.ch.vel[0] * play.ch.vel[0] + play.ch.vel[2] * play.ch.vel[2]), play.ch.on_ground ? "on the ground" : "in the air");
                 ak_gfx_text(8, 80, 0xFFC0E0FF, line);
-                ak_gfx_text(8, 98, 0xFFC0C0C0, "left stick: move  right stick: look  cross: jump  square: free camera");
+                if (play.armed) {
+                    u32 th = 0, hs = 0; for (u32 i = 0; i < play.ndummy; i++) { th += play.target[i].hits; hs += play.target[i].headshots; }
+                    snprintf(line, sizeof line, "%s  ammo %d / %d%s  shots %u  soldiers hit %u (%u in the head)  kills %u  dummy 1: %.0f health",
+                             play.wdef.name, play.weapon.ammo, play.weapon.spare, play.weapon.reload_t > 0 ? "  reloading" : "", play.bolts.fired, th, hs, play.kills,
+                             play.ndummy ? play.target[0].health : 0.0f);
+                    ak_gfx_text(8, 98, 0xFFC0E0FF, line);
+                }
+                ak_gfx_text(8, 116, 0xFFC0C0C0, "left stick: move  right stick: look  cross: jump  R: fire  L: reload  square: free camera");
             }
         }
         ak_gfx_end(&gs);

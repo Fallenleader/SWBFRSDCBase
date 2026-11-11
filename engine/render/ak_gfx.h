@@ -48,6 +48,8 @@ void ak_gfx_set_transform(const ak_m4 *mvp);
  * their meshes are partly single-sided panels meant to be seen from both sides. */
 void ak_gfx_set_cull(bool on);
 void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 first, u32 count);
+/* this frame only: a triangle list copied into the back end's per-frame memory (laser bolts, effects, debug shapes) */
+void ak_gfx_draw_immediate(ak_pipe p, ak_gfx_tex *t, const ak_vtx *v, u32 count);
 void ak_gfx_text(f32 x, f32 y, u32 rgba, const char *s);        /* screen pixels, 8x16 glyphs; drawn over the frame at end */
 void ak_gfx_end(ak_gfx_stats *out);                              /* submit + present (paced by the display when vsync) */
 bool ak_gfx_screenshot(const char *path);                        /* last presented frame as PPM; false where unsupported */

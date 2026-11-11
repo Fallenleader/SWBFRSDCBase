@@ -413,6 +413,19 @@ void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 f
     st.draws++; st.tris += count / 3;
 }
 
+void ak_gfx_draw_immediate(ak_pipe p, ak_gfx_tex *t, const ak_vtx *v, u32 count)
+{
+    if (!count) return;
+    ak_vtx *dv = (ak_vtx *)frame_alloc(sizeof *v * count, 16);
+    u32 *di = (u32 *)frame_alloc(4u * count, 16);
+    if (!dv || !di) return;
+    memcpy(dv, v, sizeof *v * count);
+    for (u32 i = 0; i < count; i++) di[i] = i;
+    ak_gfx_buf vb = { dv }, ib = { di };
+    ak_gfx_draw(p, t, &vb, &ib, 0, count);
+    cur_vb = NULL;                                       /* the stack buffer object is gone after this call */
+}
+
 void ak_gfx_text(f32 x, f32 y, u32 c, const char *s)
 {
     for (; *s && ui_n < UI_MAXQ; s++, x += AK_FONT_CW) {

@@ -165,6 +165,22 @@ void ak_gfx_set_transform(const ak_m4 *mvp)
     cur_vp = mvp ? *mvp : frame_vp; vp_dirty = true;
 }
 
+void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 first, u32 count);
+void ak_gfx_draw_immediate(ak_pipe p, ak_gfx_tex *t, const ak_vtx *v, u32 count)
+{
+    static ak_gfx_buf vb, ib; static u32 cap; static u32 *seq;
+    if (!count) return;
+    if (!vb.id) { glGenBuffers(1, &vb.id); glGenBuffers(1, &ib.id); }
+    if (count > cap) {
+        u32 nc = count * 2; u32 *ns = (u32 *)realloc(seq, 4u * nc); if (!ns) return;
+        seq = ns; for (u32 i = cap; i < nc; i++) seq[i] = i;
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ib.id); glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4u * nc, seq, GL_STATIC_DRAW); cur_ib = ib.id;
+        cap = nc;
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, vb.id); glBufferData(GL_ARRAY_BUFFER, sizeof *v * count, v, GL_STREAM_DRAW);
+    cur_vb = 0;                                          /* re-point the attributes at the new data */
+    ak_gfx_draw(p, t, &vb, &ib, 0, count);
+}
 void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 first, u32 count)
 {
     if (vp_dirty && (int)p == cur_pipe) { glUniformMatrix4fv(u_vp[p], 1, GL_FALSE, cur_vp.m); vp_dirty = false; }
