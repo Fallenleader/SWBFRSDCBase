@@ -3,9 +3,13 @@
  * --obj writes the level geometry (engine axes) as Wavefront OBJ, one group per batch; --tex writes every texture as PPM/PAM. */
 #include "../assets/asura.h"
 #include "../assets/model.h"
+#include "../assets/entity.h"
+#include "../world/ak_collision.h"
+#include "../world/ak_nav.h"
 #include "../platform/plat.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 static void write_obj(const ak_level *l, const char *path)
 {
@@ -67,6 +71,85 @@ int main(int argc, char **argv)
     u32 lod0 = 0, tris_m = 0; for (u32 i = 0; i < ms.nmodels; i++) { lod0 += ms.models[i].lod == 0; tris_m += ms.models[i].nidx / 3; }
     printf("models     %u (%u full detail), %u skeletons, %u clips, %u triangles, %.1f ms%s\n", ms.nmodels, lod0, ms.nskels, ms.nclips, tris_m,
            (ak_plat_time_us() - t2) / 1000.0, mok ? "" : " FAILED");
+    {   /* collision: build, then check the tree against brute force and against where things stand */
+        ak_collision col; u64 t3 = ak_plat_time_us();
+        bool cok = ak_collision_load(&l, &a, &col);
+        printf("collision  %u triangles, %u tree nodes, %u objects, built in %.1f ms%s\n", col.ntri, col.nnode, col.nobjects, (ak_plat_time_us() - t3) / 1000.0, cok ? "" : " (none)");
+        if (cok && col.ntri) {
+            u32 seed = 12345, mism = 0, hits = 0, up = 0, down = 0;
+            f32 mn[3] = { 1e30f, 1e30f, 1e30f }, mx[3] = { -1e30f, -1e30f, -1e30f };
+            for (u32 i = 0; i < col.ntri; i++) for (int k = 0; k < 3; k++) { mn[k] = fminf(mn[k], col.tri[i].a[k]); mx[k] = fmaxf(mx[k], col.tri[i].a[k]); }
+            for (int r = 0; r < 3000; r++) {
+                f32 o[3], d[3], len = 0;
+                for (int k = 0; k < 3; k++) { seed = seed * 1103515245u + 12345u; o[k] = mn[k] + (mx[k] - mn[k]) * ((seed >> 8) & 0xFFFF) / 65535.0f; }
+                for (int k = 0; k < 3; k++) { seed = seed * 1103515245u + 12345u; d[k] = ((seed >> 8) & 0xFFFF) / 32767.5f - 1; len += d[k] * d[k]; }
+                len = sqrtf(len); for (int k = 0; k < 3; k++) d[k] /= len;
+                ak_col_hit h1, h2; bool b1 = ak_col_raycast(&col, o, d, 5000, 0, &h1);
+                /* brute force over every triangle, same rules */
+                ak_collision one = col; ak_col_node root; memset(&root, 0, sizeof root);
+                for (int k = 0; k < 3; k++) { root.min[k] = -1e30f; root.max[k] = 1e30f; }
+                root.count = col.ntri; root.first_or_right = 0; one.node = &root; one.nnode = 1;
+                bool b2 = ak_col_raycast(&one, o, d, 5000, 0, &h2);
+                if (b1 != b2 || (b1 && fabsf(h1.t - h2.t) > 1e-3f)) mism++;
+                hits += b1;
+            }
+            for (int r = 0; r < 2000; r++) {             /* straight down, both faces allowed: which way do ground normals face? */
+                f32 o[3], d[3] = { 0, -1, 0 };
+                seed = seed * 1103515245u + 12345u; o[0] = mn[0] + (mx[0] - mn[0]) * ((seed >> 8) & 0xFFFF) / 65535.0f;
+                seed = seed * 1103515245u + 12345u; o[2] = mn[2] + (mx[2] - mn[2]) * ((seed >> 8) & 0xFFFF) / 65535.0f; o[1] = mx[1] + 10;
+                ak_collision two = col; ak_col_hit h;
+                (void)two;
+                /* temporarily treat all as two-sided by masking the side test: flags | 1 */
+                static u16 saved[1]; (void)saved;
+                for (u32 i = 0; i < col.ntri; i++) col.tri[i].flags |= 0x8000u << 0, col.tri[i].pad = col.tri[i].flags;
+                for (u32 i = 0; i < col.ntri; i++) col.tri[i].flags = (u16)((col.tri[i].pad & ~0x8000u) | AK_COL_TWO_SIDED);
+                if (ak_col_raycast(&col, o, d, 1e5f, 0, &h)) { if (h.normal[1] > 0) up++; else down++; }
+                for (u32 i = 0; i < col.ntri; i++) col.tri[i].flags = (u16)(col.tri[i].pad & ~0x8000u);
+            }
+            printf("           random rays: %u hits, %u differences from brute force; first hit going down faces up %u / down %u\n", hits, mism, up, down);
+            ak_nav nav; u64 t4 = ak_plat_time_us();
+            if (ak_nav_load(&l, &a, &nav)) {
+                f32 tl = (ak_plat_time_us() - t4) / 1000.0f;
+                u32 bad = 0, sym = 0, onground = 0, comp_max = 0, ncomp = 0;
+                for (u32 i = 0; i < nav.nnode; i++)
+                    for (u32 k = nav.node[i].first_link; k < nav.node[i].first_link + nav.node[i].nlinks; k++) {
+                        u32 t = nav.link[k].to; if (t >= nav.nnode) { bad++; continue; }
+                        for (u32 k2 = nav.node[t].first_link; k2 < nav.node[t].first_link + nav.node[t].nlinks; k2++) if (nav.link[k2].to == i) { sym++; break; }
+                    }
+                for (u32 i = 0; i < nav.nnode; i++) {
+                    f32 o[3] = { nav.node[i].pos[0], nav.node[i].pos[1] + 1.0f, nav.node[i].pos[2] }, d[3] = { 0, -1, 0 }; ak_col_hit h;
+                    if (ak_col_raycast(&col, o, d, 4.0f, AK_COL_NOT_BODIES, &h)) onground++;
+                }
+                u32 *comp = calloc(nav.nnode, 4), *q = malloc(4u * nav.nnode);
+                for (u32 i = 0; i < nav.nnode; i++) if (!comp[i]) {             /* connected parts (links as two-way) */
+                    u32 qh = 0, qt = 0, sz = 0; comp[i] = ++ncomp; q[qt++] = i;
+                    while (qh < qt) { u32 u = q[qh++]; sz++; for (u32 k = nav.node[u].first_link; k < nav.node[u].first_link + nav.node[u].nlinks; k++) { u32 t = nav.link[k].to; if (t < nav.nnode && !comp[t]) { comp[t] = ncomp; q[qt++] = t; } } }
+                    if (sz > comp_max) comp_max = sz;
+                }
+                u32 seed = 99, tried = 0, ok = 0; f32 ratio = 0; u64 t5 = ak_plat_time_us(); static u32 path[65536];
+                for (int r = 0; r < 200; r++) {
+                    seed = seed * 1103515245u + 12345u; u32 s0 = (seed >> 8) % nav.nnode; seed = seed * 1103515245u + 12345u; u32 s1 = (seed >> 8) % nav.nnode;
+                    if (comp[s0] != comp[s1] || s0 == s1) continue;
+                    tried++; f32 cst; u32 pn = ak_nav_path(&nav, s0, s1, 0, path, 65536, &cst, &a);
+                    if (pn) { ok++; f32 dx = nav.node[s0].pos[0] - nav.node[s1].pos[0], dz = nav.node[s0].pos[2] - nav.node[s1].pos[2]; ratio += cst / (sqrtf(dx * dx + dz * dz) + 1e-3f); }
+                }
+                printf("navigation %u nodes, %u links (%u to missing nodes, %u%% two-way), %u%% of nodes on collision ground, %u connected parts (largest %u), loaded in %.1f ms\n",
+                       nav.nnode, nav.nlink, bad, nav.nlink ? 100 * sym / nav.nlink : 0, nav.nnode ? 100 * onground / nav.nnode : 0, ncomp, comp_max, tl);
+                printf("           paths: %u of %u found within one connected part, path length / straight distance %.2f, %.3f ms per path\n", ok, tried, ok ? ratio / ok : 0,
+                       tried ? (ak_plat_time_us() - t5) / 1000.0 / tried : 0);
+                free(comp); free(q);
+            }
+            ak_model_set ms2; ak_entity_set es;
+            if (ak_models_load(&l, &a, &ms2) && ak_entities_load(&l, &ms2, &a, &es)) {
+                f32 worst = 0, sum = 0; u32 n = 0, miss = 0;
+                for (u32 i = 0; i < es.n; i++) if (es.e[i].placed && es.e[i].type == 27) {
+                    f32 o[3] = { es.e[i].pos[0], es.e[i].pos[1] + 2, es.e[i].pos[2] }, d[3] = { 0, -1, 0 }; ak_col_hit h;
+                    if (ak_col_raycast(&col, o, d, 50, 0, &h)) { f32 g = h.t - 2; sum += fabsf(g); worst = fmaxf(worst, fabsf(g)); n++; } else miss++;
+                }
+                printf("           vehicle spawns: %u on ground (mean height above it %.2f m, worst %.2f m), %u with no ground below\n", n, n ? sum / n : 0, worst, miss);
+            }
+        }
+    }
     for (int i = 2; i + 1 < argc; i += 2) {
         if (!strcmp(argv[i], "--models"))
             for (u32 k = 0; k < ms.nmodels; k++) {
