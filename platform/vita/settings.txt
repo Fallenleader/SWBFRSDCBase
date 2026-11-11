@@ -31,7 +31,7 @@ RS_CORE3=1
 # CPU clock the game raises the Vita to at start (MHz); a higher clock already set (an overclocking plugin) is kept; 0 = leave the clocks alone
 RS_ARM_MHZ=444
 # 1 = draws of the same kind with no state change between are sent to the GPU as one (particles, effects: far fewer draw calls)
-RS_GU_BATCH=1
+RS_GU_BATCH=0
 # 1 = 3D draws wholly outside the view (left, right, top, bottom, behind) are skipped before the GPU
 RS_GU_CULL=1
 # 1 = the game does not wait for the renderer at GU sync points (its next frame is prepared while this one is drawn; 0 = wait, as the PSP)

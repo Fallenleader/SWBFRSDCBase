@@ -43,7 +43,16 @@ void rs_game_var_range(u32 name, u32 var, u32 *min, u32 *max){
         u32 lo = tickets_min(), hi = tickets_max(); if (lo > hi) lo = hi;
         fprintf(stderr, "[PATCH] conquest initial tickets (offline): %u..%u -> %u..%u\n", *min, *max, lo, hi); *min = lo; *max = hi;
         { int st = rs_setting_int("RS_START_TICKETS", 0); if (st > 0) { if ((u32)st > hi) *max = hi = (u32)st; GU32(var) = (u32)st; fprintf(stderr, "[PATCH] tickets at start: %d (RS_START_TICKETS)\n", st); } }
-        u32 cur = GU32(var); if (cur < lo) GU32(var) = lo; else if (cur > hi) GU32(var) = hi; }
+        u32 cur = GU32(var);
+        /* the profiling build's 9999 tickets (RS_START_TICKETS) stayed in the game's options (clamped to the menu's top since): a count
+         * at the top goes back to the game's own top, 200, once (a marker file); counts chosen in the menu afterwards stay */
+        if (rs_setting_int("RS_START_TICKETS", 0) <= 0 && cur >= hi) {
+            extern const char *rs_platform_data_dir(void); char mk[512]; snprintf(mk, sizeof mk, "%s/tickets_reset.txt", rs_platform_data_dir());
+            FILE *f = fopen(mk, "r");
+            if (!f) { GU32(var) = cur = 200; fprintf(stderr, "[PATCH] tickets: the test's count (%u) reset to 200, once\n", hi);
+                f = fopen(mk, "w"); if (f) fprintf(f, "the profiling test's ticket count was reset to 200 (game_patches.c); delete this file to reset it again\n"); }
+            if (f) fclose(f); }
+        if (cur < lo) GU32(var) = lo; else if (cur > hi) GU32(var) = hi; }
     else if (var == IMG(VAR_PLAYERS_SP) && *max == 16) {
         int v = rs_setting_int("RS_MAX_PLAYERS", 64); if (v < 16) v = 16;
         fprintf(stderr, "[PATCH] min players (including AI), offline: maximum %u -> %d\n", *max, v); *max = (u32)v;
