@@ -1,8 +1,8 @@
 /* Aurek - soldiers: how one is put together from the game's data.
  *
  * A soldier class is a Humanoid blueprint (Stormtrooper, MediumRebel, Battle_Droid, ...).  Its body is the model of the same
- * name; it lists three heads ("Head 1".."Head 3", model names), which are separate one-bone models riding the body's bone 6 (the
- * head socket: child of the neck, no geometry of its own, on every humanoid skeleton the game has).  The personalisation picks a
+ * name; it lists three heads ("Head 1".."Head 3", model names), which are separate one-bone models placed at the body's "Head"
+ * marker (on bone 6, the head socket: child of the neck, no geometry of its own, on every humanoid skeleton the game has).  The personalisation picks a
  * body (one of the faction's three classes), a head (one of that body's three) and two colours (indices into the game's tables,
  * ak_personal_colour1/2); a fresh profile has the defaults of the game's func_08977F80 (ak_faction_default_colours). */
 #ifndef AK_SOLDIER_H
@@ -24,10 +24,10 @@ typedef struct {
     f32 camera_offset[3];              /* first-person camera relative to the head ("HeadNCameraOffsetX/Y/Z") */
 } ak_soldier_look;
 
-/* The head's matrix (3x4 rows, like the bone matrices) from the body's posed head socket.  Head meshes are upright in model axes
- * with their origin at the socket (not in the socket bone's turned space), so: H = pose * inverse(bind) * translate(bind position),
- * which is rotation pose.R * bind.R^T at position pose.t; in the bind pose the head simply sits upright on the neck. */
-void ak_soldier_head_matrix(const ak_skeleton *body, u16 head_bone, const f32 pose[12], f32 out[12]);
+/* The head's matrix (3x4 rows, like the bone matrices) from the body's posed bones: the body's "Head" marker (HMPT: on bone 6,
+ * 0.15 m along it, turned so the head stands upright), i.e. pose[bone] * marker - where the game puts it.  A body without that marker
+ * falls back to the head bone with its bind turn removed (pose * bind^T). */
+void ak_soldier_head_matrix(const ak_model *body, const ak_skeleton *sk, u16 head_bone, const f32 (*pose)[12], f32 out[12]);
 
 const char *ak_faction_name(int faction);
 void ak_faction_default_colours(int faction, u8 *colour1, u8 *colour2);

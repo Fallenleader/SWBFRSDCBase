@@ -4,8 +4,11 @@
 #include "game/ak_soldier.h"
 #include "assets/asura.h"
 
-void ak_soldier_head_matrix(const ak_skeleton *sk, u16 hb, const f32 P[12], f32 H[12])
+void ak_soldier_head_matrix(const ak_model *body, const ak_skeleton *sk, u16 hb, const f32 (*pose)[12], f32 H[12])
 {
+    const ak_marker *mk = ak_model_marker(body, "Head");
+    if (mk && mk->bone < sk->nbones) { ak_marker_matrix(pose[mk->bone], mk, H); return; }
+    const f32 *P = pose[hb];
     f32 B[12]; ak_quat q = sk->world_q[hb]; f32 x = q.x, y = q.y, z = q.z, w = q.w;     /* the socket's bind rotation */
     B[0] = 1 - 2 * (y * y + z * z); B[1] = 2 * (x * y - z * w);     B[2] = 2 * (x * z + y * w);
     B[4] = 2 * (x * y + z * w);     B[5] = 1 - 2 * (x * x + z * z); B[6] = 2 * (y * z - x * w);
@@ -45,8 +48,9 @@ bool ak_soldier_look_make(const ak_blueprints *bp, const ak_model_set *models, c
     snprintf(key, sizeof key, "Head %d", head + 1);
     const char *hn = ak_bp_string(o->bp, key, "");
     if (*hn) o->head = ak_models_find(models, hn);
-    o->head_bone = AK_HEAD_BONE;
     const ak_model *m = &models->models[o->body];
+    const ak_marker *mk = ak_model_marker(m, "Head");
+    o->head_bone = mk ? mk->bone : AK_HEAD_BONE;
     if (m->skeleton < 0 || models->skels[m->skeleton].nbones <= AK_HEAD_BONE) o->head = -1;
     static const char axis[3] = { 'X', 'Y', 'Z' };
     for (int k = 0; k < 3; k++) { snprintf(key, sizeof key, "Head%dCameraOffset%c", head + 1, axis[k]); o->camera_offset[k] = ak_bp_float(o->bp, key, 0); }

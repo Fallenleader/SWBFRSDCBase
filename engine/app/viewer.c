@@ -191,7 +191,7 @@ int main(int argc, char **argv)
             ak_scene_models_draw(&mscene, gallery[gsel], &vp, &ident, bp, &gcol, &ms);
             if (has_look && look.head >= 0 && bp)                                   /* the head rides the body's head socket */
             {   static f32 hm[1][12];
-                ak_soldier_head_matrix(&models.skels[m->skeleton], look.head_bone, bp[look.head_bone], hm[0]);
+                ak_soldier_head_matrix(m, &models.skels[m->skeleton], look.head_bone, bp, hm[0]);
                 ak_scene_models_draw(&mscene, (u32)look.head, &vp, &ident, (const f32 (*)[12])hm, &gcol, &ms);
             }
             if (show) {

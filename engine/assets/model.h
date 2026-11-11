@@ -24,6 +24,11 @@ typedef struct {
     u32 first, count;                  /* index range */
 } ak_model_part;
 
+/* a marker (HMPT): a named point riding a bone, in that bone's space - where heads, weapons ("gun"), muzzles ("muz"), engines ("eng"),
+ * hands, feet and effects attach.  HMPT v1: u32 count, model name (padded), count x { f32 t[3], f32 rot[3][3] (rows), u32 bone, name
+ * (padded) }; converted to engine axes like the bones (S R S, S t with S = diag(1,-1,-1)). */
+typedef struct { const char *name; u32 hash; u16 bone; f32 m[12]; } ak_marker;
+
 typedef struct {
     const char *name; u32 base_hash;   /* hash of the name without the "Ln#" prefix: groups the details of one model */
     u32 hash;                          /* the mesh's own name hash (its first word): how entities refer to it */
@@ -35,6 +40,7 @@ typedef struct {
     u32 *idx; u32 nidx;
     f32 radius;                        /* bounding sphere of the bind pose, around the model origin */
     f32 bmin[3], bmax[3];              /* bind-pose box in model space */
+    ak_marker *markers; u32 nmarkers;  /* shared by the model's levels of detail */
 } ak_model;
 
 /* animation clip (HCAN v5).  One channel per bone in the skeleton's order (plus a root-motion channel when flagged); every key is the
@@ -66,6 +72,9 @@ void ak_skeleton_pose_matrices(const ak_skeleton *s, const ak_quat *lq, const f3
 /* all models and skeletons of a level file (textures resolved against the level's) */
 bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out);
 s32  ak_models_find(const ak_model_set *s, const char *name);
+const ak_marker *ak_model_marker(const ak_model *m, const char *name);       /* case-insensitive; NULL = none */
+/* a marker's model-space matrix (3x4 rows) from its bone's posed matrix */
+void ak_marker_matrix(const f32 bone[12], const ak_marker *mk, f32 out[12]);
 /* model-space transform of every bone for the bind pose: 3x4 rows (rotation | translation), engine axes */
 void ak_skeleton_bind_matrices(const ak_skeleton *s, f32 (*m)[12]);
 #endif

@@ -7,9 +7,10 @@
  *
  * Chunk body: u32 0, u32 1, u32 type hash, u32 object count, type name (zero-terminated, padded to 4).
  * Object:     u32 flags (3), u32 name hash, u32 parent hash (0 = none), name (padded), u32 property count, properties.
- * Property:   u32 name hash, name (padded), u32 0, u32 class hash (enums), u32 count, u32 type, then count values:
- *             type 0 int (4 bytes), 1 float (4), 2 bool (1 byte: later fields are unaligned), 3 string (u32 hash, then the text,
- *             zero-terminated and padded to 4, only when the hash is not 0).
+ * Property:   u32 name hash, name (padded), u32 0 (declared here) / 3 (a parent's, given a new value), u32 sub-type hash (asset kinds,
+ *             enums), u32 count, then count values, each a u32 type and: 0 int (4 bytes), 1 float (4), 2 bool (1 byte: later fields
+ *             are unaligned), 3 string (u32 hash, then the text, zero-terminated and padded to 4, only when the hash is not 0), 4 u32.
+ *             (Format as documented in the old port's platform/common/blueprints.c; every property of the shipped file has one value.)
  * Names hash as the game does: h = h * 31 + c over the lower-cased bytes (ak_bp_hash). */
 #ifndef AK_BLUEPRINT_H
 #define AK_BLUEPRINT_H
@@ -19,8 +20,8 @@ enum { AK_BP_INT = 0, AK_BP_FLOAT = 1, AK_BP_BOOL = 2, AK_BP_STRING = 3 };
 
 typedef struct {
     u32 hash; const char *name;
-    u32 cls;                           /* enum class hash (0 = plain value) */
-    u8 type; u32 count;
+    u32 cls;                           /* sub-type hash (asset kind, enum; 0 = plain value) */
+    u8 type, declared; u32 count;      /* declared: 0 = declared here, 3 = overrides a parent's */
     union { s32 *i; f32 *f; u8 *b; const char **s; } v;
 } ak_bp_prop;
 

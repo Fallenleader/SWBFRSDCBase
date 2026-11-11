@@ -248,6 +248,48 @@ s32 ak_models_find(const ak_model_set *s, const char *name)
     return -1;
 }
 
+const ak_marker *ak_model_marker(const ak_model *m, const char *name)
+{
+    u32 h = ak_hash_name(name);
+    for (u32 i = 0; i < m->nmarkers; i++) if (m->markers[i].hash == h) return &m->markers[i];
+    return NULL;
+}
+void ak_marker_matrix(const f32 B[12], const ak_marker *mk, f32 O[12])
+{
+    const f32 *M = mk->m;
+    for (int r = 0; r < 3; r++) {
+        for (int c = 0; c < 4; c++) O[r * 4 + c] = B[r * 4 + 0] * M[c] + B[r * 4 + 1] * M[4 + c] + B[r * 4 + 2] * M[8 + c];
+        O[r * 4 + 3] += B[r * 4 + 3];
+    }
+}
+static void markers_parse(const ak_chunk *c, ak_arena *a, ak_model_set *out)
+{
+    const u8 *b = c->body; u32 n = c->size;
+    if (n < 8) return;
+    u32 cnt = ak_rd32(b);
+    const char *mname = (const char *)b + 4; size_t ml = strnlen(mname, n - 4);
+    u32 o = 4 + (u32)((ml + 1 + 3) & ~(size_t)3);
+    if (cnt == 0 || cnt > 256 || o > n) return;
+    ak_marker *mk = AK_NEW(a, ak_marker, cnt);
+    if (!mk) return;
+    static const f32 S[3] = { 1, -1, -1 };
+    for (u32 k = 0; k < cnt; k++) {
+        if (o + 52 > n) return;
+        f32 t[3], R[9];
+        for (int i = 0; i < 3; i++) t[i] = ak_rdf32(b + o + 4 * i);
+        for (int i = 0; i < 9; i++) R[i] = ak_rdf32(b + o + 12 + 4 * i);
+        mk[k].bone = (u16)ak_rd32(b + o + 48);
+        const char *nm = (const char *)b + o + 52; size_t nl = strnlen(nm, n - o - 52);
+        if (o + 52 + nl >= n) return;
+        mk[k].name = nm; mk[k].hash = ak_hash_name(nm);
+        for (int r = 0; r < 3; r++) { for (int q = 0; q < 3; q++) mk[k].m[r * 4 + q] = S[r] * R[r * 3 + q] * S[q]; mk[k].m[r * 4 + 3] = S[r] * t[r]; }
+        o += 52 + (u32)((nl + 1 + 3) & ~(size_t)3);
+    }
+    u32 h = ak_hash_name(mname);
+    for (u32 i = 0; i < out->nmodels; i++)
+        if (out->models[i].base_hash == h) { out->models[i].markers = mk; out->models[i].nmarkers = cnt; }
+}
+
 bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
 {
     memset(out, 0, sizeof *out);
@@ -280,6 +322,8 @@ bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
             else AK_WARN("model", "%s did not parse", r.name);
         }
     }
+    pos = 8;
+    while (ak_asura_next(&l->file, &pos, &c)) if (ak_chunk_tag(&c) == AK_TAG('H', 'M', 'P', 'T') && c.version == 1) markers_parse(&c, a, out);
     for (u32 i = 0; i < out->nmodels; i++) {
         ak_model *m = &out->models[i]; m->lod_next = -1;
         for (u32 j = 0; j < out->nmodels; j++)

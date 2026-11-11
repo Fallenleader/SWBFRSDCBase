@@ -42,16 +42,24 @@ static bool parse_type(const ak_chunk *c, ak_arena *a, ak_bp_type *t)
         if (!o->props) return false;
         for (u32 i = 0; i < o->nprops; i++) {
             ak_bp_prop *p = &o->props[i];
-            p->hash = r32(&r); p->name = rstr(&r, a); r32(&r); p->cls = r32(&r); p->count = r32(&r); p->type = (u8)r32(&r);
-            if (r.bad || p->count > 1024 || p->type > AK_BP_STRING) return false;
+            p->hash = r32(&r); p->name = rstr(&r, a); p->declared = (u8)r32(&r); p->cls = r32(&r); p->count = r32(&r);
+            if (r.bad || p->count > 1024) return false;
             u32 n = p->count ? p->count : 1;
-            switch (p->type) {
-            case AK_BP_INT:   p->v.i = AK_NEW(a, s32, n); for (u32 j = 0; p->v.i && j < p->count; j++) p->v.i[j] = (s32)r32(&r); break;
-            case AK_BP_FLOAT: p->v.f = AK_NEW(a, f32, n); for (u32 j = 0; p->v.f && j < p->count; j++) { u32 x = r32(&r); memcpy(&p->v.f[j], &x, 4); } break;
-            case AK_BP_BOOL:  p->v.b = AK_NEW(a, u8, n);  for (u32 j = 0; p->v.b && j < p->count; j++) p->v.b[j] = r8(&r); break;
-            default:          p->v.s = AK_NEW(a, const char *, n);
-                              for (u32 j = 0; p->v.s && j < p->count; j++) { p->v.s[j] = r32(&r) ? rstr(&r, a) : ""; }
-                              break;
+            p->v.i = (s32 *)ak_arena_alloc(a, n * (sizeof(void *) > 4 ? sizeof(void *) : 4), 8);   /* room for a pointer per value */
+            if (!p->v.i) return false;
+            p->type = AK_BP_INT;
+            for (u32 j = 0; j < p->count; j++) {          /* every value has its own type word */
+                u32 ty = r32(&r);
+                if (ty > 4) { r.bad = true; break; }
+                if (ty == 4) ty = AK_BP_INT;              /* u32: kept as an int */
+                if (j == 0) p->type = (u8)ty;
+                else if (ty != p->type) { AK_WARN("blueprint", "%s: mixed value types", p->name); r.bad = true; break; }
+                switch (ty) {
+                case AK_BP_INT:   p->v.i[j] = (s32)r32(&r); break;
+                case AK_BP_FLOAT: { u32 x = r32(&r); memcpy(&p->v.f[j], &x, 4); } break;
+                case AK_BP_BOOL:  p->v.b[j] = r8(&r); break;
+                default:          p->v.s[j] = r32(&r) ? rstr(&r, a) : ""; break;
+                }
             }
             if (r.bad || !p->v.i) return false;
         }
