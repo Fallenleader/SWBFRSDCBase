@@ -151,6 +151,22 @@ int main(int argc, char **argv)
         }
     }
     for (int i = 2; i + 1 < argc; i += 2) {
+        if (!strcmp(argv[i], "--parts"))
+            for (u32 k = 0; k < ms.nmodels; k++) {
+                const ak_model *m = &ms.models[k];
+                if (strcmp(argv[i + 1], m->name)) continue;
+                const ak_skeleton *sk = m->skeleton >= 0 ? &ms.skels[m->skeleton] : NULL;
+                for (u32 p = 0; p < m->nparts; p++) {
+                    const ak_model_part *pt = &m->parts[p];
+                    printf("  part %2u bone %2u parent %3d tex %4d flags %08x tris %4u", p, pt->bone, sk ? sk->parent[pt->bone] : -1, pt->texture, (u32)pt->flags, pt->count / 3);
+                    if (sk) printf("  bind %7.3f %7.3f %7.3f  q %6.3f %6.3f %6.3f %6.3f", sk->world_t[pt->bone][0], sk->world_t[pt->bone][1], sk->world_t[pt->bone][2],
+                                   sk->world_q[pt->bone].x, sk->world_q[pt->bone].y, sk->world_q[pt->bone].z, sk->world_q[pt->bone].w);
+                    if (pt->count) { f32 mn[3] = { 1e9f, 1e9f, 1e9f }, mx[3] = { -1e9f, -1e9f, -1e9f };
+                        for (u32 q = pt->first; q < pt->first + pt->count; q++) for (int c = 0; c < 3; c++) { f32 v = m->vtx[m->idx[q]].pos[c]; if (v < mn[c]) mn[c] = v; if (v > mx[c]) mx[c] = v; }
+                        printf("  local %.2f..%.2f %.2f..%.2f %.2f..%.2f", mn[0], mx[0], mn[1], mx[1], mn[2], mx[2]); }
+                    printf("\n");
+                }
+            }
         if (!strcmp(argv[i], "--models"))
             for (u32 k = 0; k < ms.nmodels; k++) {
                 const ak_model *m = &ms.models[k];

@@ -11,6 +11,8 @@
 #include "../render/ak_scene.h"
 #include "../assets/model.h"
 #include "../assets/entity.h"
+#include "../assets/blueprint.h"
+#include "../game/ak_soldier.h"
 #include "../platform/plat.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,6 +63,14 @@ int main(int argc, char **argv)
     ak_arena tmp, lvl;
     if (!ak_arena_init(&tmp, 1u << 20) || !ak_arena_init(&lvl, (size_t)ak_setting_int("AK_LEVEL_MB", 48) << 20)) return 1;
     find_levels(vfs, &tmp);
+    ak_arena data; ak_blueprints bps; memset(&bps, 0, sizeof bps);              /* the game's blueprints: once, for every level */
+    if (ak_arena_init(&data, 2u << 20)) {
+        ak_blob cb;
+        if (ak_vfs_read(vfs, "PSP_GAME/USRDIR/MISC/COMMON.ASR", &data, &cb) && ak_blueprints_parse(&cb, &data, &bps)) {
+            u32 no = 0; for (u32 i = 0; i < bps.ntypes; i++) no += bps.types[i].nobjects;
+            AK_INFO("aurek", "blueprints: %u types, %u objects, %.0f KB", bps.ntypes, no, data.used / 1024.0);
+        } else AK_WARN("aurek", "MISC/COMMON.ASR: no blueprints (soldiers get no heads)");
+    }
     if (!nlevels) { AK_ERROR("aurek", "no levels in PSP_GAME/USRDIR/ENVS"); return 1; }
     int cur = 0;
     const char *want = ak_setting_str("AK_LEVEL", "CLASSIC HOTH");
@@ -75,7 +85,8 @@ int main(int argc, char **argv)
     ak_model_set models; ak_scene_models mscene; u32 *gallery = NULL; u32 ngallery = 0, gsel = 0; bool gallery_on = ak_setting_int("AK_GALLERY", 0) != 0;
     f32 orbit_yaw = ak_setting_float("AK_GALLERY_YAW", 0.6f), orbit_pitch = -0.25f, orbit_zoom = ak_setting_float("AK_GALLERY_ZOOM", 1.0f); static f32 bones[512][12];
     static ak_quat lq[512]; static f32 lt[512][3]; s32 gclip = -1; f32 anim_t = 0;
-    int col1 = ak_setting_int("AK_COLOUR1", 0) & 15, col2 = ak_setting_int("AK_COLOUR2", 1) & 15; ak_model_colours gcol;
+    int col1 = ak_setting_int("AK_COLOUR1", -1), col2 = ak_setting_int("AK_COLOUR2", -1), ghead = ak_setting_int("AK_HEAD", 0); ak_model_colours gcol;
+    ak_soldier_look look; bool has_look = false;
     ak_entity_set ents; f32 (*bindm)[12] = NULL; u32 *bind_first = NULL; bool show_ents = ak_setting_int("AK_ENTITIES", 1) != 0;
     ak_input in; memset(&in, 0, sizeof in);
     u64 last = ak_plat_time_us(), fps_t0 = last; int fps_frames = 0; f32 fps = 0, frame_ms = 0, load_ms = 0;
@@ -129,9 +140,15 @@ int main(int argc, char **argv)
         }
         if (in.pressed & AK_BTN_SELECT) show = !show;
         if (in.pressed & AK_BTN_CIRCLE) gallery_on = !gallery_on;
-        if (gallery_on && (in.pressed & AK_BTN_L)) col1 = (col1 + 1) & 15;          /* personalisation colours: L colour 1, R colour 2 */
-        if (gallery_on && (in.pressed & AK_BTN_R)) col2 = (col2 + 1) & 15;
-        gcol.colour1 = ak_personal_colour1[col1]; gcol.colour2 = ak_personal_colour2[col2];
+        /* the gallery model as a soldier (a Humanoid blueprint of that name): its head, its faction's colours */
+        has_look = gallery_on && ngallery && ak_soldier_look_make(&bps, &models, models.models[gallery[gsel]].name, ghead, col1, col2, &look);
+        if (gallery_on && (in.pressed & AK_BTN_L)) col1 = ((has_look ? look.colour1 : col1 < 0 ? 0 : col1) + 1) & 15;   /* personalisation: L colour 1, R colour 2 */
+        if (gallery_on && (in.pressed & AK_BTN_R)) col2 = ((has_look ? look.colour2 : col2 < 0 ? 1 : col2) + 1) & 15;
+        if (gallery_on && (in.pressed & AK_BTN_SQUARE)) ghead = (ghead + 1) % 3;                                         /* square: head */
+        if (gallery_on && (in.pressed & (AK_BTN_L | AK_BTN_R | AK_BTN_SQUARE)))
+            has_look = ngallery && ak_soldier_look_make(&bps, &models, models.models[gallery[gsel]].name, ghead, col1, col2, &look);
+        if (has_look) { gcol.colour1 = look.rgb1; gcol.colour2 = look.rgb2; }
+        else { gcol.colour1 = ak_personal_colour1[col1 < 0 ? 0 : col1 & 15]; gcol.colour2 = ak_personal_colour2[col2 < 0 ? 1 : col2 & 15]; }
         if (gallery_on && ngallery) {
             if (in.pressed & AK_BTN_RIGHT) { gsel = (gsel + 1) % ngallery; gclip = -1; }
             if (in.pressed & AK_BTN_LEFT) { gsel = (gsel + ngallery - 1) % ngallery; gclip = -1; }
@@ -172,16 +189,27 @@ int main(int argc, char **argv)
                 bp = (const f32 (*)[12])bones;
             }
             ak_scene_models_draw(&mscene, gallery[gsel], &vp, &ident, bp, &gcol, &ms);
+            if (has_look && look.head >= 0 && bp)                                   /* the head rides the body's head socket */
+            {   static f32 hm[1][12];
+                ak_soldier_head_matrix(&models.skels[m->skeleton], look.head_bone, bp[look.head_bone], hm[0]);
+                ak_scene_models_draw(&mscene, (u32)look.head, &vp, &ident, (const f32 (*)[12])hm, &gcol, &ms);
+            }
             if (show) {
                 char line[200];
                 snprintf(line, sizeof line, "Aurek %s  %s  %.1f fps  %.2f ms", AK_BUILD_ID, ak_gfx_name(), fps, frame_ms); ak_gfx_text(8, 8, 0xFFFFFFFF, line);
                 snprintf(line, sizeof line, "%s  model %u/%u: %s", levels[cur].label, gsel + 1, ngallery, m->name); ak_gfx_text(8, 26, 0xFFFFFFFF, line);
                 snprintf(line, sizeof line, "parts %u  bones %u  vertices %u  triangles %u  size %.1f m", m->nparts,
                          m->skeleton >= 0 ? models.skels[m->skeleton].nbones : 0, m->nvtx, m->nidx / 3, ext); ak_gfx_text(8, 44, 0xFFFFFFFF, line);
-                if (clip) snprintf(line, sizeof line, "clip: %s  (%.2f s, %u keys)   colours %d / %d", clip->name, clip->duration, clip->nrot, col1, col2);
-                else snprintf(line, sizeof line, "clip: none (bind pose)   colours %d / %d", col1, col2);
+                if (has_look) {
+                    snprintf(line, sizeof line, "%s soldier  head %d: %s", ak_faction_name(look.faction), look.head_index + 1,
+                             look.head >= 0 ? models.models[look.head].name : "none");
+                    ak_gfx_text(480, 26, 0xFFC0E0FF, line);
+                }
+                int c1 = has_look ? look.colour1 : col1 < 0 ? 0 : col1, c2 = has_look ? look.colour2 : col2 < 0 ? 1 : col2;
+                if (clip) snprintf(line, sizeof line, "clip: %s  (%.2f s, %u keys)   colours %d / %d", clip->name, clip->duration, clip->nrot, c1, c2);
+                else snprintf(line, sizeof line, "clip: none (bind pose)   colours %d / %d", c1, c2);
                 ak_gfx_text(8, 62, 0xFFFFFFFF, line);
-                ak_gfx_text(8, 80, 0xFFC0C0C0, "d-pad: model, clip  L/R: colour 1/2  right stick: turn  left stick: zoom  circle: level");
+                ak_gfx_text(8, 80, 0xFFC0C0C0, "d-pad: model, clip  L/R: colour 1/2  square: head  right stick: turn  left stick: zoom  circle: level");
             }
             ak_gfx_end(&gs);
             frame++; fps_frames++;
