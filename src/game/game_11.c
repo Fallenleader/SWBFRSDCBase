@@ -12371,7 +12371,7 @@ L_08901768:;
 }
 
 /* 08901774 */
-u64 func_08901774(void)
+static u64 func_08901774__orig(void)
 {
     u32 v0 = 0, v1 = 0;
     u8 stack_[16] __attribute__((aligned(16)));
@@ -12383,6 +12383,14 @@ L_08901774:;
 L_08901784:;
     sp = sp + 16;
     return (u64)v0 | ((u64)v1 << 32);
+}
+
+u64 func_08901774(void)
+{
+    rs_cen_in(2);   /* native hook (tools/dc/hooks.py) */
+    u64 v_ = func_08901774__orig();
+    rs_cen_out(2);   /* native hook (tools/dc/hooks.py) */
+    return v_;
 }
 
 /* 08901790 */

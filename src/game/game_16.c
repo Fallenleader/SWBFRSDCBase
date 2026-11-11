@@ -4278,7 +4278,7 @@ L_089702B0:;
 }
 
 /* 089702D0 */
-void func_089702D0(void)
+static void func_089702D0__orig(void)
 {
     u32 v0 = 0, v1 = 0, a0 = 0;
     int cnd_;
@@ -4373,6 +4373,13 @@ L_089703B0:;
     goto L_089703C0;
 L_089703C0:;
     goto L_08970310;
+}
+
+void func_089702D0(void)
+{
+    rs_cen_in(0);   /* native hook (tools/dc/hooks.py) */
+    func_089702D0__orig();
+    rs_cen_out(0);   /* native hook (tools/dc/hooks.py) */
 }
 
 /* 089703C8 */

@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 088CA654 */
 u32 func_088CA654(u32 a0, u32 t1, u32 t2, u32 t3)
@@ -10692,7 +10693,7 @@ L_088D1894:;
 }
 
 /* 088D189C */
-rv_t func_088D189C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static rv_t func_088D189C__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0, t1 = 0, t2 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0;
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0, f8 = 0;
@@ -10977,6 +10978,14 @@ L_088D1C60:;
 L_088D1C6C:;
     goto L_088D1BF4;
     v[96]=vr96;v[97]=vr97;v[98]=vr98;v[106]=vr106;
+}
+
+rv_t func_088D189C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rs_cen_in(3);   /* native hook (tools/dc/hooks.py) */
+    rv_t v_ = func_088D189C__orig(a0, a1, a2, a3, t0, t3, f12, f13, f14, f15, f16, f17, f18, f19);
+    rs_cen_out(3);   /* native hook (tools/dc/hooks.py) */
+    return v_;
 }
 
 /* 088D1C74 */

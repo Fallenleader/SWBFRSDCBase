@@ -18332,7 +18332,7 @@ L_088AFEE8:;
 }
 
 /* 088AFEF0 */
-void func_088AFEF0(u32 t1, u32 t2, u32 t3)
+static void func_088AFEF0__orig(u32 t1, u32 t2, u32 t3)
 {
     u32 v0 = 0, v1 = 0, a0 = 0, a1 = 0, a2 = 0, a3 = 0, t0 = 0, s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0, s6 = 0, s7 = 0, fp = 0;
     float f0 = 0, f1 = 0, f2 = 0, f3 = 0, f20 = 0, f21 = 0, f22 = 0;
@@ -19253,6 +19253,13 @@ L_088B07EC:;
     f1 = BITSF(LD32(s2-17340));
     goto L_088B0008;
     v[0]=vr0;
+}
+
+void func_088AFEF0(u32 t1, u32 t2, u32 t3)
+{
+    rs_cen_in(5);   /* native hook (tools/dc/hooks.py) */
+    func_088AFEF0__orig(t1, t2, t3);
+    rs_cen_out(5);   /* native hook (tools/dc/hooks.py) */
 }
 
 /* 088B07F4 */
@@ -29433,7 +29440,7 @@ L_088B84A4:;
 }
 
 /* 088B84B0 */
-rv_t func_088B84B0(u32 a0, u32 a1, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static rv_t func_088B84B0__orig(u32 a0, u32 a1, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0, a2 = 0;
     float f0 = 0;
@@ -29451,6 +29458,14 @@ L_088B84B0:;
 L_088B84D0:;
     sp = sp + 16;
     return (rv_t){ v0, v1, f0 };
+}
+
+rv_t func_088B84B0(u32 a0, u32 a1, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rs_cen_in(6);   /* native hook (tools/dc/hooks.py) */
+    rv_t v_ = func_088B84B0__orig(a0, a1, f12, f13, f14, f15, f16, f17, f18, f19);
+    rs_cen_out(6);   /* native hook (tools/dc/hooks.py) */
+    return v_;
 }
 
 /* 088B84DC */

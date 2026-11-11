@@ -508,6 +508,12 @@ static void cen_put(cen_t *cen, u32 fn, u64 us){
     for (int k = 0; k < CEN_N; k++) { cen_t *e = &cen[(h + k) & (CEN_N - 1)]; if (e->fn == fn || !e->fn) { e->fn = fn; e->n++; e->us += us; return; } } }
 #define cen_add(f, u) cen_put(cen, f, u)
 static int cen_cmp(const void *a, const void *b){ const cen_t *x = a, *y = b; return x->us < y->us ? 1 : x->us > y->us ? -1 : 0; }
+#define CEN_SUBS 11
+static const char *cen_sub_name[CEN_SUBS] = {"089702D0","08877504","08901774","088D189C","089FA30C","088AFEF0","088B84B0","08A03E78","089DAC88","08AC6F88","0880688C"};
+static u64 cen_sub_us[CEN_SUBS], cen_sub_t0[CEN_SUBS]; static int cen_sub_d[CEN_SUBS];
+static int cen_enabled(void);
+void rs_cen_in(int i){ if (!cen_enabled()) return; u64 rs_perf_us(void); if (!cen_sub_d[i]++) cen_sub_t0[i] = rs_perf_us(); }
+void rs_cen_out(int i){ if (cen_on <= 0 || cen_sub_d[i] <= 0) return; u64 rs_perf_us(void); if (!--cen_sub_d[i]) cen_sub_us[i] += rs_perf_us() - cen_sub_t0[i]; }
 static void cen_report(void){
     cen_t s[CEN_N]; double F = cen_frames;
     memcpy(s, cen, sizeof s); qsort(s, CEN_N, sizeof s[0], cen_cmp);
@@ -517,6 +523,11 @@ static void cen_report(void){
     memcpy(s, cen2, sizeof s); qsort(s, CEN_N, sizeof s[0], cen_cmp);
     fprintf(stderr, "\n[CENSUS] behaviour nodes (own time, children apart):");
     for (int i = 0; i < 32 && s[i].fn; i++) fprintf(stderr, " %08x %.2f ms x%.1f;", s[i].fn, s[i].us / 1000.0 / F, s[i].n / F);
+    fprintf(stderr, "\n[CENSUS] the two time-sliced job queues after the loop: budgets %.2f ms and %.2f ms (+0), +72 %.3f / %.3f, +76 %.3f / %.3f",
+            1000.0 * BITSF(LD32(D_08C25220)), 1000.0 * BITSF(LD32(D_08C25280)), BITSF(LD32(D_08C25220 + 72)), BITSF(LD32(D_08C25280 + 72)),
+            BITSF(LD32(D_08C25220 + 76)), BITSF(LD32(D_08C25280 + 76)));
+    fprintf(stderr, "\n[CENSUS] parts of the frame (ms per frame, nested ones included in their callers):");
+    for (int i = 0; i < CEN_SUBS; i++) { fprintf(stderr, " %s %.2f;", cen_sub_name[i], cen_sub_us[i] / 1000.0 / F); cen_sub_us[i] = 0; }
     fprintf(stderr, "\n[CENSUS] game frame time (the update's dt): %.1f ms average, %.1f..%.1f ms; real time between updates %.1f ms average, %.1f ms longest\n",
             1000.0 * cen_dt / F, 1000.0 * cen_dt_min, 1000.0 * cen_dt_max, cen_real / 1000.0 / F, cen_real_max / 1000.0);
     cen_dt = cen_dt_max = cen_real = cen_real_max = 0; cen_dt_min = 1e9;

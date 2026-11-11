@@ -72,3 +72,7 @@ RS_3D_STRENGTH=3
 RS_3D_DEPTH=10
 # each eye's width in pixels, 100..240 (240 = sharpest; 200 = both eyes cost what the 2D picture does)
 RS_3D_EYE_W=240
+
+# ---- memory
+# host stack per game thread in KB (0 = twice the game's own, 64..512: leaves the C heap room for a match)
+RS_THREAD_STACK_KB=0

@@ -31,6 +31,7 @@ extern int rs_setting_int(const char *, int);
 /* ===================================================================== frame, vertex memory */
 static int in_frame, cull_on;
 static u8 *ring[2]; static u32 ring_size, ring_off; static int ring_i;
+static unsigned st_persp; static int st_on3d, st_hold;   /* perspective draws this frame; the 3D setting and slider allow stereo; frames left in stereo */
 static unsigned st_draws, st_tris, st_texup, st_clears, st_verts, st_frames;
 static C3D_RenderTarget *top, *top_r;
 static void *ring_alloc(u32 n){
@@ -383,7 +384,10 @@ int gfx_draw_native(const gfx_state_t *st, const gfx_hw_t *h, const gfx_native_t
     GPU_Primitive_t pt = nv->ptype == 4 ? GPU_TRIANGLE_STRIP : (nv->ptype == 5 ? GPU_TRIANGLE_FAN : GPU_TRIANGLES);
     rs_perf.setup_us += rs_perf_us() - t_s;
     { struct { GPU_Primitive_t pt; int n; u16 *ix; } a = {pt, n, ix}; C3D_FVec m[4]; const C3D_FVec *mp = NULL;
-      if (!thr && eyes_on()) { C3D_FVec *p = C3D_FVUnifWritePtr(GPU_VERTEX_SHADER, u_clip, 4); memcpy(m, p, sizeof m); mp = m; }   /* (the matrix just written) */
+      if (!thr && (st3d || st_on3d)) { C3D_FVec *p = C3D_FVUnifWritePtr(GPU_VERTEX_SHADER, u_clip, 4); memcpy(m, p, sizeof m);   /* (the matrix just written) */
+          /* only a perspective projection gets depth: an orthographic one (w row 0 0 0 1: the menus' and HUD's text and panels drawn
+           * through the 3D path) stays on the screen plane in both eyes, where the parallax only skewed it */
+          if (fabsf(m[3].x) > 1e-6f || fabsf(m[3].y) > 1e-6f || fabsf(m[3].z) > 1e-6f) { st_persp++; if (eyes_on()) mp = m; } }
       eye_draw(mp, draw_call, &a); }
     rs_perf.batches++; st_draws++; st_tris += (unsigned)(nv->ptype == 3 ? n / 3 : n - 2);
     return 1;
@@ -514,7 +518,11 @@ void gfx_c3d_present(void){
     C3D_FrameEnd(0); in_frame = 0; cur = NULL; st_frames++;
     {   static int on = -1, strength, eyew; if (on < 0) { on = rs_setting_int("RS_3D", 1); strength = rs_setting_int("RS_3D_STRENGTH", 3); eyew = rs_setting_int("RS_3D_EYE_W", 240);
             st_conv = (float)rs_setting_int("RS_3D_DEPTH", 10); if (eyew < 100) eyew = 100; if (eyew > 240) eyew = 240;   /* (two eyes side by side in a 512-wide surface) */ }
-        float sl = on && top_r ? osGet3DSliderState() : 0.0f; int want = sl > 0.02f;
+        float sl = on && top_r ? osGet3DSliderState() : 0.0f; st_on3d = sl > 0.02f;
+        /* stereo only while the game draws a 3D scene (a match, the customisation screens' models): the menus stay 2D and sharp.
+         * 24+ perspective draws in a frame turn it on; it stays on 60 frames after the last such frame (no flicker between screens) */
+        if (st_persp >= 24) st_hold = 60; else if (st_hold > 0) st_hold--;
+        st_persp = 0; int want = st_on3d && st_hold > 0;
         if (want != st3d) { gfxSet3D(want); st3d = want; fprintf(stderr, "[C3D] stereo 3D %s (slider %.2f)\n", want ? "on" : "off", sl); }
         st_sep = sl * (float)strength / 100.0f; EW = (int)(SZ * (eyew / 480.0f) + 0.5f);
         if (EW > 256) EW = 256; }

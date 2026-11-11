@@ -107,7 +107,11 @@ static void fpu_fast(void){ static int on = -1; if (on < 0) on = rs_setting_int(
     u32 f; __asm__ volatile("vmrs %0, fpscr" : "=r"(f)); f |= 1u << 24; __asm__ volatile("vmsr fpscr, %0" :: "r"(f)); }
 void rs_thread_init(void){ static u8 blocks[64][256] __attribute__((aligned(16))); static int n; rs_tls()->psp_k0 = (u32)(uintptr_t)blocks[__sync_fetch_and_add(&n, 1) & 63]; fpu_fast(); }
 void rs_thread_cores(const char *name){ (void)name; }
-void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ (void)psp_stack; pthread_attr_setstacksize(at, (size_t)rs_setting_int("RS_THREAD_STACK_KB", 512) * 1024); }
+/* host stacks: twice the PSP's (64 KB..512 KB; the game's own stack is in guest memory, the host one holds the decompiled code's
+ * locals), not 512 KB each: on the Old 3DS the C heap ran out at a match's sounds' threads, and the console froze.  RS_THREAD_STACK_KB > 0: one size for all */
+void rs_thread_attr(pthread_attr_t *at, u32 psp_stack){ static int kb = -1; if (kb < 0) kb = rs_setting_int("RS_THREAD_STACK_KB", 0);
+    size_t s = kb > 0 ? (size_t)kb * 1024 : (size_t)psp_stack * 2; if (!kb) { if (s < 64 * 1024) s = 64 * 1024; if (s > 512 * 1024) s = 512 * 1024; }
+    pthread_attr_setstacksize(at, s); }
 void rs_break(u32 code, u32 where){
     fprintf(stderr, "[GAME] break/trap code 0x%x at guest pc %08x\n", code, where); fflush(stderr);
     svcSleepThread(500000000LL); exit(3); }
@@ -322,7 +326,9 @@ int main(void){
             if ((hidKeysHeld() & (KEY_L | KEY_R | KEY_START | KEY_SELECT)) == (KEY_L | KEY_R | KEY_START | KEY_SELECT)) { STEP("exit requested (L+R+START+SELECT)"); break; }
             fe_stage = 2; extern void gfx_c3d_present(void); gfx_c3d_present(); presented++;
             hud_update(presented);
-            if (presented == 1 || presented % 1800 == 0) STEP("presented %llu frames", (unsigned long long)presented);
+            if (presented == 1 || presented % 1800 == 0) { struct mallinfo mi = mallinfo();
+                STEP("presented %llu frames; C heap %lu KB in use (%lu KB free in the arena), GPU heap %lu KB free", (unsigned long long)presented,
+                     (unsigned long)(mi.uordblks >> 10), (unsigned long)(mi.fordblks >> 10), (unsigned long)(linearSpaceFree() >> 10)); }
             continue; }
         fe_stage = 3; gfx_pump(4); }
     /* leave at once: exit() would free the heap under the game's threads (their stacks are in it), and the next one to wake faulted

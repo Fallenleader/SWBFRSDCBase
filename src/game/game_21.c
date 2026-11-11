@@ -645,7 +645,7 @@ L_089DAC80:;
 }
 
 /* 089DAC88 */
-rv_t func_089DAC88(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+static rv_t func_089DAC88__orig(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
 {
     u32 v0 = 0, v1 = 0, s0 = 0, s1 = 0, s2 = 0;
     float f0 = 0;
@@ -737,6 +737,14 @@ L_089DAD6C:;
     a1 = s0 + 0;
     a3 = 0x3000000u;
     goto L_089DACF8;
+}
+
+rv_t func_089DAC88(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
+{
+    rs_cen_in(8);   /* native hook (tools/dc/hooks.py) */
+    rv_t v_ = func_089DAC88__orig(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
+    rs_cen_out(8);   /* native hook (tools/dc/hooks.py) */
+    return v_;
 }
 
 /* 089DAD88 */
