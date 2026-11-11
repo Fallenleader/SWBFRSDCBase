@@ -42,10 +42,14 @@ void rs_game_var_range(u32 name, u32 var, u32 *min, u32 *max){
     if (var == IMG(VAR_TICKETS) && *min == 25 && *max == 200) {
         u32 lo = tickets_min(), hi = tickets_max(); if (lo > hi) lo = hi;
         fprintf(stderr, "[PATCH] conquest initial tickets (offline): %u..%u -> %u..%u\n", *min, *max, lo, hi); *min = lo; *max = hi;
+        { int st = rs_setting_int("RS_START_TICKETS", 0); if (st > 0) { if ((u32)st > hi) *max = hi = (u32)st; GU32(var) = (u32)st; fprintf(stderr, "[PATCH] tickets at start: %d (RS_START_TICKETS)\n", st); } }
         u32 cur = GU32(var); if (cur < lo) GU32(var) = lo; else if (cur > hi) GU32(var) = hi; }
     else if (var == IMG(VAR_PLAYERS_SP) && *max == 16) {
         int v = rs_setting_int("RS_MAX_PLAYERS", 64); if (v < 16) v = 16;
         fprintf(stderr, "[PATCH] min players (including AI), offline: maximum %u -> %d\n", *max, v); *max = (u32)v;
+        {   /* a mission set up: a new profiling segment (the Vita profiling build) and a mark in the census's frames.txt */
+            static int seg; extern void rs_prof_segment(void) __attribute__((weak)); extern void rs_cen_segment(int);
+            fprintf(stderr, "[MATCH] setup %d (profile segment %d)\n", seg + 1, seg + 1); if (rs_prof_segment) rs_prof_segment(); rs_cen_segment(++seg); }
         { const char *t = getenv("RS_TEST_PLAYERS"); if (t) GU32(var) = (u32)atoi(t); }       /* test harness: start with this many */
         { const char *t = getenv("RS_TEST_TICKETS"); if (t) GU32(IMG(VAR_TICKETS)) = (u32)atoi(t); } }
 }
@@ -548,7 +552,7 @@ static struct rs_ai_evt evq[EVT_N]; static unsigned ev_w, ev_r; static float dmg
 static struct { u32 id, w; } fired[256];
 static float obj_health(u32 o){ if (!gok(o) || !gok(GU32(o))) return 0; u32 sub = o + GU32(GU32(o) - 12); return gok(sub) ? GF32(sub + 0x28) : 0; }
 static u32 fired_by(u32 id){ for (int i = 0; i < 256; i++) if (fired[i].id == id) return fired[i].w; return 0; }
-void rs_ai_dmg_pre(u32 o, u32 msg){ dmg_tgt = o; dmg_hp = obj_health(o); (void)msg; }
+void rs_ai_dmg_pre(u32 o, u32 msg){ { extern u32 rs_cen_dmg; rs_cen_dmg++; } dmg_tgt = o; dmg_hp = obj_health(o); (void)msg; }
 void rs_ai_dmg_post(u32 o, u32 msg){
     if (o != dmg_tgt || !msg || !gok(o) || !gok(GU32(o))) return;
     struct rs_ai_evt e = { obj_id(o), GU32(msg + 4), GF32(msg + 12), dmg_hp, obj_health(o), GU32(msg) };

@@ -77,7 +77,7 @@ static ssize_t log_write(void *ck, const char *buf, size_t n){ (void)ck;
 static void log_init(void){
     sceIoMkdir(RS_DIR, 0777);
     log_file = fopen(RS_DIR "/log.txt", "w");
-    log_cap = (long)rs_setting_int("RS_LOG_MB", 4) << 20;
+    { int mb = rs_setting_int("RS_LOG_MB", 4); log_cap = mb > 0 ? (long)mb << 20 : 0x7FFFFFFFL; }   /* 0 = no limit */
     cookie_io_functions_t io = {0, log_write, 0, 0}; FILE *c = fopencookie(0, "w", io);
     if (c) { setvbuf(c, NULL, _IOLBF, 0); stderr = c; } else if (log_file) stderr = log_file; }
 

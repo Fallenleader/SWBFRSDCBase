@@ -514,6 +514,26 @@ static u64 cen_sub_us[CEN_SUBS], cen_sub_t0[CEN_SUBS]; static int cen_sub_d[CEN_
 static int cen_enabled(void);
 void rs_cen_in(int i){ if (!cen_enabled()) return; u64 rs_perf_us(void); if (!cen_sub_d[i]++) cen_sub_t0[i] = rs_perf_us(); }
 void rs_cen_out(int i){ if (cen_on <= 0 || cen_sub_d[i] <= 0) return; u64 rs_perf_us(void); if (!--cen_sub_d[i]) cen_sub_us[i] += rs_perf_us() - cen_sub_t0[i]; }
+static u32 cen_nobj, cen_nnode; u32 rs_cen_dmg;      /* objects updated, behaviour nodes run, damage events (game_patches.c) */
+/* RS_UPDATE_CENSUS=2: also one line per frame in ux0:data/SWBFRS/frames.txt (the console: frames.txt beside log.txt):
+ *   F frame real_ms dt_ms loop_ms trees_ms queue1_ms queue2_ms tail3_ms parts_ms[CEN_SUBS] objects nodes damage
+ *   S segment            (a new match: the profiler's segment too) */
+typedef struct { u64 loop, tree, t3[3], sub[CEN_SUBS]; u32 nobj, nnode, dmg; } cen_snap_t;
+static cen_snap_t cen_prev; static FILE *cen_ff; static unsigned cen_fn;
+static void cen_snap(cen_snap_t *s){ s->loop = cen_loop_us; s->tree = cen_tree_us; memcpy(s->t3, cen_tail3, sizeof s->t3); memcpy(s->sub, cen_sub_us, sizeof s->sub);
+    s->nobj = cen_nobj; s->nnode = cen_nnode; s->dmg = rs_cen_dmg; }
+static void cen_line(double real_ms, double dt_ms){
+    if (cen_on < 2) return;
+    if (!cen_ff) { extern const char *rs_platform_data_dir(void); char fp[512]; snprintf(fp, sizeof fp, "%s/frames.txt", rs_platform_data_dir()); cen_ff = fopen(fp, "w"); if (!cen_ff) { cen_on = 1; return; }
+        setvbuf(cen_ff, NULL, _IOFBF, 256 * 1024);
+        fprintf(cen_ff, "# F frame real_ms dt_ms loop_ms trees_ms queue1_ms queue2_ms tail3_ms"); for (int i = 0; i < CEN_SUBS; i++) fprintf(cen_ff, " %s", cen_sub_name[i]);
+        fprintf(cen_ff, " objects nodes damage\n"); }
+    cen_snap_t s; cen_snap(&s); cen_snap_t *p = &cen_prev;
+    fprintf(cen_ff, "F %u %.1f %.1f %.2f %.2f %.2f %.2f %.2f", cen_fn++, real_ms, dt_ms, (s.loop - p->loop) / 1000.0, (s.tree - p->tree) / 1000.0,
+            (s.t3[0] - p->t3[0]) / 1000.0, (s.t3[1] - p->t3[1]) / 1000.0, (s.t3[2] - p->t3[2]) / 1000.0);
+    for (int i = 0; i < CEN_SUBS; i++) fprintf(cen_ff, " %.2f", (s.sub[i] - p->sub[i]) / 1000.0);
+    fprintf(cen_ff, " %u %u %u\n", s.nobj - p->nobj, s.nnode - p->nnode, s.dmg - p->dmg); *p = s; }
+void rs_cen_segment(int n){ if (cen_ff) { fprintf(cen_ff, "S %d\n", n); fflush(cen_ff); } }
 static void cen_report(void){
     cen_t s[CEN_N]; double F = cen_frames;
     memcpy(s, cen, sizeof s); qsort(s, CEN_N, sizeof s[0], cen_cmp);
@@ -531,9 +551,9 @@ static void cen_report(void){
     fprintf(stderr, "\n[CENSUS] game frame time (the update's dt): %.1f ms average, %.1f..%.1f ms; real time between updates %.1f ms average, %.1f ms longest\n",
             1000.0 * cen_dt / F, 1000.0 * cen_dt_min, 1000.0 * cen_dt_max, cen_real / 1000.0 / F, cen_real_max / 1000.0);
     cen_dt = cen_dt_max = cen_real = cen_real_max = 0; cen_dt_min = 1e9;
-    memset(cen, 0, sizeof cen); memset(cen2, 0, sizeof cen2); cen_loop_us = cen_tail_us = cen_tree_us = 0; memset(cen_tail3, 0, sizeof cen_tail3); cen_frames = 0; }
+    memset(cen, 0, sizeof cen); memset(cen2, 0, sizeof cen2); cen_loop_us = cen_tail_us = cen_tree_us = 0; memset(cen_tail3, 0, sizeof cen_tail3); cen_frames = 0; cen_snap(&cen_prev); if (cen_ff) fflush(cen_ff); }
 static int cen_enabled(void){
-    if (cen_on < 0) { extern int rs_setting_int(const char *, int); cen_on = rs_setting_int("RS_UPDATE_CENSUS", 0) > 0; if (cen_on) fprintf(stderr, "[CENSUS] object update census on\n"); }
+    if (cen_on < 0) { extern int rs_setting_int(const char *, int); cen_on = rs_setting_int("RS_UPDATE_CENSUS", 0); if (cen_on < 0) cen_on = 0; if (cen_on) fprintf(stderr, "[CENSUS] object update census on\n"); }
     return cen_on; }
 int rs_census_node(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19, void *rv){
     if (!cen_enabled()) return 0;
@@ -545,7 +565,7 @@ int rs_census_node(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     for (u32 c = LD32(a0 + 16); c; c = LD32(c + 12)) r = func_089221E0(c, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
     u32 fn = LD32(LD32(a0) + 36); u64 t = rs_perf_us();
     r = ((ifn_t)RS_FPTR(fn))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
-    u64 t2_ = rs_perf_us(); cen_put(cen2, fn, t2_ - t);
+    u64 t2_ = rs_perf_us(); cen_put(cen2, fn, t2_ - t); cen_nnode++;
     if (!--cen_depth) cen_tree_us += t2_ - t_in;
     *(rv_t *)rv = r; return 1; }
 int rs_update_census(u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f13, float f14, float f15, float f16, float f17, float f18, float f19, void *rv){
@@ -556,11 +576,11 @@ int rs_update_census(u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, flo
     ST32(sp, D_08C2520C); ST32(sp + 4, node);
     u64 t_loop = rs_perf_us();
     cen_dt += dt; if (dt < cen_dt_min) cen_dt_min = dt; if (dt > cen_dt_max) cen_dt_max = dt;
-    if (cen_last) { double g = (double)(t_loop - cen_last); cen_real += g; if (g > cen_real_max) cen_real_max = g; } cen_last = t_loop;
+    if (cen_last) { double g = (double)(t_loop - cen_last); cen_real += g; if (g > cen_real_max) cen_real_max = g; cen_line(g / 1000.0, 1000.0 * dt); } cen_last = t_loop;
     while (node) {
         u32 obj = LD32(node), fn = LD32(LD32(obj) + 20); u64 t = rs_perf_us();
         r = ((ifn_t)RS_FPTR(fn))(obj, a1, a2, a3, t0, t1, t2, t3, dt, f13, f14, f15, f16, f17, f18, f19);
-        cen_add(fn, rs_perf_us() - t);
+        cen_add(fn, rs_perf_us() - t); cen_nobj++;
         func_08ABBDB0(sp); node = LD32(sp + 4); }
     u64 t_tail = rs_perf_us(); cen_loop_us += t_tail - t_loop;
     r = func_08836CA4(D_08C25220, a1, a2, a3, t0, t1, t2, t3);

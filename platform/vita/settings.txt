@@ -53,6 +53,8 @@ RS_MAX_PLAYERS=64
 # lowest and highest "Conquest Initial Tickets" (the game's own range is 25 to 200)
 RS_MIN_TICKETS=25
 RS_MAX_TICKETS=1000
+# tickets each side starts a mission with (0 = the menu's choice; above RS_MAX_TICKETS works too: long test matches)
+RS_START_TICKETS=0
 
 # ---- AI
 # most bots sent to hold one of their own command posts: 0 = no defenders (every squad attacks or takes posts); -1 = the game's own choice
@@ -90,7 +92,7 @@ RS_SAS_WAV=1
 #   GPU WAIT (% of time the renderer waits for the GPU), GPU SYNCS per second (full stalls), RT (scenes the render target allows),
 #   SLOW-RAM (GPU buffers that did not fit in video RAM)
 RS_HUD=1
-# size limit of ux0:data/SWBFRS/log.txt (MB)
+# size limit of ux0:data/SWBFRS/log.txt (MB, 0 = none)
 RS_LOG_MB=4
 # 1 = profiler lines every 600 frames to ux0:data/SWBFRS/perf.log, and the overlay's numbers in log.txt every 5 s ([HUD])
 RS_PERF_LOG=0
@@ -123,7 +125,8 @@ RS_SERVER=
 RS_LAN_SEARCH=1
 # diagnostics: log every frame that takes longer than this many milliseconds, with the files opened during it (0 = off)
 RS_SPIKE_MS=0
-# diagnostics: 1 = time the world's object updates by object type, listed in the log every 600 frames ([CENSUS] lines)
+# diagnostics: 1 = time the world's object updates by object type, listed in the log every 600 frames ([CENSUS] lines); 2 = also one line
+# per frame in ux0:data/SWBFRS/frames.txt
 RS_UPDATE_CENSUS=0
 
 # ---- lighting
