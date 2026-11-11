@@ -68,7 +68,7 @@ RS_3DS_NATIVE_RES=1
 # ---- stereo 3D (with the 3D slider up; 0 = always 2D)
 RS_3D=1
 # strength at the top of the slider (percent of the screen width) and the depth that sits on the screen (game units)
-RS_3D_STRENGTH=6
+RS_3D_STRENGTH=3
 RS_3D_DEPTH=10
-# each eye's width in pixels: 200 = both eyes cost what the 2D picture does (sharper: up to 240, costs more)
-RS_3D_EYE_W=200
+# each eye's width in pixels, 100..240 (240 = sharpest; 200 = both eyes cost what the 2D picture does)
+RS_3D_EYE_W=240

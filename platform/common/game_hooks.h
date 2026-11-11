@@ -53,6 +53,7 @@ void rs_gs_loaded(void);
 /* lift.c: hot game functions rewritten natively (RS_LIFT=0 runs the originals) */
 int  rs_lift_raybox(uint32_t o, uint32_t d, uint32_t box, uint32_t t, void *rv);
 int  rs_lift_boxtree(uint32_t tree, uint32_t org, uint32_t dir, uint32_t tmaxp, uint32_t cb, void *rv);
+int  rs_census_node(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19, void *rv);
 int  rs_update_census(uint32_t a1, uint32_t a2, uint32_t a3, uint32_t t0, uint32_t t1, uint32_t t2, uint32_t t3, float f13, float f14, float f15, float f16, float f17, float f18, float f19, void *rv);
 void rs_ai_dmg_pre(uint32_t o, uint32_t msg);
 void rs_ai_dmg_post(uint32_t o, uint32_t msg);

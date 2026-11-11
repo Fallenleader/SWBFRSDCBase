@@ -502,19 +502,40 @@ static int lift_walk(u32 tree, u32 org, u32 dir, u32 tmaxp, u32 cb, void *rv){
  * the other cores or rewriting natively.  Off (the default), the game's own code runs. */
 typedef struct { u32 fn; u32 n; u64 us; } cen_t;
 #define CEN_N 256
-static cen_t cen[CEN_N]; static u64 cen_loop_us, cen_tail_us; static int cen_frames;
-static void cen_add(u32 fn, u64 us){
+static cen_t cen[CEN_N], cen2[CEN_N]; static u64 cen_loop_us, cen_tail_us, cen_tail3[3], cen_tree_us; static int cen_frames, cen_on = -1, cen_depth;
+static void cen_put(cen_t *cen, u32 fn, u64 us){
     unsigned h = (fn >> 2) * 2654435761u >> 24;
     for (int k = 0; k < CEN_N; k++) { cen_t *e = &cen[(h + k) & (CEN_N - 1)]; if (e->fn == fn || !e->fn) { e->fn = fn; e->n++; e->us += us; return; } } }
+#define cen_add(f, u) cen_put(cen, f, u)
 static int cen_cmp(const void *a, const void *b){ const cen_t *x = a, *y = b; return x->us < y->us ? 1 : x->us > y->us ? -1 : 0; }
 static void cen_report(void){
-    cen_t s[CEN_N]; memcpy(s, cen, sizeof s); qsort(s, CEN_N, sizeof s[0], cen_cmp); double F = cen_frames;
-    fprintf(stderr, "[CENSUS] object updates per frame: %.2f ms in the loop, %.2f ms after it; costliest:", cen_loop_us / 1000.0 / F, cen_tail_us / 1000.0 / F);
+    cen_t s[CEN_N]; double F = cen_frames;
+    memcpy(s, cen, sizeof s); qsort(s, CEN_N, sizeof s[0], cen_cmp);
+    fprintf(stderr, "[CENSUS] object updates per frame: %.2f ms in the loop (behaviour trees %.2f ms), %.2f ms after it (%.2f + %.2f + %.2f); costliest:",
+            cen_loop_us / 1000.0 / F, cen_tree_us / 1000.0 / F, cen_tail_us / 1000.0 / F, cen_tail3[0] / 1000.0 / F, cen_tail3[1] / 1000.0 / F, cen_tail3[2] / 1000.0 / F);
     for (int i = 0; i < 24 && s[i].fn; i++) fprintf(stderr, " %08x %.2f ms x%.1f;", s[i].fn, s[i].us / 1000.0 / F, s[i].n / F);
-    fprintf(stderr, "\n"); memset(cen, 0, sizeof cen); cen_loop_us = cen_tail_us = 0; cen_frames = 0; }
+    memcpy(s, cen2, sizeof s); qsort(s, CEN_N, sizeof s[0], cen_cmp);
+    fprintf(stderr, "\n[CENSUS] behaviour nodes (own time, children apart):");
+    for (int i = 0; i < 32 && s[i].fn; i++) fprintf(stderr, " %08x %.2f ms x%.1f;", s[i].fn, s[i].us / 1000.0 / F, s[i].n / F);
+    fprintf(stderr, "\n"); memset(cen, 0, sizeof cen); memset(cen2, 0, sizeof cen2); cen_loop_us = cen_tail_us = cen_tree_us = 0; memset(cen_tail3, 0, sizeof cen_tail3); cen_frames = 0; }
+static int cen_enabled(void){
+    if (cen_on < 0) { extern int rs_setting_int(const char *, int); cen_on = rs_setting_int("RS_UPDATE_CENSUS", 0) > 0; if (cen_on) fprintf(stderr, "[CENSUS] object update census on\n"); }
+    return cen_on; }
+int rs_census_node(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19, void *rv){
+    if (!cen_enabled()) return 0;
+    u64 rs_perf_us(void);
+    u32 fl = LD32(a0 + 8); rv_t r = {fl & 1, fl, 0};
+    if (!(fl & 1)) { *(rv_t *)rv = r; return 1; }
+    if (fl & 2) { r.v0 = fl & 2; *(rv_t *)rv = r; return 1; }
+    u64 t_in = cen_depth++ ? 0 : rs_perf_us();
+    for (u32 c = LD32(a0 + 16); c; c = LD32(c + 12)) r = func_089221E0(c, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
+    u32 fn = LD32(LD32(a0) + 36); u64 t = rs_perf_us();
+    r = ((ifn_t)RS_FPTR(fn))(a0, a1, a2, a3, t0, t1, t2, t3, f12, f13, f14, f15, f16, f17, f18, f19);
+    u64 t2_ = rs_perf_us(); cen_put(cen2, fn, t2_ - t);
+    if (!--cen_depth) cen_tree_us += t2_ - t_in;
+    *(rv_t *)rv = r; return 1; }
 int rs_update_census(u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f13, float f14, float f15, float f16, float f17, float f18, float f19, void *rv){
-    static int on = -1; if (on < 0) { extern int rs_setting_int(const char *, int); on = rs_setting_int("RS_UPDATE_CENSUS", 0) > 0; if (on) fprintf(stderr, "[CENSUS] object update census on\n"); }
-    if (!on) return 0;
+    if (!cen_enabled()) return 0;
     u64 rs_perf_us(void);
     u8 stack_[16] __attribute__((aligned(16))); u32 sp = RS_GADDR(stack_);       /* the list iterator lives on the guest stack, as in the game */
     float dt = BITSF(LD32(D_08B285A0)); u32 node = LD32(D_08C2520C); rv_t r = {0, 0, 0};
@@ -527,8 +548,10 @@ int rs_update_census(u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, flo
         func_08ABBDB0(sp); node = LD32(sp + 4); }
     u64 t_tail = rs_perf_us(); cen_loop_us += t_tail - t_loop;
     r = func_08836CA4(D_08C25220, a1, a2, a3, t0, t1, t2, t3);
+    u64 t1_ = rs_perf_us(); cen_tail3[0] += t1_ - t_tail;
     r = func_08836CA4(D_08C25280, 0, 0, 0, 0, 0, 0, 0);
+    u64 t2_ = rs_perf_us(); cen_tail3[1] += t2_ - t1_;
     { u32 o = LD32(D_08C25208); if (o) { u32 fn = LD32(LD32(o) + 12); r = ((ifn_t)RS_FPTR(fn))(o, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); } }
-    cen_tail_us += rs_perf_us() - t_tail;
+    u64 t3_ = rs_perf_us(); cen_tail3[2] += t3_ - t2_; cen_tail_us += t3_ - t_tail;
     if (++cen_frames >= 600) cen_report();
     *(rv_t *)rv = r; return 1; }

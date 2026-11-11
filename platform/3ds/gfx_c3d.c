@@ -502,7 +502,7 @@ void gfx_c3d_present(void){
         static int fl = -1; if (fl < 0) fl = rs_setting_int("RS_FLIP_DISPLAY", 0);
         float vt = 1.0f, vbm = vb; if (s && fl) { vt = vb; vbm = 1.0f; }
         float ul = 0, ur = um;                                           /* 2D: the picture; 3D: this eye's half, stretched to the screen */
-        if (stereo_frame) { ul = eye ? 256.0f / SZ : 0.0f; ur = ul + (float)EW / SZ; }
+        if (stereo_frame) { ul = eye ? 256.0f / SZ : 0.0f; ur = ul + 480.0f * EW / SZ / SZ; }   /* (the eye's 480 game columns, not its whole viewport: that showed the 32 columns past the picture at the right and shrank it) */
         float q[4][4] = {{0, 0, ul, vt}, {400, 0, ur, vt}, {0, 240, ul, vbm}, {400, 240, ur, vbm}};
         for (int i = 0; i < 4; i++) { float *d = v + i * 9; d[0] = q[i][0]; d[1] = q[i][1]; d[2] = 0; d[3] = q[i][2]; d[4] = q[i][3]; d[5] = d[6] = d[7] = d[8] = 1; }
         C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR); C3D_CullFace(GPU_CULL_NONE); C3D_AlphaTest(false, GPU_ALWAYS, 0); C3D_StencilTest(false, GPU_ALWAYS, 0, 0, 0);
@@ -512,8 +512,8 @@ void gfx_c3d_present(void){
         bound_scr = 0; uvt(1, 1, 0, 0);
         draw_quads_clip(v, 4, GPU_TRIANGLE_STRIP); }
     C3D_FrameEnd(0); in_frame = 0; cur = NULL; st_frames++;
-    {   static int on = -1, strength, eyew; if (on < 0) { on = rs_setting_int("RS_3D", 1); strength = rs_setting_int("RS_3D_STRENGTH", 6); eyew = rs_setting_int("RS_3D_EYE_W", 200);
-            st_conv = (float)rs_setting_int("RS_3D_DEPTH", 10); if (eyew < 100) eyew = 100; if (eyew > 400) eyew = 400; }
+    {   static int on = -1, strength, eyew; if (on < 0) { on = rs_setting_int("RS_3D", 1); strength = rs_setting_int("RS_3D_STRENGTH", 3); eyew = rs_setting_int("RS_3D_EYE_W", 240);
+            st_conv = (float)rs_setting_int("RS_3D_DEPTH", 10); if (eyew < 100) eyew = 100; if (eyew > 240) eyew = 240;   /* (two eyes side by side in a 512-wide surface) */ }
         float sl = on && top_r ? osGet3DSliderState() : 0.0f; int want = sl > 0.02f;
         if (want != st3d) { gfxSet3D(want); st3d = want; fprintf(stderr, "[C3D] stereo 3D %s (slider %.2f)\n", want ? "on" : "off", sl); }
         st_sep = sl * (float)strength / 100.0f; EW = (int)(SZ * (eyew / 480.0f) + 0.5f);
