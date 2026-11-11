@@ -20,6 +20,21 @@ int        ak_plat_core_count(void);
 ak_thread *ak_plat_thread_start(const char *name, ak_thread_fn fn, void *arg, int core /* -1 = any */, size_t stack);
 void       ak_plat_thread_join(ak_thread *t);
 
+/* start-up: clocks, controllers, the user folder.  Called before anything else. */
+bool ak_plat_init(void);
+/* folders searched for the game's files (game.iso or GAME/), in order; and the engine's own folder (settings.txt, log, caches) */
+const char *const *ak_plat_data_dirs(int *n);
+const char *ak_plat_user_dir(void);
+
+/* input: one pad, in engine terms (sticks -1..1, +y up).  Desktop maps keyboard/controller onto it. */
+enum {
+    AK_BTN_CROSS = 1 << 0, AK_BTN_CIRCLE = 1 << 1, AK_BTN_SQUARE = 1 << 2, AK_BTN_TRIANGLE = 1 << 3,
+    AK_BTN_L = 1 << 4, AK_BTN_R = 1 << 5, AK_BTN_START = 1 << 6, AK_BTN_SELECT = 1 << 7,
+    AK_BTN_UP = 1 << 8, AK_BTN_DOWN = 1 << 9, AK_BTN_LEFT = 1 << 10, AK_BTN_RIGHT = 1 << 11
+};
+typedef struct { f32 lx, ly, rx, ry; u32 held, pressed; } ak_input;
+bool ak_plat_poll(ak_input *in);         /* false: the user asked to quit */
+
 /* log output (the core formats; the device writes: stdout + log.txt, ux0:data/SWBFRS/log.txt, sdmc:/3ds/SWBFRS/log.txt) */
 void ak_plat_log_write(const char *line);
 

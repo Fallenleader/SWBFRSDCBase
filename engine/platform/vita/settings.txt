@@ -1,0 +1,34 @@
+# Aurek level viewer (PS Vita) settings: copy to ux0:data/Aurek/settings.txt
+# One KEY=VALUE per line; '#' starts a comment.  Every value below is the default, so deleting a line changes nothing.
+#
+# Game files: game.iso or GAME/PSP_GAME/... in ux0:data/Aurek, or (if not there) in ux0:data/SWBFRS, where the earlier port keeps
+# them.  Nothing needs copying if the earlier port already runs.  ur0:data/libshacccg.suprx is needed once, to compile the shaders
+# at first start (cached in ux0:data/Aurek/shaders afterwards).
+#
+# Controls: left stick move, right stick look, L / R down / up, hold Cross to move faster,
+#           START next level, TRIANGLE previous level, SELECT figures on/off.  Log: ux0:data/Aurek/log.txt (one line per second).
+
+# ---- start
+# level shown first, as "<ERA> <MAP>" (eras: CLASSIC, PREQUEL, CAMPAIGN)
+AK_LEVEL=CLASSIC HOTH
+# figures on screen at start (fps, frame time, draws, triangles, GPU wait)
+AK_SHOW_FIGURES=1
+
+# ---- picture
+# 1 = wait for the display's refresh (no tearing, capped at 60 fps); 0 = uncapped, to measure how fast frames really are
+AK_VSYNC=1
+# far clipping distance in metres
+AK_FAR=1500
+# vertex colour scale: the game's baked vertex colours use 128 = full brightness, so 2 is the game's look
+AK_COLOUR_SCALE=2.0
+# distance fog in metres (end <= start: none)
+AK_FOG_START=0
+AK_FOG_END=0
+# back-face culling: 1 = on (the GPU skips the hidden side of every surface), 0 = off, 2 = the other side (only if levels look inside out)
+AK_CULL=1
+
+# ---- memory
+# video memory for one level's geometry and textures, in MB
+AK_VRAM_POOL_MB=64
+# main memory for one level's data, in MB
+AK_LEVEL_MB=48

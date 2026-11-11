@@ -222,8 +222,15 @@ s32 ak_level_find_texture(const ak_level *l, const char *name)
 
 bool ak_level_load(const char *path, ak_arena *a, ak_level *l)
 {
-    memset(l, 0, sizeof *l);
-    if (!ak_file_read(path, a, &l->file) || !ak_asura_check(&l->file)) { AK_ERROR("level", "%s is not a level file", path); return false; }
+    ak_blob b;
+    if (!ak_file_read(path, a, &b)) return false;
+    return ak_level_parse(&b, a, l);
+}
+
+bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *l)
+{
+    memset(l, 0, sizeof *l); l->file = *file;
+    if (!ak_asura_check(&l->file)) { AK_ERROR("level", "not a level file"); return false; }
     ak_chunk c; u32 pos = 8, ntexres = 0;
     while (ak_asura_next(&l->file, &pos, &c)) {                  /* pass 1: counts */
         ak_rscf r; l->nchunks++;

@@ -70,7 +70,8 @@ typedef struct {
     ak_level_geom geom;
     u32 nchunks;
 } ak_level;
-bool ak_level_load(const char *path, ak_arena *a, ak_level *out);
+bool ak_level_load(const char *path, ak_arena *a, ak_level *out);       /* a file on disk (tools) */
+bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *out);  /* a file already read (ak_vfs) */
 s32  ak_level_find_texture(const ak_level *l, const char *name);
 
 static inline void ak_from_game(const f32 *g, f32 *e) { e[0] = g[0]; e[1] = -g[1]; e[2] = g[2]; }
