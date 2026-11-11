@@ -43,7 +43,7 @@ typedef struct { u16 op, words; u32 a[6]; } rop_t;                 /* words = to
 #define HDR_WORDS ((int)(sizeof(rop_t) / 4))
 
 typedef struct { u32 *w; size_t n, cap; volatile int busy; } cbuf_t;
-static unsigned st_recorded_rec, st_inst_rec; static int last_draw_buf = -1; static size_t last_draw_at; unsigned st_batched; static int ops_since_draw, other_since_draw;   /* the last draw recorded (batching, record_draw) */
+static unsigned st_recorded_rec, st_inst_rec, st_opn[64], st_primn[8], st_adjacent; static int last_draw_buf = -1; static size_t last_draw_at; unsigned st_batched; static int ops_since_draw, other_since_draw;   /* the last draw recorded (batching, record_draw) */
 #ifdef __3DS__
 #define NBUF 2                    /* the 3DS: frames recorded in two buffers (each holds a frame's vertex copies; memory is short) */
 #else
@@ -69,7 +69,7 @@ static u32 *emit(int op, int payload_words){
             return spill; }                                                 /* written by the caller, never executed */
         b->w = nw; b->cap = want; }
   fits:;
-    ops_since_draw++; if (op != OP_MATRIX) other_since_draw++;
+    ops_since_draw++; if (op != OP_MATRIX) other_since_draw++; if (op < 64) st_opn[op]++;
     rop_t *r = (rop_t *)(b->w + b->n); memset(r, 0, sizeof *r); r->op = (u16)op; r->words = (u16)(need > 0xFFFF ? 0 : need);
     if (need > 0xFFFF) { r->words = 0; r->a[5] = (u32)need; }        /* big payload: size in a[5] */
     b->n += need;
@@ -287,6 +287,7 @@ static void record_draw(u32 prim, u32 vt, u32 count, const u8 *ip, const u8 *vp)
     {   /* instancing candidates (counted, not acted on yet): the same mesh drawn again with only matrices changed in between */
         static const u8 *lvp; static u32 lvt, lcount; st_recorded_rec++;
         if (vp == lvp && vt == lvt && count == lcount && ops_since_draw && !other_since_draw) st_inst_rec++;
+        st_primn[prim & 7]++; if (!ops_since_draw) st_adjacent++;
         lvp = vp; lvt = vt; lcount = count; ops_since_draw = other_since_draw = 0; }
     vt &= 0xFFFFFF; int off[5]; int vsz = vt_layout(vt, off); if (vsz <= 0) return;
     int idxf = (vt >> 11) & 3; u32 lo = 0, hi = count - 1;
@@ -300,15 +301,19 @@ static void record_draw(u32 prim, u32 vt, u32 count, const u8 *ip, const u8 *vp)
      * paying the renderer's per-draw setup.  The primitives stay in order, so blending is unchanged. */
     static int batch = -1; if (batch < 0) { extern int rs_setting_int(const char *, int); batch = rs_setting_int("RS_GU_BATCH", 1); }
     { u32 pr = prim & 7; cbuf_t *b = &bufs[cur_buf];
-      if (batch && !idxf && (pr == 0 || pr == 1 || pr == 3 || pr == 6) && !rec_sub && last_draw_buf == cur_buf && last_draw_at < b->n && b->w) {
+      if (batch && !idxf && (pr == 0 || pr == 1 || pr == 3 || pr == 4 || pr == 6) && !rec_sub && last_draw_buf == cur_buf && last_draw_at < b->n && b->w) {
         rop_t *r = (rop_t *)(b->w + last_draw_at); drawhdr_t *d = (drawhdr_t *)((u32 *)r + HDR_WORDS);
+        /* strips: joined by repeating the last vertex and the next first one (degenerate triangles, drawn as nothing), one more
+         * when the first strip has an odd count, so the second keeps its winding (back-face culling) */
+        u32 join = pr == 4 ? 2u + (d->count & 1u) : 0u;
         if (r->op == OP_DRAW && r->words && last_draw_at + r->words == b->n && d->prim == pr && d->vt == vt && d->vsz == (u32)vsz && !d->idxf
-            && d->count + count <= 65535u) {
-            size_t old_bytes = (size_t)d->count * (size_t)vsz, words = (size_t)HDR_WORDS + (sizeof(drawhdr_t) + old_bytes + vbytes + 3) / 4;
-            size_t extra = words - r->words;
+            && d->count + join + count <= 65535u && (pr != 4 || (d->count >= 3 && count >= 3))) {
+            size_t old_bytes = (size_t)d->count * (size_t)vsz, add = vbytes + (size_t)join * (size_t)vsz;
+            size_t words = (size_t)HDR_WORDS + (sizeof(drawhdr_t) + old_bytes + add + 3) / 4, extra = words - r->words;
             if (words <= 0xFFFF && (b->n + extra <= b->cap || grow_buf(b, extra))) {
-                r = (rop_t *)(b->w + last_draw_at); d = (drawhdr_t *)((u32 *)r + HDR_WORDS);
-                memcpy((u8 *)(d + 1) + old_bytes, vp, vbytes); d->count += count; d->nvert += nvert; r->words = (u16)words; b->n += extra;
+                r = (rop_t *)(b->w + last_draw_at); d = (drawhdr_t *)((u32 *)r + HDR_WORDS); u8 *dst = (u8 *)(d + 1) + old_bytes;
+                if (join) { const u8 *lastv = dst - vsz; for (u32 k = 0; k + 1 < join; k++) { memcpy(dst, lastv, vsz); dst += vsz; } memcpy(dst, vp, vsz); dst += vsz; }
+                memcpy(dst, vp, vbytes); d->count += count + join; d->nvert += nvert + join; r->words = (u16)words; b->n += extra;
                 st_batched++; return; } } } }
     int pw = (int)((sizeof(drawhdr_t) + vbytes + ibytes + 3) / 4);
     u32 *p = emit(OP_DRAW, pw); drawhdr_t *d = (drawhdr_t *)(p + HDR_WORDS);
@@ -697,7 +702,12 @@ static void exec_buffer(void *arg){
     { static unsigned nb, c0, cul0; static int lg = -1; if (lg < 0) { extern int rs_setting_int(const char *, int); lg = rs_setting_int("RS_PERF_LOG", 0);
           fprintf(stderr, "[GU] batching %s, frustum culling %s, draw counts in the log %s\n", rs_setting_int("RS_GU_BATCH", 1) ? "on" : "off", rs_setting_int("RS_GU_CULL", 1) ? "on" : "off", lg ? "every 300 frames" : "off (RS_PERF_LOG=0)"); }
       if (lg && ++nb == 300) { fprintf(stderr, "[GU] per buffer (300): %.1f draws recorded, %.1f added to the previous (batching), %.1f culled, %.1f the same mesh again with only a matrix between (instancing candidates)\n",
-              st_recorded_rec / 300.0, st_batched / 300.0, (st_culled - cul0) / 300.0, st_inst_rec / 300.0); st_recorded_rec = st_batched = st_inst_rec = 0; cul0 = st_culled; nb = 0; (void)c0; } }
+              st_recorded_rec / 300.0, st_batched / 300.0, (st_culled - cul0) / 300.0, st_inst_rec / 300.0);
+          fprintf(stderr, "[GU]   draws by kind: points %.1f lines %.1f triangles %.1f strips %.1f fans %.1f sprites %.1f; with nothing recorded since the previous %.1f; state between draws, the most frequent:",
+              st_primn[0] / 300.0, st_primn[1] / 300.0, st_primn[3] / 300.0, st_primn[4] / 300.0, st_primn[5] / 300.0, st_primn[6] / 300.0, st_adjacent / 300.0);
+          for (int k = 0; k < 8; k++) { int bi = 0; for (int o = 1; o < 64; o++) if (st_opn[o] > st_opn[bi]) bi = o; if (!st_opn[bi]) break; fprintf(stderr, " op%d %.1f", bi, st_opn[bi] / 300.0); st_opn[bi] = 0; }
+          fprintf(stderr, "\n"); memset(st_opn, 0, sizeof st_opn); memset(st_primn, 0, sizeof st_primn); st_adjacent = 0;
+          st_recorded_rec = st_batched = st_inst_rec = 0; cul0 = st_culled; nb = 0; (void)c0; } }
     __sync_synchronize(); b->busy = 0; executed++; }
 
 /* ===================================================================== what the rest of the platform layer expects from the GPU side */
