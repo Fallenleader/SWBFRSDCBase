@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 08AAFCDC */
 rv_t func_08AAFCDC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float f12, float f13, float f14, float f15, float f16, float f17, float f18, float f19)
@@ -10793,7 +10794,7 @@ L_08AB63CC:;
     v0 = 0 + 0;
     ST32(s4+4, 0);
     cnd_ = s4 == 0;
-    ST32(s4+12, 0);
+    if (!cnd_) ST32(s4+12, 0);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_08AB6494; }
     goto L_08AB63E4;
 L_08AB63E4:;
@@ -16526,7 +16527,7 @@ L_08AB98D4:;
     v0 = 0 + 0;
     ST32(s2+4, 0);
     cnd_ = s2 == 0;
-    ST32(s2+12, 0);
+    if (!cnd_) ST32(s2+12, 0);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_08AB9984; }
     goto L_08AB98EC;
 L_08AB98EC:;

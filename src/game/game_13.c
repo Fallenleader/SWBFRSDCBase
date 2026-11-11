@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 08927F14 */
 u32 func_08927F14(u32 a0)
@@ -2996,7 +2997,7 @@ L_08929E88:;
 L_08929E90:;
     ST32(s1+80, v0);
     cnd_ = v0 == 0;
-    ST32(v0+244, s4);
+    if (!cnd_) ST32(v0+244, s4);   /* RS fix: tested first (tools/dc/hooks.py FIXES) */
     if (cnd_) { goto L_08929D6C; }
     goto L_08929E9C;
 L_08929E9C:;

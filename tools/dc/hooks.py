@@ -98,8 +98,29 @@ def wrapper(addr, ret, params, h):
     else: w += '    return %s;\n' % call
     return w + '}\n'
 
+# Fixes in the game's own code: (old, new) text in the generated C, applied once.
+FIXES = [
+    # 08929C9C (CTF: a flag secured): the result of 089268D0 is stored through before it is tested (the MIPS delay slot), and with
+    # more players than the game's own 16 it can be 0 once the 4th flag is secured: a write to address 0xF4 that crashed the Vita
+    ("""    ST32(s1+80, v0);
+    cnd_ = v0 == 0;
+    ST32(v0+244, s4);
+    if (cnd_) { goto L_08929D6C; }""",
+     """    ST32(s1+80, v0);
+    cnd_ = v0 == 0;
+    if (!cnd_) ST32(v0+244, s4);   /* RS fix: tested first (tools/dc/hooks.py FIXES) */
+    if (cnd_) { goto L_08929D6C; }"""),
+]
+
+# ... and the same pattern anywhere: a store through a pointer in the delay slot of its own null test.  On the PSP a null there would
+# have crashed as well, so the game never relies on it; with the larger player counts it does happen (above), so the store waits for the test
+NULL_STORE = re.compile(r'(cnd_ = (\w+) == 0;\n    )(ST(?:32|16|8)\(\2\+\d+, \w+\);)(\n    if \(cnd_\))')
+
 def process(path):
     t = open(path).read(); n = 0
+    for old, new in FIXES:
+        if old in t: t = t.replace(old, new); n += 1
+    t, k = NULL_STORE.subn(lambda m: m.group(1) + 'if (!cnd_) ' + m.group(3) + '   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */' + m.group(4), t); n += k
     for addr, h in HOOKS.items():
         wrapped = re.search(r'\nstatic (\w+) func_%s__orig\(([^)]*)\)\n\{\n' % addr, t)
         if wrapped:                                         # already wrapped: rewrite its wrapper

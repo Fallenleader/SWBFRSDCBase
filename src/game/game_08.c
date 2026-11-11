@@ -12106,7 +12106,7 @@ L_088C35DC:;
     goto L_088C35A4;
 L_088C35E4:;
     cnd_ = s4 == 0;
-    ST32(s4+8, s2);
+    if (!cnd_) ST32(s4+8, s2);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_088C3398; }
     goto L_088C35EC;
 L_088C35EC:;

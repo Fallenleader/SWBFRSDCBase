@@ -43,6 +43,7 @@ typedef struct { u16 op, words; u32 a[6]; } rop_t;                 /* words = to
 #define HDR_WORDS ((int)(sizeof(rop_t) / 4))
 
 typedef struct { u32 *w; size_t n, cap; volatile int busy; } cbuf_t;
+static int last_draw_buf = -1; static size_t last_draw_at; unsigned st_batched;   /* the last draw recorded (batching, record_draw) */
 #ifdef __3DS__
 #define NBUF 2                    /* the 3DS: frames recorded in two buffers (each holds a frame's vertex copies; memory is short) */
 #else
@@ -87,7 +88,7 @@ static void submit(void){
     struct { int idx; } j = {cur_buf}; gfx_post(exec_buffer, &j, sizeof j);
     cur_buf = (cur_buf + 1) % NBUF;
     if (bufs[cur_buf].busy) { rs_big_unlock(); while (bufs[cur_buf].busy) { gfx_run(nop_job, NULL); } rs_big_lock(); }   /* renderer more than NBUF-1 frames behind */
-    bufs[cur_buf].n = 0; }
+    bufs[cur_buf].n = 0; last_draw_buf = -1; }
 
 void rgu_init_sync(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3){       /* 08A972CC: sceGuInit's "enqueue the init list and wait" */
     (void)a0; (void)a1; (void)a2; (void)a3; (void)t0; (void)t1; (void)t2; (void)t3;
@@ -278,6 +279,8 @@ static int vt_layout(u32 vt, int *off){
     return (pos + maxal - 1) & ~(maxal - 1); }
 /* one primitive: the vertices it uses are copied (indexed: the index range lo..hi, indices rebased to lo, as u16) */
 typedef struct { u32 prim, vt, count, vsz, nvert, idxf; } drawhdr_t;
+static int grow_buf(cbuf_t *b, size_t extra){
+    size_t want = b->n + extra + (b->n >> 1) + 65536; u32 *nw = realloc(b->w, want * 4); if (!nw) return 0; b->w = nw; b->cap = want; return 1; }
 static void record_draw(u32 prim, u32 vt, u32 count, const u8 *ip, const u8 *vp){
     if (!count || !vp) return;
     vt &= 0xFFFFFF; int off[5]; int vsz = vt_layout(vt, off); if (vsz <= 0) return;
@@ -287,8 +290,24 @@ static void record_draw(u32 prim, u32 vt, u32 count, const u8 *ip, const u8 *vp)
             if (x < lo) lo = x; if (x > hi) hi = x; }
         if (hi - lo >= 65535u) { static int w; if (!w++) fprintf(stderr, "[GU] draw with an index range over 65535: skipped\n"); return; } }
     u32 nvert = hi - lo + 1; size_t vbytes = (size_t)nvert * (size_t)vsz, ibytes = idxf ? (size_t)count * 2 : 0;
+    /* batching: a list draw (points, lines, triangles, sprites; no indices) right after one of the same kind, with no state change
+     * between (nothing else recorded since), is added to it: the heavy scenes' particles and effects came as ~1200 draws a frame, each
+     * paying the renderer's per-draw setup.  The primitives stay in order, so blending is unchanged. */
+    static int batch = -1; if (batch < 0) { extern int rs_setting_int(const char *, int); batch = rs_setting_int("RS_GU_BATCH", 1); }
+    { u32 pr = prim & 7; cbuf_t *b = &bufs[cur_buf];
+      if (batch && !idxf && (pr == 0 || pr == 1 || pr == 3 || pr == 6) && !rec_sub && last_draw_buf == cur_buf && last_draw_at < b->n && b->w) {
+        rop_t *r = (rop_t *)(b->w + last_draw_at); drawhdr_t *d = (drawhdr_t *)((u32 *)r + HDR_WORDS);
+        if (r->op == OP_DRAW && r->words && last_draw_at + r->words == b->n && d->prim == pr && d->vt == vt && d->vsz == (u32)vsz && !d->idxf
+            && d->count + count <= 65535u) {
+            size_t old_bytes = (size_t)d->count * (size_t)vsz, words = (size_t)HDR_WORDS + (sizeof(drawhdr_t) + old_bytes + vbytes + 3) / 4;
+            size_t extra = words - r->words;
+            if (words <= 0xFFFF && (b->n + extra <= b->cap || grow_buf(b, extra))) {
+                r = (rop_t *)(b->w + last_draw_at); d = (drawhdr_t *)((u32 *)r + HDR_WORDS);
+                memcpy((u8 *)(d + 1) + old_bytes, vp, vbytes); d->count += count; d->nvert += nvert; r->words = (u16)words; b->n += extra;
+                st_batched++; return; } } } }
     int pw = (int)((sizeof(drawhdr_t) + vbytes + ibytes + 3) / 4);
     u32 *p = emit(OP_DRAW, pw); drawhdr_t *d = (drawhdr_t *)(p + HDR_WORDS);
+    if (!rec_sub && p != NULL) { cbuf_t *b = &bufs[cur_buf]; if (b->w && p >= b->w && p < b->w + b->n) { last_draw_buf = cur_buf; last_draw_at = (size_t)(p - b->w); } else last_draw_buf = -1; }
     d->prim = prim & 7; d->vt = vt; d->count = count; d->vsz = (u32)vsz; d->nvert = nvert; d->idxf = (u32)idxf;
     u8 *vb = (u8 *)(d + 1); memcpy(vb, vp + (size_t)lo * (size_t)vsz, vbytes);
     if (idxf) { u16 *ix = (u16 *)(vb + vbytes);

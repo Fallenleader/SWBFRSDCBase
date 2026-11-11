@@ -22258,7 +22258,7 @@ L_088D885C:;
     ST32(s2+4, v0);
     ST32(s0, a0);
     cnd_ = v1 == 0;
-    ST32(v1+4, 0);
+    if (!cnd_) ST32(v1+4, 0);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_088D88CC; }
     goto L_088D8894;
 L_088D8894:;
@@ -33056,7 +33056,7 @@ L_088DF584:;
     ST32(s2+4, v0);
     ST32(s0, a0);
     cnd_ = v1 == 0;
-    ST8(v1+4, 0);
+    if (!cnd_) ST8(v1+4, 0);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_088DF5C0; }
     goto L_088DF5B0;
 L_088DF5B0:;

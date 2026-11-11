@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 088488F4 */
 rv_t func_088488F4(u32 a0, u32 a1, u32 a2, float f12)
@@ -5196,7 +5197,7 @@ L_0884C468:;
     goto L_0884C430;
 L_0884C470:;
     cnd_ = s2 == 0;
-    ST32(s2+8, s0);
+    if (!cnd_) ST32(s2+8, s0);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_0884C210; }
     goto L_0884C478;
 L_0884C478:;
@@ -5507,7 +5508,7 @@ L_0884C740:;
     goto L_0884C708;
 L_0884C748:;
     cnd_ = s2 == 0;
-    ST32(s2+8, s0);
+    if (!cnd_) ST32(s2+8, s0);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_0884C580; }
     goto L_0884C750;
 L_0884C750:;
@@ -5815,7 +5816,7 @@ L_0884CA14:;
     goto L_0884C9DC;
 L_0884CA1C:;
     cnd_ = s2 == 0;
-    ST32(s2+8, s0);
+    if (!cnd_) ST32(s2+8, s0);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_0884C860; }
     goto L_0884CA24;
 L_0884CA24:;
@@ -6119,7 +6120,7 @@ L_0884CCE0:;
     goto L_0884CCA8;
 L_0884CCE8:;
     cnd_ = s2 == 0;
-    ST32(s2+8, s0);
+    if (!cnd_) ST32(s2+8, s0);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_0884CB2C; }
     goto L_0884CCF0;
 L_0884CCF0:;
@@ -20145,7 +20146,7 @@ L_0885656C:;
     a0 = v1 + 0;
     ST32(v1+8, FBITS(f0));
     cnd_ = v1 == 0;
-    ST32(v1+4, 0);
+    if (!cnd_) ST32(v1+4, 0);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_088565B8; }
     goto L_088565B4;
 L_088565B4:;
@@ -21521,7 +21522,7 @@ L_08857378:;
     a0 = v1 + 0;
     ST32(v1+8, FBITS(f0));
     cnd_ = v1 == 0;
-    ST32(v1+4, 0);
+    if (!cnd_) ST32(v1+4, 0);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_088573C4; }
     goto L_088573C0;
 L_088573C0:;

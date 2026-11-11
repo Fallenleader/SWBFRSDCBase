@@ -30,6 +30,8 @@ RS_CPU_PIN=1
 RS_CORE3=1
 # CPU clock the game raises the Vita to at start (MHz); a higher clock already set (an overclocking plugin) is kept; 0 = leave the clocks alone
 RS_ARM_MHZ=444
+# 1 = draws of the same kind with no state change between are sent to the GPU as one (particles, effects: far fewer draw calls)
+RS_GU_BATCH=1
 # 1 = the game does not wait for the renderer at GU sync points (its next frame is prepared while this one is drawn; 0 = wait, as the PSP)
 RS_GU_PIPELINE=1
 # lifted game functions (native rewrites of the hottest game code: collision ray casts so far); 0 = the original code, to compare

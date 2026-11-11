@@ -1,4 +1,5 @@
 #include "game.h"
+#include "../../platform/common/game_hooks.h"   /* native hook (tools/dc/hooks.py) */
 
 /* 088E240C */
 u64 func_088E240C(u32 a0, u32 a1, u32 t1, u32 t2, u32 t3)
@@ -14187,7 +14188,7 @@ L_088EC080:;
     goto L_088EC048;
 L_088EC088:;
     cnd_ = s2 == 0;
-    ST32(s2+8, s1);
+    if (!cnd_) ST32(s2+8, s1);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_088EBE98; }
     goto L_088EC090;
 L_088EC090:;
@@ -29652,7 +29653,7 @@ L_088F7108:;
     ST32(s1, s4);
     ST32(v1+16, 0);
     cnd_ = v1 == 0;
-    ST32(v1+20, 0);
+    if (!cnd_) ST32(v1+20, 0);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_088F7210; }
     goto L_088F713C;
 L_088F713C:;

@@ -23861,7 +23861,7 @@ L_08815428:;
 L_0881542C:;
     ST32(a2+24, 0);
     cnd_ = t0 == 0;
-    ST32(t0+8, 0);
+    if (!cnd_) ST32(t0+8, 0);   /* RS fix: tested first (tools/dc/hooks.py NULL_STORE) */
     if (cnd_) { goto L_0881544C; }
     goto L_08815438;
 L_08815438:;
