@@ -220,7 +220,7 @@ static bool tex_linear(SceGxmTexture *t, const void *px, int w, int h, int bpp, 
 bool ak_gfx_init(const ak_gfx_config *c)
 {
     snprintf(cache_dir, sizeof cache_dir, "%s/shaders", c->cache_dir); vsync = c->vsync;
-    cull_mode = ak_setting_int("AK_CULL", 1);
+    cull_mode = ak_setting_int("AK_CULL", 0);
     SceGxmInitializeParams ip; memset(&ip, 0, sizeof ip);
     ip.displayQueueMaxPendingCount = NBUF - 1; ip.displayQueueCallback = disp_cb; ip.displayQueueCallbackDataSize = sizeof(disp_data);
     ip.parameterBufferSize = SCE_GXM_DEFAULT_PARAMETER_BUFFER_SIZE;
@@ -320,6 +320,7 @@ ak_gfx_tex *ak_gfx_texture(const ak_texture *t)
 void ak_gfx_free_tex(ak_gfx_tex *t) { if (t) { pool_release(); free(t); } }
 void ak_gfx_wait_idle(void) { sceGxmFinish(ctx); }
 
+static bool cull_on = true; static int cull_state = -1;
 static ak_m4 vp_t, frame_vp_t; static ak_gfx_env env_; static bool vp_dirty; static int cur_pipe; static ak_gfx_tex *cur_tex; static ak_gfx_buf *cur_vb;
 static ak_gfx_stats st; static u64 t_begin;
 
@@ -357,13 +358,14 @@ void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
     ui_draw_quads(q, 1, &white_tex);
     /* 3D state.  The viewport flips Y, so triangles that face the camera (counter-clockwise in clip space) arrive clockwise. */
     sceGxmSetFrontDepthFunc(ctx, SCE_GXM_DEPTH_FUNC_LESS_EQUAL);
-    sceGxmSetCullMode(ctx, cull_mode == 1 ? SCE_GXM_CULL_CW : cull_mode == 2 ? SCE_GXM_CULL_CCW : SCE_GXM_CULL_NONE);
+    cull_on = true; cull_state = -1;
     /* the shader takes the matrix as four rows (explicit dot products: no dependence on Cg's matrix layout) */
     for (int r = 0; r < 4; r++) for (int c2 = 0; c2 < 4; c2++) vp_t.m[r * 4 + c2] = vp->m[c2 * 4 + r];
     frame_vp_t = vp_t; vp_dirty = false;
     env_ = *env; cur_pipe = -1; cur_tex = NULL; cur_vb = NULL;
 }
 
+void ak_gfx_set_cull(bool on) { cull_on = on; }
 void ak_gfx_set_transform(const ak_m4 *mvp)
 {
     if (mvp) for (int r = 0; r < 4; r++) for (int c = 0; c < 4; c++) vp_t.m[r * 4 + c] = mvp->m[c * 4 + r];
@@ -390,6 +392,9 @@ void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 f
         if (p == AK_PIPE_OVERLAY || p == AK_PIPE_BLEND) sceGxmSetFrontDepthBias(ctx, -1, -2); else sceGxmSetFrontDepthBias(ctx, 0, 0);
         cur_pipe = (int)p; cur_tex = NULL; cur_vb = NULL;
     }
+    {   /* the viewport flips Y, so faces toward the camera (counter-clockwise in clip space) arrive clockwise */
+        int want = cull_mode && cull_on && (p == AK_PIPE_OPAQUE || p == AK_PIPE_OVERLAY) ? cull_mode : 0;
+        if (want != cull_state) { sceGxmSetCullMode(ctx, want == 1 ? SCE_GXM_CULL_CW : want == 2 ? SCE_GXM_CULL_CCW : SCE_GXM_CULL_NONE); cull_state = want; } }
     if (t != cur_tex) { sceGxmSetFragmentTexture(ctx, 0, t ? &t->tex : &white_tex); cur_tex = t; }
     if (vb != cur_vb) { sceGxmSetVertexStream(ctx, 0, vb->mem); cur_vb = vb; }
     sceGxmDraw(ctx, SCE_GXM_PRIMITIVE_TRIANGLES, SCE_GXM_INDEX_FORMAT_U32, (const u32 *)ib->mem + first, count);
@@ -412,7 +417,7 @@ void ak_gfx_end(ak_gfx_stats *out)
 {
     if (ui_n) {
         sceGxmSetFrontDepthFunc(ctx, SCE_GXM_DEPTH_FUNC_ALWAYS); sceGxmSetFrontDepthWriteEnable(ctx, SCE_GXM_DEPTH_WRITE_DISABLED);
-        sceGxmSetCullMode(ctx, SCE_GXM_CULL_NONE);
+        sceGxmSetCullMode(ctx, SCE_GXM_CULL_NONE); cull_state = 0;
         ui_draw_quads(ui_v, ui_n, &font_tex); ui_n = 0;
     }
     frame_no++;

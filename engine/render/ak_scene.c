@@ -4,27 +4,16 @@
 
 typedef struct ak_draw_item { u32 key; u32 batch; } ak_draw_item;
 
-static bool texture_has_cutout(const ak_texture *t)
-{
-    u32 n = 1u << t->bpp; u8 used[256] = { 0 };
-    u32 w = t->width, h = t->height;
-    const u8 *px = t->pixels[0];
-    if (t->bpp == 8) for (u32 i = 0; i < w * h; i++) used[px[i]] = 1;
-    else for (u32 i = 0; i < w * h; i++) used[(px[i >> 1] >> ((i & 1) * 4)) & 15] = 1;
-    for (u32 i = 0; i < n; i++) if (used[i] && (t->palette[i] >> 24) < 128) return true;
-    return false;
-}
-
 bool ak_scene_level_init(ak_scene_level *s, const ak_level *l, ak_arena *a)
 {
     memset(s, 0, sizeof *s); s->level = l;
     const ak_level_geom *g = &l->geom;
     s->vb = ak_gfx_vertices(g->vtx, g->nvtx); s->ib = ak_gfx_indices(g->idx, g->nidx);
-    s->tex = AK_NEW(a, ak_gfx_tex *, l->ntex ? l->ntex : 1); s->tex_cutout = AK_NEW(a, u8, l->ntex ? l->ntex : 1);
+    s->tex = AK_NEW(a, ak_gfx_tex *, l->ntex ? l->ntex : 1);
     s->items = AK_NEW(a, ak_draw_item, g->nbatch ? g->nbatch : 1); s->nitems_cap = g->nbatch;
     s->obj_visible = AK_NEW(a, u8, g->nobj ? g->nobj : 1);
     if (!s->vb || !s->ib || !s->tex || !s->items || !s->obj_visible) return false;
-    for (u32 i = 0; i < l->ntex; i++) { s->tex[i] = ak_gfx_texture(&l->tex[i]); s->tex_cutout[i] = texture_has_cutout(&l->tex[i]); }
+    for (u32 i = 0; i < l->ntex; i++) { s->tex[i] = ak_gfx_texture(&l->tex[i]); }
     if (l->has_sky) {   /* unit cube faces seen from inside: front -Z, back +Z, left -X, right +X, up +Y; corners TL, TR, BL, BR */
         static const s8 F[5][4][3] = {
             { { -1, 1, -1 }, { 1, 1, -1 }, { -1, -1, -1 }, { 1, -1, -1 } }, { { 1, 1, 1 }, { -1, 1, 1 }, { 1, -1, 1 }, { -1, -1, 1 } },
@@ -76,6 +65,7 @@ void ak_scene_sky_draw(ak_scene_level *s, const ak_m4 *proj, const ak_m4 *view, 
     for (int f = 0; f < 5; f++)
         if (l->sky_tex[f] >= 0) ak_gfx_draw(AK_PIPE_OPAQUE, s->tex[l->sky_tex[f]], s->sky_vb, s->sky_ib, (u32)f * 6, 6);
     ak_gfx_set_transform(NULL);
+    ak_gfx_set_cull(true);
 }
 
 static s32 batch_texture(const ak_level *l, const ak_batch *bt)
@@ -112,7 +102,7 @@ void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *vp, ak_scene_stats *st)
                  : bt->overlay && !(m && (m->flags & (AK_MAT_ADDITIVE | AK_MAT_BLENDED))) ? AK_PIPE_OVERLAY
                  : m && (m->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD
                  : m && (m->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
-                 : (m && (m->flags & AK_MAT_ALPHA_TEST)) || (ti >= 0 && s->tex_cutout[ti]) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
+                 : (m && (m->flags & AK_MAT_ALPHA_TEST)) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
         /* key: pipeline (3 bits) | texture (13 bits).  Blended pipelines keep the game's order (the batch index breaks ties). */
         u32 key = (pipe << 29) | (pipe >= AK_PIPE_OVERLAY ? 0 : ((u32)(ti + 1) & 0x1FFF) << 16);
         s->items[n].key = key; s->items[n].batch = i; n++;
@@ -166,12 +156,13 @@ void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_
 {
     const ak_model *m = &s->set->models[mi];
     ak_m4 vw = ak_m4_mul(vp, world);
+    ak_gfx_set_cull(false);
     for (int pass = 0; pass < 2; pass++)                      /* opaque and cutout parts first, blended after */
         for (u32 p = 0; p < m->nparts; p++) {
             const ak_model_part *pt = &m->parts[p];
             if (!pt->count) continue;
             ak_pipe pipe = (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
-                         : ((pt->flags & AK_MAT_ALPHA_TEST) || (pt->texture >= 0 && s->level->tex_cutout[pt->texture])) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
+                         : ((pt->flags & AK_MAT_ALPHA_TEST)) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
             if ((pipe >= AK_PIPE_LAYER) != (pass == 1)) continue;
             ak_m4 bm;
             if (bones) {
@@ -185,4 +176,5 @@ void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_
             if (st) { st->draws++; st->tris += pt->count / 3; }
         }
     ak_gfx_set_transform(NULL);
+    ak_gfx_set_cull(true);
 }

@@ -140,6 +140,7 @@ ak_gfx_tex *ak_gfx_texture(const ak_texture *t)
 void ak_gfx_free_tex(ak_gfx_tex *t) { if (t) { glDeleteTextures(1, &t->id); free(t); cur_tex = 0; } }
 void ak_gfx_wait_idle(void) { glFinish(); }
 
+static int cull_mode = 1, cull_state = -1; static bool cull_on = true;
 static ak_m4 cur_vp, frame_vp; static ak_gfx_env cur_env; static bool vp_dirty;
 void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
 {
@@ -149,12 +150,13 @@ void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
     glClearColor((clear & 255) / 255.0f, ((clear >> 8) & 255) / 255.0f, ((clear >> 16) & 255) / 255.0f, 1.0f);
     glDepthMask(GL_TRUE); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LEQUAL);
-    {   static int cull = -1; if (cull < 0) cull = ak_setting_int("AK_CULL", 1);
-        if (cull) { glEnable(GL_CULL_FACE); glCullFace(cull == 2 ? GL_FRONT : GL_BACK); glFrontFace(GL_CCW); } else glDisable(GL_CULL_FACE); }
+    {   static int cull = -1; if (cull < 0) cull = ak_setting_int("AK_CULL", 0);
+        cull_mode = cull; glCullFace(cull == 2 ? GL_FRONT : GL_BACK); glFrontFace(GL_CCW); cull_on = true; cull_state = -1; }
     cur_vp = frame_vp = *vp; cur_env = *env; cur_pipe = -1; vp_dirty = false; cur_vb = cur_ib = cur_tex = 0;
     glBindVertexArray(vao);
 }
 
+void ak_gfx_set_cull(bool on) { cull_on = on; }
 void ak_gfx_set_transform(const ak_m4 *mvp)
 {
     cur_vp = mvp ? *mvp : frame_vp; vp_dirty = true;
@@ -174,6 +176,8 @@ void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 f
         else { glDisable(GL_BLEND); glDepthMask(GL_TRUE); }
         cur_pipe = (int)p;
     }
+    {   int want = cull_mode && cull_on && (p == AK_PIPE_OPAQUE || p == AK_PIPE_OVERLAY);
+        if (want != cull_state) { if (want) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE); cull_state = want; } }
     if (vb->id != cur_vb) {
         glBindBuffer(GL_ARRAY_BUFFER, vb->id);
         glEnableVertexAttribArray(0); glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(ak_vtx), (void *)offsetof(ak_vtx, pos));
@@ -204,7 +208,7 @@ void ak_gfx_text(f32 x, f32 y, u32 c, const char *s)
 void ak_gfx_end(ak_gfx_stats *out)
 {
     if (ui_n) {
-        glDisable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDisable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); cull_state = 0; glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glUseProgram(ui_prog); glUniform2f(ui_scale, 2.0f / W, 2.0f / H);
         glBindVertexArray(ui_vao); glBindBuffer(GL_ARRAY_BUFFER, ui_vbo);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(uiv) * 4 * (size_t)ui_n, ui_v);

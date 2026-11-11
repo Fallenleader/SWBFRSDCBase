@@ -29,8 +29,10 @@ AK_COLOUR_SCALE=2.0
 # distance fog in metres (end <= start: none)
 AK_FOG_START=0
 AK_FOG_END=0
-# back-face culling: 1 = on (the GPU skips the hidden side of every surface), 0 = off, 2 = the other side (only if levels look inside out)
-AK_CULL=1
+# back-face culling of solid level surfaces: 0 = off (as the game draws: some surfaces are single-sided panels meant to be seen
+# from both sides), 1 = on (holes appear where such panels are seen from behind; the Vita's GPU removes hidden surfaces anyway,
+# so culling saves little), 2 = cull the other side.  See-through surfaces and models are always drawn from both sides.
+AK_CULL=0
 
 # ---- memory
 # video memory for one level's geometry and textures, in MB

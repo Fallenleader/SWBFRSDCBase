@@ -9,7 +9,6 @@ typedef struct {
     const ak_level *level;
     ak_gfx_buf *vb, *ib;
     ak_gfx_tex **tex;          /* per level texture */
-    u8 *tex_cutout;            /* per level texture: has transparent texels */
     struct ak_draw_item *items; u32 nitems_cap;
     u8 *obj_visible;
     f32 bounds_min[3], bounds_max[3];
