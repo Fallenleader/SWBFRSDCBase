@@ -1,10 +1,14 @@
-# Native engine: plan and progress
+# Aurek: the native engine, plan and progress
 
 This replaces the "lift PSP functions one at a time" approach of the earlier ExperimentalRewrite work. That approach left the
 game PSP-shaped (MIPS register locals, MIPS stack arrays, PSP data layout, one big lock, a renderer that imitates the PSP GE) and
 could not get the Vita past ~13 FPS, because the cost is spread over thousands of decompiled functions with no hotspot to fix.
 
-**The new approach:** a native engine in `engine/`, written per device from the start, that loads the original game files and
+**Name:** Aurek, the first letter of Aurebesh: a nod to Star Wars, to Rebellion, and to the A of their Asura engine, whose files it
+reads. The logo is `engine/branding/aurek_logo.png`; it becomes the engine's identity (boot screen, icons, about page) once the
+builds are acceptable. Code prefix: `ak_` / `AK_`.
+
+**The new approach:** Aurek, a native engine in `engine/`, written per device from the start, that loads the original game files and
 reproduces the game's behaviour. The decompiled game (`src/game`, `platform/common`) stays in the repository as the
 **specification and test oracle only**. Nothing in `engine/` includes it, links it, or depends on its data layout.
 
@@ -40,7 +44,7 @@ engine/
   ui/          front end menus, HUD, text
   platform/    one folder per device: desktop (Windows/Linux/Deck), vita, 3ds, ps4, ps5
                each provides: window/present, gfx back end, input, audio out, threads/cores, files, clocks, memory
-  tools/       rsinspect (loads a level, prints and exports it), check_independence.sh, cooker
+  tools/       akinspect (loads a level, prints and exports it), check_independence.sh, cooker
 ```
 
 ## Device targets
@@ -99,7 +103,7 @@ few large draws, no per-draw CPU vertex conversion, textures in GXM-native forma
 | Date | Milestone | State |
 |---|---|---|
 | 2026-11-11 | plan | this document |
-| 2026-11-11 | 1.0 | **done (desktop)**: `engine/core`, `engine/platform/plat.h` + desktop, CMake with every performance flag and LTO, independence check passes. Vita/3DS toolchains join at 1.2 |
+| 2026-11-11 | 1.0 | **done (desktop)**: `engine/core` (`ak_core`), `engine/platform/plat.h` + desktop, CMake with every performance flag and LTO, independence check passes. Vita/3DS toolchains join at 1.2 |
 | 2026-11-11 | 1.1 | **level geometry, materials, textures done**: `engine/assets/asura.c`. Strips become indexed triangle lists in engine axes (Y up), grouped into batches by (layer, object, material) with per-object bounds. Checked against `tools/asura` on HOTH: 25,347 triangles identical (positions, winding, material, object, layer) and 92/92 textures identical pixel for pixel. SPACE_HOTH and TATOOINE load too. A level loads in 10-15 ms on desktop. Indices are 32-bit (TATOOINE has 65,731 vertices). Next in 1.1: EMOD object records, then models/skeletons (1.3) |
 
-Tool: `build/engine/rsinspect <LEVEL.PSP> [--obj out.obj] [--tex dir]` prints what a level holds and exports it.
+Tool: `build/engine/akinspect <LEVEL.PSP> [--obj out.obj] [--tex dir]` prints what a level holds and exports it.

@@ -18,7 +18,7 @@
 #endif
 #endif
 
-void *rs_plat_alloc(size_t size, size_t align)
+void *ak_plat_alloc(size_t size, size_t align)
 {
 #ifdef _WIN32
     return _aligned_malloc(size, align);
@@ -27,7 +27,7 @@ void *rs_plat_alloc(size_t size, size_t align)
     return posix_memalign(&p, align < sizeof(void *) ? sizeof(void *) : align, size) == 0 ? p : NULL;
 #endif
 }
-void rs_plat_free(void *p)
+void ak_plat_free(void *p)
 {
 #ifdef _WIN32
     _aligned_free(p);
@@ -36,7 +36,7 @@ void rs_plat_free(void *p)
 #endif
 }
 
-u64 rs_plat_time_us(void)
+u64 ak_plat_time_us(void)
 {
 #ifdef _WIN32
     static LARGE_INTEGER f; LARGE_INTEGER c;
@@ -48,7 +48,7 @@ u64 rs_plat_time_us(void)
     return (u64)t.tv_sec * 1000000u + (u64)t.tv_nsec / 1000u;
 #endif
 }
-void rs_plat_sleep_us(u64 us)
+void ak_plat_sleep_us(u64 us)
 {
 #ifdef _WIN32
     Sleep((DWORD)((us + 999) / 1000));
@@ -57,7 +57,7 @@ void rs_plat_sleep_us(u64 us)
 #endif
 }
 
-int rs_plat_core_count(void)
+int ak_plat_core_count(void)
 {
 #ifdef _WIN32
     SYSTEM_INFO si; GetSystemInfo(&si); return (int)si.dwNumberOfProcessors;
@@ -66,22 +66,22 @@ int rs_plat_core_count(void)
 #endif
 }
 
-struct rs_thread {
+struct ak_thread {
 #ifdef _WIN32
     HANDLE h;
 #else
     pthread_t t;
 #endif
-    rs_thread_fn fn; void *arg;
+    ak_thread_fn fn; void *arg;
 };
 #ifdef _WIN32
-static DWORD WINAPI thread_entry(LPVOID p) { rs_thread *t = (rs_thread *)p; t->fn(t->arg); return 0; }
+static DWORD WINAPI thread_entry(LPVOID p) { ak_thread *t = (ak_thread *)p; t->fn(t->arg); return 0; }
 #else
-static void *thread_entry(void *p) { rs_thread *t = (rs_thread *)p; t->fn(t->arg); return NULL; }
+static void *thread_entry(void *p) { ak_thread *t = (ak_thread *)p; t->fn(t->arg); return NULL; }
 #endif
-rs_thread *rs_plat_thread_start(const char *name, rs_thread_fn fn, void *arg, int core, size_t stack)
+ak_thread *ak_plat_thread_start(const char *name, ak_thread_fn fn, void *arg, int core, size_t stack)
 {
-    rs_thread *t = (rs_thread *)calloc(1, sizeof *t);
+    ak_thread *t = (ak_thread *)calloc(1, sizeof *t);
     if (!t) return NULL;
     t->fn = fn; t->arg = arg;
 #ifdef _WIN32
@@ -102,7 +102,7 @@ rs_thread *rs_plat_thread_start(const char *name, rs_thread_fn fn, void *arg, in
 #endif
     return t;
 }
-void rs_plat_thread_join(rs_thread *t)
+void ak_plat_thread_join(ak_thread *t)
 {
     if (!t) return;
 #ifdef _WIN32
@@ -113,7 +113,7 @@ void rs_plat_thread_join(rs_thread *t)
     free(t);
 }
 
-void rs_plat_log_write(const char *line)
+void ak_plat_log_write(const char *line)
 {
     static FILE *lf;
     if (!lf) lf = fopen("log.txt", "w");

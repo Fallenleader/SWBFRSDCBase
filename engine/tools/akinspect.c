@@ -1,20 +1,20 @@
-/* rsinspect: load a level with the native engine's loaders and report what it holds.
- *   rsinspect <LEVEL.PSP> [--obj out.obj] [--tex out_dir]
+/* akinspect: load a level with the native engine's loaders and report what it holds.
+ *   akinspect <LEVEL.PSP> [--obj out.obj] [--tex out_dir]
  * --obj writes the level geometry (engine axes) as Wavefront OBJ, one group per batch; --tex writes every texture as PPM/PAM. */
 #include "../assets/asura.h"
 #include "../platform/plat.h"
 #include <stdio.h>
 #include <stdlib.h>
 
-static void write_obj(const rs_level *l, const char *path)
+static void write_obj(const ak_level *l, const char *path)
 {
     FILE *f = fopen(path, "w");
-    if (!f) { RS_ERROR("inspect", "cannot write %s", path); return; }
-    const rs_level_geom *g = &l->geom;
+    if (!f) { AK_ERROR("inspect", "cannot write %s", path); return; }
+    const ak_level_geom *g = &l->geom;
     for (u32 i = 0; i < g->nvtx; i++) fprintf(f, "v %.5f %.5f %.5f\n", g->vtx[i].pos[0], g->vtx[i].pos[1], g->vtx[i].pos[2]);
     for (u32 i = 0; i < g->nvtx; i++) fprintf(f, "vt %.5f %.5f\n", g->vtx[i].uv[0], 1.0f - g->vtx[i].uv[1]);
     for (u32 b = 0; b < g->nbatch; b++) {
-        const rs_batch *bt = &g->batch[b];
+        const ak_batch *bt = &g->batch[b];
         fprintf(f, "g o%03u_m%u%s\n", bt->object, bt->material, bt->layer ? "_blend" : "");
         for (u32 i = bt->first; i < bt->first + bt->count; i += 3)
             fprintf(f, "f %u/%u %u/%u %u/%u\n", g->idx[i] + 1, g->idx[i] + 1, g->idx[i + 1] + 1, g->idx[i + 1] + 1, g->idx[i + 2] + 1, g->idx[i + 2] + 1);
@@ -22,15 +22,15 @@ static void write_obj(const rs_level *l, const char *path)
     fclose(f);
 }
 
-static void write_textures(const rs_level *l, const char *dir)
+static void write_textures(const ak_level *l, const char *dir)
 {
     for (u32 i = 0; i < l->ntex; i++) {
-        const rs_texture *t = &l->tex[i];
+        const ak_texture *t = &l->tex[i];
         char p[600]; snprintf(p, sizeof p, "%s/%03u_%08x.pam", dir, i, t->name_hash);
         FILE *f = fopen(p, "wb");
         if (!f) continue;
         u32 *px = (u32 *)malloc((size_t)t->width * t->height * 4);
-        rs_texture_expand(t, 0, px);
+        ak_texture_expand(t, 0, px);
         fprintf(f, "P7\nWIDTH %u\nHEIGHT %u\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n", t->width, t->height);
         fwrite(px, 4, (size_t)t->width * t->height, f);
         free(px); fclose(f);
@@ -39,18 +39,18 @@ static void write_textures(const rs_level *l, const char *dir)
 
 int main(int argc, char **argv)
 {
-    if (argc < 2) { fprintf(stderr, "usage: rsinspect <LEVEL.PSP> [--obj out.obj] [--tex dir]\n"); return 2; }
-    rs_arena a;
-    if (!rs_arena_init(&a, 256u << 20)) return 1;
-    rs_level l;
-    u64 t0 = rs_plat_time_us();
-    bool ok = rs_level_load(argv[1], &a, &l);
-    u64 t1 = rs_plat_time_us();
-    const rs_level_geom *g = &l.geom;
+    if (argc < 2) { fprintf(stderr, "usage: akinspect <LEVEL.PSP> [--obj out.obj] [--tex dir]\n"); return 2; }
+    ak_arena a;
+    if (!ak_arena_init(&a, 256u << 20)) return 1;
+    ak_level l;
+    u64 t0 = ak_plat_time_us();
+    bool ok = ak_level_load(argv[1], &a, &l);
+    u64 t1 = ak_plat_time_us();
+    const ak_level_geom *g = &l.geom;
     u32 tris = g->nidx / 3, opq = 0, mats_used = 0, mats_tex = 0, objs = 0;
     static u8 mu[0x8000]; static u8 ou[0x10000];
     for (u32 b = 0; b < g->nbatch; b++) {
-        const rs_batch *bt = &g->batch[b];
+        const ak_batch *bt = &g->batch[b];
         if (!bt->layer) opq += bt->count / 3;
         if (bt->material < 0x8000 && !mu[bt->material]) { mu[bt->material] = 1; mats_used++; if (bt->material < l.nmat && l.mat[bt->material].texture >= 0) mats_tex++; }
         if (!ou[bt->object]) { ou[bt->object] = 1; objs++; }
@@ -65,6 +65,6 @@ int main(int argc, char **argv)
         if (!strcmp(argv[i], "--obj")) write_obj(&l, argv[i + 1]);
         else if (!strcmp(argv[i], "--tex")) write_textures(&l, argv[i + 1]);
     }
-    rs_arena_free(&a);
+    ak_arena_free(&a);
     return ok ? 0 : 1;
 }
