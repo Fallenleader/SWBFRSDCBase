@@ -187,7 +187,7 @@ static bool mesh_parse(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_leve
     u32 np = ak_rd32(b + 4), nv = ak_rd32(b + 8), ni = ak_rd32(b + 12);
     u32 vo = 16 + 16 * np, io = vo + 32 * nv;
     if (np > 256 || (size_t)io + 2u * ni > r->size) return false;
-    m->nparts = np; m->parts = AK_NEW(a, ak_model_part, np ? np : 1);
+    m->hash = ak_rd32(b); m->nparts = np; m->parts = AK_NEW(a, ak_model_part, np ? np : 1);
     m->vtx = AK_NEW(a, ak_vtx, nv ? nv : 1); m->nvtx = nv;
     u32 tris_total = 0;                                                     /* strips -> lists: three indices per triangle */
     for (u32 pi = 0; pi < np; pi++) tris_total += ak_rd32(b + 16 + 16 * pi + 4);
@@ -279,6 +279,11 @@ bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
             if (mesh_parse(&r, a, m, l, &text, mats, nmats, m->skeleton >= 0 ? &out->skels[m->skeleton] : NULL)) out->nmodels++;
             else AK_WARN("model", "%s did not parse", r.name);
         }
+    }
+    for (u32 i = 0; i < out->nmodels; i++) {
+        ak_model *m = &out->models[i]; m->lod_next = -1;
+        for (u32 j = 0; j < out->nmodels; j++)
+            if (out->models[j].base_hash == m->base_hash && out->models[j].lod == m->lod + 1) { m->lod_next = (s32)j; break; }
     }
     return true;
 }

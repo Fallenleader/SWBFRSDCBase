@@ -10,6 +10,7 @@
 #include "../core/ak_settings.h"
 #include "../render/ak_scene.h"
 #include "../assets/model.h"
+#include "../assets/entity.h"
 #include "../platform/plat.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -74,6 +75,7 @@ int main(int argc, char **argv)
     ak_model_set models; ak_scene_models mscene; u32 *gallery = NULL; u32 ngallery = 0, gsel = 0; bool gallery_on = ak_setting_int("AK_GALLERY", 0) != 0;
     f32 orbit_yaw = ak_setting_float("AK_GALLERY_YAW", 0.6f), orbit_pitch = -0.25f, orbit_zoom = ak_setting_float("AK_GALLERY_ZOOM", 1.0f); static f32 bones[512][12];
     static ak_quat lq[512]; static f32 lt[512][3]; s32 gclip = -1; f32 anim_t = 0;
+    ak_entity_set ents; f32 (*bindm)[12] = NULL; u32 *bind_first = NULL; bool show_ents = ak_setting_int("AK_ENTITIES", 1) != 0;
     ak_input in; memset(&in, 0, sizeof in);
     u64 last = ak_plat_time_us(), fps_t0 = last; int fps_frames = 0; f32 fps = 0, frame_ms = 0, load_ms = 0;
     ak_gfx_stats gs; memset(&gs, 0, sizeof gs);
@@ -86,6 +88,13 @@ int main(int argc, char **argv)
                 AK_ERROR("aurek", "%s did not load", levels[cur].path); cur = (cur + 1) % nlevels; continue;
             }
             if (!ak_models_load(&level, &lvl, &models) || !ak_scene_models_init(&mscene, &models, &scene, &lvl)) AK_WARN("aurek", "models did not load");
+            ak_entities_load(&level, &models, &lvl, &ents);
+            {   /* bind-pose bone matrices of every model, once (placed models are drawn in their bind pose for now) */
+                u32 nb = 0; bind_first = AK_NEW(&lvl, u32, models.nmodels ? models.nmodels : 1);
+                for (u32 i = 0; i < models.nmodels; i++) { bind_first[i] = nb; nb += models.models[i].skeleton >= 0 ? models.skels[models.models[i].skeleton].nbones : 0; }
+                bindm = (f32 (*)[12])ak_arena_alloc(&lvl, 48u * (nb ? nb : 1), 16);
+                for (u32 i = 0; bindm && i < models.nmodels; i++) if (models.models[i].skeleton >= 0) ak_skeleton_bind_matrices(&models.skels[models.models[i].skeleton], bindm + bind_first[i]);
+            }
             ngallery = 0; gallery = AK_NEW(&lvl, u32, models.nmodels ? models.nmodels : 1);
             for (u32 i = 0; gallery && i < models.nmodels; i++) if (models.models[i].lod == 0 && models.models[i].nidx) gallery[ngallery++] = i;
             gsel = 0;
@@ -94,8 +103,8 @@ int main(int argc, char **argv)
               gclip = -1; anim_t = ak_setting_float("AK_GALLERY_TIME", 0);
               for (u32 i = 0; gc && i < models.nclips; i++) if (!strcmp(models.clips[i].name, gc)) gclip = (s32)i; }
             load_ms = (ak_plat_time_us() - t0) / 1000.0f;
-            AK_INFO("aurek", "%s: %u triangles, %u batches, %u textures, %u models (%u in the gallery), %u skeletons, loaded in %.0f ms, %.1f MB",
-                    levels[cur].label, level.geom.nidx / 3, level.geom.nbatch, level.ntex, models.nmodels, ngallery, models.nskels, load_ms, lvl.used / 1048576.0);
+            AK_INFO("aurek", "%s: %u triangles, %u batches, %u textures, %u models (%u in the gallery), %u skeletons, %u of %u entities placed, loaded in %.0f ms, %.1f MB",
+                    levels[cur].label, level.geom.nidx / 3, level.geom.nbatch, level.ntex, models.nmodels, ngallery, models.nskels, ents.placed, ents.n, load_ms, lvl.used / 1048576.0);
             {   /* start above the highest surface near the middle of the level */
                 f32 cx = (scene.bounds_min[0] + scene.bounds_max[0]) * 0.5f, cz = (scene.bounds_min[2] + scene.bounds_max[2]) * 0.5f, top = -1e30f;
                 for (f32 r = 15.0f; top < -1e29f && r < 2000.0f; r *= 2.0f)
@@ -196,12 +205,34 @@ int main(int argc, char **argv)
         ak_gfx_begin(0x6B5A4Cu | 0xFF000000u, &vp, &env);
         if (ak_setting_int("AK_SKY", 1)) ak_scene_sky_draw(&scene, &proj, &view, ak_setting_float("AK_FAR", 8000.0f) * 0.45f);
         ak_scene_stats ss; ak_scene_level_draw(&scene, &vp, &ss);
+        u32 ents_drawn = 0;
+        if (show_ents && bindm) {
+            ak_frustum fr = ak_frustum_from(&vp);
+            for (u32 i = 0; i < ents.n; i++) {
+                const ak_entity *e = &ents.e[i];
+                if (!e->placed) continue;
+                s32 mi = e->model[0] >= 0 ? e->model[0] : e->model[1];
+                const ak_model *m = &models.models[mi];
+                f32 r = m->radius, mn[3] = { e->pos[0] - r, e->pos[1] - r, e->pos[2] - r }, mx[3] = { e->pos[0] + r, e->pos[1] + r, e->pos[2] + r };
+                if (!ak_frustum_aabb(&fr, mn, mx)) continue;
+                f32 dx = e->pos[0] - cam.pos.x, dy = e->pos[1] - cam.pos.y, dz = e->pos[2] - cam.pos.z, d = sqrtf(dx * dx + dy * dy + dz * dz);
+                f32 lod_d = (r < 2 ? 2 : r) * ak_setting_float("AK_LOD_SCALE", 12.0f);
+                while (d > lod_d && models.models[mi].lod_next >= 0 && models.models[models.models[mi].lod_next].nidx) { mi = models.models[mi].lod_next; lod_d *= 2.5f; }
+                ak_quat q = e->rot; f32 x = q.x, y = q.y, z = q.z, w = q.w;
+                ak_m4 wm = { { 1 - 2 * (y * y + z * z), 2 * (x * y + z * w), 2 * (x * z - y * w), 0,
+                               2 * (x * y - z * w), 1 - 2 * (x * x + z * z), 2 * (y * z + x * w), 0,
+                               2 * (x * z + y * w), 2 * (y * z - x * w), 1 - 2 * (x * x + y * y), 0,
+                               e->pos[0], e->pos[1], e->pos[2], 1 } };
+                ak_scene_models_draw(&mscene, (u32)mi, &vp, &wm, models.models[mi].skeleton >= 0 ? (const f32 (*)[12])(bindm + bind_first[mi]) : NULL, &ss);
+                ents_drawn++;
+            }
+        }
         if (show) {
             char line[160];
             snprintf(line, sizeof line, "Aurek %s  %s  %.1f fps  %.2f ms", AK_BUILD_ID, ak_gfx_name(), fps, frame_ms); ak_gfx_text(8, 8, 0xFFFFFFFF, line);
             snprintf(line, sizeof line, "%s (%d/%d)  loaded in %.0f ms", levels[cur].label, cur + 1, nlevels, load_ms); ak_gfx_text(8, 26, 0xFFFFFFFF, line);
-            snprintf(line, sizeof line, "objects %u/%u  draws %u  tris %u  submit %.2f ms  gpu wait %.2f ms", ss.objects_visible, ss.objects, gs.draws, gs.tris,
-                     gs.cpu_submit_ms, gs.gpu_wait_ms); ak_gfx_text(8, 44, 0xFFFFFFFF, line);
+            snprintf(line, sizeof line, "objects %u/%u  placed models %u/%u  draws %u  tris %u  submit %.2f ms  gpu wait %.2f ms", ss.objects_visible, ss.objects,
+                     ents_drawn, ents.placed, gs.draws, gs.tris, gs.cpu_submit_ms, gs.gpu_wait_ms); ak_gfx_text(8, 44, 0xFFFFFFFF, line);
             snprintf(line, sizeof line, "pos %.1f %.1f %.1f  yaw %.2f pitch %.2f", cam.pos.x, cam.pos.y, cam.pos.z, cam.yaw, cam.pitch); ak_gfx_text(8, 62, 0xFFC0C0C0, line);
         }
         ak_gfx_end(&gs);

@@ -26,6 +26,8 @@ typedef struct {
 
 typedef struct {
     const char *name; u32 base_hash;   /* hash of the name without the "Ln#" prefix: groups the details of one model */
+    u32 hash;                          /* the mesh's own name hash (its first word): how entities refer to it */
+    s32 lod_next;                      /* the next lower detail of the same model (-1 = none) */
     u8 lod;                            /* 0 = full detail, 1, 2 = lower */
     s32 skeleton;                      /* index into the level's skeletons, -1 = none (parts at the origin) */
     ak_model_part *parts; u32 nparts;
