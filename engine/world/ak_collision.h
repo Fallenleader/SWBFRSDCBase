@@ -24,4 +24,8 @@ bool ak_collision_load(const ak_level *l, ak_arena *a, ak_collision *out);
 /* first hit along origin + t * dir for t in (0, max_t]; triangles whose flags & ignore are skipped; one-sided triangles are hit
  * from the front only (the side their normal faces) */
 bool ak_col_raycast(const ak_collision *c, const f32 *origin, const f32 *dir, f32 max_t, u16 ignore, ak_col_hit *hit);
+/* A sphere pushed out of the triangles it overlaps (closest point on each triangle; one-sided triangles only from the front).
+ * With `horizontal`, pushes are flattened to the ground plane (walls stop a walker without lifting it; the ground is a ray's job).
+ * Returns how many triangles pushed; *wall (if given) gets the summed push direction. */
+u32 ak_col_sphere_resolve(const ak_collision *c, f32 *center, f32 radius, u16 ignore, bool horizontal, f32 *wall);
 #endif

@@ -13,6 +13,7 @@
 #include "../assets/entity.h"
 #include "../assets/blueprint.h"
 #include "../game/ak_soldier.h"
+#include "play.h"
 #include "../platform/plat.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,6 +88,7 @@ int main(int argc, char **argv)
     static ak_quat lq[512]; static f32 lt[512][3]; s32 gclip = -1; f32 anim_t = 0;
     int col1 = ak_setting_int("AK_COLOUR1", -1), col2 = ak_setting_int("AK_COLOUR2", -1), ghead = ak_setting_int("AK_HEAD", 0); ak_model_colours gcol;
     ak_soldier_look look; bool has_look = false;
+    static ak_play play; bool playing = ak_setting_int("AK_PLAY", 0) != 0;
     ak_entity_set ents; f32 (*bindm)[12] = NULL; u32 *bind_first = NULL; bool show_ents = ak_setting_int("AK_ENTITIES", 1) != 0;
     ak_input in; memset(&in, 0, sizeof in);
     u64 last = ak_plat_time_us(), fps_t0 = last; int fps_frames = 0; f32 fps = 0, frame_ms = 0, load_ms = 0;
@@ -128,11 +130,13 @@ int main(int argc, char **argv)
             }
             cam.yaw = 0; cam.pitch = -0.15f;
             if (camset) sscanf(camset, "%f,%f,%f,%f,%f", &cam.pos.x, &cam.pos.y, &cam.pos.z, &cam.yaw, &cam.pitch);
+            play.ready = false;
             loaded = true;
         }
         if (!ak_plat_poll(&in)) break;
         u64 now = ak_plat_time_us(); f32 dt = (now - last) / 1e6f; last = now;
         if (dt > 0.1f) dt = 0.1f;
+        { f32 fdt = ak_setting_float("AK_FIXED_DT", 0); if (fdt > 0) dt = fdt; }   /* tests: a fixed step per frame */
         if (in.pressed & (AK_BTN_START | AK_BTN_TRIANGLE)) {
             ak_scene_models_free(&mscene); ak_scene_level_free(&scene); loaded = false;
             cur = (in.pressed & AK_BTN_START) ? (cur + 1) % nlevels : (cur + nlevels - 1) % nlevels;
@@ -219,6 +223,24 @@ int main(int argc, char **argv)
             continue;
         }
 
+        {   /* scripted input for headless tests: AK_TEST_MOVE = lx,ly,rx,ry (held), AK_TEST_JUMP = the frame to jump on */
+            const char *tm = ak_setting_str("AK_TEST_MOVE", NULL);
+            if (tm) sscanf(tm, "%f,%f,%f,%f", &in.lx, &in.ly, &in.rx, &in.ry);
+            if (ak_setting_int("AK_TEST_JUMP", -1) == frame) in.pressed |= AK_BTN_CROSS;
+        }
+        if (in.pressed & AK_BTN_SQUARE) playing = !playing;               /* square: play (a soldier on foot) / free camera */
+        if (playing && !play.ready) {
+            f32 st[3] = { cam.pos.x, cam.pos.y, cam.pos.z };
+            if (!ak_play_init(&play, &level, &models, &bps, &lvl, ak_setting_str("AK_SOLDIER", "Stormtrooper"), st)) { AK_WARN("aurek", "no soldier for this level"); playing = false; }
+            else AK_INFO("aurek", "playing as %s (%s, head %d) at %.1f %.1f %.1f", models.models[play.look.body].name, ak_faction_name(play.look.faction),
+                         play.look.head_index + 1, play.ch.pos[0], play.ch.pos[1], play.ch.pos[2]);
+        }
+        f32 fovy = 1.05f;
+        if (playing && play.ready) {
+            ak_play_update(&play, &models, &in, dt);
+            ak_play_camera(&play, dt, &cam.pos, &cam.yaw, &cam.pitch);
+            fovy = play.fov;
+        } else {
         /* free camera */
         cam.yaw -= in.rx * 2.0f * dt; cam.pitch += in.ry * 1.5f * dt;
         if (cam.pitch > 1.5f) cam.pitch = 1.5f;
@@ -228,9 +250,10 @@ int main(int argc, char **argv)
         cam.pos = ak_v3_add(cam.pos, ak_v3_scale(fwd, in.ly * speed * dt));
         cam.pos = ak_v3_add(cam.pos, ak_v3_scale(right, in.lx * speed * dt));
         cam.pos.y += (f32)(!!(in.held & AK_BTN_R) - !!(in.held & AK_BTN_L)) * speed * dt;
+        }
 
         int w, h; ak_gfx_size(&w, &h);
-        ak_m4 proj = ak_m4_perspective(1.05f, (f32)w / (f32)h, ak_setting_float("AK_NEAR", 0.75f), ak_setting_float("AK_FAR", 8000.0f));
+        ak_m4 proj = ak_m4_perspective(fovy, (f32)w / (f32)h, playing ? 0.25f : ak_setting_float("AK_NEAR", 0.75f), ak_setting_float("AK_FAR", 8000.0f));
         ak_m4 view = ak_m4_view_yaw_pitch(cam.pos, cam.yaw, cam.pitch), vp = ak_m4_mul(&proj, &view);
         ak_gfx_env env = { { 0.55f, 0.62f, 0.70f }, ak_setting_float("AK_FOG_START", 0), ak_setting_float("AK_FOG_END", 0),
                            ak_setting_float("AK_COLOUR_SCALE", 2.0f) };
@@ -260,6 +283,7 @@ int main(int argc, char **argv)
                 ents_drawn++;
             }
         }
+        if (playing && play.ready) ak_play_draw(&play, &mscene, &models, &vp, &ss);
         if (show) {
             char line[160];
             snprintf(line, sizeof line, "Aurek %s  %s  %.1f fps  %.2f ms", AK_BUILD_ID, ak_gfx_name(), fps, frame_ms); ak_gfx_text(8, 8, 0xFFFFFFFF, line);
@@ -267,6 +291,13 @@ int main(int argc, char **argv)
             snprintf(line, sizeof line, "objects %u/%u  placed models %u/%u  draws %u  tris %u  submit %.2f ms  gpu wait %.2f ms", ss.objects_visible, ss.objects,
                      ents_drawn, ents.placed, gs.draws, gs.tris, gs.cpu_submit_ms, gs.gpu_wait_ms); ak_gfx_text(8, 44, 0xFFFFFFFF, line);
             snprintf(line, sizeof line, "pos %.1f %.1f %.1f  yaw %.2f pitch %.2f", cam.pos.x, cam.pos.y, cam.pos.z, cam.yaw, cam.pitch); ak_gfx_text(8, 62, 0xFFC0C0C0, line);
+            if (playing && play.ready) {
+                static const char *sn[] = { "idle", "run", "back", "left", "right", "jump", "fall", "land" };
+                snprintf(line, sizeof line, "%s %s  %s  speed %.1f m/s  %s", ak_faction_name(play.look.faction), models.models[play.look.body].name, sn[play.state],
+                         sqrtf(play.ch.vel[0] * play.ch.vel[0] + play.ch.vel[2] * play.ch.vel[2]), play.ch.on_ground ? "on the ground" : "in the air");
+                ak_gfx_text(8, 80, 0xFFC0E0FF, line);
+                ak_gfx_text(8, 98, 0xFFC0C0C0, "left stick: move  right stick: look  cross: jump  square: free camera");
+            }
         }
         ak_gfx_end(&gs);
         frame++; fps_frames++;

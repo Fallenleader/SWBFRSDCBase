@@ -10,7 +10,7 @@
  * Property:   u32 name hash, name (padded), u32 0 (declared here) / 3 (a parent's, given a new value), u32 sub-type hash (asset kinds,
  *             enums), u32 count, then count values, each a u32 type and: 0 int (4 bytes), 1 float (4), 2 bool (1 byte: later fields
  *             are unaligned), 3 string (u32 hash, then the text, zero-terminated and padded to 4, only when the hash is not 0), 4 u32.
- *             (Format as documented in the old port's platform/common/blueprints.c; every property of the shipped file has one value.)
+ *             (Every property of the shipped file has one value.)
  * Names hash as the game does: h = h * 31 + c over the lower-cased bytes (ak_bp_hash). */
 #ifndef AK_BLUEPRINT_H
 #define AK_BLUEPRINT_H

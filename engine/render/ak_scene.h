@@ -20,7 +20,6 @@ void ak_scene_level_free(ak_scene_level *s);
 void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *view_proj, ak_scene_stats *st);
 /* the sky box, before the level: proj and the camera's view (only its rotation is used); radius in metres (inside the far plane) */
 void ak_scene_sky_draw(ak_scene_level *s, const ak_m4 *proj, const ak_m4 *view, f32 radius);
-#endif
 
 /* ---- models: every model of the level in one vertex and one index buffer (uploaded once), drawn part by part with the
  * part's bone transform.  Textures are the level scene's. */
@@ -39,3 +38,4 @@ void ak_scene_models_free(ak_scene_models *s);
 /* bones: model-space 3x4 matrix per bone (ak_skeleton_bind_matrices, or an animated pose); NULL = parts at the model origin */
 void ak_scene_models_draw(ak_scene_models *s, u32 model, const ak_m4 *view_proj, const ak_m4 *world, const f32 (*bones)[12],
                           const ak_model_colours *colours, ak_scene_stats *st);
+#endif

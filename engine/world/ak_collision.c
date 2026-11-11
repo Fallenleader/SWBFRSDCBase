@@ -1,5 +1,6 @@
 #include "ak_collision.h"
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 /* PHEN (layout: tools/asura/phen.py): u32 objects, vertices, quads, flag entries, material entries, node units; objects 52 bytes
@@ -158,4 +159,66 @@ bool ak_col_raycast(const ak_collision *c, const f32 *o, const f32 *d, f32 max_t
     hit->t = best; hit->tri = (u32)bi; hit->flags = T->flags; hit->material = T->material;
     for (int k = 0; k < 3; k++) { hit->pos[k] = o[k] + d[k] * best; hit->normal[k] = T->n[k]; }
     return true;
+}
+
+/* closest point on triangle a, a+e1, a+e2 to p (Ericson, Real-Time Collision Detection 5.1.5) */
+static void closest_on_tri(const ak_col_tri *T, const f32 *p, f32 *out)
+{
+    f32 a[3], b[3], c[3], ab[3], ac[3], ap[3];
+    for (int k = 0; k < 3; k++) { a[k] = T->a[k]; b[k] = a[k] + T->e1[k]; c[k] = a[k] + T->e2[k]; ab[k] = T->e1[k]; ac[k] = T->e2[k]; ap[k] = p[k] - a[k]; }
+    f32 d1 = dot(ab, ap), d2 = dot(ac, ap);
+    if (d1 <= 0 && d2 <= 0) { memcpy(out, a, 12); return; }
+    f32 bp[3]; sub(p, b, bp); f32 d3 = dot(ab, bp), d4 = dot(ac, bp);
+    if (d3 >= 0 && d4 <= d3) { memcpy(out, b, 12); return; }
+    f32 vc = d1 * d4 - d3 * d2;
+    if (vc <= 0 && d1 >= 0 && d3 <= 0) { f32 v = d1 / (d1 - d3); for (int k = 0; k < 3; k++) out[k] = a[k] + v * ab[k]; return; }
+    f32 cp[3]; sub(p, c, cp); f32 d5 = dot(ab, cp), d6 = dot(ac, cp);
+    if (d6 >= 0 && d5 <= d6) { memcpy(out, c, 12); return; }
+    f32 vb = d5 * d2 - d1 * d6;
+    if (vb <= 0 && d2 >= 0 && d6 <= 0) { f32 w = d2 / (d2 - d6); for (int k = 0; k < 3; k++) out[k] = a[k] + w * ac[k]; return; }
+    f32 va = d3 * d6 - d5 * d4;
+    if (va <= 0 && (d4 - d3) >= 0 && (d5 - d6) >= 0) { f32 w = (d4 - d3) / ((d4 - d3) + (d5 - d6)); for (int k = 0; k < 3; k++) out[k] = b[k] + w * (c[k] - b[k]); return; }
+    f32 den = 1.0f / (va + vb + vc), v = vb * den, w = vc * den;
+    for (int k = 0; k < 3; k++) out[k] = a[k] + ab[k] * v + ac[k] * w;
+}
+
+u32 ak_col_sphere_resolve(const ak_collision *c, f32 *p, f32 r, u16 ignore, bool horizontal, f32 *wall)
+{
+    if (wall) wall[0] = wall[1] = wall[2] = 0;
+    if (!c->ntri) return 0;
+    u32 pushes = 0;
+    for (int pass = 0; pass < 3; pass++) {
+        u32 stack[64], sp = 0, here = 0; stack[sp++] = 0;
+        while (sp) {
+            u32 id = stack[--sp]; const ak_col_node *nd = &c->node[id];
+            if (p[0] + r < nd->min[0] || p[0] - r > nd->max[0] || p[1] + r < nd->min[1] || p[1] - r > nd->max[1] ||
+                p[2] + r < nd->min[2] || p[2] - r > nd->max[2]) continue;
+            if (!nd->count) { if (sp + 2 <= 64) { stack[sp++] = nd->first_or_right; stack[sp++] = id + 1; } continue; }
+            for (u32 i = nd->first_or_right; i < nd->first_or_right + nd->count; i++) {
+                const ak_col_tri *T = &c->tri[i];
+                if (T->flags & ignore) continue;
+                f32 rel[3]; sub(p, T->a, rel);
+                f32 side = dot(rel, T->n);
+                if (!(T->flags & AK_COL_TWO_SIDED) && side < 0) continue;            /* behind a one-sided surface */
+                if (side > r || side < -r) continue;
+                f32 q[3], dlt[3]; closest_on_tri(T, p, q); sub(p, q, dlt);
+                f32 d2 = dot(dlt, dlt);
+                if (d2 >= r * r) continue;
+                f32 d = sqrtf(d2), n[3];
+                if (d > 1e-6f) for (int k = 0; k < 3; k++) n[k] = dlt[k] / d;
+                else for (int k = 0; k < 3; k++) n[k] = side >= 0 ? T->n[k] : -T->n[k];
+                if (horizontal) {
+                    n[1] = 0; f32 l = sqrtf(n[0] * n[0] + n[2] * n[2]);
+                    if (l < 0.2f) continue;                                          /* a floor or ceiling: not a wall */
+                    n[0] /= l; n[2] /= l;
+                    f32 depth = (r - d) / l; if (depth > r) depth = r;
+                    p[0] += n[0] * depth; p[2] += n[2] * depth;
+                } else { f32 depth = r - d; for (int k = 0; k < 3; k++) p[k] += n[k] * depth; }
+                if (wall) for (int k = 0; k < 3; k++) wall[k] += n[k];
+                pushes++; here++;
+            }
+        }
+        if (!here) break;
+    }
+    return pushes;
 }

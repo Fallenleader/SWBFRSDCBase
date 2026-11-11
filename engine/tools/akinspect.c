@@ -6,6 +6,7 @@
 #include "../assets/entity.h"
 #include "../world/ak_collision.h"
 #include "../world/ak_nav.h"
+#include "../game/ak_character.h"
 #include "../platform/plat.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -137,6 +138,39 @@ int main(int argc, char **argv)
                        nav.nnode, nav.nlink, bad, nav.nlink ? 100 * sym / nav.nlink : 0, nav.nnode ? 100 * onground / nav.nnode : 0, ncomp, comp_max, tl);
                 printf("           paths: %u of %u found within one connected part, path length / straight distance %.2f, %.3f ms per path\n", ok, tried, ok ? ratio / ok : 0,
                        tried ? (ak_plat_time_us() - t5) / 1000.0 / tried : 0);
+                {   /* soldiers on foot: random input from random nav nodes; none may fall out of the world or tunnel */
+                    ak_char_params cp; ak_blueprints nob; memset(&nob, 0, sizeof nob); ak_char_params_load(&nob, &cp);
+                    u32 fell = 0, stuck = 0, runs = 0; f32 ground_t = 0, total_t = 0, moved = 0; u32 rs = 7;
+                    f32 floor_y = 1e30f; for (u32 i = 0; i < col.ntri; i++) if (col.tri[i].a[1] < floor_y) floor_y = col.tri[i].a[1];
+                    u64 tw = ak_plat_time_us();
+                    for (int r = 0; r < 100 && nav.nnode; r++) {
+                        rs = rs * 1103515245u + 12345u; const ak_nav_node *nn = &nav.node[(rs >> 8) % nav.nnode];
+                        f32 gy; if (!ak_char_ground_below(&col, nn->pos, 4.0f, &gy)) continue;
+                        ak_character ch; f32 sp[3] = { nn->pos[0], gy, nn->pos[2] }; ak_char_spawn(&ch, sp, 0); runs++;
+                        ak_char_input ci = { 0, 1, 0, 0, false }; f32 start[3] = { sp[0], sp[1], sp[2] };
+                        for (int f = 0; f < 60 * 20; f++) {
+                            if (f % 90 == 0) { rs = rs * 1103515245u + 12345u; ci.look_x = ((rs >> 8) % 200) / 100.0f - 1.0f; ci.move_y = 1; ci.move_x = ((rs >> 16) % 3) - 1.0f; }
+                            ci.jump = (f % 150) == 75;
+                            ak_char_update(&ch, &cp, &col, &ci, 1.0f / 60.0f);
+                            total_t += 1.0f / 60.0f; if (ch.on_ground) ground_t += 1.0f / 60.0f;
+                            static f32 lastg[3]; static f32 trail[1024][4]; static int nt;
+                            if (ch.on_ground) { memcpy(lastg, ch.pos, 12); nt = 0; }
+                            else if (nt < 1024) { memcpy(trail[nt], ch.pos, 12); trail[nt][3] = ch.vel[1]; nt++; }
+                            if (ch.pos[1] < floor_y - 5.0f) {
+                                fell++;
+                                if (getenv("AK_WALK_DEBUG")) { f32 gy2; bool g = ak_char_ground_below(&col, lastg, 50, &gy2);
+                                    printf("  fell: last on the ground at %.1f %.1f %.1f (ground below it %s), level box x %.0f..%.0f z %.0f..%.0f\n", lastg[0], lastg[1], lastg[2], g ? "yes" : "no",
+                                           col.node[0].min[0], col.node[0].max[0], col.node[0].min[2], col.node[0].max[2]);
+                                    for (int q = 60; q < 120 && q < nt; q += 3) { f32 o2[3] = { trail[q][0], trail[q][1] + 0.5f, trail[q][2] }, dd2[3] = { 0, -1, 0 }; ak_col_hit hh; bool any = ak_col_raycast(&col, o2, dd2, 100, 0, &hh);
+                                        printf("    air %2d: %.2f %.2f %.2f vy %.1f  below: %s %.2f flags %04x n.y %.2f\n", q, trail[q][0], trail[q][1], trail[q][2], trail[q][3], any ? "hit" : "none", any ? hh.pos[1] : 0, any ? hh.flags : 0, any ? hh.normal[1] : 0); } }
+                                break;
+                            }
+                        }
+                        f32 dx = ch.pos[0] - start[0], dz = ch.pos[2] - start[2], dd = sqrtf(dx * dx + dz * dz); moved += dd; if (dd < 2.0f) stuck++;
+                    }
+                    printf("on foot    %u soldiers x 20 s of random running and jumping: %u fell out of the world, %u stayed within 2 m, on the ground %.0f%% of the time, %.1f m from the start on average, %.2f ms per soldier-second\n",
+                           runs, fell, stuck, total_t > 0 ? 100.0f * ground_t / total_t : 0, runs ? moved / runs : 0, total_t > 0 ? (ak_plat_time_us() - tw) / 1000.0f / total_t : 0);
+                }
                 free(comp); free(q);
             }
             ak_model_set ms2; ak_entity_set es;

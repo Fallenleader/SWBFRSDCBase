@@ -28,7 +28,7 @@ endif()
 
 add_custom_target(independence ALL COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_independence.sh VERBATIM)
 
-add_library(akcore STATIC core/ak_core.c core/ak_vfs.c core/ak_settings.c assets/asura.c assets/model.c assets/entity.c assets/blueprint.c game/ak_soldier.c world/ak_collision.c world/ak_nav.c render/ak_scene.c)
+add_library(akcore STATIC core/ak_core.c core/ak_vfs.c core/ak_settings.c assets/asura.c assets/model.c assets/entity.c assets/blueprint.c game/ak_soldier.c game/ak_character.c world/ak_collision.c world/ak_nav.c render/ak_scene.c)
 target_include_directories(akcore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(akcore PUBLIC m)
 
@@ -45,7 +45,7 @@ target_link_options(akinspect PRIVATE -Wl,--gc-sections)
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
 execute_process(COMMAND git -C "${CMAKE_CURRENT_SOURCE_DIR}" describe --always --dirty=+ OUTPUT_VARIABLE AK_GIT_ID OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-add_executable(aurek_viewer app/viewer.c platform/desktop/plat_sdl.c platform/desktop/gfx_gl.c)
+add_executable(aurek_viewer app/viewer.c app/play.c platform/desktop/plat_sdl.c platform/desktop/gfx_gl.c)
 target_compile_definitions(aurek_viewer PRIVATE AK_BUILD_ID="${AK_GIT_ID}")
 target_include_directories(aurek_viewer PRIVATE ${SDL2_INCLUDE_DIRS})
 target_link_libraries(aurek_viewer PRIVATE akcore akplat_desktop ${SDL2_LIBRARIES} OpenGL::GL m)
