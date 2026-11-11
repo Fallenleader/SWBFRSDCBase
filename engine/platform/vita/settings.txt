@@ -39,3 +39,19 @@ AK_CULL=0
 AK_VRAM_POOL_MB=64
 # main memory for one level's data, in MB
 AK_LEVEL_MB=48
+
+# --- play mode (square in the level view toggles it) ---
+# start in play mode: 1 = a soldier on foot, 0 = free camera
+AK_PLAY=0
+# the soldier class (a Humanoid blueprint: Stormtrooper, MediumRebel, Clonetrooper, Battle_Droid, Darktrooper, ...)
+AK_SOLDIER=Stormtrooper
+# head 0..2, personalisation colours 0..15 (-1 = the faction's default)
+AK_HEAD=0
+AK_COLOUR1=-1
+AK_COLOUR2=-1
+# weapon (the faction's own version is used): BlasterRifle, BlasterPistol, Sniper Rifle, ...
+AK_WEAPON=BlasterRifle
+# target dummies of the other side, 0..6
+AK_DUMMIES=6
+# not yet read from the game: gravity (m/s^2)
+AK_GRAVITY=9.81
