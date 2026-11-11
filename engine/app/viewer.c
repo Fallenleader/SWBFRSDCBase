@@ -75,6 +75,7 @@ int main(int argc, char **argv)
     ak_model_set models; ak_scene_models mscene; u32 *gallery = NULL; u32 ngallery = 0, gsel = 0; bool gallery_on = ak_setting_int("AK_GALLERY", 0) != 0;
     f32 orbit_yaw = ak_setting_float("AK_GALLERY_YAW", 0.6f), orbit_pitch = -0.25f, orbit_zoom = ak_setting_float("AK_GALLERY_ZOOM", 1.0f); static f32 bones[512][12];
     static ak_quat lq[512]; static f32 lt[512][3]; s32 gclip = -1; f32 anim_t = 0;
+    int col1 = ak_setting_int("AK_COLOUR1", 0) & 15, col2 = ak_setting_int("AK_COLOUR2", 1) & 15; ak_model_colours gcol;
     ak_entity_set ents; f32 (*bindm)[12] = NULL; u32 *bind_first = NULL; bool show_ents = ak_setting_int("AK_ENTITIES", 1) != 0;
     ak_input in; memset(&in, 0, sizeof in);
     u64 last = ak_plat_time_us(), fps_t0 = last; int fps_frames = 0; f32 fps = 0, frame_ms = 0, load_ms = 0;
@@ -128,6 +129,9 @@ int main(int argc, char **argv)
         }
         if (in.pressed & AK_BTN_SELECT) show = !show;
         if (in.pressed & AK_BTN_CIRCLE) gallery_on = !gallery_on;
+        if (gallery_on && (in.pressed & AK_BTN_L)) col1 = (col1 + 1) & 15;          /* personalisation colours: L colour 1, R colour 2 */
+        if (gallery_on && (in.pressed & AK_BTN_R)) col2 = (col2 + 1) & 15;
+        gcol.colour1 = ak_personal_colour1[col1]; gcol.colour2 = ak_personal_colour2[col2];
         if (gallery_on && ngallery) {
             if (in.pressed & AK_BTN_RIGHT) { gsel = (gsel + 1) % ngallery; gclip = -1; }
             if (in.pressed & AK_BTN_LEFT) { gsel = (gsel + ngallery - 1) % ngallery; gclip = -1; }
@@ -167,17 +171,17 @@ int main(int argc, char **argv)
                 else ak_skeleton_bind_matrices(sk, bones);
                 bp = (const f32 (*)[12])bones;
             }
-            ak_scene_models_draw(&mscene, gallery[gsel], &vp, &ident, bp, &ms);
+            ak_scene_models_draw(&mscene, gallery[gsel], &vp, &ident, bp, &gcol, &ms);
             if (show) {
                 char line[200];
                 snprintf(line, sizeof line, "Aurek %s  %s  %.1f fps  %.2f ms", AK_BUILD_ID, ak_gfx_name(), fps, frame_ms); ak_gfx_text(8, 8, 0xFFFFFFFF, line);
                 snprintf(line, sizeof line, "%s  model %u/%u: %s", levels[cur].label, gsel + 1, ngallery, m->name); ak_gfx_text(8, 26, 0xFFFFFFFF, line);
                 snprintf(line, sizeof line, "parts %u  bones %u  vertices %u  triangles %u  size %.1f m", m->nparts,
                          m->skeleton >= 0 ? models.skels[m->skeleton].nbones : 0, m->nvtx, m->nidx / 3, ext); ak_gfx_text(8, 44, 0xFFFFFFFF, line);
-                if (clip) snprintf(line, sizeof line, "clip: %s  (%.2f s, %u keys)", clip->name, clip->duration, clip->nrot);
-                else snprintf(line, sizeof line, "clip: none (bind pose)");
+                if (clip) snprintf(line, sizeof line, "clip: %s  (%.2f s, %u keys)   colours %d / %d", clip->name, clip->duration, clip->nrot, col1, col2);
+                else snprintf(line, sizeof line, "clip: none (bind pose)   colours %d / %d", col1, col2);
                 ak_gfx_text(8, 62, 0xFFFFFFFF, line);
-                ak_gfx_text(8, 80, 0xFFC0C0C0, "d-pad left/right: model  up/down: clip  right stick: turn  left stick: zoom  circle: level");
+                ak_gfx_text(8, 80, 0xFFC0C0C0, "d-pad: model, clip  L/R: colour 1/2  right stick: turn  left stick: zoom  circle: level");
             }
             ak_gfx_end(&gs);
             frame++; fps_frames++;
@@ -223,7 +227,8 @@ int main(int argc, char **argv)
                                2 * (x * y - z * w), 1 - 2 * (x * x + z * z), 2 * (y * z + x * w), 0,
                                2 * (x * z + y * w), 2 * (y * z - x * w), 1 - 2 * (x * x + y * y), 0,
                                e->pos[0], e->pos[1], e->pos[2], 1 } };
-                ak_scene_models_draw(&mscene, (u32)mi, &vp, &wm, models.models[mi].skeleton >= 0 ? (const f32 (*)[12])(bindm + bind_first[mi]) : NULL, &ss);
+                ak_scene_models_draw(&mscene, (u32)mi, &vp, &wm, models.models[mi].skeleton >= 0 ? (const f32 (*)[12])(bindm + bind_first[mi]) : NULL,
+                                     e->flagged && (e->type == 27 || e->type == 13) ? &gcol : NULL, &ss);   /* vehicles only: props keep their cutouts */
                 ents_drawn++;
             }
         }

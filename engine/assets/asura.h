@@ -54,6 +54,13 @@ typedef struct {
 } ak_texture;
 bool ak_texture_parse(const ak_rscf *r, ak_arena *a, ak_texture *out);
 void ak_texture_expand(const ak_texture *t, int level, u32 *rgba);        /* width>>level * height>>level pixels */
+/* Personalisation colours on character and vehicle textures (the game's func_08A6A46C): a palette entry whose alpha is about half
+ * (127 +- 10) becomes colour 1 ("team"), about zero (0 +- 10) colour 2 ("uniform"), each scaled by the entry's brightest channel
+ * / 255 and made opaque; other entries are kept.  Colours are 0xRRGGBB; out gets the new palette (RGBA8888, R in the low byte). */
+void ak_texture_recolor(const ak_texture *t, u32 colour1, u32 colour2, u32 *out);
+bool ak_texture_has_colour_mask(const ak_texture *t);
+/* the game's 16 personalisation colours (Colour 1 at 0x08ADC520, Colour 2 at 0x08ADC560 in the PSP game), 0xRRGGBB */
+extern const u32 ak_personal_colour1[16], ak_personal_colour2[16];
 
 /* ---- level geometry (the RSCF mesh named "Env"), as indexed triangle lists grouped for the renderer */
 typedef struct { f32 pos[3]; f32 uv[2]; s8 nrm[4]; u8 col[4]; } ak_vtx;   /* 28 bytes; col.a = blend weight on the blend layer */

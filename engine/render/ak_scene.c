@@ -141,18 +141,39 @@ bool ak_scene_models_init(ak_scene_models *s, const ak_model_set *set, const ak_
     }
     s->vb = ak_gfx_vertices(v, nv); s->ib = ak_gfx_indices(ix, ni);
     free(v); free(ix);
-    return s->vb && s->ib;
+    const ak_level *l = level->level;
+    s->masked = AK_NEW(a, u8, l->ntex ? l->ntex : 1);
+    for (u32 i = 0; s->masked && i < l->ntex; i++) s->masked[i] = ak_texture_has_colour_mask(&l->tex[i]);
+    s->cap_variant = 256; s->variant = calloc(s->cap_variant, sizeof *s->variant);
+    return s->vb && s->ib && s->masked && s->variant;
 }
 
 void ak_scene_models_free(ak_scene_models *s)
 {
     ak_gfx_wait_idle();
+    for (u32 i = 0; i < s->nvariant; i++) ak_gfx_free_tex(s->variant[i].gt);
+    free(s->variant);
     ak_gfx_free_buf(s->vb); ak_gfx_free_buf(s->ib);
     memset(s, 0, sizeof *s);
 }
 
 
-void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_m4 *world, const f32 (*bones)[12], ak_scene_stats *st)
+static ak_gfx_tex *coloured(ak_scene_models *s, s32 ti, const ak_model_colours *c)
+{
+    for (u32 i = 0; i < s->nvariant; i++)
+        if (s->variant[i].tex == ti && s->variant[i].c1 == c->colour1 && s->variant[i].c2 == c->colour2) return s->variant[i].gt;
+    if (s->nvariant == s->cap_variant) return s->level->tex[ti];                    /* full: as stored */
+    const ak_texture *t = &s->level->level->tex[ti]; u32 pal[256];
+    ak_texture_recolor(t, c->colour1, c->colour2, pal);
+    ak_gfx_tex *g = ak_gfx_texture_palette(s->level->tex[ti], t, pal);
+    if (!g) return s->level->tex[ti];
+    s->variant[s->nvariant].tex = ti; s->variant[s->nvariant].c1 = c->colour1; s->variant[s->nvariant].c2 = c->colour2; s->variant[s->nvariant].gt = g;
+    s->nvariant++;
+    return g;
+}
+
+void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_m4 *world, const f32 (*bones)[12],
+                          const ak_model_colours *colours, ak_scene_stats *st)
 {
     const ak_model *m = &s->set->models[mi];
     ak_m4 vw = ak_m4_mul(vp, world);
@@ -172,7 +193,8 @@ void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_
             } else { memset(&bm, 0, sizeof bm); bm.m[0] = bm.m[5] = bm.m[10] = bm.m[15] = 1; }
             ak_m4 mvp = ak_m4_mul(&vw, &bm);
             ak_gfx_set_transform(&mvp);
-            ak_gfx_draw(pipe, pt->texture >= 0 ? s->level->tex[pt->texture] : NULL, s->vb, s->ib, s->index_base[mi] + pt->first, pt->count);
+            ak_gfx_tex *gt = pt->texture < 0 ? NULL : colours && s->masked[pt->texture] ? coloured(s, pt->texture, colours) : s->level->tex[pt->texture];
+            ak_gfx_draw(pipe, gt, s->vb, s->ib, s->index_base[mi] + pt->first, pt->count);
             if (st) { st->draws++; st->tris += pt->count / 3; }
         }
     ak_gfx_set_transform(NULL);

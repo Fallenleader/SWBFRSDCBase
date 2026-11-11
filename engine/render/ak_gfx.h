@@ -33,6 +33,8 @@ const char *ak_gfx_name(void);                                   /* "GXM 960x544
 ak_gfx_buf *ak_gfx_vertices(const ak_vtx *v, u32 n);           /* static, GPU memory */
 ak_gfx_buf *ak_gfx_indices(const u32 *i, u32 n);
 ak_gfx_tex *ak_gfx_texture(const ak_texture *t);                /* from the game's palette image (the back end picks the format) */
+/* the same image with another palette (personalisation colours): shares the pixels where the back end can (GXM) */
+ak_gfx_tex *ak_gfx_texture_palette(ak_gfx_tex *base, const ak_texture *t, const u32 *palette);
 void ak_gfx_free_buf(ak_gfx_buf *b);
 void ak_gfx_free_tex(ak_gfx_tex *t);
 void ak_gfx_wait_idle(void);                                     /* before freeing what the GPU may still read */

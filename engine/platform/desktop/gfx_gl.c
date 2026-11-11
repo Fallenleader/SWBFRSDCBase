@@ -119,14 +119,17 @@ ak_gfx_buf *ak_gfx_vertices(const ak_vtx *v, u32 n) { return make_buf(GL_ARRAY_B
 ak_gfx_buf *ak_gfx_indices(const u32 *i, u32 n) { return make_buf(GL_ELEMENT_ARRAY_BUFFER, i, 4u * n); }
 void ak_gfx_free_buf(ak_gfx_buf *b) { if (b) { glDeleteBuffers(1, &b->id); free(b); cur_vb = cur_ib = 0; } }
 
-ak_gfx_tex *ak_gfx_texture(const ak_texture *t)
+static ak_gfx_tex *texture_with(const ak_texture *t, const u32 *pal);
+ak_gfx_tex *ak_gfx_texture(const ak_texture *t) { return texture_with(t, t->palette); }
+ak_gfx_tex *ak_gfx_texture_palette(ak_gfx_tex *base, const ak_texture *t, const u32 *pal) { (void)base; return texture_with(t, pal); }
+static ak_gfx_tex *texture_with(const ak_texture *t, const u32 *pal)
 {
     ak_gfx_tex *x = (ak_gfx_tex *)calloc(1, sizeof *x);
     glGenTextures(1, &x->id); glBindTexture(GL_TEXTURE_2D, x->id);
     u32 *px = (u32 *)malloc((size_t)t->width * t->height * 4);
     for (int l = 0; l < t->levels; l++) {
         int w = t->width >> l, h = t->height >> l; if (!w) w = 1; if (!h) h = 1;
-        ak_texture_expand(t, l, px);
+        { ak_texture tt = *t; memcpy(tt.palette, pal, sizeof(u32) << t->bpp); ak_texture_expand(&tt, l, px); }
         glTexImage2D(GL_TEXTURE_2D, l, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, px);
     }
     free(px);

@@ -29,8 +29,13 @@ typedef struct {
     const ak_model_set *set; const ak_scene_level *level;
     ak_gfx_buf *vb, *ib;
     u32 *index_base;           /* per model: its first index in ib (indices are rebased to the shared vertex buffer) */
+    u8 *masked;                /* per level texture: has a personalisation colour mask */
+    struct { s32 tex; u32 c1, c2; ak_gfx_tex *gt; } *variant; u32 nvariant, cap_variant;
 } ak_scene_models;
+/* personalisation colours of one drawn model (0xRRGGBB), or NULL for the texture as stored */
+typedef struct { u32 colour1, colour2; } ak_model_colours;
 bool ak_scene_models_init(ak_scene_models *s, const ak_model_set *set, const ak_scene_level *level, ak_arena *a);
 void ak_scene_models_free(ak_scene_models *s);
 /* bones: model-space 3x4 matrix per bone (ak_skeleton_bind_matrices, or an animated pose); NULL = parts at the model origin */
-void ak_scene_models_draw(ak_scene_models *s, u32 model, const ak_m4 *view_proj, const ak_m4 *world, const f32 (*bones)[12], ak_scene_stats *st);
+void ak_scene_models_draw(ak_scene_models *s, u32 model, const ak_m4 *view_proj, const ak_m4 *world, const f32 (*bones)[12],
+                          const ak_model_colours *colours, ak_scene_stats *st);

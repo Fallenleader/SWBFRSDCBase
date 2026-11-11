@@ -30,7 +30,7 @@
 #define ALIGN(x, a) (((x) + ((a) - 1)) & ~((size_t)(a) - 1))
 
 struct ak_gfx_buf { void *mem; };
-struct ak_gfx_tex { SceGxmTexture tex; };
+struct ak_gfx_tex { SceGxmTexture tex; u8 *px; };
 
 static SceGxmContext *ctx; static SceGxmRenderTarget *rt; static SceGxmShaderPatcher *patcher;
 static SceGxmColorSurface surf[NBUF]; static SceGxmSyncObject *sync_[NBUF]; static void *fb[NBUF];
@@ -311,10 +311,22 @@ ak_gfx_tex *ak_gfx_texture(const ak_texture *t)
         else for (int i = 0; i < w; i++) { u8 b = t->pixels[0][((size_t)y * w + i) >> 1]; d[i] = (u8)((i & 1) ? b >> 4 : b & 15); }
     }
     memcpy(pal, t->palette, (t->bpp == 8 ? 256 : 16) * 4);
+    x->px = px;
     sceGxmTextureInitLinear(&x->tex, px, SCE_GXM_TEXTURE_FORMAT_P8_ABGR, (unsigned)w, (unsigned)h, 0);
     sceGxmTextureSetPalette(&x->tex, pal);
     sceGxmTextureSetMinFilter(&x->tex, SCE_GXM_TEXTURE_FILTER_LINEAR); sceGxmTextureSetMagFilter(&x->tex, SCE_GXM_TEXTURE_FILTER_LINEAR);
     sceGxmTextureSetUAddrMode(&x->tex, SCE_GXM_TEXTURE_ADDR_REPEAT); sceGxmTextureSetVAddrMode(&x->tex, SCE_GXM_TEXTURE_ADDR_REPEAT);
+    return x;
+}
+/* a palette variant: the base's pixels, its own palette (a variant must be freed before its base) */
+ak_gfx_tex *ak_gfx_texture_palette(ak_gfx_tex *base, const ak_texture *t, const u32 *palette)
+{
+    ak_gfx_tex *x = (ak_gfx_tex *)calloc(1, sizeof *x);
+    u32 *pal = (u32 *)pool_alloc(256 * 4, SCE_GXM_PALETTE_ALIGNMENT);
+    if (!x || !pal) { free(x); return NULL; }
+    memcpy(pal, palette, (t->bpp == 8 ? 256 : 16) * 4);
+    x->tex = base->tex; x->px = base->px;
+    sceGxmTextureSetPalette(&x->tex, pal);
     return x;
 }
 void ak_gfx_free_tex(ak_gfx_tex *t) { if (t) { pool_release(); free(t); } }

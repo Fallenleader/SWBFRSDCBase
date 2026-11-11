@@ -116,6 +116,33 @@ void ak_texture_expand(const ak_texture *t, int level, u32 *rgba)
     else for (u32 i = 0; i < w * h; i++) rgba[i] = t->palette[(px[i >> 1] >> ((i & 1) * 4)) & 15];
 }
 
+const u32 ak_personal_colour1[16] = { 0xe6e6e6, 0x7f7f7f, 0x282828, 0xd4cf4f, 0xcc9848, 0xcc7348, 0xb33333, 0x622f2f,
+                                      0xf1b0cf, 0xa771c6, 0x643a76, 0x434aa2, 0x2a797a, 0x357c3c, 0x516244, 0x786f2b };
+const u32 ak_personal_colour2[16] = { 0xe6e6e6, 0x7f7f7f, 0x282828, 0x333d58, 0x475578, 0x637195, 0x896060, 0x773d3d,
+                                      0x8bb078, 0x60844e, 0x436533, 0x33432b, 0x464328, 0x6f6a40, 0xa29940, 0xc0b972 };
+
+static int iabs(int x) { return x < 0 ? -x : x; }
+void ak_texture_recolor(const ak_texture *t, u32 c1, u32 c2, u32 *out)
+{
+    u32 n = 1u << t->bpp;
+    for (u32 i = 0; i < n; i++) {
+        u32 e = t->palette[i]; int a = (int)(e >> 24);
+        out[i] = e;
+        u32 c;
+        if (iabs(a - 127) < 11) c = c1; else if (iabs(a) < 11) c = c2; else continue;
+        u32 r = e & 255, g = (e >> 8) & 255, b = (e >> 16) & 255, m = r > g ? (r > b ? r : b) : (g > b ? g : b);
+        f32 k = (f32)m / 255.0f;
+        u32 cr = (u32)((f32)((c >> 16) & 255) * k + 0.5f), cg = (u32)((f32)((c >> 8) & 255) * k + 0.5f), cb = (u32)((f32)(c & 255) * k + 0.5f);
+        out[i] = 0xFF000000u | cb << 16 | cg << 8 | cr;
+    }
+}
+bool ak_texture_has_colour_mask(const ak_texture *t)
+{
+    u32 n = 1u << t->bpp;
+    for (u32 i = 0; i < n; i++) { int a = (int)(t->palette[i] >> 24); if (iabs(a - 127) < 11 || a < 11) return true; }
+    return false;
+}
+
 /* ------------------------------------------------------------------ level geometry
  * header u32 materials, u32 opaque strips, u32 blend-layer strips, u32 vertices, u32 0;
  * strips { u32 (vertex type << 16) | count, u32 first vertex, u32 first vertex, u32 material, u32 object };
