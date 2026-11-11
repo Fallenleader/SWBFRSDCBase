@@ -51,6 +51,118 @@ static bool skel_parse(const ak_chunk *c, ak_arena *a, ak_skeleton *s)
     return true;
 }
 
+static void mat34(ak_quat q, const f32 *t, f32 *r)
+{
+    f32 x = q.x, y = q.y, z = q.z, w = q.w;
+    r[0] = 1 - 2 * (y * y + z * z); r[1] = 2 * (x * y - z * w);     r[2] = 2 * (x * z + y * w);     r[3] = t[0];
+    r[4] = 2 * (x * y + z * w);     r[5] = 1 - 2 * (x * x + z * z); r[6] = 2 * (y * z - x * w);     r[7] = t[1];
+    r[8] = 2 * (x * z - y * w);     r[9] = 2 * (y * z + x * w);     r[10] = 1 - 2 * (x * x + y * y); r[11] = t[2];
+}
+
+void ak_skeleton_pose_matrices(const ak_skeleton *s, const ak_quat *lq, const f32 (*lt)[3], f32 (*m)[12])
+{
+    ak_quat wq[512]; f32 wt[512][3];
+    for (u32 i = 0; i < s->nbones && i < 512; i++) {
+        int p = s->parent[i];
+        if (p < 0) { wq[i] = lq[i]; memcpy(wt[i], lt[i], 12); }
+        else {
+            f32 r3[3]; qrot(wq[p], lt[i], r3);
+            for (int k = 0; k < 3; k++) wt[i][k] = wt[p][k] + r3[k];
+            wq[i] = qmul(wq[p], lq[i]);
+        }
+        mat34(wq[i], wt[i], m[i]);
+    }
+}
+
+static ak_quat q_unpack(u32 w)
+{
+    f32 f[3] = { (f32)((w >> 22) & 1023), (f32)((w >> 12) & 1023), (f32)((w >> 2) & 1023) }, g[4];
+    const f32 k = 0.70710678f * 2.0f / 1023.0f;
+    for (int i = 0; i < 3; i++) f[i] = f[i] * k - 0.70710678f;
+    int d = (int)((w & 3) + 3) & 3;
+    for (int i = 0; i < 3; i++) g[(d + 1 + i) & 3] = f[i];
+    f32 s2 = 1.0f - f[0] * f[0] - f[1] * f[1] - f[2] * f[2];
+    g[d] = s2 > 0 ? sqrtf(s2) : 0.0f;
+    return q_from_game(g[0], g[1], g[2], g[3]);
+}
+static ak_quat q_nlerp(ak_quat a, ak_quat b, f32 t)
+{
+    f32 dot = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w, s = dot < 0 ? -1.0f : 1.0f;
+    ak_quat r = { a.x + (s * b.x - a.x) * t, a.y + (s * b.y - a.y) * t, a.z + (s * b.z - a.z) * t, a.w + (s * b.w - a.w) * t };
+    f32 l = sqrtf(r.x * r.x + r.y * r.y + r.z * r.z + r.w * r.w);
+    if (l > 0) { r.x /= l; r.y /= l; r.z /= l; r.w /= l; }
+    return r;
+}
+
+void ak_anim_sample(const ak_anim_clip *c, const ak_skeleton *s, f32 t, bool loop, ak_quat *lq, f32 (*lt)[3])
+{
+    f32 u = c->duration > 0 ? t / c->duration : 0;
+    if (loop) u -= floorf(u);
+    else u = u < 0 ? 0 : u > 1 ? 1 : u;
+    f32 tu = u * 65535.0f;
+    for (u32 b = 0; b < s->nbones; b++) {
+        lq[b] = s->bind_q[b]; memcpy(lt[b], s->bind_t[b], 12);
+        if (b >= c->nbones) continue;
+        const ak_anim_channel *ch = &c->chan[b];
+        if (!ch->rot_count) continue;
+        u32 k0 = 0, k1 = 0; f32 f = 0;
+        if (ch->rot_count) {
+            const u16 *tm = c->rtime + ch->rot_first; u32 n = ch->rot_count;
+            if (n == 1 || tu <= tm[0]) k0 = k1 = 0;
+            else if (tu >= tm[n - 1]) k0 = k1 = n - 1;
+            else {
+                u32 lo = 0, hi = n - 1;
+                while (hi - lo > 1) { u32 mid = (lo + hi) / 2; if (tm[mid] <= tu) lo = mid; else hi = mid; }
+                k0 = lo; k1 = hi; f = (tu - tm[lo]) / (f32)(tm[hi] - tm[lo] ? tm[hi] - tm[lo] : 1);
+            }
+            lq[b] = q_nlerp(c->rot[ch->rot_first + k0], c->rot[ch->rot_first + k1], f);
+        }
+        if (ch->pos_count == 1) memcpy(lt[b], c->pos[ch->pos_first], 12);
+        else if (ch->pos_count > 1) {
+            u32 p0, p1; f32 pf;
+            if (ch->pos_count == ch->rot_count) { p0 = k0; p1 = k1; pf = f; }
+            else { f32 x = u * (f32)(ch->pos_count - 1); p0 = (u32)x; p1 = p0 + 1 < ch->pos_count ? p0 + 1 : p0; pf = x - (f32)p0; }
+            const f32 *a = c->pos[ch->pos_first + p0], *bq = c->pos[ch->pos_first + p1];
+            for (int k = 0; k < 3; k++) lt[b][k] = a[k] + (bq[k] - a[k]) * pf;
+        }
+    }
+}
+
+/* HCAN v5 (layout from the game's reader, func_08827220): header { u32 bones, f32 duration, f32, f32, u32 rotation keys,
+ * u32 position keys, u32 extra count }, name (NUL, padded to 4), channel table (u16 x4 per channel, when flag 0x20), packed rotations
+ * (u32 x rot keys), key times (u16 x rot keys), positions (f32 x3 x pos keys), per-bone lengths (f32 x bones, flag 0x1),
+ * extra (12 x count), box (24, flag 0x8), f32, u32 event count + 8 per event */
+static bool clip_parse(const ak_chunk *c, ak_arena *a, ak_anim_clip *k)
+{
+    const u8 *b = c->body; memset(k, 0, sizeof *k);
+    if (c->version != 5 || c->size < 32 || !(c->flags & 0x20)) return false;
+    u32 nb = ak_rd32(b), A = ak_rd32(b + 16), B = ak_rd32(b + 20);
+    const char *name = (const char *)b + 28; size_t nl = strnlen(name, c->size - 28);
+    u32 o = 28 + (u32)((nl + 1 + 3) & ~(size_t)3);
+    u32 nch = nb + ((c->flags >> 4) & 1);
+    if (nb > 512 || (size_t)o + 8u * nch + 6u * A + 12u * B > c->size) return false;
+    k->name = name; k->name_hash = ak_hash_name(name); k->nbones = nb; k->nchannels = nch; k->flags = c->flags;
+    k->duration = ak_rdf32(b + 4); k->nrot = A; k->npos = B;
+    k->chan = AK_NEW(a, ak_anim_channel, nch ? nch : 1); k->rot = AK_NEW(a, ak_quat, A ? A : 1); k->rtime = AK_NEW(a, u16, A ? A : 1);
+    k->pos = (f32 (*)[3])ak_arena_alloc(a, 12u * (B ? B : 1), 4);
+    if (!k->chan || !k->rot || !k->rtime || !k->pos) return false;
+    for (u32 i = 0; i < nch; i++) {
+        const u8 *r = b + o + 8 * i;
+        k->chan[i].rot_count = ak_rd16(r); k->chan[i].rot_first = ak_rd16(r + 2); k->chan[i].pos_count = ak_rd16(r + 4); k->chan[i].pos_first = ak_rd16(r + 6);
+        /* a channel without rotation keys is not animated by this clip (upper-body overlays such as shooting or reloading leave the
+         * other bones' entries unfilled): it keeps the pose underneath */
+        if (!k->chan[i].rot_count) { k->chan[i].pos_count = 0; k->chan[i].rot_first = k->chan[i].pos_first = 0; }
+        if ((u32)k->chan[i].rot_first + k->chan[i].rot_count > A || (u32)k->chan[i].pos_first + k->chan[i].pos_count > B) return false;
+    }
+    o += 8 * nch;
+    for (u32 i = 0; i < A; i++) k->rot[i] = q_unpack(ak_rd32(b + o + 4 * i));
+    o += 4 * A;
+    for (u32 i = 0; i < A; i++) k->rtime[i] = ak_rd16(b + o + 2 * i);
+    o += 2 * A;
+    for (u32 i = 0; i < B; i++) { f32 g[3] = { ak_rdf32(b + o + 12 * i), ak_rdf32(b + o + 12 * i + 4), ak_rdf32(b + o + 12 * i + 8) }; ak_from_game(g, k->pos[i]); }
+    return true;
+}
+
 void ak_skeleton_bind_matrices(const ak_skeleton *s, f32 (*m)[12])
 {
     for (u32 i = 0; i < s->nbones; i++) {
@@ -143,10 +255,12 @@ bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
     while (ak_asura_next(&l->file, &pos, &c)) {
         ak_rscf r;
         if (ak_chunk_tag(&c) == AK_TAG('H', 'S', 'K', 'N') && c.version == 8) ns++;
+        else if (ak_chunk_tag(&c) == AK_TAG('H', 'C', 'A', 'N')) out->nclips++;
         else if (c.version == 1 && ak_rscf_parse(&c, &r) && r.type == AK_RSCF_MESH && r.sub == 5) nm++;
     }
-    out->models = AK_NEW(a, ak_model, nm ? nm : 1); out->skels = AK_NEW(a, ak_skeleton, ns ? ns : 1);
-    if (!out->models || !out->skels) return false;
+    u32 ncl = out->nclips; out->nclips = 0;
+    out->models = AK_NEW(a, ak_model, nm ? nm : 1); out->skels = AK_NEW(a, ak_skeleton, ns ? ns : 1); out->clips = AK_NEW(a, ak_anim_clip, ncl ? ncl : 1);
+    if (!out->models || !out->skels || !out->clips) return false;
     ak_names text = { 0 }; ak_material *mats = NULL; u32 nmats = 0;
     pos = 8;
     while (ak_asura_next(&l->file, &pos, &c)) {
@@ -154,6 +268,7 @@ bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
         if (tag == AK_TAG('T', 'E', 'X', 'T')) ak_text_parse(&c, a, &text);
         else if (tag == AK_TAG('M', 'T', 'R', 'L')) { if (!ak_mtrl_parse(&c, a, &mats, &nmats)) { mats = NULL; nmats = 0; } }
         else if (tag == AK_TAG('H', 'S', 'K', 'N') && c.version == 8) { if (skel_parse(&c, a, &out->skels[out->nskels])) out->nskels++; }
+        else if (tag == AK_TAG('H', 'C', 'A', 'N')) { if (clip_parse(&c, a, &out->clips[out->nclips])) out->nclips++; }
         else if (c.version == 1 && ak_rscf_parse(&c, &r) && r.type == AK_RSCF_MESH && r.sub == 5) {
             ak_model *m = &out->models[out->nmodels]; memset(m, 0, sizeof *m);
             const char *base = r.name; m->lod = 0;

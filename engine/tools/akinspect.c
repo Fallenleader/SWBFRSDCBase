@@ -65,7 +65,7 @@ int main(int argc, char **argv)
     ak_model_set ms; u64 t2 = ak_plat_time_us();
     bool mok = ak_models_load(&l, &a, &ms);
     u32 lod0 = 0, tris_m = 0; for (u32 i = 0; i < ms.nmodels; i++) { lod0 += ms.models[i].lod == 0; tris_m += ms.models[i].nidx / 3; }
-    printf("models     %u (%u full detail), %u skeletons, %u triangles, %.1f ms%s\n", ms.nmodels, lod0, ms.nskels, tris_m,
+    printf("models     %u (%u full detail), %u skeletons, %u clips, %u triangles, %.1f ms%s\n", ms.nmodels, lod0, ms.nskels, ms.nclips, tris_m,
            (ak_plat_time_us() - t2) / 1000.0, mok ? "" : " FAILED");
     for (int i = 2; i + 1 < argc; i += 2) {
         if (!strcmp(argv[i], "--models"))
@@ -74,6 +74,12 @@ int main(int argc, char **argv)
                 if (!strcmp(argv[i + 1], "all") || !strcmp(argv[i + 1], m->name))
                     printf("  %-44s lod %u parts %2u bones %2u verts %5u tris %5u radius %7.2f\n", m->name, m->lod, m->nparts,
                            m->skeleton >= 0 ? ms.skels[m->skeleton].nbones : 0, m->nvtx, m->nidx / 3, m->radius);
+            }
+        if (!strcmp(argv[i], "--clip"))
+            for (u32 k = 0; k < ms.nclips; k++) if (!strcmp(ms.clips[k].name, argv[i + 1])) {
+                const ak_anim_clip *c = &ms.clips[k];
+                printf("clip %s bones %u channels %u duration %.3f keys %u/%u\n", c->name, c->nbones, c->nchannels, c->duration, c->nrot, c->npos);
+                for (u32 r = 0; r < c->nrot && r < 8; r++) printf("  rot %u t %u  %.4f %.4f %.4f %.4f\n", r, c->rtime[r], c->rot[r].x, c->rot[r].y, c->rot[r].z, c->rot[r].w);
             }
         if (!strcmp(argv[i], "--model-obj")) {               /* NAME=out.obj: the model's bind pose in model space */
             char nm[256]; snprintf(nm, sizeof nm, "%s", argv[i + 1]); char *eq = strchr(nm, '=');

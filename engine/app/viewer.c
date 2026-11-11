@@ -72,7 +72,8 @@ int main(int argc, char **argv)
 
     ak_level level; ak_scene_level scene; camera cam; bool loaded = false;
     ak_model_set models; ak_scene_models mscene; u32 *gallery = NULL; u32 ngallery = 0, gsel = 0; bool gallery_on = ak_setting_int("AK_GALLERY", 0) != 0;
-    f32 orbit_yaw = 0.6f, orbit_pitch = -0.25f, orbit_zoom = 1.0f; static f32 bones[512][12];
+    f32 orbit_yaw = ak_setting_float("AK_GALLERY_YAW", 0.6f), orbit_pitch = -0.25f, orbit_zoom = ak_setting_float("AK_GALLERY_ZOOM", 1.0f); static f32 bones[512][12];
+    static ak_quat lq[512]; static f32 lt[512][3]; s32 gclip = -1; f32 anim_t = 0;
     ak_input in; memset(&in, 0, sizeof in);
     u64 last = ak_plat_time_us(), fps_t0 = last; int fps_frames = 0; f32 fps = 0, frame_ms = 0, load_ms = 0;
     ak_gfx_stats gs; memset(&gs, 0, sizeof gs);
@@ -88,8 +89,10 @@ int main(int argc, char **argv)
             ngallery = 0; gallery = AK_NEW(&lvl, u32, models.nmodels ? models.nmodels : 1);
             for (u32 i = 0; gallery && i < models.nmodels; i++) if (models.models[i].lod == 0 && models.models[i].nidx) gallery[ngallery++] = i;
             gsel = 0;
-            { const char *gm = ak_setting_str("AK_GALLERY_MODEL", NULL);
-              for (u32 i = 0; gm && i < ngallery; i++) if (!strcmp(models.models[gallery[i]].name, gm)) gsel = i; }
+            { const char *gm = ak_setting_str("AK_GALLERY_MODEL", NULL), *gc = ak_setting_str("AK_GALLERY_CLIP", NULL);
+              for (u32 i = 0; gm && i < ngallery; i++) if (!strcmp(models.models[gallery[i]].name, gm)) gsel = i;
+              gclip = -1; anim_t = ak_setting_float("AK_GALLERY_TIME", 0);
+              for (u32 i = 0; gc && i < models.nclips; i++) if (!strcmp(models.clips[i].name, gc)) gclip = (s32)i; }
             load_ms = (ak_plat_time_us() - t0) / 1000.0f;
             AK_INFO("aurek", "%s: %u triangles, %u batches, %u textures, %u models (%u in the gallery), %u skeletons, loaded in %.0f ms, %.1f MB",
                     levels[cur].label, level.geom.nidx / 3, level.geom.nbatch, level.ntex, models.nmodels, ngallery, models.nskels, load_ms, lvl.used / 1048576.0);
@@ -117,8 +120,19 @@ int main(int argc, char **argv)
         if (in.pressed & AK_BTN_SELECT) show = !show;
         if (in.pressed & AK_BTN_CIRCLE) gallery_on = !gallery_on;
         if (gallery_on && ngallery) {
-            if (in.pressed & AK_BTN_RIGHT) gsel = (gsel + 1) % ngallery;
-            if (in.pressed & AK_BTN_LEFT) gsel = (gsel + ngallery - 1) % ngallery;
+            if (in.pressed & AK_BTN_RIGHT) { gsel = (gsel + 1) % ngallery; gclip = -1; }
+            if (in.pressed & AK_BTN_LEFT) { gsel = (gsel + ngallery - 1) % ngallery; gclip = -1; }
+            const ak_model *gm0 = &models.models[gallery[gsel]];
+            const ak_skeleton *gsk = gm0->skeleton >= 0 ? &models.skels[gm0->skeleton] : NULL;
+            if (gsk && (in.pressed & (AK_BTN_UP | AK_BTN_DOWN))) {         /* the clips that fit this skeleton (same bone count) */
+                s32 n = (s32)models.nclips, step = (in.pressed & AK_BTN_UP) ? 1 : -1, c = gclip;
+                for (s32 k = 0; k <= n; k++) {
+                    c += step; if (c >= n) c = -1; if (c < -1) c = n - 1;
+                    if (c < 0 || models.clips[c].nbones == gsk->nbones) break;
+                }
+                gclip = c; anim_t = 0;
+            }
+            if (!ak_setting_str("AK_GALLERY_TIME", NULL)) anim_t += dt;
             orbit_yaw += (in.rx * 2.0f + 0.4f) * dt; orbit_pitch += in.ry * 1.5f * dt;
             if (orbit_pitch > 1.4f) orbit_pitch = 1.4f;
             if (orbit_pitch < -1.4f) orbit_pitch = -1.4f;
@@ -137,15 +151,24 @@ int main(int argc, char **argv)
             ak_gfx_begin(0x40382Eu | 0xFF000000u, &vp, &env);
             ak_scene_stats ms; memset(&ms, 0, sizeof ms);
             const f32 (*bp)[12] = NULL;
-            if (m->skeleton >= 0 && models.skels[m->skeleton].nbones <= 512) { ak_skeleton_bind_matrices(&models.skels[m->skeleton], bones); bp = (const f32 (*)[12])bones; }
+            const ak_anim_clip *clip = gclip >= 0 ? &models.clips[gclip] : NULL;
+            if (m->skeleton >= 0 && models.skels[m->skeleton].nbones <= 512) {
+                const ak_skeleton *sk = &models.skels[m->skeleton];
+                if (clip) { ak_anim_sample(clip, sk, anim_t, true, lq, (f32 (*)[3])lt); ak_skeleton_pose_matrices(sk, lq, (const f32 (*)[3])lt, bones); }
+                else ak_skeleton_bind_matrices(sk, bones);
+                bp = (const f32 (*)[12])bones;
+            }
             ak_scene_models_draw(&mscene, gallery[gsel], &vp, &ident, bp, &ms);
             if (show) {
                 char line[200];
                 snprintf(line, sizeof line, "Aurek %s  %s  %.1f fps  %.2f ms", AK_BUILD_ID, ak_gfx_name(), fps, frame_ms); ak_gfx_text(8, 8, 0xFFFFFFFF, line);
                 snprintf(line, sizeof line, "%s  model %u/%u: %s", levels[cur].label, gsel + 1, ngallery, m->name); ak_gfx_text(8, 26, 0xFFFFFFFF, line);
-                snprintf(line, sizeof line, "parts %u  bones %u  vertices %u  triangles %u  size %.1f m  (bind pose)", m->nparts,
+                snprintf(line, sizeof line, "parts %u  bones %u  vertices %u  triangles %u  size %.1f m", m->nparts,
                          m->skeleton >= 0 ? models.skels[m->skeleton].nbones : 0, m->nvtx, m->nidx / 3, ext); ak_gfx_text(8, 44, 0xFFFFFFFF, line);
-                ak_gfx_text(8, 62, 0xFFC0C0C0, "d-pad left/right: model   right stick: turn   left stick: zoom   circle: back to the level");
+                if (clip) snprintf(line, sizeof line, "clip: %s  (%.2f s, %u keys)", clip->name, clip->duration, clip->nrot);
+                else snprintf(line, sizeof line, "clip: none (bind pose)");
+                ak_gfx_text(8, 62, 0xFFFFFFFF, line);
+                ak_gfx_text(8, 80, 0xFFC0C0C0, "d-pad left/right: model  up/down: clip  right stick: turn  left stick: zoom  circle: level");
             }
             ak_gfx_end(&gs);
             frame++; fps_frames++;

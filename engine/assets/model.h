@@ -35,10 +35,31 @@ typedef struct {
     f32 bmin[3], bmax[3];              /* bind-pose box in model space */
 } ak_model;
 
+/* animation clip (HCAN v5).  One channel per bone in the skeleton's order (plus a root-motion channel when flagged); every key is the
+ * bone's absolute local transform.  Rotations are packed in 32 bits ("smallest three": three 10-bit components scaled by 1/sqrt2 and a
+ * 2-bit index; index i drops component (i+3) mod 4 of (x, y, z, w), the stored three follow it cyclically).  Key times are u16 over
+ * the clip's duration.  Position keys use the rotation keys' times when the counts match; one key = constant. */
+typedef struct { u16 rot_count, rot_first, pos_count, pos_first; } ak_anim_channel;
+typedef struct {
+    const char *name; u32 name_hash;
+    u32 nbones, nchannels;             /* channels = bones (+1 root-motion channel) */
+    u32 flags; f32 duration;
+    ak_anim_channel *chan;
+    ak_quat *rot; u16 *rtime;          /* decoded at load, engine axes */
+    f32 (*pos)[3]; u32 npos, nrot;
+} ak_anim_clip;
+
 typedef struct {
     ak_model *models; u32 nmodels;
     ak_skeleton *skels; u32 nskels;
+    ak_anim_clip *clips; u32 nclips;
 } ak_model_set;
+
+/* a clip's pose at time t (seconds, wrapped when loop): local rotation and translation per bone (skeleton order).  Bones the clip
+ * has no channel for (or a channel without keys: upper-body overlay clips) keep the skeleton's bind pose. */
+void ak_anim_sample(const ak_anim_clip *c, const ak_skeleton *s, f32 t, bool loop, ak_quat *lq, f32 (*lt)[3]);
+/* model-space 3x4 matrices from local transforms */
+void ak_skeleton_pose_matrices(const ak_skeleton *s, const ak_quat *lq, const f32 (*lt)[3], f32 (*m)[12]);
 
 /* all models and skeletons of a level file (textures resolved against the level's) */
 bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out);
