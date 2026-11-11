@@ -23,6 +23,7 @@ add_custom_target(independence ALL COMMAND sh ${E}/tools/check_independence.sh V
 add_compile_options(-O3 -march=armv7-a+simd -mtune=cortex-a9 -mfpu=neon -mfloat-abi=hard -mthumb -fomit-frame-pointer
                     -ffunction-sections -fdata-sections -fno-math-errno -ffp-contract=fast -fno-signed-zeros -fno-trapping-math -flto=auto
                     -Wall -Wextra -Wno-unused-parameter)
+include_directories(${E})
 add_executable(aurek
   ${E}/app/viewer.c ${E}/core/ak_core.c ${E}/core/ak_vfs.c ${E}/core/ak_settings.c ${E}/assets/asura.c ${E}/assets/model.c ${E}/assets/entity.c ${E}/assets/blueprint.c ${E}/game/ak_soldier.c ${E}/world/ak_collision.c ${E}/world/ak_nav.c ${E}/render/ak_scene.c
   plat_vita.c gfx_gxm.c)
