@@ -83,6 +83,9 @@ typedef struct {
     ak_material *mat; u32 nmat;        /* the environment's materials */
     ak_level_geom geom;
     u32 nchunks;
+    /* sky box (SKYB v10, ground levels): tint (0..255), turn about the vertical axis (radians), textures front, back, left, right, up
+     * (-1 = none).  Space levels store their sky differently (placed panels); not read yet. */
+    bool has_sky; f32 sky_tint[3], sky_angle; s32 sky_tex[5]; const char *sky_names[5];
 } ak_level;
 bool ak_level_load(const char *path, ak_arena *a, ak_level *out);       /* a file on disk (tools) */
 bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *out);  /* a file already read (ak_vfs) */

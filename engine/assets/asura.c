@@ -331,6 +331,15 @@ bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *l)
             for (u32 i = 0; i < last_text.count && !envs; i++) envs = strstr(last_text.names[i], "environments") != NULL;
             ak_material *m; u32 n;
             if (envs && ak_mtrl_parse(&c, a, &m, &n) && n > 8) { l->mat = m; l->nmat = n; l->env_names = last_text; have_env_mtrl = true; }
+        } else if (tag == AK_TAG('S', 'K', 'Y', 'B') && c.size >= 24 && ((const char *)c.body)[20] == '\\') {
+            l->has_sky = true;
+            for (int k = 0; k < 3; k++) l->sky_tint[k] = ak_rdf32(c.body + 4 * k);
+            l->sky_angle = ak_rdf32(c.body + 12);
+            u32 q = 20;
+            for (int k = 0; k < 5; k++) {
+                const char *nm = (const char *)c.body + q; size_t n = q < c.size ? strnlen(nm, c.size - q) : 0;
+                l->sky_names[k] = n ? nm : NULL; q += (u32)((n + 1 + 3) & ~(size_t)3);
+            }
         } else if (ak_rscf_parse(&c, &r)) {
             if (r.type == AK_RSCF_TEXTURE) {
                 if (ak_texture_parse(&r, a, &l->tex[l->ntex])) l->ntex++; else l->tex_unsupported++;
@@ -339,6 +348,10 @@ bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *l)
                 if (!have_env) AK_ERROR("level", "level geometry did not parse");
             }
         }
+    }
+    for (int k = 0; k < 5; k++) {
+        l->sky_tex[k] = -1;
+        if (l->has_sky && l->sky_names[k]) { char nm[512]; snprintf(nm, sizeof nm, "\\graphics%s", l->sky_names[k]); l->sky_tex[k] = ak_level_find_texture(l, nm); }
     }
     for (u32 i = 0; i < l->nmat; i++) {                            /* materials -> textures ("\graphics" + the TEXT name) */
         for (int slot = 0; slot < 2; slot++) {

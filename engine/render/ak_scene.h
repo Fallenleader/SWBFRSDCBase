@@ -13,11 +13,14 @@ typedef struct {
     struct ak_draw_item *items; u32 nitems_cap;
     u8 *obj_visible;
     f32 bounds_min[3], bounds_max[3];
+    ak_gfx_buf *sky_vb, *sky_ib;          /* sky box: five faces, drawn first around the camera */
 } ak_scene_level;
 
 bool ak_scene_level_init(ak_scene_level *s, const ak_level *l, ak_arena *a);
 void ak_scene_level_free(ak_scene_level *s);
 void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *view_proj, ak_scene_stats *st);
+/* the sky box, before the level: proj and the camera's view (only its rotation is used); radius in metres (inside the far plane) */
+void ak_scene_sky_draw(ak_scene_level *s, const ak_m4 *proj, const ak_m4 *view, f32 radius);
 #endif
 
 /* ---- models: every model of the level in one vertex and one index buffer (uploaded once), drawn part by part with the

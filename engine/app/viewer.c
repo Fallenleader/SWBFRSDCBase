@@ -194,6 +194,7 @@ int main(int argc, char **argv)
         ak_gfx_env env = { { 0.55f, 0.62f, 0.70f }, ak_setting_float("AK_FOG_START", 0), ak_setting_float("AK_FOG_END", 0),
                            ak_setting_float("AK_COLOUR_SCALE", 2.0f) };
         ak_gfx_begin(0x6B5A4Cu | 0xFF000000u, &vp, &env);
+        if (ak_setting_int("AK_SKY", 1)) ak_scene_sky_draw(&scene, &proj, &view, ak_setting_float("AK_FAR", 8000.0f) * 0.45f);
         ak_scene_stats ss; ak_scene_level_draw(&scene, &vp, &ss);
         if (show) {
             char line[160];

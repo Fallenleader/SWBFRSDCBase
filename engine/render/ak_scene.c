@@ -1,5 +1,6 @@
 #include "ak_scene.h"
 #include <stdlib.h>
+#include <math.h>
 
 typedef struct ak_draw_item { u32 key; u32 batch; } ak_draw_item;
 
@@ -24,6 +25,25 @@ bool ak_scene_level_init(ak_scene_level *s, const ak_level *l, ak_arena *a)
     s->obj_visible = AK_NEW(a, u8, g->nobj ? g->nobj : 1);
     if (!s->vb || !s->ib || !s->tex || !s->items || !s->obj_visible) return false;
     for (u32 i = 0; i < l->ntex; i++) { s->tex[i] = ak_gfx_texture(&l->tex[i]); s->tex_cutout[i] = texture_has_cutout(&l->tex[i]); }
+    if (l->has_sky) {   /* unit cube faces seen from inside: front -Z, back +Z, left -X, right +X, up +Y; corners TL, TR, BL, BR */
+        static const s8 F[5][4][3] = {
+            { { -1, 1, -1 }, { 1, 1, -1 }, { -1, -1, -1 }, { 1, -1, -1 } }, { { 1, 1, 1 }, { -1, 1, 1 }, { 1, -1, 1 }, { -1, -1, 1 } },
+            { { -1, 1, 1 }, { -1, 1, -1 }, { -1, -1, 1 }, { -1, -1, -1 } }, { { 1, 1, -1 }, { 1, 1, 1 }, { 1, -1, -1 }, { 1, -1, 1 } },
+            { { -1, 1, 1 }, { 1, 1, 1 }, { -1, 1, -1 }, { 1, 1, -1 } } };
+        ak_vtx v[20]; u32 ix[30]; const f32 e = 1.0f / 512.0f;
+        for (int f = 0; f < 5; f++) {
+            for (int c = 0; c < 4; c++) {
+                ak_vtx *o = &v[f * 4 + c]; memset(o, 0, sizeof *o);
+                for (int k = 0; k < 3; k++) o->pos[k] = F[f][c][k];
+                o->uv[0] = (c & 1) ? 1 - e : e; o->uv[1] = (c & 2) ? 1 - e : e;
+                for (int k = 0; k < 3; k++) { f32 t = l->sky_tint[k] * (128.0f / 255.0f); o->col[k] = (u8)(t > 255 ? 255 : t); }
+                o->col[3] = 255;
+            }
+            u32 b = (u32)f * 4, *q = ix + f * 6;
+            q[0] = b; q[1] = b + 2; q[2] = b + 3; q[3] = b; q[4] = b + 3; q[5] = b + 1;      /* TL BL BR, TL BR TR */
+        }
+        s->sky_vb = ak_gfx_vertices(v, 20); s->sky_ib = ak_gfx_indices(ix, 30);
+    }
     for (int k = 0; k < 3; k++) { s->bounds_min[k] = 1e30f; s->bounds_max[k] = -1e30f; }
     for (u32 o = 0; o < g->nobj; o++)
         if (g->obj_bounds[o].min[0] <= g->obj_bounds[o].max[0])
@@ -39,7 +59,23 @@ void ak_scene_level_free(ak_scene_level *s)
     ak_gfx_wait_idle();
     for (u32 i = 0; s->level && i < s->level->ntex; i++) ak_gfx_free_tex(s->tex[i]);
     ak_gfx_free_buf(s->vb); ak_gfx_free_buf(s->ib);
+    if (s->sky_vb) { ak_gfx_free_buf(s->sky_vb); ak_gfx_free_buf(s->sky_ib); }
     memset(s, 0, sizeof *s);
+}
+
+void ak_scene_sky_draw(ak_scene_level *s, const ak_m4 *proj, const ak_m4 *view, f32 radius)
+{
+    if (!s->sky_vb) return;
+    const ak_level *l = s->level;
+    ak_m4 rv = *view; rv.m[12] = rv.m[13] = rv.m[14] = 0;                 /* rotation only: the sky stays around the camera */
+    f32 c = cosf(l->sky_angle), sn = sinf(l->sky_angle);
+    ak_m4 w; memset(&w, 0, sizeof w);
+    w.m[0] = c * radius; w.m[2] = -sn * radius; w.m[5] = radius; w.m[8] = sn * radius; w.m[10] = c * radius; w.m[15] = 1;
+    ak_m4 pv = ak_m4_mul(proj, &rv), mvp = ak_m4_mul(&pv, &w);
+    ak_gfx_set_transform(&mvp);
+    for (int f = 0; f < 5; f++)
+        if (l->sky_tex[f] >= 0) ak_gfx_draw(AK_PIPE_OPAQUE, s->tex[l->sky_tex[f]], s->sky_vb, s->sky_ib, (u32)f * 6, 6);
+    ak_gfx_set_transform(NULL);
 }
 
 static s32 batch_texture(const ak_level *l, const ak_batch *bt)
@@ -124,6 +160,7 @@ void ak_scene_models_free(ak_scene_models *s)
     ak_gfx_free_buf(s->vb); ak_gfx_free_buf(s->ib);
     memset(s, 0, sizeof *s);
 }
+
 
 void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_m4 *world, const f32 (*bones)[12], ak_scene_stats *st)
 {
