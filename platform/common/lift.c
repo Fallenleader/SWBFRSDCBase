@@ -502,7 +502,7 @@ static int lift_walk(u32 tree, u32 org, u32 dir, u32 tmaxp, u32 cb, void *rv){
  * the other cores or rewriting natively.  Off (the default), the game's own code runs. */
 typedef struct { u32 fn; u32 n; u64 us; } cen_t;
 #define CEN_N 256
-static cen_t cen[CEN_N], cen2[CEN_N]; static u64 cen_loop_us, cen_tail_us, cen_tail3[3], cen_tree_us; static int cen_frames, cen_on = -1, cen_depth;
+static cen_t cen[CEN_N], cen2[CEN_N]; static u64 cen_loop_us, cen_tail_us, cen_tail3[3], cen_tree_us; static int cen_frames, cen_on = -1, cen_depth; static double cen_dt, cen_dt_min = 1e9, cen_dt_max, cen_real, cen_real_max; static u64 cen_last;
 static void cen_put(cen_t *cen, u32 fn, u64 us){
     unsigned h = (fn >> 2) * 2654435761u >> 24;
     for (int k = 0; k < CEN_N; k++) { cen_t *e = &cen[(h + k) & (CEN_N - 1)]; if (e->fn == fn || !e->fn) { e->fn = fn; e->n++; e->us += us; return; } } }
@@ -517,7 +517,10 @@ static void cen_report(void){
     memcpy(s, cen2, sizeof s); qsort(s, CEN_N, sizeof s[0], cen_cmp);
     fprintf(stderr, "\n[CENSUS] behaviour nodes (own time, children apart):");
     for (int i = 0; i < 32 && s[i].fn; i++) fprintf(stderr, " %08x %.2f ms x%.1f;", s[i].fn, s[i].us / 1000.0 / F, s[i].n / F);
-    fprintf(stderr, "\n"); memset(cen, 0, sizeof cen); memset(cen2, 0, sizeof cen2); cen_loop_us = cen_tail_us = cen_tree_us = 0; memset(cen_tail3, 0, sizeof cen_tail3); cen_frames = 0; }
+    fprintf(stderr, "\n[CENSUS] game frame time (the update's dt): %.1f ms average, %.1f..%.1f ms; real time between updates %.1f ms average, %.1f ms longest\n",
+            1000.0 * cen_dt / F, 1000.0 * cen_dt_min, 1000.0 * cen_dt_max, cen_real / 1000.0 / F, cen_real_max / 1000.0);
+    cen_dt = cen_dt_max = cen_real = cen_real_max = 0; cen_dt_min = 1e9;
+    memset(cen, 0, sizeof cen); memset(cen2, 0, sizeof cen2); cen_loop_us = cen_tail_us = cen_tree_us = 0; memset(cen_tail3, 0, sizeof cen_tail3); cen_frames = 0; }
 static int cen_enabled(void){
     if (cen_on < 0) { extern int rs_setting_int(const char *, int); cen_on = rs_setting_int("RS_UPDATE_CENSUS", 0) > 0; if (cen_on) fprintf(stderr, "[CENSUS] object update census on\n"); }
     return cen_on; }
@@ -541,6 +544,8 @@ int rs_update_census(u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, flo
     float dt = BITSF(LD32(D_08B285A0)); u32 node = LD32(D_08C2520C); rv_t r = {0, 0, 0};
     ST32(sp, D_08C2520C); ST32(sp + 4, node);
     u64 t_loop = rs_perf_us();
+    cen_dt += dt; if (dt < cen_dt_min) cen_dt_min = dt; if (dt > cen_dt_max) cen_dt_max = dt;
+    if (cen_last) { double g = (double)(t_loop - cen_last); cen_real += g; if (g > cen_real_max) cen_real_max = g; } cen_last = t_loop;
     while (node) {
         u32 obj = LD32(node), fn = LD32(LD32(obj) + 20); u64 t = rs_perf_us();
         r = ((ifn_t)RS_FPTR(fn))(obj, a1, a2, a3, t0, t1, t2, t3, dt, f13, f14, f15, f16, f17, f18, f19);
