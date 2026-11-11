@@ -127,13 +127,15 @@ static const char *vs_src =
     "  out float4 vPos : POSITION, out float2 vUv : TEXCOORD0, out half4 vCol : TEXCOORD1, out half vFog : TEXCOORD2)\n"
     "{ float4 q = float4(aPos, 1.0); float4 p = float4(dot(q, uVP[0]), dot(q, uVP[1]), dot(q, uVP[2]), dot(q, uVP[3])); vPos = p; vUv = aUv; vCol = half4(aCol.rgb * uFogRange.z, aCol.a);\n"
     "  vFog = uFogRange.y > uFogRange.x ? saturate((p.w - uFogRange.x) / (uFogRange.y - uFogRange.x)) : 0.0; }\n";
-static const char *fs_src[AK_PIPE_COUNT] = {
+static const char *fs_opaque =
     "half4 main(float2 vUv : TEXCOORD0, half4 vCol : TEXCOORD1, half vFog : TEXCOORD2, uniform sampler2D uTex, uniform half3 uFog)\n"
-    "{ half4 t = tex2D(uTex, vUv); return half4(lerp(t.rgb * vCol.rgb, uFog, vFog), 1.0); }\n",
+    "{ half4 t = tex2D(uTex, vUv); return half4(lerp(t.rgb * vCol.rgb, uFog, vFog), 1.0); }\n";
+static const char *fs_cutout =
     "half4 main(float2 vUv : TEXCOORD0, half4 vCol : TEXCOORD1, half vFog : TEXCOORD2, uniform sampler2D uTex, uniform half3 uFog)\n"
-    "{ half4 t = tex2D(uTex, vUv); if (t.a < 0.5) discard; return half4(lerp(t.rgb * vCol.rgb, uFog, vFog), 1.0); }\n",
+    "{ half4 t = tex2D(uTex, vUv); if (t.a < 0.5) discard; return half4(lerp(t.rgb * vCol.rgb, uFog, vFog), 1.0); }\n";
+static const char *fs_alpha =      /* layer, blend, add: one shader, three blend states */
     "half4 main(float2 vUv : TEXCOORD0, half4 vCol : TEXCOORD1, half vFog : TEXCOORD2, uniform sampler2D uTex, uniform half3 uFog)\n"
-    "{ half4 t = tex2D(uTex, vUv); return half4(lerp(t.rgb * vCol.rgb, uFog, vFog), t.a * vCol.a); }\n" };
+    "{ half4 t = tex2D(uTex, vUv); return half4(lerp(t.rgb * vCol.rgb, uFog, vFog), t.a * vCol.a); }\n";
 static const char *ui_vs =
     "void main(float2 aPos, float2 aUv, float4 aCol, uniform float2 uScale,\n"
     "  out float4 vPos : POSITION, out float2 vUv : TEXCOORD0, out half4 vCol : TEXCOORD1)\n"
@@ -164,13 +166,16 @@ static bool make_programs(void)
     bl.colorMask = SCE_GXM_COLOR_MASK_ALL; bl.colorFunc = bl.alphaFunc = SCE_GXM_BLEND_FUNC_ADD;
     bl.colorSrc = SCE_GXM_BLEND_FACTOR_SRC_ALPHA; bl.colorDst = SCE_GXM_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     bl.alphaSrc = SCE_GXM_BLEND_FACTOR_ONE; bl.alphaDst = SCE_GXM_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    SceGxmBlendInfo add = bl; add.colorDst = SCE_GXM_BLEND_FACTOR_ONE; add.alphaDst = SCE_GXM_BLEND_FACTOR_ONE;
     for (int i = 0; i < AK_PIPE_COUNT; i++) {
-        const SceGxmProgram *f = shader(fs_src[i], 1); SceGxmShaderPatcherId fid;
+        const char *src = i == AK_PIPE_OPAQUE ? fs_opaque : (i == AK_PIPE_CUTOUT || i == AK_PIPE_OVERLAY) ? fs_cutout : fs_alpha;
+        const SceGxmBlendInfo *b = i == AK_PIPE_ADD ? &add : i >= AK_PIPE_LAYER ? &bl : NULL;
+        const SceGxmProgram *f = shader(src, 1); SceGxmShaderPatcherId fid;
         if (!f) return false;
-        sceGxmShaderPatcherRegisterProgram(patcher, f, &fid);
+        sceGxmShaderPatcherRegisterProgram(patcher, f, &fid);         /* the same program registered twice gives the same id */
         p_fog[i] = sceGxmProgramFindParameterByName(f, "uFog");
         if (sceGxmShaderPatcherCreateFragmentProgram(patcher, fid, SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE,
-                                                     i == AK_PIPE_LAYER ? &bl : NULL, v, &fp3d[i]) < 0) { AK_ERROR("gxm", "fragment program %d", i); return false; }
+                                                     b, v, &fp3d[i]) < 0) { AK_ERROR("gxm", "fragment program %d", i); return false; }
     }
     pa = sceGxmProgramFindParameterByName(u, "aPos"); pu = sceGxmProgramFindParameterByName(u, "aUv"); pc = sceGxmProgramFindParameterByName(u, "aCol");
     p_uiscale = sceGxmProgramFindParameterByName(u, "uScale");
@@ -366,7 +371,8 @@ void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 f
         sceGxmSetUniformDataF(ub, p_vp, 0, 16, vp_t.m);
         f32 fr[3] = { env_.fog_start, env_.fog_end, env_.colour_scale }; sceGxmSetUniformDataF(ub, p_fogr, 0, 3, fr);
         if (p_fog[p]) { void *fb_; sceGxmReserveFragmentDefaultUniformBuffer(ctx, &fb_); sceGxmSetUniformDataF(fb_, p_fog[p], 0, 3, env_.fog_rgb); }
-        sceGxmSetFrontDepthWriteEnable(ctx, p == AK_PIPE_LAYER ? SCE_GXM_DEPTH_WRITE_DISABLED : SCE_GXM_DEPTH_WRITE_ENABLED);
+        sceGxmSetFrontDepthWriteEnable(ctx, p >= AK_PIPE_LAYER ? SCE_GXM_DEPTH_WRITE_DISABLED : SCE_GXM_DEPTH_WRITE_ENABLED);
+        if (p == AK_PIPE_OVERLAY || p == AK_PIPE_BLEND) sceGxmSetFrontDepthBias(ctx, -1, -2); else sceGxmSetFrontDepthBias(ctx, 0, 0);
         cur_pipe = (int)p; cur_tex = NULL; cur_vb = NULL;
     }
     if (t != cur_tex) { sceGxmSetFragmentTexture(ctx, 0, t ? &t->tex : &white_tex); cur_tex = t; }

@@ -1,6 +1,7 @@
 #include "asura.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 /* ------------------------------------------------------------------ containers */
 bool ak_asura_check(const ak_blob *f) { return f->size >= 8 && memcmp(f->data, "Asura   ", 8) == 0; }
@@ -63,7 +64,7 @@ bool ak_mtrl_parse(const ak_chunk *c, ak_arena *a, ak_material **out, u32 *count
         const u8 *r = c->body + 4 + 36 * i;
         for (int k = 0; k < 6; k++) m[i].tex[k] = (s32)ak_rd32(r + 4 * k);
         m[i].flags = (s32)ak_rd32(r + 24); m[i].mode = (s32)ak_rd32(r + 28); m[i].extra = (s32)ak_rd32(r + 32);
-        m[i].texture = -1;
+        m[i].texture = m[i].texture2 = -1;
     }
     *out = m; *count = n;
     return true;
@@ -126,6 +127,75 @@ static int tri_cmp(const void *x, const void *y)
     if (p->key != q->key) return p->key < q->key ? -1 : 1;
     return p->ord < q->ord ? -1 : p->ord > q->ord ? 1 : 0;
 }
+/* Coplanar overlays.  Some surfaces are painted over others in the same plane (hangar floor markings over floor tiles, signs on
+ * walls).  The PSP draws them after their base and lets equal depth pass; with draws reordered for the GPU they fight for the
+ * same depth.  A triangle that lies in the plane of an earlier triangle (the game's order) of another material and overlaps it with
+ * real area (not just a shared edge) is marked as an overlay: it is drawn after the base surfaces with a small depth bias. */
+typedef struct { s32 k[4]; u32 tri; } plane_rec;
+static int plane_cmp(const void *x, const void *y)
+{
+    const plane_rec *p = (const plane_rec *)x, *q = (const plane_rec *)y;
+    for (int i = 0; i < 4; i++) if (p->k[i] != q->k[i]) return p->k[i] < q->k[i] ? -1 : 1;
+    return p->tri < q->tri ? -1 : p->tri > q->tri ? 1 : 0;
+}
+static void proj2(const f32 *p, int ax, f32 *o) { o[0] = p[ax == 0 ? 1 : 0]; o[1] = p[ax == 2 ? 1 : 2]; }
+static bool sep_axis(const f32 (*a)[2], const f32 (*b)[2], f32 eps)
+{
+    for (int t = 0; t < 2; t++) {
+        const f32 (*P)[2] = t ? b : a;
+        for (int e = 0; e < 3; e++) {
+            f32 nx = P[(e + 1) % 3][1] - P[e][1], ny = P[e][0] - P[(e + 1) % 3][0];
+            f32 l = sqrtf(nx * nx + ny * ny); if (l < 1e-9f) continue; nx /= l; ny /= l;
+            f32 amin = 1e30f, amax = -1e30f, bmin = 1e30f, bmax = -1e30f;
+            for (int k = 0; k < 3; k++) {
+                f32 da = a[k][0] * nx + a[k][1] * ny, db = b[k][0] * nx + b[k][1] * ny;
+                amin = fminf(amin, da); amax = fmaxf(amax, da); bmin = fminf(bmin, db); bmax = fmaxf(bmax, db);
+            }
+            if (amax <= bmin + eps || bmax <= amin + eps) return true;      /* separated, or only touching */
+        }
+    }
+    return false;
+}
+static u32 mark_overlays(const ak_vtx *V, const u32 (*tri)[3], const u32 *mat, const u8 *lay, u8 *overlay, u32 nt)
+{
+    plane_rec *pr = (plane_rec *)malloc(sizeof *pr * (nt ? nt : 1)); u32 np = 0, marked = 0;
+    if (!pr) return 0;
+    for (u32 i = 0; i < nt; i++) {
+        if (lay[i]) continue;
+        const f32 *p0 = V[tri[i][0]].pos, *p1 = V[tri[i][1]].pos, *p2 = V[tri[i][2]].pos;
+        f32 e1[3] = { p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2] }, e2[3] = { p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2] };
+        f32 n[3] = { e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0] };
+        f32 l = sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+        if (l < 1e-6f) continue;
+        n[0] /= l; n[1] /= l; n[2] /= l;
+        pr[np].k[0] = (s32)lrintf(n[0] * 50); pr[np].k[1] = (s32)lrintf(n[1] * 50); pr[np].k[2] = (s32)lrintf(n[2] * 50);
+        pr[np].k[3] = (s32)lrintf((n[0] * p0[0] + n[1] * p0[1] + n[2] * p0[2]) * 25);      /* 4 cm planes */
+        pr[np].tri = i; np++;
+    }
+    qsort(pr, np, sizeof *pr, plane_cmp);
+    for (u32 g0 = 0; g0 < np;) {
+        u32 g1 = g0 + 1;
+        while (g1 < np && !memcmp(pr[g1].k, pr[g0].k, sizeof pr[g0].k)) g1++;
+        if (g1 - g0 > 1 && g1 - g0 < 4096) {
+            for (u32 j = g0 + 1; j < g1; j++) {               /* later triangle j over an earlier triangle i of another material */
+                u32 tj = pr[j].tri;
+                f32 nrm[3] = { (f32)pr[j].k[0], (f32)pr[j].k[1], (f32)pr[j].k[2] };
+                int ax = fabsf(nrm[0]) > fabsf(nrm[1]) ? (fabsf(nrm[0]) > fabsf(nrm[2]) ? 0 : 2) : (fabsf(nrm[1]) > fabsf(nrm[2]) ? 1 : 2);
+                f32 B[3][2]; for (int k = 0; k < 3; k++) proj2(V[tri[tj][k]].pos, ax, B[k]);
+                for (u32 i = g0; i < j && !overlay[tj]; i++) {
+                    u32 ti = pr[i].tri;
+                    if (mat[ti] == mat[tj] || overlay[ti]) continue;
+                    f32 A[3][2]; for (int k = 0; k < 3; k++) proj2(V[tri[ti][k]].pos, ax, A[k]);
+                    if (!sep_axis((const f32 (*)[2])A, (const f32 (*)[2])B, 0.01f)) { overlay[tj] = 1; marked++; }
+                }
+            }
+        }
+        g0 = g1;
+    }
+    free(pr);
+    return marked;
+}
+
 static s8 snorm8(s16 v) { int r = (v * 127 + (v >= 0 ? 16384 : -16384)) / 32768; return (s8)(r < -127 ? -127 : r > 127 ? 127 : r); }
 
 bool ak_env_parse(const ak_rscf *r, ak_arena *a, ak_level_geom *g)
@@ -157,7 +227,7 @@ bool ak_env_parse(const ak_rscf *r, ak_arena *a, ak_level_geom *g)
             f32 gp[3] = { ak_rdf32(v + 12), ak_rdf32(v + 16), ak_rdf32(v + 20) };
             ak_from_game(gp, o->pos);
             o->uv[0] = u / 256.0f; o->uv[1] = vv / 256.0f;
-            o->nrm[0] = snorm8((s16)ak_rd16(v + 6)); o->nrm[1] = (s8)-snorm8((s16)ak_rd16(v + 8)); o->nrm[2] = snorm8((s16)ak_rd16(v + 10)); o->nrm[3] = 0;
+            o->nrm[0] = snorm8((s16)ak_rd16(v + 6)); o->nrm[1] = (s8)-snorm8((s16)ak_rd16(v + 8)); o->nrm[2] = (s8)-snorm8((s16)ak_rd16(v + 10)); o->nrm[3] = 0;
             if (vt == 0x1DA) { o->col[0] = (u8)((c & 15) * 17); o->col[1] = (u8)(((c >> 4) & 15) * 17); o->col[2] = (u8)(((c >> 8) & 15) * 17); o->col[3] = (u8)((c >> 12) * 17); }
             else { o->col[0] = (u8)((c & 31) * 255 / 31); o->col[1] = (u8)(((c >> 5) & 63) * 255 / 63); o->col[2] = (u8)((c >> 11) * 255 / 31); o->col[3] = 255; }
         }
@@ -165,7 +235,7 @@ bool ak_env_parse(const ak_rscf *r, ak_arena *a, ak_level_geom *g)
     free(seen);
     if (maxobj > 0xFFFF) return false;
 
-    /* strips -> triangles (degenerate joins dropped), winding reversed for the mirrored axes, then grouped */
+    /* strips -> triangles (degenerate joins dropped; the strip's alternate triangles flipped to keep one winding), then grouped */
     tri_rec *tr = (tri_rec *)malloc(sizeof(tri_rec) * (maxtri ? maxtri : 1)); u32 nt = 0;
     if (!tr) return false;
     u32 nmat_seen = 0;
@@ -178,10 +248,20 @@ bool ak_env_parse(const ak_rscf *r, ak_arena *a, ak_level_geom *g)
             if (k & 1) { u32 t = x; x = y; y = t; }
             const f32 *px = g->vtx[x].pos, *py = g->vtx[y].pos, *pz = g->vtx[z].pos;
             if (!memcmp(px, py, 12) || !memcmp(py, pz, 12) || !memcmp(px, pz, 12)) continue;
-            /* key: layer (1 bit) | object (16 bits) | material (15 bits; 0x7FFF = none) */
-            u32 mk = mat == 0xFFFFFFFF ? 0x7FFF : (mat & 0x7FFF);
-            tr[nt].key = (layer << 31) | (obj << 15) | mk; tr[nt].ord = nt; tr[nt].a = x; tr[nt].b = z; tr[nt].c = y; nt++;
+            /* key: layer (1 bit) | object (16 bits) | overlay (1 bit, set below) | material (14 bits; 0x3FFF = none) */
+            u32 mk = mat == 0xFFFFFFFF ? 0x3FFF : (mat & 0x3FFF);
+            tr[nt].key = (layer << 31) | (obj << 15) | mk; tr[nt].ord = nt; tr[nt].a = x; tr[nt].b = y; tr[nt].c = z; nt++;
         }
+    }
+    {   /* overlays (see mark_overlays): the key's bit 14 */
+        u32 (*tv)[3] = (u32 (*)[3])malloc(12u * (nt ? nt : 1)); u32 *tm = (u32 *)malloc(4u * (nt ? nt : 1));
+        u8 *tl = (u8 *)malloc(nt ? nt : 1), *ov = (u8 *)calloc(nt ? nt : 1, 1);
+        if (tv && tm && tl && ov) {
+            for (u32 i = 0; i < nt; i++) { tv[i][0] = tr[i].a; tv[i][1] = tr[i].b; tv[i][2] = tr[i].c; tm[i] = tr[i].key & 0x3FFF; tl[i] = (u8)(tr[i].key >> 31); }
+            g->overlay_tris = mark_overlays(g->vtx, (const u32 (*)[3])tv, tm, tl, ov, nt);
+            for (u32 i = 0; i < nt; i++) if (ov[i]) tr[i].key |= 1u << 14;
+        }
+        free(tv); free(tm); free(tl); free(ov);
     }
     qsort(tr, nt, sizeof *tr, tri_cmp);
     g->idx = AK_NEW(a, u32, nt ? nt * 3 : 1); g->nidx = nt * 3;
@@ -194,8 +274,9 @@ bool ak_env_parse(const ak_rscf *r, ak_arena *a, ak_level_geom *g)
     for (u32 i = 0; i < nt; i++) {
         if (i == 0 || tr[i].key != tr[i - 1].key) {
             ak_batch *bt = &g->batch[g->nbatch++];
-            u32 k = tr[i].key, mk = k & 0x7FFF;
-            bt->layer = (u8)(k >> 31); bt->object = (u16)((k >> 15) & 0xFFFF); bt->material = mk == 0x7FFF ? 0xFFFFFFFFu : mk;
+            u32 k = tr[i].key, mk = k & 0x3FFF;
+            bt->layer = (u8)(k >> 31); bt->object = (u16)((k >> 15) & 0xFFFF); bt->material = mk == 0x3FFF ? 0xFFFFFFFFu : mk;
+            bt->overlay = (u8)((k >> 14) & 1);
             bt->first = i * 3; bt->count = 0;
         }
         ak_batch *bt = &g->batch[g->nbatch - 1];
@@ -260,10 +341,12 @@ bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *l)
         }
     }
     for (u32 i = 0; i < l->nmat; i++) {                            /* materials -> textures ("\graphics" + the TEXT name) */
-        s32 ti = l->mat[i].tex[0];
-        if (ti < 0 || (u32)ti >= l->env_names.count) continue;
-        char nm[512]; snprintf(nm, sizeof nm, "\\graphics%s", l->env_names.names[ti]);
-        l->mat[i].texture = ak_level_find_texture(l, nm);
+        for (int slot = 0; slot < 2; slot++) {
+            s32 ti = l->mat[i].tex[slot ? 3 : 0];
+            if (ti < 0 || (u32)ti >= l->env_names.count) continue;
+            char nm[512]; snprintf(nm, sizeof nm, "\\graphics%s", l->env_names.names[ti]);
+            *(slot ? &l->mat[i].texture2 : &l->mat[i].texture) = ak_level_find_texture(l, nm);
+        }
     }
     return have_env && have_env_mtrl;
 }

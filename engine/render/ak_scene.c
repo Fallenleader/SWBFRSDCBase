@@ -42,6 +42,13 @@ void ak_scene_level_free(ak_scene_level *s)
     memset(s, 0, sizeof *s);
 }
 
+static s32 batch_texture(const ak_level *l, const ak_batch *bt)
+{
+    if (bt->material >= l->nmat) return -1;
+    const ak_material *m = &l->mat[bt->material];
+    return bt->layer && m->texture2 >= 0 ? m->texture2 : m->texture;
+}
+
 static int item_cmp(const void *x, const void *y)
 {
     const ak_draw_item *a = (const ak_draw_item *)x, *b = (const ak_draw_item *)y;
@@ -63,24 +70,29 @@ void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *vp, ak_scene_stats *st)
     for (u32 i = 0; i < g->nbatch; i++) {
         const ak_batch *bt = &g->batch[i];
         if (!s->obj_visible[bt->object]) continue;
-        s32 ti = bt->material < l->nmat ? l->mat[bt->material].texture : -1;
-        u32 pipe = bt->layer ? AK_PIPE_LAYER : (ti >= 0 && s->tex_cutout[ti]) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
-        /* key: pipeline (2 bits) | texture (14 bits) | 0.  The blend layer keeps the game's order (batch index breaks ties). */
-        u32 key = (pipe << 30) | (bt->layer ? 0 : ((u32)(ti + 1) & 0x3FFF) << 16);
+        const ak_material *m = bt->material < l->nmat ? &l->mat[bt->material] : NULL;
+        s32 ti = m ? (bt->layer && m->texture2 >= 0 ? m->texture2 : m->texture) : -1;
+        u32 pipe = bt->layer ? AK_PIPE_LAYER
+                 : bt->overlay && !(m && (m->flags & (AK_MAT_ADDITIVE | AK_MAT_BLENDED))) ? AK_PIPE_OVERLAY
+                 : m && (m->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD
+                 : m && (m->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
+                 : (m && (m->flags & AK_MAT_ALPHA_TEST)) || (ti >= 0 && s->tex_cutout[ti]) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
+        /* key: pipeline (3 bits) | texture (13 bits).  Blended pipelines keep the game's order (the batch index breaks ties). */
+        u32 key = (pipe << 29) | (pipe >= AK_PIPE_OVERLAY ? 0 : ((u32)(ti + 1) & 0x1FFF) << 16);
         s->items[n].key = key; s->items[n].batch = i; n++;
     }
     qsort(s->items, n, sizeof *s->items, item_cmp);
     for (u32 k = 0; k < n;) {                 /* neighbouring batches with the same state and adjoining index ranges: one draw */
         const ak_batch *bt = &g->batch[s->items[k].batch];
-        s32 ti = bt->material < l->nmat ? l->mat[bt->material].texture : -1;
+        s32 ti = batch_texture(l, bt);
         u32 first = bt->first, count = bt->count, key = s->items[k].key;
         for (k++; k < n && s->items[k].key == key; k++) {
             const ak_batch *nb = &g->batch[s->items[k].batch];
-            s32 nt = nb->material < l->nmat ? l->mat[nb->material].texture : -1;
+            s32 nt = batch_texture(l, nb);
             if (nb->first != first + count || nt != ti) break;
             count += nb->count;
         }
-        ak_gfx_draw((ak_pipe)(key >> 30), ti >= 0 ? s->tex[ti] : NULL, s->vb, s->ib, first, count);
+        ak_gfx_draw((ak_pipe)(key >> 29), ti >= 0 ? s->tex[ti] : NULL, s->vb, s->ib, first, count);
         st->tris += count / 3; st->draws++;
     }
 }

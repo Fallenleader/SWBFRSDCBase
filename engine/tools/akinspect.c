@@ -60,7 +60,7 @@ int main(int argc, char **argv)
     printf("textures   %u (%u not supported)\n", l.ntex, l.tex_unsupported);
     printf("materials  %u, %u used by the geometry, %u of those with a texture found\n", l.nmat, mats_used, mats_tex);
     printf("geometry   %u strips, %u vertices as stored -> %u triangles (%u opaque, %u blend layer)\n", g->src_strips, g->src_verts, tris, opq, tris - opq);
-    printf("batches    %u (%u objects with geometry, %u object slots)\n", g->nbatch, objs, g->nobj);
+    printf("batches    %u (%u objects with geometry, %u object slots), %u overlay triangles\n", g->nbatch, objs, g->nobj, g->overlay_tris);
     for (int i = 2; i + 1 < argc; i += 2) {
         if (!strcmp(argv[i], "--obj")) write_obj(&l, argv[i + 1]);
         else if (!strcmp(argv[i], "--tex")) write_textures(&l, argv[i + 1]);

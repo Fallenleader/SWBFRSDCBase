@@ -116,7 +116,7 @@ int main(int argc, char **argv)
         cam.pos.y += (f32)(!!(in.held & AK_BTN_R) - !!(in.held & AK_BTN_L)) * speed * dt;
 
         int w, h; ak_gfx_size(&w, &h);
-        ak_m4 proj = ak_m4_perspective(1.05f, (f32)w / (f32)h, 0.5f, ak_setting_float("AK_FAR", 1500.0f));
+        ak_m4 proj = ak_m4_perspective(1.05f, (f32)w / (f32)h, ak_setting_float("AK_NEAR", 0.75f), ak_setting_float("AK_FAR", 8000.0f));
         ak_m4 view = ak_m4_view_yaw_pitch(cam.pos, cam.yaw, cam.pitch), vp = ak_m4_mul(&proj, &view);
         ak_gfx_env env = { { 0.55f, 0.62f, 0.70f }, ak_setting_float("AK_FOG_START", 0), ak_setting_float("AK_FOG_END", 0),
                            ak_setting_float("AK_COLOUR_SCALE", 2.0f) };

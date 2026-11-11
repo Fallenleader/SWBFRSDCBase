@@ -17,8 +17,9 @@ AK_SHOW_FIGURES=1
 # ---- picture
 # 1 = wait for the display's refresh (no tearing, capped at 60 fps); 0 = uncapped, to measure how fast frames really are
 AK_VSYNC=1
-# far clipping distance in metres
-AK_FAR=1500
+# clipping distances in metres (space levels have ships and planets several km away)
+AK_NEAR=0.75
+AK_FAR=8000
 # vertex colour scale: the game's baked vertex colours use 128 = full brightness, so 2 is the game's look
 AK_COLOUR_SCALE=2.0
 # distance fog in metres (end <= start: none)

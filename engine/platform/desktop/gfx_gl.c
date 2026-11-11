@@ -31,13 +31,16 @@ static const char *vs_src =
     "uniform mat4 uVP; uniform vec3 uFogRange; out vec2 vUv; out vec4 vCol; out float vFog;\n"
     "void main(){ vec4 p = uVP * vec4(aPos, 1.0); gl_Position = p; vUv = aUv; vCol = vec4(aCol.rgb * uFogRange.z, aCol.a);\n"
     "  vFog = uFogRange.y > uFogRange.x ? clamp((p.w - uFogRange.x) / (uFogRange.y - uFogRange.x), 0.0, 1.0) : 0.0; }\n";
-static const char *fs_src[AK_PIPE_COUNT] = {
+static const char *fs_opaque =
     "#version 330 core\nin vec2 vUv; in vec4 vCol; in float vFog; uniform sampler2D uTex; uniform vec3 uFog; out vec4 o;\n"
-    "void main(){ vec4 t = texture(uTex, vUv); o = vec4(mix(t.rgb * vCol.rgb, uFog, vFog), 1.0); }\n",
+    "void main(){ vec4 t = texture(uTex, vUv); o = vec4(mix(t.rgb * vCol.rgb, uFog, vFog), 1.0); }\n";
+static const char *fs_cutout =
     "#version 330 core\nin vec2 vUv; in vec4 vCol; in float vFog; uniform sampler2D uTex; uniform vec3 uFog; out vec4 o;\n"
-    "void main(){ vec4 t = texture(uTex, vUv); if (t.a < 0.5) discard; o = vec4(mix(t.rgb * vCol.rgb, uFog, vFog), 1.0); }\n",
+    "void main(){ vec4 t = texture(uTex, vUv); if (t.a < 0.5) discard; o = vec4(mix(t.rgb * vCol.rgb, uFog, vFog), 1.0); }\n";
+static const char *fs_alpha =      /* layer, blend, add: the blend state differs, the shader does not */
     "#version 330 core\nin vec2 vUv; in vec4 vCol; in float vFog; uniform sampler2D uTex; uniform vec3 uFog; out vec4 o;\n"
-    "void main(){ vec4 t = texture(uTex, vUv); o = vec4(mix(t.rgb * vCol.rgb, uFog, vFog), t.a * vCol.a); }\n" };
+    "void main(){ vec4 t = texture(uTex, vUv); o = vec4(mix(t.rgb * vCol.rgb, uFog, vFog), t.a * vCol.a); }\n";
+static const char *fs_src[AK_PIPE_COUNT];
 static const char *ui_vs =
     "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in vec2 aUv; layout(location=2) in vec4 aCol; uniform vec2 uScale;\n"
     "out vec2 vUv; out vec4 vCol; void main(){ gl_Position = vec4(aPos.x * uScale.x - 1.0, 1.0 - aPos.y * uScale.y, 0.0, 1.0); vUv = aUv; vCol = aCol; }\n";
@@ -72,6 +75,7 @@ bool ak_gfx_init(const ak_gfx_config *c)
     if (!glc) { AK_ERROR("gl", "context: %s", SDL_GetError()); return false; }
     SDL_GL_SetSwapInterval(c->vsync ? 1 : 0);
     snprintf(name, sizeof name, "OpenGL %s (%s)", (const char *)glGetString(GL_VERSION), (const char *)glGetString(GL_RENDERER));
+    fs_src[AK_PIPE_OPAQUE] = fs_opaque; fs_src[AK_PIPE_CUTOUT] = fs_src[AK_PIPE_OVERLAY] = fs_cutout; fs_src[AK_PIPE_LAYER] = fs_src[AK_PIPE_BLEND] = fs_src[AK_PIPE_ADD] = fs_alpha;
     for (int i = 0; i < AK_PIPE_COUNT; i++) {
         prog[i] = link(vs_src, fs_src[i]);
         u_vp[i] = glGetUniformLocation(prog[i], "uVP"); u_fog[i] = glGetUniformLocation(prog[i], "uFog"); u_fogr[i] = glGetUniformLocation(prog[i], "uFogRange");
@@ -155,7 +159,10 @@ void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 f
         glUseProgram(prog[p]);
         glUniformMatrix4fv(u_vp[p], 1, GL_FALSE, cur_vp.m);
         glUniform3fv(u_fog[p], 1, cur_env.fog_rgb); glUniform3f(u_fogr[p], cur_env.fog_start, cur_env.fog_end, cur_env.colour_scale);
-        if (p == AK_PIPE_LAYER) { glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); glDepthMask(GL_FALSE); }
+        if (p == AK_PIPE_OVERLAY || p == AK_PIPE_BLEND) { glEnable(GL_POLYGON_OFFSET_FILL); glPolygonOffset(-1.0f, -2.0f); }
+        else glDisable(GL_POLYGON_OFFSET_FILL);
+        if (p == AK_PIPE_ADD) { glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE); glDepthMask(GL_FALSE); }
+        else if (p >= AK_PIPE_LAYER) { glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); glDepthMask(GL_FALSE); }
         else { glDisable(GL_BLEND); glDepthMask(GL_TRUE); }
         cur_pipe = (int)p;
     }

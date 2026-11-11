@@ -1,8 +1,9 @@
 /* Loaders for the game's own files (Rebellion's Asura engine, PSP build).  PSP formats stop here: everything these return is
  * a native structure in engine axes.
  *
- * Engine axes: right handed, +Y up, 1 unit = 1 m.  The game's files are Y down: positions and normals become (x, -y, z), which
- * mirrors the scene, so triangle winding is reversed on load.  Every loader that reads positions uses ak_from_game(). */
+ * Engine axes: right handed, +Y up, 1 unit = 1 m.  The game's files are Y down; positions and normals become (x, -y, -z): a half
+ * turn about X, which keeps the level's handedness (left stays left) and its triangle winding.  Every loader that reads
+ * positions or directions uses ak_from_game(). */
 #ifndef AK_ASURA_H
 #define AK_ASURA_H
 #include "../core/ak_core.h"
@@ -26,7 +27,19 @@ bool ak_rscf_parse(const ak_chunk *c, ak_rscf *out);
 /* ---- name lists (TEXT) and material lists (MTRL v5) */
 typedef struct { const char **names; u32 count; } ak_names;
 bool ak_text_parse(const ak_chunk *c, ak_arena *a, ak_names *out);
-typedef struct { s32 tex[6]; s32 flags, mode, extra; s32 texture; /* index into the level's textures, -1 = none */ } ak_material;
+/* material flags, as the game's level materials use them (worked out from which textures carry them; see docs/NATIVE_ENGINE.md) */
+enum {
+    AK_MAT_SELF_LIT   = 0x00000001,      /* consoles, windows, lights */
+    AK_MAT_ALPHA_TEST = 0x00000002,      /* foliage, grills, cables, fences */
+    AK_MAT_ADDITIVE   = 0x00001000,      /* laser gates, light beams, holograms, generator rays */
+    AK_MAT_BLENDED    = 0x00020000,      /* decals: scorch marks, shadow blobs, paths */
+    AK_MAT_ANIMATED   = 0x00040000       /* water, lightning, screens; 'extra' names the animation */
+};
+typedef struct {
+    s32 tex[6]; s32 flags, mode, extra;
+    s32 texture;                         /* slot 0: the surface's texture, index into the level's textures (-1 = none) */
+    s32 texture2;                        /* slot 3: the texture of the blended second layer */
+} ak_material;
 bool ak_mtrl_parse(const ak_chunk *c, ak_arena *a, ak_material **out, u32 *count);
 
 /* ---- textures: palette images, de-swizzled into plain rows.  Kept indexed: GXM samples P4/P8 directly, the 3DS and desktop
@@ -48,7 +61,7 @@ typedef struct { f32 min[3], max[3]; } ak_aabb;
 typedef struct {
     u16 object;                        /* level object (EMOD entry): the culling unit */
     u8 layer;                          /* 0 = opaque, 1 = blended second-texture layer (drawn after the opaque pass) */
-    u8 pad;
+    u8 overlay;                        /* painted over a coplanar surface of another material: drawn after it, depth-biased */
     u32 material;                      /* index into the level's materials (0xFFFFFFFF = none) */
     u32 first, count;                  /* index range */
 } ak_batch;
@@ -58,6 +71,7 @@ typedef struct {
     ak_batch *batch; u32 nbatch;       /* sorted by (layer, object, material) */
     ak_aabb *obj_bounds; u32 nobj;
     u32 src_strips, src_verts;         /* as stored (for checks against tools/asura) */
+    u32 overlay_tris;
 } ak_level_geom;
 bool ak_env_parse(const ak_rscf *r, ak_arena *a, ak_level_geom *out);
 
@@ -74,5 +88,5 @@ bool ak_level_load(const char *path, ak_arena *a, ak_level *out);       /* a fil
 bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *out);  /* a file already read (ak_vfs) */
 s32  ak_level_find_texture(const ak_level *l, const char *name);
 
-static inline void ak_from_game(const f32 *g, f32 *e) { e[0] = g[0]; e[1] = -g[1]; e[2] = g[2]; }
+static inline void ak_from_game(const f32 *g, f32 *e) { e[0] = g[0]; e[1] = -g[1]; e[2] = -g[2]; }
 #endif

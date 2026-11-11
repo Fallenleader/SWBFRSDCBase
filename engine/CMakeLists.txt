@@ -30,6 +30,7 @@ add_custom_target(independence ALL COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/
 
 add_library(akcore STATIC core/ak_core.c core/ak_vfs.c core/ak_settings.c assets/asura.c render/ak_scene.c)
 target_include_directories(akcore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(akcore PUBLIC m)
 
 add_library(akplat_desktop STATIC platform/desktop/plat_desktop.c)
 target_link_libraries(akplat_desktop PUBLIC akcore)

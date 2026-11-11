@@ -10,11 +10,14 @@
 typedef struct ak_gfx_buf ak_gfx_buf;
 typedef struct ak_gfx_tex ak_gfx_tex;
 
-/* pipelines for level geometry (vertex format ak_vtx).  Colour = texture x vertex colour, then fog. */
+/* pipelines for level geometry (vertex format ak_vtx), in drawing order.  Colour = texture x vertex colour, then fog. */
 typedef enum {
     AK_PIPE_OPAQUE,          /* depth write, no blending */
-    AK_PIPE_CUTOUT,          /* as opaque, texels with alpha < 0.5 discarded (foliage, fences) */
-    AK_PIPE_LAYER,           /* blended second-texture layer: alpha = texture alpha x vertex alpha, depth test equal-or-less, no depth write */
+    AK_PIPE_CUTOUT,          /* as opaque, texels with alpha < 0.5 discarded (foliage, fences, grills) */
+    AK_PIPE_OVERLAY,         /* as cutout, painted over a coplanar surface: drawn after it, pulled toward the camera (depth bias) */
+    AK_PIPE_LAYER,           /* blended second-texture layer: alpha = texture alpha x vertex alpha; no depth write */
+    AK_PIPE_BLEND,           /* alpha-blended surfaces and decals (scorch marks, shadows); no depth write, depth bias */
+    AK_PIPE_ADD,             /* additive glow (laser gates, light beams, holograms); no depth write */
     AK_PIPE_COUNT
 } ak_pipe;
 
