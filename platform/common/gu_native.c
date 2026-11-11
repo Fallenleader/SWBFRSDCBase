@@ -43,7 +43,7 @@ typedef struct { u16 op, words; u32 a[6]; } rop_t;                 /* words = to
 #define HDR_WORDS ((int)(sizeof(rop_t) / 4))
 
 typedef struct { u32 *w; size_t n, cap; volatile int busy; } cbuf_t;
-static int last_draw_buf = -1; static size_t last_draw_at; unsigned st_batched;   /* the last draw recorded (batching, record_draw) */
+static unsigned st_recorded_rec, st_inst_rec; static int last_draw_buf = -1; static size_t last_draw_at; unsigned st_batched; static int ops_since_draw, other_since_draw;   /* the last draw recorded (batching, record_draw) */
 #ifdef __3DS__
 #define NBUF 2                    /* the 3DS: frames recorded in two buffers (each holds a frame's vertex copies; memory is short) */
 #else
@@ -69,6 +69,7 @@ static u32 *emit(int op, int payload_words){
             return spill; }                                                 /* written by the caller, never executed */
         b->w = nw; b->cap = want; }
   fits:;
+    ops_since_draw++; if (op != OP_MATRIX) other_since_draw++;
     rop_t *r = (rop_t *)(b->w + b->n); memset(r, 0, sizeof *r); r->op = (u16)op; r->words = (u16)(need > 0xFFFF ? 0 : need);
     if (need > 0xFFFF) { r->words = 0; r->a[5] = (u32)need; }        /* big payload: size in a[5] */
     b->n += need;
@@ -283,6 +284,10 @@ static int grow_buf(cbuf_t *b, size_t extra){
     size_t want = b->n + extra + (b->n >> 1) + 65536; u32 *nw = realloc(b->w, want * 4); if (!nw) return 0; b->w = nw; b->cap = want; return 1; }
 static void record_draw(u32 prim, u32 vt, u32 count, const u8 *ip, const u8 *vp){
     if (!count || !vp) return;
+    {   /* instancing candidates (counted, not acted on yet): the same mesh drawn again with only matrices changed in between */
+        static const u8 *lvp; static u32 lvt, lcount; st_recorded_rec++;
+        if (vp == lvp && vt == lvt && count == lcount && ops_since_draw && !other_since_draw) st_inst_rec++;
+        lvp = vp; lvt = vt; lcount = count; ops_since_draw = other_since_draw = 0; }
     vt &= 0xFFFFFF; int off[5]; int vsz = vt_layout(vt, off); if (vsz <= 0) return;
     int idxf = (vt >> 11) & 3; u32 lo = 0, hi = count - 1;
     if (idxf) { if (!ip) return; lo = 0xFFFFFFFFu; hi = 0;
@@ -528,6 +533,31 @@ static void emit_scr(gfx_vtx_t *o, const rawv_t *col, float sx, float sy, float 
     o->r = col->col[0] / 255.0f; o->g = col->col[1] / 255.0f; o->b = col->col[2] / 255.0f; o->a = col->col[3] / 255.0f; o->f = 1.0f; }
 
 static u32 st_draws, st_prims;
+/* Frustum culling (RS_GU_CULL, default on): a 3D draw whose vertices' bounding box lies wholly outside one side of the view (left,
+ * right, top, bottom, or behind the camera) is not sent to the GPU at all.  Skinned and morphed draws are left to the GPU (their
+ * vertices move).  The box: the positions the draw uses, through world, view and projection (the PSP's row-vector order). */
+static unsigned st_culled, st_inst_cand, st_recorded;
+static int cull_draw(const drawhdr_t *d, const u8 *vb, const u16 *ix, u32 vt, const int *off){
+    static int on = -1; if (on < 0) { extern int rs_setting_int(const char *, int); on = rs_setting_int("RS_GU_CULL", 1); }
+    if (!on) return 0;
+    int pf = (vt >> 7) & 3, wf = (vt >> 9) & 3, morph = (vt >> 18) & 7; if (!pf || wf || morph || off[4] < 0) return 0;
+    u32 n = ix ? d->nvert : d->count; if (n < 3) return 0;
+    float lo[3] = {1e30f, 1e30f, 1e30f}, hi[3] = {-1e30f, -1e30f, -1e30f}; const u8 *p = vb + off[4];
+    for (u32 i = 0; i < n; i++, p += d->vsz) { float v[3];
+        if (pf == 3) memcpy(v, p, 12);
+        else if (pf == 2) { s16 s[3]; memcpy(s, p, 6); v[0] = s[0] / 32768.0f; v[1] = s[1] / 32768.0f; v[2] = s[2] / 32768.0f; }
+        else { const s8 *s = (const s8 *)p; v[0] = s[0] / 128.0f; v[1] = s[1] / 128.0f; v[2] = s[2] / 128.0f; }
+        for (int k = 0; k < 3; k++) { if (v[k] < lo[k]) lo[k] = v[k]; if (v[k] > hi[k]) hi[k] = v[k]; } }
+    int out_l = 1, out_r = 1, out_b = 1, out_t = 1, out_n = 1;
+    for (int c = 0; c < 8; c++) {
+        float x = c & 1 ? hi[0] : lo[0], y = c & 2 ? hi[1] : lo[1], z = c & 4 ? hi[2] : lo[2];
+        const float *W = X.world, *V = X.view, *P = X.proj;
+        float wx = x * W[0] + y * W[3] + z * W[6] + W[9], wy = x * W[1] + y * W[4] + z * W[7] + W[10], wz = x * W[2] + y * W[5] + z * W[8] + W[11];
+        float vx = wx * V[0] + wy * V[3] + wz * V[6] + V[9], vy = wx * V[1] + wy * V[4] + wz * V[7] + V[10], vz = wx * V[2] + wy * V[5] + wz * V[8] + V[11];
+        float cx = vx * P[0] + vy * P[4] + vz * P[8] + P[12], cy = vx * P[1] + vy * P[5] + vz * P[9] + P[13], cw = vx * P[3] + vy * P[7] + vz * P[11] + P[15];
+        if (cx >= -cw) out_l = 0; if (cx <= cw) out_r = 0; if (cy >= -cw) out_b = 0; if (cy <= cw) out_t = 0; if (cw > 1e-4f) out_n = 0;
+        if (!(out_l | out_r | out_b | out_t | out_n)) return 0; }
+    return 1; }
 static void exec_draw(const u32 *payload){
     const drawhdr_t *d = (const drawhdr_t *)payload; const u8 *vb = (const u8 *)(d + 1); const u16 *ix = d->idxf ? (const u16 *)(vb + (size_t)d->nvert * d->vsz) : NULL;
     u32 vt = d->vt; int ptype = (int)d->prim, count = (int)d->count, through = (vt >> 23) & 1; int off[5]; int vsz = vt_layout(vt, off); (void)vsz;
@@ -542,6 +572,7 @@ static void exec_draw(const u32 *payload){
 #endif
     float defc[4] = {(float)(X.mat_amb & 255), (float)((X.mat_amb >> 8) & 255), (float)((X.mat_amb >> 16) & 255), (float)(X.mat_a & 255)};
     /* the renderer reads the PSP vertex format itself (triangles, strips, fans): native draw */
+    if (ptype >= 3 && ptype <= 5 && !through && cull_draw(d, vb, ix, vt, off)) { st_culled++; return; }
     if (ptype >= 3 && ptype <= 5) {
         u64 tq = rs_perf_detail ? rs_perf_us() : 0;
         gfx_state_t st; build_state(&st, through, 0); static gfx_hw_t h;
@@ -663,6 +694,9 @@ static void exec_buffer(void *arg){
     int idx = *(const int *)arg; cbuf_t *b = &bufs[idx]; u64 t0 = rs_perf_us();
     for (size_t p = 0; p < b->n; ) { const rop_t *r = (const rop_t *)(b->w + p); size_t words = r->words ? r->words : r->a[5]; if (!words) break; exec_op(r); p += words; }
     gfx_flush(); rs_perf.ge_us += rs_perf_us() - t0;
+    { static unsigned nb, c0, cul0; static int lg = -1; if (lg < 0) { extern int rs_setting_int(const char *, int); lg = rs_setting_int("RS_PERF_LOG", 0); }
+      if (lg && ++nb == 300) { fprintf(stderr, "[GU] per buffer (300): %.1f draws recorded, %.1f added to the previous (batching), %.1f culled, %.1f the same mesh again with only a matrix between (instancing candidates)\n",
+              st_recorded_rec / 300.0, st_batched / 300.0, (st_culled - cul0) / 300.0, st_inst_rec / 300.0); st_recorded_rec = st_batched = st_inst_rec = 0; cul0 = st_culled; nb = 0; (void)c0; } }
     __sync_synchronize(); b->busy = 0; executed++; }
 
 /* ===================================================================== what the rest of the platform layer expects from the GPU side */
