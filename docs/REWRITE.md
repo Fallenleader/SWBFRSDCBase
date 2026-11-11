@@ -8,6 +8,7 @@ This branch removes that layer. Each system is replaced by a native module behin
 
 ## Targets
 
+- See `docs/HANDOFF.md` for the current state, measurements and open problems.
 - **PS Vita: 2x the PSP's resolution (960x544, the Vita's screen) at 60 fps.**  Vita defaults: `RS_RES_SCALE=2`, `RS_FPS=60`,
   `RS_GU_PIPELINE=1`.  Measured so far (profiling build, Hoth, 64 bots, 444 MHz): the main thread is the limit; 14% of it waits on the
   renderer / frame end, the rest is game logic spread over many functions (per-object update ~20%, world/entity update ~18%,
