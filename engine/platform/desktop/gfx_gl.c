@@ -4,6 +4,7 @@
 #include "../../render/ak_gfx.h"
 #include "../../render/ak_font.h"
 #include "../plat.h"
+#include "../../core/ak_settings.h"
 #include <SDL2/SDL.h>
 #include <GL/gl.h>
 #include <GL/glext.h>
@@ -139,7 +140,7 @@ ak_gfx_tex *ak_gfx_texture(const ak_texture *t)
 void ak_gfx_free_tex(ak_gfx_tex *t) { if (t) { glDeleteTextures(1, &t->id); free(t); cur_tex = 0; } }
 void ak_gfx_wait_idle(void) { glFinish(); }
 
-static ak_m4 cur_vp; static ak_gfx_env cur_env;
+static ak_m4 cur_vp, frame_vp; static ak_gfx_env cur_env; static bool vp_dirty;
 void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
 {
     t_begin = ak_plat_time_us(); memset(&st, 0, sizeof st);
@@ -148,16 +149,23 @@ void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
     glClearColor((clear & 255) / 255.0f, ((clear >> 8) & 255) / 255.0f, ((clear >> 16) & 255) / 255.0f, 1.0f);
     glDepthMask(GL_TRUE); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LEQUAL);
-    glEnable(GL_CULL_FACE); glCullFace(GL_BACK); glFrontFace(GL_CCW);         /* level winding checked: back faces are never seen */
-    cur_vp = *vp; cur_env = *env; cur_pipe = -1; cur_vb = cur_ib = cur_tex = 0;
+    {   static int cull = -1; if (cull < 0) cull = ak_setting_int("AK_CULL", 1);
+        if (cull) { glEnable(GL_CULL_FACE); glCullFace(cull == 2 ? GL_FRONT : GL_BACK); glFrontFace(GL_CCW); } else glDisable(GL_CULL_FACE); }
+    cur_vp = frame_vp = *vp; cur_env = *env; cur_pipe = -1; vp_dirty = false; cur_vb = cur_ib = cur_tex = 0;
     glBindVertexArray(vao);
+}
+
+void ak_gfx_set_transform(const ak_m4 *mvp)
+{
+    cur_vp = mvp ? *mvp : frame_vp; vp_dirty = true;
 }
 
 void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 first, u32 count)
 {
+    if (vp_dirty && (int)p == cur_pipe) { glUniformMatrix4fv(u_vp[p], 1, GL_FALSE, cur_vp.m); vp_dirty = false; }
     if ((int)p != cur_pipe) {
         glUseProgram(prog[p]);
-        glUniformMatrix4fv(u_vp[p], 1, GL_FALSE, cur_vp.m);
+        glUniformMatrix4fv(u_vp[p], 1, GL_FALSE, cur_vp.m); vp_dirty = false;
         glUniform3fv(u_fog[p], 1, cur_env.fog_rgb); glUniform3f(u_fogr[p], cur_env.fog_start, cur_env.fog_end, cur_env.colour_scale);
         if (p == AK_PIPE_OVERLAY || p == AK_PIPE_BLEND) { glEnable(GL_POLYGON_OFFSET_FILL); glPolygonOffset(-1.0f, -2.0f); }
         else glDisable(GL_POLYGON_OFFSET_FILL);

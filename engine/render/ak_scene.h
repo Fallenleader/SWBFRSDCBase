@@ -19,3 +19,16 @@ bool ak_scene_level_init(ak_scene_level *s, const ak_level *l, ak_arena *a);
 void ak_scene_level_free(ak_scene_level *s);
 void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *view_proj, ak_scene_stats *st);
 #endif
+
+/* ---- models: every model of the level in one vertex and one index buffer (uploaded once), drawn part by part with the
+ * part's bone transform.  Textures are the level scene's. */
+#include "../assets/model.h"
+typedef struct {
+    const ak_model_set *set; const ak_scene_level *level;
+    ak_gfx_buf *vb, *ib;
+    u32 *index_base;           /* per model: its first index in ib (indices are rebased to the shared vertex buffer) */
+} ak_scene_models;
+bool ak_scene_models_init(ak_scene_models *s, const ak_model_set *set, const ak_scene_level *level, ak_arena *a);
+void ak_scene_models_free(ak_scene_models *s);
+/* bones: model-space 3x4 matrix per bone (ak_skeleton_bind_matrices, or an animated pose); NULL = parts at the model origin */
+void ak_scene_models_draw(ak_scene_models *s, u32 model, const ak_m4 *view_proj, const ak_m4 *world, const f32 (*bones)[12], ak_scene_stats *st);

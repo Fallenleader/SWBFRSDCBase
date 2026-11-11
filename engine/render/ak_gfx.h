@@ -38,6 +38,8 @@ void ak_gfx_free_tex(ak_gfx_tex *t);
 void ak_gfx_wait_idle(void);                                     /* before freeing what the GPU may still read */
 
 void ak_gfx_begin(u32 clear_rgba, const ak_m4 *view_proj, const ak_gfx_env *env);
+/* the clip-space transform of the draws that follow (model x view x projection); NULL = back to the frame's view_proj */
+void ak_gfx_set_transform(const ak_m4 *mvp);
 void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 first, u32 count);
 void ak_gfx_text(f32 x, f32 y, u32 rgba, const char *s);        /* screen pixels, 8x16 glyphs; drawn over the frame at end */
 void ak_gfx_end(ak_gfx_stats *out);                              /* submit + present (paced by the display when vsync) */

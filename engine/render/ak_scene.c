@@ -96,3 +96,56 @@ void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *vp, ak_scene_stats *st)
         st->tris += count / 3; st->draws++;
     }
 }
+
+/* ------------------------------------------------------------------ models */
+bool ak_scene_models_init(ak_scene_models *s, const ak_model_set *set, const ak_scene_level *level, ak_arena *a)
+{
+    memset(s, 0, sizeof *s); s->set = set; s->level = level;
+    u32 nv = 0, ni = 0;
+    for (u32 i = 0; i < set->nmodels; i++) { nv += set->models[i].nvtx; ni += set->models[i].nidx; }
+    s->index_base = AK_NEW(a, u32, set->nmodels ? set->nmodels : 1);
+    ak_vtx *v = (ak_vtx *)malloc(sizeof *v * (nv ? nv : 1)); u32 *ix = (u32 *)malloc(4u * (ni ? ni : 1));
+    if (!s->index_base || !v || !ix) { free(v); free(ix); return false; }
+    u32 vo = 0, io = 0;
+    for (u32 i = 0; i < set->nmodels; i++) {
+        const ak_model *m = &set->models[i];
+        memcpy(v + vo, m->vtx, sizeof *v * m->nvtx);
+        for (u32 k = 0; k < m->nidx; k++) ix[io + k] = m->idx[k] + vo;
+        s->index_base[i] = io; vo += m->nvtx; io += m->nidx;
+    }
+    s->vb = ak_gfx_vertices(v, nv); s->ib = ak_gfx_indices(ix, ni);
+    free(v); free(ix);
+    return s->vb && s->ib;
+}
+
+void ak_scene_models_free(ak_scene_models *s)
+{
+    ak_gfx_wait_idle();
+    ak_gfx_free_buf(s->vb); ak_gfx_free_buf(s->ib);
+    memset(s, 0, sizeof *s);
+}
+
+void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_m4 *world, const f32 (*bones)[12], ak_scene_stats *st)
+{
+    const ak_model *m = &s->set->models[mi];
+    ak_m4 vw = ak_m4_mul(vp, world);
+    for (int pass = 0; pass < 2; pass++)                      /* opaque and cutout parts first, blended after */
+        for (u32 p = 0; p < m->nparts; p++) {
+            const ak_model_part *pt = &m->parts[p];
+            if (!pt->count) continue;
+            ak_pipe pipe = (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
+                         : ((pt->flags & AK_MAT_ALPHA_TEST) || (pt->texture >= 0 && s->level->tex_cutout[pt->texture])) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
+            if ((pipe >= AK_PIPE_LAYER) != (pass == 1)) continue;
+            ak_m4 bm;
+            if (bones) {
+                const f32 *r = bones[pt->bone];
+                f32 c[16] = { r[0], r[4], r[8], 0, r[1], r[5], r[9], 0, r[2], r[6], r[10], 0, r[3], r[7], r[11], 1 };
+                memcpy(bm.m, c, sizeof c);
+            } else { memset(&bm, 0, sizeof bm); bm.m[0] = bm.m[5] = bm.m[10] = bm.m[15] = 1; }
+            ak_m4 mvp = ak_m4_mul(&vw, &bm);
+            ak_gfx_set_transform(&mvp);
+            ak_gfx_draw(pipe, pt->texture >= 0 ? s->level->tex[pt->texture] : NULL, s->vb, s->ib, s->index_base[mi] + pt->first, pt->count);
+            if (st) { st->draws++; st->tris += pt->count / 3; }
+        }
+    ak_gfx_set_transform(NULL);
+}

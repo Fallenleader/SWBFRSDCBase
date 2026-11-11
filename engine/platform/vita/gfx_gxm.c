@@ -320,7 +320,7 @@ ak_gfx_tex *ak_gfx_texture(const ak_texture *t)
 void ak_gfx_free_tex(ak_gfx_tex *t) { if (t) { pool_release(); free(t); } }
 void ak_gfx_wait_idle(void) { sceGxmFinish(ctx); }
 
-static ak_m4 vp_t; static ak_gfx_env env_; static int cur_pipe; static ak_gfx_tex *cur_tex; static ak_gfx_buf *cur_vb;
+static ak_m4 vp_t, frame_vp_t; static ak_gfx_env env_; static bool vp_dirty; static int cur_pipe; static ak_gfx_tex *cur_tex; static ak_gfx_buf *cur_vb;
 static ak_gfx_stats st; static u64 t_begin;
 
 static void *frame_alloc(size_t n, size_t a)
@@ -360,16 +360,31 @@ void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
     sceGxmSetCullMode(ctx, cull_mode == 1 ? SCE_GXM_CULL_CW : cull_mode == 2 ? SCE_GXM_CULL_CCW : SCE_GXM_CULL_NONE);
     /* the shader takes the matrix as four rows (explicit dot products: no dependence on Cg's matrix layout) */
     for (int r = 0; r < 4; r++) for (int c2 = 0; c2 < 4; c2++) vp_t.m[r * 4 + c2] = vp->m[c2 * 4 + r];
+    frame_vp_t = vp_t; vp_dirty = false;
     env_ = *env; cur_pipe = -1; cur_tex = NULL; cur_vb = NULL;
+}
+
+void ak_gfx_set_transform(const ak_m4 *mvp)
+{
+    if (mvp) for (int r = 0; r < 4; r++) for (int c = 0; c < 4; c++) vp_t.m[r * 4 + c] = mvp->m[c * 4 + r];
+    else vp_t = frame_vp_t;
+    vp_dirty = true;
+}
+
+static void upload_vertex_uniforms(void)
+{
+    void *ub; sceGxmReserveVertexDefaultUniformBuffer(ctx, &ub);
+    sceGxmSetUniformDataF(ub, p_vp, 0, 16, vp_t.m);
+    f32 fr[3] = { env_.fog_start, env_.fog_end, env_.colour_scale }; sceGxmSetUniformDataF(ub, p_fogr, 0, 3, fr);
+    vp_dirty = false;
 }
 
 void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 first, u32 count)
 {
+    if (vp_dirty && (int)p == cur_pipe) upload_vertex_uniforms();
     if ((int)p != cur_pipe) {
         sceGxmSetVertexProgram(ctx, vp3d); sceGxmSetFragmentProgram(ctx, fp3d[p]);
-        void *ub; sceGxmReserveVertexDefaultUniformBuffer(ctx, &ub);
-        sceGxmSetUniformDataF(ub, p_vp, 0, 16, vp_t.m);
-        f32 fr[3] = { env_.fog_start, env_.fog_end, env_.colour_scale }; sceGxmSetUniformDataF(ub, p_fogr, 0, 3, fr);
+        upload_vertex_uniforms();
         if (p_fog[p]) { void *fb_; sceGxmReserveFragmentDefaultUniformBuffer(ctx, &fb_); sceGxmSetUniformDataF(fb_, p_fog[p], 0, 3, env_.fog_rgb); }
         sceGxmSetFrontDepthWriteEnable(ctx, p >= AK_PIPE_LAYER ? SCE_GXM_DEPTH_WRITE_DISABLED : SCE_GXM_DEPTH_WRITE_ENABLED);
         if (p == AK_PIPE_OVERLAY || p == AK_PIPE_BLEND) sceGxmSetFrontDepthBias(ctx, -1, -2); else sceGxmSetFrontDepthBias(ctx, 0, 0);

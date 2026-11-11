@@ -7,12 +7,16 @@
 #
 # Controls: left stick move, right stick look, L / R down / up, hold Cross to move faster,
 #           START next level, TRIANGLE previous level, SELECT figures on/off.  Log: ux0:data/Aurek/log.txt (one line per second).
+#           CIRCLE: model gallery (every model of the level in its bind pose): d-pad left / right previous / next model,
+#           right stick turns, left stick zooms, CIRCLE again back to the level.
 
 # ---- start
 # level shown first, as "<ERA> <MAP>" (eras: CLASSIC, PREQUEL, CAMPAIGN)
 AK_LEVEL=CLASSIC HOTH
 # figures on screen at start (fps, frame time, draws, triangles, GPU wait)
 AK_SHOW_FIGURES=1
+# 1 = start in the model gallery
+AK_GALLERY=0
 
 # ---- picture
 # 1 = wait for the display's refresh (no tearing, capped at 60 fps); 0 = uncapped, to measure how fast frames really are
