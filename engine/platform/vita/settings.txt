@@ -53,8 +53,8 @@ AK_COLOUR2=-1
 AK_WEAPON=BlasterRifle
 # target dummies of the other side, 0..6
 AK_DUMMIES=6
-# not yet read from the game: gravity (m/s^2)
-AK_GRAVITY=9.81
+# gravity (m/s^2): the game's is 10
+AK_GRAVITY=10
 # third-person camera: modern (over the right shoulder, the DICE Battlefront framing) / classic (the game's own 7 m camera)
 AK_CAM_STYLE=modern
 # field of view of the modern camera (vertical degrees)

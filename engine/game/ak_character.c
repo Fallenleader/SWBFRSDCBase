@@ -15,7 +15,7 @@ void ak_char_params_load(const ak_blueprints *bp, ak_char_params *p)
     p->air_speed    = ak_bp_float(c, "max air speed", 4.0f);
     p->yaw_speed    = ak_bp_float(c, "yaw speed", 4.0f);
     p->pitch_speed  = ak_bp_float(c, "pitch speed", 5.0f);
-    p->gravity  = ak_setting_float("AK_GRAVITY", 9.81f);
+    p->gravity  = ak_setting_float("AK_GRAVITY", 10.0f);      /* the game's: see ak_character.h */
     p->accel    = ak_setting_float("AK_RUN_ACCEL", 30.0f);
     p->radius   = ak_setting_float("AK_BODY_RADIUS", 0.35f);
     p->height   = ak_setting_float("AK_BODY_HEIGHT", 1.8f);

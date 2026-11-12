@@ -2,8 +2,10 @@
  *
  * The numbers are the game's ("Controls" blueprint "Humanoid", MISC/COMMON.ASR): max run speed 6 m/s, jump impulse 6 m/s (a single
  * upward velocity kick, as the game's func_089A0308 gives the body), air control scale 0.15, max air speed 4 m/s, yaw speed 4 rad/s,
- * pitch speed 5 rad/s.  Not yet traced from the game, and so settings: gravity (AK_GRAVITY, provisional 9.81 m/s^2 - the physics
- * world sets it at run time; to be read from the test harness), ground acceleration (AK_RUN_ACCEL), body size and step height.
+ * pitch speed 5 rad/s.  Gravity 10 m/s^2: the game's physics world step (func_088AFEF0) adds direction x dt x 10.0 (the constant at
+ * 0x08AEC4F8) x the body's gravity factor (body +252, 1.0 by default; only thrown objects set 2.0) to every body that feels gravity
+ * (flag bit 22 of body +248); the direction is (0, 1, 0) in game axes - straight down - set by func_088AF78C.  Not yet traced, and so
+ * settings: ground acceleration (AK_RUN_ACCEL), body size and step height.
  *
  * The body: two spheres (knees-up and chest) pushed out of walls horizontally, plus a ray down for the ground that steps up kerbs
  * and stairs and keeps the feet on slopes.  Collision ignores what the game's soldiers ignore (flags 0x0004 and 0x1000). */
