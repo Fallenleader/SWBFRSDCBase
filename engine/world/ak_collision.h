@@ -8,7 +8,8 @@
 #define AK_COLLISION_H
 #include "../assets/asura.h"
 
-enum { AK_COL_TWO_SIDED = 0x0001, AK_COL_NOT_BODIES = 0x0004, AK_COL_NOT_SIGHT = 0x0008, AK_COL_NOT_SOLDIERS = 0x1000 };
+enum { AK_COL_TWO_SIDED = 0x0001, AK_COL_NOT_BODIES = 0x0004, AK_COL_NOT_SIGHT = 0x0008, AK_COL_NOT_SOLDIERS = 0x1000,
+       AK_COL_NOT_FLYERS = 0x4000 /* flyers pass: the capital ships' hangar shields (and water) */ };
 
 typedef struct { f32 a[3], e1[3], e2[3], n[3]; u16 flags, material; u16 object; u16 pad; } ak_col_tri;   /* a, a+e1, a+e2 */
 typedef struct { f32 min[3]; u32 first_or_right; f32 max[3]; u32 count; } ak_col_node;   /* count 0: inner (left = next) */

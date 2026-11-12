@@ -558,7 +558,7 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
             if (sp->def[t] >= 0) any = true;
         }
         {   s32 dd = sp->def[0] >= 0 ? sp->def[0] : sp->def[1];
-            if (dd >= 0 && p->vdef[dd].kind == AK_VEH_WALKER) sp->yaw += 3.14159265f; }   /* walkers face -z */
+            if (dd >= 0 && (p->vdef[dd].kind == AK_VEH_WALKER || p->vdef[dd].kind == AK_VEH_FLYER)) sp->yaw += 3.14159265f; }   /* walkers and flyers face -z */
         if (sp->fixed && sp->def[0] >= 0) {                                  /* a placed walker (Hoth's AT-AT): its own faction's side */
             ak_vehicle_def *d = &p->vdef[sp->def[0]]; d->drivable = false;
             int team = ak_faction_team(ak_bp_int(d->bp, "Faction", 3));
@@ -714,8 +714,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             continue;
         }
         if (vh->driver == 0) {                                                /* the player drives: left stick, cross boosts, right stick aims, R fires */
-            vh->throttle = vin->ly; vh->steer = vin->lx; vh->strafe = 0;
-            if (vin->held & AK_BTN_L) { vh->strafe = vin->lx; vh->steer = 0; }   /* L held: strafe (hover craft) */
+            vh->throttle = vin->ly; vh->steer = vin->lx; vh->strafe = 0; vh->brake = false;
+            if (vh->def->kind == AK_VEH_FLYER) { vh->brake = (vin->held & AK_BTN_L) != 0; if (p->invert_y) vh->throttle = -vh->throttle; }   /* L held: slow down */
+            else if (vin->held & AK_BTN_L) { vh->strafe = vin->lx; vh->steer = 0; }   /* L held: strafe (hover craft) */
             vh->aim_yaw -= vin->rx * 2.0f * dt; vh->aim_pitch += (p->invert_y ? -vin->ry : vin->ry) * 1.5f * dt;
             if (vh->aim_yaw > 1.2f) vh->aim_yaw = 1.2f;
             if (vh->aim_yaw < -1.2f) vh->aim_yaw = -1.2f;
@@ -729,6 +730,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             ak_vehicle_update(vh, &p->col, p->cp.gravity, false, dt);
         }
         if (vh->driver == 0 && ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "%s acc %.0f top %.0f pos %.1f %.1f %.1f vel %.1f %.1f %.1f yaw %.2f", vh->def->name, vh->def->max_acc, vh->def->top_speed, vh->pos[0], vh->pos[1], vh->pos[2], vh->vel[0], vh->vel[1], vh->vel[2], vh->yaw);
+        if (vh->crashed) {                                                    /* flown into the level */
+            vh->crashed = false; p->target[VT(p, v)].alive = false; p->target[VT(p, v)].last_attacker = -1; vehicle_destroyed(p, m, v); continue;
+        }
         ak_vehicle_pose(vh, m, dt);
         if (ak_setting_int("AK_DEBUG_VEH", 0) > 1 && vh->def->turret_model >= 0) {
             f32 T[12]; if (ak_vehicle_marker(vh, m, vh->def->turret_marker, T)) AK_INFO("veh", "%s at %.1f %.1f %.1f: turret %s at %.1f %.1f %.1f", vh->def->name, vh->pos[0], vh->pos[1], vh->pos[2], m->models[vh->def->turret_model].name, T[3], T[7], T[11]); }
@@ -835,6 +839,17 @@ void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *f
         const ak_vehicle *vh = &p->veh[p->in_veh];
         f32 y = vh->yaw + vh->aim_yaw + ak_setting_float("AK_DEBUG_CAM_ORBIT", 0), pt = -vh->aim_pitch * 0.5f - 0.12f;
         f32 dsc = ak_setting_float("AK_DEBUG_CAM_SCALE", 1.0f), back = vh->def->cam_z * dsc, up = vh->def->cam_y * dsc;   /* (tests: pull the camera back) */
+        if (vh->def->kind == AK_VEH_FLYER && vh->flying) {                     /* flying: behind along the flight path, looking past the nose */
+            f32 cp = cosf(vh->pitch), fw[3] = { -sinf(y) * cp, sinf(vh->pitch), -cosf(y) * cp };
+            f32 c[3] = { vh->pos[0] - fw[0] * back, vh->pos[1] + vh->def->height * 0.5f - fw[1] * back + up, vh->pos[2] - fw[2] * back };
+            f32 la[3] = { vh->pos[0] + fw[0] * 40, vh->pos[1] + vh->def->height * 0.5f + fw[1] * 40, vh->pos[2] + fw[2] * 40 };
+            *eye = ak_v3_make(c[0], c[1], c[2]);
+            f32 lx = la[0] - c[0], ly = la[1] - c[1], lz = la[2] - c[2];
+            *yaw = atan2f(-lx, -lz); *pitch = atan2f(ly, sqrtf(lx * lx + lz * lz)); *fovy = p->fov;
+            p->aim_ok = true; p->eye[0] = c[0]; p->eye[1] = c[1]; p->eye[2] = c[2];
+            p->aim[0] = -sinf(*yaw) * cosf(*pitch); p->aim[1] = sinf(*pitch); p->aim[2] = -cosf(*yaw) * cosf(*pitch);
+            return;
+        }
         f32 piv[3] = { vh->pos[0], vh->pos[1] + vh->def->hover + vh->def->height * 0.7f, vh->pos[2] };
         f32 want[3] = { sinf(y) * back, up - vh->def->height * 0.7f, cosf(y) * back }, wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]);
         f32 dir[3] = { want[0] / wl, want[1] / wl, want[2] / wl }, lim = wl; ak_col_hit h;

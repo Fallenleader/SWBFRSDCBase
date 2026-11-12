@@ -16,7 +16,7 @@
 #include "world/ak_collision.h"
 #include "game/ak_weapon.h"
 
-enum { AK_VEH_HOVER, AK_VEH_SPEEDER, AK_VEH_TRACK, AK_VEH_CREATURE, AK_VEH_WALKER };
+enum { AK_VEH_HOVER, AK_VEH_SPEEDER, AK_VEH_TRACK, AK_VEH_CREATURE, AK_VEH_WALKER, AK_VEH_FLYER };
 
 typedef struct {
     const ak_bp_object *bp; const char *name; s32 model, turret_model; const char *turret_marker;
@@ -29,6 +29,9 @@ typedef struct {
     /* walkers ("Walker" blueprints: AT-ST, AT-AT, AT-RT, AT-TE, spider walker): no root motion in their clips, so the walking
      * speed is measured from the walk loop itself - how fast a planted foot slides back (AT-ST 4.9 m/s, AT-AT 2.0 m/s) */
     s32 clip_walk, clip_idle, clip_death; f32 walk_speed, sprint_scale; bool drivable;
+    /* flyers ("Flyer" blueprints: starfighters, bombers, interceptors, transports, the snowspeeder): CruisingSpeed, StallSpeed (the
+     * slowest it flies), TopSpeed (boost), MaxTurnPitch / Yaw / Roll and RollRemoval (degrees a second), AnimLanded / AnimFlight */
+    f32 cruise, pitch_rate, roll_rate, roll_removal, bank; s32 clip_flight, clip_landed;
 } ak_vehicle_def;
 
 typedef struct {
@@ -40,12 +43,15 @@ typedef struct {
     f32 volley_t; u32 fired_mask; f32 aim_yaw, aim_pitch;
     f32 throttle, steer, strafe;           /* the driver's controls, -1..1 */
     f32 anim_t; s32 clip; bool posed; f32 bones[64][12];   /* the pose (walkers walk; the rest hold their bind pose) */
+    bool flying, crashed; f32 speed, takeoff; bool brake;  /* flyers */
 } ak_vehicle;
 
 /* the Tank (or Walker) blueprint of this name with its model in this level; false if there is none */
 bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const char *name, ak_vehicle_def *out);
 void ak_vehicle_spawn(ak_vehicle *v, const ak_vehicle_def *d, const f32 *pos, f32 yaw, int team);
-/* one step of driving (controls in v->throttle / steer / strafe; boost doubles the push) */
+/* one step of driving (controls in v->throttle / steer / strafe; boost doubles the push).  Flyers: throttle is the stick's pitch
+ * (forward = nose down), steer banks and turns, boost flies at TopSpeed, v->brake slows to StallSpeed; on the ground any input takes
+ * off; touching the level slowly and level lands, anything else crashes (v->crashed). */
 void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool boost, f32 dt);
 /* the model's world matrix (3x4 rows, with the lean) */
 void ak_vehicle_matrix(const ak_vehicle *v, f32 out[12]);

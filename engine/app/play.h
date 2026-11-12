@@ -30,7 +30,7 @@
  *
  * Vehicles (game/ak_vehicle.h): each vehicle spawn makes the vehicle of the side holding the nearest command post.  Triangle gets in
  * and out; driving: left stick throttle and steering, L held strafes, cross boosts, the right stick aims, R fires the hardpoint's bolts
- * from its barrels in turn.  Wrecks come back after AK_VEHICLE_RESPAWN seconds; the driver dies with the vehicle.  Bots do not drive yet;
+ * from its barrels in turn (flyers: the stick pitches and banks, cross boosts, L slows).  Wrecks come back after AK_VEHICLE_RESPAWN seconds; the driver dies with the vehicle.  Bots do not drive yet;
  * they shoot occupied enemy vehicles. */
 #ifndef AK_PLAY_H
 #define AK_PLAY_H
@@ -53,7 +53,7 @@ enum { PLAY_IDLE, PLAY_RUN, PLAY_BACK, PLAY_LEFT, PLAY_RIGHT, PLAY_JUMP, PLAY_FA
 #define PLAY_MAX_BOTS 127
 #define PLAY_MAX_CLASSES 8
 #define PLAY_MAX_VEH 16
-#define PLAY_MAX_DEFS 8
+#define PLAY_MAX_DEFS 12
 #define PLAY_MAX_TARGETS (1 + PLAY_MAX_BOTS + PLAY_MAX_VEH)
 #define PLAY_MAX_BOOMS 8
 typedef struct { f32 pos[3], yaw; s32 def[2]; s32 post; f32 respawn; bool fixed; } ak_play_vspawn;   /* a vehicle spawn: one vehicle per side (index into vdef, -1 none), the post whose owner gets it; fixed = a walker placed in the level (no respawn, not drivable) */

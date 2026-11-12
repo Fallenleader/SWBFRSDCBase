@@ -12,6 +12,8 @@
 #           SQUARE: play (a soldier in a conquest match with bots) / free camera.  Playing: left stick move, right stick aim
 #           (twin stick), CROSS jump, R fire, L hold lock-on, TRIANGLE get in / out of a vehicle; START changes level (a new match
 #           starts; TRIANGLE goes back a level only in the free camera).  Driving: left stick throttle / steer, L held strafe, CROSS boost.
+#           Flying: left stick pitch (forward = nose down; AK_INVERT_Y flips it) and bank, CROSS boost, L held slow down, R fire; any
+#           input on the ground takes off, touching down slowly and level lands.
 
 # ---- start
 # level shown first, as "<ERA> <MAP>" (eras: CLASSIC, PREQUEL, CAMPAIGN)
@@ -67,7 +69,8 @@ AK_VEHICLES=1
 AK_VEHICLE_RESPAWN=20
 # gravity (m/s^2): the game's is 10
 AK_GRAVITY=10
-# third-person camera: modern (over the right shoulder, the DICE Battlefront framing) / classic (the game's own 7 m camera)
+# soldier camera: modern (over the right shoulder, the DICE Battlefront framing; the default) / classic (the game's own 7 m camera).
+# Vehicles always use the game's own chase camera.  (Until there is a settings menu, this line is the switch.)
 AK_CAM_STYLE=modern
 # field of view of the modern camera (vertical degrees)
 AK_FOV=55

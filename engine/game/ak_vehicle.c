@@ -1,11 +1,13 @@
 /* Aurek - ground vehicles (see ak_vehicle.h) */
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "game/ak_vehicle.h"
 
 #define VEH_IGNORE (AK_COL_NOT_BODIES | AK_COL_NOT_SOLDIERS)
 #define DEG (3.14159265f / 180.0f)
+#define FLY_IGNORE (AK_COL_NOT_BODIES | AK_COL_NOT_FLYERS)
 
 static s32 find_clip(const ak_model_set *m, const char *name)
 {
@@ -36,15 +38,28 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
 {
     memset(d, 0, sizeof *d);
     const ak_bp_object *o = ak_bp_find(bp, "Tank", name);
-    bool walker = false;
+    bool walker = false, flyer = false;
     if (!o) { o = ak_bp_find(bp, "Walker", name); walker = o != NULL; }
+    if (!o) { o = ak_bp_find(bp, "Flyer", name); flyer = o != NULL; }
     if (!o) return false;
     d->bp = o; d->name = o->name; d->drivable = true;
     d->model = ak_models_find(m, name);
     if (d->model < 0) return false;
     const char *tt = ak_bp_string(o, "tank_type", "hover_tank");
-    d->kind = walker ? AK_VEH_WALKER : !strcmp(tt, "speeder_bike") ? AK_VEH_SPEEDER : !strcmp(tt, "track_tank") ? AK_VEH_TRACK : !strcmp(tt, "creature_tank") ? AK_VEH_CREATURE : AK_VEH_HOVER;
-    d->clip_walk = d->clip_idle = d->clip_death = -1;
+    d->kind = flyer ? AK_VEH_FLYER : walker ? AK_VEH_WALKER : !strcmp(tt, "speeder_bike") ? AK_VEH_SPEEDER : !strcmp(tt, "track_tank") ? AK_VEH_TRACK : !strcmp(tt, "creature_tank") ? AK_VEH_CREATURE : AK_VEH_HOVER;
+    d->clip_walk = d->clip_idle = d->clip_death = d->clip_flight = d->clip_landed = -1;
+    if (flyer) {
+        d->cruise = ak_bp_float(o, "CruisingSpeed", 85); d->pitch_rate = ak_bp_float(o, "MaxTurnPitch", 80) * DEG;
+        d->roll_rate = ak_bp_float(o, "MaxTurnRoll", 115) * DEG; d->roll_removal = ak_bp_float(o, "RollRemoval", 50) * DEG;
+        d->bank = (d->roll_rate > 0 ? 60.0f : ak_bp_float(o, "CosmeticRoll", 10)) * DEG;   /* the snowspeeder (no roll) only leans */
+        /* clip names, or asset paths: "vehicles\...\Awing_rest.ASR" -> "Awing_rest" */
+        const char *keys[2] = { "AnimFlight", "AnimLanded" }; s32 *out[2] = { &d->clip_flight, &d->clip_landed };
+        for (int k = 0; k < 2; k++) {
+            const char *v = ak_bp_string(o, keys[k], ""), *b = strrchr(v, '\\'); char nm[96]; b = b ? b + 1 : v;
+            snprintf(nm, sizeof nm, "%s", b); char *dot = strrchr(nm, '.'); if (dot) *dot = 0;
+            *out[k] = *nm ? find_clip(m, nm) : -1;
+        }
+    }
     if (walker) {
         /* the clips: the model name without its underscores (AT_ST -> ATST_WalkLoop, ATST_idle, ATST_Death) */
         char pre[64], nm[96]; u32 k = 0;
@@ -68,6 +83,7 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     d->radius = 0.5f * (wx < wz ? wx : wz); if (d->radius < 0.5f) d->radius = 0.5f;
     d->height = md->bmax[1] - md->bmin[1]; if (d->height < 1) d->height = 1;
     d->hover = d->kind == AK_VEH_HOVER ? 1.0f : d->kind == AK_VEH_SPEEDER ? 0.8f : 0.0f;
+    if (flyer) d->hover = 0;                                             /* (flyers rest on their landing gear: the model origin) */
     if (walker) {                                                        /* walkers: the speed from the legs, sharp turns */
         d->top_speed = d->walk_speed; d->stall_speed = -d->walk_speed * 0.5f; d->max_acc = d->walk_speed * 2; d->boost_acc = d->walk_speed * 2;
         d->strafe_acc = 0; d->vel_damp = 3; d->radius *= 0.6f;           /* (legs: a narrower body than the box) */
@@ -96,10 +112,68 @@ void ak_vehicle_spawn(ak_vehicle *v, const ak_vehicle_def *d, const f32 *pos, f3
     v->health = d->health; v->alive = true; v->driver = -1; v->aim_yaw = 0;
 }
 
+static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool boost, f32 dt)
+{
+    const ak_vehicle_def *d = v->def;
+    if (!v->flying) {                                                     /* on the ground: settle; any input from a pilot takes off */
+        f32 o[3] = { v->pos[0], v->pos[1] + 2.0f, v->pos[2] }, dn[3] = { 0, -1, 0 }; ak_col_hit h;
+        if (ak_col_raycast(col, o, dn, 4.0f, FLY_IGNORE, &h)) { v->pos[1] = h.pos[1]; v->vel[1] = 0; }
+        else if (ak_col_raycast(col, o, dn, 1e4f, FLY_IGNORE, &h)) { v->vel[1] -= gravity * dt; v->pos[1] += v->vel[1] * dt; if (v->pos[1] < h.pos[1]) v->pos[1] = h.pos[1]; }
+        v->speed = 0; v->vel[0] = v->vel[2] = 0; v->pitch *= 0.9f; v->roll *= 0.9f;
+        if (v->driver >= 0 && (boost || fabsf(v->throttle) > 0.2f || fabsf(v->steer) > 0.2f)) { v->flying = true; v->takeoff = 1.2f; v->speed = 0; v->pitch = 0; }
+        return;
+    }
+    if (v->takeoff > 0) {                                                 /* lifting off: straight up, then away level */
+        v->takeoff -= dt; v->pos[1] += 3.0f * dt;
+        v->speed += d->stall_speed * dt / 1.2f; v->vel[1] = 3.0f;
+        f32 fw[3] = { -sinf(v->yaw), 0, -cosf(v->yaw) };
+        v->pos[0] += fw[0] * v->speed * dt; v->pos[2] += fw[2] * v->speed * dt;
+        return;
+    }
+    /* turning: the stick pitches, banks and yaws; let go and the roll levels out (RollRemoval) */
+    v->pitch -= v->throttle * d->pitch_rate * dt;
+    if (v->pitch > 1.4f) v->pitch = 1.4f;
+    if (v->pitch < -1.4f) v->pitch = -1.4f;
+    v->yaw -= v->steer * d->turn_rate * dt;
+    f32 want_roll = -v->steer * d->bank, rr = (fabsf(v->steer) > 0.05f ? (d->roll_rate > 0 ? d->roll_rate : d->turn_rate) : d->roll_removal) * dt;
+    v->roll += want_roll > v->roll ? fminf(want_roll - v->roll, rr) : -fminf(v->roll - want_roll, rr);
+    /* speed: cruising, boost to the top, brake to the stall speed */
+    f32 want = boost ? d->top_speed : v->brake ? d->stall_speed : d->cruise, acc = (boost ? d->boost_acc : d->max_acc) * dt;
+    if (want < d->stall_speed) want = d->stall_speed;
+    v->speed += want > v->speed ? fminf(want - v->speed, acc) : -fminf(v->speed - want, acc);
+    f32 cp = cosf(v->pitch), fw[3] = { -sinf(v->yaw) * cp, sinf(v->pitch), -cosf(v->yaw) * cp };
+    for (int k = 0; k < 3; k++) v->vel[k] = fw[k] * v->speed;
+    /* the level ahead: touch down slowly and level, or crash */
+    f32 step = v->speed * dt, r = d->radius * 0.5f; ak_col_hit h;
+    f32 o[3] = { v->pos[0], v->pos[1] + d->height * 0.5f, v->pos[2] }, dir[3] = { fw[0], fw[1], fw[2] };
+    f32 dn[3] = { 0, -1, 0 };
+    bool ahead = ak_col_raycast(col, o, dir, step + r, FLY_IGNORE, &h);
+    bool below = !ahead && ak_col_raycast(col, o, dn, d->height * 0.5f + 0.3f, FLY_IGNORE, &h);
+    if (ahead || below) {
+        f32 into = fw[0] * h.normal[0] + fw[1] * h.normal[1] + fw[2] * h.normal[2];
+        if (h.normal[1] > 0.8f && v->speed < d->stall_speed * 1.8f && v->pitch > -0.35f) {
+            v->flying = false; v->pos[0] = h.pos[0]; v->pos[1] = h.pos[1]; v->pos[2] = h.pos[2]; v->speed = 0; v->pitch = 0;
+            v->vel[0] = v->vel[1] = v->vel[2] = 0;
+            return;
+        }
+        if (into > -0.7f) {                                                /* a glancing touch: skim off the surface (ground, ceiling, wall) */
+            v->pitch += h.normal[1] * (0.6f * dt - into);
+            if (fabsf(h.normal[1]) < 0.5f) {                               /* a wall: turn along it */
+                f32 side = -sinf(v->yaw) * 0 + (cosf(v->yaw) * h.normal[0] - sinf(v->yaw) * h.normal[2]);
+                v->yaw -= (side > 0 ? -1.0f : 1.0f) * (-into) * 0.8f;
+            }
+            v->speed *= 1.0f - 0.5f * dt;
+            for (int k = 0; k < 3; k++) v->pos[k] += h.normal[k] * 0.3f;
+        } else { v->crashed = true; if (getenv("AK_DEBUG_VEH")) fprintf(stderr, "[veh] crash at %.1f %.1f %.1f normal %.2f %.2f %.2f into %.2f\n", h.pos[0], h.pos[1], h.pos[2], h.normal[0], h.normal[1], h.normal[2], into); return; }
+    }
+    for (int k = 0; k < 3; k++) v->pos[k] += v->vel[k] * dt;
+}
+
 void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool boost, f32 dt)
 {
     const ak_vehicle_def *d = v->def;
     if (!v->alive) return;
+    if (d->kind == AK_VEH_FLYER) { flyer_update(v, col, gravity, boost, dt); return; }
     /* turning */
     v->yaw += -v->steer * d->turn_rate * dt;
     f32 sy = sinf(v->yaw), cy = cosf(v->yaw), fx = -sy, fz = -cy, rx = cy, rz = -sy;
@@ -150,8 +224,8 @@ void ak_vehicle_matrix(const ak_vehicle *v, f32 out[12])
 {
     /* yaw, then pitch about the vehicle's right axis, then roll about its forward axis (rows) */
     f32 cp = cosf(v->pitch), sp = sinf(v->pitch), cr = cosf(v->roll), sr = sinf(v->roll);
-    /* tanks' models face +z: a half turn so the nose leads (walkers face -z, like the soldiers) */
-    bool half = v->def->kind != AK_VEH_WALKER; f32 k = half ? 1.0f : -1.0f, yw = v->yaw + (half ? 3.14159265f : 0.0f);
+    /* tanks' models face +z: a half turn so the nose leads (walkers and flyers face -z, like the soldiers) */
+    bool half = v->def->kind != AK_VEH_WALKER && v->def->kind != AK_VEH_FLYER; f32 k = half ? 1.0f : -1.0f, yw = v->yaw + (half ? 3.14159265f : 0.0f);
     f32 cy = cosf(yw), sy = sinf(yw);
     f32 R[3][3] = { { cr, k * sr, 0 }, { -k * sr, cr, 0 }, { 0, 0, 1 } };        /* roll about z (mirrored by the half turn) */
     f32 P[3][3] = { { 1, 0, 0 }, { 0, cp, k * sp }, { 0, -k * sp, cp } };         /* pitch about x (likewise) */
@@ -180,6 +254,7 @@ void ak_vehicle_pose(ak_vehicle *v, const ak_model_set *m, f32 dt)
         if (clip != v->clip && !(clip == d->clip_walk && v->clip == d->clip_walk)) v->anim_t = 0;
         v->anim_t += dt * rate;
     }
+    if (d->kind == AK_VEH_FLYER) { clip = v->flying ? d->clip_flight : d->clip_landed; loop = false; if (clip != v->clip) v->anim_t = 0; v->anim_t += dt; }
     v->clip = clip;
     static ak_quat q[64]; static f32 t[64][3];
     if (clip >= 0) {
