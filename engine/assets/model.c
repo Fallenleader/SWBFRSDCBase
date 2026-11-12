@@ -74,7 +74,7 @@ void ak_skeleton_pose_matrices(const ak_skeleton *s, const ak_quat *lq, const f3
     }
 }
 
-void ak_skeleton_pose_matrices_pitch(const ak_skeleton *s, const ak_quat *lq, const f32 (*lt)[3], const f32 *bp, f32 (*m)[12])
+void ak_skeleton_pose_matrices_offset(const ak_skeleton *s, const ak_quat *lq, const f32 (*lt)[3], const ak_quat *rot, f32 (*m)[12])
 {
     ak_quat wq[512]; f32 wt[512][3];
     for (u32 i = 0; i < s->nbones && i < 512; i++) {
@@ -85,7 +85,7 @@ void ak_skeleton_pose_matrices_pitch(const ak_skeleton *s, const ak_quat *lq, co
             for (int k = 0; k < 3; k++) wt[i][k] = wt[p][k] + r3[k];
             wq[i] = qmul(wq[p], lq[i]);
         }
-        if (bp && bp[i] != 0) { f32 h = bp[i] * 0.5f; ak_quat r = { sinf(h), 0, 0, cosf(h) }; wq[i] = qmul(r, wq[i]); }
+        if (rot && rot[i].w < 0.999999f) wq[i] = qmul(rot[i], wq[i]);
         mat34(wq[i], wt[i], m[i]);
     }
 }

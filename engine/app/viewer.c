@@ -223,6 +223,26 @@ int main(int argc, char **argv)
             continue;
         }
 
+        {   /* scripted input timeline (tests, recordings): AK_TEST_SCRIPT = "frames:lx,ly,rx,ry,buttons; ..." - buttons: j jump, f fire,
+             * l L, u d-pad up (pressed on the segment's first frame for j/u, held for f/l) */
+            const char *sc = ak_setting_str("AK_TEST_SCRIPT", NULL);
+            if (sc) {
+                int at = 0; const char *q = sc;
+                while (*q) {
+                    int n = 0; f32 a = 0, b = 0, c = 0, d = 0; char bt[16] = ""; int used = 0;
+                    if (sscanf(q, " %d:%f,%f,%f,%f,%15[a-z]%n", &n, &a, &b, &c, &d, bt, &used) < 6) { used = 0; bt[0] = 0; sscanf(q, " %d:%f,%f,%f,%f%n", &n, &a, &b, &c, &d, &used); }
+                    if (!used) break;
+                    if (frame >= at && frame < at + n) {
+                        in.lx = a; in.ly = b; in.rx = c; in.ry = d;
+                        if (strchr(bt, 'f')) in.held |= AK_BTN_R;
+                        if (strchr(bt, 'l')) in.held |= AK_BTN_L;
+                        if (frame == at && strchr(bt, 'j')) in.pressed |= AK_BTN_CROSS;
+                        if (frame == at && strchr(bt, 'u')) in.pressed |= AK_BTN_UP;
+                    }
+                    at += n; q += used; while (*q == ';' || *q == ' ') q++;
+                }
+            }
+        }
         {   /* scripted input for headless tests: AK_TEST_MOVE = lx,ly,rx,ry (held), AK_TEST_JUMP = the frame to jump on */
             const char *tm = ak_setting_str("AK_TEST_MOVE", NULL);
             if (tm) sscanf(tm, "%f,%f,%f,%f", &in.lx, &in.ly, &in.rx, &in.ry);
@@ -288,7 +308,10 @@ int main(int argc, char **argv)
                 ents_drawn++;
             }
         }
-        if (playing && play.ready) ak_play_draw(&play, &mscene, &models, &vp, &ss);
+        if (playing && play.ready) {
+            ak_play_draw(&play, &mscene, &models, &vp, &ss);
+            ak_gfx_text((f32)w * 0.5f - 4, (f32)h * 0.5f - 8, play.scheme && play.lock >= 0 ? 0xFF4040FF : 0xFFFFFFFF, "+");   /* crosshair */
+        }
         if (show) {
             char line[160];
             snprintf(line, sizeof line, "Aurek %s  %s  %.1f fps  %.2f ms", AK_BUILD_ID, ak_gfx_name(), fps, frame_ms); ak_gfx_text(8, 8, 0xFFFFFFFF, line);
@@ -310,7 +333,7 @@ int main(int argc, char **argv)
                 }
                 ak_gfx_text(8, 116, 0xFFC0C0C0, play.scheme ? "left stick: move  right stick: turn  cross: jump  R: fire  L: lock on  d-pad up: 1st/3rd person  square: free camera"
                                                             : "left stick: move  right stick: aim  cross: jump  R: fire  L: reload  d-pad up: 1st/3rd person  square: free camera");
-                ak_gfx_text((f32)w * 0.5f - 4, (f32)h * 0.5f - 8, play.scheme && play.lock >= 0 ? 0xFF4040FF : 0xFFFFFFFF, "+");   /* crosshair */
+
             }
         }
         ak_gfx_end(&gs);
@@ -321,6 +344,8 @@ int main(int argc, char **argv)
             AK_INFO("frame", "%.1f fps, %.2f ms, %u draws, %u tris, %u/%u objects, submit %.2f ms, gpu wait %.2f ms", fps, frame_ms, gs.draws, gs.tris,
                     ss.objects_visible, ss.objects, gs.cpu_submit_ms, gs.gpu_wait_ms);
         }
+        {   const char *rec = ak_setting_str("AK_RECORD", NULL);           /* every frame to <dir>/NNNNN.ppm (recordings) */
+            if (rec) { char fn[512]; snprintf(fn, sizeof fn, "%s/%05d.ppm", rec, frame); ak_gfx_screenshot(fn); } }
         if (shot && frame == shot_frame) { ak_gfx_screenshot(shot); break; }
     }
     if (loaded) { ak_scene_models_free(&mscene); ak_scene_level_free(&scene); }

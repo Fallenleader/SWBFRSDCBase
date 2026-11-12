@@ -68,9 +68,9 @@ typedef struct {
 void ak_anim_sample(const ak_anim_clip *c, const ak_skeleton *s, f32 t, bool loop, ak_quat *lq, f32 (*lt)[3]);
 /* model-space 3x4 matrices from local transforms */
 void ak_skeleton_pose_matrices(const ak_skeleton *s, const ak_quat *lq, const f32 (*lt)[3], f32 (*m)[12]);
-/* the same with an extra turn per bone about the model's right axis (x), applied in model space at the bone's own joint so its
- * children follow (an aim offset: spine bones lean toward where the soldier aims; NULL or 0 = none) */
-void ak_skeleton_pose_matrices_pitch(const ak_skeleton *s, const ak_quat *lq, const f32 (*lt)[3], const f32 *bone_pitch, f32 (*m)[12]);
+/* the same with an extra turn per bone (a model-space rotation applied at the bone's own joint, so its children follow): aim
+ * offsets - spine bones lean toward where the soldier aims, first person lifts the arms.  rot NULL = none; identity = no change */
+void ak_skeleton_pose_matrices_offset(const ak_skeleton *s, const ak_quat *lq, const f32 (*lt)[3], const ak_quat *rot, f32 (*m)[12]);
 
 /* all models and skeletons of a level file (textures resolved against the level's) */
 bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out);

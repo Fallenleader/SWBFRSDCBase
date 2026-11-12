@@ -49,7 +49,10 @@ typedef struct {
     bool posed;
     /* view and controls: camera 0 = third person, 1 = first person; scheme 0 = modern (twin sticks, free aim), 1 = classic (the
      * game's: turn with the stick, L holds a lock-on).  style 0 = modern over-the-shoulder framing, 1 = the game's own camera. */
-    int cam_mode, scheme, style; bool fp_body;     /* fp_body: first person shows the third-person body (head hidden), not a viewmodel */
+    int cam_mode, scheme, style; bool fp_body;
+    f32 fp_eye_fwd, fp_eye_up, fp_arm_raise, fp_arm_in, fp_blend;   /* first-person framing; blend eases the arm lift in and out */
+    f32 aim_point[3];
+    f32 lh_rel[2][12]; bool lh_ok;     /* first person: the left forearm and hand relative to the weapon, last time they held it */                  /* where the crosshair meets the level (the weapon is turned to point at it) */     /* fp_body: first person shows the third-person body (head hidden), not a viewmodel */
     f32 aim_yaw_speed, aim_pitch_speed, aim_curve; bool invert_y;
     f32 fov_third, fov_first, near_first; f32 vm_offset[3];
     s32 lock; f32 lock_t; f32 lock_range, lock_turn, lock_head_time;
