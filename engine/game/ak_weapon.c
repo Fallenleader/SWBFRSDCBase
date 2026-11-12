@@ -35,6 +35,21 @@ bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, con
     return true;
 }
 
+bool ak_weapon_def_bolt(const ak_blueprints *bp, const char *bolt, ak_weapon_def *d)
+{
+    memset(d, 0, sizeof *d);
+    const ak_bp_object *lb = ak_bp_find(bp, "LaserBolt", bolt);
+    if (!lb) return false;
+    d->bp = lb; d->name = lb->name; d->model = -1;
+    d->rate_of_fire = 0; d->distance = 750; d->clip = -1; d->per_shot = 1; d->headshots = false;
+    d->dmg_infantry = ak_bp_float(lb, "DamageToInfantry", 10); d->dmg_vehicle = ak_bp_float(lb, "DamageToVehicle", 10);
+    d->speed = ak_bp_float(lb, "ProjectileSpeed", 100); d->range = ak_bp_float(lb, "range", 100); d->distance = d->range;
+    d->length = ak_bp_float(lb, "length", 1.5f); d->thickness = ak_bp_float(lb, "thickness", 0.2f);
+    d->colour = (u32)ak_bp_int(lb, "colour", (s32)0xFFFF2020u);
+    d->dscale_dist = ak_bp_float(lb, "DistanceScalingMaxDist", 0); d->dscale_max = ak_bp_float(lb, "DistanceScalingMaxScale", 1);
+    return true;
+}
+
 void ak_weapon_give(ak_weapon *w, const ak_weapon_def *d)
 {
     memset(w, 0, sizeof *w); w->def = d; w->team = -1; w->owner = -1;

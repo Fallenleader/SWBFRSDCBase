@@ -1,0 +1,48 @@
+/* Aurek - ground vehicles: the "Tank" blueprints (MISC/COMMON.ASR) - hover tanks (IFT-T, IFT-X, AAT, AAC-1), speeder bikes, tracked
+ * tanks (T4-B, A5 juggernauts, armoured tank droid) and creatures (Taun-Taun).
+ *
+ * From the blueprint: TopSpeed, StallSpeed (the fastest reverse, negative), MaxAcc, BoostAcc, MaxStrafeAcc, VelDamp, MaxTurnYaw
+ * (degrees a second), CosmeticRoll (degrees of lean into a turn), Health, CameraBestZ / CameraBestY (the chase camera), TargetRange,
+ * HardpointW1 (a LaserBolt) fired from HardpointW1Marker1..4 at HardpointW1Time1..4 within each volley, Turret0 / TurretMarker0.
+ * A vehicle spawn (ENTI type 27) names one model per side; the side that holds the nearest command post gets its vehicle.
+ *
+ * Not traced from the game's code yet, so this engine's: the handling model (how the numbers combine), the hover height, the volley
+ * period, the respawn delay (AK_VEHICLE_RESPAWN, 20 s) and the turret aiming. */
+#ifndef AK_VEHICLE_H
+#define AK_VEHICLE_H
+#include "core/ak_core.h"
+#include "assets/blueprint.h"
+#include "assets/model.h"
+#include "world/ak_collision.h"
+#include "game/ak_weapon.h"
+
+enum { AK_VEH_HOVER, AK_VEH_SPEEDER, AK_VEH_TRACK, AK_VEH_CREATURE };
+
+typedef struct {
+    const ak_bp_object *bp; const char *name; s32 model, turret_model; const char *turret_marker;
+    int kind;
+    f32 top_speed, stall_speed, max_acc, boost_acc, strafe_acc, vel_damp, turn_rate, roll_deg;
+    f32 health, cam_z, cam_y, target_range;
+    f32 hover, radius, height;             /* hover height above the ground; collision circle; body height */
+    ak_weapon_def gun; bool armed;          /* HardpointW1: the bolt */
+    const char *muzzle[4]; f32 muzzle_time[4]; u32 nmuzzles; f32 volley;
+} ak_vehicle_def;
+
+typedef struct {
+    const ak_vehicle_def *def;
+    f32 pos[3], yaw, vel[3], pitch, roll;
+    f32 health; bool alive; int team;
+    s32 driver;                            /* -1 empty, 0 the player, 1 + i bot i */
+    s32 spawn; f32 respawn_t, dead_t;
+    f32 volley_t; u32 fired_mask; f32 aim_yaw, aim_pitch;
+    f32 throttle, steer, strafe;           /* the driver's controls, -1..1 */
+} ak_vehicle;
+
+/* the Tank blueprint of this name with its model in this level; false if there is none */
+bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const char *name, ak_vehicle_def *out);
+void ak_vehicle_spawn(ak_vehicle *v, const ak_vehicle_def *d, const f32 *pos, f32 yaw, int team);
+/* one step of driving (controls in v->throttle / steer / strafe; boost doubles the push) */
+void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool boost, f32 dt);
+/* the model's world matrix (3x4 rows, with the lean) */
+void ak_vehicle_matrix(const ak_vehicle *v, f32 out[12]);
+#endif

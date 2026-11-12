@@ -137,7 +137,7 @@ int main(int argc, char **argv)
         u64 now = ak_plat_time_us(); f32 dt = (now - last) / 1e6f; last = now;
         if (dt > 0.1f) dt = 0.1f;
         { f32 fdt = ak_setting_float("AK_FIXED_DT", 0); if (fdt > 0) dt = fdt; }   /* tests: a fixed step per frame */
-        if (in.pressed & (AK_BTN_START | AK_BTN_TRIANGLE)) {
+        if ((in.pressed & AK_BTN_START) || ((in.pressed & AK_BTN_TRIANGLE) && !(playing && play.ready))) {   /* (playing: triangle enters vehicles) */
             ak_scene_models_free(&mscene); ak_scene_level_free(&scene); loaded = false;
             cur = (in.pressed & AK_BTN_START) ? (cur + 1) % nlevels : (cur + nlevels - 1) % nlevels;
             continue;
@@ -223,7 +223,7 @@ int main(int argc, char **argv)
             continue;
         }
 
-        {   /* scripted input timeline (tests, recordings): AK_TEST_SCRIPT = "frames:lx,ly,rx,ry,buttons; ..." - buttons: j jump, f fire,
+        {   /* scripted input timeline (tests, recordings): AK_TEST_SCRIPT = "frames:lx,ly,rx,ry,buttons; ..." - buttons: j jump, f fire, g get in/out (triangle),
              * l L (j pressed on the segment's first frame; f, l held) */
             const char *sc = ak_setting_str("AK_TEST_SCRIPT", NULL);
             if (sc) {
@@ -237,6 +237,7 @@ int main(int argc, char **argv)
                         if (strchr(bt, 'f')) in.held |= AK_BTN_R;
                         if (strchr(bt, 'l')) in.held |= AK_BTN_L;
                         if (frame == at && strchr(bt, 'j')) in.pressed |= AK_BTN_CROSS;
+                        if (frame == at && strchr(bt, 'g')) in.pressed |= AK_BTN_TRIANGLE;   /* g: get in / out */
                     }
                     at += n; q += used; while (*q == ';' || *q == ' ') q++;
                 }
@@ -297,6 +298,7 @@ int main(int argc, char **argv)
             for (u32 i = 0; i < ents.n; i++) {
                 const ak_entity *e = &ents.e[i];
                 if (!e->placed) continue;
+                if (playing && play.ready && play.nveh && e->flagged && e->type == 27) continue;   /* playing: the vehicles themselves stand there */
                 s32 mi = e->model[0] >= 0 ? e->model[0] : e->model[1];
                 const ak_model *m = &models.models[mi];
                 f32 r = m->radius, mn[3] = { e->pos[0] - r, e->pos[1] - r, e->pos[2] - r }, mx[3] = { e->pos[0] + r, e->pos[1] + r, e->pos[2] + r };
@@ -336,6 +338,17 @@ int main(int argc, char **argv)
                              play.wdef.name, play.weapon.ammo, play.weapon.spare, play.weapon.reload_t > 0 ? "  reloading" : "", play.kills, play.deaths,
                              al[play.team], tot[play.team], al[1 - play.team], tot[1 - play.team]);
                     ak_gfx_text(8, 98, 0xFFC0E0FF, line);
+                }
+                if (play.in_veh >= 0) {
+                    const ak_vehicle *vh = &play.veh[play.in_veh];
+                    snprintf(line, sizeof line, "%s  armour %.0f / %.0f  speed %.0f m/s  triangle: get out  cross: boost  L: strafe", vh->def->name,
+                             play.target[1 + play.nbots + play.in_veh].health, vh->def->health, sqrtf(vh->vel[0] * vh->vel[0] + vh->vel[2] * vh->vel[2]));
+                    ak_gfx_text(8, 152, 0xFFA0FFA0, line);
+                } else {
+                    s32 nv = -1; f32 bd = 1e30f;
+                    for (u32 v = 0; v < play.nveh; v++) { const ak_vehicle *vh = &play.veh[v]; if (!vh->def || !vh->alive || vh->driver >= 0) continue;
+                        f32 dx = vh->pos[0] - play.ch.pos[0], dz = vh->pos[2] - play.ch.pos[2], r = vh->def->radius + 3.0f; if (dx * dx + dz * dz < r * r && dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; nv = (s32)v; } }
+                    if (nv >= 0) { snprintf(line, sizeof line, "triangle: get in the %s", play.veh[nv].def->name); ak_gfx_text((f32)w * 0.5f - 100, (f32)h * 0.5f + 60, 0xFFFFFFFF, line); }
                 }
                 if (play.have_cq) {
                     const ak_conquest *cq = &play.match; int me = play.team, them = 1 - me;

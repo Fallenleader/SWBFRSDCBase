@@ -26,7 +26,12 @@
  * walks there along the level's navigation graph and stands on it until it is theirs, then moves on; with every post held it
  * defends one.  It fights any enemy it can see within the targeting range (50 m): turns to it, holds the trigger in bursts with an
  * aim error that grows with distance, and keeps moving (slower, strafing).  The game's own AI is not traced yet: the reaction
- * time, the aim error (AK_BOT_AIM, degrees), the bursts and the field of view are this engine's. */
+ * time, the aim error (AK_BOT_AIM, degrees), the bursts and the field of view are this engine's.
+ *
+ * Vehicles (game/ak_vehicle.h): each vehicle spawn makes the vehicle of the side holding the nearest command post.  Triangle gets in
+ * and out; driving: left stick throttle and steering, L held strafes, cross boosts, the right stick aims, R fires the hardpoint's bolts
+ * from its barrels in turn.  Wrecks come back after AK_VEHICLE_RESPAWN seconds; the driver dies with the vehicle.  Bots do not drive yet;
+ * they shoot occupied enemy vehicles. */
 #ifndef AK_PLAY_H
 #define AK_PLAY_H
 #include "core/ak_core.h"
@@ -39,6 +44,7 @@
 #include "game/ak_soldier.h"
 #include "game/ak_weapon.h"
 #include "game/ak_conquest.h"
+#include "game/ak_vehicle.h"
 #include "render/ak_scene.h"
 #include "platform/plat.h"
 
@@ -46,6 +52,12 @@ enum { PLAY_IDLE, PLAY_RUN, PLAY_BACK, PLAY_LEFT, PLAY_RIGHT, PLAY_JUMP, PLAY_FA
 
 #define PLAY_MAX_BOTS 127
 #define PLAY_MAX_CLASSES 8
+#define PLAY_MAX_VEH 16
+#define PLAY_MAX_DEFS 8
+#define PLAY_MAX_TARGETS (1 + PLAY_MAX_BOTS + PLAY_MAX_VEH)
+#define PLAY_MAX_BOOMS 8
+typedef struct { f32 pos[3], yaw; s32 def[2]; } ak_play_vspawn;   /* a vehicle spawn: one vehicle per side (index into vdef, -1 none) */
+typedef struct { f32 pos[3], t; } ak_play_boom;
 typedef struct {                       /* a bot soldier */
     ak_soldier_look look; ak_character ch; int team; ak_weapon weapon; bool alive;
     f32 bones[64][12]; int state; f32 clip_t, land_t, dead_t, pose_dt; s32 death_clip; bool was_ground;
@@ -72,7 +84,10 @@ typedef struct {
     ak_weapon_def wdef; ak_weapon weapon; bool armed; ak_bolts bolts; u32 seed;
     f32 bones[64][12]; bool posed;     /* the body's pose this frame (the weapon and the muzzle ride it) */
     ak_play_bot *bot; u32 nbots;       /* (from the level arena) */
-    ak_target target[1 + PLAY_MAX_BOTS];   /* 0: the player, 1 + i: bot i */
+    ak_target target[PLAY_MAX_TARGETS];    /* 0: the player, 1 + i: bot i, 1 + nbots + v: vehicle v */
+    ak_vehicle_def vdef[PLAY_MAX_DEFS]; u32 nvdef;
+    ak_play_vspawn vspawn[PLAY_MAX_VEH]; ak_vehicle veh[PLAY_MAX_VEH]; u32 nveh; s32 in_veh; f32 veh_respawn;
+    ak_play_boom boom[PLAY_MAX_BOOMS]; u32 nboom;
     u32 kills, deaths;
     s32 idle_clip, death_clips[3];
     ak_weapon_def team_wdef[2]; bool team_armed[2];

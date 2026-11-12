@@ -10,7 +10,8 @@
 #           CIRCLE: model gallery (every model of the level in its bind pose): d-pad left / right previous / next model,
 #           right stick turns, left stick zooms, CIRCLE again back to the level.
 #           SQUARE: play (a soldier in a conquest match with bots) / free camera.  Playing: left stick move, right stick aim
-#           (twin stick), CROSS jump, R fire, L hold lock-on; START / TRIANGLE still change level (a new match starts).
+#           (twin stick), CROSS jump, R fire, L hold lock-on, TRIANGLE get in / out of a vehicle; START changes level (a new match
+#           starts; TRIANGLE goes back a level only in the free camera).  Driving: left stick throttle / steer, L held strafe, CROSS boost.
 
 # ---- start
 # level shown first, as "<ERA> <MAP>" (eras: CLASSIC, PREQUEL, CAMPAIGN)
@@ -62,6 +63,9 @@ AK_BOTS=63
 AK_BOT_AIM=3.0
 # 1 = bots do not shoot (tests)
 AK_BOT_PASSIVE=0
+# vehicles at the levels' vehicle spawns (1 = on), and the seconds before a wreck's spawn makes a new one
+AK_VEHICLES=1
+AK_VEHICLE_RESPAWN=20
 # gravity (m/s^2): the game's is 10
 AK_GRAVITY=10
 # third-person camera: modern (over the right shoulder, the DICE Battlefront framing) / classic (the game's own 7 m camera)

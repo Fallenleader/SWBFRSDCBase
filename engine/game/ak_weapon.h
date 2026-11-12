@@ -50,6 +50,8 @@ typedef struct {
 /* the weapon a soldier of `faction` gets for `name` (the faction rule above); false = no such weapon */
 bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, const char *name, int faction, ak_weapon_def *out);
 void ak_weapon_give(ak_weapon *w, const ak_weapon_def *d);
+/* a bare LaserBolt as a weapon (vehicle hardpoints): no model, endless, fired by the caller's timing */
+bool ak_weapon_def_bolt(const ak_blueprints *bp, const char *bolt, ak_weapon_def *out);
 /* trigger held: fires when ready (from `muzzle` toward `target`); returns shots fired */
 u32  ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target *targets, u32 ntargets, const f32 *muzzle, const f32 *target, u32 *seed);
 void ak_weapon_update(ak_weapon *w, f32 dt, bool reload);

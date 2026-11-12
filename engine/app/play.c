@@ -3,6 +3,7 @@
 #include <string.h>
 #include "app/play.h"
 #include "core/ak_settings.h"
+#include "assets/entity.h"
 
 static s32 find_clip(const ak_model_set *m, const char *const *names)
 {
@@ -41,6 +42,12 @@ static void world_of_scaled(const f32 *pos, f32 yaw, f32 k, ak_m4 *w)
 }
 static void world_of(const f32 *pos, f32 yaw, ak_m4 *w) { world_of_scaled(pos, yaw, 1.0f, w); }
 
+#define NS(p) (1 + (p)->nbots)                 /* soldiers in the target list */
+#define NT(p) (1 + (p)->nbots + (p)->nveh)    /* every target: soldiers, then vehicles */
+#define VT(p, v) (1 + (p)->nbots + (v))        /* vehicle v's target */
+
+static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a);
+static bool vehicle_make(ak_play *p, u32 v);
 static f32 rnd(u32 *s) { *s = *s * 1664525u + 1013904223u; return (f32)(*s >> 8) / 16777216.0f; }
 static f32 wrap(f32 a) { while (a > 3.14159265f) a -= 6.2831853f; while (a < -3.14159265f) a += 6.2831853f; return a; }
 
@@ -293,6 +300,13 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         bot_spawn(p, m, b, p->nbots);
         p->nbots++;
     }
+    vehicles_init(p, l, m, bp, a);
+    for (u32 v = 0; v < p->nveh; v++) if (!vehicle_make(p, v)) { p->veh[v].alive = false; p->veh[v].def = &p->vdef[p->vspawn[v].def[0] >= 0 ? p->vspawn[v].def[0] : p->vspawn[v].def[1]]; p->veh[v].dead_t = p->veh_respawn - 5.0f; p->target[VT(p, v)].alive = false; }
+    {   int tv = ak_setting_int("AK_TEST_VEHICLE", 0);                      /* tests: start in vehicle N */
+        if (tv > 0 && (u32)tv <= p->nveh && p->veh[tv - 1].alive) {
+            ak_vehicle *vh = &p->veh[tv - 1]; vh->driver = 0; vh->team = p->team; p->target[VT(p, tv - 1)].team = p->team;
+            p->in_veh = tv - 1; p->target[0].alive = false; memcpy(p->ch.pos, vh->pos, 12); p->cam_dist = vh->def->cam_z;
+        } }
     p->ready = true;
     return true;
 }
@@ -342,12 +356,13 @@ static bool in_sight(const ak_play *p, const f32 *from, const f32 *to)
 /* the nearest enemy it can see (within the targeting range, in front or close) */
 static s32 bot_find_enemy(ak_play *p, ak_play_bot *b)
 {
-    u32 nt = 1 + p->nbots; s32 best = -1; f32 bd = p->sight * p->sight;
+    u32 nt = NT(p); s32 best = -1; f32 bd = p->sight * p->sight;
     f32 eye[3] = { b->ch.pos[0], b->ch.pos[1] + 1.5f * S, b->ch.pos[2] }, fx = -sinf(b->ch.yaw), fz = -cosf(b->ch.yaw);
     s32 cand[4]; f32 cd[4]; u32 nc = 0;
     for (u32 i = 0; i < nt; i++) {
         const ak_target *t = &p->target[i];
         if (!t->alive || t->team == b->team) continue;
+        if (i >= NS(p) && p->veh[i - NS(p)].driver < 0) continue;            /* empty vehicles are no threat */
         f32 dx = t->feet[0] - b->ch.pos[0], dy = t->feet[1] - b->ch.pos[1], dz = t->feet[2] - b->ch.pos[2], d2 = dx * dx + dy * dy + dz * dz;
         if (d2 > bd) continue;
         f32 d = sqrtf(d2); if (d > 12.0f && (dx * fx + dz * fz) < -0.2f * d) continue;   /* behind it and not close: unseen */
@@ -459,9 +474,103 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
             f32 dx = tgt[0] - muz[0], dy = tgt[1] - muz[1], dz = tgt[2] - muz[2], d = sqrtf(dx * dx + dy * dy + dz * dz);
             f32 err = p->bot_aim * d;                                    /* the aim error: an angle, so it grows with distance */
             tgt[0] += (rnd(&b->seed) * 2 - 1) * err; tgt[1] += (rnd(&b->seed) * 2 - 1) * err * 0.6f; tgt[2] += (rnd(&b->seed) * 2 - 1) * err;
-            ak_weapon_fire(&b->weapon, &p->bolts, &p->col, p->target, 1 + p->nbots, muz, tgt, &b->seed);
+            ak_weapon_fire(&b->weapon, &p->bolts, &p->col, p->target, NT(p), muz, tgt, &b->seed);
         }
     }
+}
+
+
+/* ------------------------------------------------------------------ vehicles */
+static f32 quat_yaw(ak_quat q) { return atan2f(-2 * (q.x * q.z + q.w * q.y), -(1 - 2 * (q.x * q.x + q.y * q.y))); }   /* vehicle models face +z */
+
+/* which side's vehicle a spawn makes: the side holding the nearest command post (none while it is neutral) */
+static int spawn_team(const ak_play *p, const ak_play_vspawn *sp)
+{
+    if (!p->have_cq) return sp->def[0] >= 0 ? 0 : 1;
+    s32 best = -1; f32 bd = 1e30f;
+    for (u32 i = 0; i < p->cq.nposts; i++) {
+        f32 dx = p->cq.post[i].pos[0] - sp->pos[0], dz = p->cq.post[i].pos[2] - sp->pos[2];
+        if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; best = (s32)i; }
+    }
+    int o = best >= 0 ? p->match.post[best].owner : AK_CQ_NEUTRAL;
+    return o < 2 ? o : -1;
+}
+
+static void vehicle_target(ak_play *p, u32 v)
+{
+    const ak_vehicle *vh = &p->veh[v]; ak_target *t = &p->target[VT(p, v)];
+    memcpy(t->feet, vh->pos, 12); t->height = vh->def->hover + vh->def->height; t->radius = vh->def->radius;
+    memcpy(t->head, vh->pos, 12); t->head[1] -= 100; t->head_radius = 0;   /* no head */
+    t->team = vh->team; t->vehicle = true;
+}
+
+static bool vehicle_make(ak_play *p, u32 v)
+{
+    ak_play_vspawn *sp = &p->vspawn[v]; int team = spawn_team(p, sp);
+    if (team < 0 || sp->def[team] < 0) return false;
+    ak_vehicle *vh = &p->veh[v]; vh->spawn = (s32)v;
+    ak_vehicle_spawn(vh, &p->vdef[sp->def[team]], sp->pos, sp->yaw, team);
+    ak_target *t = &p->target[VT(p, v)]; memset(t, 0, sizeof *t);
+    t->health = vh->def->health; t->alive = true; t->last_attacker = -1;
+    vehicle_target(p, v);
+    return true;
+}
+
+static void boom(ak_play *p, const f32 *pos)
+{
+    ak_play_boom *b = &p->boom[p->nboom < PLAY_MAX_BOOMS ? p->nboom++ : 0];
+    memcpy(b->pos, pos, 12); b->pos[1] += 1.5f; b->t = 0;
+}
+
+static void player_down(ak_play *p);
+static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
+{
+    ak_vehicle *vh = &p->veh[v]; (void)m;
+    if (p->target[VT(p, v)].last_attacker == 0 && vh->driver != 0) p->kills++;
+    vh->alive = false; vh->dead_t = 0; boom(p, vh->pos);
+    if (vh->driver == 0) { p->in_veh = -1; vh->driver = -1; if (p->alive) { p->target[0].alive = true; p->target[0].health = 0; player_down(p); } }
+}
+
+static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a)
+{
+    p->in_veh = -1; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 20.0f);
+    if (!ak_setting_int("AK_VEHICLES", 1)) return;
+    ak_entity_set es; size_t mark = a->used;
+    if (!ak_entities_load(l, m, a, &es)) { a->used = mark; return; }
+    for (u32 i = 0; i < es.n && p->nveh < PLAY_MAX_VEH; i++) {
+        const ak_entity *e = &es.e[i];
+        if (!e->flagged || e->type != 27 || !e->placed) continue;
+        ak_play_vspawn *sp = &p->vspawn[p->nveh]; bool any = false;
+        memcpy(sp->pos, e->pos, 12); sp->yaw = quat_yaw(e->rot);
+        for (int t = 0; t < 2; t++) {
+            sp->def[t] = -1;
+            if (e->model[t] < 0) continue;
+            const char *nm = m->models[e->model[t]].name;
+            for (u32 k = 0; k < p->nvdef; k++) if (!strcmp(p->vdef[k].name, nm)) sp->def[t] = (s32)k;
+            if (sp->def[t] < 0 && p->nvdef < PLAY_MAX_DEFS && ak_vehicle_def_load(bp, m, nm, &p->vdef[p->nvdef])) sp->def[t] = (s32)p->nvdef++;
+            if (sp->def[t] >= 0) any = true;
+        }
+        if (any) p->nveh++;
+    }
+    a->used = mark;                                                           /* the entity list was only needed here */
+}
+
+static void vehicle_fire(ak_play *p, const ak_model_set *m, u32 v, const f32 *target, f32 dt)
+{
+    ak_vehicle *vh = &p->veh[v]; const ak_vehicle_def *d = vh->def;
+    if (!d->armed || !d->nmuzzles) return;
+    f32 prev = vh->volley_t; vh->volley_t += dt;
+    f32 M[12]; ak_vehicle_matrix(vh, M);
+    const ak_model *md = &m->models[d->model];
+    ak_weapon w; ak_weapon_give(&w, &d->gun); w.team = vh->team; w.owner = (s32)(vh->driver >= 0 ? vh->driver : -1);
+    for (u32 i = 0; i < d->nmuzzles; i++) {
+        if (!(prev <= d->muzzle_time[i] && vh->volley_t > d->muzzle_time[i]) && !(prev == 0 && d->muzzle_time[i] == 0)) continue;
+        const ak_marker *mk = ak_model_marker(md, d->muzzle[i]); if (!mk) continue;
+        f32 lp[3] = { mk->m[3], mk->m[7], mk->m[11] }, muz[3];
+        for (int r = 0; r < 3; r++) muz[r] = M[r * 4] * lp[0] + M[r * 4 + 1] * lp[1] + M[r * 4 + 2] * lp[2] + M[r * 4 + 3];
+        ak_weapon_fire(&w, &p->bolts, &p->col, p->target, NT(p), muz, target, &p->seed);
+    }
+    if (vh->volley_t >= d->volley) vh->volley_t = 0;
 }
 
 /* ------------------------------------------------------------------ the frame */
@@ -485,6 +594,30 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     p->clock += dt;
     static const ak_input none;
     if (!p->alive) in = &none;                                               /* down: no control until the spawn wave */
+    const ak_input *vin = in;                                                 /* the controls, for the vehicle when driving */
+    if (p->alive && (vin->pressed & AK_BTN_TRIANGLE)) {                       /* triangle: get in / out */
+        if (p->in_veh >= 0) {
+            ak_vehicle *vh = &p->veh[p->in_veh]; f32 out[3], gy;
+            f32 rx = cosf(vh->yaw), rz = -sinf(vh->yaw), dd = vh->def->radius + p->cp.radius + 0.5f;
+            out[0] = vh->pos[0] - rx * dd; out[1] = vh->pos[1] + 1.0f; out[2] = vh->pos[2] - rz * dd;   /* out on the left */
+            if (ak_char_ground_below(&p->col, out, 6.0f, &gy)) out[1] = gy; else memcpy(out, vh->pos, 12);
+            ak_char_spawn(&p->ch, out, vh->yaw); vh->driver = -1; vh->throttle = vh->steer = vh->strafe = 0;
+            p->in_veh = -1; p->target[0].alive = true; p->cam_dist = p->cam_back;
+        } else {
+            s32 best = -1; f32 bd = 1e30f;
+            for (u32 v = 0; v < p->nveh; v++) {
+                const ak_vehicle *vh = &p->veh[v]; if (!vh->alive || vh->driver >= 0) continue;
+                f32 dx = vh->pos[0] - p->ch.pos[0], dz = vh->pos[2] - p->ch.pos[2], d2 = dx * dx + dz * dz, r = vh->def->radius + 3.0f;
+                if (d2 < r * r && d2 < bd && fabsf(vh->pos[1] - p->ch.pos[1]) < 4) { bd = d2; best = (s32)v; }
+            }
+            if (ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "get in: nearest %d (soldier at %.1f %.1f %.1f)", best, p->ch.pos[0], p->ch.pos[1], p->ch.pos[2]);
+            if (best >= 0) {
+                ak_vehicle *vh = &p->veh[best]; vh->driver = 0; vh->team = p->team; vh->aim_yaw = vh->aim_pitch = 0;
+                p->target[VT(p, best)].team = p->team; p->in_veh = best; p->target[0].alive = false; p->lock = -1; p->cam_dist = vh->def->cam_z;
+            }
+        }
+    }
+    if (p->in_veh >= 0) in = &none;                                           /* the soldier stands still inside */
     ak_char_input ci = { in->lx, in->ly, in->rx, in->ry, (in->pressed & AK_BTN_CROSS) != 0 };
     if (p->twin_stick) {
         /* free aim with a response curve (fine near the centre, fast at the edge); the body turns with the aim */
@@ -495,7 +628,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (p->ch.pitch < -1.35f) p->ch.pitch = -1.35f;
         ci.look_x = ci.look_y = 0;
     }
-    u32 nt = 1 + p->nbots;
+    u32 nt = NT(p);
     /* lock-on: L held; the facing turns toward the target (the nearest enemy in front within the targeting range) */
     if (in->held & AK_BTN_L) {
         if (p->lock < 0 || !p->target[p->lock].alive) {
@@ -528,7 +661,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (!p->alive) { p->dead_t += dt; if (p->posed) pose(m, &p->look, p->death_clips[0], p->dead_t, false, p->bones); }
     else if (p->posed) {
         pose(m, &p->look, p->clip[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->bones);
-        body_target(m, &p->look, (const f32 (*)[12])p->bones, p->ch.pos, p->ch.yaw, &p->target[0]);
+        if (p->in_veh < 0) body_target(m, &p->look, (const f32 (*)[12])p->bones, p->ch.pos, p->ch.yaw, &p->target[0]);
     }
     /* where the centre of the view meets the level: shots go there unless locked on */
     if (p->aim_ok) {
@@ -559,12 +692,47 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     }
     /* the bots */
     for (u32 i = 0; i < p->nbots; i++) bot_update(p, m, &p->bot[i], i, dt, NULL);
+    /* the vehicles */
+    for (u32 v = 0; v < p->nveh; v++) {
+        ak_vehicle *vh = &p->veh[v];
+        if (!vh->def) continue;
+        if (!vh->alive) {                                                     /* wrecked: back after the respawn delay */
+            vh->dead_t += dt;
+            if (vh->dead_t > p->veh_respawn) { if (!vehicle_make(p, v)) vh->dead_t = p->veh_respawn - 5.0f; }
+            continue;
+        }
+        if (vh->driver == 0) {                                                /* the player drives: left stick, cross boosts, right stick aims, R fires */
+            vh->throttle = vin->ly; vh->steer = vin->lx; vh->strafe = 0;
+            if (vin->held & AK_BTN_L) { vh->strafe = vin->lx; vh->steer = 0; }   /* L held: strafe (hover craft) */
+            vh->aim_yaw -= vin->rx * 2.0f * dt; vh->aim_pitch += (p->invert_y ? -vin->ry : vin->ry) * 1.5f * dt;
+            if (vh->aim_yaw > 1.2f) vh->aim_yaw = 1.2f;
+            if (vh->aim_yaw < -1.2f) vh->aim_yaw = -1.2f;
+            if (vh->aim_pitch > 0.6f) vh->aim_pitch = 0.6f;
+            if (vh->aim_pitch < -0.4f) vh->aim_pitch = -0.4f;
+            ak_vehicle_update(vh, &p->col, p->cp.gravity, (vin->held & AK_BTN_CROSS) != 0, dt);
+            if ((vin->held & AK_BTN_R) && p->aim_ok) vehicle_fire(p, m, v, p->aim_point, dt); else vh->volley_t = 0;
+            memcpy(p->ch.pos, vh->pos, 12); p->ch.yaw = vh->yaw + vh->aim_yaw; p->ch.vel[0] = p->ch.vel[1] = p->ch.vel[2] = 0;
+        } else {                                                              /* empty: it brakes to a stop */
+            vh->throttle = vh->steer = vh->strafe = 0; f32 k = expf(-4.0f * dt); vh->vel[0] *= k; vh->vel[2] *= k;
+            ak_vehicle_update(vh, &p->col, p->cp.gravity, false, dt);
+        }
+        if (vh->driver == 0 && ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "%s acc %.0f top %.0f pos %.1f %.1f %.1f vel %.1f %.1f %.1f yaw %.2f", vh->def->name, vh->def->max_acc, vh->def->top_speed, vh->pos[0], vh->pos[1], vh->pos[2], vh->vel[0], vh->vel[1], vh->vel[2], vh->yaw);
+        vehicle_target(p, v);
+        if (vh->pos[1] < -400.0f) { p->target[VT(p, v)].alive = false; }
+    }
+    for (u32 i = 0; i < p->nboom; i++) p->boom[i].t += dt;
     /* soldiers are solid to each other: push apart (two body radii) */
     {   f32 rr = p->cp.radius * 2;
-        for (u32 i = 0; i < nt; i++) {
+        for (u32 i = 0; i < NS(p); i++) {
             if (!p->target[i].alive) continue;
             ak_character *a = i ? &p->bot[i - 1].ch : &p->ch;
-            for (u32 j = i + 1; j < nt; j++) {
+            for (u32 v = 0; v < p->nveh; v++) {                                /* and out of the vehicles */
+                const ak_vehicle *vh = &p->veh[v]; if (!vh->alive) continue;
+                f32 vr = vh->def->radius + p->cp.radius, dx = a->pos[0] - vh->pos[0], dz = a->pos[2] - vh->pos[2], d2 = dx * dx + dz * dz;
+                if (d2 >= vr * vr || d2 < 1e-8f || a->pos[1] > vh->pos[1] + vh->def->hover + vh->def->height || a->pos[1] + 2 < vh->pos[1]) continue;
+                f32 d = sqrtf(d2); a->pos[0] += dx / d * (vr - d); a->pos[2] += dz / d * (vr - d);
+            }
+            for (u32 j = i + 1; j < NS(p); j++) {
                 if (!p->target[j].alive) continue;
                 ak_character *b = &p->bot[j - 1].ch;
                 f32 dx = a->pos[0] - b->pos[0], dz = a->pos[2] - b->pos[2], d2 = dx * dx + dz * dz;
@@ -574,7 +742,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             }
         } }
     /* the shots in flight */
-    bool alive_before[1 + PLAY_MAX_BOTS];
+    bool alive_before[PLAY_MAX_TARGETS];
     for (u32 i = 0; i < nt; i++) alive_before[i] = p->target[i].alive;
     ak_bolts_update(&p->bolts, &p->col, p->target, nt, dt);
     {   int td = ak_setting_int("AK_TEST_HURT", 0);                         /* tests: damage per second to the soldier */
@@ -582,6 +750,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     /* who fell this frame: a ticket each, the kill to whoever shot last */
     for (u32 i = 0; i < nt; i++) {
         if (!(alive_before[i] && !p->target[i].alive)) continue;
+        if (i >= NS(p)) { vehicle_destroyed(p, m, i - NS(p)); continue; }
         if (p->target[i].last_attacker == 0 && i != 0) p->kills++;
         if (i == 0) player_down(p);
         else {
@@ -598,11 +767,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     bool wave = false;
     if (p->have_cq) {
         ak_cq_soldier sol[1 + PLAY_MAX_BOTS];
-        for (u32 i = 0; i < nt; i++) {
+        for (u32 i = 0; i < NS(p); i++) {
             const ak_character *c = i ? &p->bot[i - 1].ch : &p->ch;
             sol[i].team = p->target[i].team; sol[i].alive = p->target[i].alive; sol[i].weight = 1.0f; memcpy(sol[i].pos, c->pos, 12);
         }
-        wave = ak_conquest_update(&p->cq, &p->rules, &p->match, sol, nt, dt);
+        sol[0].alive = p->alive; if (p->in_veh >= 0) { memcpy(sol[0].pos, p->veh[p->in_veh].pos, 12); sol[0].weight = 0; }   /* drivers do not capture */
+        wave = ak_conquest_update(&p->cq, &p->rules, &p->match, sol, NS(p), dt);
         p->near_post = -1;
         for (u32 i = 0; i < p->cq.nposts && p->alive; i++) {
             f32 dx = p->ch.pos[0] - p->cq.post[i].pos[0], dy = p->ch.pos[1] - p->cq.post[i].pos[1], dz = p->ch.pos[2] - p->cq.post[i].pos[2];
@@ -634,7 +804,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
 void ak_play_counts(const ak_play *p, u32 alive[2], u32 total[2])
 {
     alive[0] = alive[1] = total[0] = total[1] = 0;
-    for (u32 i = 0; i < 1 + p->nbots; i++) { int t = p->target[i].team & 1; total[t]++; if (p->target[i].alive) alive[t]++; }
+    for (u32 i = 0; i < NS(p); i++) { int t = p->target[i].team & 1; total[t]++; if (p->target[i].alive) alive[t]++; }
 }
 
 bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12])
@@ -646,6 +816,24 @@ bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12])
 static void camera_for(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy);
 void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy)
 {
+    if (p->in_veh >= 0) {                                                     /* driving: the blueprint's chase camera (CameraBestZ back, CameraBestY up) */
+        const ak_vehicle *vh = &p->veh[p->in_veh];
+        f32 y = vh->yaw + vh->aim_yaw + ak_setting_float("AK_DEBUG_CAM_ORBIT", 0), pt = -vh->aim_pitch * 0.5f - 0.12f;
+        f32 back = vh->def->cam_z, up = vh->def->cam_y;
+        f32 piv[3] = { vh->pos[0], vh->pos[1] + vh->def->hover + vh->def->height * 0.7f, vh->pos[2] };
+        f32 want[3] = { sinf(y) * back, up - vh->def->height * 0.7f, cosf(y) * back }, wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]);
+        f32 dir[3] = { want[0] / wl, want[1] / wl, want[2] / wl }, lim = wl; ak_col_hit h;
+        if (ak_col_raycast(&p->col, piv, dir, wl, AK_COL_NOT_BODIES, &h)) lim = h.t - 0.4f;
+        if (lim < 1.0f) lim = 1.0f;
+        if (lim < p->cam_dist) p->cam_dist += (lim - p->cam_dist) * fminf(1.0f, p->pull_in_rate * dt); else p->cam_dist += (lim - p->cam_dist) * fminf(1.0f, 2.0f * dt);
+        if (p->cam_dist > lim) p->cam_dist = lim;
+        f32 sc = p->cam_dist / wl;
+        *eye = ak_v3_make(piv[0] + want[0] * sc, piv[1] + want[1] * sc, piv[2] + want[2] * sc);
+        *yaw = y; *pitch = pt + vh->aim_pitch; *fovy = p->fov;
+        p->aim_ok = true; p->eye[0] = eye->x; p->eye[1] = eye->y; p->eye[2] = eye->z;
+        p->aim[0] = -sinf(*yaw) * cosf(*pitch); p->aim[1] = sinf(*pitch); p->aim[2] = -cosf(*yaw) * cosf(*pitch);
+        return;
+    }
     int fb = ak_setting_int("AK_DEBUG_FOLLOW_BOT", 0);                       /* tests: watch bot N over its shoulder */
     if (fb > 0 && (u32)fb <= p->nbots) {
         ak_character keep = p->ch; p->ch = p->bot[fb - 1].ch; p->ch.pitch = 0.1f;
@@ -688,8 +876,27 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
     if (!p->ready || !p->posed) return;
     static f32 gun[12];
     ak_frustum fr = ak_frustum_from(vp);
-    draw_soldier(ms, m, &p->look, p->ch.pos, p->ch.yaw, (const f32 (*)[12])p->bones, vp, st);
-    if (p->armed && p->alive && ak_play_weapon_matrix(p, m, gun)) draw_weapon(ms, m, &p->wdef, gun, vp, st);
+    if (p->in_veh < 0) {
+        draw_soldier(ms, m, &p->look, p->ch.pos, p->ch.yaw, (const f32 (*)[12])p->bones, vp, st);
+        if (p->armed && p->alive && ak_play_weapon_matrix(p, m, gun)) draw_weapon(ms, m, &p->wdef, gun, vp, st);
+    }
+    for (u32 v = 0; v < p->nveh; v++) {                                       /* the vehicles (and their turrets) */
+        const ak_vehicle *vh = &p->veh[v];
+        if (!vh->def || !vh->alive) continue;
+        f32 M[12]; ak_vehicle_matrix(vh, M);
+        f32 r = m->models[vh->def->model].radius, mn[3] = { M[3] - r, M[7] - r, M[11] - r }, mx[3] = { M[3] + r, M[7] + r, M[11] + r };
+        if (!ak_frustum_aabb(&fr, mn, mx)) continue;
+        draw_weapon(ms, m, &(ak_weapon_def){ .model = vh->def->model }, M, vp, st);
+        if (vh->def->turret_model >= 0) {
+            const ak_marker *tm = ak_model_marker(&m->models[vh->def->model], vh->def->turret_marker);
+            if (tm) {
+                f32 T[12], L[12]; static const f32 I[12] = { 1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0 };
+                ak_marker_matrix(I, tm, L);
+                for (int rr = 0; rr < 3; rr++) { for (int c = 0; c < 4; c++) T[rr * 4 + c] = M[rr * 4] * L[c] + M[rr * 4 + 1] * L[4 + c] + M[rr * 4 + 2] * L[8 + c]; T[rr * 4 + 3] += M[rr * 4 + 3]; }
+                draw_weapon(ms, m, &(ak_weapon_def){ .model = vh->def->turret_model }, T, vp, st);
+            }
+        }
+    }
     for (u32 i = 0; i < p->nbots; i++) {
         const ak_play_bot *b = &p->bot[i];
         if (!b->alive && b->dead_t > 8.0f) continue;                           /* the fallen fade from the field */
@@ -698,7 +905,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         draw_soldier(ms, m, &b->look, b->ch.pos, b->ch.yaw, (const f32 (*)[12])b->bones, vp, st);
         if (b->alive && b->weapon.def && weapon_world(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, gun)) draw_weapon(ms, m, b->weapon.def, gun, vp, st);
     }
-    static ak_vtx bv[(AK_MAX_BOLTS + AK_MAX_IMPACTS + AK_MAX_POSTS) * AK_BEAM_VERTS];
+    static ak_vtx bv[(AK_MAX_BOLTS + AK_MAX_IMPACTS + AK_MAX_POSTS + PLAY_MAX_BOOMS) * AK_BEAM_VERTS];
     ak_gfx_set_transform(NULL);
     u32 n = 0;
     if (p->have_cq) {                                                         /* the command posts: the game's cone of light and the owner's logo */
@@ -721,6 +928,11 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         ak_gfx_set_tint(NULL);
     }
     n += ak_bolts_vertices(&p->bolts, p->eye, bv + n, sizeof bv / sizeof bv[0] - n);
+    for (u32 i = 0; i < p->nboom; i++) {                                      /* wrecks: a fireball (the game's PFX comes with the particles) */
+        const ak_play_boom *b = &p->boom[i]; if (b->t > 1.2f) continue;
+        f32 k = b->t / 1.2f;
+        n += ak_flash(bv + n, b->pos, 2.5f + 6.0f * k, p->eye, 0xFFFF9030u, (u8)(255 * (1.0f - k)));
+    }
     if (ak_setting_int("AK_DEBUG_BEAMS", 0) && p->armed) {                   /* tests: the weapon's bolt across, slanting and end-on, in front of the eye */
         f32 f[3] = { p->aim[0], p->aim[1], p->aim[2] }, r[3] = { -f[2], 0, f[0] }, rl = sqrtf(r[0] * r[0] + r[2] * r[2]);
         r[0] /= rl; r[2] /= rl;
