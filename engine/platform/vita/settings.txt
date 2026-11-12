@@ -55,27 +55,7 @@ AK_WEAPON=BlasterRifle
 AK_DUMMIES=6
 # not yet read from the game: gravity (m/s^2)
 AK_GRAVITY=9.81
-# view: third / first (d-pad up switches in play)
-AK_CAMERA_MODE=third
-# third-person framing: modern (over the shoulder, DICE Battlefront) / classic (the game's own 7 m camera)
+# third-person camera: modern (over the right shoulder, the DICE Battlefront framing) / classic (the game's own 7 m camera)
 AK_CAM_STYLE=modern
-# controls: modern (twin sticks, free aim, L reloads) / classic (the game's: L holds lock-on, automatic reload)
-AK_CONTROLS=modern
-# free aim: turn speed (rad/s at full tilt), response curve (1 = linear, 2 = fine near the centre), invert the vertical
-AK_AIM_SPEED=3.2
-AK_AIM_CURVE=2.0
-AK_INVERT_Y=0
-# field of view (vertical degrees) in modern third person and in first person
-AK_FOV_THIRD=55
-AK_FOV_FIRST=62
-# first person: 1 = your own third-person body without its head (test), 0 = a rifle viewmodel only
-AK_FP_BODY=1
-# the local soldier leans toward its aim (1 = on)
-AK_AIM_OFFSET=1
-# first person on the body: where the weapon is held, from the eye (metres right, up, forward); the arms follow it
-AK_FP_GUN_RIGHT=0.14
-AK_FP_GUN_UP=-0.17
-AK_FP_GUN_FWD=0.30
-# the eye from the head marker (metres forward, up)
-AK_FP_EYE_FWD=0.12
-AK_FP_EYE_UP=0.06
+# field of view of the modern camera (vertical degrees)
+AK_FOV=55

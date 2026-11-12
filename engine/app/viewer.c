@@ -224,7 +224,7 @@ int main(int argc, char **argv)
         }
 
         {   /* scripted input timeline (tests, recordings): AK_TEST_SCRIPT = "frames:lx,ly,rx,ry,buttons; ..." - buttons: j jump, f fire,
-             * l L, u d-pad up (pressed on the segment's first frame for j/u, held for f/l) */
+             * l L (j pressed on the segment's first frame; f, l held) */
             const char *sc = ak_setting_str("AK_TEST_SCRIPT", NULL);
             if (sc) {
                 int at = 0; const char *q = sc;
@@ -237,7 +237,6 @@ int main(int argc, char **argv)
                         if (strchr(bt, 'f')) in.held |= AK_BTN_R;
                         if (strchr(bt, 'l')) in.held |= AK_BTN_L;
                         if (frame == at && strchr(bt, 'j')) in.pressed |= AK_BTN_CROSS;
-                        if (frame == at && strchr(bt, 'u')) in.pressed |= AK_BTN_UP;
                     }
                     at += n; q += used; while (*q == ';' || *q == ' ') q++;
                 }
@@ -264,7 +263,7 @@ int main(int argc, char **argv)
         f32 fovy = 1.05f;
         if (playing && play.ready) {
             ak_play_update(&play, &models, &in, dt);
-            ak_play_camera(&play, &models, dt, &cam.pos, &cam.yaw, &cam.pitch, &fovy);
+            ak_play_camera(&play, dt, &cam.pos, &cam.yaw, &cam.pitch, &fovy);
         } else {
         /* free camera */
         cam.yaw -= in.rx * 2.0f * dt; cam.pitch += in.ry * 1.5f * dt;
@@ -278,7 +277,7 @@ int main(int argc, char **argv)
         }
 
         int w, h; ak_gfx_size(&w, &h);
-        ak_m4 proj = ak_m4_perspective(fovy, (f32)w / (f32)h, playing && play.ready ? ak_play_near(&play) : ak_setting_float("AK_NEAR", 0.75f), ak_setting_float("AK_FAR", 8000.0f));
+        ak_m4 proj = ak_m4_perspective(fovy, (f32)w / (f32)h, playing && play.ready ? 0.25f : ak_setting_float("AK_NEAR", 0.75f), ak_setting_float("AK_FAR", 8000.0f));
         ak_m4 view = ak_m4_view_yaw_pitch(cam.pos, cam.yaw, cam.pitch), vp = ak_m4_mul(&proj, &view);
         ak_gfx_env env = { { 0.55f, 0.62f, 0.70f }, ak_setting_float("AK_FOG_START", 0), ak_setting_float("AK_FOG_END", 0),
                            ak_setting_float("AK_COLOUR_SCALE", 2.0f) };
@@ -310,7 +309,7 @@ int main(int argc, char **argv)
         }
         if (playing && play.ready) {
             ak_play_draw(&play, &mscene, &models, &vp, &ss);
-            ak_gfx_text((f32)w * 0.5f - 4, (f32)h * 0.5f - 8, play.scheme && play.lock >= 0 ? 0xFF4040FF : 0xFFFFFFFF, "+");   /* crosshair */
+            ak_gfx_text((f32)w * 0.5f - 4, (f32)h * 0.5f - 8, play.lock >= 0 ? 0xFF4040FF : 0xFFFFFFFF, "+");   /* crosshair */
         }
         if (show) {
             char line[160];
@@ -331,8 +330,7 @@ int main(int argc, char **argv)
                              play.ndummy ? play.target[0].health : 0.0f);
                     ak_gfx_text(8, 98, 0xFFC0E0FF, line);
                 }
-                ak_gfx_text(8, 116, 0xFFC0C0C0, play.scheme ? "left stick: move  right stick: turn  cross: jump  R: fire  L: lock on  d-pad up: 1st/3rd person  square: free camera"
-                                                            : "left stick: move  right stick: aim  cross: jump  R: fire  L: reload  d-pad up: 1st/3rd person  square: free camera");
+                ak_gfx_text(8, 116, 0xFFC0C0C0, "left stick: move  right stick: turn  cross: jump  R: fire  L: lock on  square: free camera");
 
             }
         }
