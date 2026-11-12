@@ -41,6 +41,11 @@ static const char *fs_cutout =
 static const char *fs_alpha =      /* layer, blend, add: the blend state differs, the shader does not */
     "#version 330 core\nin vec2 vUv; in vec4 vCol; in float vFog; uniform sampler2D uTex; uniform vec3 uFog; out vec4 o;\n"
     "void main(){ vec4 t = texture(uTex, vUv); o = vec4(mix(t.rgb * vCol.rgb, uFog, vFog), t.a * vCol.a); }\n";
+static const char *fs_beam =      /* the glow from the distance to the core (DICE's lightsaber idea: maths per pixel, not a texture) */
+    "#version 330 core\nin vec2 vUv; in vec4 vCol; in float vFog; uniform sampler2D uTex; uniform vec3 uFog; out vec4 o;\n"
+    "void main(){ float d = length(vUv); float glow = exp(-d * d * 5.0) * (1.0 - smoothstep(0.75, 1.0, d));\n"
+    "  float core = 1.0 - smoothstep(0.16, 0.30, d); float k = vCol.a * (1.0 - vFog);\n"
+    "  o = vec4((vCol.rgb * glow + vec3(core)) * k, glow * k * 0.6); }\n";
 static const char *fs_src[AK_PIPE_COUNT];
 static const char *ui_vs =
     "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in vec2 aUv; layout(location=2) in vec4 aCol; uniform vec2 uScale;\n"
@@ -76,7 +81,7 @@ bool ak_gfx_init(const ak_gfx_config *c)
     if (!glc) { AK_ERROR("gl", "context: %s", SDL_GetError()); return false; }
     SDL_GL_SetSwapInterval(c->vsync ? 1 : 0);
     snprintf(name, sizeof name, "OpenGL %s (%s)", (const char *)glGetString(GL_VERSION), (const char *)glGetString(GL_RENDERER));
-    fs_src[AK_PIPE_OPAQUE] = fs_opaque; fs_src[AK_PIPE_CUTOUT] = fs_src[AK_PIPE_OVERLAY] = fs_cutout; fs_src[AK_PIPE_LAYER] = fs_src[AK_PIPE_BLEND] = fs_src[AK_PIPE_ADD] = fs_alpha;
+    fs_src[AK_PIPE_OPAQUE] = fs_opaque; fs_src[AK_PIPE_CUTOUT] = fs_src[AK_PIPE_OVERLAY] = fs_cutout; fs_src[AK_PIPE_LAYER] = fs_src[AK_PIPE_BLEND] = fs_src[AK_PIPE_ADD] = fs_alpha; fs_src[AK_PIPE_BEAM] = fs_beam;
     for (int i = 0; i < AK_PIPE_COUNT; i++) {
         prog[i] = link(vs_src, fs_src[i]);
         u_vp[i] = glGetUniformLocation(prog[i], "uVP"); u_fog[i] = glGetUniformLocation(prog[i], "uFog"); u_fogr[i] = glGetUniformLocation(prog[i], "uFogRange");
@@ -191,6 +196,7 @@ void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 f
         if (p == AK_PIPE_OVERLAY || p == AK_PIPE_BLEND) { glEnable(GL_POLYGON_OFFSET_FILL); glPolygonOffset(-1.0f, -2.0f); }
         else glDisable(GL_POLYGON_OFFSET_FILL);
         if (p == AK_PIPE_ADD) { glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE); glDepthMask(GL_FALSE); }
+        else if (p == AK_PIPE_BEAM) { glEnable(GL_BLEND); glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA); glDepthMask(GL_FALSE); }
         else if (p >= AK_PIPE_LAYER) { glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); glDepthMask(GL_FALSE); }
         else { glDisable(GL_BLEND); glDepthMask(GL_TRUE); }
         cur_pipe = (int)p;

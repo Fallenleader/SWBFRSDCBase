@@ -31,6 +31,7 @@ bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, con
     d->speed = ak_bp_float(pr, "ProjectileSpeed", 100); d->range = lb ? ak_bp_float(lb, "range", 50) : d->distance;
     d->length = ak_bp_float(lb, "length", 1.5f); d->thickness = ak_bp_float(lb, "thickness", 0.2f);
     d->colour = (u32)ak_bp_int(lb, "colour", (s32)0xFFFF2020u);
+    d->dscale_dist = ak_bp_float(lb, "DistanceScalingMaxDist", 0); d->dscale_max = ak_bp_float(lb, "DistanceScalingMaxScale", 1);
     return true;
 }
 
@@ -111,7 +112,7 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
         if (b->n >= AK_MAX_BOLTS) break;
         ak_bolt *o = &b->b[b->n++];
         memcpy(o->pos, muzzle, 12); memcpy(o->dir, dd, 12);
-        o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->headshots = d->headshots; o->colour = d->colour; o->team = w->team; o->owner = w->owner;
+        o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->headshots = d->headshots; o->colour = d->colour; o->dscale_max = d->dscale_max; o->dscale_dist = d->dscale_dist; o->team = w->team; o->owner = w->owner;
     }
     b->fired++;
     w->cooldown = d->rate_of_fire;
@@ -150,54 +151,78 @@ void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *tg, u32 nt
     for (u32 i = 0; i < b->nimp; i++) b->imp[i].age += dt;
 }
 
-void ak_sprite_star(ak_vtx *v, const f32 *a, const f32 *c, f32 halfw, u32 rgba, u8 alpha_a, u8 alpha_c)
+static void vtx(ak_vtx *o, const f32 *p, f32 u, f32 v, u32 rgba, u8 alpha)
 {
-    f32 ax[3] = { c[0] - a[0], c[1] - a[1], c[2] - a[2] }, l = sqrtf(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]);
-    if (l < 1e-6f) { ax[0] = 0; ax[1] = 1; ax[2] = 0; l = 1; }
-    for (int k = 0; k < 3; k++) ax[k] /= l;
-    /* two directions across the axis (the first level), then the fins every 60 degrees */
-    f32 ref[3] = { 0, 1, 0 }; if (fabsf(ax[1]) > 0.95f) { ref[0] = 1; ref[1] = 0; }
-    f32 s1[3] = { ax[1] * ref[2] - ax[2] * ref[1], ax[2] * ref[0] - ax[0] * ref[2], ax[0] * ref[1] - ax[1] * ref[0] };
-    f32 sl = sqrtf(s1[0] * s1[0] + s1[1] * s1[1] + s1[2] * s1[2]);
-    for (int k = 0; k < 3; k++) s1[k] /= sl;
-    f32 s2[3] = { ax[1] * s1[2] - ax[2] * s1[1], ax[2] * s1[0] - ax[0] * s1[2], ax[0] * s1[1] - ax[1] * s1[0] };
-    f32 taper = halfw < l * 0.25f ? halfw : l * 0.25f;                     /* the fin's outer edge is set in at both ends: the tips pinch */
-    u8 r = (u8)((rgba >> 16) & 255), g = (u8)((rgba >> 8) & 255), bl = (u8)(rgba & 255);
-    static const f32 cs[AK_STAR_FINS] = { 1, 0.5f, -0.5f, -1, -0.5f, 0.5f }, sn[AK_STAR_FINS] = { 0, 0.8660254f, 0.8660254f, 0, -0.8660254f, -0.8660254f };
-    static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
-    for (int f = 0; f < AK_STAR_FINS; f++) {
-        f32 d[3], p[4][3]; u8 al[4] = { alpha_a, alpha_c, 0, 0 };
-        for (int k = 0; k < 3; k++) {
-            d[k] = (s1[k] * cs[f] + s2[k] * sn[f]) * halfw;
-            p[0][k] = a[k]; p[1][k] = c[k];                                 /* along the axis: full colour */
-            p[2][k] = c[k] - ax[k] * taper + d[k]; p[3][k] = a[k] + ax[k] * taper + d[k];   /* the outer edge: faded out */
-        }
-        for (int i = 0; i < 6; i++) {
-            ak_vtx *o = &v[f * 6 + i]; memset(o, 0, sizeof *o); memcpy(o->pos, p[tri[i]], 12);
-            o->uv[0] = 0.5f; o->uv[1] = 0.5f;
-            o->col[0] = (u8)(r / 2); o->col[1] = (u8)(g / 2); o->col[2] = (u8)(bl / 2);     /* vertex colour 128 = full (x2 in the shader) */
-            o->col[3] = al[tri[i]];
-        }
-    }
+    memset(o, 0, sizeof *o); memcpy(o->pos, p, 12); o->uv[0] = u; o->uv[1] = v;
+    o->col[0] = (u8)(((rgba >> 16) & 255) / 2); o->col[1] = (u8)(((rgba >> 8) & 255) / 2); o->col[2] = (u8)((rgba & 255) / 2);   /* 128 = full (x2 in the shader) */
+    o->col[3] = alpha;
 }
 
-u32 ak_bolts_vertices(const ak_bolts *b, const f32 *eye, int layer, ak_vtx *out, u32 max)
+u32 ak_beam(ak_vtx *v, const f32 *a, const f32 *c, f32 halfw, const f32 *eye, u32 rgba, u8 alpha_a, u8 alpha_c)
 {
-    (void)eye; u32 n = 0;
-    for (u32 i = 0; i < b->n && n + AK_STAR_VERTS <= max; i++) {
+    f32 ax[3] = { c[0] - a[0], c[1] - a[1], c[2] - a[2] }, l = sqrtf(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]);
+    f32 to[3] = { eye[0] - c[0], eye[1] - c[1], eye[2] - c[2] }, tl = sqrtf(to[0] * to[0] + to[1] * to[1] + to[2] * to[2]);
+    if (tl < 1e-5f) return 0;
+    for (int k = 0; k < 3; k++) to[k] /= tl;
+    f32 cosv = 1.0f;
+    if (l > 1e-5f) { for (int k = 0; k < 3; k++) ax[k] /= l; cosv = fabsf(ax[0] * to[0] + ax[1] * to[1] + ax[2] * to[2]); }
+    if (cosv > 0.9998f) {
+        /* looking straight along it (within about a degree, the game's test): a square facing the camera at the near end */
+        f32 up[3] = { 0, 1, 0 }; if (fabsf(to[1]) > 0.95f) { up[0] = 1; up[1] = 0; }
+        f32 r[3] = { up[1] * to[2] - up[2] * to[1], up[2] * to[0] - up[0] * to[2], up[0] * to[1] - up[1] * to[0] };
+        f32 rl = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]); for (int k = 0; k < 3; k++) r[k] /= rl;
+        f32 u[3] = { to[1] * r[2] - to[2] * r[1], to[2] * r[0] - to[0] * r[2], to[0] * r[1] - to[1] * r[0] };
+        const f32 *m = alpha_c >= alpha_a ? c : a; u8 al = alpha_c >= alpha_a ? alpha_c : alpha_a;
+        f32 q[4][3]; static const f32 qu[4][2] = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } };
+        for (int i = 0; i < 4; i++) for (int k = 0; k < 3; k++) q[i][k] = m[k] + (r[k] * qu[i][0] + u[k] * qu[i][1]) * halfw;
+        static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
+        for (int i = 0; i < 6; i++) vtx(&v[i], q[tri[i]], qu[tri[i]][0], qu[tri[i]][1], rgba, al);
+        return 6;
+    }
+    /* the game's strip: turned about its own axis to face the camera (side = axis x to-camera), pointed at both ends */
+    f32 s[3] = { ax[1] * to[2] - ax[2] * to[1], ax[2] * to[0] - ax[0] * to[2], ax[0] * to[1] - ax[1] * to[0] };
+    f32 sl = sqrtf(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]); for (int k = 0; k < 3; k++) s[k] *= halfw / sl;
+    f32 P[6][3];
+    for (int k = 0; k < 3; k++) {
+        P[0][k] = a[k] - ax[k] * halfw * 2; P[1][k] = a[k] - s[k]; P[2][k] = a[k] + s[k];
+        P[3][k] = c[k] - s[k]; P[4][k] = c[k] + s[k]; P[5][k] = c[k] + ax[k] * halfw * 2;
+    }
+    /* UV: across in half-widths; along, 0 over the body and out to 2 at the tips, so length(uv) is the distance to the core line */
+    static const f32 U[6][2] = { { -2, 0 }, { 0, -1 }, { 0, 1 }, { 0, -1 }, { 0, 1 }, { 2, 0 } };
+    u8 A[6] = { alpha_a, alpha_a, alpha_a, alpha_c, alpha_c, alpha_c };
+    static const int tri[12] = { 0, 1, 2,  1, 3, 4,  1, 4, 2,  3, 5, 4 };
+    for (int i = 0; i < 12; i++) vtx(&v[i], P[tri[i]], U[tri[i]][0], U[tri[i]][1], rgba, A[tri[i]]);
+    return 12;
+}
+
+u32 ak_flash(ak_vtx *v, const f32 *pos, f32 halfw, const f32 *eye, u32 rgba, u8 alpha)
+{
+    f32 a[3] = { pos[0], pos[1], pos[2] }, c[3] = { pos[0], pos[1], pos[2] };
+    f32 to[3] = { eye[0] - pos[0], eye[1] - pos[1], eye[2] - pos[2] }, tl = sqrtf(to[0] * to[0] + to[1] * to[1] + to[2] * to[2]);
+    if (tl < 1e-5f) return 0;
+    for (int k = 0; k < 3; k++) c[k] += to[k] / tl * 0.001f;               /* a zero-length beam toward the camera: the facing square */
+    return ak_beam(v, a, c, halfw, eye, rgba, alpha, alpha);
+}
+
+u32 ak_bolts_vertices(const ak_bolts *b, const f32 *eye, ak_vtx *out, u32 max)
+{
+    u32 n = 0;
+    for (u32 i = 0; i < b->n && n + AK_BEAM_VERTS <= max; i++) {
         const ak_bolt *o = &b->b[i];
         f32 len = o->length < o->travelled ? o->length : o->travelled, tail[3];
         for (int k = 0; k < 3; k++) tail[k] = o->pos[k] - o->dir[k] * len;
-        if (!layer) ak_sprite_star(out + n, tail, o->pos, o->thick * 0.5f, o->colour, 90, 255);      /* the glow */
-        else ak_sprite_star(out + n, tail, o->pos, o->thick * 0.18f, 0xFFFFFFFFu, 40, 255);          /* the hot core */
-        n += AK_STAR_VERTS;
+        f32 w = o->thick * 0.5f / 0.75f;                                  /* the game's half-width (thickness x 0.5) at the glow's visible edge */
+        if (o->dscale_dist > 0) {                                         /* far bolts drawn bigger (space lasers: up to x8 by 100 m) */
+            f32 dx = o->pos[0] - eye[0], dy = o->pos[1] - eye[1], dz = o->pos[2] - eye[2], d = sqrtf(dx * dx + dy * dy + dz * dz) / o->dscale_dist;
+            w *= 1.0f + (o->dscale_max - 1.0f) * (d > 1 ? 1 : d);
+        }
+        n += ak_beam(out + n, tail, o->pos, w, eye, o->colour, 160, 255);
     }
-    for (u32 i = 0; layer && i < b->nimp && n + AK_STAR_VERTS <= max; i++) {
+    for (u32 i = 0; i < b->nimp && n + AK_BEAM_VERTS <= max; i++) {
         const ak_impact *im = &b->imp[i];
         if (im->age > 0.15f) continue;
-        f32 s = 0.25f + im->age * 2.0f, a[3], c[3];                         /* a standing "+" (vertical axis) just off the surface */
-        for (int k = 0; k < 3; k++) { a[k] = im->pos[k] + im->normal[k] * 0.05f - (k == 1 ? s : 0); c[k] = im->pos[k] + im->normal[k] * 0.05f + (k == 1 ? s : 0); }
-        ak_sprite_star(out + n, a, c, s, im->colour, 255, 255); n += AK_STAR_VERTS;
+        f32 p[3]; for (int k = 0; k < 3; k++) p[k] = im->pos[k] + im->normal[k] * 0.05f;
+        n += ak_flash(out + n, p, 0.25f + im->age * 3.0f, eye, im->colour, (u8)(255 * (1.0f - im->age / 0.15f)));
     }
     return n;
 }

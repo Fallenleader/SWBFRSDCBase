@@ -18,6 +18,10 @@ typedef enum {
     AK_PIPE_LAYER,           /* blended second-texture layer: alpha = texture alpha x vertex alpha; no depth write */
     AK_PIPE_BLEND,           /* alpha-blended surfaces and decals (scorch marks, shadows); no depth write, depth bias */
     AK_PIPE_ADD,             /* additive glow (laser gates, light beams, holograms); no depth write */
+    AK_PIPE_BEAM,            /* procedural glow (laser bolts, flashes, light columns): no texture; the shape is worked out per pixel
+                              * from the UV, which holds the position across the beam in half-widths (length(uv) = distance from the
+                              * core; 0 = centre, 1 = edge): a white-hot core and a coloured falloff, premultiplied blending (it
+                              * darkens what is behind it a little, so the colour reads on snow), no depth write */
     AK_PIPE_COUNT
 } ak_pipe;
 

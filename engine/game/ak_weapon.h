@@ -22,11 +22,12 @@ typedef struct {
     bool hitscan, headshots;
     f32 dmg_infantry, dmg_vehicle, speed, range, length, thickness;
     u32 colour;                        /* 0xAARRGGBB */
+    f32 dscale_max, dscale_dist;       /* DistanceScalingMaxScale / MaxDist: bolts drawn bigger with distance (0 = off) */
 } ak_weapon_def;
 
 typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; } ak_weapon;   /* team/owner: set after ak_weapon_give */
 
-typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle; u32 colour; bool headshots; int team; s32 owner; } ak_bolt;
+typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle; u32 colour; f32 dscale_max, dscale_dist; bool headshots; int team; s32 owner; } ak_bolt;
 typedef struct { f32 pos[3], normal[3]; f32 age; u32 colour; } ak_impact;
 #define AK_MAX_BOLTS 512
 #define AK_MAX_IMPACTS 64
@@ -53,14 +54,16 @@ void ak_weapon_give(ak_weapon *w, const ak_weapon_def *d);
 u32  ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target *targets, u32 ntargets, const f32 *muzzle, const f32 *target, u32 *seed);
 void ak_weapon_update(ak_weapon *w, f32 dt, bool reload);
 void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *targets, u32 ntargets, f32 dt);
-/* a "star" sprite: six flat fins radiating from the axis a..c every 60 degrees, solid along the axis and fading to nothing at their
- * outer edge, which is set in at both ends so the tips pinch to the axis.  Drawn from both sides, it reads as a solid glowing shape
- * from any angle without turning to face the camera (AK_STAR_VERTS vertices). */
-#define AK_STAR_FINS 6
-#define AK_STAR_VERTS (AK_STAR_FINS * 6)
-void ak_sprite_star(ak_vtx *out, const f32 *a, const f32 *c, f32 halfw, u32 rgba, u8 alpha_a, u8 alpha_c);
-/* the bolts (along their flight) and the impact flashes (standing) as star sprites; returns vertices written.  Layer 0: the bolts'
- * coloured glow (alpha-blended, so it keeps its colour over snow and sand); layer 1: their white-hot cores and the impact flashes
- * (additive). */
-u32  ak_bolts_vertices(const ak_bolts *b, const f32 *eye, int layer, ak_vtx *out, u32 max);
+/* Beams, the game's way with DICE's shading: a strip turned about its own axis to face the camera (side = axis x the direction to
+ * the camera), pointed at both ends (6 points, 4 triangles), drawn with AK_PIPE_BEAM, whose pixel shader works out a white core and
+ * a coloured falloff from the UV (distance to the core line), so a flat strip reads as a round, glowing rod.  Looking straight down
+ * its axis (within about a degree, the game's test: |cos| > 0.9998) it becomes a square facing the camera.  Returns the vertices
+ * written: 12, 6, or 0. */
+#define AK_BEAM_VERTS 12
+u32 ak_beam(ak_vtx *out, const f32 *a, const f32 *c, f32 halfw, const f32 *eye, u32 rgba, u8 alpha_a, u8 alpha_c);
+/* a round flash facing the camera (6 vertices) */
+u32 ak_flash(ak_vtx *out, const f32 *pos, f32 halfw, const f32 *eye, u32 rgba, u8 alpha);
+/* the bolts (the game's half-width: thickness x 0.5; far bolts scaled by the bolt's DistanceScaling) and the impact flashes,
+ * all for AK_PIPE_BEAM; returns vertices written */
+u32  ak_bolts_vertices(const ak_bolts *b, const f32 *eye, ak_vtx *out, u32 max);
 #endif

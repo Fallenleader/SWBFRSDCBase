@@ -690,10 +690,10 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         draw_soldier(ms, m, &b->look, b->ch.pos, b->ch.yaw, (const f32 (*)[12])b->bones, vp, st);
         if (b->alive && b->weapon.def && weapon_world(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, gun)) draw_weapon(ms, m, b->weapon.def, gun, vp, st);
     }
-    static ak_vtx bv[(AK_MAX_BOLTS + AK_MAX_IMPACTS + AK_MAX_POSTS) * AK_STAR_VERTS];
+    static ak_vtx bv[(AK_MAX_BOLTS + AK_MAX_IMPACTS + AK_MAX_POSTS) * AK_BEAM_VERTS];
     ak_gfx_set_transform(NULL);
-    if (p->have_cq) {                                                         /* the command posts: a star-sprite light column each, the owner's colour */
-        u32 n = 0;
+    u32 n = 0;
+    if (p->have_cq)                                                           /* the command posts: a light column each, the owner's colour */
         for (u32 i = 0; i < p->cq.nposts; i++) {
             f32 x = p->cq.post[i].pos[0], y = p->cq.post[i].pos[1], z = p->cq.post[i].pos[2];
             f32 dx = p->eye[0] - x, dz = p->eye[2] - z, l = sqrtf(dx * dx + dz * dz);
@@ -703,12 +703,22 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
             f32 f = p->cq.post[i].amount > 0 ? ps->progress / p->cq.post[i].amount : 1;
             f32 near = (l - 4.0f) / 12.0f; near = near < 0 ? 0 : near > 1 ? 1 : near;   /* fades out close up (the camera stands in it) */
             f32 a[3] = { x, y, z }, c[3] = { x, y + 25, z };
-            ak_sprite_star(bv + n, a, c, 0.6f, tc[o], (u8)((60 + 120 * f) * near), 0); n += AK_STAR_VERTS;
+            n += ak_beam(bv + n, a, c, 0.8f, p->eye, tc[o], (u8)((90 + 120 * f) * near), 0);
         }
-        ak_gfx_draw_immediate(AK_PIPE_ADD, NULL, bv, n);
+    n += ak_bolts_vertices(&p->bolts, p->eye, bv + n, sizeof bv / sizeof bv[0] - n);
+    if (ak_setting_int("AK_DEBUG_BEAMS", 0) && p->armed) {                   /* tests: the weapon's bolt across, slanting and end-on, in front of the eye */
+        f32 f[3] = { p->aim[0], p->aim[1], p->aim[2] }, r[3] = { -f[2], 0, f[0] }, rl = sqrtf(r[0] * r[0] + r[2] * r[2]);
+        r[0] /= rl; r[2] /= rl;
+        f32 u[3] = { r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0] }, w = p->wdef.thickness * 0.5f / 0.75f;
+        for (int b = 0; b < 3; b++) {
+            f32 c0[3], a[3], c[3];
+            for (int k = 0; k < 3; k++) c0[k] = p->eye[k] + f[k] * 2.5f + (b < 2 ? r[k] * (b - 1) * 0.9f + u[k] * 0.2f : 0);
+            for (int k = 0; k < 3; k++) {
+                f32 d = b == 0 ? u[k] : b == 1 ? (u[k] + r[k]) * 0.7071f + f[k] * 0.3f : f[k];
+                a[k] = c0[k] - d * p->wdef.length * 0.3f; c[k] = c0[k] + d * p->wdef.length * 0.3f;
+            }
+            n += ak_beam(bv + n, a, c, w, p->eye, p->wdef.colour, 160, 255);
+        }
     }
-    u32 nv = ak_bolts_vertices(&p->bolts, p->eye, 0, bv, sizeof bv / sizeof bv[0]);
-    if (nv) ak_gfx_draw_immediate(AK_PIPE_BLEND, NULL, bv, nv);
-    nv = ak_bolts_vertices(&p->bolts, p->eye, 1, bv, sizeof bv / sizeof bv[0]);
-    if (nv) ak_gfx_draw_immediate(AK_PIPE_ADD, NULL, bv, nv);
+    if (n) ak_gfx_draw_immediate(AK_PIPE_BEAM, NULL, bv, n);
 }

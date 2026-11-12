@@ -136,6 +136,10 @@ static const char *fs_cutout =
 static const char *fs_alpha =      /* layer, blend, add: one shader, three blend states */
     "half4 main(float2 vUv : TEXCOORD0, half4 vCol : TEXCOORD1, half vFog : TEXCOORD2, uniform sampler2D uTex, uniform half3 uFog)\n"
     "{ half4 t = tex2D(uTex, vUv); return half4(lerp(t.rgb * vCol.rgb, uFog, vFog), t.a * vCol.a); }\n";
+static const char *fs_beam =      /* the glow from the distance to the core, per pixel (see AK_PIPE_BEAM) */
+    "half4 main(float2 vUv : TEXCOORD0, half4 vCol : TEXCOORD1, half vFog : TEXCOORD2, uniform sampler2D uTex, uniform half3 uFog)\n"
+    "{ float d = length(vUv); half glow = exp(-d * d * 5.0) * (1.0 - smoothstep(0.75, 1.0, d)); half core = 1.0 - smoothstep(0.16, 0.30, d);\n"
+    "  half k = vCol.a * (1.0 - vFog); return half4((vCol.rgb * glow + core) * k, glow * k * 0.6); }\n";
 static const char *ui_vs =
     "void main(float2 aPos, float2 aUv, float4 aCol, uniform float2 uScale,\n"
     "  out float4 vPos : POSITION, out float2 vUv : TEXCOORD0, out half4 vCol : TEXCOORD1)\n"
@@ -167,9 +171,10 @@ static bool make_programs(void)
     bl.colorSrc = SCE_GXM_BLEND_FACTOR_SRC_ALPHA; bl.colorDst = SCE_GXM_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     bl.alphaSrc = SCE_GXM_BLEND_FACTOR_ONE; bl.alphaDst = SCE_GXM_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     SceGxmBlendInfo add = bl; add.colorDst = SCE_GXM_BLEND_FACTOR_ONE; add.alphaDst = SCE_GXM_BLEND_FACTOR_ONE;
+    SceGxmBlendInfo pre = bl; pre.colorSrc = SCE_GXM_BLEND_FACTOR_ONE;      /* premultiplied (the beams) */
     for (int i = 0; i < AK_PIPE_COUNT; i++) {
-        const char *src = i == AK_PIPE_OPAQUE ? fs_opaque : (i == AK_PIPE_CUTOUT || i == AK_PIPE_OVERLAY) ? fs_cutout : fs_alpha;
-        const SceGxmBlendInfo *b = i == AK_PIPE_ADD ? &add : i >= AK_PIPE_LAYER ? &bl : NULL;
+        const char *src = i == AK_PIPE_OPAQUE ? fs_opaque : (i == AK_PIPE_CUTOUT || i == AK_PIPE_OVERLAY) ? fs_cutout : i == AK_PIPE_BEAM ? fs_beam : fs_alpha;
+        const SceGxmBlendInfo *b = i == AK_PIPE_ADD ? &add : i == AK_PIPE_BEAM ? &pre : i >= AK_PIPE_LAYER ? &bl : NULL;
         const SceGxmProgram *f = shader(src, 1); SceGxmShaderPatcherId fid;
         if (!f) return false;
         sceGxmShaderPatcherRegisterProgram(patcher, f, &fid);         /* the same program registered twice gives the same id */
