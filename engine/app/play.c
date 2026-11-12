@@ -71,17 +71,22 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     }
     f32 sp[3] = { start[0], start[1], start[2] }, gy, syaw = 0;
     p->have_cq = ak_conquest_load(l, &p->cq);
-    p->team = ak_setting_int("AK_TEAM", 1) == 2;
+    p->team = ak_setting_int("AK_TEAM", ak_faction_team(p->look.faction) + 1) == 2;
+    ak_cq_rules_default(&p->rules);
+    if (p->have_cq) ak_conquest_start(&p->cq, &p->rules, &p->match);
+    p->max_health = p->health = ak_bp_float(p->look.bp, "Health", 100.0f); p->alive = true; p->near_post = -1;
     s32 post = -1;
     if (p->have_cq) {                                                        /* the team's spawn at the post nearest the start */
         f32 bd = 1e30f;
         for (u32 i = 0; i < p->cq.nposts; i++) {
-            if (!p->cq.post[i].has_spawn[p->team]) continue;
+            if (!p->cq.post[i].has_spawn[p->team] || p->cq.post[i].start_owner != p->team) continue;
             f32 dx = p->cq.post[i].pos[0] - start[0], dz = p->cq.post[i].pos[2] - start[2];
             if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; post = (s32)i; }
         }
         if (post >= 0) { memcpy(sp, p->cq.post[post].spawn[p->team], 12); syaw = p->cq.post[post].spawn_yaw[p->team]; }
     }
+    {   int tp = ak_setting_int("AK_TEST_AT_POST", 0);                      /* tests: start on command post N */
+        if (p->have_cq && tp > 0 && (u32)tp <= p->cq.nposts) { memcpy(sp, p->cq.post[tp - 1].pos, 12); post = tp - 1; } }
     if (post < 0 && p->have_nav) { s32 n = ak_nav_nearest(&p->nav, start, 1e6f); if (n >= 0) memcpy(sp, p->nav.node[n].pos, 12); }
     if (ak_char_ground_below(&p->col, sp, 50.0f, &gy)) sp[1] = gy;
     ak_char_spawn(&p->ch, sp, syaw);
@@ -123,6 +128,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         p->idle_clip = find_clip(m, idle); p->death_clips[0] = find_clip(m, d1); p->death_clips[1] = find_clip(m, d2); p->death_clips[2] = find_clip(m, d3);
         u32 want = (u32)ak_setting_int("AK_DUMMIES", PLAY_DUMMIES); if (want > PLAY_DUMMIES) want = PLAY_DUMMIES;
         const char *en = enemy[p->look.faction <= 4 ? p->look.faction : 4];
+        p->team_faction[p->team] = p->look.faction; p->team_faction[1 - p->team] = p->look.faction ^ 1;
         f32 fwd[2] = { -sinf(p->ch.yaw), -cosf(p->ch.yaw) };
         for (u32 i = 0; p->have_nav && i < p->nav.nnode && p->ndummy < want; i++) {
             const f32 *np = p->nav.node[i].pos; f32 dx = np[0] - p->ch.pos[0], dz = np[2] - p->ch.pos[2], d = sqrtf(dx * dx + dz * dz);
@@ -153,6 +159,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt)
 {
     if (!p->ready) return;
+    static const ak_input none;
+    if (!p->alive) in = &none;                                               /* down: no control until the spawn wave */
     ak_char_input ci = { in->lx, in->ly, in->rx, in->ry, (in->pressed & AK_BTN_CROSS) != 0 };
     if (p->twin_stick) {
         /* free aim with a response curve (fine near the centre, fast at the edge); the body turns with the aim */
@@ -216,7 +224,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     p->clip_t += dt * rate;
     /* the pose (the weapon rides it) */
     p->posed = m->models[p->look.body].skeleton >= 0 && m->skels[m->models[p->look.body].skeleton].nbones <= 64;
-    if (p->posed) pose(m, &p->look, p->clip[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->bones);
+    if (!p->alive) { p->dead_t += dt; if (p->posed) pose(m, &p->look, p->death_clips[0], p->dead_t, false, p->bones); }
+    else if (p->posed) pose(m, &p->look, p->clip[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->bones);
     /* where the centre of the view meets the level: shots go there unless locked on */
     if (p->aim_ok) {
         ak_col_hit h; f32 reach = p->armed ? p->wdef.distance : 750.0f;
@@ -227,7 +236,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (p->armed) {
         ak_weapon_update(&p->weapon, dt, false);
         f32 gun[12], muz[3];
-        if ((in->held & AK_BTN_R) && p->aim_ok && ak_play_weapon_matrix(p, m, gun)) {   /* (the camera has aimed once) */
+        if ((in->held & AK_BTN_R) && p->alive && p->aim_ok && ak_play_weapon_matrix(p, m, gun)) {   /* (the camera has aimed once) */
             const ak_marker *mz = p->wdef.model >= 0 ? ak_model_marker(&m->models[p->wdef.model], "muz") : NULL;
             f32 lp[3] = { 0, 0, 0 }; if (mz) { lp[0] = mz->m[3]; lp[1] = mz->m[7]; lp[2] = mz->m[11]; }
             for (int r = 0; r < 3; r++) muz[r] = gun[r * 4] * lp[0] + gun[r * 4 + 1] * lp[1] + gun[r * 4 + 2] * lp[2] + gun[r * 4 + 3];
@@ -245,18 +254,55 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         }
     }
     ak_bolts_update(&p->bolts, &p->col, p->target, p->ndummy, dt);
+    /* conquest: the posts, the tickets, the spawn wave */
+    bool wave = false; int enemy = 1 - p->team;
+    for (u32 i = 0; i < p->ndummy; i++)
+        if (!p->target[i].alive && p->dummy[i].dead_t == 0) { p->kills++; p->dummy[i].t = 0; if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, enemy); }
+    {   int td = ak_setting_int("AK_TEST_HURT", 0);                         /* tests: damage per second to the soldier */
+        if (td) ak_play_damage(p, (f32)td * dt); }
+    if (p->have_cq) {
+        ak_cq_soldier sol[PLAY_DUMMIES + 1]; u32 n = 0;
+        sol[n].team = p->team; sol[n].alive = p->alive; sol[n].weight = 1.0f; memcpy(sol[n].pos, p->ch.pos, 12); n++;
+        for (u32 i = 0; i < p->ndummy; i++) { sol[n].team = enemy; sol[n].alive = p->target[i].alive; sol[n].weight = 1.0f; memcpy(sol[n].pos, p->dummy[i].pos, 12); n++; }
+        wave = ak_conquest_update(&p->cq, &p->rules, &p->match, sol, n, dt);
+        p->near_post = -1;
+        for (u32 i = 0; i < p->cq.nposts && p->alive; i++) {
+            f32 dx = p->ch.pos[0] - p->cq.post[i].pos[0], dy = p->ch.pos[1] - p->cq.post[i].pos[1], dz = p->ch.pos[2] - p->cq.post[i].pos[2];
+            if (dx * dx + dy * dy + dz * dz <= p->rules.capture_radius * p->rules.capture_radius && !p->cq.post[i].disabled) p->near_post = (s32)i;
+        }
+    }
+    bool can_wave = !p->have_cq || p->match.winner < 0;
+    if (!p->alive && can_wave && (wave || (!p->have_cq && p->dead_t > p->rules.respawn_delay)) && p->dead_t > 1.0f) {   /* back with the wave */
+        f32 sp[3], syaw = p->ch.yaw, gy;
+        bool ok = p->have_cq ? (p->match.tickets[p->team] > 0 && ak_conquest_spawn(&p->cq, &p->match, p->team, p->ch.pos, sp, &syaw)) : false;
+        if (!p->have_cq) { memcpy(sp, p->ch.pos, 12); ok = true; }
+        if (ok) {
+            if (ak_char_ground_below(&p->col, sp, 50.0f, &gy)) sp[1] = gy;
+            ak_char_spawn(&p->ch, sp, syaw); p->alive = true; p->health = p->max_health; p->dead_t = 0; p->state = PLAY_IDLE; p->clip_t = 0;
+            if (p->armed) ak_weapon_give(&p->weapon, &p->wdef);
+        }
+    }
     for (u32 i = 0; i < p->ndummy; i++) {
         ak_play_dummy *d = &p->dummy[i]; ak_target *t = &p->target[i];
         d->t += dt;
         if (!t->alive) {
-            if (d->dead_t == 0) { p->kills++; d->t = 0; }
             d->dead_t += dt;
-            if (d->dead_t > 4.0f) {                                         /* up again */
+            bool up = p->have_cq ? (wave && can_wave && d->dead_t > 1.0f && p->match.tickets[enemy] > 0) : d->dead_t > 4.0f;
+            if (up) {                                                        /* up again with the wave */
                 d->dead_t = 0; t->alive = true; t->health = ak_bp_float(d->look.bp, "Health", 100.0f); d->t = 0;
             }
             pose(m, &d->look, d->death_clip, d->t, false, d->bones);
         } else { pose(m, &d->look, p->idle_clip, d->t, true, d->bones); dummy_target(m, d, t); }
     }
+}
+
+void ak_play_damage(ak_play *p, f32 amount)
+{
+    if (!p->ready || !p->alive || amount <= 0) return;
+    p->health -= amount;
+    if (p->health > 0) return;
+    p->health = 0; p->alive = false; p->dead_t = 0; p->deaths++; p->lock = -1;
+    if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, p->team);
 }
 
 bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12])
@@ -328,7 +374,12 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
             f32 q[4][3] = { { x - sx, y, z - sz }, { x + sx, y, z + sz }, { x + sx, y + 25, z + sz }, { x - sx, y + 25, z - sz } };
             static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
             for (int k = 0; k < 6; k++) { ak_vtx *v = &bv[n++]; memset(v, 0, sizeof *v); memcpy(v->pos, q[tri[k]], 12); v->uv[0] = v->uv[1] = 0.5f;
-                v->col[0] = 110; v->col[1] = 110; v->col[2] = 128; v->col[3] = tri[k] >= 2 ? 0 : 150; }
+                const ak_post_state *ps = &p->match.post[i];
+                static const u8 tc[3][3] = { { 60, 120, 255 }, { 255, 70, 50 }, { 150, 150, 150 } };
+                int o = ps->owner < 2 ? ps->owner : 2; f32 f = p->cq.post[i].amount > 0 ? ps->progress / p->cq.post[i].amount : 1;
+                if (ps->owner < 2) o = (ps->owner == p->team) ? 0 : 1;          /* friendly blue, enemy red */
+                f32 near = (l - 4.0f) / 12.0f; near = near < 0 ? 0 : near > 1 ? 1 : near;   /* fades out close up (the camera stands in it) */
+                v->col[0] = tc[o][0]; v->col[1] = tc[o][1]; v->col[2] = tc[o][2]; v->col[3] = tri[k] >= 2 ? 0 : (u8)((60 + 120 * f) * near); }
         }
         ak_gfx_draw_immediate(AK_PIPE_ADD, NULL, bv, n);
     }

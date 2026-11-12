@@ -16,7 +16,11 @@
  * Clips are picked by state (idle, run forward / back / sideways, jump, fall, land) from the level's Human_Rifle_* animations; the
  * game's own animation table ("Animtable: generic_male") is not traced yet.  The soldier carries a blaster rifle (AK_WEAPON, default
  * "BlasterRifle", the faction's own version).  Target dummies of the other side (AK_DUMMIES, up to 6) stand on navigation nodes
- * ahead: 100 health, headshots x4; they fall (a death clip) and stand up again 4 s later. */
+ * ahead: 100 health, headshots x4; they fall (a death clip) and stand up again with the next spawn wave.
+ *
+ * Conquest (game/ak_conquest.h): the posts start with the level's owners; soldiers within 5 m capture; each death costs the team a
+ * ticket; the bleed and the total-loss timer run as in the game.  The soldier has the blueprint's health; when it reaches 0 the
+ * soldier falls and comes back with the next spawn wave at the team's post nearest where it fell. */
 #ifndef AK_PLAY_H
 #define AK_PLAY_H
 #include "core/ak_core.h"
@@ -60,6 +64,9 @@ typedef struct {
     ak_play_dummy dummy[PLAY_DUMMIES]; ak_target target[PLAY_DUMMIES]; u32 ndummy; u32 kills;
     s32 idle_clip, death_clips[3];
     ak_conquest_map cq; bool have_cq; int team;   /* command posts; the soldier's team (0 = team 1) */
+    ak_cq_rules rules; ak_conquest match; int team_faction[2];
+    f32 health, max_health, dead_t; bool alive; u32 deaths;
+    s32 near_post;                     /* the post the soldier stands at (the HUD's capture bar), or -1 */
 } ak_play;
 
 /* body: a Humanoid blueprint name; start: where to look for the nearest walkable spot */
@@ -68,5 +75,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
 void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy);
 /* the held weapon's world matrix (3x4 rows) */
 bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12]);
+/* damage to the player's soldier (from bots, falls, tests) */
+void ak_play_damage(ak_play *p, f32 amount);
 void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const ak_m4 *vp, ak_scene_stats *st);
 #endif

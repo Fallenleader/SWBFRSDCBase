@@ -66,5 +66,10 @@ AK_TWIN_STICK=-1
 AK_AIM_SPEED=3.2
 AK_AIM_CURVE=2.0
 AK_INVERT_Y=0
-# the soldier's side in play mode: 1 or 2 (spawns at that team's spawn by the nearest command post)
-AK_TEAM=1
+# the soldier's side in play mode: 1 (Republic / Alliance) or 2 (CIS / Empire); unset = the soldier's own faction
+#AK_TEAM=1
+# conquest (the game's options): tickets each team starts with (25..200), seconds between spawn waves,
+# seconds a team must hold every command post to win
+AK_TICKETS=100
+AK_RESPAWN_DELAY=10
+AK_TOTAL_LOSS_TIME=60

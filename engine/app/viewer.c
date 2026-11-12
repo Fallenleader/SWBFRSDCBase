@@ -252,6 +252,12 @@ int main(int argc, char **argv)
                 AK_INFO("test", "frame %d: shots %u, dummy 1 health %.0f, hits %u, head %u, kills %u, ammo %d/%d", frame, play.bolts.fired,
                         play.ndummy ? play.target[0].health : 0.0f, play.ndummy ? play.target[0].hits : 0, play.ndummy ? play.target[0].headshots : 0, play.kills,
                         play.weapon.ammo, play.weapon.spare);
+            if (playing && play.ready && play.have_cq && shot && frame == shot_frame - 1) {
+                char ow[64] = { 0 }; for (u32 i = 0; i < play.cq.nposts && i < 16; i++) { int o = play.match.post[i].owner; ow[i] = o == 0 ? '1' : o == 1 ? '2' : '-'; }
+                AK_INFO("test", "conquest: tickets %d / %d, posts %s, captures %u, winner %d, player %s (health %.0f, deaths %u) at %.1f %.1f %.1f", play.match.tickets[0],
+                        play.match.tickets[1], ow, play.match.captures, play.match.winner, play.alive ? "up" : "down", play.health, play.deaths,
+                        play.ch.pos[0], play.ch.pos[1], play.ch.pos[2]);
+            }
         }
         if (in.pressed & AK_BTN_SQUARE) playing = !playing;               /* square: play (a soldier on foot) / free camera */
         if (playing && !play.ready) {
@@ -329,6 +335,24 @@ int main(int argc, char **argv)
                              play.wdef.name, play.weapon.ammo, play.weapon.spare, play.weapon.reload_t > 0 ? "  reloading" : "", play.bolts.fired, th, hs, play.kills,
                              play.ndummy ? play.target[0].health : 0.0f);
                     ak_gfx_text(8, 98, 0xFFC0E0FF, line);
+                }
+                if (play.have_cq) {
+                    const ak_conquest *cq = &play.match; int me = play.team, them = 1 - me;
+                    snprintf(line, sizeof line, "%s %d (%u posts)  -  %s %d (%u posts)  health %.0f%s%s", ak_faction_name(play.team_faction[me]), cq->tickets[me], cq->held[me],
+                             ak_faction_name(play.team_faction[them]), cq->tickets[them], cq->held[them], play.health,
+                             play.alive ? "" : "  down - back with the next wave", cq->all_team < 2 ? "  all posts held" : "");
+                    ak_gfx_text(8, 134, 0xFFFFE0A0, line);
+                    if (play.near_post >= 0) {
+                        const ak_post_state *ps = &cq->post[play.near_post];
+                        f32 f = ps->progress / play.cq.post[play.near_post].amount;
+                        if (ps->contest > 0) snprintf(line, sizeof line, "command post %d: contested  %.0f s", play.near_post + 1, ps->contest);
+                        else if (ps->owner == me) snprintf(line, sizeof line, "command post %d: ours  %.0f%%", play.near_post + 1, 100.0f * f);
+                        else snprintf(line, sizeof line, "command post %d: %s  %s %.0f%%", play.near_post + 1, ps->owner == them ? "theirs" : "neutral",
+                                      ps->owner == them ? "neutralising" : "capturing", 100.0f * (1.0f - f));
+                        ak_gfx_text((f32)w * 0.5f - 120, (f32)h * 0.5f + 40, 0xFFFFFFFF, line);
+                    }
+                    if (cq->winner >= 0)
+                        ak_gfx_text((f32)w * 0.5f - 60, (f32)h * 0.5f - 60, 0xFFFFFFFF, cq->winner == me ? "VICTORY" : cq->winner == them ? "DEFEAT" : "DRAW");
                 }
                 ak_gfx_text(8, 116, 0xFFC0C0C0, play.twin_stick ? "left stick: move  right stick: aim  cross: jump  R: fire  L: lock on  square: free camera"
                                                                 : "left stick: move  right stick: turn  cross: jump  R: fire  L: lock on  square: free camera");
