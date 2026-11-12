@@ -17,7 +17,8 @@ struct ak_gfx_tex { GLuint id; };
 static SDL_Window *win; static SDL_GLContext glc;
 static int W, H; static char name[160];
 static GLuint prog[AK_PIPE_COUNT], ui_prog, vao, ui_vao, ui_vbo, font_tex, white_tex;
-static GLint u_vp[AK_PIPE_COUNT], u_fog[AK_PIPE_COUNT], u_fogr[AK_PIPE_COUNT], ui_scale;
+static GLint u_vp[AK_PIPE_COUNT], u_fog[AK_PIPE_COUNT], u_fogr[AK_PIPE_COUNT], u_tint[AK_PIPE_COUNT], ui_scale;
+static f32 tint[4] = { 1, 1, 1, 1 }; static bool tint_dirty;
 static int cur_pipe = -1; static GLuint cur_vb, cur_ib, cur_tex;
 static ak_gfx_stats st; static u64 t_begin;
 static u8 *shot_px;
@@ -29,8 +30,8 @@ static uiv *ui_v; static int ui_n;
 static const char *vs_src =
     "#version 330 core\n"
     "layout(location=0) in vec3 aPos; layout(location=1) in vec2 aUv; layout(location=2) in vec4 aNrm; layout(location=3) in vec4 aCol;\n"
-    "uniform mat4 uVP; uniform vec3 uFogRange; out vec2 vUv; out vec4 vCol; out float vFog;\n"
-    "void main(){ vec4 p = uVP * vec4(aPos, 1.0); gl_Position = p; vUv = aUv; vCol = vec4(aCol.rgb * uFogRange.z, aCol.a);\n"
+    "uniform mat4 uVP; uniform vec3 uFogRange; uniform vec4 uTint; out vec2 vUv; out vec4 vCol; out float vFog;\n"
+    "void main(){ vec4 p = uVP * vec4(aPos, 1.0); gl_Position = p; vUv = aUv; vCol = vec4(aCol.rgb * uFogRange.z, aCol.a) * uTint;\n"
     "  vFog = uFogRange.y > uFogRange.x ? clamp((p.w - uFogRange.x) / (uFogRange.y - uFogRange.x), 0.0, 1.0) : 0.0; }\n";
 static const char *fs_opaque =
     "#version 330 core\nin vec2 vUv; in vec4 vCol; in float vFog; uniform sampler2D uTex; uniform vec3 uFog; out vec4 o;\n"
@@ -84,7 +85,7 @@ bool ak_gfx_init(const ak_gfx_config *c)
     fs_src[AK_PIPE_OPAQUE] = fs_opaque; fs_src[AK_PIPE_CUTOUT] = fs_src[AK_PIPE_OVERLAY] = fs_cutout; fs_src[AK_PIPE_LAYER] = fs_src[AK_PIPE_BLEND] = fs_src[AK_PIPE_ADD] = fs_alpha; fs_src[AK_PIPE_BEAM] = fs_beam;
     for (int i = 0; i < AK_PIPE_COUNT; i++) {
         prog[i] = link(vs_src, fs_src[i]);
-        u_vp[i] = glGetUniformLocation(prog[i], "uVP"); u_fog[i] = glGetUniformLocation(prog[i], "uFog"); u_fogr[i] = glGetUniformLocation(prog[i], "uFogRange");
+        u_vp[i] = glGetUniformLocation(prog[i], "uVP"); u_fog[i] = glGetUniformLocation(prog[i], "uFog"); u_fogr[i] = glGetUniformLocation(prog[i], "uFogRange"); u_tint[i] = glGetUniformLocation(prog[i], "uTint");
     }
     ui_prog = link(ui_vs, ui_fs); ui_scale = glGetUniformLocation(ui_prog, "uScale");
     glGenVertexArrays(1, &vao); glGenVertexArrays(1, &ui_vao); glGenBuffers(1, &ui_vbo);
@@ -161,10 +162,16 @@ void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
     {   static int cull = -1; if (cull < 0) cull = ak_setting_int("AK_CULL", 0);
         cull_mode = cull; glCullFace(cull == 2 ? GL_FRONT : GL_BACK); glFrontFace(GL_CCW); cull_on = true; cull_state = -1; }
     cur_vp = frame_vp = *vp; cur_env = *env; cur_pipe = -1; vp_dirty = false; cur_vb = cur_ib = cur_tex = 0;
+    tint[0] = tint[1] = tint[2] = tint[3] = 1; tint_dirty = false;
     glBindVertexArray(vao);
 }
 
 void ak_gfx_set_cull(bool on) { cull_on = on; }
+void ak_gfx_set_tint(const f32 *rgba)
+{
+    f32 t[4] = { 1, 1, 1, 1 }; if (rgba) memcpy(t, rgba, sizeof t);
+    if (memcmp(t, tint, sizeof t)) { memcpy(tint, t, sizeof t); tint_dirty = true; }
+}
 void ak_gfx_set_transform(const ak_m4 *mvp)
 {
     cur_vp = mvp ? *mvp : frame_vp; vp_dirty = true;
@@ -189,10 +196,12 @@ void ak_gfx_draw_immediate(ak_pipe p, ak_gfx_tex *t, const ak_vtx *v, u32 count)
 void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 first, u32 count)
 {
     if (vp_dirty && (int)p == cur_pipe) { glUniformMatrix4fv(u_vp[p], 1, GL_FALSE, cur_vp.m); vp_dirty = false; }
+    if (tint_dirty && (int)p == cur_pipe) { glUniform4fv(u_tint[p], 1, tint); tint_dirty = false; }
     if ((int)p != cur_pipe) {
         glUseProgram(prog[p]);
         glUniformMatrix4fv(u_vp[p], 1, GL_FALSE, cur_vp.m); vp_dirty = false;
         glUniform3fv(u_fog[p], 1, cur_env.fog_rgb); glUniform3f(u_fogr[p], cur_env.fog_start, cur_env.fog_end, cur_env.colour_scale);
+        glUniform4fv(u_tint[p], 1, tint); tint_dirty = false;
         if (p == AK_PIPE_OVERLAY || p == AK_PIPE_BLEND) { glEnable(GL_POLYGON_OFFSET_FILL); glPolygonOffset(-1.0f, -2.0f); }
         else glDisable(GL_POLYGON_OFFSET_FILL);
         if (p == AK_PIPE_ADD) { glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE); glDepthMask(GL_FALSE); }

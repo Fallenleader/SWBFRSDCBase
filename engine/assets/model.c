@@ -241,6 +241,63 @@ static bool mesh_parse(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_leve
     return true;
 }
 
+/* RSCF mesh v2 (sub 1): the weighted meshes (Taun-Taun, Darth Vader, the command posts' cone of light, the CTF flags).  After the
+ * name: the name again (padded to 4), u32 vertex count, u32 group count, count x { u32 material, u32 vertex count, u32 first vertex,
+ * u8 bone palette[4] }, then the vertices, 20 bytes each in the PSP's native order: u8 weight[4] (128 = 1.0, for the group's palette),
+ * u16 uv[2] (/32768), s16 normal[3] (/16384), s16 position[3] (/4096, model space, the bind pose).  Each group is one triangle strip.
+ * Drawn rigid in the bind pose for now (skinning comes with the heroes and creatures). */
+static bool mesh_parse_v2(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_level *l, const ak_names *tex_names,
+                          const ak_material *mats, u32 nmats)
+{
+    const u8 *b = r->data; u32 sz = r->size;
+    size_t nl = strnlen((const char *)b, sz); u32 o = (u32)((nl + 1 + 3) & ~(size_t)3);
+    if ((size_t)o + 8 > sz) return false;
+    u32 nv = ak_rd32(b + o), ng = ak_rd32(b + o + 4), go = o + 8, vo = go + 16 * ng;
+    if (!nv || ng > 256 || (size_t)vo + 20u * nv > sz) return false;
+    {   u32 h = 0; for (const char *q = r->name; *q; q++) h = h * 31 + (u32)(*q >= 'A' && *q <= 'Z' ? *q + 32 : *q);   /* the game's name hash (v1 meshes store it) */
+        m->hash = h; }
+    m->nparts = ng; m->parts = AK_NEW(a, ak_model_part, ng ? ng : 1);
+    m->vtx = AK_NEW(a, ak_vtx, nv); m->nvtx = nv; m->idx = AK_NEW(a, u32, 3u * nv + 3);
+    if (!m->parts || !m->vtx || !m->idx) return false;
+    for (int k = 0; k < 3; k++) { m->bmin[k] = 1e30f; m->bmax[k] = -1e30f; }
+    f32 r2 = 0;
+    for (u32 i = 0; i < nv; i++) {
+        const u8 *v = b + vo + 20 * i; ak_vtx *t = &m->vtx[i];
+        f32 n[3] = { (s16)ak_rd16(v + 8) / 16384.0f, (s16)ak_rd16(v + 10) / 16384.0f, (s16)ak_rd16(v + 12) / 16384.0f };
+        f32 p[3] = { (s16)ak_rd16(v + 14) / 4096.0f, (s16)ak_rd16(v + 16) / 4096.0f, (s16)ak_rd16(v + 18) / 4096.0f }, e[3];
+        ak_from_game(p, t->pos); ak_from_game(n, e);
+        t->uv[0] = ak_rd16(v + 4) / 32768.0f; t->uv[1] = ak_rd16(v + 6) / 32768.0f;
+        t->nrm[0] = snorm8f(e[0]); t->nrm[1] = snorm8f(e[1]); t->nrm[2] = snorm8f(e[2]); t->nrm[3] = 0;
+        t->col[0] = t->col[1] = t->col[2] = 128; t->col[3] = 255;
+        for (int k = 0; k < 3; k++) { if (t->pos[k] < m->bmin[k]) m->bmin[k] = t->pos[k]; if (t->pos[k] > m->bmax[k]) m->bmax[k] = t->pos[k]; }
+        f32 d = t->pos[0] * t->pos[0] + t->pos[1] * t->pos[1] + t->pos[2] * t->pos[2]; if (d > r2) r2 = d;
+    }
+    for (u32 gi = 0; gi < ng; gi++) {
+        const u8 *g = b + go + 16 * gi;
+        u32 mat = ak_rd32(g), cnt = ak_rd32(g + 4), first = ak_rd32(g + 8);
+        ak_model_part *pt = &m->parts[gi];
+        pt->bone = 0; pt->texture = -1; pt->flags = 0; pt->first = m->nidx;
+        if (mat < nmats) {
+            pt->flags = mats[mat].flags;
+            s32 ti = mats[mat].tex[0];
+            if (ti >= 0 && tex_names && (u32)ti < tex_names->count) {
+                char nm[512]; snprintf(nm, sizeof nm, "\\graphics%s", tex_names->names[ti]);
+                pt->texture = (s16)ak_level_find_texture(l, nm);
+            }
+        }
+        if ((size_t)first + cnt > nv) return false;
+        for (u32 k = 0; k + 2 < cnt; k++) {
+            u32 x = first + k, y = first + k + 1, z = first + k + 2;
+            if (!memcmp(m->vtx[x].pos, m->vtx[y].pos, 12) || !memcmp(m->vtx[y].pos, m->vtx[z].pos, 12) || !memcmp(m->vtx[x].pos, m->vtx[z].pos, 12)) continue;
+            if (k & 1) { u32 t = x; x = y; y = t; }
+            m->idx[m->nidx++] = x; m->idx[m->nidx++] = y; m->idx[m->nidx++] = z;
+        }
+        pt->count = m->nidx - pt->first;
+    }
+    m->radius = sqrtf(r2);
+    return true;
+}
+
 s32 ak_models_find(const ak_model_set *s, const char *name)
 {
     u32 h = ak_hash_name(name);
@@ -299,6 +356,7 @@ bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
         if (ak_chunk_tag(&c) == AK_TAG('H', 'S', 'K', 'N') && c.version == 8) ns++;
         else if (ak_chunk_tag(&c) == AK_TAG('H', 'C', 'A', 'N')) out->nclips++;
         else if (c.version == 1 && ak_rscf_parse(&c, &r) && r.type == AK_RSCF_MESH && r.sub == 5) nm++;
+        else if (c.version == 2 && ak_rscf_parse(&c, &r) && r.type == AK_RSCF_MESH && r.sub == 1) nm++;
     }
     u32 ncl = out->nclips; out->nclips = 0;
     out->models = AK_NEW(a, ak_model, nm ? nm : 1); out->skels = AK_NEW(a, ak_skeleton, ns ? ns : 1); out->clips = AK_NEW(a, ak_anim_clip, ncl ? ncl : 1);
@@ -320,6 +378,14 @@ bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
             for (u32 i = out->nskels; i-- > 0;) if (out->skels[i].name_hash == bh) { m->skeleton = (s32)i; break; }
             if (mesh_parse(&r, a, m, l, &text, mats, nmats, m->skeleton >= 0 ? &out->skels[m->skeleton] : NULL)) out->nmodels++;
             else AK_WARN("model", "%s did not parse", r.name);
+        }
+        else if (c.version == 2 && ak_rscf_parse(&c, &r) && r.type == AK_RSCF_MESH && r.sub == 1) {
+            ak_model *m = &out->models[out->nmodels]; memset(m, 0, sizeof *m);
+            const char *base = r.name; m->lod = 0;
+            if (base[0] == 'L' && base[1] >= '1' && base[1] <= '9' && base[2] == '#') { m->lod = (u8)(base[1] - '0'); base += 3; }
+            m->name = r.name; m->base_hash = ak_hash_name(base); m->skeleton = -1;   /* drawn in the bind pose (model space) */
+            if (mesh_parse_v2(&r, a, m, l, &text, mats, nmats)) out->nmodels++;
+            else AK_WARN("model", "%s (v2) did not parse", r.name);
         }
     }
     pos = 8;

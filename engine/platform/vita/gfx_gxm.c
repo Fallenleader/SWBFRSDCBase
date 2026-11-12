@@ -123,9 +123,9 @@ static const SceGxmProgram *shader(const char *src, int frag)
 /* level geometry: colour = texture x vertex colour x scale, fog by view depth.  Colours travel as TEXCOORD (not COLOR) so a scale
  * above 1 is not clamped before the multiply. */
 static const char *vs_src =
-    "void main(float3 aPos, float2 aUv, float4 aCol, uniform float4 uVP[4], uniform float3 uFogRange,\n"
+    "void main(float3 aPos, float2 aUv, float4 aCol, uniform float4 uVP[4], uniform float3 uFogRange, uniform float4 uTint,\n"
     "  out float4 vPos : POSITION, out float2 vUv : TEXCOORD0, out half4 vCol : TEXCOORD1, out half vFog : TEXCOORD2)\n"
-    "{ float4 q = float4(aPos, 1.0); float4 p = float4(dot(q, uVP[0]), dot(q, uVP[1]), dot(q, uVP[2]), dot(q, uVP[3])); vPos = p; vUv = aUv; vCol = half4(aCol.rgb * uFogRange.z, aCol.a);\n"
+    "{ float4 q = float4(aPos, 1.0); float4 p = float4(dot(q, uVP[0]), dot(q, uVP[1]), dot(q, uVP[2]), dot(q, uVP[3])); vPos = p; vUv = aUv; vCol = half4(float4(aCol.rgb * uFogRange.z, aCol.a) * uTint);\n"
     "  vFog = uFogRange.y > uFogRange.x ? saturate((p.w - uFogRange.x) / (uFogRange.y - uFogRange.x)) : 0.0; }\n";
 static const char *fs_opaque =
     "half4 main(float2 vUv : TEXCOORD0, half4 vCol : TEXCOORD1, half vFog : TEXCOORD2, uniform sampler2D uTex, uniform half3 uFog)\n"
@@ -148,7 +148,7 @@ static const char *ui_fs =
     "half4 main(float2 vUv : TEXCOORD0, half4 vCol : TEXCOORD1, uniform sampler2D uTex) { return tex2D(uTex, vUv) * vCol; }\n";
 
 static SceGxmVertexProgram *vp3d, *vpui; static SceGxmFragmentProgram *fp3d[AK_PIPE_COUNT], *fpui;
-static const SceGxmProgramParameter *p_vp, *p_fogr, *p_fog[AK_PIPE_COUNT], *p_uiscale;
+static const SceGxmProgramParameter *p_vp, *p_fogr, *p_tint, *p_fog[AK_PIPE_COUNT], *p_uiscale;
 static SceGxmTexture font_tex, white_tex;
 
 static bool make_programs(void)
@@ -158,7 +158,7 @@ static bool make_programs(void)
     SceGxmShaderPatcherId vid, uid, ufid;
     sceGxmShaderPatcherRegisterProgram(patcher, v, &vid); sceGxmShaderPatcherRegisterProgram(patcher, u, &uid); sceGxmShaderPatcherRegisterProgram(patcher, uf, &ufid);
     const SceGxmProgramParameter *pa = sceGxmProgramFindParameterByName(v, "aPos"), *pu = sceGxmProgramFindParameterByName(v, "aUv"), *pc = sceGxmProgramFindParameterByName(v, "aCol");
-    p_vp = sceGxmProgramFindParameterByName(v, "uVP"); p_fogr = sceGxmProgramFindParameterByName(v, "uFogRange");
+    p_vp = sceGxmProgramFindParameterByName(v, "uVP"); p_fogr = sceGxmProgramFindParameterByName(v, "uFogRange"); p_tint = sceGxmProgramFindParameterByName(v, "uTint");
     if (!pa || !pu || !pc || !p_vp || !p_fogr) { AK_ERROR("gxm", "level shader parameters missing"); return false; }
     SceGxmVertexAttribute at[3]; memset(at, 0, sizeof at);
     at[0].offset = offsetof(ak_vtx, pos); at[0].format = SCE_GXM_ATTRIBUTE_FORMAT_F32; at[0].componentCount = 3; at[0].regIndex = sceGxmProgramParameterGetResourceIndex(pa);
@@ -338,7 +338,7 @@ void ak_gfx_free_tex(ak_gfx_tex *t) { if (t) { pool_release(); free(t); } }
 void ak_gfx_wait_idle(void) { sceGxmFinish(ctx); }
 
 static bool cull_on = true; static int cull_state = -1;
-static ak_m4 vp_t, frame_vp_t; static ak_gfx_env env_; static bool vp_dirty; static int cur_pipe; static ak_gfx_tex *cur_tex; static ak_gfx_buf *cur_vb;
+static ak_m4 vp_t, frame_vp_t; static ak_gfx_env env_; static bool vp_dirty; static f32 tint_[4] = { 1, 1, 1, 1 }; static int cur_pipe; static ak_gfx_tex *cur_tex; static ak_gfx_buf *cur_vb;
 static ak_gfx_stats st; static u64 t_begin;
 
 static void *frame_alloc(size_t n, size_t a)
@@ -380,6 +380,7 @@ void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
     for (int r = 0; r < 4; r++) for (int c2 = 0; c2 < 4; c2++) vp_t.m[r * 4 + c2] = vp->m[c2 * 4 + r];
     frame_vp_t = vp_t; vp_dirty = false;
     env_ = *env; cur_pipe = -1; cur_tex = NULL; cur_vb = NULL;
+    tint_[0] = tint_[1] = tint_[2] = tint_[3] = 1;
 }
 
 void ak_gfx_set_cull(bool on) { cull_on = on; }
@@ -390,9 +391,15 @@ void ak_gfx_set_transform(const ak_m4 *mvp)
     vp_dirty = true;
 }
 
+void ak_gfx_set_tint(const f32 *rgba)
+{
+    f32 t[4] = { 1, 1, 1, 1 }; if (rgba) memcpy(t, rgba, sizeof t);
+    if (memcmp(t, tint_, sizeof t)) { memcpy(tint_, t, sizeof t); vp_dirty = true; }
+}
 static void upload_vertex_uniforms(void)
 {
     void *ub; sceGxmReserveVertexDefaultUniformBuffer(ctx, &ub);
+    if (p_tint) sceGxmSetUniformDataF(ub, p_tint, 0, 4, tint_);
     sceGxmSetUniformDataF(ub, p_vp, 0, 16, vp_t.m);
     f32 fr[3] = { env_.fog_start, env_.fog_end, env_.colour_scale }; sceGxmSetUniformDataF(ub, p_fogr, 0, 3, fr);
     vp_dirty = false;

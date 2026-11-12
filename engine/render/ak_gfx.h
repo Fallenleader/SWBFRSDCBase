@@ -46,6 +46,8 @@ void ak_gfx_wait_idle(void);                                     /* before freei
 void ak_gfx_begin(u32 clear_rgba, const ak_m4 *view_proj, const ak_gfx_env *env);
 /* the clip-space transform of the draws that follow (model x view x projection); NULL = back to the frame's view_proj */
 void ak_gfx_set_transform(const ak_m4 *mvp);
+/* a colour multiplied into the vertex colour of the draws that follow (holograms tinted by side); NULL = white.  Reset each frame. */
+void ak_gfx_set_tint(const f32 *rgba);
 /* back-face culling for the draws that follow (on at ak_gfx_begin; the setting AK_CULL, default 0, decides whether it does anything,
  * because the game's level geometry also has single-sided panels meant to be seen from both sides).  Even when on, only the solid
  * pipelines (opaque, overlay) cull: see-through surfaces (cutout, layer, blend, add) are drawn from both sides, as the game draws them.  Models turn it off:

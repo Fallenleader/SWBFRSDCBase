@@ -81,6 +81,8 @@ typedef struct {
     ak_conquest_map cq; bool have_cq; int team;   /* command posts; the soldier's team (0 = team 1) */
     ak_cq_rules rules; ak_conquest match; int team_faction[2];
     f32 health, max_health, dead_t; bool alive;
+    f32 scale;                         /* soldiers' size relative to the world (AK_SOLDIER_SCALE) */
+    f32 clock;                         /* seconds of play (spinning logos) */
     s32 near_post;                     /* the post the soldier stands at (the HUD's capture bar), or -1 */
 } ak_play;
 

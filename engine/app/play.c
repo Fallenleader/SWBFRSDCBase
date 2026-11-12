@@ -31,11 +31,15 @@ static bool poseable(const ak_model_set *m, const ak_soldier_look *lk)
     return body->skeleton >= 0 && m->skels[body->skeleton].nbones <= 64;
 }
 
-static void world_of(const f32 *pos, f32 yaw, ak_m4 *w)
+/* soldiers are drawn (and collide, and are hit) at this size relative to the world: AK_SOLDIER_SCALE */
+static f32 S = 1.0f;
+
+static void world_of_scaled(const f32 *pos, f32 yaw, f32 k, ak_m4 *w)
 {
-    f32 s = sinf(yaw), c = cosf(yaw);
-    ak_m4 r = { { c, 0, -s, 0,  0, 1, 0, 0,  s, 0, c, 0,  pos[0], pos[1], pos[2], 1 } }; *w = r;
+    f32 s = sinf(yaw) * k, c = cosf(yaw) * k;
+    ak_m4 r = { { c, 0, -s, 0,  0, k, 0, 0,  s, 0, c, 0,  pos[0], pos[1], pos[2], 1 } }; *w = r;
 }
+static void world_of(const f32 *pos, f32 yaw, ak_m4 *w) { world_of_scaled(pos, yaw, 1.0f, w); }
 
 static f32 rnd(u32 *s) { *s = *s * 1664525u + 1013904223u; return (f32)(*s >> 8) / 16777216.0f; }
 static f32 wrap(f32 a) { while (a > 3.14159265f) a -= 6.2831853f; while (a < -3.14159265f) a += 6.2831853f; return a; }
@@ -48,8 +52,8 @@ static bool weapon_world(const ak_model_set *m, const ak_soldier_look *lk, const
     f32 local[12];
     if (g) ak_marker_matrix(bones[g->bone], g, local);
     else memcpy(local, bones[0], sizeof local);
-    f32 s = sinf(yaw), c = cosf(yaw);
-    f32 W[12] = { c, 0, s, pos[0],  0, 1, 0, pos[1],  -s, 0, c, pos[2] };
+    f32 s = sinf(yaw) * S, c = cosf(yaw) * S;
+    f32 W[12] = { c, 0, s, pos[0],  0, S, 0, pos[1],  -s, 0, c, pos[2] };
     for (int r = 0; r < 3; r++) {
         for (int q = 0; q < 4; q++) out[r * 4 + q] = W[r * 4] * local[q] + W[r * 4 + 1] * local[4 + q] + W[r * 4 + 2] * local[8 + q];
         out[r * 4 + 3] += W[r * 4 + 3];
@@ -70,7 +74,7 @@ static void draw_soldier(ak_scene_models *ms, const ak_model_set *m, const ak_so
     static f32 head[1][12];
     const ak_model *body = &m->models[lk->body];
     if (body->skeleton < 0) return;
-    ak_m4 w; world_of(pos, yaw, &w);
+    ak_m4 w; world_of_scaled(pos, yaw, S, &w);
     ak_model_colours col = { lk->rgb1, lk->rgb2 };
     ak_scene_models_draw(ms, (u32)lk->body, vp, &w, bones, &col, st);
     if (lk->head >= 0) {
@@ -89,10 +93,10 @@ static void draw_weapon(ak_scene_models *ms, const ak_model_set *m, const ak_wea
 /* a standing soldier's target shape from its pose: body capsule from the feet, head sphere at the head */
 static void body_target(const ak_model_set *m, const ak_soldier_look *lk, const f32 (*bones)[12], const f32 *pos, f32 yaw, ak_target *t)
 {
-    memcpy(t->feet, pos, 12); t->height = 1.45f; t->radius = 0.35f; t->head_radius = 0.2f;
+    memcpy(t->feet, pos, 12); t->height = 1.45f * S; t->radius = 0.35f * S; t->head_radius = 0.2f * S;
     f32 h[12]; const ak_model *body = &m->models[lk->body];
     ak_soldier_head_matrix(body, &m->skels[body->skeleton], lk->head_bone, bones, h);
-    f32 s = sinf(yaw), c = cosf(yaw), lx = h[3], ly = h[7] + 0.1f, lz = h[11];
+    f32 s = sinf(yaw), c = cosf(yaw), lx = h[3] * S, ly = (h[7] + 0.1f) * S, lz = h[11] * S;
     t->head[0] = pos[0] + c * lx + s * lz; t->head[1] = pos[1] + ly; t->head[2] = pos[2] - s * lx + c * lz;
 }
 
@@ -106,7 +110,7 @@ static int motion_state(const ak_character *ch, const ak_char_params *cp, bool w
     else if (!was_ground && ch->air_time > 0.4f) { st = PLAY_LAND; *land_t = 0.25f; }
     else if (*land_t > 0 && hs < 1.0f) st = PLAY_LAND;
     else if (hs < 0.5f) st = PLAY_IDLE;
-    else if (fabsf(side) > fabsf(fwd)) st = side > 0 ? PLAY_RIGHT : PLAY_LEFT;
+    else if (fabsf(side) > fabsf(fwd)) st = side > 0 ? PLAY_LEFT : PLAY_RIGHT;   /* the clips are named from the other side: "_left" is the run to the right */
     else st = fwd >= 0 ? PLAY_RUN : PLAY_BACK;
     *land_t -= dt; *hs_out = hs; (void)cp;
     return st;
@@ -189,6 +193,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     if (!ak_collision_load(l, a, &p->col)) return false;
     p->have_nav = ak_nav_load(l, a, &p->nav);
     ak_char_params_load(bp, &p->cp);
+    S = p->scale = ak_setting_float("AK_SOLDIER_SCALE", 1.5f);
+    p->cp.radius *= S; p->cp.height *= S; p->cp.step *= S;
     if (!ak_soldier_look_make(bp, m, body, ak_setting_int("AK_HEAD", 0), ak_setting_int("AK_COLOUR1", -1), ak_setting_int("AK_COLOUR2", -1), &p->look)) {
         /* this level has no such body: the first Humanoid blueprint that has one */
         const ak_bp_type *t = ak_bp_find_type(bp, "Humanoid"); bool ok = false;
@@ -243,6 +249,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         p->fov = ak_setting_float("AK_FOV", 55.0f) * 3.14159265f / 180.0f;
         p->pivot_h = 1.55f; p->pivot_x = 0.0f; p->cam_back = 1.8f; p->cam_up = 0.05f; p->cam_side = 0.6f;
     }
+    p->pivot_h *= S; p->pivot_x *= S; p->cam_back *= S; p->cam_up *= S; p->cam_side *= S;
     p->cam_dist = p->cam_back;
     {   int ts = ak_setting_int("AK_TWIN_STICK", -1);
         p->twin_stick = ak_plat_has_right_stick() && ts != 0;                 /* -1 (the default) and 1: on where the device can */
@@ -257,7 +264,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; }
     {   ak_target *t = &p->target[0];
         t->health = p->health; t->headshot_mult = ak_bp_float(p->look.bp, "Headshot multiplier", 4.0f); t->alive = true; t->team = p->team; t->last_attacker = -1;
-        memcpy(t->feet, p->ch.pos, 12); t->height = 1.45f; t->radius = 0.35f; t->head_radius = 0.2f; memcpy(t->head, p->ch.pos, 12); t->head[1] += 1.6f; }
+        memcpy(t->feet, p->ch.pos, 12); t->height = 1.45f * S; t->radius = 0.35f * S; t->head_radius = 0.2f * S; memcpy(t->head, p->ch.pos, 12); t->head[1] += 1.6f * S; }
     /* bots */
     p->sight = p->lock_range; p->bot_aim = ak_setting_float("AK_BOT_AIM", 3.0f) * 3.14159265f / 180.0f;
     p->bots_passive = ak_setting_int("AK_BOT_PASSIVE", 0) != 0;
@@ -336,7 +343,7 @@ static bool in_sight(const ak_play *p, const f32 *from, const f32 *to)
 static s32 bot_find_enemy(ak_play *p, ak_play_bot *b)
 {
     u32 nt = 1 + p->nbots; s32 best = -1; f32 bd = p->sight * p->sight;
-    f32 eye[3] = { b->ch.pos[0], b->ch.pos[1] + 1.5f, b->ch.pos[2] }, fx = -sinf(b->ch.yaw), fz = -cosf(b->ch.yaw);
+    f32 eye[3] = { b->ch.pos[0], b->ch.pos[1] + 1.5f * S, b->ch.pos[2] }, fx = -sinf(b->ch.yaw), fz = -cosf(b->ch.yaw);
     s32 cand[4]; f32 cd[4]; u32 nc = 0;
     for (u32 i = 0; i < nt; i++) {
         const ak_target *t = &p->target[i];
@@ -353,7 +360,7 @@ static s32 bot_find_enemy(ak_play *p, ak_play_bot *b)
         while (k > 0 && cd[k] < cd[k - 1]) { s32 ti = cand[k]; f32 tf = cd[k]; cand[k] = cand[k - 1]; cd[k] = cd[k - 1]; cand[k - 1] = ti; cd[k - 1] = tf; k--; }
     }
     for (u32 k = 0; k < nc && best < 0; k++) {
-        const ak_target *t = &p->target[cand[k]]; f32 c[3] = { t->feet[0], t->feet[1] + 1.2f, t->feet[2] };
+        const ak_target *t = &p->target[cand[k]]; f32 c[3] = { t->feet[0], t->feet[1] + 1.2f * S, t->feet[2] };
         if (in_sight(p, eye, c)) best = cand[k];
     }
     return best;
@@ -448,7 +455,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
             f32 gun[12], muz[3];
             weapon_world(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, gun);
             muzzle_of(m, b->weapon.def, gun, muz);
-            f32 tgt[3] = { en->feet[0], en->feet[1] + 1.1f, en->feet[2] };
+            f32 tgt[3] = { en->feet[0], en->feet[1] + 1.1f * S, en->feet[2] };
             f32 dx = tgt[0] - muz[0], dy = tgt[1] - muz[1], dz = tgt[2] - muz[2], d = sqrtf(dx * dx + dy * dy + dz * dz);
             f32 err = p->bot_aim * d;                                    /* the aim error: an angle, so it grows with distance */
             tgt[0] += (rnd(&b->seed) * 2 - 1) * err; tgt[1] += (rnd(&b->seed) * 2 - 1) * err * 0.6f; tgt[2] += (rnd(&b->seed) * 2 - 1) * err;
@@ -475,6 +482,7 @@ void ak_play_damage(ak_play *p, f32 amount)
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt)
 {
     if (!p->ready) return;
+    p->clock += dt;
     static const ak_input none;
     if (!p->alive) in = &none;                                               /* down: no control until the spawn wave */
     ak_char_input ci = { in->lx, in->ly, in->rx, in->ry, (in->pressed & AK_BTN_CROSS) != 0 };
@@ -537,14 +545,14 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             f32 tgt[3]; memcpy(tgt, p->aim_point, 12);
             if (p->lock >= 0 && p->target[p->lock].alive) {                    /* locked on: the chest, then the head */
                 const ak_target *t = &p->target[p->lock];
-                if (p->lock_t >= p->lock_head_time) memcpy(tgt, t->head, 12); else { memcpy(tgt, t->feet, 12); tgt[1] += 1.1f; }
+                if (p->lock_t >= p->lock_head_time) memcpy(tgt, t->head, 12); else { memcpy(tgt, t->feet, 12); tgt[1] += 1.1f * S; }
             }
             {   int ta = ak_setting_int("AK_TEST_AIM", 0);                    /* tests: 1 = the nearest enemy's chest, 2 = its head */
                 if (ta) {
                     s32 bi = -1; f32 bd = 1e30f;
                     for (u32 i = 1; i < nt; i++) { const ak_target *t = &p->target[i]; if (!t->alive || t->team == p->team) continue;
                         f32 dx = t->feet[0] - p->ch.pos[0], dz = t->feet[2] - p->ch.pos[2]; if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; bi = (s32)i; } }
-                    if (bi >= 0) { const ak_target *t = &p->target[bi]; if (ta == 2) memcpy(tgt, t->head, 12); else { memcpy(tgt, t->feet, 12); tgt[1] += 1.1f; } }
+                    if (bi >= 0) { const ak_target *t = &p->target[bi]; if (ta == 2) memcpy(tgt, t->head, 12); else { memcpy(tgt, t->feet, 12); tgt[1] += 1.1f * S; } }
                 } }
             ak_weapon_fire(&p->weapon, &p->bolts, &p->col, p->target, nt, muz, tgt, &p->seed);
         }
@@ -560,7 +568,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 if (!p->target[j].alive) continue;
                 ak_character *b = &p->bot[j - 1].ch;
                 f32 dx = a->pos[0] - b->pos[0], dz = a->pos[2] - b->pos[2], d2 = dx * dx + dz * dz;
-                if (d2 >= rr * rr || d2 < 1e-8f || fabsf(a->pos[1] - b->pos[1]) > 1.6f) continue;
+                if (d2 >= rr * rr || d2 < 1e-8f || fabsf(a->pos[1] - b->pos[1]) > 1.6f * S) continue;
                 f32 d = sqrtf(d2), push = (rr - d) * 0.5f; dx /= d; dz /= d;
                 a->pos[0] += dx * push; a->pos[2] += dz * push; b->pos[0] -= dx * push; b->pos[2] -= dz * push;
             }
@@ -693,18 +701,25 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
     static ak_vtx bv[(AK_MAX_BOLTS + AK_MAX_IMPACTS + AK_MAX_POSTS) * AK_BEAM_VERTS];
     ak_gfx_set_transform(NULL);
     u32 n = 0;
-    if (p->have_cq)                                                           /* the command posts: a light column each, the owner's colour */
+    if (p->have_cq) {                                                         /* the command posts: the game's cone of light and the owner's logo */
+        static const char *logo[4] = { "republic_logo_blue", "cis_logo_blue", "alliance_logo_blue", "empire_logo_blue" };
+        s32 cone = ak_models_find(m, "cone_of_light");
+        f32 spin = p->clock * 6.2831853f / 3.13f;                             /* "logo_spin_move": a turn every 3.13 s */
         for (u32 i = 0; i < p->cq.nposts; i++) {
-            f32 x = p->cq.post[i].pos[0], y = p->cq.post[i].pos[1], z = p->cq.post[i].pos[2];
-            f32 dx = p->eye[0] - x, dz = p->eye[2] - z, l = sqrtf(dx * dx + dz * dz);
+            if (p->cq.post[i].disabled) continue;
             const ak_post_state *ps = &p->match.post[i];
-            static const u32 tc[3] = { 0xFF3C78FFu, 0xFFFF4632u, 0xFF969696u };   /* friendly blue, enemy red, neutral grey */
+            static const f32 tc[3][4] = { { 0.45f, 0.75f, 1.5f, 1 }, { 1.5f, 0.4f, 0.3f, 1 }, { 1.0f, 1.0f, 1.0f, 1 } };   /* ours, theirs, neutral */
             int o = ps->owner < 2 ? (ps->owner == p->team ? 0 : 1) : 2;
-            f32 f = p->cq.post[i].amount > 0 ? ps->progress / p->cq.post[i].amount : 1;
-            f32 near = (l - 4.0f) / 12.0f; near = near < 0 ? 0 : near > 1 ? 1 : near;   /* fades out close up (the camera stands in it) */
-            f32 a[3] = { x, y, z }, c[3] = { x, y + 25, z };
-            n += ak_beam(bv + n, a, c, 0.8f, p->eye, tc[o], (u8)((90 + 120 * f) * near), 0);
+            const f32 *pp = p->cq.post[i].pos;
+            ak_gfx_set_tint(tc[o]);
+            if (cone >= 0) { ak_m4 w; world_of(pp, p->cq.post[i].yaw, &w); ak_scene_models_draw(ms, (u32)cone, vp, &w, NULL, NULL, st); }
+            if (ps->owner < 2) {
+                s32 lg = ak_models_find(m, logo[p->team_faction[ps->owner] & 3]);
+                if (lg >= 0) { f32 lp[3] = { pp[0], pp[1] + 1.25f, pp[2] }; ak_m4 w; world_of(lp, spin + (f32)i, &w); ak_scene_models_draw(ms, (u32)lg, vp, &w, NULL, NULL, st); }
+            }
         }
+        ak_gfx_set_tint(NULL);
+    }
     n += ak_bolts_vertices(&p->bolts, p->eye, bv + n, sizeof bv / sizeof bv[0] - n);
     if (ak_setting_int("AK_DEBUG_BEAMS", 0) && p->armed) {                   /* tests: the weapon's bolt across, slanting and end-on, in front of the eye */
         f32 f[3] = { p->aim[0], p->aim[1], p->aim[2] }, r[3] = { -f[2], 0, f[0] }, rl = sqrtf(r[0] * r[0] + r[2] * r[2]);
