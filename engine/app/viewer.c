@@ -330,7 +330,8 @@ int main(int argc, char **argv)
                              play.ndummy ? play.target[0].health : 0.0f);
                     ak_gfx_text(8, 98, 0xFFC0E0FF, line);
                 }
-                ak_gfx_text(8, 116, 0xFFC0C0C0, "left stick: move  right stick: turn  cross: jump  R: fire  L: lock on  square: free camera");
+                ak_gfx_text(8, 116, 0xFFC0C0C0, play.twin_stick ? "left stick: move  right stick: aim  cross: jump  R: fire  L: lock on  square: free camera"
+                                                                : "left stick: move  right stick: turn  cross: jump  R: fire  L: lock on  square: free camera");
 
             }
         }

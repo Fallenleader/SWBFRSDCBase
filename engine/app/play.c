@@ -106,6 +106,11 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         p->pivot_h = 1.55f; p->pivot_x = 0.0f; p->cam_back = 1.8f; p->cam_up = 0.05f; p->cam_side = 0.6f;
     }
     p->cam_dist = p->cam_back;
+    {   int ts = ak_setting_int("AK_TWIN_STICK", -1);
+        p->twin_stick = ak_plat_has_right_stick() && ts != 0;                 /* -1 (the default) and 1: on where the device can */
+        p->aim_yaw_speed = ak_setting_float("AK_AIM_SPEED", 3.2f); p->aim_pitch_speed = p->aim_yaw_speed * 0.7f;
+        p->aim_curve = ak_setting_float("AK_AIM_CURVE", 2.0f); p->invert_y = ak_setting_int("AK_INVERT_Y", 0) != 0;
+    }
     const ak_bp_object *ctl = ak_bp_find(bp, "Controls", "Humanoid");
     p->lock = -1; p->lock_range = ak_bp_float(ctl, "targeting range", 50.0f); p->lock_turn = ak_bp_float(ctl, "aim yaw speed", 3.5f);
     p->lock_head_time = ak_bp_float(ctl, "lock on to head time", 5.0f);
@@ -121,9 +126,15 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         f32 fwd[2] = { -sinf(p->ch.yaw), -cosf(p->ch.yaw) };
         for (u32 i = 0; p->have_nav && i < p->nav.nnode && p->ndummy < want; i++) {
             const f32 *np = p->nav.node[i].pos; f32 dx = np[0] - p->ch.pos[0], dz = np[2] - p->ch.pos[2], d = sqrtf(dx * dx + dz * dz);
-            if (d < 8 || d > 40 || (dx * fwd[0] + dz * fwd[1]) < d * 0.8f || fabsf(np[1] - p->ch.pos[1]) > 4) continue;
+            if (d < 8 || d > 40 || (dx * fwd[0] + dz * fwd[1]) < d * 0.5f || fabsf(np[1] - p->ch.pos[1]) > 4) continue;
             bool near = false; for (u32 k = 0; k < p->ndummy; k++) { f32 ex = np[0] - p->dummy[k].pos[0], ez = np[2] - p->dummy[k].pos[2]; if (ex * ex + ez * ez < 9) near = true; }
             f32 gy2; if (near || !ak_char_ground_below(&p->col, np, 3, &gy2)) continue;
+            {   /* in sight of the soldier (chest to chest), so it can be shot at */
+                f32 o[3] = { p->ch.pos[0], p->ch.pos[1] + 1.3f, p->ch.pos[2] }, t[3] = { np[0] - o[0], gy2 + 1.3f - o[1], np[2] - o[2] };
+                f32 tl = sqrtf(t[0] * t[0] + t[1] * t[1] + t[2] * t[2]); ak_col_hit hh;
+                for (int k = 0; k < 3; k++) t[k] /= tl;
+                if (ak_col_raycast(&p->col, o, t, tl - 0.5f, 0, &hh)) continue;
+            }
             ak_play_dummy *dm = &p->dummy[p->ndummy]; memset(dm, 0, sizeof *dm);
             if (!ak_soldier_look_make(bp, m, en, (int)(p->ndummy % 3), -1, -1, &dm->look)) break;
             dm->pos[0] = np[0]; dm->pos[1] = gy2; dm->pos[2] = np[2]; dm->yaw = atan2f(dx, dz);   /* facing the player */
@@ -143,6 +154,15 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
 {
     if (!p->ready) return;
     ak_char_input ci = { in->lx, in->ly, in->rx, in->ry, (in->pressed & AK_BTN_CROSS) != 0 };
+    if (p->twin_stick) {
+        /* free aim with a response curve (fine near the centre, fast at the edge); the body turns with the aim */
+        f32 ax = in->rx, ay = p->invert_y ? -in->ry : in->ry;
+        f32 cx = copysignf(powf(fabsf(ax), p->aim_curve), ax), cy = copysignf(powf(fabsf(ay), p->aim_curve), ay);
+        p->ch.yaw -= cx * p->aim_yaw_speed * dt; p->ch.pitch += cy * p->aim_pitch_speed * dt;
+        if (p->ch.pitch > 1.35f) p->ch.pitch = 1.35f;
+        if (p->ch.pitch < -1.35f) p->ch.pitch = -1.35f;
+        ci.look_x = ci.look_y = 0;
+    }
     /* lock-on: L held; the facing turns toward the target */
     if (in->held & AK_BTN_L) {
         if (p->lock < 0 || !p->target[p->lock].alive) {

@@ -5,9 +5,13 @@
  * "humanoid 3rd person": pivot 1.5 m up and 0.3 m right, 7 m behind and 0.5 m up, 0.2 m left, 60 degrees).  Both pull in when the
  * level is in the way.
  *
- * Controls are the game's (Controls blueprint "Humanoid"): the left stick moves, the right stick turns (yaw speed 4, pitch speed 5),
- * cross jumps, R fires, L holds a lock-on to the nearest enemy in front within "targeting range" (the soldier turns to it at "aim
- * yaw speed"; shots go to the chest, then the head once the lock is held "lock on to head time"); the weapon reloads when empty.
+ * Controls (AK_TWIN_STICK: -1 = the device's default, 0 = off, 1 = on; on only where the device has a second stick):
+ *  - twin stick (the default where there is a right stick: PC, Steam Deck, Vita, PS4, PS5; an option on the New 3DS): the right
+ *    stick aims freely with a response curve (AK_AIM_SPEED, AK_AIM_CURVE, AK_INVERT_Y); the left stick moves relative to the aim;
+ *  - the game's own (always on the Old 3DS): the right stick (or buttons) turns at the game's yaw speed 4 / pitch speed 5.
+ * In both, as in the game: cross jumps, R fires, L holds a lock-on to the nearest enemy in front within "targeting range" (the
+ * soldier turns to it at "aim yaw speed"; shots go to the chest, then the head once the lock is held "lock on to head time"); the
+ * weapon reloads when empty.
  *
  * Clips are picked by state (idle, run forward / back / sideways, jump, fall, land) from the level's Human_Rifle_* animations; the
  * game's own animation table ("Animtable: generic_male") is not traced yet.  The soldier carries a blaster rifle (AK_WEAPON, default
@@ -47,6 +51,7 @@ typedef struct {
     f32 cam_dist;                      /* current pull-in distance (eases back out) */
     f32 eye[3], aim[3]; bool aim_ok;   /* last camera position and its forward direction (shots go where it looks) */
     f32 aim_point[3];                  /* where the centre of the view meets the level */
+    bool twin_stick; f32 aim_yaw_speed, aim_pitch_speed, aim_curve; bool invert_y;
     /* lock-on (the game's) */
     s32 lock; f32 lock_t, lock_range, lock_turn, lock_head_time;
     /* weapon */

@@ -34,6 +34,9 @@ enum {
 };
 typedef struct { f32 lx, ly, rx, ry; u32 held, pressed; } ak_input;
 bool ak_plat_poll(ak_input *in);         /* false: the user asked to quit */
+/* Does this device have a second analogue stick (rx/ry) for free aim?  PC (gamepad or mouse), Steam Deck, Vita, PS4, PS5: yes;
+ * New 3DS: yes (the C-stick; twin-stick is an option there, AK_TWIN_STICK); Old 3DS: no - only the game's own scheme. */
+bool ak_plat_has_right_stick(void);
 
 /* log output (the core formats; the device writes: stdout + log.txt, ux0:data/SWBFRS/log.txt, sdmc:/3ds/SWBFRS/log.txt) */
 void ak_plat_log_write(const char *line);

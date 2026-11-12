@@ -59,5 +59,12 @@ AK_GRAVITY=10
 AK_CAM_STYLE=modern
 # field of view of the modern camera (vertical degrees)
 AK_FOV=55
+# twin-stick aiming (right stick aims freely): -1 = the device's default (on: the Vita has a right stick), 0 = off (the game's own
+# scheme: the right stick turns), 1 = on.  Lock-on (hold L) works either way; reloading is automatic, as in the game.
+AK_TWIN_STICK=-1
+# free aim: turn speed (rad/s at full tilt), response curve (1 = linear, 2 = fine near the centre), invert the vertical
+AK_AIM_SPEED=3.2
+AK_AIM_CURVE=2.0
+AK_INVERT_Y=0
 # the soldier's side in play mode: 1 or 2 (spawns at that team's spawn by the nearest command post)
 AK_TEAM=1

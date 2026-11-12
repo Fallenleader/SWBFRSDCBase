@@ -69,6 +69,8 @@ const char *const *ak_plat_data_dirs(int *n) { *n = 2; return dirs; }
 const char *ak_plat_user_dir(void) { return USER_DIR; }
 
 static f32 stick(u8 v) { f32 f = ((int)v - 128) / 127.0f; if (f > 1) f = 1; return f > 0.18f || f < -0.18f ? f : 0.0f; }
+bool ak_plat_has_right_stick(void) { return true; }
+
 bool ak_plat_poll(ak_input *in)
 {
     SceCtrlData c; u32 prev = in->held;
