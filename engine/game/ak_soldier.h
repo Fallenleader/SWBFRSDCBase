@@ -13,6 +13,12 @@
 
 enum { AK_FACTION_REPUBLIC = 0, AK_FACTION_CIS = 1, AK_FACTION_ALLIANCE = 2, AK_FACTION_EMPIRE = 3, AK_FACTION_NONE = 4 };
 #define AK_HEAD_BONE 6
+/* the aim offset: how much of the aim's up/down each spine bone takes (hips-up spine 2, 3 and the chest 4; the neck, arms and the
+ * held weapon hang off the chest, so they end up turned by the whole angle).  The game's animations never follow the aim's pitch;
+ * the DICE games lean the same third-person body this way, in first person too. */
+#define AK_AIM_BONES 3
+static const u8 ak_aim_bone[AK_AIM_BONES] = { 2, 3, 4 };
+static const f32 ak_aim_share[AK_AIM_BONES] = { 0.25f, 0.35f, 0.40f };
 
 typedef struct {
     const ak_bp_object *bp;            /* the Humanoid blueprint */

@@ -74,6 +74,22 @@ void ak_skeleton_pose_matrices(const ak_skeleton *s, const ak_quat *lq, const f3
     }
 }
 
+void ak_skeleton_pose_matrices_pitch(const ak_skeleton *s, const ak_quat *lq, const f32 (*lt)[3], const f32 *bp, f32 (*m)[12])
+{
+    ak_quat wq[512]; f32 wt[512][3];
+    for (u32 i = 0; i < s->nbones && i < 512; i++) {
+        int p = s->parent[i];
+        if (p < 0) { wq[i] = lq[i]; memcpy(wt[i], lt[i], 12); }
+        else {
+            f32 r3[3]; qrot(wq[p], lt[i], r3);
+            for (int k = 0; k < 3; k++) wt[i][k] = wt[p][k] + r3[k];
+            wq[i] = qmul(wq[p], lq[i]);
+        }
+        if (bp && bp[i] != 0) { f32 h = bp[i] * 0.5f; ak_quat r = { sinf(h), 0, 0, cosf(h) }; wq[i] = qmul(r, wq[i]); }
+        mat34(wq[i], wt[i], m[i]);
+    }
+}
+
 static ak_quat q_unpack(u32 w)
 {
     f32 f[3] = { (f32)((w >> 22) & 1023), (f32)((w >> 12) & 1023), (f32)((w >> 2) & 1023) }, g[4];

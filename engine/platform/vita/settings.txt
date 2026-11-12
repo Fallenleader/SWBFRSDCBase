@@ -70,3 +70,6 @@ AK_FOV_THIRD=55
 AK_FOV_FIRST=62
 # first person: 1 = your own third-person body without its head (test), 0 = a rifle viewmodel only
 AK_FP_BODY=1
+# the local soldier leans toward its aim (1) and, in first person, lifts its arms by this much (radians) to bring the weapon into view
+AK_AIM_OFFSET=1
+AK_FP_ARM_RAISE=0.8

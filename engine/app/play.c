@@ -10,6 +10,9 @@ static s32 find_clip(const ak_model_set *m, const char *const *names)
     return -1;
 }
 
+static void pose(const ak_model_set *m, const ak_soldier_look *lk, s32 clip, f32 t, bool loop, f32 (*bones)[12]);
+/* aim: radians up (+) / down (-) the spine leans, 0 = the clip as it is */
+static f32 g_aim_pitch, g_arm_raise;   /* arm raise: first person lifts the arms (and the weapon) into view at the shoulders */
 static void pose(const ak_model_set *m, const ak_soldier_look *lk, s32 clip, f32 t, bool loop, f32 (*bones)[12])
 {
     static ak_quat lq[64]; static f32 lt[64][3];
@@ -20,7 +23,11 @@ static void pose(const ak_model_set *m, const ak_soldier_look *lk, s32 clip, f32
     if (clip >= 0) {
         const ak_anim_clip *c = &m->clips[clip];
         if (!loop && t > c->duration) t = c->duration - 1e-4f;             /* hold the last frame */
-        ak_anim_sample(c, sk, t, loop, lq, lt); ak_skeleton_pose_matrices(sk, lq, (const f32 (*)[3])lt, bones);
+        ak_anim_sample(c, sk, t, loop, lq, lt);
+        f32 bp[64] = { 0 };
+        if (g_aim_pitch != 0 && sk->nbones > 14) for (int i = 0; i < AK_AIM_BONES; i++) bp[ak_aim_bone[i]] = g_aim_pitch * ak_aim_share[i];
+        if (g_arm_raise != 0 && sk->nbones > 14) { bp[7] += g_arm_raise; bp[11] += g_arm_raise; }
+        ak_skeleton_pose_matrices_pitch(sk, lq, (const f32 (*)[3])lt, bp, bones);
     } else ak_skeleton_bind_matrices(sk, bones);
 }
 
@@ -193,7 +200,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     p->clip_t += dt * rate;
     /* the pose (the weapon rides it) */
     p->posed = m->models[p->look.body].skeleton >= 0 && m->skels[m->models[p->look.body].skeleton].nbones <= 64;
+    g_aim_pitch = ak_setting_int("AK_AIM_OFFSET", 1) ? -p->ch.pitch : 0;      /* the local soldier leans toward its aim */
+    g_arm_raise = p->cam_mode && p->fp_body ? ak_setting_float("AK_FP_ARM_RAISE", 0.8f) : 0;
     if (p->posed) pose(m, &p->look, p->clip[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->bones);
+    g_aim_pitch = g_arm_raise = 0;
     /* the weapon */
     if (p->armed) {
         ak_weapon_update(&p->weapon, dt, !p->scheme && (in->pressed & AK_BTN_L) != 0);   /* classic: reloads when empty */
