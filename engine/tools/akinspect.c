@@ -7,6 +7,7 @@
 #include "../world/ak_collision.h"
 #include "../world/ak_nav.h"
 #include "../game/ak_character.h"
+#include "../game/ak_conquest.h"
 #include "../platform/plat.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,6 +71,16 @@ int main(int argc, char **argv)
     ak_model_set ms; u64 t2 = ak_plat_time_us();
     bool mok = ak_models_load(&l, &a, &ms);
     u32 lod0 = 0, tris_m = 0; for (u32 i = 0; i < ms.nmodels; i++) { lod0 += ms.models[i].lod == 0; tris_m += ms.models[i].nidx / 3; }
+    {   ak_conquest_map cq;
+        if (ak_conquest_load(&l, &cq)) {
+            u32 s1 = 0, s2 = 0, rg = 0; f32 far = 0;
+            for (u32 i = 0; i < cq.nposts; i++) {
+                s1 += cq.post[i].has_spawn[0]; s2 += cq.post[i].has_spawn[1]; rg += cq.post[i].has_region;
+                for (int t = 0; t < 2; t++) if (cq.post[i].has_spawn[t]) { f32 dx = cq.post[i].spawn[t][0] - cq.post[i].pos[0], dz = cq.post[i].spawn[t][2] - cq.post[i].pos[2]; f32 d = sqrtf(dx * dx + dz * dz); if (d > far) far = d; }
+            }
+            printf("conquest   %u command posts: team-1 spawns at %u, team-2 at %u (farthest %.0f m from its post), capture regions on %u (%u regions)\n", cq.nposts, s1, s2, far, rg, cq.nregions);
+        } else printf("conquest   no command posts\n");
+    }
     printf("models     %u (%u full detail), %u skeletons, %u clips, %u triangles, %.1f ms%s\n", ms.nmodels, lod0, ms.nskels, ms.nclips, tris_m,
            (ak_plat_time_us() - t2) / 1000.0, mok ? "" : " FAILED");
     {   /* collision: build, then check the tree against brute force and against where things stand */

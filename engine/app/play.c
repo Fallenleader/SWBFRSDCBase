@@ -69,10 +69,22 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             if (*ak_bp_string(&t->objects[i], "Head 1", "")) ok = ak_soldier_look_make(bp, m, t->objects[i].name, 0, -1, -1, &p->look);
         if (!ok) return false;
     }
-    f32 sp[3] = { start[0], start[1], start[2] }, gy;
-    if (p->have_nav) { s32 n = ak_nav_nearest(&p->nav, start, 1e6f); if (n >= 0) memcpy(sp, p->nav.node[n].pos, 12); }
+    f32 sp[3] = { start[0], start[1], start[2] }, gy, syaw = 0;
+    p->have_cq = ak_conquest_load(l, &p->cq);
+    p->team = ak_setting_int("AK_TEAM", 1) == 2;
+    s32 post = -1;
+    if (p->have_cq) {                                                        /* the team's spawn at the post nearest the start */
+        f32 bd = 1e30f;
+        for (u32 i = 0; i < p->cq.nposts; i++) {
+            if (!p->cq.post[i].has_spawn[p->team]) continue;
+            f32 dx = p->cq.post[i].pos[0] - start[0], dz = p->cq.post[i].pos[2] - start[2];
+            if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; post = (s32)i; }
+        }
+        if (post >= 0) { memcpy(sp, p->cq.post[post].spawn[p->team], 12); syaw = p->cq.post[post].spawn_yaw[p->team]; }
+    }
+    if (post < 0 && p->have_nav) { s32 n = ak_nav_nearest(&p->nav, start, 1e6f); if (n >= 0) memcpy(sp, p->nav.node[n].pos, 12); }
     if (ak_char_ground_below(&p->col, sp, 50.0f, &gy)) sp[1] = gy;
-    ak_char_spawn(&p->ch, sp, 0);
+    ak_char_spawn(&p->ch, sp, syaw);
     static const char *idle[] = { "Human_Rifle_Stand_Idle_lookaround2", "Human_Rifle_Stand_Idle_checkweap", NULL };
     static const char *run[] = { "Human_Rifle_Stand_RunForward", NULL }, *back[] = { "Human_Rifle_Stand_RunBackward", "Human_Rifle_Stand_WalkBackward", NULL };
     static const char *left[] = { "Human_Rifle_Stand_RunForward_left", NULL }, *right[] = { "Human_Rifle_Stand_RunForward_Right", NULL };
@@ -285,8 +297,21 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         ak_m4 gw = { { G[0], G[4], G[8], 0,  G[1], G[5], G[9], 0,  G[2], G[6], G[10], 0,  G[3], G[7], G[11], 1 } };
         ak_scene_models_draw(ms, (u32)p->wdef.model, vp, &gw, NULL, NULL, st);
     }
-    static ak_vtx bv[AK_MAX_BOLTS * 6 + AK_MAX_IMPACTS * 6];
+    static ak_vtx bv[AK_MAX_BOLTS * 6 + AK_MAX_IMPACTS * 6 + AK_MAX_POSTS * 6];
     ak_gfx_set_transform(NULL);
+    if (p->have_cq) {                                                         /* the command posts: a light column each (owner colours come with capture) */
+        u32 n = 0;
+        for (u32 i = 0; i < p->cq.nposts; i++) {
+            f32 x = p->cq.post[i].pos[0], y = p->cq.post[i].pos[1], z = p->cq.post[i].pos[2];
+            f32 dx = p->eye[0] - x, dz = p->eye[2] - z, l = sqrtf(dx * dx + dz * dz); if (l < 1e-3f) l = 1;
+            f32 sx = -dz / l * 0.6f, sz = dx / l * 0.6f;
+            f32 q[4][3] = { { x - sx, y, z - sz }, { x + sx, y, z + sz }, { x + sx, y + 25, z + sz }, { x - sx, y + 25, z - sz } };
+            static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
+            for (int k = 0; k < 6; k++) { ak_vtx *v = &bv[n++]; memset(v, 0, sizeof *v); memcpy(v->pos, q[tri[k]], 12); v->uv[0] = v->uv[1] = 0.5f;
+                v->col[0] = 110; v->col[1] = 110; v->col[2] = 128; v->col[3] = tri[k] >= 2 ? 0 : 150; }
+        }
+        ak_gfx_draw_immediate(AK_PIPE_ADD, NULL, bv, n);
+    }
     u32 nv = ak_bolts_vertices(&p->bolts, p->eye, 0, bv, sizeof bv / sizeof bv[0]);
     if (nv) ak_gfx_draw_immediate(AK_PIPE_BLEND, NULL, bv, nv);
     nv = ak_bolts_vertices(&p->bolts, p->eye, 1, bv, sizeof bv / sizeof bv[0]);

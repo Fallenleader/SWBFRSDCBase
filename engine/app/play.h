@@ -24,6 +24,7 @@
 #include "game/ak_character.h"
 #include "game/ak_soldier.h"
 #include "game/ak_weapon.h"
+#include "game/ak_conquest.h"
 #include "render/ak_scene.h"
 #include "platform/plat.h"
 
@@ -53,6 +54,7 @@ typedef struct {
     f32 bones[64][12]; bool posed;     /* the body's pose this frame (the weapon and the muzzle ride it) */
     ak_play_dummy dummy[PLAY_DUMMIES]; ak_target target[PLAY_DUMMIES]; u32 ndummy; u32 kills;
     s32 idle_clip, death_clips[3];
+    ak_conquest_map cq; bool have_cq; int team;   /* command posts; the soldier's team (0 = team 1) */
 } ak_play;
 
 /* body: a Humanoid blueprint name; start: where to look for the nearest walkable spot */
