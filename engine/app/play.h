@@ -14,13 +14,19 @@
  * weapon reloads when empty.
  *
  * Clips are picked by state (idle, run forward / back / sideways, jump, fall, land) from the level's Human_Rifle_* animations; the
- * game's own animation table ("Animtable: generic_male") is not traced yet.  The soldier carries a blaster rifle (AK_WEAPON, default
- * "BlasterRifle", the faction's own version).  Target dummies of the other side (AK_DUMMIES, up to 6) stand on navigation nodes
- * ahead: 100 health, headshots x4; they fall (a death clip) and stand up again with the next spawn wave.
+ * game's own animation table ("Animtable: generic_male") is not traced yet.  Every soldier carries a blaster rifle (AK_WEAPON,
+ * default "BlasterRifle", the faction's own version).
  *
  * Conquest (game/ak_conquest.h): the posts start with the level's owners; soldiers within 5 m capture; each death costs the team a
- * ticket; the bleed and the total-loss timer run as in the game.  The soldier has the blueprint's health; when it reaches 0 the
- * soldier falls and comes back with the next spawn wave at the team's post nearest where it fell. */
+ * ticket; the bleed and the total-loss timer run as in the game.  Soldiers have the blueprint's health (100); a soldier that falls
+ * comes back with the next spawn wave at a post its team owns.
+ *
+ * Bots (AK_BOTS in all, shared between the sides; the player's side has one fewer): the factions' own classes (light, medium,
+ * heavy) that this level has models for.  Each picks a command post its side does not hold (the nearest, with some randomness),
+ * walks there along the level's navigation graph and stands on it until it is theirs, then moves on; with every post held it
+ * defends one.  It fights any enemy it can see within the targeting range (50 m): turns to it, holds the trigger in bursts with an
+ * aim error that grows with distance, and keeps moving (slower, strafing).  The game's own AI is not traced yet: the reaction
+ * time, the aim error (AK_BOT_AIM, degrees), the bursts and the field of view are this engine's. */
 #ifndef AK_PLAY_H
 #define AK_PLAY_H
 #include "core/ak_core.h"
@@ -38,11 +44,15 @@
 
 enum { PLAY_IDLE, PLAY_RUN, PLAY_BACK, PLAY_LEFT, PLAY_RIGHT, PLAY_JUMP, PLAY_FALL, PLAY_LAND, PLAY_NCLIPS };
 
-#define PLAY_DUMMIES 6
-typedef struct {                       /* a target soldier of the other side, standing still (bots come with 1.6) */
-    ak_soldier_look look; f32 pos[3], yaw;
-    f32 bones[64][12]; f32 t, dead_t; s32 death_clip;
-} ak_play_dummy;
+#define PLAY_MAX_BOTS 127
+#define PLAY_MAX_CLASSES 8
+typedef struct {                       /* a bot soldier */
+    ak_soldier_look look; ak_character ch; int team; ak_weapon weapon; bool alive;
+    f32 bones[64][12]; int state; f32 clip_t, land_t, dead_t, pose_dt; s32 death_clip; bool was_ground;
+    /* the mind */
+    s32 goal; u32 path[128]; u32 npath, path_i; f32 hold[3]; bool holding;
+    f32 think_t, goal_t, react_t, burst_t, stuck_t, strafe_t; f32 stuck_pos[3]; s32 enemy; f32 strafe; u32 seed;
+} ak_play_bot;
 
 typedef struct {
     bool ready;
@@ -61,11 +71,16 @@ typedef struct {
     /* weapon */
     ak_weapon_def wdef; ak_weapon weapon; bool armed; ak_bolts bolts; u32 seed;
     f32 bones[64][12]; bool posed;     /* the body's pose this frame (the weapon and the muzzle ride it) */
-    ak_play_dummy dummy[PLAY_DUMMIES]; ak_target target[PLAY_DUMMIES]; u32 ndummy; u32 kills;
+    ak_play_bot *bot; u32 nbots;       /* (from the level arena) */
+    ak_target target[1 + PLAY_MAX_BOTS];   /* 0: the player, 1 + i: bot i */
+    u32 kills, deaths;
     s32 idle_clip, death_clips[3];
+    ak_weapon_def team_wdef[2]; bool team_armed[2];
+    const char *klass[2][PLAY_MAX_CLASSES]; u32 nklass[2];
+    ak_arena scratch; bool bots_passive; f32 bot_aim, sight;
     ak_conquest_map cq; bool have_cq; int team;   /* command posts; the soldier's team (0 = team 1) */
     ak_cq_rules rules; ak_conquest match; int team_faction[2];
-    f32 health, max_health, dead_t; bool alive; u32 deaths;
+    f32 health, max_health, dead_t; bool alive;
     s32 near_post;                     /* the post the soldier stands at (the HUD's capture bar), or -1 */
 } ak_play;
 
@@ -78,4 +93,6 @@ bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12])
 /* damage to the player's soldier (from bots, falls, tests) */
 void ak_play_damage(ak_play *p, f32 amount);
 void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const ak_m4 *vp, ak_scene_stats *st);
+/* soldiers alive per side */
+void ak_play_counts(const ak_play *p, u32 alive[2], u32 total[2]);
 #endif

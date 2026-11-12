@@ -36,16 +36,16 @@ bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, con
 
 void ak_weapon_give(ak_weapon *w, const ak_weapon_def *d)
 {
-    memset(w, 0, sizeof *w); w->def = d;
+    memset(w, 0, sizeof *w); w->def = d; w->team = -1; w->owner = -1;
     w->ammo = d->clip; w->spare = d->clip > 0 ? d->clip * (d->clips > 0 ? d->clips - 1 : 0) : 0;
 }
 
 /* first target hit along o + t d, t in (0, max]: vertical capsule (the body) or the head sphere */
-static s32 ray_targets(ak_target *tg, u32 n, const f32 *o, const f32 *d, f32 max, f32 *t_out, bool *head)
+static s32 ray_targets(ak_target *tg, u32 n, const f32 *o, const f32 *d, f32 max, f32 *t_out, bool *head, int team)
 {
     s32 best = -1; f32 bt = max;
     for (u32 i = 0; i < n; i++) {
-        ak_target *T = &tg[i]; if (!T->alive) continue;
+        ak_target *T = &tg[i]; if (!T->alive || (team >= 0 && T->team == team)) continue;
         /* head sphere */
         f32 oc[3] = { o[0] - T->head[0], o[1] - T->head[1], o[2] - T->head[2] };
         f32 b = oc[0] * d[0] + oc[1] * d[1] + oc[2] * d[2], c = oc[0] * oc[0] + oc[1] * oc[1] + oc[2] * oc[2] - T->head_radius * T->head_radius, disc = b * b - c;
@@ -63,8 +63,9 @@ static s32 ray_targets(ak_target *tg, u32 n, const f32 *o, const f32 *d, f32 max
     return best;
 }
 
-static void hurt(ak_target *T, f32 dmg_inf, f32 dmg_veh, bool head, bool allow_head, const f32 *dir)
+static void hurt(ak_target *T, f32 dmg_inf, f32 dmg_veh, bool head, bool allow_head, const f32 *dir, s32 owner)
 {
+    T->last_attacker = owner;
     f32 d = T->vehicle ? dmg_veh : dmg_inf;
     if (head && allow_head && !T->vehicle) { d *= T->headshot_mult; T->headshots++; }
     T->health -= d; T->hits++;
@@ -102,15 +103,15 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
         if (d->hitscan) {
             ak_col_hit h; f32 reach = d->distance, tt; bool head = false;
             bool wall = ak_col_raycast(col, muzzle, dd, reach, SHOT_IGNORE, &h); if (wall) reach = h.t;
-            s32 ti = ray_targets(tg, ntg, muzzle, dd, reach, &tt, &head);
-            if (ti >= 0) hurt(&tg[ti], d->dmg_infantry, d->dmg_vehicle, head, d->headshots, dd);
+            s32 ti = ray_targets(tg, ntg, muzzle, dd, reach, &tt, &head, w->team);
+            if (ti >= 0) hurt(&tg[ti], d->dmg_infantry, d->dmg_vehicle, head, d->headshots, dd, w->owner);
             else if (wall) impact(b, &h, 0xFFFFFFFFu);
             continue;
         }
         if (b->n >= AK_MAX_BOLTS) break;
         ak_bolt *o = &b->b[b->n++];
         memcpy(o->pos, muzzle, 12); memcpy(o->dir, dd, 12);
-        o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->headshots = d->headshots; o->colour = d->colour;
+        o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->headshots = d->headshots; o->colour = d->colour; o->team = w->team; o->owner = w->owner;
     }
     b->fired++;
     w->cooldown = d->rate_of_fire;
@@ -136,9 +137,9 @@ void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *tg, u32 nt
         if (o->travelled + step > o->range) { step = o->range - o->travelled; dead = true; }
         ak_col_hit h; f32 tt; bool head = false;
         bool wall = step > 0 && ak_col_raycast(col, o->pos, o->dir, step, SHOT_IGNORE, &h);
-        s32 ti = step > 0 ? ray_targets(tg, ntg, o->pos, o->dir, wall ? h.t : step, &tt, &head) : -1;
+        s32 ti = step > 0 ? ray_targets(tg, ntg, o->pos, o->dir, wall ? h.t : step, &tt, &head, o->team) : -1;
         if (ti >= 0) {
-            hurt(&tg[ti], o->damage, o->damage_vehicle, head, o->headshots, o->dir);
+            hurt(&tg[ti], o->damage, o->damage_vehicle, head, o->headshots, o->dir, o->owner);
             ak_col_hit fake; for (int k = 0; k < 3; k++) { fake.pos[k] = o->pos[k] + o->dir[k] * tt; fake.normal[k] = -o->dir[k]; }
             impact(b, &fake, o->colour); step = tt; dead = true;
         } else if (wall) { impact(b, &h, o->colour); dead = true; }
@@ -149,40 +150,48 @@ void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *tg, u32 nt
     for (u32 i = 0; i < b->nimp; i++) b->imp[i].age += dt;
 }
 
-static void quad(ak_vtx *v, const f32 *a, const f32 *c, f32 halfw, const f32 *eye, u32 rgba, u8 alpha_tail, u8 alpha_head)
+void ak_sprite_cross(ak_vtx *v, const f32 *a, const f32 *c, f32 halfw, u32 rgba, u8 alpha_a, u8 alpha_c)
 {
-    f32 ax[3] = { c[0] - a[0], c[1] - a[1], c[2] - a[2] }, to[3] = { eye[0] - a[0], eye[1] - a[1], eye[2] - a[2] };
-    f32 s[3] = { ax[1] * to[2] - ax[2] * to[1], ax[2] * to[0] - ax[0] * to[2], ax[0] * to[1] - ax[1] * to[0] };
-    f32 l = sqrtf(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]); if (l < 1e-6f) l = 1;
-    for (int k = 0; k < 3; k++) s[k] *= halfw / l;
-    f32 p[4][3]; for (int k = 0; k < 3; k++) { p[0][k] = a[k] - s[k]; p[1][k] = a[k] + s[k]; p[2][k] = c[k] + s[k]; p[3][k] = c[k] - s[k]; }
+    f32 ax[3] = { c[0] - a[0], c[1] - a[1], c[2] - a[2] }, l = sqrtf(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]);
+    if (l < 1e-6f) { ax[0] = 0; ax[1] = 1; ax[2] = 0; l = 1; }
+    for (int k = 0; k < 3; k++) ax[k] /= l;
+    /* the two arms: one level (across the axis, in the horizontal), one at right angles to it and the axis */
+    f32 ref[3] = { 0, 1, 0 }; if (fabsf(ax[1]) > 0.95f) { ref[0] = 1; ref[1] = 0; }
+    f32 s1[3] = { ax[1] * ref[2] - ax[2] * ref[1], ax[2] * ref[0] - ax[0] * ref[2], ax[0] * ref[1] - ax[1] * ref[0] };
+    f32 sl = sqrtf(s1[0] * s1[0] + s1[1] * s1[1] + s1[2] * s1[2]);
+    for (int k = 0; k < 3; k++) s1[k] /= sl;
+    f32 s2[3] = { ax[1] * s1[2] - ax[2] * s1[1], ax[2] * s1[0] - ax[0] * s1[2], ax[0] * s1[1] - ax[1] * s1[0] };
     static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
     u8 r = (u8)((rgba >> 16) & 255), g = (u8)((rgba >> 8) & 255), bl = (u8)(rgba & 255);
-    for (int i = 0; i < 6; i++) {
-        ak_vtx *o = &v[i]; memset(o, 0, sizeof *o); memcpy(o->pos, p[tri[i]], 12);
-        o->uv[0] = 0.5f; o->uv[1] = 0.5f;
-        o->col[0] = (u8)(r / 2); o->col[1] = (u8)(g / 2); o->col[2] = (u8)(bl / 2);     /* vertex colour 128 = full (x2 in the shader) */
-        o->col[3] = tri[i] == 0 || tri[i] == 1 ? alpha_tail : alpha_head;
+    for (int arm = 0; arm < 2; arm++) {
+        const f32 *s = arm ? s2 : s1; f32 p[4][3];
+        for (int k = 0; k < 3; k++) { p[0][k] = a[k] - s[k] * halfw; p[1][k] = a[k] + s[k] * halfw; p[2][k] = c[k] + s[k] * halfw; p[3][k] = c[k] - s[k] * halfw; }
+        for (int i = 0; i < 6; i++) {
+            ak_vtx *o = &v[arm * 6 + i]; memset(o, 0, sizeof *o); memcpy(o->pos, p[tri[i]], 12);
+            o->uv[0] = 0.5f; o->uv[1] = 0.5f;
+            o->col[0] = (u8)(r / 2); o->col[1] = (u8)(g / 2); o->col[2] = (u8)(bl / 2);     /* vertex colour 128 = full (x2 in the shader) */
+            o->col[3] = tri[i] == 0 || tri[i] == 1 ? alpha_a : alpha_c;
+        }
     }
 }
 
 u32 ak_bolts_vertices(const ak_bolts *b, const f32 *eye, int layer, ak_vtx *out, u32 max)
 {
-    u32 n = 0;
-    for (u32 i = 0; i < b->n && n + 6 <= max; i++) {
+    (void)eye; u32 n = 0;
+    for (u32 i = 0; i < b->n && n + 12 <= max; i++) {
         const ak_bolt *o = &b->b[i];
         f32 len = o->length < o->travelled ? o->length : o->travelled, tail[3];
         for (int k = 0; k < 3; k++) tail[k] = o->pos[k] - o->dir[k] * len;
-        if (!layer) quad(out + n, tail, o->pos, o->thick * 0.5f, eye, o->colour, 60, 230);      /* the glow */
-        else quad(out + n, tail, o->pos, o->thick * 0.15f, eye, 0xFFFFFFFFu, 0, 255);           /* the hot core */
-        n += 6;
+        if (!layer) ak_sprite_cross(out + n, tail, o->pos, o->thick * 0.5f, o->colour, 60, 230);      /* the glow */
+        else ak_sprite_cross(out + n, tail, o->pos, o->thick * 0.15f, 0xFFFFFFFFu, 0, 255);           /* the hot core */
+        n += 12;
     }
-    for (u32 i = 0; layer && i < b->nimp && n + 6 <= max; i++) {
+    for (u32 i = 0; layer && i < b->nimp && n + 12 <= max; i++) {
         const ak_impact *im = &b->imp[i];
         if (im->age > 0.15f) continue;
-        f32 s = 0.25f + im->age * 2.0f, a[3], c[3];
+        f32 s = 0.25f + im->age * 2.0f, a[3], c[3];                         /* a standing "+" (vertical axis) just off the surface */
         for (int k = 0; k < 3; k++) { a[k] = im->pos[k] + im->normal[k] * 0.05f - (k == 1 ? s : 0); c[k] = im->pos[k] + im->normal[k] * 0.05f + (k == 1 ? s : 0); }
-        quad(out + n, a, c, s, eye, im->colour, 255, 255); n += 6;
+        ak_sprite_cross(out + n, a, c, s, im->colour, 255, 255); n += 12;
     }
     return n;
 }

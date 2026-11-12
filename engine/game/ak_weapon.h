@@ -24,9 +24,9 @@ typedef struct {
     u32 colour;                        /* 0xAARRGGBB */
 } ak_weapon_def;
 
-typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; } ak_weapon;
+typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; } ak_weapon;   /* team/owner: set after ak_weapon_give */
 
-typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle; u32 colour; bool headshots; } ak_bolt;
+typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle; u32 colour; bool headshots; int team; s32 owner; } ak_bolt;
 typedef struct { f32 pos[3], normal[3]; f32 age; u32 colour; } ak_impact;
 #define AK_MAX_BOLTS 512
 #define AK_MAX_IMPACTS 64
@@ -40,6 +40,8 @@ typedef struct {
     f32 head[3], head_radius;
     f32 health, headshot_mult;
     bool alive, vehicle;
+    int team;                          /* shots of the same team pass through (friendly fire off, the game's default) */
+    s32 last_attacker;                 /* the owner of the last shot that hurt it (-1 none) */
     u32 hits, headshots;
     f32 last_hit_dir[3];
 } ak_target;
@@ -51,7 +53,10 @@ void ak_weapon_give(ak_weapon *w, const ak_weapon_def *d);
 u32  ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target *targets, u32 ntargets, const f32 *muzzle, const f32 *target, u32 *seed);
 void ak_weapon_update(ak_weapon *w, f32 dt, bool reload);
 void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *targets, u32 ntargets, f32 dt);
-/* camera-facing quads (two triangles each); returns vertices written.  Layer 0: the bolts' coloured glow (alpha-blended, so it keeps
+/* a "+" sprite: two crossed quads along a to c, half-width w, 12 vertices (alpha at a / at c) */
+void ak_sprite_cross(ak_vtx *out, const f32 *a, const f32 *c, f32 halfw, u32 rgba, u8 alpha_a, u8 alpha_c);
+/* "+"-shaped sprites: two crossed quads along the bolt (and across the flash), drawn from both sides, so a bolt reads as a bolt from
+ * every angle, end-on too (12 vertices each); returns vertices written.  Layer 0: the bolts' coloured glow (alpha-blended, so it keeps
  * its colour over snow and sand); layer 1: their white-hot cores and the impact flashes (additive). */
 u32  ak_bolts_vertices(const ak_bolts *b, const f32 *eye, int layer, ak_vtx *out, u32 max);
 #endif

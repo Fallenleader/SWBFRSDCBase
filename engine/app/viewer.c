@@ -249,9 +249,10 @@ int main(int argc, char **argv)
             if (ak_setting_int("AK_TEST_FIRE", 0)) in.held |= AK_BTN_R;
             if (ak_setting_int("AK_TEST_LOCK", 0)) in.held |= AK_BTN_L;
             if (playing && play.ready && shot && frame == shot_frame - 1)
-                AK_INFO("test", "frame %d: shots %u, dummy 1 health %.0f, hits %u, head %u, kills %u, ammo %d/%d", frame, play.bolts.fired,
-                        play.ndummy ? play.target[0].health : 0.0f, play.ndummy ? play.target[0].hits : 0, play.ndummy ? play.target[0].headshots : 0, play.kills,
-                        play.weapon.ammo, play.weapon.spare);
+            {   u32 th = 0, hs = 0, al[2], tot[2]; for (u32 i = 1; i <= play.nbots; i++) { th += play.target[i].hits; hs += play.target[i].headshots; }
+                ak_play_counts(&play, al, tot);
+                AK_INFO("test", "frame %d: %sshots %u, soldiers hit %u (head %u), kills %u, deaths %u, ammo %d/%d, alive %u/%u and %u/%u", frame,
+                        "", play.bolts.fired, th, hs, play.kills, play.deaths, play.weapon.ammo, play.weapon.spare, al[0], tot[0], al[1], tot[1]); }
             if (playing && play.ready && play.have_cq && shot && frame == shot_frame - 1) {
                 char ow[64] = { 0 }; for (u32 i = 0; i < play.cq.nposts && i < 16; i++) { int o = play.match.post[i].owner; ow[i] = o == 0 ? '1' : o == 1 ? '2' : '-'; }
                 AK_INFO("test", "conquest: tickets %d / %d, posts %s, captures %u, winner %d, player %s (health %.0f, deaths %u) at %.1f %.1f %.1f", play.match.tickets[0],
@@ -330,10 +331,10 @@ int main(int argc, char **argv)
                          sqrtf(play.ch.vel[0] * play.ch.vel[0] + play.ch.vel[2] * play.ch.vel[2]), play.ch.on_ground ? "on the ground" : "in the air");
                 ak_gfx_text(8, 80, 0xFFC0E0FF, line);
                 if (play.armed) {
-                    u32 th = 0, hs = 0; for (u32 i = 0; i < play.ndummy; i++) { th += play.target[i].hits; hs += play.target[i].headshots; }
-                    snprintf(line, sizeof line, "%s  ammo %d / %d%s  shots %u  soldiers hit %u (%u in the head)  kills %u  dummy 1: %.0f health",
-                             play.wdef.name, play.weapon.ammo, play.weapon.spare, play.weapon.reload_t > 0 ? "  reloading" : "", play.bolts.fired, th, hs, play.kills,
-                             play.ndummy ? play.target[0].health : 0.0f);
+                    u32 al[2], tot[2]; ak_play_counts(&play, al, tot);
+                    snprintf(line, sizeof line, "%s  ammo %d / %d%s  kills %u  deaths %u  soldiers up: %u / %u vs %u / %u",
+                             play.wdef.name, play.weapon.ammo, play.weapon.spare, play.weapon.reload_t > 0 ? "  reloading" : "", play.kills, play.deaths,
+                             al[play.team], tot[play.team], al[1 - play.team], tot[1 - play.team]);
                     ak_gfx_text(8, 98, 0xFFC0E0FF, line);
                 }
                 if (play.have_cq) {

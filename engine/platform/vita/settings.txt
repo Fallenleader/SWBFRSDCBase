@@ -51,8 +51,12 @@ AK_COLOUR1=-1
 AK_COLOUR2=-1
 # weapon (the faction's own version is used): BlasterRifle, BlasterPistol, Sniper Rifle, ...
 AK_WEAPON=BlasterRifle
-# target dummies of the other side, 0..6
-AK_DUMMIES=6
+# bots in all, shared between the sides (the player's side gets one fewer): 63 = 64 soldiers, the Vita target; 0..127
+AK_BOTS=63
+# bot aim error in degrees (bigger = worse shots)
+AK_BOT_AIM=3.0
+# 1 = bots do not shoot (tests)
+AK_BOT_PASSIVE=0
 # gravity (m/s^2): the game's is 10
 AK_GRAVITY=10
 # third-person camera: modern (over the right shoulder, the DICE Battlefront framing) / classic (the game's own 7 m camera)
