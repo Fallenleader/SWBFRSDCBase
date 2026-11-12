@@ -90,7 +90,11 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     }
     const char *tur = ak_bp_string(o, "Turret0", "");
     d->turret_model = *tur ? ak_models_find(m, tur) : -1; d->turret_marker = ak_bp_string(o, "TurretMarker0", "tur");
-    d->armed = ak_weapon_def_bolt(bp, ak_bp_string(o, "HardpointW1", ""), &d->gun);
+    /* HardpointW1 names a Weapon (its "Projectile" is the LaserBolt; flyers: SpaceLasers_X_Wing -> SpaceLasers_Fighters) or, for some
+     * ground vehicles, the LaserBolt itself (the Weapon of the same name, where there is one, carries the timing) */
+    const char *hp = ak_bp_string(o, "HardpointW1", "");
+    const ak_bp_object *hw = *hp ? ak_bp_find(bp, "Weapon", hp) : NULL;
+    d->armed = ak_weapon_def_bolt(bp, hw ? ak_bp_string(hw, "Projectile", hp) : hp, &d->gun) || ak_weapon_def_bolt(bp, hp, &d->gun);
     static const char *mk[4] = { "HardpointW1Marker1", "HardpointW1Marker2", "HardpointW1Marker3", "HardpointW1Marker4" };
     static const char *tm[4] = { "HardpointW1Time1", "HardpointW1Time2", "HardpointW1Time3", "HardpointW1Time4" };
     f32 last = 0;
@@ -100,7 +104,15 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
         d->muzzle[d->nmuzzles] = s; d->muzzle_time[d->nmuzzles] = ak_bp_float(o, tm[i], 0); if (d->muzzle_time[d->nmuzzles] > last) last = d->muzzle_time[d->nmuzzles];
         d->nmuzzles++;
     }
-    d->volley = last + 0.5f;                                              /* not traced: half a second after the last barrel */
+    /* a volley every RateOfFire seconds (the Weapon's: tank lasers 0.25, fighters 0.3, TIE fighter 0.2, X-wing 2), the barrels at their
+     * HardpointW1Time offsets within it (how the game combines the two is not traced; never shorter than the last barrel's offset) */
+    d->volley = hw ? ak_bp_float(hw, "RateOfFire", last + 0.5f) : last + 0.5f;
+    if (d->volley < last + 0.05f) d->volley = last + 0.05f;
+    {   /* bots: the hardpoint's Weapon blueprint (else Weapon "Base") scales damage and the time between volleys */
+        const ak_bp_object *w = hw ? hw : ak_bp_find(bp, "Weapon", "Base");
+        f32 md = w ? ak_bp_float(w, "Modifier_Bot_Damage", 1) : 1, mr = w ? ak_bp_float(w, "Modifier_Bot_RateOfFire", 1) : 1;
+        d->gun_bot = d->gun; d->gun_bot.dmg_infantry *= md; d->gun_bot.dmg_vehicle *= md; d->volley_bot = d->volley * mr;
+    }
     return true;
 }
 

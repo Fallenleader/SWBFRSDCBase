@@ -260,6 +260,14 @@ int main(int argc, char **argv)
                         play.match.tickets[1], ow, play.match.captures, play.match.winner, play.alive ? "up" : "down", play.health, play.deaths,
                         play.ch.pos[0], play.ch.pos[1], play.ch.pos[2]);
             }
+            if (playing && play.ready && play.nveh && shot && frame == shot_frame - 1) {
+                char vl[512]; int k = 0;
+                for (u32 v = 0; v < play.nveh && k < 480; v++) {
+                    const ak_vehicle *vh = &play.veh[v]; const ak_target *t = &play.target[1 + play.nbots + v];
+                    k += snprintf(vl + k, sizeof vl - (size_t)k, " %s:%s%.0f/%.0f", vh->def ? vh->def->name : "-", vh->alive ? (vh->driver > 0 ? "bot " : vh->driver == 0 ? "you " : "") : "wreck ", t->health, vh->def ? vh->def->health : 0);
+                }
+                AK_INFO("test", "vehicles:%s", vl);
+            }
         }
         if (in.pressed & AK_BTN_SQUARE) playing = !playing;               /* square: play (a soldier on foot) / free camera */
         if (playing && !play.ready) {

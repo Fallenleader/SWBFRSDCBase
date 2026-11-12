@@ -30,8 +30,15 @@
  *
  * Vehicles (game/ak_vehicle.h): each vehicle spawn makes the vehicle of the side holding the nearest command post.  Triangle gets in
  * and out; driving: left stick throttle and steering, L held strafes, cross boosts, the right stick aims, R fires the hardpoint's bolts
- * from its barrels in turn (flyers: the stick pitches and banks, cross boosts, L slows).  Wrecks come back after AK_VEHICLE_RESPAWN seconds; the driver dies with the vehicle.  Bots do not drive yet;
- * they shoot occupied enemy vehicles. */
+ * from its barrels in turn (flyers: the stick pitches and banks, cross boosts, L slows).  Wrecks come back after the spawn's respawn time; the driver dies with the vehicle.
+ *
+ * Bots in vehicles (AK_BOT_VEHICLES, the chance a bot takes a free vehicle of its side within 40 m when it picks a goal): it walks to
+ * it and gets in; ground vehicles and walkers drive along the navigation graph to the goal post, turn the turret on enemies in range and
+ * fire; at a post its side does not hold the driver gets out to capture it.  Stuck: back up and turn, then skip a node, then get out.
+ * Flyers take off, keep above the ground (rays below and ahead), attack the nearest enemy vehicle (else soldiers near an enemy post) in
+ * runs and fire when the nose is on it.  Bots' weapons carry the game's bot modifiers (Weapon "Modifier_Bot_Damage" x0.3,
+ * "Modifier_Bot_RateOfFire" x3 the time between shots) and aim error ("AIWeapon_Accuracy_Normal", 5 degrees).  The game's own AI is not
+ * traced: when and how bots use vehicles is this engine's. */
 #ifndef AK_PLAY_H
 #define AK_PLAY_H
 #include "core/ak_core.h"
@@ -64,6 +71,8 @@ typedef struct {                       /* a bot soldier */
     /* the mind */
     s32 goal; u32 path[128]; u32 npath, path_i; f32 hold[3]; bool holding;
     f32 think_t, goal_t, react_t, burst_t, stuck_t, strafe_t; f32 stuck_pos[3]; s32 enemy; f32 strafe; u32 seed;
+    /* vehicles: the one it drives (-1 on foot), the one it walks to; getting unstuck; a flyer's attack run */
+    s32 veh, want_veh; bool boost; f32 veh_cool, rev_t, vstuck_t, vstuck_pos[3]; u32 vstucks; f32 fly_alt, run_t, feel_t, feel_yaw, feel_pitch; bool feel, near_wall;
 } ak_play_bot;
 
 typedef struct {
@@ -87,10 +96,11 @@ typedef struct {
     ak_target target[PLAY_MAX_TARGETS];    /* 0: the player, 1 + i: bot i, 1 + nbots + v: vehicle v */
     ak_vehicle_def vdef[PLAY_MAX_DEFS]; u32 nvdef;
     ak_play_vspawn vspawn[PLAY_MAX_VEH]; ak_vehicle veh[PLAY_MAX_VEH]; u32 nveh; s32 in_veh; f32 veh_respawn;
+    f32 bot_drive;                     /* the chance a bot near a free vehicle of its side takes it (AK_BOT_VEHICLES) */
     ak_play_boom boom[PLAY_MAX_BOOMS]; u32 nboom;
     u32 kills, deaths;
     s32 idle_clip, death_clips[3];
-    ak_weapon_def team_wdef[2]; bool team_armed[2];
+    ak_weapon_def team_wdef[2], team_bdef[2]; bool team_armed[2];   /* bdef: the bots' copy (the game's bot modifiers) */
     const char *klass[2][PLAY_MAX_CLASSES]; u32 nklass[2];
     ak_arena scratch; bool bots_passive; f32 bot_aim, sight;
     ak_conquest_map cq; bool have_cq; int team;   /* command posts; the soldier's team (0 = team 1) */

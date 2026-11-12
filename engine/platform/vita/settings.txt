@@ -13,7 +13,7 @@
 #           (twin stick), CROSS jump, R fire, L hold lock-on, TRIANGLE get in / out of a vehicle; START changes level (a new match
 #           starts; TRIANGLE goes back a level only in the free camera).  Driving: left stick throttle / steer, L held strafe, CROSS boost.
 #           Flying: left stick pitch (forward = nose down; AK_INVERT_Y flips it) and bank, CROSS boost, L held slow down, R fire; any
-#           input on the ground takes off, touching down slowly and level lands.
+#           input on the ground takes off, touching down slowly and level lands.  Bots take free vehicles of their side too.
 
 # ---- start
 # level shown first, as "<ERA> <MAP>" (eras: CLASSIC, PREQUEL, CAMPAIGN)
@@ -60,13 +60,18 @@ AK_COLOUR2=-1
 AK_WEAPON=BlasterRifle
 # bots in all, shared between the sides (the player's side gets one fewer): 63 = 64 soldiers, the Vita target; 0..127
 AK_BOTS=63
-# bot aim error in degrees (bigger = worse shots)
-AK_BOT_AIM=3.0
+# bot aim error in degrees (bigger = worse shots); unset = the game's own (Weapon "AIWeapon_Accuracy_Normal": 5)
+#AK_BOT_AIM=5.0
+# 1 = bots' weapons carry the game's bot modifiers (Weapon "Modifier_Bot_Damage": 0.3 x the damage, "Modifier_Bot_RateOfFire":
+# 3 x the time between shots; vehicle guns their own hardpoint's); 0 = bots shoot like the player
+AK_BOT_GAME_MODIFIERS=1
+# the chance a bot takes a free vehicle of its side within 40 m when it picks where to go (0 = bots stay on foot)
+AK_BOT_VEHICLES=0.6
 # 1 = bots do not shoot (tests)
 AK_BOT_PASSIVE=0
-# vehicles at the levels' vehicle spawns (1 = on), and the seconds before a wreck's spawn makes a new one
+# vehicles at the levels' vehicle spawns (1 = on); seconds before a wreck's spawn makes a new one (unset = each spawn's own, 10 s)
 AK_VEHICLES=1
-AK_VEHICLE_RESPAWN=20
+#AK_VEHICLE_RESPAWN=10
 # gravity (m/s^2): the game's is 10
 AK_GRAVITY=10
 # soldier camera: modern (over the right shoulder, the DICE Battlefront framing; the default) / classic (the game's own 7 m camera).

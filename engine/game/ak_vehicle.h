@@ -6,8 +6,8 @@
  * HardpointW1 (a LaserBolt) fired from HardpointW1Marker1..4 at HardpointW1Time1..4 within each volley, Turret0 / TurretMarker0.
  * A vehicle spawn (ENTI type 27) names one model per side; the side that holds the nearest command post gets its vehicle.
  *
- * Not traced from the game's code yet, so this engine's: the handling model (how the numbers combine), the hover height, the volley
- * period, the respawn delay (AK_VEHICLE_RESPAWN, 20 s) and the turret aiming. */
+ * Not traced from the game's code yet, so this engine's: the handling model (how the numbers combine), the hover height, how the barrel
+ * times combine with the Weapon's RateOfFire (the volley period), and the turret aiming. */
 #ifndef AK_VEHICLE_H
 #define AK_VEHICLE_H
 #include "core/ak_core.h"
@@ -25,6 +25,8 @@ typedef struct {
     f32 health, cam_z, cam_y, target_range;
     f32 hover, radius, height;             /* hover height above the ground; collision circle; body height */
     ak_weapon_def gun; bool armed;          /* HardpointW1: the bolt */
+    ak_weapon_def gun_bot; f32 volley_bot;  /* the same in a bot's hands: the hardpoint's Weapon blueprint's Modifier_Bot_Damage (damage x) and
+                                             * Modifier_Bot_RateOfFire (time between volleys x) - Weapon "Base": 0.3 and 3 */
     const char *muzzle[4]; f32 muzzle_time[4]; u32 nmuzzles; f32 volley;
     /* walkers ("Walker" blueprints: AT-ST, AT-AT, AT-RT, AT-TE, spider walker): no root motion in their clips, so the walking
      * speed is measured from the walk loop itself - how fast a planted foot slides back (AT-ST 4.9 m/s, AT-AT 2.0 m/s) */
