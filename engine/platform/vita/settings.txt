@@ -9,6 +9,8 @@
 #           START next level, TRIANGLE previous level, SELECT figures on/off.  Log: ux0:data/Aurek/log.txt (one line per second).
 #           CIRCLE: model gallery (every model of the level in its bind pose): d-pad left / right previous / next model,
 #           right stick turns, left stick zooms, CIRCLE again back to the level.
+#           SQUARE: play (a soldier in a conquest match with bots) / free camera.  Playing: left stick move, right stick aim
+#           (twin stick), CROSS jump, R fire, L hold lock-on; START / TRIANGLE still change level (a new match starts).
 
 # ---- start
 # level shown first, as "<ERA> <MAP>" (eras: CLASSIC, PREQUEL, CAMPAIGN)
@@ -42,7 +44,7 @@ AK_LEVEL_MB=48
 
 # --- play mode (square in the level view toggles it) ---
 # start in play mode: 1 = a soldier on foot, 0 = free camera
-AK_PLAY=0
+AK_PLAY=1
 # the soldier class (a Humanoid blueprint: Stormtrooper, MediumRebel, Clonetrooper, Battle_Droid, Darktrooper, ...)
 AK_SOLDIER=Stormtrooper
 # head 0..2, personalisation colours 0..15 (-1 = the faction's default)
