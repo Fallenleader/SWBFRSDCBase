@@ -54,6 +54,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
         type &= 0x7FFF;
         f32 gp[3], gq[4];
         if (type == 8 && out->nposts < AK_MAX_POSTS && find_pos_quat(&c, gp, gq)) {
+            out->post_id[out->nposts] = ak_rd32(c.body);
             ak_post *p = &out->post[out->nposts++]; ak_from_game(gp, p->pos); p->yaw = yaw_of(gq);
             /* the record's tail: owner, capture amount, flags, then the links (count, count x { id, kind }) */
             u32 n = c.size / 4; p->start_owner = AK_CQ_NEUTRAL; p->amount = 10.0f;
@@ -70,6 +71,15 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
         } else if ((type == 15 || type == 16) && find_pos_quat(&c, gp, gq)) {
             int t = type == 16; if (nsp[t] < 64) { ak_from_game(gp, sp[t][nsp[t]]); sp[t][nsp[t]][3] = yaw_of(gq); nsp[t]++; }
         } else if (type == 37 && nrg < 64 && find_pos_mat(&c, gp)) ak_from_game(gp, rg[nrg++]);
+        else if (type == 27 && c.size >= 48 && out->nvlink < AK_MAX_VSPAWN_LINKS) {
+            ak_vspawn_link *v = &out->vlink[out->nvlink++]; v->id = ak_rd32(c.body); v->respawn = wf(c.body + 24);
+            v->post = (s32)ak_rd32(c.body + 44);                               /* (an id for now: matched to a post below) */
+        }
+    }
+    for (u32 i = 0; i < out->nvlink; i++) {
+        s32 at = -1; for (u32 k = 0; k < out->nposts; k++) if (out->post_id[k] == (u32)out->vlink[i].post) at = (s32)k;
+        out->vlink[i].post = at;
+        if (!(out->vlink[i].respawn > 0 && out->vlink[i].respawn < 1000)) out->vlink[i].respawn = 10.0f;
     }
     out->nregions = nrg;
     /* each spawn and region belongs to the nearest post */

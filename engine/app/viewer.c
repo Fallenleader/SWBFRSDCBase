@@ -298,7 +298,7 @@ int main(int argc, char **argv)
             for (u32 i = 0; i < ents.n; i++) {
                 const ak_entity *e = &ents.e[i];
                 if (!e->placed) continue;
-                if (playing && play.ready && play.nveh && e->flagged && e->type == 27) continue;   /* playing: the vehicles themselves stand there */
+                if (playing && play.ready && play.nveh && e->flagged && (e->type == 27 || e->type == 13)) continue;   /* playing: the vehicles themselves stand there */
                 s32 mi = e->model[0] >= 0 ? e->model[0] : e->model[1];
                 const ak_model *m = &models.models[mi];
                 f32 r = m->radius, mn[3] = { e->pos[0] - r, e->pos[1] - r, e->pos[2] - r }, mx[3] = { e->pos[0] + r, e->pos[1] + r, e->pos[2] + r };

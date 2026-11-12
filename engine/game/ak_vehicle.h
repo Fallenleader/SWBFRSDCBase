@@ -16,7 +16,7 @@
 #include "world/ak_collision.h"
 #include "game/ak_weapon.h"
 
-enum { AK_VEH_HOVER, AK_VEH_SPEEDER, AK_VEH_TRACK, AK_VEH_CREATURE };
+enum { AK_VEH_HOVER, AK_VEH_SPEEDER, AK_VEH_TRACK, AK_VEH_CREATURE, AK_VEH_WALKER };
 
 typedef struct {
     const ak_bp_object *bp; const char *name; s32 model, turret_model; const char *turret_marker;
@@ -26,6 +26,9 @@ typedef struct {
     f32 hover, radius, height;             /* hover height above the ground; collision circle; body height */
     ak_weapon_def gun; bool armed;          /* HardpointW1: the bolt */
     const char *muzzle[4]; f32 muzzle_time[4]; u32 nmuzzles; f32 volley;
+    /* walkers ("Walker" blueprints: AT-ST, AT-AT, AT-RT, AT-TE, spider walker): no root motion in their clips, so the walking
+     * speed is measured from the walk loop itself - how fast a planted foot slides back (AT-ST 4.9 m/s, AT-AT 2.0 m/s) */
+    s32 clip_walk, clip_idle, clip_death; f32 walk_speed, sprint_scale; bool drivable;
 } ak_vehicle_def;
 
 typedef struct {
@@ -36,13 +39,18 @@ typedef struct {
     s32 spawn; f32 respawn_t, dead_t;
     f32 volley_t; u32 fired_mask; f32 aim_yaw, aim_pitch;
     f32 throttle, steer, strafe;           /* the driver's controls, -1..1 */
+    f32 anim_t; s32 clip; bool posed; f32 bones[64][12];   /* the pose (walkers walk; the rest hold their bind pose) */
 } ak_vehicle;
 
-/* the Tank blueprint of this name with its model in this level; false if there is none */
+/* the Tank (or Walker) blueprint of this name with its model in this level; false if there is none */
 bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const char *name, ak_vehicle_def *out);
 void ak_vehicle_spawn(ak_vehicle *v, const ak_vehicle_def *d, const f32 *pos, f32 yaw, int team);
 /* one step of driving (controls in v->throttle / steer / strafe; boost doubles the push) */
 void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool boost, f32 dt);
 /* the model's world matrix (3x4 rows, with the lean) */
 void ak_vehicle_matrix(const ak_vehicle *v, f32 out[12]);
+/* the pose for this frame (walk / idle clip, or the bind pose) */
+void ak_vehicle_pose(ak_vehicle *v, const ak_model_set *m, f32 dt);
+/* a marker of the vehicle's model in the world (3x4 rows); false if the model has no such marker */
+bool ak_vehicle_marker(const ak_vehicle *v, const ak_model_set *m, const char *name, f32 out[12]);
 #endif

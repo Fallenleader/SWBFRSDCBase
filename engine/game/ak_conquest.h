@@ -37,7 +37,12 @@ typedef struct {
     f32 amount; u32 flags; bool disabled;
 } ak_post;
 
-typedef struct { ak_post post[AK_MAX_POSTS]; u32 nposts; u32 nregions; } ak_conquest_map;
+/* vehicle spawns (ENTI type 27): the record's word 6 is the respawn time (10 s on every level), word 11 the command post it
+ * belongs to - the side holding that post gets the spawn's vehicle */
+#define AK_MAX_VSPAWN_LINKS 32
+typedef struct { u32 id; s32 post; f32 respawn; } ak_vspawn_link;
+typedef struct { ak_post post[AK_MAX_POSTS]; u32 nposts; u32 nregions; u32 post_id[AK_MAX_POSTS];
+                 ak_vspawn_link vlink[AK_MAX_VSPAWN_LINKS]; u32 nvlink; } ak_conquest_map;
 
 bool ak_conquest_load(const ak_level *l, ak_conquest_map *out);
 
