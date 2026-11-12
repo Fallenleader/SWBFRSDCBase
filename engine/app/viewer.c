@@ -228,6 +228,7 @@ int main(int argc, char **argv)
             if (tm) sscanf(tm, "%f,%f,%f,%f", &in.lx, &in.ly, &in.rx, &in.ry);
             if (ak_setting_int("AK_TEST_JUMP", -1) == frame) in.pressed |= AK_BTN_CROSS;
             if (ak_setting_int("AK_TEST_FIRE", 0)) in.held |= AK_BTN_R;
+            if (ak_setting_int("AK_TEST_LOCK", 0)) in.held |= AK_BTN_L;
             if (playing && play.ready && shot && frame == shot_frame - 1)
                 AK_INFO("test", "frame %d: shots %u, dummy 1 health %.0f, hits %u, head %u, kills %u, ammo %d/%d", frame, play.bolts.fired,
                         play.ndummy ? play.target[0].health : 0.0f, play.ndummy ? play.target[0].hits : 0, play.ndummy ? play.target[0].headshots : 0, play.kills,
@@ -243,8 +244,7 @@ int main(int argc, char **argv)
         f32 fovy = 1.05f;
         if (playing && play.ready) {
             ak_play_update(&play, &models, &in, dt);
-            ak_play_camera(&play, dt, &cam.pos, &cam.yaw, &cam.pitch);
-            fovy = play.fov;
+            ak_play_camera(&play, &models, dt, &cam.pos, &cam.yaw, &cam.pitch, &fovy);
         } else {
         /* free camera */
         cam.yaw -= in.rx * 2.0f * dt; cam.pitch += in.ry * 1.5f * dt;
@@ -258,7 +258,7 @@ int main(int argc, char **argv)
         }
 
         int w, h; ak_gfx_size(&w, &h);
-        ak_m4 proj = ak_m4_perspective(fovy, (f32)w / (f32)h, playing ? 0.25f : ak_setting_float("AK_NEAR", 0.75f), ak_setting_float("AK_FAR", 8000.0f));
+        ak_m4 proj = ak_m4_perspective(fovy, (f32)w / (f32)h, playing && play.ready ? ak_play_near(&play) : ak_setting_float("AK_NEAR", 0.75f), ak_setting_float("AK_FAR", 8000.0f));
         ak_m4 view = ak_m4_view_yaw_pitch(cam.pos, cam.yaw, cam.pitch), vp = ak_m4_mul(&proj, &view);
         ak_gfx_env env = { { 0.55f, 0.62f, 0.70f }, ak_setting_float("AK_FOG_START", 0), ak_setting_float("AK_FOG_END", 0),
                            ak_setting_float("AK_COLOUR_SCALE", 2.0f) };
@@ -308,7 +308,9 @@ int main(int argc, char **argv)
                              play.ndummy ? play.target[0].health : 0.0f);
                     ak_gfx_text(8, 98, 0xFFC0E0FF, line);
                 }
-                ak_gfx_text(8, 116, 0xFFC0C0C0, "left stick: move  right stick: look  cross: jump  R: fire  L: reload  square: free camera");
+                ak_gfx_text(8, 116, 0xFFC0C0C0, play.scheme ? "left stick: move  right stick: turn  cross: jump  R: fire  L: lock on  d-pad up: 1st/3rd person  square: free camera"
+                                                            : "left stick: move  right stick: aim  cross: jump  R: fire  L: reload  d-pad up: 1st/3rd person  square: free camera");
+                ak_gfx_text((f32)w * 0.5f - 4, (f32)h * 0.5f - 8, play.scheme && play.lock >= 0 ? 0xFF4040FF : 0xFFFFFFFF, "+");   /* crosshair */
             }
         }
         ak_gfx_end(&gs);

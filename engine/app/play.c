@@ -33,6 +33,7 @@ static void world_of(const f32 *pos, f32 yaw, ak_m4 *w)
 static void draw_soldier(ak_scene_models *ms, const ak_model_set *m, const ak_soldier_look *lk, const f32 *pos, f32 yaw, const f32 (*bones)[12],
                          const ak_m4 *vp, ak_scene_stats *st)
 {
+    /* (a soldier is drawn whole: the first-person view leaves its own soldier out at the caller, so only that viewer misses it) */
     static f32 head[1][12];
     const ak_model *body = &m->models[lk->body];
     if (body->skeleton < 0) return;
@@ -86,6 +87,19 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->cam_side = ak_bp_float(cam, "desired x offset", -0.2f);
     p->pull_out_rate = ak_bp_float(cam, "pull out rate", 1.0f); p->pull_in_rate = ak_bp_float(cam, "pull in rate", 15.0f);
     p->cam_dist = p->cam_back;
+    {   const char *cm = ak_setting_str("AK_CAMERA_MODE", "third"), *sc = ak_setting_str("AK_CONTROLS", "modern"), *cs = ak_setting_str("AK_CAM_STYLE", "modern");
+        p->cam_mode = cm[0] == 'f'; p->scheme = sc[0] == 'c'; p->style = cs[0] == 'c';
+        const ak_bp_object *ctl = ak_bp_find(bp, "Controls", "Humanoid");
+        p->aim_yaw_speed = ak_setting_float("AK_AIM_SPEED", 3.2f); p->aim_pitch_speed = p->aim_yaw_speed * 0.7f;
+        p->aim_curve = ak_setting_float("AK_AIM_CURVE", 2.0f); p->invert_y = ak_setting_int("AK_INVERT_Y", 0) != 0;
+        p->fov_third = (p->style ? p->fov * 180.0f / 3.14159265f : ak_setting_float("AK_FOV_THIRD", 55.0f)) * 3.14159265f / 180.0f;
+        p->fov_first = ak_setting_float("AK_FOV_FIRST", 62.0f) * 3.14159265f / 180.0f;
+        p->near_first = 0.08f;
+        p->vm_offset[0] = 0.20f; p->vm_offset[1] = -0.21f; p->vm_offset[2] = 0.40f;          /* right, up, forward of the eye */
+        p->lock = -1; p->lock_range = ak_bp_float(ctl, "targeting range", 50.0f); p->lock_turn = ak_bp_float(ctl, "aim yaw speed", 3.5f);
+        p->lock_head_time = ak_bp_float(ctl, "lock on to head time", 5.0f);
+        if (!p->style) { p->pivot_h = 1.55f; p->pivot_x = 0.0f; p->cam_back = 1.8f; p->cam_up = 0.05f; p->cam_side = 0.6f; p->cam_dist = p->cam_back; }
+    }
     p->armed = ak_weapon_def_load(bp, m, ak_setting_str("AK_WEAPON", "BlasterRifle"), p->look.faction, &p->wdef);
     if (p->armed) ak_weapon_give(&p->weapon, &p->wdef);
     p->seed = 12345;
@@ -122,7 +136,42 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt)
 {
     if (!p->ready) return;
+    if (in->pressed & AK_BTN_UP) p->cam_mode = !p->cam_mode;            /* d-pad up: third / first person */
     ak_char_input ci = { in->lx, in->ly, in->rx, in->ry, (in->pressed & AK_BTN_CROSS) != 0 };
+    if (!p->scheme) {
+        /* modern: free aim with a response curve (fine near the centre, fast at the edge); the body turns with the aim */
+        f32 ax = in->rx, ay = p->invert_y ? -in->ry : in->ry;
+        f32 cx = copysignf(powf(fabsf(ax), p->aim_curve), ax), cy = copysignf(powf(fabsf(ay), p->aim_curve), ay);
+        p->ch.yaw -= cx * p->aim_yaw_speed * dt; p->ch.pitch += cy * p->aim_pitch_speed * dt;
+        if (p->ch.pitch > 1.35f) p->ch.pitch = 1.35f;
+        if (p->ch.pitch < -1.35f) p->ch.pitch = -1.35f;
+        ci.look_x = ci.look_y = 0;
+    } else {
+        /* classic: L holds a lock-on; the facing turns toward the target */
+        if (in->held & AK_BTN_L) {
+            if (p->lock < 0 || !p->target[p->lock].alive) {
+                f32 best = 0.5f; p->lock = -1; p->lock_t = 0;
+                f32 fx = -sinf(p->ch.yaw), fz = -cosf(p->ch.yaw);
+                for (u32 i = 0; i < p->ndummy; i++) {
+                    if (!p->target[i].alive) continue;
+                    f32 dx = p->target[i].feet[0] - p->ch.pos[0], dz = p->target[i].feet[2] - p->ch.pos[2], d = sqrtf(dx * dx + dz * dz);
+                    if (d > p->lock_range || d < 0.5f) continue;
+                    f32 c = (dx * fx + dz * fz) / d;                            /* in front, the closest to the facing */
+                    if (c > best) { best = c; p->lock = (s32)i; }
+                }
+            }
+            if (p->lock >= 0) {
+                p->lock_t += dt;
+                const ak_target *t = &p->target[p->lock];
+                f32 dx = t->feet[0] - p->ch.pos[0], dz = t->feet[2] - p->ch.pos[2];
+                f32 want = atan2f(-dx, -dz), dyaw = want - p->ch.yaw;
+                while (dyaw > 3.14159265f) dyaw -= 6.2831853f;
+                while (dyaw < -3.14159265f) dyaw += 6.2831853f;
+                f32 mx = p->lock_turn * dt; p->ch.yaw += dyaw > mx ? mx : dyaw < -mx ? -mx : dyaw;
+                ci.look_x = 0;
+            }
+        } else p->lock = -1;
+    }
     bool was_ground = p->ch.on_ground;
     ak_char_update(&p->ch, &p->cp, &p->col, &ci, dt);
     /* the clip for the state */
@@ -147,7 +196,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (p->posed) pose(m, &p->look, p->clip[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->bones);
     /* the weapon */
     if (p->armed) {
-        ak_weapon_update(&p->weapon, dt, (in->pressed & AK_BTN_L) != 0);
+        ak_weapon_update(&p->weapon, dt, !p->scheme && (in->pressed & AK_BTN_L) != 0);   /* classic: reloads when empty */
         f32 gun[12], muz[3];
         if ((in->held & AK_BTN_R) && p->aim_ok && ak_play_weapon_matrix(p, m, gun)) {   /* (the camera has aimed once) */
             const ak_marker *mz = p->wdef.model >= 0 ? ak_model_marker(&m->models[p->wdef.model], "muz") : NULL;
@@ -157,6 +206,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             f32 tgt[3]; ak_col_hit h; f32 reach = p->wdef.distance;
             if (ak_col_raycast(&p->col, p->eye, p->aim, reach, 0, &h)) memcpy(tgt, h.pos, 12);
             else for (int k = 0; k < 3; k++) tgt[k] = p->eye[k] + p->aim[k] * reach;
+            if (p->scheme && p->lock >= 0 && p->target[p->lock].alive) {      /* classic lock-on: the chest, then the head */
+                const ak_target *t = &p->target[p->lock];
+                if (p->lock_t >= p->lock_head_time) memcpy(tgt, t->head, 12); else { memcpy(tgt, t->feet, 12); tgt[1] += 1.1f; }
+            }
             {   int ta = ak_setting_int("AK_TEST_AIM", 0);                    /* tests: 1 = dummy 0's chest, 2 = its head */
                 if (ta && p->ndummy && p->target[0].alive) {
                     if (ta == 2) memcpy(tgt, p->target[0].head, 12);
@@ -186,6 +239,16 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
 bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12])
 {
     if (!p->armed || !p->posed) return false;
+    if (p->cam_mode) {                                                      /* first person: the viewmodel */
+        f32 sy = sinf(p->ch.yaw), cy = cosf(p->ch.yaw), pt = -p->ch.pitch, sp = sinf(pt), cp = cosf(pt);
+        f32 f[3] = { -sy * cp, sp, -cy * cp }, r[3] = { cy, 0, -sy }, u[3] = { r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0] };
+        if (u[1] < 0) for (int k = 0; k < 3; k++) u[k] = -u[k];
+        for (int k = 0; k < 3; k++) {
+            out[k * 4 + 0] = r[k]; out[k * 4 + 1] = u[k]; out[k * 4 + 2] = -f[k];
+            out[k * 4 + 3] = p->eye[k] + r[k] * p->vm_offset[0] + u[k] * p->vm_offset[1] + f[k] * p->vm_offset[2];
+        }
+        return true;
+    }
     const ak_model *body = &m->models[p->look.body];
     const ak_marker *g = ak_model_marker(body, "gun");
     f32 local[12];
@@ -201,29 +264,52 @@ bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12])
     return true;
 }
 
-void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch)
+f32 ak_play_near(const ak_play *p) { return p->cam_mode ? p->near_first : 0.25f; }
+
+/* the head's world position from the pose (first-person eye) */
+static void head_world(const ak_play *p, const ak_model_set *m, f32 *out)
 {
-    f32 y = p->ch.yaw + ak_setting_float("AK_DEBUG_CAM_ORBIT", 0), pt = -p->ch.pitch * 0.6f;   /* (orbit: tests look from the side) */
+    f32 h[12]; const ak_model *body = &m->models[p->look.body];
+    ak_soldier_head_matrix(body, &m->skels[body->skeleton], p->look.head_bone, (const f32 (*)[12])p->bones, h);
+    f32 s = sinf(p->ch.yaw), c = cosf(p->ch.yaw);
+    out[0] = p->ch.pos[0] + c * h[3] + s * h[11]; out[1] = p->ch.pos[1] + h[7]; out[2] = p->ch.pos[2] - s * h[3] + c * h[11];
+}
+
+void ak_play_camera(ak_play *p, const ak_model_set *m, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy)
+{
+    f32 y = p->ch.yaw + ak_setting_float("AK_DEBUG_CAM_ORBIT", 0);    /* (orbit: tests look from the side) */
+    f32 pt = p->style && !p->cam_mode ? -p->ch.pitch * 0.6f : -p->ch.pitch;
     f32 sy = sinf(y), cy = cosf(y);
     f32 right[3] = { cy, 0, -sy };
     f32 fwd[3] = { -sy * cosf(pt), sinf(pt), -cy * cosf(pt) };
-    f32 piv[3] = { p->ch.pos[0] + right[0] * p->pivot_x, p->ch.pos[1] + p->pivot_h, p->ch.pos[2] + right[2] * p->pivot_x };
-    f32 want[3] = { -fwd[0] * p->cam_back + right[0] * p->cam_side, -fwd[1] * p->cam_back + p->cam_up, -fwd[2] * p->cam_back + right[2] * p->cam_side };
-    f32 wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]), dir[3] = { want[0] / wl, want[1] / wl, want[2] / wl };
-    f32 limit = wl; ak_col_hit h;
-    if (ak_col_raycast(&p->col, piv, dir, wl, AK_COL_NOT_BODIES, &h)) limit = h.t - 0.3f;
-    if (limit < 0.5f) limit = 0.5f;
-    /* in at once (pull in rate), out slowly (pull out rate) */
-    if (limit < p->cam_dist) p->cam_dist += (limit - p->cam_dist) * fminf(1.0f, p->pull_in_rate * dt);
-    else p->cam_dist += (limit - p->cam_dist) * fminf(1.0f, p->pull_out_rate * dt * 4.0f);
-    if (p->cam_dist > limit) p->cam_dist = limit;
-    *eye = ak_v3_make(piv[0] + dir[0] * p->cam_dist, piv[1] + dir[1] * p->cam_dist, piv[2] + dir[2] * p->cam_dist);
-    /* look at the pivot along the facing */
-    f32 lx = piv[0] + fwd[0] * 20.0f - eye->x, ly = piv[1] + fwd[1] * 20.0f - eye->y, lz = piv[2] + fwd[2] * 20.0f - eye->z;
-    *yaw = atan2f(-lx, -lz); *pitch = atan2f(ly, sqrtf(lx * lx + lz * lz));
-    f32 ll = sqrtf(lx * lx + ly * ly + lz * lz);
+    if (p->cam_mode && p->posed) {
+        /* first person: at the eyes, looking along the aim */
+        f32 hp[3]; head_world(p, m, hp);
+        *eye = ak_v3_make(hp[0] + fwd[0] * 0.12f, hp[1] + 0.06f, hp[2] + fwd[2] * 0.12f);
+        *yaw = y; *pitch = pt; *fovy = p->fov_first;
+        p->cam_dist = p->cam_back;                                           /* the third-person camera starts out again */
+    } else {
+        f32 piv[3] = { p->ch.pos[0] + right[0] * p->pivot_x, p->ch.pos[1] + p->pivot_h, p->ch.pos[2] + right[2] * p->pivot_x };
+        f32 want[3] = { -fwd[0] * p->cam_back + right[0] * p->cam_side, -fwd[1] * p->cam_back + p->cam_up, -fwd[2] * p->cam_back + right[2] * p->cam_side };
+        f32 wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]), dir[3] = { want[0] / wl, want[1] / wl, want[2] / wl };
+        f32 limit = wl; ak_col_hit h;
+        if (ak_col_raycast(&p->col, piv, dir, wl, AK_COL_NOT_BODIES, &h)) limit = h.t - 0.3f;
+        if (limit < 0.3f) limit = 0.3f;
+        /* in at once (pull in rate), out slowly (pull out rate) */
+        if (limit < p->cam_dist) p->cam_dist += (limit - p->cam_dist) * fminf(1.0f, p->pull_in_rate * dt);
+        else p->cam_dist += (limit - p->cam_dist) * fminf(1.0f, p->pull_out_rate * dt * 4.0f);
+        if (p->cam_dist > limit) p->cam_dist = limit;
+        f32 sc = p->cam_dist / wl;
+        *eye = ak_v3_make(piv[0] + want[0] * sc, piv[1] + want[1] * sc, piv[2] + want[2] * sc);
+        if (p->style) {                                                      /* the game's camera: looks at a point ahead of the pivot */
+            f32 lx = piv[0] + fwd[0] * 20.0f - eye->x, ly = piv[1] + fwd[1] * 20.0f - eye->y, lz = piv[2] + fwd[2] * 20.0f - eye->z;
+            *yaw = atan2f(-lx, -lz); *pitch = atan2f(ly, sqrtf(lx * lx + lz * lz));
+        } else { *yaw = y; *pitch = pt; }                                    /* modern: along the aim, parallel to it */
+        *fovy = p->fov_third;
+    }
     p->aim_ok = true;
-    p->eye[0] = eye->x; p->eye[1] = eye->y; p->eye[2] = eye->z; p->aim[0] = lx / ll; p->aim[1] = ly / ll; p->aim[2] = lz / ll;
+    p->eye[0] = eye->x; p->eye[1] = eye->y; p->eye[2] = eye->z;
+    p->aim[0] = -sinf(*yaw) * cosf(*pitch); p->aim[1] = sinf(*pitch); p->aim[2] = -cosf(*yaw) * cosf(*pitch);
 }
 
 void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const ak_m4 *vp, ak_scene_stats *st)
@@ -232,9 +318,18 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
     static f32 gun[1][12];
     const ak_model *body = &m->models[p->look.body];
     ak_m4 w; world_of(p->ch.pos, p->ch.yaw, &w);
-    draw_soldier(ms, m, &p->look, p->ch.pos, p->ch.yaw, (const f32 (*)[12])p->bones, vp, st);
+    if (!p->cam_mode) draw_soldier(ms, m, &p->look, p->ch.pos, p->ch.yaw, (const f32 (*)[12])p->bones, vp, st);
     for (u32 i = 0; i < p->ndummy; i++) draw_soldier(ms, m, &p->dummy[i].look, p->dummy[i].pos, p->dummy[i].yaw, (const f32 (*)[12])p->dummy[i].bones, vp, st);
-    if (p->armed && p->wdef.model >= 0) {
+    if (p->armed && p->wdef.model >= 0 && p->cam_mode) {
+        /* the viewmodel: the weapon in the lower right of the view, pointing along the aim (weapon models point down -z) */
+        f32 sy = sinf(p->ch.yaw), cy = cosf(p->ch.yaw), pt = -p->ch.pitch, sp = sinf(pt), cp = cosf(pt);
+        f32 f[3] = { -sy * cp, sp, -cy * cp }, r[3] = { cy, 0, -sy }, u[3] = { r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0] };
+        if (u[1] < 0) for (int k = 0; k < 3; k++) u[k] = -u[k];
+        f32 o[3]; for (int k = 0; k < 3; k++) o[k] = p->eye[k] + r[k] * p->vm_offset[0] + u[k] * p->vm_offset[1] + f[k] * p->vm_offset[2];
+        ak_m4 vw = { { r[0], r[1], r[2], 0,  u[0], u[1], u[2], 0,  -f[0], -f[1], -f[2], 0,  o[0], o[1], o[2], 1 } };
+        ak_scene_models_draw(ms, (u32)p->wdef.model, vp, &vw, NULL, NULL, st);
+    }
+    if (p->armed && p->wdef.model >= 0 && !p->cam_mode) {
         const ak_marker *g = ak_model_marker(body, "gun");
         if (g) { ak_marker_matrix(p->bones[g->bone], g, gun[0]); ak_scene_models_draw(ms, (u32)p->wdef.model, vp, &w, (const f32 (*)[12])gun, NULL, st); }
     }
