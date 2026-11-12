@@ -200,7 +200,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     if (!ak_collision_load(l, a, &p->col)) return false;
     p->have_nav = ak_nav_load(l, a, &p->nav);
     ak_char_params_load(bp, &p->cp);
-    S = p->scale = ak_setting_float("AK_SOLDIER_SCALE", 1.5f);
+    S = p->scale = ak_setting_float("AK_SOLDIER_SCALE", 1.0f);
     p->cp.radius *= S; p->cp.height *= S; p->cp.step *= S;
     if (!ak_soldier_look_make(bp, m, body, ak_setting_int("AK_HEAD", 0), ak_setting_int("AK_COLOUR1", -1), ak_setting_int("AK_COLOUR2", -1), &p->look)) {
         /* this level has no such body: the first Humanoid blueprint that has one */

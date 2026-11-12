@@ -46,9 +46,8 @@ AK_LEVEL_MB=48
 # --- play mode (square in the level view toggles it) ---
 # start in play mode: 1 = a soldier on foot, 0 = free camera
 AK_PLAY=1
-# soldiers' size relative to the world: 1.0 = as the models are authored (1.75 m), 1.5 = the owner's choice (between that and the PSP
-# game's look); body, hit shapes and camera scale with it
-AK_SOLDIER_SCALE=1.5
+# soldiers' size relative to the world: 1.0 = the game's own (the models are authored at 1.75 m); body, hit shapes and camera scale with it
+AK_SOLDIER_SCALE=1.0
 # the soldier class (a Humanoid blueprint: Stormtrooper, MediumRebel, Clonetrooper, Battle_Droid, Darktrooper, ...)
 AK_SOLDIER=Stormtrooper
 # head 0..2, personalisation colours 0..15 (-1 = the faction's default)
