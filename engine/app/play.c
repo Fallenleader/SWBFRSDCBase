@@ -690,9 +690,9 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         draw_soldier(ms, m, &b->look, b->ch.pos, b->ch.yaw, (const f32 (*)[12])b->bones, vp, st);
         if (b->alive && b->weapon.def && weapon_world(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, gun)) draw_weapon(ms, m, b->weapon.def, gun, vp, st);
     }
-    static ak_vtx bv[AK_MAX_BOLTS * 12 + AK_MAX_IMPACTS * 12 + AK_MAX_POSTS * 12];
+    static ak_vtx bv[(AK_MAX_BOLTS + AK_MAX_IMPACTS + AK_MAX_POSTS) * AK_STAR_VERTS];
     ak_gfx_set_transform(NULL);
-    if (p->have_cq) {                                                         /* the command posts: a "+" light column each, the owner's colour */
+    if (p->have_cq) {                                                         /* the command posts: a star-sprite light column each, the owner's colour */
         u32 n = 0;
         for (u32 i = 0; i < p->cq.nposts; i++) {
             f32 x = p->cq.post[i].pos[0], y = p->cq.post[i].pos[1], z = p->cq.post[i].pos[2];
@@ -703,7 +703,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
             f32 f = p->cq.post[i].amount > 0 ? ps->progress / p->cq.post[i].amount : 1;
             f32 near = (l - 4.0f) / 12.0f; near = near < 0 ? 0 : near > 1 ? 1 : near;   /* fades out close up (the camera stands in it) */
             f32 a[3] = { x, y, z }, c[3] = { x, y + 25, z };
-            ak_sprite_cross(bv + n, a, c, 0.6f, tc[o], (u8)((60 + 120 * f) * near), 0); n += 12;
+            ak_sprite_star(bv + n, a, c, 0.6f, tc[o], (u8)((60 + 120 * f) * near), 0); n += AK_STAR_VERTS;
         }
         ak_gfx_draw_immediate(AK_PIPE_ADD, NULL, bv, n);
     }

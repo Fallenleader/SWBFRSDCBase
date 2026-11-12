@@ -53,10 +53,14 @@ void ak_weapon_give(ak_weapon *w, const ak_weapon_def *d);
 u32  ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target *targets, u32 ntargets, const f32 *muzzle, const f32 *target, u32 *seed);
 void ak_weapon_update(ak_weapon *w, f32 dt, bool reload);
 void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *targets, u32 ntargets, f32 dt);
-/* a "+" sprite: two crossed quads along a to c, half-width w, 12 vertices (alpha at a / at c) */
-void ak_sprite_cross(ak_vtx *out, const f32 *a, const f32 *c, f32 halfw, u32 rgba, u8 alpha_a, u8 alpha_c);
-/* "+"-shaped sprites: two crossed quads along the bolt (and across the flash), drawn from both sides, so a bolt reads as a bolt from
- * every angle, end-on too (12 vertices each); returns vertices written.  Layer 0: the bolts' coloured glow (alpha-blended, so it keeps
- * its colour over snow and sand); layer 1: their white-hot cores and the impact flashes (additive). */
+/* a "star" sprite: six flat fins radiating from the axis a..c every 60 degrees, solid along the axis and fading to nothing at their
+ * outer edge, which is set in at both ends so the tips pinch to the axis.  Drawn from both sides, it reads as a solid glowing shape
+ * from any angle without turning to face the camera (AK_STAR_VERTS vertices). */
+#define AK_STAR_FINS 6
+#define AK_STAR_VERTS (AK_STAR_FINS * 6)
+void ak_sprite_star(ak_vtx *out, const f32 *a, const f32 *c, f32 halfw, u32 rgba, u8 alpha_a, u8 alpha_c);
+/* the bolts (along their flight) and the impact flashes (standing) as star sprites; returns vertices written.  Layer 0: the bolts'
+ * coloured glow (alpha-blended, so it keeps its colour over snow and sand); layer 1: their white-hot cores and the impact flashes
+ * (additive). */
 u32  ak_bolts_vertices(const ak_bolts *b, const f32 *eye, int layer, ak_vtx *out, u32 max);
 #endif

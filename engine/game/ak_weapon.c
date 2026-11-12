@@ -150,27 +150,33 @@ void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *tg, u32 nt
     for (u32 i = 0; i < b->nimp; i++) b->imp[i].age += dt;
 }
 
-void ak_sprite_cross(ak_vtx *v, const f32 *a, const f32 *c, f32 halfw, u32 rgba, u8 alpha_a, u8 alpha_c)
+void ak_sprite_star(ak_vtx *v, const f32 *a, const f32 *c, f32 halfw, u32 rgba, u8 alpha_a, u8 alpha_c)
 {
     f32 ax[3] = { c[0] - a[0], c[1] - a[1], c[2] - a[2] }, l = sqrtf(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]);
     if (l < 1e-6f) { ax[0] = 0; ax[1] = 1; ax[2] = 0; l = 1; }
     for (int k = 0; k < 3; k++) ax[k] /= l;
-    /* the two arms: one level (across the axis, in the horizontal), one at right angles to it and the axis */
+    /* two directions across the axis (the first level), then the fins every 60 degrees */
     f32 ref[3] = { 0, 1, 0 }; if (fabsf(ax[1]) > 0.95f) { ref[0] = 1; ref[1] = 0; }
     f32 s1[3] = { ax[1] * ref[2] - ax[2] * ref[1], ax[2] * ref[0] - ax[0] * ref[2], ax[0] * ref[1] - ax[1] * ref[0] };
     f32 sl = sqrtf(s1[0] * s1[0] + s1[1] * s1[1] + s1[2] * s1[2]);
     for (int k = 0; k < 3; k++) s1[k] /= sl;
     f32 s2[3] = { ax[1] * s1[2] - ax[2] * s1[1], ax[2] * s1[0] - ax[0] * s1[2], ax[0] * s1[1] - ax[1] * s1[0] };
-    static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
+    f32 taper = halfw < l * 0.25f ? halfw : l * 0.25f;                     /* the fin's outer edge is set in at both ends: the tips pinch */
     u8 r = (u8)((rgba >> 16) & 255), g = (u8)((rgba >> 8) & 255), bl = (u8)(rgba & 255);
-    for (int arm = 0; arm < 2; arm++) {
-        const f32 *s = arm ? s2 : s1; f32 p[4][3];
-        for (int k = 0; k < 3; k++) { p[0][k] = a[k] - s[k] * halfw; p[1][k] = a[k] + s[k] * halfw; p[2][k] = c[k] + s[k] * halfw; p[3][k] = c[k] - s[k] * halfw; }
+    static const f32 cs[AK_STAR_FINS] = { 1, 0.5f, -0.5f, -1, -0.5f, 0.5f }, sn[AK_STAR_FINS] = { 0, 0.8660254f, 0.8660254f, 0, -0.8660254f, -0.8660254f };
+    static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
+    for (int f = 0; f < AK_STAR_FINS; f++) {
+        f32 d[3], p[4][3]; u8 al[4] = { alpha_a, alpha_c, 0, 0 };
+        for (int k = 0; k < 3; k++) {
+            d[k] = (s1[k] * cs[f] + s2[k] * sn[f]) * halfw;
+            p[0][k] = a[k]; p[1][k] = c[k];                                 /* along the axis: full colour */
+            p[2][k] = c[k] - ax[k] * taper + d[k]; p[3][k] = a[k] + ax[k] * taper + d[k];   /* the outer edge: faded out */
+        }
         for (int i = 0; i < 6; i++) {
-            ak_vtx *o = &v[arm * 6 + i]; memset(o, 0, sizeof *o); memcpy(o->pos, p[tri[i]], 12);
+            ak_vtx *o = &v[f * 6 + i]; memset(o, 0, sizeof *o); memcpy(o->pos, p[tri[i]], 12);
             o->uv[0] = 0.5f; o->uv[1] = 0.5f;
             o->col[0] = (u8)(r / 2); o->col[1] = (u8)(g / 2); o->col[2] = (u8)(bl / 2);     /* vertex colour 128 = full (x2 in the shader) */
-            o->col[3] = tri[i] == 0 || tri[i] == 1 ? alpha_a : alpha_c;
+            o->col[3] = al[tri[i]];
         }
     }
 }
@@ -178,20 +184,20 @@ void ak_sprite_cross(ak_vtx *v, const f32 *a, const f32 *c, f32 halfw, u32 rgba,
 u32 ak_bolts_vertices(const ak_bolts *b, const f32 *eye, int layer, ak_vtx *out, u32 max)
 {
     (void)eye; u32 n = 0;
-    for (u32 i = 0; i < b->n && n + 12 <= max; i++) {
+    for (u32 i = 0; i < b->n && n + AK_STAR_VERTS <= max; i++) {
         const ak_bolt *o = &b->b[i];
         f32 len = o->length < o->travelled ? o->length : o->travelled, tail[3];
         for (int k = 0; k < 3; k++) tail[k] = o->pos[k] - o->dir[k] * len;
-        if (!layer) ak_sprite_cross(out + n, tail, o->pos, o->thick * 0.5f, o->colour, 60, 230);      /* the glow */
-        else ak_sprite_cross(out + n, tail, o->pos, o->thick * 0.15f, 0xFFFFFFFFu, 0, 255);           /* the hot core */
-        n += 12;
+        if (!layer) ak_sprite_star(out + n, tail, o->pos, o->thick * 0.5f, o->colour, 90, 255);      /* the glow */
+        else ak_sprite_star(out + n, tail, o->pos, o->thick * 0.18f, 0xFFFFFFFFu, 40, 255);          /* the hot core */
+        n += AK_STAR_VERTS;
     }
-    for (u32 i = 0; layer && i < b->nimp && n + 12 <= max; i++) {
+    for (u32 i = 0; layer && i < b->nimp && n + AK_STAR_VERTS <= max; i++) {
         const ak_impact *im = &b->imp[i];
         if (im->age > 0.15f) continue;
         f32 s = 0.25f + im->age * 2.0f, a[3], c[3];                         /* a standing "+" (vertical axis) just off the surface */
         for (int k = 0; k < 3; k++) { a[k] = im->pos[k] + im->normal[k] * 0.05f - (k == 1 ? s : 0); c[k] = im->pos[k] + im->normal[k] * 0.05f + (k == 1 ? s : 0); }
-        ak_sprite_cross(out + n, a, c, s, im->colour, 255, 255); n += 12;
+        ak_sprite_star(out + n, a, c, s, im->colour, 255, 255); n += AK_STAR_VERTS;
     }
     return n;
 }
