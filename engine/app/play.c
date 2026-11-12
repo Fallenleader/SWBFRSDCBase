@@ -31,7 +31,7 @@ static void world_of(const f32 *pos, f32 yaw, ak_m4 *w)
 }
 
 static void draw_soldier(ak_scene_models *ms, const ak_model_set *m, const ak_soldier_look *lk, const f32 *pos, f32 yaw, const f32 (*bones)[12],
-                         const ak_m4 *vp, ak_scene_stats *st)
+                         const ak_m4 *vp, ak_scene_stats *st, bool hide_head)
 {
     /* (a soldier is drawn whole: the first-person view leaves its own soldier out at the caller, so only that viewer misses it) */
     static f32 head[1][12];
@@ -40,7 +40,7 @@ static void draw_soldier(ak_scene_models *ms, const ak_model_set *m, const ak_so
     ak_m4 w; world_of(pos, yaw, &w);
     ak_model_colours col = { lk->rgb1, lk->rgb2 };
     ak_scene_models_draw(ms, (u32)lk->body, vp, &w, bones, &col, st);
-    if (lk->head >= 0) {
+    if (lk->head >= 0 && !hide_head) {
         ak_soldier_head_matrix(body, &m->skels[body->skeleton], lk->head_bone, bones, head[0]);
         ak_scene_models_draw(ms, (u32)lk->head, vp, &w, (const f32 (*)[12])head, &col, st);
     }
@@ -88,7 +88,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->pull_out_rate = ak_bp_float(cam, "pull out rate", 1.0f); p->pull_in_rate = ak_bp_float(cam, "pull in rate", 15.0f);
     p->cam_dist = p->cam_back;
     {   const char *cm = ak_setting_str("AK_CAMERA_MODE", "third"), *sc = ak_setting_str("AK_CONTROLS", "modern"), *cs = ak_setting_str("AK_CAM_STYLE", "modern");
-        p->cam_mode = cm[0] == 'f'; p->scheme = sc[0] == 'c'; p->style = cs[0] == 'c';
+        p->cam_mode = cm[0] == 'f'; p->scheme = sc[0] == 'c'; p->style = cs[0] == 'c'; p->fp_body = ak_setting_int("AK_FP_BODY", 1) != 0;
         const ak_bp_object *ctl = ak_bp_find(bp, "Controls", "Humanoid");
         p->aim_yaw_speed = ak_setting_float("AK_AIM_SPEED", 3.2f); p->aim_pitch_speed = p->aim_yaw_speed * 0.7f;
         p->aim_curve = ak_setting_float("AK_AIM_CURVE", 2.0f); p->invert_y = ak_setting_int("AK_INVERT_Y", 0) != 0;
@@ -239,7 +239,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
 bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12])
 {
     if (!p->armed || !p->posed) return false;
-    if (p->cam_mode) {                                                      /* first person: the viewmodel */
+    if (p->cam_mode && !p->fp_body) {                                       /* first person: the viewmodel */
         f32 sy = sinf(p->ch.yaw), cy = cosf(p->ch.yaw), pt = -p->ch.pitch, sp = sinf(pt), cp = cosf(pt);
         f32 f[3] = { -sy * cp, sp, -cy * cp }, r[3] = { cy, 0, -sy }, u[3] = { r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0] };
         if (u[1] < 0) for (int k = 0; k < 3; k++) u[k] = -u[k];
@@ -318,9 +318,11 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
     static f32 gun[1][12];
     const ak_model *body = &m->models[p->look.body];
     ak_m4 w; world_of(p->ch.pos, p->ch.yaw, &w);
-    if (!p->cam_mode) draw_soldier(ms, m, &p->look, p->ch.pos, p->ch.yaw, (const f32 (*)[12])p->bones, vp, st);
-    for (u32 i = 0; i < p->ndummy; i++) draw_soldier(ms, m, &p->dummy[i].look, p->dummy[i].pos, p->dummy[i].yaw, (const f32 (*)[12])p->dummy[i].bones, vp, st);
-    if (p->armed && p->wdef.model >= 0 && p->cam_mode) {
+    /* the local soldier: whole in third person; in its own first-person view either body-without-head (fp_body) or nothing (viewmodel) */
+    bool vm = p->cam_mode && !p->fp_body;
+    if (!vm) draw_soldier(ms, m, &p->look, p->ch.pos, p->ch.yaw, (const f32 (*)[12])p->bones, vp, st, p->cam_mode);
+    for (u32 i = 0; i < p->ndummy; i++) draw_soldier(ms, m, &p->dummy[i].look, p->dummy[i].pos, p->dummy[i].yaw, (const f32 (*)[12])p->dummy[i].bones, vp, st, false);
+    if (p->armed && p->wdef.model >= 0 && vm) {
         /* the viewmodel: the weapon in the lower right of the view, pointing along the aim (weapon models point down -z) */
         f32 sy = sinf(p->ch.yaw), cy = cosf(p->ch.yaw), pt = -p->ch.pitch, sp = sinf(pt), cp = cosf(pt);
         f32 f[3] = { -sy * cp, sp, -cy * cp }, r[3] = { cy, 0, -sy }, u[3] = { r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0] };
@@ -329,7 +331,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         ak_m4 vw = { { r[0], r[1], r[2], 0,  u[0], u[1], u[2], 0,  -f[0], -f[1], -f[2], 0,  o[0], o[1], o[2], 1 } };
         ak_scene_models_draw(ms, (u32)p->wdef.model, vp, &vw, NULL, NULL, st);
     }
-    if (p->armed && p->wdef.model >= 0 && !p->cam_mode) {
+    if (p->armed && p->wdef.model >= 0 && !vm) {
         const ak_marker *g = ak_model_marker(body, "gun");
         if (g) { ak_marker_matrix(p->bones[g->bone], g, gun[0]); ak_scene_models_draw(ms, (u32)p->wdef.model, vp, &w, (const f32 (*)[12])gun, NULL, st); }
     }

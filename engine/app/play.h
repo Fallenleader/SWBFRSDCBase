@@ -49,7 +49,7 @@ typedef struct {
     bool posed;
     /* view and controls: camera 0 = third person, 1 = first person; scheme 0 = modern (twin sticks, free aim), 1 = classic (the
      * game's: turn with the stick, L holds a lock-on).  style 0 = modern over-the-shoulder framing, 1 = the game's own camera. */
-    int cam_mode, scheme, style;
+    int cam_mode, scheme, style; bool fp_body;     /* fp_body: first person shows the third-person body (head hidden), not a viewmodel */
     f32 aim_yaw_speed, aim_pitch_speed, aim_curve; bool invert_y;
     f32 fov_third, fov_first, near_first; f32 vm_offset[3];
     s32 lock; f32 lock_t; f32 lock_range, lock_turn, lock_head_time;

@@ -68,3 +68,5 @@ AK_INVERT_Y=0
 # field of view (vertical degrees) in modern third person and in first person
 AK_FOV_THIRD=55
 AK_FOV_FIRST=62
+# first person: 1 = your own third-person body without its head (test), 0 = a rifle viewmodel only
+AK_FP_BODY=1
