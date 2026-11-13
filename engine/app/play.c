@@ -84,7 +84,7 @@ static void muzzle_of(const ak_model_set *m, const ak_weapon_def *wd, const f32 
 /* the clips a unit plays: a saber hero's own set (falling back to the rifle set where it has none), else the soldiers' */
 static const s32 *unit_clips(const ak_play *p, s32 unit)
 {
-    for (int t = 0; t < 2; t++) if (p->hero[t].unit == unit && unit >= 0 && p->hero[t].saber) return p->sclip;
+    for (int t = 0; t < 2; t++) if (p->hero[t].unit == unit && unit >= 0 && (p->hero[t].saber || p->hero[t].tab)) return p->hero[t].clip;
     return p->clip;
 }
 
@@ -476,15 +476,28 @@ static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set 
             f32 md = ak_bp_float(h->wdef.bp, "Modifier_Bot_Damage", 1), mr = ak_bp_float(h->wdef.bp, "Modifier_Bot_RateOfFire", 1);
             h->bdef.dmg_infantry *= md; h->bdef.dmg_vehicle *= md; if (!h->saber) h->bdef.rate_of_fire *= mr;
         }
+        /* its animation table (traced data: the level's ATEX for the blueprint's Animtable): rows 0 idle, 3 run, 4 run back, 5 / 6
+           strafe, 8 jump, 13 land, 16 fall; 17-19 the attack combo */
+        h->tab = ak_anim_table_find(m, ak_bp_string(o, "Animtable", "generic_male"));
+        if (h->tab && h->tab->cols < 10) h->tab = NULL;                         /* (the soldiers' generic_male: they keep their own clips) */
+        static const int row[PLAY_NCLIPS] = { [PLAY_IDLE] = 0, [PLAY_RUN] = 3, [PLAY_BACK] = 4, [PLAY_LEFT] = 5, [PLAY_RIGHT] = 6, [PLAY_JUMP] = 8, [PLAY_FALL] = 16, [PLAY_LAND] = 13 };
+        for (int k = 0; k < PLAY_NCLIPS; k++) {
+            h->clip[k] = h->saber ? p->sclip[k] : p->clip[k];
+            if (h->tab && row[k] < (int)h->tab->rows && AK_ATAB(h->tab, 0, row[k], 0) >= 0) h->clip[k] = AK_ATAB(h->tab, 0, row[k], 0);
+        }
+        if (h->tab && h->clip[PLAY_BACK] == (h->saber ? p->sclip[PLAY_BACK] : p->clip[PLAY_BACK]) && AK_ATAB(h->tab, 0, 2, 0) >= 0) h->clip[PLAY_BACK] = AK_ATAB(h->tab, 0, 2, 0);
+        h->natk = 0; h->atk_i = -1;
+        for (int r = 17; h->tab && r <= 19 && r < (int)h->tab->rows; r++) if (AK_ATAB(h->tab, 0, r, 0) >= 0) h->atk[h->natk++] = AK_ATAB(h->tab, 0, r, 0);
         h->unlock = h->timer = unlock;
-        AK_INFO("hero", "%s: %s (%s, health %.0f), after %.0f s", ak_faction_name(p->team_faction[t]), h->name, h->armed ? h->wdef.name : "unarmed", h->health, unlock);
+        AK_INFO("hero", "%s: %s (%s, health %.0f, table %s with %u attacks), after %.0f s", ak_faction_name(p->team_faction[t]), h->name, h->armed ? h->wdef.name : "unarmed",
+                h->health, ak_bp_string(o, "Animtable", "generic_male"), h->natk, unlock);
     }
 }
 
 static void hero_make(ak_play *p, const ak_model_set *m, int t, s32 unit)
 {
     ak_play_hero *h = &p->hero[t]; ak_target *tg = &p->target[unit];
-    h->unit = unit; h->offered = -1;
+    h->unit = unit; h->offered = -1; h->atk_i = -1;
     if (unit == 0) {
         p->look = h->look; p->wdef = h->wdef; p->armed = h->armed; p->max_health = h->health;
         if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; }
@@ -558,6 +571,23 @@ static void saber_strike(ak_play *p, s32 unit, ak_weapon *w, const f32 *pos, f32
         if (d > r || fabsf(t->feet[1] - pos[1]) > 2.0f || (d > 0.3f && (dx * fx + dz * fz) / d < 0.25f)) continue;
         t->health -= t->vehicle ? w->def->dmg_vehicle : w->def->dmg_infantry; t->last_attacker = unit; t->hits++;   /* (falls in the frame's count) */
     }
+}
+
+/* a saber hero's attack: the trigger starts the combo (its table's rows 17-19); pressed again in the second half of a stroke it goes
+   on to the next; the blade hurts in the middle of each stroke (the Lightsaber's RateOfFire apart).  The game's own timing (when a
+   stroke hurts, how a combo is chained) is not traced. */
+static void hero_attack(ak_play *p, const ak_model_set *m, ak_play_hero *h, bool trigger, ak_weapon *w, const f32 *pos, f32 yaw, f32 dt)
+{
+    if (!h->natk) { if (trigger) saber_strike(p, h->unit, w, pos, yaw); return; }
+    if (h->atk_i < 0) { if (!trigger) return; h->atk_i = 0; h->atk_t = 0; h->atk_next = false; }
+    else h->atk_t += dt;
+    f32 dur = m->clips[h->atk[h->atk_i]].duration; if (dur < 0.1f) dur = 0.1f;
+    if (trigger && h->atk_t > 0.4f * dur) h->atk_next = true;
+    if (h->atk_t >= dur) {
+        if (h->atk_next && h->atk_i + 1 < (int)h->natk) { h->atk_i++; h->atk_t = 0; h->atk_next = false; }
+        else { h->atk_i = -1; return; }
+    }
+    if (h->atk_t > 0.15f * dur && h->atk_t < 0.85f * dur) saber_strike(p, h->unit, w, pos, yaw);
 }
 
 static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, f32 dt, const ak_frustum *fr)
@@ -650,13 +680,17 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     bool near = ex * ex + ez * ez < 40.0f * 40.0f && (!fr || ak_frustum_aabb(fr, mn, mxx));
     if (near || b->pose_dt > 0.12f || en) {
         b->pose_dt = 0;
-        pose(m, &b->look, bcl[b->state], b->clip_t, b->state != PLAY_JUMP && b->state != PLAY_LAND, b->bones);
+        const ak_play_hero *bh = b->hero ? hero_of(p, (s32)(1 + idx)) : NULL;
+        if (bh && bh->atk_i >= 0) pose(m, &b->look, bh->atk[bh->atk_i], bh->atk_t, false, b->bones);   /* a stroke: the whole body */
+        else pose(m, &b->look, bcl[b->state], b->clip_t, b->state != PLAY_JUMP && b->state != PLAY_LAND, b->bones);
     }
     body_target(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, self);
     /* fight: after the reaction time, in bursts, when facing the enemy (a saber hero strikes in reach) */
     if (b->hero && b->weapon.def && hero_of(p, (s32)(1 + idx)) && hero_of(p, (s32)(1 + idx))->saber) {
         ak_weapon_update(&b->weapon, dt, false);
-        if (en && fabsf(dyaw) < 0.6f) saber_strike(p, (s32)(1 + idx), &b->weapon, b->ch.pos, b->ch.yaw);
+        bool reach = false;
+        if (en) { f32 ex = en->feet[0] - b->ch.pos[0], ez = en->feet[2] - b->ch.pos[2]; reach = ex * ex + ez * ez < 3.0f * 3.0f && fabsf(dyaw) < 0.6f; }
+        hero_attack(p, m, hero_of(p, (s32)(1 + idx)), reach, &b->weapon, b->ch.pos, b->ch.yaw, dt);
     } else if (b->weapon.def) {
         ak_weapon_update(&b->weapon, dt, b->weapon.ammo == 0);
         if (b->weapon.ammo <= 0 && b->weapon.spare <= 0 && b->weapon.reload_t <= 0) { int tm = b->weapon.team; s32 ow = b->weapon.owner; ak_weapon_give(&b->weapon, b->weapon.def); b->weapon.team = tm; b->weapon.owner = ow; }
@@ -1495,7 +1529,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     p->posed = poseable(m, &p->look);
     if (!p->alive) { p->dead_t += dt; if (p->posed) pose(m, &p->look, p->death_clips[0], p->dead_t, false, p->bones); }
     else if (p->posed) {
-        pose(m, &p->look, pcl[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->bones);
+        const ak_play_hero *ph = hero_of(p, 0);
+        if (ph && ph->atk_i >= 0) pose(m, &p->look, ph->atk[ph->atk_i], ph->atk_t, false, p->bones);
+        else pose(m, &p->look, pcl[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->bones);
         if (p->in_veh < 0) body_target(m, &p->look, (const f32 (*)[12])p->bones, p->ch.pos, p->ch.yaw, &p->target[0]);
     }
     /* where the centre of the view meets the level: shots go there unless locked on */
@@ -1509,7 +1545,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (ht && (in->pressed & AK_BTN_UP)) p->hero_answer = 1; else if (ht && (in->pressed & AK_BTN_DOWN)) p->hero_answer = -1; }
     if (p->armed && hero_of(p, 0) && hero_of(p, 0)->saber) {
         ak_weapon_update(&p->weapon, dt, false);
-        if ((in->held & AK_BTN_R) && p->alive && p->in_veh < 0) saber_strike(p, 0, &p->weapon, p->ch.pos, p->ch.yaw);
+        hero_attack(p, m, hero_of(p, 0), (in->held & AK_BTN_R) && p->alive && p->in_veh < 0, &p->weapon, p->ch.pos, p->ch.yaw, dt);
     } else if (p->armed) {
         ak_weapon_update(&p->weapon, dt, false);
         f32 gun[12], muz[3];

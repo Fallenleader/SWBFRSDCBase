@@ -59,11 +59,24 @@ typedef struct {
     f32 (*pos)[3]; u32 npos, nrot;
 } ak_anim_clip;
 
+/* An animation table (ATEX chunk, one per "Animtable" of the Humanoid blueprints: generic_male, Vader, Luke, hero, Duku, ...):
+ * u32 table name hash, u32 sets (weapon poses: generic_male 12 - pistol / rifle / bazooka ... standing, alert, crouched; saber
+ * tables 2), u32 rows (states: 0 idle, 1 walk forward, 2 walk back, 3 run forward, 4 run back, 5 / 6 strafe left / right, 7 sprint,
+ * 8 jump, ...; the saber tables: 13 land, 16 fall, 17-19 the attack combo, 22 / 23 the jump attack and its landing, 24 the backward
+ * attack, 25 / 26 the dash attacks, 28-31 hit reactions, 33-36 rolls, 37 / 38 force push), u32 columns (layers: 0 the body; saber
+ * tables 1-7 the blocks, 8 / 9 the saber throw and catch; generic_male 1 shoot, 2 reload, 3 throw, 4 toss, 5 weapon change, ...),
+ * then sets x rows x columns clip name hashes (the game's h * 31 + c over lower case; 0xDB3 = none).  Walkers have ATBL chunks (their own layout, not read yet). */
+typedef struct { u32 name_hash, sets, rows, cols; s32 *clip; } ak_anim_table;   /* clip: index into the set's clips, -1 none */
+#define AK_ATAB(t, set, row, col) ((t)->clip[((set) * (t)->rows + (row)) * (t)->cols + (col)])
+
 typedef struct {
     ak_model *models; u32 nmodels;
     ak_skeleton *skels; u32 nskels;
     ak_anim_clip *clips; u32 nclips;
+    ak_anim_table *tables; u32 ntables;
 } ak_model_set;
+/* the table of that Animtable name (e.g. "Vader"), or NULL */
+const ak_anim_table *ak_anim_table_find(const ak_model_set *s, const char *name);
 
 /* a clip's pose at time t (seconds, wrapped when loop): local rotation and translation per bone (skeleton order).  Bones the clip
  * has no channel for (or a channel without keys: upper-body overlay clips) keep the skeleton's bind pose. */

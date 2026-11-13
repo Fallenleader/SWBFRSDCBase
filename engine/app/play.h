@@ -78,6 +78,9 @@ typedef struct {
     f32 health, drain, per_kill;       /* Health, HeroDeathRate, HeroHealthAddPerKill */
     f32 unlock, timer, decide;         /* seconds until the next hero (BFF.HeroUnlockTime minutes x 60), the offer's countdown */
     s32 offered, unit;                 /* target index (0 the player, 1 + i bot i) offered / playing the hero; -1 none */
+    const ak_anim_table *tab;          /* its Animtable's table (ATEX), if the level has it */
+    s32 clip[PLAY_NCLIPS];             /* the body clips from that table (else the generic saber ones) */
+    s32 atk[3]; u32 natk; int atk_i; f32 atk_t; bool atk_next;   /* the attack combo (table rows 17-19) and where it is */
 } ak_play_hero;
 
 typedef struct {                       /* a bot soldier */

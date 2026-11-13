@@ -21,6 +21,9 @@ static void qrot(ak_quat q, const f32 *v, f32 *o)
 static ak_quat q_from_game(f32 x, f32 y, f32 z, f32 w) { ak_quat q = { x, -y, -z, w }; return q; }
 
 /* HSKN v8: u32 count of 72-byte records to skip (0, or the weighted meshes' extra data), u32 bone count, name (NUL, padded to 4), u32 parent[count] (the root's entry is 0), count x { f32 t[3], q[4] } */
+/* the game's own name hash (h * 31 + c over the lower-cased bytes): the animation tables name clips and tables by it */
+static u32 game_hash(const char *n) { u32 h = 0; for (; *n; n++) h = h * 31u + (u32)(*n >= 'A' && *n <= 'Z' ? *n + 32 : *n); return h; }
+
 static bool skel_parse(const ak_chunk *c, ak_arena *a, ak_skeleton *s)
 {
     const u8 *b = c->body; memset(s, 0, sizeof *s);
@@ -350,6 +353,13 @@ void ak_model_long_axis(const ak_model *m, f32 end[3], f32 dir[3])
     for (int k = 0; k < 3; k++) { dir[k] = v[k]; end[k] = c[k] + v[k] * mx; }
 }
 
+const ak_anim_table *ak_anim_table_find(const ak_model_set *s, const char *name)
+{
+    u32 h = game_hash(name);
+    for (u32 i = 0; i < s->ntables; i++) if (s->tables[i].name_hash == h) return &s->tables[i];
+    return NULL;
+}
+
 const ak_marker *ak_model_marker(const ak_model *m, const char *name)
 {
     u32 h = ak_hash_name(name);
@@ -414,6 +424,16 @@ bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
         else if (tag == AK_TAG('M', 'T', 'R', 'L')) { if (!ak_mtrl_parse(&c, a, &mats, &nmats)) { mats = NULL; nmats = 0; } }
         else if (tag == AK_TAG('H', 'S', 'K', 'N') && c.version == 8) { if (skel_parse(&c, a, &out->skels[out->nskels])) out->nskels++; }
         else if (tag == AK_TAG('H', 'C', 'A', 'N')) { if (clip_parse(&c, a, &out->clips[out->nclips])) out->nclips++; }
+        else if (tag == AK_TAG('A', 'T', 'E', 'X') && c.size >= 16) {             /* animation tables: resolved after the clips (below) */
+            u32 sets = ak_rd32(c.body + 4), rows = ak_rd32(c.body + 8), cols = ak_rd32(c.body + 12);
+            if (sets && rows && cols && sets * rows * cols <= 65536 && 16u + 4u * sets * rows * cols <= c.size) {
+                ak_anim_table *nt = (ak_anim_table *)realloc(out->tables, sizeof *nt * (out->ntables + 1));
+                if (nt) { out->tables = nt; ak_anim_table *t = &nt[out->ntables++];
+                    t->name_hash = ak_rd32(c.body); t->sets = sets; t->rows = rows; t->cols = cols;
+                    t->clip = AK_NEW(a, s32, sets * rows * cols);
+                    if (!t->clip) out->ntables--; else for (u32 i = 0; i < sets * rows * cols; i++) t->clip[i] = (s32)ak_rd32(c.body + 16 + 4 * i); }   /* (hashes for now) */
+            }
+        }
         else if (c.version == 1 && ak_rscf_parse(&c, &r) && r.type == AK_RSCF_MESH && r.sub == 5) {
             ak_model *m = &out->models[out->nmodels]; memset(m, 0, sizeof *m);
             const char *base = r.name; m->lod = 0;
@@ -440,6 +460,20 @@ bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
         ak_model *m = &out->models[i]; m->lod_next = -1;
         for (u32 j = 0; j < out->nmodels; j++)
             if (out->models[j].base_hash == m->base_hash && out->models[j].lod == m->lod + 1) { m->lod_next = (s32)j; break; }
+    }
+    /* the tables' hashes to clips (copied into the level arena; the scratch list is freed) */
+    if (out->ntables) {
+        ak_anim_table *tt = AK_NEW(a, ak_anim_table, out->ntables);
+        if (tt) {
+            for (u32 k = 0; k < out->ntables; k++) {
+                ak_anim_table *t = &out->tables[k]; u32 n = t->sets * t->rows * t->cols;
+                for (u32 i = 0; i < n; i++) { u32 h = (u32)t->clip[i]; s32 ci = -1;
+                    for (u32 q = 0; q < out->nclips && h != 0xDB3u; q++) if (game_hash(out->clips[q].name) == h) { ci = (s32)q; break; }
+                    t->clip[i] = ci; }
+                tt[k] = *t;
+            }
+        }
+        free(out->tables); out->tables = tt; if (!tt) out->ntables = 0;
     }
     return true;
 }
