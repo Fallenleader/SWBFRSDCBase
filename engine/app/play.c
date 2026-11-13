@@ -139,15 +139,14 @@ static f32 clip_rate(int st, f32 hs, const ak_char_params *cp)
 static bool spawn_spot(ak_play *p, int team, const f32 *near, u32 *seed, f32 *pos, f32 *yaw)
 {
     u32 cand[AK_MAX_POSTS], n = 0;
-    for (u32 i = 0; i < p->cq.nposts; i++) if (p->match.post[i].owner == team && p->cq.post[i].has_spawn[team]) cand[n++] = i;
+    for (u32 i = 0; i < p->cq.nposts; i++) if (p->match.post[i].owner == team && p->cq.post[i].has_spawn[team] && !p->cq.post[i].absent) cand[n++] = i;
     if (!n) return false;
     u32 pick = cand[(u32)(rnd(seed) * n) % n];
     if (near && rnd(seed) < 0.5f) {
         f32 bd = 1e30f;
         for (u32 k = 0; k < n; k++) { const f32 *q = p->cq.post[cand[k]].pos; f32 dx = q[0] - near[0], dz = q[2] - near[2]; if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; pick = cand[k]; } }
     }
-    const f32 *sp = p->cq.post[pick].spawn[team];
-    *yaw = p->cq.post[pick].spawn_yaw[team];
+    f32 sp[3]; ak_post_spawn(&p->cq.post[pick], team, (u32)(rnd(seed) * 4294967040.0f), sp, yaw);
     for (int tries = 0; tries < 6; tries++) {
         f32 a = rnd(seed) * 6.2831853f, r = tries ? 0.8f + rnd(seed) * 3.0f : 0;
         f32 q[3] = { sp[0] + cosf(a) * r, sp[1] + 0.5f, sp[2] + sinf(a) * r }, gy;
@@ -161,7 +160,8 @@ static bool spawn_spot(ak_play *p, int team, const f32 *near, u32 *seed, f32 *po
         return true;
     }
     memcpy(pos, sp, 12);
-    { f32 gy; if (ak_char_ground_below(&p->col, pos, 50.0f, &gy)) pos[1] = gy; }
+    { f32 gy; bool g = ak_char_ground_below(&p->col, pos, 50.0f, &gy); if (g) pos[1] = gy;
+      if (ak_setting_int("AK_DEBUG_SPAWN", 0)) AK_INFO("spawn", "team %d post %u at %.1f %.1f %.1f: no ground within 3 m%s", team, pick, sp[0], sp[1], sp[2], g ? "" : ", none within 50 m"); }
     return true;
 }
 
@@ -232,7 +232,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             f32 dx = p->cq.post[i].pos[0] - start[0], dz = p->cq.post[i].pos[2] - start[2];
             if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; post = (s32)i; }
         }
-        if (post >= 0) { memcpy(sp, p->cq.post[post].spawn[p->team], 12); syaw = p->cq.post[post].spawn_yaw[p->team]; }
+        if (post >= 0) ak_post_spawn(&p->cq.post[post], p->team, p->seed, sp, &syaw);
     }
     {   int tp = ak_setting_int("AK_TEST_AT_POST", 0);                      /* tests: start on command post N */
         if (p->have_cq && tp > 0 && (u32)tp <= p->cq.nposts) { memcpy(sp, p->cq.post[tp - 1].pos, 12); post = tp - 1; } }

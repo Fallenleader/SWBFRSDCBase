@@ -51,6 +51,9 @@ bool ak_entities_load(const ak_level *l, const ak_model_set *ms, ak_arena *a, ak
         f32 gp[3] = { 0, 0, 0 }; ak_quat gq = { 0, 0, 0, 1 }; bool have = false;
         if (e->flagged && e->type == 27 && nw >= 18) {
             e->model[0] = model_by_hash(ms, l, W(9), mesh_hash); e->model[1] = model_by_hash(ms, l, W(10), mesh_hash);
+            if (e->model[0] < 0 && e->model[1] < 0) {                       /* [7], [8]: the prequel era's pair (Republic, CIS) */
+                e->model[0] = model_by_hash(ms, l, W(7), mesh_hash); e->model[1] = model_by_hash(ms, l, W(8), mesh_hash);
+            }
             gp[0] = F(12); gp[1] = F(13); gp[2] = F(14); gq = quat_from_euler(F(15), F(16), F(17)); have = true;
         } else if (e->flagged && e->type == 13 && nw >= 20) {
             e->model[0] = model_by_hash(ms, l, W(7), mesh_hash);

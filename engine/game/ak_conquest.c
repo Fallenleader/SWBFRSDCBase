@@ -35,6 +35,17 @@ static bool find_pos_mat(const ak_chunk *c, f32 *pos)
     return false;
 }
 /* the facing (engine yaw, 0 = -z) of a game-axes quaternion */
+static f32 yaw_of(const f32 *gq);
+/* the facing of a game-axes rotation matrix (rows) */
+static f32 yaw_of_rows(const f32 *m)
+{
+    f32 tr = m[0] + m[4] + m[8], q[4];
+    if (tr > 0) { f32 s = sqrtf(tr + 1) * 2; q[3] = 0.25f * s; q[0] = (m[7] - m[5]) / s; q[1] = (m[2] - m[6]) / s; q[2] = (m[3] - m[1]) / s; }
+    else if (m[0] > m[4] && m[0] > m[8]) { f32 s = sqrtf(1 + m[0] - m[4] - m[8]) * 2; q[3] = (m[7] - m[5]) / s; q[0] = 0.25f * s; q[1] = (m[1] + m[3]) / s; q[2] = (m[2] + m[6]) / s; }
+    else if (m[4] > m[8]) { f32 s = sqrtf(1 + m[4] - m[0] - m[8]) * 2; q[3] = (m[2] - m[6]) / s; q[0] = (m[1] + m[3]) / s; q[1] = 0.25f * s; q[2] = (m[5] + m[7]) / s; }
+    else { f32 s = sqrtf(1 + m[8] - m[0] - m[4]) * 2; q[3] = (m[3] - m[1]) / s; q[0] = (m[2] + m[6]) / s; q[1] = (m[5] + m[7]) / s; q[2] = 0.25f * s; }
+    return yaw_of(q);
+}
 static f32 yaw_of(const f32 *gq)
 {
     f32 x = gq[0], y = -gq[1], z = -gq[2], w = gq[3];                       /* to engine axes */
@@ -46,6 +57,10 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
 {
     memset(out, 0, sizeof *out);
     f32 sp[2][64][4]; u32 nsp[2] = { 0, 0 }; f32 rg[64][3]; u32 nrg = 0;
+    /* spawn points (class 0x8027 "locator", func 089EE83C): version, position, flags (bit 0: has a place of its own), rows */
+    enum { MAXLOC = 512 }; static u32 lid[MAXLOC]; static f32 lpos[MAXLOC][4]; static bool lown[MAXLOC]; u32 nl = 0;
+    static u32 link_id[AK_MAX_POSTS][AK_POST_LOCS]; static s32 link_w[AK_MAX_POSTS][AK_POST_LOCS]; u32 nlink[AK_MAX_POSTS];
+    memset(nlink, 0, sizeof nlink);
     ak_chunk c; u32 pos = 8;
     while (ak_asura_next(&l->file, &pos, &c)) {
         if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 12) continue;
@@ -66,8 +81,18 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
                 if (!(amt > 0 && amt < 10000)) break;
                 p->start_owner = own < 2 ? (int)own : AK_CQ_NEUTRAL; p->amount = amt;
                 p->flags = ak_rd32(c.body + 4 * (at - 1)); p->disabled = (p->flags & 1) != 0;
+                u32 pi = out->nposts - 1;                                     /* the links: { spawn point id, weight } */
+                for (u32 j = 0; j < k && nlink[pi] < AK_POST_LOCS; j++) {
+                    link_id[pi][nlink[pi]] = ak_rd32(c.body + 4 * (at + 1 + 2 * j)); link_w[pi][nlink[pi]] = (s32)ak_rd32(c.body + 4 * (at + 2 + 2 * j)); nlink[pi]++;
+                }
                 break;
             }
+        } else if (type == 39 && c.size >= 24 && nl < MAXLOC) {
+            u32 ver = ak_rd32(c.body + 8); f32 g[3] = { wf(c.body + 12), wf(c.body + 16), wf(c.body + 20) };
+            lid[nl] = ak_rd32(c.body); ak_from_game(g, lpos[nl]); lpos[nl][3] = 0;
+            lown[nl] = ver == 1 ? c.size >= 28 && (c.body[24] & 1) : ver > 1 && c.size >= 28 && (ak_rd32(c.body + 24) & 1);
+            if (ver > 2 && c.size >= 64) { f32 m[9]; for (int k = 0; k < 9; k++) m[k] = wf(c.body + 28 + 4 * k); lpos[nl][3] = yaw_of_rows(m); }
+            nl++;
         } else if ((type == 15 || type == 16) && find_pos_quat(&c, gp, gq)) {
             int t = type == 16; if (nsp[t] < 64) { ak_from_game(gp, sp[t][nsp[t]]); sp[t][nsp[t]][3] = yaw_of(gq); nsp[t]++; }
         } else if (type == 37 && nrg < 64 && find_pos_mat(&c, gp)) ak_from_game(gp, rg[nrg++]);
@@ -82,16 +107,17 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
         if (!(out->vlink[i].respawn > 0 && out->vlink[i].respawn < 1000)) out->vlink[i].respawn = 10.0f;
     }
     out->nregions = nrg;
-    /* each spawn and region belongs to the nearest post */
-    for (int t = 0; t < 2; t++)
-        for (u32 i = 0; i < nsp[t]; i++) {
-            s32 best = -1; f32 bd = 1e30f;
-            for (u32 k = 0; k < out->nposts; k++) {
-                f32 dx = sp[t][i][0] - out->post[k].pos[0], dz = sp[t][i][2] - out->post[k].pos[2], d = dx * dx + dz * dz;
-                if (d < bd && !out->post[k].has_spawn[t]) { bd = d; best = (s32)k; }
-            }
-            if (best >= 0) { ak_post *p = &out->post[best]; memcpy(p->spawn[t], sp[t][i], 12); p->spawn_yaw[t] = sp[t][i][3]; p->has_spawn[t] = true; }
+    /* each post's linked spawn points; with none (or a roll the weights miss) a soldier spawns at the post itself */
+    for (u32 k = 0; k < out->nposts; k++) {
+        ak_post *p = &out->post[k];
+        for (int t = 0; t < 2; t++) { memcpy(p->spawn[t], p->pos, 12); p->spawn_yaw[t] = p->yaw; p->has_spawn[t] = true; }
+        for (u32 j = 0; j < nlink[k]; j++) {
+            if (link_id[k][j] == 999) continue;
+            u32 q = p->nloc++; p->loc[q].weight = link_w[k][j]; p->loc[q].own = false;   /* (an id with no point: the post) */
+            for (u32 i = 0; i < nl; i++) if (lid[i] == link_id[k][j]) { memcpy(p->loc[q].pos, lpos[i], 12); p->loc[q].yaw = lpos[i][3]; p->loc[q].own = lown[i]; break; }
         }
+    }
+    (void)nsp; (void)sp;                                                      /* (types 15 / 16: not the posts' spawns) */
     for (u32 i = 0; i < nrg; i++)
         for (u32 k = 0; k < out->nposts; k++) {
             f32 dx = rg[i][0] - out->post[k].pos[0], dz = rg[i][2] - out->post[k].pos[2];
@@ -219,6 +245,17 @@ bool ak_conquest_update(const ak_conquest_map *m, const ak_cq_rules *r, ak_conqu
     return false;
 }
 
+void ak_post_spawn(const ak_post *po, int team, u32 roll, f32 pos[3], f32 *yaw)
+{
+    s32 r = (s32)((roll >> 1) % 100u) + 1;
+    for (u32 i = 0; i < po->nloc; i++) {
+        if ((r -= po->loc[i].weight) >= 1) continue;
+        if (!po->loc[i].own) break;
+        memcpy(pos, po->loc[i].pos, 12); *yaw = po->loc[i].yaw; return;
+    }
+    memcpy(pos, po->spawn[team], 12); *yaw = po->spawn_yaw[team];
+}
+
 bool ak_conquest_spawn(const ak_conquest_map *m, const ak_conquest *s, int team, const f32 *near, f32 *pos, f32 *yaw)
 {
     s32 best = -1; f32 bd = 1e30f;
@@ -229,6 +266,6 @@ bool ak_conquest_spawn(const ak_conquest_map *m, const ak_conquest *s, int team,
         if (d < bd) { bd = d; best = (s32)i; }
     }
     if (best < 0) return false;
-    memcpy(pos, m->post[best].spawn[team], 12); *yaw = m->post[best].spawn_yaw[team];
+    ak_post_spawn(&m->post[best], team, 0x7FFFFFFFu, pos, yaw);
     return true;
 }

@@ -73,12 +73,17 @@ int main(int argc, char **argv)
     u32 lod0 = 0, tris_m = 0; for (u32 i = 0; i < ms.nmodels; i++) { lod0 += ms.models[i].lod == 0; tris_m += ms.models[i].nidx / 3; }
     {   ak_conquest_map cq;
         if (ak_conquest_load(&l, &cq)) {
-            u32 s1 = 0, s2 = 0, rg = 0; f32 far = 0;
+            u32 pts = 0, own = 0, rg = 0, full = 0; f32 far = 0;
             for (u32 i = 0; i < cq.nposts; i++) {
-                s1 += cq.post[i].has_spawn[0]; s2 += cq.post[i].has_spawn[1]; rg += cq.post[i].has_region;
-                for (int t = 0; t < 2; t++) if (cq.post[i].has_spawn[t]) { f32 dx = cq.post[i].spawn[t][0] - cq.post[i].pos[0], dz = cq.post[i].spawn[t][2] - cq.post[i].pos[2]; f32 d = sqrtf(dx * dx + dz * dz); if (d > far) far = d; }
+                const ak_post *po = &cq.post[i]; s32 w = 0; rg += po->has_region;
+                for (u32 k = 0; k < po->nloc; k++) {
+                    pts++; w += po->loc[k].weight; if (!po->loc[k].own) continue; own++;
+                    f32 dx = po->loc[k].pos[0] - po->pos[0], dz = po->loc[k].pos[2] - po->pos[2], d = sqrtf(dx * dx + dz * dz); if (d > far) far = d;
+                }
+                full += w >= 100;
             }
-            printf("conquest   %u command posts: team-1 spawns at %u, team-2 at %u (farthest %.0f m from its post), capture regions on %u (%u regions)\n", cq.nposts, s1, s2, far, rg, cq.nregions);
+            printf("conquest   %u command posts: %u spawn points (%u placed, farthest %.0f m from its post), weights reach 100 on %u posts, capture regions on %u (%u regions)\n",
+                   cq.nposts, pts, own, far, full, rg, cq.nregions);
         } else printf("conquest   no command posts\n");
     }
     printf("models     %u (%u full detail), %u skeletons, %u clips, %u triangles, %.1f ms%s\n", ms.nmodels, lod0, ms.nskels, ms.nclips, tris_m,

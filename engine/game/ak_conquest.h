@@ -3,12 +3,13 @@
  * Read from the level data (confirmed on every playable level: Hoth 5 posts, Kashyyyk 3, Mustafar 6, Naboo 4, Sullust 5,
  * Tatooine 5, Yavin IV 5; space maps 2-3, Galactic Conquest none):
  *   type 8  (flagged, sub-kind 6)   a command post: position + rotation quaternion, then 100.0 ...
- *   type 15 (flagged, sub-kind 1)   a team-1 soldier spawn: position + quaternion, 100.0 ... - one per post, 10-25 m from it
- *   type 16 (flagged, sub-kind 2)   a team-2 soldier spawn, the same
+ *   type 39 (flagged, class 0x8027) a spawn point ("locator", func 089EE83C): version, position, flags (bit 0: it has a place of
+ *                                   its own), 3x3 rows
+ *   type 15 / 16 (sub-kind 1 / 2)   per-team points near the posts (not where soldiers spawn: see ak_post_spawn)
  *   type 37 (flagged)               a region: position + 3x3 matrix - on the posts (their capture areas), a few elsewhere
  * A post record ends with: the owner (0 = team 1, 1 = team 2, else neutral), the capture amount (seconds for one soldier: 10 on most
  * posts, 20-30 on a few, 300 on the space maps' capital ships), the flags (bit 0: not capturable - the capital ships), then a list of
- * linked entities (count, then id + kind pairs).
+ * linked spawn points (count, then id + weight pairs: the weights add up to 100 on most posts; func 089ED36C).
  *
  * The rules, from the game's code (command post update, the conquest mode's ticket handler and its bleed, the match state):
  *  - capture: a living soldier within 5 m counts with a weight of 1.0; the rate is the sum of the weights, capped at 5 per second.
@@ -29,9 +30,11 @@
 
 #define AK_MAX_POSTS 16
 #define AK_CQ_NEUTRAL 4
+#define AK_POST_LOCS 10
 typedef struct {
     f32 pos[3]; f32 yaw;
-    f32 spawn[2][3]; f32 spawn_yaw[2]; bool has_spawn[2];   /* team 1, team 2 */
+    f32 spawn[2][3]; f32 spawn_yaw[2]; bool has_spawn[2];   /* team 1, team 2: where to spawn when no linked point is picked */
+    struct { f32 pos[3], yaw; s32 weight; bool own; } loc[AK_POST_LOCS]; u32 nloc;   /* linked spawn points (see ak_post_spawn) */
     f32 region[3]; bool has_region;
     int start_owner;                   /* 0, 1 or AK_CQ_NEUTRAL */
     f32 amount; u32 flags; bool disabled;
@@ -71,4 +74,8 @@ void ak_conquest_killed(const ak_cq_rules *r, ak_conquest *s, int team);
 /* a vehicle-carried post (see play): where it is, whose it is, and whether it exists; it never counts as a capture */
 void ak_conquest_mobile(const ak_conquest_map *m, ak_conquest *s, u32 i, int owner, bool present);
 bool ak_conquest_spawn(const ak_conquest_map *m, const ak_conquest *s, int team, const f32 *near, f32 *pos, f32 *yaw);
+/* where a soldier of `team` spawns at post `po` (traced: func 089ED36C): a roll of 1-100 walks the post's linked points, taking
+   off each one's weight, and the point where it reaches 0 wins; a point without a place of its own, or a roll the weights do not
+   reach, spawns at the post.  `roll` is a random number. */
+void ak_post_spawn(const ak_post *po, int team, u32 roll, f32 pos[3], f32 *yaw);
 #endif
