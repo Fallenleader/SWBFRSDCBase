@@ -324,6 +324,32 @@ s32 ak_models_find(const ak_model_set *s, const char *name)
     return -1;
 }
 
+void ak_model_long_axis(const ak_model *m, f32 end[3], f32 dir[3])
+{
+    f32 c[3] = { 0, 0, 0 }, C[9] = { 0 };
+    dir[0] = 0; dir[1] = 1; dir[2] = 0; end[0] = end[1] = end[2] = 0;
+    if (!m->nvtx) return;
+    for (u32 i = 0; i < m->nvtx; i++) for (int k = 0; k < 3; k++) c[k] += m->vtx[i].pos[k];
+    for (int k = 0; k < 3; k++) c[k] /= (f32)m->nvtx;
+    for (u32 i = 0; i < m->nvtx; i++) {
+        f32 d[3] = { m->vtx[i].pos[0] - c[0], m->vtx[i].pos[1] - c[1], m->vtx[i].pos[2] - c[2] };
+        for (int a = 0; a < 3; a++) for (int b = 0; b < 3; b++) C[a * 3 + b] += d[a] * d[b];
+    }
+    f32 v[3] = { 0, 1, 0 };
+    for (int it = 0; it < 32; it++) {                                       /* power iteration: the largest spread */
+        f32 w[3] = { C[0] * v[0] + C[1] * v[1] + C[2] * v[2], C[3] * v[0] + C[4] * v[1] + C[5] * v[2], C[6] * v[0] + C[7] * v[1] + C[8] * v[2] };
+        f32 l = sqrtf(w[0] * w[0] + w[1] * w[1] + w[2] * w[2]); if (l < 1e-12f) break;
+        v[0] = w[0] / l; v[1] = w[1] / l; v[2] = w[2] / l;
+    }
+    if (v[1] < 0) { v[0] = -v[0]; v[1] = -v[1]; v[2] = -v[2]; }
+    f32 mx = -1e30f;
+    for (u32 i = 0; i < m->nvtx; i++) {
+        f32 t = (m->vtx[i].pos[0] - c[0]) * v[0] + (m->vtx[i].pos[1] - c[1]) * v[1] + (m->vtx[i].pos[2] - c[2]) * v[2];
+        if (t > mx) mx = t;
+    }
+    for (int k = 0; k < 3; k++) { dir[k] = v[k]; end[k] = c[k] + v[k] * mx; }
+}
+
 const ak_marker *ak_model_marker(const ak_model *m, const char *name)
 {
     u32 h = ak_hash_name(name);

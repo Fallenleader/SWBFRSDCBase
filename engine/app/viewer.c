@@ -205,8 +205,10 @@ int main(int argc, char **argv)
                     ak_m4 gw4 = { { G[0], G[4], G[8], 0,  G[1], G[5], G[9], 0,  G[2], G[6], G[10], 0,  G[3], G[7], G[11], 1 } };
                     ak_scene_models_draw(&mscene, (u32)wm, &vp, &gw4, NULL, NULL, &ms);
                     const ak_model *hm = &models.models[wm];
-                    {   /* the blade: from the hilt's top end, up its axis (as play draws it) */
-                        f32 lp[3] = { (hm->bmin[0] + hm->bmax[0]) * 0.5f, hm->bmax[1], (hm->bmin[2] + hm->bmax[2]) * 0.5f }, a[3], c[3], ax[3] = { G[1], G[5], G[9] }, al = sqrtf(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]);
+                    {   /* the blade: from the hilt's top end, along the hilt (as play draws it) */
+                        f32 lp[3], ld[3], a[3], c[3], ax[3], al; ak_model_long_axis(hm, lp, ld);
+                        for (int r = 0; r < 3; r++) ax[r] = G[r * 4] * ld[0] + G[r * 4 + 1] * ld[1] + G[r * 4 + 2] * ld[2];
+                        al = sqrtf(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]);
                         for (int r = 0; r < 3; r++) { a[r] = G[r * 4] * lp[0] + G[r * 4 + 1] * lp[1] + G[r * 4 + 2] * lp[2] + G[r * 4 + 3]; c[r] = a[r] + ax[r] / al; }
                         f32 e3[3] = { eye.x, eye.y, eye.z }; static ak_vtx bv[AK_BEAM_VERTS];
                         u32 nb = ak_beam(bv, a, c, 0.3f * 0.25f, e3, (u32)ak_setting_int("AK_GALLERY_BLADE_RGB", (int)0xFFFF2020u), 255, 255);

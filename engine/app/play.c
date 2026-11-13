@@ -1829,10 +1829,8 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         f32 G[12];
         if (u == 0) { if (p->in_veh >= 0 || !ak_play_weapon_matrix(p, m, G)) continue; }
         else { const ak_play_bot *b = &p->bot[u - 1]; if (b->veh >= 0 || !weapon_world(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, G)) continue; }
-        /* the hilt's top end (its "blade" marker sits 0.1 m off the end and 0.09 m off its axis, so the blade starts at the end) */
-        const ak_model *hm = &m->models[h->wdef.model];
-        f32 lp[3] = { (hm->bmin[0] + hm->bmax[0]) * 0.5f, hm->bmax[1], (hm->bmin[2] + hm->bmax[2]) * 0.5f };
-        f32 ld[3] = { 0, 1, 0 };                                              /* along the hilt (its +y) */
+        /* the hilt's top end, along the hilt (it lies slanted in its own model space; the "blade" marker sits off it) */
+        f32 lp[3], ld[3]; ak_model_long_axis(&m->models[h->wdef.model], lp, ld);
         f32 a[3], c[3], ax[3], al;
         for (int r = 0; r < 3; r++) ax[r] = G[r * 4] * ld[0] + G[r * 4 + 1] * ld[1] + G[r * 4 + 2] * ld[2];
         al = sqrtf(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]);

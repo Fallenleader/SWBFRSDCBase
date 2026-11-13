@@ -74,6 +74,9 @@ void ak_skeleton_pose_matrices(const ak_skeleton *s, const ak_quat *lq, const f3
 /* all models and skeletons of a level file (textures resolved against the level's) */
 bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out);
 s32  ak_models_find(const ak_model_set *s, const char *name);
+/* the mesh's long axis (the principal axis of its vertices, pointing to +y) and the point where it leaves the mesh at that end:
+   where a lightsaber's blade starts and the way it runs (the hilt lies slanted in its model space) */
+void ak_model_long_axis(const ak_model *m, f32 end[3], f32 dir[3]);
 const ak_marker *ak_model_marker(const ak_model *m, const char *name);       /* case-insensitive; NULL = none */
 /* a marker's model-space matrix (3x4 rows) from its bone's posed matrix */
 void ak_marker_matrix(const f32 bone[12], const ak_marker *mk, f32 out[12]);
