@@ -458,6 +458,7 @@ int main(int argc, char **argv)
                 } else {
                     s32 nv = -1; f32 bd = 1e30f;
                     for (u32 v = 0; v < play.nveh; v++) { const ak_vehicle *vh = &play.veh[v]; if (!vh->def || !vh->alive || vh->driver == 0 || (vh->driver > 0 && play.bot[vh->driver - 1].team != play.team)) continue;
+                        if (vh->driver < 0 && vh->team != play.team && !vh->open) continue;                /* (an enemy's unused vehicle) */
                         if (!vh->def->drivable && !play.vspawn[v].route) continue;                  /* (only what can be boarded) */
                         if (play.vspawn[v].route && vh->team != play.team) continue;
                         f32 dx = vh->pos[0] - play.ch.pos[0], dz = vh->pos[2] - play.ch.pos[2], r = vh->def->radius + 3.0f; if (dx * dx + dz * dz < r * r && dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; nv = (s32)v; } }

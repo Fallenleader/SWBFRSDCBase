@@ -46,6 +46,7 @@ typedef struct {
     f32 pos[3], yaw, vel[3], pitch, roll;
     f32 health; bool alive; int team;
     s32 driver;                            /* -1 empty, 0 the player, 1 + i bot i */
+    bool open;                             /* left empty after use: neutral (the game's team 4), anyone may board it */
     s32 spawn; f32 respawn_t, dead_t;
     f32 volley_t; u32 fired_mask; f32 aim_yaw, aim_pitch;
     s32 sec_ammo; f32 sec_t, sec_reload; u32 sec_next; s32 lock; f32 lock_t; bool locked; f32 bot_sec_t;   /* the secondary: clip, cool-down, reload, which muzzle; the lock-on */
