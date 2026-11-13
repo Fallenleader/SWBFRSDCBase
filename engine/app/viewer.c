@@ -267,6 +267,10 @@ int main(int argc, char **argv)
                     k += snprintf(vl + k, sizeof vl - (size_t)k, " %s:%s%.0f/%.0f", vh->def ? vh->def->name : "-", vh->alive ? (vh->driver > 0 ? "bot " : vh->driver == 0 ? "you " : "") : "wreck ", t->health, vh->def ? vh->def->health : 0);
                 }
                 AK_INFO("test", "vehicles:%s", vl);
+                if (play.nturret) { k = 0;
+                    for (u32 v = 0; v < play.nturret && k < 480; v++)
+                        k += snprintf(vl + k, sizeof vl - (size_t)k, " %s:%s%.0f(%u hits)", play.turret[v].def->name, play.turret[v].alive ? "" : "wreck ", play.target[1 + play.nbots + play.nveh + v].health, play.target[1 + play.nbots + play.nveh + v].hits);
+                    AK_INFO("test", "turrets:%s", vl); }
             }
         }
         if (in.pressed & AK_BTN_SQUARE) playing = !playing;               /* square: play (a soldier on foot) / free camera */
@@ -307,6 +311,7 @@ int main(int argc, char **argv)
                 const ak_entity *e = &ents.e[i];
                 if (!e->placed) continue;
                 if (playing && play.ready && play.nveh && e->flagged && (e->type == 27 || e->type == 13)) continue;   /* playing: the vehicles themselves stand there */
+                if (playing && play.ready && play.nturret && e->type == 30) continue;   /* playing: the turrets are drawn with their moving parts */
                 s32 mi = e->model[0] >= 0 ? e->model[0] : e->model[1];
                 const ak_model *m = &models.models[mi];
                 f32 r = m->radius, mn[3] = { e->pos[0] - r, e->pos[1] - r, e->pos[2] - r }, mx[3] = { e->pos[0] + r, e->pos[1] + r, e->pos[2] + r };

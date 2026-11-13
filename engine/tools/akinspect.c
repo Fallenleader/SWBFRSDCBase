@@ -212,6 +212,18 @@ int main(int argc, char **argv)
                     printf("\n");
                 }
             }
+        if (!strcmp(argv[i], "--enti")) {                                    /* entities of one type: id, model, place */
+            ak_entity_set es; u32 want = (u32)atoi(argv[i + 1]);
+            if (ak_entities_load(&l, &ms, &a, &es))
+                for (u32 k = 0; k < es.n; k++) if (es.e[k].type == want)
+                    printf("  %05x type %u model %s / %s  pos %.1f %.1f %.1f\n", es.e[k].id, es.e[k].type,
+                           es.e[k].model[0] >= 0 ? ms.models[es.e[k].model[0]].name : "-", es.e[k].model[1] >= 0 ? ms.models[es.e[k].model[1]].name : "-",
+                           es.e[k].pos[0], es.e[k].pos[1], es.e[k].pos[2]);
+        }
+        if (!strcmp(argv[i], "--markers"))
+            for (u32 k = 0; k < ms.nmodels; k++) if (!strcmp(argv[i + 1], ms.models[k].name))
+                for (u32 q = 0; q < ms.models[k].nmarkers; q++) { const ak_marker *mk = &ms.models[k].markers[q];
+                    printf("  marker %-12s bone %u at %.2f %.2f %.2f  rows %.2f %.2f %.2f / %.2f %.2f %.2f / %.2f %.2f %.2f\n", mk->name, mk->bone, mk->m[3], mk->m[7], mk->m[11], mk->m[0], mk->m[1], mk->m[2], mk->m[4], mk->m[5], mk->m[6], mk->m[8], mk->m[9], mk->m[10]); }
         if (!strcmp(argv[i], "--models"))
             for (u32 k = 0; k < ms.nmodels; k++) {
                 const ak_model *m = &ms.models[k];

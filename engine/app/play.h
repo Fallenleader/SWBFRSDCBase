@@ -53,6 +53,7 @@
 #include "game/ak_conquest.h"
 #include "game/ak_vehicle.h"
 #include "game/ak_space.h"
+#include "game/ak_turret.h"
 #include "render/ak_scene.h"
 #include "platform/plat.h"
 
@@ -62,7 +63,8 @@ enum { PLAY_IDLE, PLAY_RUN, PLAY_BACK, PLAY_LEFT, PLAY_RIGHT, PLAY_JUMP, PLAY_FA
 #define PLAY_MAX_CLASSES 8
 #define PLAY_MAX_VEH 16
 #define PLAY_MAX_DEFS 12
-#define PLAY_MAX_TARGETS (1 + PLAY_MAX_BOTS + PLAY_MAX_VEH)
+#define PLAY_MAX_TURRETS 32
+#define PLAY_MAX_TARGETS (1 + PLAY_MAX_BOTS + PLAY_MAX_VEH + PLAY_MAX_TURRETS)
 #define PLAY_MAX_BOOMS 8
 typedef struct { f32 pos[3], yaw; s32 def[2]; s32 post; f32 respawn; bool fixed; } ak_play_vspawn;   /* a vehicle spawn: one vehicle per side (index into vdef, -1 none), the post whose owner gets it; fixed = a walker placed in the level (no respawn, not drivable) */
 typedef struct { f32 pos[3], t; } ak_play_boom;
@@ -96,11 +98,12 @@ typedef struct {
     ak_weapon_def wdef; ak_weapon weapon; bool armed; ak_bolts bolts; u32 seed;
     f32 bones[64][12]; bool posed;     /* the body's pose this frame (the weapon and the muzzle ride it) */
     ak_play_bot *bot; u32 nbots;       /* (from the level arena) */
-    ak_target target[PLAY_MAX_TARGETS];    /* 0: the player, 1 + i: bot i, 1 + nbots + v: vehicle v */
+    ak_target target[PLAY_MAX_TARGETS];    /* 0: the player, 1 + i: bot i, 1 + nbots + v: vehicle v, then the turrets */
     ak_vehicle_def vdef[PLAY_MAX_DEFS]; u32 nvdef;
     ak_play_vspawn vspawn[PLAY_MAX_VEH]; ak_vehicle veh[PLAY_MAX_VEH]; u32 nveh; s32 in_veh; f32 veh_respawn;
     f32 bot_drive;                     /* the chance a bot near a free vehicle of its side takes it (AK_BOT_VEHICLES) */
     ak_space_map space; bool is_space; s32 obj_unit[AK_MAX_OBJECTIVES];   /* space maps: AI objectives, the bot on each */
+    ak_turret_def tdef[8]; u32 ntdef; ak_turret turret[PLAY_MAX_TURRETS]; u32 nturret;   /* level turrets (ENTI type 30) */
     ak_play_boom boom[PLAY_MAX_BOOMS]; u32 nboom;
     u32 kills, deaths;
     s32 idle_clip, death_clips[3];
