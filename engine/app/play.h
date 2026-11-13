@@ -106,6 +106,9 @@ typedef struct {
     f32 alert_t, shoot_t;              /* the player: seconds of alert pose left; seconds since the trigger was last held */
     bool psp_buttons, l_was, sprint;   /* the PSP button layout (AK_BUTTONS=psp): L tap jumps, L held sprints */
     f32 l_t;                           /* how long L has been held */
+    s32 roll_clip[4]; f32 roll_len[4], roll_dur[4];   /* circle: the rolls (forward dive, left, right, back), their travel and time */
+    s32 roll_i; f32 roll_t, roll_v[2]; bool roll_req;
+    int zoom; bool zoom_req;           /* triangle: the weapon's zoom levels (NumberOfZoomLevels, WZoomMagnification1..4), 0 = none */
     ak_play_hero hero[2]; bool hero_declined; int hero_answer;
     struct { f32 heal, radius, pulse, ammo_radius, ammo_pulse, t, ammo_t; } droids;   /* the UtilityDroid blueprints (MedicalDroid, AmmunitionDroid) */
     struct { s32 unit; u32 n; f32 base[8][3], tip[8][3], age[8], last; } fan[2];   /* each side's saber hero: its blade's recent positions (the motion fan) */   /* the player's answer to an offer: 1 yes, -1 no */

@@ -296,7 +296,7 @@ int main(int argc, char **argv)
         }
 
         {   /* scripted input timeline (tests, recordings): AK_TEST_SCRIPT = "frames:lx,ly,rx,ry,buttons; ..." - buttons (actions on the PSP layout):
-             * j jump (a tap of L on the segment's first frame), f fire, l lock on, s sprint, c secondary (held), g get in / out (d-pad up) */
+             * j jump (a tap of L on the segment's first frame), f fire, l lock on, s sprint, c secondary (held), g get in / out (d-pad up), o roll (circle), z zoom (triangle) */
             const char *sc = ak_setting_str("AK_TEST_SCRIPT", NULL);
             if (sc) {
                 int at = 0; const char *q = sc;
@@ -314,6 +314,8 @@ int main(int argc, char **argv)
                         if (strchr(bt, 's')) in.held |= AK_BTN_L;
                         if (frame == at && strchr(bt, 'j')) { in.held |= AK_BTN_L; in.pressed |= AK_BTN_L; }
                         if (frame == at && strchr(bt, 'g')) in.pressed |= AK_BTN_UP;
+                        if (frame == at && strchr(bt, 'o')) in.pressed |= AK_BTN_CIRCLE;   /* o: roll */
+                        if (frame == at && strchr(bt, 'z')) in.pressed |= AK_BTN_TRIANGLE; /* z: zoom */
                     }
                     at += n; q += used; while (*q == ';' || *q == ' ') q++;
                 }

@@ -345,6 +345,10 @@ int main(int argc, char **argv)
                 const ak_anim_clip *c = &ms.clips[k];
                 printf("clip %s bones %u channels %u duration %.3f keys %u/%u\n", c->name, c->nbones, c->nchannels, c->duration, c->nrot, c->npos);
                 for (u32 r = 0; r < c->nrot && r < 8; r++) printf("  rot %u t %u  %.4f %.4f %.4f %.4f\n", r, c->rtime[r], c->rot[r].x, c->rot[r].y, c->rot[r].z, c->rot[r].w);
+                for (u32 ch = 0; ch < c->nchannels; ch++) { const ak_anim_channel *a = &c->chan[ch];   /* each channel's travel: first and last position key */
+                    if (a->pos_count < 2) continue;
+                    const f32 *p0 = c->pos[a->pos_first], *p1 = c->pos[a->pos_first + a->pos_count - 1];
+                    if (ch < 2 || ch == c->nchannels - 1) printf("  channel %u: %u pos keys, %.3f %.3f %.3f -> %.3f %.3f %.3f\n", ch, a->pos_count, p0[0], p0[1], p0[2], p1[0], p1[1], p1[2]); }
             }
         if (!strcmp(argv[i], "--model-obj")) {               /* NAME=out.obj: the model's bind pose in model space */
             char nm[256]; snprintf(nm, sizeof nm, "%s", argv[i + 1]); char *eq = strchr(nm, '=');

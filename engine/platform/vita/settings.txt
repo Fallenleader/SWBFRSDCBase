@@ -11,7 +11,8 @@
 #   START does nothing, so PS + START screenshots never change the level.  Log: ux0:data/Aurek/log.txt (one line per second).
 #   On foot: CROSS fire, SQUARE secondary, R hold lock-on, L tap jump, L hold sprint (12 m/s, forward; not while firing or locked
 #            on), d-pad UP get in / out of a vehicle (a teammate bot driving it hands it over) or man a turret of your side.
-#            CIRCLE (roll) and TRIANGLE (zoom) are not in yet.
+#            CIRCLE roll (the way the left stick points: forward dive, left, right, back), TRIANGLE zoom (steps through the
+#            weapon's zoom levels, then back out).
 #   Ground vehicles: left stick throttle / steer, right stick aims, CROSS fire, SQUARE secondary, L hold boost, UP get out.
 #   Starfighters: left stick pitch (forward = nose down; AK_INVERT_Y flips it) and bank, R accelerate (boost), L slow down,
 #            CROSS fire, SQUARE secondary; any input on the ground takes off, touching down slowly and level lands.  Keeping an

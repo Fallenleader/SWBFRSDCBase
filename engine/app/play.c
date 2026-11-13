@@ -315,6 +315,20 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->clip[PLAY_IDLE] = find_clip(m, idle); p->clip[PLAY_RUN] = find_clip(m, run); p->clip[PLAY_BACK] = find_clip(m, back);
     p->clip[PLAY_LEFT] = find_clip(m, left); p->clip[PLAY_RIGHT] = find_clip(m, right); p->clip[PLAY_JUMP] = find_clip(m, jump);
     p->clip[PLAY_FALL] = find_clip(m, fall); p->clip[PLAY_LAND] = find_clip(m, land); p->clip[PLAY_SPRINT] = find_clip(m, sprint);
+    {   /* the rolls: each clip's root-motion channel (its last) says how far it carries the body: the dive 3.9 m forward in 0.73 s,
+           the side rolls 1.9 / 1.3 m in 0.6 s, the back roll 2.3 m in 0.73 s */
+        static const char *rn[4] = { "Human_Rifle_Stand_Diveroll_Forward", "Human_Rifle_Crouch_Roll_Left", "Human_Rifle_Crouch_Roll_Right", "Human_Rifle_Crouch_Roll_Back" };
+        for (int k = 0; k < 4; k++) {
+            const char *one[2] = { rn[k], NULL }; s32 ci = find_clip(m, one); p->roll_clip[k] = ci; p->roll_len[k] = 0; p->roll_dur[k] = 0.6f;
+            if (ci < 0) continue;
+            const ak_anim_clip *cl = &m->clips[ci]; p->roll_dur[k] = cl->duration > 0.1f ? cl->duration : 0.6f;
+            if (cl->nchannels > 0) { const ak_anim_channel *a = &cl->chan[cl->nchannels - 1];
+                if (a->pos_count >= 2) { const f32 *p0 = cl->pos[a->pos_first], *p1 = cl->pos[a->pos_first + a->pos_count - 1];
+                    f32 dx = p1[0] - p0[0], dz = p1[2] - p0[2]; p->roll_len[k] = sqrtf(dx * dx + dz * dz); } }
+            if (p->roll_len[k] < 0.5f) p->roll_len[k] = 2.0f;
+        }
+        p->roll_i = -1; p->roll_req = false; p->zoom = 0; p->zoom_req = false;
+    }
     p->idle_clip = p->clip[PLAY_IDLE]; p->death_clips[0] = find_clip(m, d1); p->death_clips[1] = find_clip(m, d2); p->death_clips[2] = find_clip(m, d3);
     /* the alert set (the game's generic_male table, set 5: rifle raised - when shooting or locked on) and its shoot layer; the
        relaxed body clips stay the ones above (set 4 is the same family) */
@@ -1588,7 +1602,7 @@ void ak_play_damage(ak_play *p, f32 amount)
 /* The PSP game's button layout (its default "Infantry / Vehicle / Starfighter controls"), with the sticks kept as they are (left
  * moves, right aims): cross fires, square the secondary, R locks on, L tapped jumps and held sprints, d-pad up gets in and out of a
  * vehicle or turret (up / down answer a hero offer while one stands); in ground vehicles L held boosts; in starfighters R
- * accelerates and L slows.  Circle (roll) and triangle (zoom) have no action yet.  This turns them into the actions the rest of the
+ * accelerates and L slows.  Circle rolls (the way the left stick points); triangle steps through the weapon's zoom levels.  This turns them into the actions the rest of the
  * code reads (R fire, L lock / slow, cross jump / boost, triangle get in / out, circle secondary). */
 static ak_input psp_layout(ak_play *p, const ak_input *raw, f32 dt)
 {
@@ -1616,6 +1630,8 @@ static ak_input psp_layout(ak_play *p, const ak_input *raw, f32 dt)
         else if (p->l_was && p->l_t < 0.2f) g.pressed |= AK_BTN_CROSS;       /* a tap: jump */
         p->l_was = (H & AK_BTN_L) != 0;
         p->sprint = p->l_was && p->l_t >= 0.2f && !(H & (AK_BTN_CROSS | AK_BTN_R));   /* held: sprint (not while firing or locked on) */
+        if (P & AK_BTN_CIRCLE) p->roll_req = true;                             /* circle: roll */
+        if (P & AK_BTN_TRIANGLE) p->zoom_req = true;                           /* triangle: zoom */
     }
     return g;
 }
@@ -1712,7 +1728,35 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         }
     } else p->lock = -1;
     bool was_ground = p->ch.on_ground;
-    ak_char_update(&p->ch, &p->cp, &p->col, &ci, dt);
+    /* the roll: the stick's way (forward dive, left, right, back), carried as far as the clip's own root motion over its length */
+    if (p->roll_req && p->roll_i < 0 && p->alive && p->ch.on_ground && p->in_veh < 0 && p->in_turret < 0 && !hero_of(p, 0)) {
+        int k = 0; f32 sx = in->lx, sy = in->ly;
+        if (fabsf(sx) > fabsf(sy) && fabsf(sx) > 0.3f) k = sx < 0 ? 1 : 2; else if (sy < -0.3f) k = 3;
+        if (p->roll_clip[k] < 0) k = 0;
+        if (p->roll_clip[k] >= 0) {
+            f32 s = sinf(p->ch.yaw), c = cosf(p->ch.yaw), fx = -s, fz = -c, rx = c, rz = -s, v = p->roll_len[k] / p->roll_dur[k];
+            f32 lx = k == 1 ? -1.0f : k == 2 ? 1.0f : 0.0f, ly = k == 0 ? 1.0f : k == 3 ? -1.0f : 0.0f;
+            p->roll_v[0] = (fx * ly + rx * lx) * v; p->roll_v[1] = (fz * ly + rz * lx) * v; p->roll_i = k; p->roll_t = 0;
+        }
+    }
+    p->roll_req = false;
+    /* zoom, traced (0x08997000): triangle enters the zoom view at the first level's magnification, each press steps to the next level,
+       and a press on the last level leaves it; NumberOfZoomLevels and WZoomMagnification1..4 are the weapon's (blasters: 1 level at
+       1.0 - the zoom view itself; the sniper rifle: 2 and 4) */
+    if (p->zoom_req && p->armed && p->wdef.bp) {
+        int nz = ak_bp_int(p->wdef.bp, "NumberOfZoomLevels", 0); if (nz > 4) nz = 4;
+        p->zoom = nz > 0 ? (p->zoom + 1) % (nz + 1) : 0;
+    }
+    p->zoom_req = false;
+    if (p->ch.sprinting || p->roll_i >= 0 || p->in_veh >= 0 || p->in_turret >= 0 || !p->alive) p->zoom = 0;
+    ak_char_params rp = p->cp; const ak_char_params *use = &p->cp;
+    if (p->roll_i >= 0) {                                                     /* rolling: the body goes the roll's way at its pace */
+        f32 s = sinf(p->ch.yaw), c = cosf(p->ch.yaw), v = sqrtf(p->roll_v[0] * p->roll_v[0] + p->roll_v[1] * p->roll_v[1]) + 1e-6f;
+        ci.move_y = (-s * p->roll_v[0] - c * p->roll_v[1]) / v; ci.move_x = (c * p->roll_v[0] - s * p->roll_v[1]) / v;
+        ci.jump = ci.sprint = false; rp.run_speed = v; rp.accel = 400.0f; use = &rp;
+        p->roll_t += dt; if (p->roll_t >= p->roll_dur[p->roll_i]) p->roll_i = -1;
+    }
+    ak_char_update(&p->ch, use, &p->col, &ci, dt);
     if (p->in_turret >= 0) {                                                  /* manning a turret: seated at it, it follows the aim */
         ak_turret *t = &p->turret[p->in_turret];
         if (!t->alive || t->team != p->team) { p->in_turret = -1; p->target[0].alive = true; }
@@ -1739,6 +1783,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     else if (p->posed) {
         const ak_play_hero *ph = hero_of(p, 0);
         if (ph && ph->atk_i >= 0) pose(m, &p->look, ph->atk[ph->atk_i], ph->atk_t, false, p->bones);
+        else if (p->roll_i >= 0) pose(m, &p->look, p->roll_clip[p->roll_i], p->roll_t, false, p->bones);
         else if (!ph && p->alert_t > 0)                                          /* alert: rifle raised, the shoot layer while firing */
             pose_layer(m, &p->look, p->aclip[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->shoot_t < 0.3f ? p->shoot_clip : -1, p->shoot_t, p->bones);
         else pose(m, &p->look, pcl[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->bones);
@@ -2003,6 +2048,11 @@ void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *f
         camera_for(p, dt, eye, yaw, pitch, fovy); p->ch = keep; return;
     }
     camera_for(p, dt, eye, yaw, pitch, fovy);
+    if (p->zoom > 0 && p->wdef.bp) {                                          /* zoomed: the view narrows by the level's magnification */
+        char k[24]; snprintf(k, sizeof k, "WZoomMagnification%d", p->zoom);
+        f32 mag = ak_bp_float(p->wdef.bp, k, 1.0f);
+        if (mag > 1.0f) *fovy = 2.0f * atanf(tanf(*fovy * 0.5f) / mag);
+    }
 }
 
 static void camera_for(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy)
@@ -2027,7 +2077,9 @@ static void camera_for(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32
     f32 right[3] = { cy, 0, -sy };
     f32 fwd[3] = { -sy * cosf(pt), sinf(pt), -cy * cosf(pt) };
     f32 piv[3] = { p->ch.pos[0] + right[0] * p->pivot_x, p->ch.pos[1] + p->pivot_h, p->ch.pos[2] + right[2] * p->pivot_x };
-    f32 want[3] = { -fwd[0] * p->cam_back + right[0] * p->cam_side, -fwd[1] * p->cam_back + p->cam_up, -fwd[2] * p->cam_back + right[2] * p->cam_side };
+    /* zoomed (triangle): the close aiming view just over the shoulder, then narrowed by the level's magnification (ak_play_camera) */
+    f32 back = p->zoom > 0 ? fminf(p->cam_back, ak_setting_float("AK_ZOOM_BACK", 1.2f)) : p->cam_back;
+    f32 want[3] = { -fwd[0] * back + right[0] * p->cam_side, -fwd[1] * back + p->cam_up, -fwd[2] * back + right[2] * p->cam_side };
     f32 wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]), dir[3] = { want[0] / wl, want[1] / wl, want[2] / wl };
     f32 limit = wl; ak_col_hit h;
     if (ak_col_raycast(&p->col, piv, dir, wl, AK_COL_NOT_BODIES, &h)) limit = h.t - 0.3f;
