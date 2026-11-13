@@ -1,10 +1,10 @@
 /* Milestone 1.2: the level viewer.  Loads every level from the game's files and draws it natively, with a free camera and
  * the frame's figures on screen.  Same code on every device; the platform and renderer back ends are what differ.
  *
- * Controls: left stick move, right stick look, L / R down / up, hold Cross to move faster, START next level,
- * TRIANGLE previous level, SELECT figures on/off.
- * CIRCLE: model gallery (the level's models in their bind pose): d-pad left / right previous / next model, right stick turns the
- * view, left stick up / down zooms. */
+ * Controls (free camera): left stick move, right stick look, L / R down / up, hold Cross to move faster.  SELECT tapped: next
+ * level; SELECT + L: the level before; SELECT + R: the figures on / off; SELECT + square: play / free camera; SELECT + circle: the
+ * model gallery (the level's models in their bind pose): d-pad left / right previous / next model, right stick turns the view,
+ * left stick up / down zooms.  Playing: see app/play.c (the PSP button layout). */
 #include "../core/ak_core.h"
 #include "../core/ak_vfs.h"
 #include "../core/ak_settings.h"
@@ -58,6 +58,22 @@ static bool gallery_blade(const ak_model_set *ms, const ak_model *body, const ak
     al = sqrtf(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]); if (al < 1e-6f) return false;
     for (int r = 0; r < 3; r++) { base[r] = G[r * 4] * lp[0] + G[r * 4 + 1] * lp[1] + G[r * 4 + 2] * lp[2] + G[r * 4 + 3]; tip[r] = base[r] + ax[r] / al; }
     return true;
+}
+
+/* the debug text: one colour that reads on the level's colours - black on the Vita (its screens show a blue backdrop behind
+ * the text), grey elsewhere; AK_DEBUG_TEXT_RGB (0xRRGGBB) overrides.  (The crosshair and lock marks keep their colours.) */
+static void dbg_text(f32 x, f32 y, u32 col, const char *s)
+{
+    static s32 c = -2; (void)col;
+    if (c == -2) {
+#ifdef __vita__
+        c = ak_setting_int("AK_DEBUG_TEXT_RGB", 0x000000);
+#else
+        c = ak_setting_int("AK_DEBUG_TEXT_RGB", 0xA0A0A0);
+#endif
+    }
+    u32 r = ((u32)c >> 16) & 255, g = ((u32)c >> 8) & 255, b = (u32)c & 255;
+    ak_gfx_text(x, y, 0xFF000000u | (b << 16) | (g << 8) | r, s);
 }
 
 int main(int argc, char **argv)
@@ -152,13 +168,29 @@ int main(int argc, char **argv)
         u64 now = ak_plat_time_us(); f32 dt = (now - last) / 1e6f; last = now;
         if (dt > 0.1f) dt = 0.1f;
         { f32 fdt = ak_setting_float("AK_FIXED_DT", 0); if (fdt > 0) dt = fdt; }   /* tests: a fixed step per frame */
-        if ((in.pressed & AK_BTN_START) || ((in.pressed & AK_BTN_TRIANGLE) && !(playing && play.ready))) {   /* (playing: triangle enters vehicles) */
+        /* SELECT is the menu button (START is left alone, so the Vita's PS + START screenshot does not change the level):
+         * a tap of SELECT on its own - the next level; held with L - the level before; with R - the debug text on / off;
+         * with square - play / free camera; with circle - the model gallery.  While SELECT is held those buttons do nothing else. */
+        static bool sel_was = false, sel_combo = false; int menu = 0;            /* 1 next level, 2 previous, 3 text, 4 play, 5 gallery */
+        {   bool sel = (in.held & AK_BTN_SELECT) != 0;
+            if (in.pressed & AK_BTN_SELECT) sel_combo = false;
+            if (sel) {
+                u32 pr = in.pressed;
+                if (pr & AK_BTN_L) menu = 2; else if (pr & AK_BTN_R) menu = 3; else if (pr & AK_BTN_SQUARE) menu = 4; else if (pr & AK_BTN_CIRCLE) menu = 5;
+                if (menu) sel_combo = true;
+                in.pressed &= ~(u32)(AK_BTN_L | AK_BTN_R | AK_BTN_SQUARE | AK_BTN_CIRCLE | AK_BTN_SELECT);
+                in.held &= ~(u32)(AK_BTN_L | AK_BTN_R | AK_BTN_SQUARE | AK_BTN_CIRCLE);
+            } else if (sel_was && !sel_combo) menu = 1;
+            sel_was = sel;
+            {   int tl = ak_setting_int("AK_TEST_NEXT_LEVEL", -1); if (tl >= 0 && tl == frame) menu = 1; }   /* (tests) */
+        }
+        if (menu == 1 || menu == 2) {
             ak_scene_models_free(&mscene); ak_scene_level_free(&scene); loaded = false;
-            cur = (in.pressed & AK_BTN_START) ? (cur + 1) % nlevels : (cur + nlevels - 1) % nlevels;
+            cur = menu == 1 ? (cur + 1) % nlevels : (cur + nlevels - 1) % nlevels;
             continue;
         }
-        if (in.pressed & AK_BTN_SELECT) show = !show;
-        if ((in.pressed & AK_BTN_CIRCLE) && !(playing && play.ready)) gallery_on = !gallery_on;   /* (playing: circle fires a vehicle's secondary) */
+        if (menu == 3) show = !show;
+        if (menu == 5) gallery_on = !gallery_on;
         /* the gallery model as a soldier (a Humanoid blueprint of that name): its head, its faction's colours */
         has_look = gallery_on && ngallery && ak_soldier_look_make(&bps, &models, models.models[gallery[gsel]].name, ghead, col1, col2, &look);
         if (gallery_on && (in.pressed & AK_BTN_L)) col1 = ((has_look ? look.colour1 : col1 < 0 ? 0 : col1) + 1) & 15;   /* personalisation: L colour 1, R colour 2 */
@@ -240,20 +272,20 @@ int main(int argc, char **argv)
             }
             if (show) {
                 char line[200];
-                snprintf(line, sizeof line, "Aurek %s  %s  %.1f fps  %.2f ms", AK_BUILD_ID, ak_gfx_name(), fps, frame_ms); ak_gfx_text(8, 8, 0xFFFFFFFF, line);
-                snprintf(line, sizeof line, "%s  model %u/%u: %s", levels[cur].label, gsel + 1, ngallery, m->name); ak_gfx_text(8, 26, 0xFFFFFFFF, line);
+                snprintf(line, sizeof line, "Aurek %s  %s  %.1f fps  %.2f ms", AK_BUILD_ID, ak_gfx_name(), fps, frame_ms); dbg_text(8, 8, 0xFFFFFFFF, line);
+                snprintf(line, sizeof line, "%s  model %u/%u: %s", levels[cur].label, gsel + 1, ngallery, m->name); dbg_text(8, 26, 0xFFFFFFFF, line);
                 snprintf(line, sizeof line, "parts %u  bones %u  vertices %u  triangles %u  size %.1f m", m->nparts,
-                         m->skeleton >= 0 ? models.skels[m->skeleton].nbones : 0, m->nvtx, m->nidx / 3, ext); ak_gfx_text(8, 44, 0xFFFFFFFF, line);
+                         m->skeleton >= 0 ? models.skels[m->skeleton].nbones : 0, m->nvtx, m->nidx / 3, ext); dbg_text(8, 44, 0xFFFFFFFF, line);
                 if (has_look) {
                     snprintf(line, sizeof line, "%s soldier  head %d: %s", ak_faction_name(look.faction), look.head_index + 1,
                              look.head >= 0 ? models.models[look.head].name : "none");
-                    ak_gfx_text(480, 26, 0xFFC0E0FF, line);
+                    dbg_text(480, 26, 0xFFC0E0FF, line);
                 }
                 int c1 = has_look ? look.colour1 : col1 < 0 ? 0 : col1, c2 = has_look ? look.colour2 : col2 < 0 ? 1 : col2;
                 if (clip) snprintf(line, sizeof line, "clip: %s  (%.2f s, %u keys)   colours %d / %d", clip->name, clip->duration, clip->nrot, c1, c2);
                 else snprintf(line, sizeof line, "clip: none (bind pose)   colours %d / %d", c1, c2);
-                ak_gfx_text(8, 62, 0xFFFFFFFF, line);
-                ak_gfx_text(8, 80, 0xFFC0C0C0, "d-pad: model, clip  L/R: colour 1/2  square: head  right stick: turn  left stick: zoom  circle: level");
+                dbg_text(8, 62, 0xFFFFFFFF, line);
+                dbg_text(8, 80, 0xFFC0C0C0, "d-pad: model, clip  L/R: colour 1/2  square: head  right stick: turn  left stick: zoom  SELECT: level");
             }
             ak_gfx_end(&gs);
             frame++; fps_frames++;
@@ -263,8 +295,8 @@ int main(int argc, char **argv)
             continue;
         }
 
-        {   /* scripted input timeline (tests, recordings): AK_TEST_SCRIPT = "frames:lx,ly,rx,ry,buttons; ..." - buttons: j jump, f fire, g get in/out (triangle),
-             * l L (j pressed on the segment's first frame; f, l held) */
+        {   /* scripted input timeline (tests, recordings): AK_TEST_SCRIPT = "frames:lx,ly,rx,ry,buttons; ..." - buttons (actions on the PSP layout):
+             * j jump (a tap of L on the segment's first frame), f fire, l lock on, s sprint, c secondary (held), g get in / out (d-pad up) */
             const char *sc = ak_setting_str("AK_TEST_SCRIPT", NULL);
             if (sc) {
                 int at = 0; const char *q = sc;
@@ -274,11 +306,14 @@ int main(int argc, char **argv)
                     if (!used) break;
                     if (frame >= at && frame < at + n) {
                         in.lx = a; in.ly = b; in.rx = c; in.ry = d;
-                        if (strchr(bt, 'f')) in.held |= AK_BTN_R;
-                        if (strchr(bt, 'l')) in.held |= AK_BTN_L;
-                        if (strchr(bt, 'c')) in.held |= AK_BTN_CIRCLE;                 /* c: a vehicle's secondary */
-                        if (frame == at && strchr(bt, 'j')) in.pressed |= AK_BTN_CROSS;
-                        if (frame == at && strchr(bt, 'g')) in.pressed |= AK_BTN_TRIANGLE;   /* g: get in / out */
+                        /* the letters name actions on the PSP layout: f fire (cross), l lock on (R), c secondary (square),
+                           s sprint (L held), j jump (a tap of L), g get in / out (d-pad up) */
+                        if (strchr(bt, 'f')) in.held |= AK_BTN_CROSS;
+                        if (strchr(bt, 'l')) in.held |= AK_BTN_R;
+                        if (strchr(bt, 'c')) in.held |= AK_BTN_SQUARE;
+                        if (strchr(bt, 's')) in.held |= AK_BTN_L;
+                        if (frame == at && strchr(bt, 'j')) { in.held |= AK_BTN_L; in.pressed |= AK_BTN_L; }
+                        if (frame == at && strchr(bt, 'g')) in.pressed |= AK_BTN_UP;
                     }
                     at += n; q += used; while (*q == ';' || *q == ' ') q++;
                 }
@@ -287,9 +322,9 @@ int main(int argc, char **argv)
         {   /* scripted input for headless tests: AK_TEST_MOVE = lx,ly,rx,ry (held), AK_TEST_JUMP = the frame to jump on */
             const char *tm = ak_setting_str("AK_TEST_MOVE", NULL);
             if (tm) sscanf(tm, "%f,%f,%f,%f", &in.lx, &in.ly, &in.rx, &in.ry);
-            if (ak_setting_int("AK_TEST_JUMP", -1) == frame) in.pressed |= AK_BTN_CROSS;
-            if (ak_setting_int("AK_TEST_FIRE", 0)) in.held |= AK_BTN_R;
-            if (ak_setting_int("AK_TEST_LOCK", 0)) in.held |= AK_BTN_L;
+            if (ak_setting_int("AK_TEST_JUMP", -1) == frame) { in.held |= AK_BTN_L; in.pressed |= AK_BTN_L; }   /* (a tap of L) */
+            if (ak_setting_int("AK_TEST_FIRE", 0)) in.held |= AK_BTN_CROSS;
+            if (ak_setting_int("AK_TEST_LOCK", 0)) in.held |= AK_BTN_R;
             if (playing && play.ready && shot && frame == shot_frame - 1)
             {   u32 th = 0, hs = 0, al[2], tot[2]; for (u32 i = 1; i <= play.nbots; i++) { th += play.target[i].hits; hs += play.target[i].headshots; }
                 ak_play_counts(&play, al, tot);
@@ -319,7 +354,7 @@ int main(int argc, char **argv)
                     AK_INFO("test", "turrets:%s", vl); }
             }
         }
-        if (in.pressed & AK_BTN_SQUARE) playing = !playing;               /* square: play (a soldier on foot) / free camera */
+        if (menu == 4) playing = !playing;                                  /* SELECT + square: play (a soldier on foot) / free camera */
         if (playing && !play.ready) {
             f32 st[3] = { cam.pos.x, cam.pos.y, cam.pos.z };
             if (!ak_play_init(&play, &level, &models, &bps, &lvl, ak_setting_str("AK_SOLDIER", "Stormtrooper"), st)) { AK_WARN("aurek", "no soldier for this level"); playing = false; }
@@ -381,36 +416,36 @@ int main(int argc, char **argv)
         }
         if (show) {
             char line[160];
-            snprintf(line, sizeof line, "Aurek %s  %s  %.1f fps  %.2f ms", AK_BUILD_ID, ak_gfx_name(), fps, frame_ms); ak_gfx_text(8, 8, 0xFFFFFFFF, line);
-            snprintf(line, sizeof line, "%s (%d/%d)  loaded in %.0f ms", levels[cur].label, cur + 1, nlevels, load_ms); ak_gfx_text(8, 26, 0xFFFFFFFF, line);
+            snprintf(line, sizeof line, "Aurek %s  %s  %.1f fps  %.2f ms", AK_BUILD_ID, ak_gfx_name(), fps, frame_ms); dbg_text(8, 8, 0xFFFFFFFF, line);
+            snprintf(line, sizeof line, "%s (%d/%d)  loaded in %.0f ms", levels[cur].label, cur + 1, nlevels, load_ms); dbg_text(8, 26, 0xFFFFFFFF, line);
             snprintf(line, sizeof line, "objects %u/%u  placed models %u/%u  draws %u  tris %u  submit %.2f ms  gpu wait %.2f ms", ss.objects_visible, ss.objects,
-                     ents_drawn, ents.placed, gs.draws, gs.tris, gs.cpu_submit_ms, gs.gpu_wait_ms); ak_gfx_text(8, 44, 0xFFFFFFFF, line);
-            snprintf(line, sizeof line, "pos %.1f %.1f %.1f  yaw %.2f pitch %.2f", cam.pos.x, cam.pos.y, cam.pos.z, cam.yaw, cam.pitch); ak_gfx_text(8, 62, 0xFFC0C0C0, line);
+                     ents_drawn, ents.placed, gs.draws, gs.tris, gs.cpu_submit_ms, gs.gpu_wait_ms); dbg_text(8, 44, 0xFFFFFFFF, line);
+            snprintf(line, sizeof line, "pos %.1f %.1f %.1f  yaw %.2f pitch %.2f", cam.pos.x, cam.pos.y, cam.pos.z, cam.yaw, cam.pitch); dbg_text(8, 62, 0xFFC0C0C0, line);
             if (playing && play.ready) {
-                static const char *sn[] = { "idle", "run", "back", "left", "right", "jump", "fall", "land" };
+                static const char *sn[] = { "idle", "run", "back", "left", "right", "jump", "fall", "land", "sprint" };
                 snprintf(line, sizeof line, "%s %s  %s  speed %.1f m/s  %s", ak_faction_name(play.look.faction), models.models[play.look.body].name, sn[play.state],
                          sqrtf(play.ch.vel[0] * play.ch.vel[0] + play.ch.vel[2] * play.ch.vel[2]), play.ch.on_ground ? "on the ground" : "in the air");
-                ak_gfx_text(8, 80, 0xFFC0E0FF, line);
+                dbg_text(8, 80, 0xFFC0E0FF, line);
                 if (play.armed) {
                     u32 al[2], tot[2]; ak_play_counts(&play, al, tot);
                     snprintf(line, sizeof line, "%s  ammo %d / %d%s  kills %u  deaths %u  soldiers up: %u / %u vs %u / %u",
                              play.wdef.name, play.weapon.ammo, play.weapon.spare, play.weapon.reload_t > 0 ? "  reloading" : "", play.kills, play.deaths,
                              al[play.team], tot[play.team], al[1 - play.team], tot[1 - play.team]);
-                    ak_gfx_text(8, 98, 0xFFC0E0FF, line);
+                    dbg_text(8, 98, 0xFFC0E0FF, line);
                 }
                 if (play.in_veh >= 0) {
                     const ak_vehicle *vh = &play.veh[play.in_veh];
-                    snprintf(line, sizeof line, "%s  armour %.0f / %.0f  speed %.0f m/s  triangle: get out  cross: boost  L: strafe", vh->def->name,
+                    snprintf(line, sizeof line, "%s  armour %.0f / %.0f  speed %.0f m/s  up: get out  L: boost  cross: fire  square: secondary", vh->def->name,
                              play.target[1 + play.nbots + play.in_veh].health, vh->def->health, sqrtf(vh->vel[0] * vh->vel[0] + vh->vel[2] * vh->vel[2]));
-                    ak_gfx_text(8, 152, 0xFFA0FFA0, line);
+                    dbg_text(8, 152, 0xFFA0FFA0, line);
                     if (vh->def->sec.armed) {                                 /* the secondary: ammo / reload, and the lock-on */
                         const ak_target *lt = vh->lock >= 0 ? &play.target[vh->lock] : NULL;
                         char lk[64] = "";
                         if (lt && vh->locked) snprintf(lk, sizeof lk, "  LOCKED");
                         else if (lt && vh->def->sec.tracks) snprintf(lk, sizeof lk, "  locking %.0f%%", 100.0f * vh->lock_t / (vh->def->lock_time > 0 ? vh->def->lock_time : 1));
-                        if (vh->sec_reload > 0) snprintf(line, sizeof line, "circle: %s  reloading %.1f s%s", vh->def->sec.weapon, vh->sec_reload, lk);
-                        else snprintf(line, sizeof line, "circle: %s  %d / %d%s", vh->def->sec.weapon, vh->sec_ammo, vh->def->sec.clip, lk);
-                        ak_gfx_text(8, 170, vh->locked ? 0xFF4040FF : 0xFFA0FFA0, line);
+                        if (vh->sec_reload > 0) snprintf(line, sizeof line, "square: %s  reloading %.1f s%s", vh->def->sec.weapon, vh->sec_reload, lk);
+                        else snprintf(line, sizeof line, "square: %s  %d / %d%s", vh->def->sec.weapon, vh->sec_ammo, vh->def->sec.clip, lk);
+                        dbg_text(8, 170, vh->locked ? 0xFF4040FF : 0xFFA0FFA0, line);
                         if (lt) {                                             /* a mark on the locked / locking target */
                             f32 X = lt->feet[0], Y = lt->feet[1] + lt->height * 0.5f, Z = lt->feet[2];
                             f32 cx = vp.m[0] * X + vp.m[4] * Y + vp.m[8] * Z + vp.m[12], cy = vp.m[1] * X + vp.m[5] * Y + vp.m[9] * Z + vp.m[13], cw = vp.m[3] * X + vp.m[7] * Y + vp.m[11] * Z + vp.m[15];
@@ -420,23 +455,23 @@ int main(int argc, char **argv)
                     }
                 } else {
                     s32 nv = -1; f32 bd = 1e30f;
-                    for (u32 v = 0; v < play.nveh; v++) { const ak_vehicle *vh = &play.veh[v]; if (!vh->def || !vh->alive || vh->driver >= 0) continue;
+                    for (u32 v = 0; v < play.nveh; v++) { const ak_vehicle *vh = &play.veh[v]; if (!vh->def || !vh->alive || vh->driver == 0 || (vh->driver > 0 && play.bot[vh->driver - 1].team != play.team)) continue;
                         if (!vh->def->drivable && !play.vspawn[v].route) continue;                  /* (only what can be boarded) */
                         if (play.vspawn[v].route && vh->team != play.team) continue;
                         f32 dx = vh->pos[0] - play.ch.pos[0], dz = vh->pos[2] - play.ch.pos[2], r = vh->def->radius + 3.0f; if (dx * dx + dz * dz < r * r && dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; nv = (s32)v; } }
                     s32 nt2 = -1;
                     for (u32 i = 0; i < play.nturret && play.in_turret < 0; i++) { const ak_turret *t = &play.turret[i]; if (!t->alive || !t->def->boardable || t->team != play.team) continue;
                         f32 dx = t->pos[0] - play.ch.pos[0], dz = t->pos[2] - play.ch.pos[2], r = t->rad + 2.5f; if (dx * dx + dz * dz < r * r && fabsf(t->pos[1] - play.ch.pos[1]) < 5.0f) nt2 = (s32)i; }
-                    if (play.in_turret >= 0) ak_gfx_text((f32)w * 0.5f - 100, (f32)h * 0.5f + 60, 0xFFFFFFFF, "triangle: leave the turret");
-                    else if (nt2 >= 0) { snprintf(line, sizeof line, "triangle: man the %s", play.turret[nt2].def->name); ak_gfx_text((f32)w * 0.5f - 100, (f32)h * 0.5f + 60, 0xFFFFFFFF, line); }
-                    else if (nv >= 0) { snprintf(line, sizeof line, "triangle: get in the %s", play.veh[nv].def->name); ak_gfx_text((f32)w * 0.5f - 100, (f32)h * 0.5f + 60, 0xFFFFFFFF, line); }
+                    if (play.in_turret >= 0) dbg_text((f32)w * 0.5f - 100, (f32)h * 0.5f + 60, 0xFFFFFFFF, "up: leave the turret");
+                    else if (nt2 >= 0) { snprintf(line, sizeof line, "up: man the %s", play.turret[nt2].def->name); dbg_text((f32)w * 0.5f - 100, (f32)h * 0.5f + 60, 0xFFFFFFFF, line); }
+                    else if (nv >= 0) { snprintf(line, sizeof line, "up: get in the %s", play.veh[nv].def->name); dbg_text((f32)w * 0.5f - 100, (f32)h * 0.5f + 60, 0xFFFFFFFF, line); }
                 }
                 if (play.have_cq) {
                     const ak_conquest *cq = &play.match; int me = play.team, them = 1 - me;
                     snprintf(line, sizeof line, "%s %d (%u posts)  -  %s %d (%u posts)  health %.0f%s%s", ak_faction_name(play.team_faction[me]), cq->tickets[me], cq->held[me],
                              ak_faction_name(play.team_faction[them]), cq->tickets[them], cq->held[them], play.health,
                              play.alive ? "" : "  down - back with the next wave", cq->all_team < 2 ? "  all posts held" : "");
-                    ak_gfx_text(8, 134, 0xFFFFE0A0, line);
+                    dbg_text(8, 134, 0xFFFFE0A0, line);
                     if (play.near_post >= 0) {
                         const ak_post_state *ps = &cq->post[play.near_post];
                         f32 f = ps->progress / play.cq.post[play.near_post].amount;
@@ -444,26 +479,26 @@ int main(int argc, char **argv)
                         else if (ps->owner == me) snprintf(line, sizeof line, "command post %d: ours  %.0f%%", play.near_post + 1, 100.0f * f);
                         else snprintf(line, sizeof line, "command post %d: %s  %s %.0f%%", play.near_post + 1, ps->owner == them ? "theirs" : "neutral",
                                       ps->owner == them ? "neutralising" : "capturing", 100.0f * (1.0f - f));
-                        ak_gfx_text((f32)w * 0.5f - 120, (f32)h * 0.5f + 40, 0xFFFFFFFF, line);
+                        dbg_text((f32)w * 0.5f - 120, (f32)h * 0.5f + 40, 0xFFFFFFFF, line);
                     }
                     if (cq->winner >= 0)
-                        ak_gfx_text((f32)w * 0.5f - 60, (f32)h * 0.5f - 60, 0xFFFFFFFF, cq->winner == me ? "VICTORY" : cq->winner == them ? "DEFEAT" : "DRAW");
+                        dbg_text((f32)w * 0.5f - 60, (f32)h * 0.5f - 60, 0xFFFFFFFF, cq->winner == me ? "VICTORY" : cq->winner == them ? "DEFEAT" : "DRAW");
                     {   const ak_play_hero *hm = &play.hero[me], *ht = &play.hero[them];   /* heroes: the offer, who plays them, the countdown */
                         if (hm->enabled && hm->offered == 0) {
                             snprintf(line, sizeof line, "become %s?  up: yes  down: no  (%.0f s)", hm->name, hm->decide);
-                            ak_gfx_text((f32)w * 0.5f - 150, (f32)h * 0.5f - 80, 0xFFFFE070, line);
+                            dbg_text((f32)w * 0.5f - 150, (f32)h * 0.5f - 80, 0xFFFFE070, line);
                         }
                         if (hm->enabled || ht->enabled) {
                             char a[64], b[64];
                             if (!hm->enabled) snprintf(a, sizeof a, "-"); else if (hm->unit == 0) snprintf(a, sizeof a, "you are %s", hm->name);
                             else if (hm->unit > 0) snprintf(a, sizeof a, "%s in the field", hm->name); else snprintf(a, sizeof a, "%s in %.0f s", hm->name, hm->timer > 0 ? hm->timer : 0);
                             if (!ht->enabled) snprintf(b, sizeof b, "-"); else if (ht->unit >= 0) snprintf(b, sizeof b, "%s in the field", ht->name); else snprintf(b, sizeof b, "%s in %.0f s", ht->name, ht->timer > 0 ? ht->timer : 0);
-                            snprintf(line, sizeof line, "heroes: %s  -  %s", a, b); ak_gfx_text(8, 152, 0xFFC0C0FF, line);
+                            snprintf(line, sizeof line, "heroes: %s  -  %s", a, b); dbg_text(8, 152, 0xFFC0C0FF, line);
                         }
                     }
                 }
-                ak_gfx_text(8, 116, 0xFFC0C0C0, play.twin_stick ? "left stick: move  right stick: aim  cross: jump  R: fire  L: lock on  square: free camera"
-                                                                : "left stick: move  right stick: turn  cross: jump  R: fire  L: lock on  square: free camera");
+                dbg_text(8, 116, 0xFFC0C0C0, play.psp_buttons ? "cross: fire  square: secondary  R: lock on  L: tap jump, hold sprint  up: get in / out  SELECT: next level (+L back, +R text, +square free camera)"
+                                                                : "R: fire  L: lock on  cross: jump  triangle: get in / out  SELECT: next level (+L back, +R text, +square free camera)");
 
             }
         }

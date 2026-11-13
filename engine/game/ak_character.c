@@ -15,6 +15,10 @@ void ak_char_params_load(const ak_blueprints *bp, ak_char_params *p)
     p->air_speed    = ak_bp_float(c, "max air speed", 4.0f);
     p->yaw_speed    = ak_bp_float(c, "yaw speed", 4.0f);
     p->pitch_speed  = ak_bp_float(c, "pitch speed", 5.0f);
+    /* sprint, traced (func 08993D38, at 0x08995A64..0x08995AD4): the speed limit is "max run speed"; while the sprint flag is set
+     * (and stamina lasts) it is "max sprint speed" instead, whose default (no blueprint sets it) is 12.0 (the constant at 0x08AEE7A8) */
+    p->sprint_speed = ak_bp_float(c, "max sprint speed", 12.0f);
+    p->yaw_sprint   = ak_bp_float(c, "yaw sprint modifier", 0.25f);
     p->gravity  = ak_setting_float("AK_GRAVITY", 10.0f);      /* the game's: see ak_character.h */
     p->accel    = ak_setting_float("AK_RUN_ACCEL", 30.0f);
     p->radius   = ak_setting_float("AK_BODY_RADIUS", 0.35f);
@@ -85,7 +89,9 @@ void ak_char_update(ak_character *c, const ak_char_params *p, const ak_collision
     f32 fwd[2] = { -sy, -cy }, right[2] = { cy, -sy };
     f32 mx = in->move_x, my = in->move_y, ml = sqrtf(mx * mx + my * my);
     if (ml > 1) { mx /= ml; my /= ml; }
-    f32 want[2] = { (fwd[0] * my + right[0] * mx) * p->run_speed, (fwd[1] * my + right[1] * mx) * p->run_speed };
+    if (c->on_ground) c->sprinting = in->sprint && my > 0.3f;                  /* (forward only; kept through a jump) */
+    f32 vmax = c->sprinting ? p->sprint_speed : p->run_speed;
+    f32 want[2] = { (fwd[0] * my + right[0] * mx) * vmax, (fwd[1] * my + right[1] * mx) * vmax };
     if (c->on_ground) {
         f32 dvx = want[0] - c->vel[0], dvz = want[1] - c->vel[2], dl = sqrtf(dvx * dvx + dvz * dvz), mxd = p->accel * dt;
         if (dl > mxd) { dvx *= mxd / dl; dvz *= mxd / dl; }
@@ -93,9 +99,9 @@ void ak_char_update(ak_character *c, const ak_char_params *p, const ak_collision
         if (in->jump) { c->vel[1] = p->jump_impulse; c->on_ground = false; c->jumped = true; c->air_time = 0; }
     } else {
         /* air control: a fraction of the ground response, capped at the air speed */
-        c->vel[0] += (want[0] - c->vel[0]) * p->air_control * p->accel * dt / p->run_speed;
-        c->vel[2] += (want[1] - c->vel[2]) * p->air_control * p->accel * dt / p->run_speed;
-        f32 hs = sqrtf(c->vel[0] * c->vel[0] + c->vel[2] * c->vel[2]), cap = p->air_speed > p->run_speed ? p->air_speed : p->run_speed;
+        c->vel[0] += (want[0] - c->vel[0]) * p->air_control * p->accel * dt / vmax;
+        c->vel[2] += (want[1] - c->vel[2]) * p->air_control * p->accel * dt / vmax;
+        f32 hs = sqrtf(c->vel[0] * c->vel[0] + c->vel[2] * c->vel[2]), cap = p->air_speed > vmax ? p->air_speed : vmax;
         if (hs > cap) { c->vel[0] *= cap / hs; c->vel[2] *= cap / hs; }
         c->vel[1] -= p->gravity * dt;
         c->air_time += dt;

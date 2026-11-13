@@ -25,6 +25,7 @@ typedef struct {
     ak_weapon_def gun, gun_bot; f32 volley, volley_bot;
     const char *muzzle[2]; f32 muzzle_time[2]; u32 nmuzzles;
     f32 face;                          /* +1: the parts face +z, -1: they face -z */
+    f32 cam_z, cam_y;                  /* the gunner's camera: CameraBestZ back, CameraBestY up (the game's defaults 20, 5) */
 } ak_turret_def;
 
 typedef struct {

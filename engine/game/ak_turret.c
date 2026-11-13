@@ -33,6 +33,7 @@ bool ak_turret_def_load(const ak_blueprints *bp, const ak_model_set *m, const ch
     d->health = ak_bp_float(o, "Health", 200);
     d->turn_rate = ak_bp_float(o, "MaxTurnYaw", 40) * DEG;
     d->pitch_min = ak_bp_float(o, "MinPivotX", -20) * DEG; d->pitch_max = ak_bp_float(o, "MaxPivotX", 20) * DEG;
+    d->cam_z = ak_bp_float(o, "CameraBestZ", 20.0f); d->cam_y = ak_bp_float(o, "CameraBestY", 5.0f);
     d->yaw_min = ak_bp_float(o, "MinPivotY", 0) * DEG;     d->yaw_max = ak_bp_float(o, "MaxPivotY", 0) * DEG;
     d->boardable = ak_bp_int(o, "Boardable", 1) != 0;
     /* the gun: HardpointW1 a Weapon (whose Projectile is the bolt) or the bolt itself; muzzles on the barrel */

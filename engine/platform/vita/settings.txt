@@ -5,19 +5,24 @@
 # them.  Nothing needs copying if the earlier port already runs.  ur0:data/libshacccg.suprx is needed once, to compile the shaders
 # at first start (cached in ux0:data/Aurek/shaders afterwards).
 #
-# Controls: left stick move, right stick look, L / R down / up, hold Cross to move faster,
-#           START next level, TRIANGLE previous level, SELECT figures on/off.  Log: ux0:data/Aurek/log.txt (one line per second).
-#           CIRCLE (free camera): model gallery (every model of the level in its bind pose): d-pad left / right previous / next model,
-#           right stick turns, left stick zooms, CIRCLE again back to the level.
-#           SQUARE: play (a soldier in a conquest match with bots) / free camera.  Playing: left stick move, right stick aim
-#           (twin stick), CROSS jump, R fire, L hold lock-on, TRIANGLE get in / out of a vehicle or man a turret of your side; START changes level (a new match
-#           starts; TRIANGLE goes back a level only in the free camera).  Driving: left stick throttle / steer, L held strafe, CROSS boost.
-#           Flying: left stick pitch (forward = nose down; AK_INVERT_Y flips it) and bank, CROSS boost, L held slow down, R fire; any
-#           input on the ground takes off, touching down slowly and level lands.  In any vehicle with a secondary weapon (torpedoes,
-#           missiles, bombs) CIRCLE fires it; keeping an enemy in the sights locks on (the HUD shows locking / LOCKED) and a tracking
-#           weapon then guides itself.  Bots take free vehicles of their side too.
-#           Heroes: when your side's hero is offered to you, d-pad UP takes it, DOWN declines (30 s to answer); a lightsaber hero
-#           strikes with R.
+# Controls (the PSP game's button layout; the sticks stay split: left moves, right aims):
+#   SELECT tapped: next level (a new match).  SELECT + L: the level before.  SELECT + R: figures / debug text on / off.
+#   SELECT + SQUARE: play (a soldier in a conquest match with bots) / free camera.  SELECT + CIRCLE: the model gallery.
+#   START does nothing, so PS + START screenshots never change the level.  Log: ux0:data/Aurek/log.txt (one line per second).
+#   On foot: CROSS fire, SQUARE secondary, R hold lock-on, L tap jump, L hold sprint (12 m/s, forward; not while firing or locked
+#            on), d-pad UP get in / out of a vehicle (a teammate bot driving it hands it over) or man a turret of your side.
+#            CIRCLE (roll) and TRIANGLE (zoom) are not in yet.
+#   Ground vehicles: left stick throttle / steer, right stick aims, CROSS fire, SQUARE secondary, L hold boost, UP get out.
+#   Starfighters: left stick pitch (forward = nose down; AK_INVERT_Y flips it) and bank, R accelerate (boost), L slow down,
+#            CROSS fire, SQUARE secondary; any input on the ground takes off, touching down slowly and level lands.  Keeping an
+#            enemy in the sights locks on (locking / LOCKED) and a tracking secondary then guides itself.
+#   Heroes: when your side's hero is offered to you, d-pad UP takes it, DOWN declines (30 s); a lightsaber hero strikes with CROSS.
+#   Free camera: left stick move, right stick look, L / R down / up, hold CROSS to move faster.
+#   Gallery: d-pad left / right model, up / down clip, right stick turns, left stick zooms.
+# button layout: psp (the game's, above) or legacy (R fire, L lock, CROSS jump, TRIANGLE get in)
+AK_BUTTONS=psp
+# debug text colour, 0xRRGGBB (black here: the Vita draws a blue backdrop behind it)
+AK_DEBUG_TEXT_RGB=0x000000
 
 # ---- start
 # level shown first, as "<ERA> <MAP>" (eras: CLASSIC, PREQUEL, CAMPAIGN)
@@ -80,6 +85,8 @@ AK_BOT_PASSIVE=0
 AK_VEHICLES=1
 # the steepest ground (degrees) a tank, walker or speeder can drive up; steeper faces (cliffs, bunker walls) stop it like a wall
 AK_VEH_MAX_SLOPE_DEG=40
+# command post hologram light: 0 = unlit .. 1 = full strength
+AK_POST_GLOW=0.75
 #AK_VEHICLE_RESPAWN=10
 # gravity (m/s^2): the game's is 10
 AK_GRAVITY=10

@@ -183,6 +183,7 @@ static int motion_state(const ak_character *ch, const ak_char_params *cp, bool w
     else if (*land_t > 0 && hs < 1.0f) st = PLAY_LAND;
     else if (hs < 0.5f) st = PLAY_IDLE;
     else if (fabsf(side) > fabsf(fwd)) st = side > 0 ? PLAY_LEFT : PLAY_RIGHT;   /* the clips are named from the other side: "_left" is the run to the right */
+    else if (ch->sprinting && fwd > 0.5f) st = PLAY_SPRINT;
     else st = fwd >= 0 ? PLAY_RUN : PLAY_BACK;
     *land_t -= dt; *hs_out = hs; (void)cp;
     return st;
@@ -192,6 +193,7 @@ static f32 clip_rate(int st, f32 hs, const ak_char_params *cp)
 {
     f32 rate = 1.0f;
     if (st == PLAY_RUN || st == PLAY_BACK || st == PLAY_LEFT || st == PLAY_RIGHT) rate = hs / cp->run_speed;   /* feet keep pace */
+    if (st == PLAY_SPRINT) rate = hs / cp->sprint_speed;
     return rate < 0.3f ? 0.3f : rate;
 }
 
@@ -307,17 +309,18 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     static const char *idle[] = { "Human_Rifle_Stand_Idle_lookaround2", "Human_Rifle_Stand_Idle_checkweap", NULL };
     static const char *run[] = { "Human_Rifle_Stand_RunForward", NULL }, *back[] = { "Human_Rifle_Stand_RunBackward", "Human_Rifle_Stand_WalkBackward", NULL };
     static const char *left[] = { "Human_Rifle_Stand_RunForward_left", NULL }, *right[] = { "Human_Rifle_Stand_RunForward_Right", NULL };
+    static const char *sprint[] = { "Human_Rifle_Stand_sprint_full", NULL };
     static const char *jump[] = { "Human_Rifle_jump", NULL }, *fall[] = { "Human_Rifle_JumpFall", NULL }, *land[] = { "Human_Rifle_Jump_Land_Soft", "Human_Rifle_Jump_Land", NULL };
     static const char *d1[] = { "Human_Rifle_Stand_Death_backwards", NULL }, *d2[] = { "Human_Rifle_Stand_Death_left", NULL }, *d3[] = { "Human_Rifle_Stand_Death_right", NULL };
     p->clip[PLAY_IDLE] = find_clip(m, idle); p->clip[PLAY_RUN] = find_clip(m, run); p->clip[PLAY_BACK] = find_clip(m, back);
     p->clip[PLAY_LEFT] = find_clip(m, left); p->clip[PLAY_RIGHT] = find_clip(m, right); p->clip[PLAY_JUMP] = find_clip(m, jump);
-    p->clip[PLAY_FALL] = find_clip(m, fall); p->clip[PLAY_LAND] = find_clip(m, land);
+    p->clip[PLAY_FALL] = find_clip(m, fall); p->clip[PLAY_LAND] = find_clip(m, land); p->clip[PLAY_SPRINT] = find_clip(m, sprint);
     p->idle_clip = p->clip[PLAY_IDLE]; p->death_clips[0] = find_clip(m, d1); p->death_clips[1] = find_clip(m, d2); p->death_clips[2] = find_clip(m, d3);
     /* the alert set (the game's generic_male table, set 5: rifle raised - when shooting or locked on) and its shoot layer; the
        relaxed body clips stay the ones above (set 4 is the same family) */
     memcpy(p->aclip, p->clip, sizeof p->aclip); p->shoot_clip = -1;
     {   const ak_anim_table *gt = ak_anim_table_find(m, "generic_male");
-        static const int row[PLAY_NCLIPS] = { [PLAY_IDLE] = 0, [PLAY_RUN] = 3, [PLAY_BACK] = 4, [PLAY_LEFT] = 5, [PLAY_RIGHT] = 6, [PLAY_JUMP] = 8, [PLAY_FALL] = 12, [PLAY_LAND] = 10 };
+        static const int row[PLAY_NCLIPS] = { [PLAY_IDLE] = 0, [PLAY_RUN] = 3, [PLAY_BACK] = 4, [PLAY_LEFT] = 5, [PLAY_RIGHT] = 6, [PLAY_JUMP] = 8, [PLAY_FALL] = 12, [PLAY_LAND] = 10, [PLAY_SPRINT] = 7 };
         if (gt && gt->sets > 5 && gt->cols > 1 && gt->rows > 12) {
             for (int k = 0; k < PLAY_NCLIPS; k++) if (AK_ATAB(gt, 5, row[k], 0) >= 0) p->aclip[k] = AK_ATAB(gt, 5, row[k], 0);
             p->shoot_clip = AK_ATAB(gt, 5, 0, 1);
@@ -326,6 +329,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     /* camera: the game's numbers, or the over-the-shoulder framing */
     const ak_bp_object *cam = ak_bp_find(bp, "Camera", "humanoid 3rd person");
     p->classic_cam = ak_setting_str("AK_CAM_STYLE", "modern")[0] == 'c';
+    p->psp_buttons = ak_setting_str("AK_BUTTONS", "psp")[0] != 'l';            /* psp (default) or legacy */
     p->pull_out_rate = ak_bp_float(cam, "pull out rate", 1.0f); p->pull_in_rate = ak_bp_float(cam, "pull in rate", 15.0f);
     if (p->classic_cam) {
         p->fov = (f32)ak_bp_int(cam, "fov", 60) * 3.14159265f / 180.0f;
@@ -516,6 +520,7 @@ static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set 
     p->sclip[PLAY_IDLE] = find_clip(m, sab_idle); p->sclip[PLAY_RUN] = find_clip(m, sab_run); p->sclip[PLAY_BACK] = find_clip(m, sab_back);
     p->sclip[PLAY_LEFT] = find_clip(m, sab_left); p->sclip[PLAY_RIGHT] = find_clip(m, sab_right);
     p->sclip[PLAY_JUMP] = p->clip[PLAY_JUMP]; p->sclip[PLAY_FALL] = p->clip[PLAY_FALL]; p->sclip[PLAY_LAND] = find_clip(m, sab_land);
+    p->sclip[PLAY_SPRINT] = p->sclip[PLAY_RUN];                                /* (sabres: the run, faster) */
     (void)sab_jump;
     for (int k = 0; k < PLAY_NCLIPS; k++) if (p->sclip[k] < 0) p->sclip[k] = p->clip[k];
     memset(p->fan, 0, sizeof p->fan); p->fan[0].unit = p->fan[1].unit = -1;
@@ -557,7 +562,7 @@ static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set 
            strafe, 8 jump, 13 land, 16 fall; 17-19 the attack combo */
         h->tab = ak_anim_table_find(m, ak_bp_string(o, "Animtable", "generic_male"));
         if (h->tab && h->tab->cols < 10) h->tab = NULL;                         /* (the soldiers' generic_male: they keep their own clips) */
-        static const int row[PLAY_NCLIPS] = { [PLAY_IDLE] = 0, [PLAY_RUN] = 3, [PLAY_BACK] = 4, [PLAY_LEFT] = 5, [PLAY_RIGHT] = 6, [PLAY_JUMP] = 8, [PLAY_FALL] = 16, [PLAY_LAND] = 13 };
+        static const int row[PLAY_NCLIPS] = { [PLAY_IDLE] = 0, [PLAY_RUN] = 3, [PLAY_BACK] = 4, [PLAY_LEFT] = 5, [PLAY_RIGHT] = 6, [PLAY_JUMP] = 8, [PLAY_FALL] = 16, [PLAY_LAND] = 13, [PLAY_SPRINT] = 3 };
         for (int k = 0; k < PLAY_NCLIPS; k++) {
             h->clip[k] = h->saber ? p->sclip[k] : p->clip[k];
             if (h->tab && row[k] < (int)h->tab->rows && AK_ATAB(h->tab, 0, row[k], 0) >= 0) h->clip[k] = AK_ATAB(h->tab, 0, row[k], 0);
@@ -723,7 +728,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     f32 dyaw = wrap(face - b->ch.yaw), mx = p->cp.yaw_speed * dt;
     b->ch.yaw += dyaw > mx ? mx : dyaw < -mx ? -mx : dyaw;
     /* the stick: toward `want`, relative to the facing; slower and strafing in a fight */
-    ak_char_input ci = { 0, 0, 0, 0, false };
+    ak_char_input ci = { 0, 0, 0, 0, false, false };
     f32 speed = en && !saber ? 0.55f : 1.0f;
     f32 rx = cosf(b->ch.yaw), rz = -sinf(b->ch.yaw), fx = -sinf(b->ch.yaw), fz = -cosf(b->ch.yaw);
     if (moving) { ci.move_x = (mdx * rx + mdz * rz) * speed; ci.move_y = (mdx * fx + mdz * fz) * speed; }
@@ -1580,10 +1585,52 @@ void ak_play_damage(ak_play *p, f32 amount)
     if (p->target[0].health <= 0) player_down(p);
 }
 
+/* The PSP game's button layout (its default "Infantry / Vehicle / Starfighter controls"), with the sticks kept as they are (left
+ * moves, right aims): cross fires, square the secondary, R locks on, L tapped jumps and held sprints, d-pad up gets in and out of a
+ * vehicle or turret (up / down answer a hero offer while one stands); in ground vehicles L held boosts; in starfighters R
+ * accelerates and L slows.  Circle (roll) and triangle (zoom) have no action yet.  This turns them into the actions the rest of the
+ * code reads (R fire, L lock / slow, cross jump / boost, triangle get in / out, circle secondary). */
+static ak_input psp_layout(ak_play *p, const ak_input *raw, f32 dt)
+{
+    if (!p->psp_buttons) return *raw;
+    ak_input g = *raw; g.held = g.pressed = 0;
+    u32 H = raw->held, P = raw->pressed;
+    bool driving = p->in_veh >= 0, flyer = driving && p->veh[p->in_veh].def->kind == AK_VEH_FLYER;
+    if (H & AK_BTN_CROSS) g.held |= AK_BTN_R;
+    if (P & AK_BTN_CROSS) g.pressed |= AK_BTN_R;
+    if (H & AK_BTN_SQUARE) g.held |= AK_BTN_CIRCLE;
+    if (P & AK_BTN_SQUARE) g.pressed |= AK_BTN_CIRCLE;
+    if (p->hero[p->team].offered == 0) g.pressed |= P & (AK_BTN_UP | AK_BTN_DOWN);
+    else if (P & AK_BTN_UP) g.pressed |= AK_BTN_TRIANGLE;
+    g.pressed |= P & (AK_BTN_LEFT | AK_BTN_RIGHT);
+    p->sprint = false;
+    if (driving) {
+        if (flyer) { if (H & AK_BTN_L) g.held |= AK_BTN_L; if (H & AK_BTN_R) g.held |= AK_BTN_CROSS; }
+        else if (H & AK_BTN_L) g.held |= AK_BTN_CROSS;
+        p->l_was = false; p->l_t = 0;
+    } else {
+        if (H & AK_BTN_R) g.held |= AK_BTN_L;
+        if (P & AK_BTN_R) g.pressed |= AK_BTN_L;
+        if (P & AK_BTN_L) p->l_t = 0;
+        if (H & AK_BTN_L) p->l_t += dt;
+        else if (p->l_was && p->l_t < 0.2f) g.pressed |= AK_BTN_CROSS;       /* a tap: jump */
+        p->l_was = (H & AK_BTN_L) != 0;
+        p->sprint = p->l_was && p->l_t >= 0.2f && !(H & (AK_BTN_CROSS | AK_BTN_R));   /* held: sprint (not while firing or locked on) */
+    }
+    return g;
+}
+
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt)
 {
     if (!p->ready) return;
     p->clock += dt;
+    static ak_input mapped; mapped = psp_layout(p, in, dt); in = &mapped;
+    if (ak_setting_int("AK_TEST_TAKEOVER", 0) && p->in_veh < 0 && p->alive)   /* tests: stand beside a vehicle a teammate bot drives */
+        for (u32 v = 0; v < p->nveh; v++) { const ak_vehicle *vh = &p->veh[v];
+            if (vh->alive && vh->driver > 0 && p->bot[vh->driver - 1].team == p->team) {
+                f32 at[3] = { vh->pos[0] + vh->def->radius + 1.0f, vh->pos[1], vh->pos[2] }; ak_char_spawn(&p->ch, at, p->ch.yaw);
+                if (ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "beside %s (bot %d drives)", vh->def->name, vh->driver - 1);
+                break; } }
     static const ak_input none;
     if (!p->alive) in = &none;                                               /* down: no control until the spawn wave */
     const ak_input *vin = in;                                                 /* the controls, for the vehicle when driving */
@@ -1615,12 +1662,15 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         } else {
             s32 best = -1; f32 bd = 1e30f;
             for (u32 v = 0; v < p->nveh; v++) {
-                const ak_vehicle *vh = &p->veh[v]; if (!vh->alive || vh->driver >= 0 || (!vh->def->drivable && !p->vspawn[v].route) || (p->vspawn[v].route && vh->team != p->team)) continue;   /* (a placed walker: its gunner's seat) */
+                const ak_vehicle *vh = &p->veh[v];
+                bool mate = vh->driver > 0 && p->bot[vh->driver - 1].team == p->team;   /* a teammate bot's: it hands the vehicle over */
+                if (!vh->alive || (vh->driver >= 0 && !mate) || (!vh->def->drivable && !p->vspawn[v].route) || (p->vspawn[v].route && vh->team != p->team)) continue;   /* (a placed walker: its gunner's seat) */
                 f32 dx = vh->pos[0] - p->ch.pos[0], dz = vh->pos[2] - p->ch.pos[2], d2 = dx * dx + dz * dz, r = vh->def->radius + 3.0f;
                 if (d2 < r * r && d2 < bd && fabsf(vh->pos[1] - p->ch.pos[1]) < 4) { bd = d2; best = (s32)v; }
             }
             if (ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "get in: nearest %d (soldier at %.1f %.1f %.1f)", best, p->ch.pos[0], p->ch.pos[1], p->ch.pos[2]);
             if (best >= 0) {
+                if (p->veh[best].driver > 0) { u32 bi = (u32)(p->veh[best].driver - 1); bot_exit(p, &p->bot[bi], bi); }
                 ak_vehicle *vh = &p->veh[best]; vh->driver = 0; vh->team = p->team; vh->aim_yaw = vh->aim_pitch = 0;
                 p->target[VT(p, best)].team = p->team; p->in_veh = best; p->target[0].alive = false; p->lock = -1; p->cam_dist = vh->def->cam_z;
             }
@@ -1629,12 +1679,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (p->in_veh >= 0) in = &none;                                           /* the soldier stands still inside */
     static ak_input manned; if (p->in_turret >= 0) { manned = *in; manned.lx = manned.ly = 0; manned.pressed &= ~AK_BTN_CROSS; in = &manned; }   /* a gunner aims only */
     /* the soldier's pitch is positive looking down (the camera uses -pitch): stick up looks up unless AK_INVERT_Y */
-    ak_char_input ci = { in->lx, in->ly, in->rx, p->invert_y ? in->ry : -in->ry, (in->pressed & AK_BTN_CROSS) != 0 };
+    ak_char_input ci = { in->lx, in->ly, in->rx, p->invert_y ? in->ry : -in->ry, (in->pressed & AK_BTN_CROSS) != 0, p->sprint && p->in_turret < 0 };
     if (p->twin_stick) {
         /* free aim with a response curve (fine near the centre, fast at the edge); the body turns with the aim */
         f32 ax = in->rx, ay = p->invert_y ? in->ry : -in->ry;
         f32 cx = copysignf(powf(fabsf(ax), p->aim_curve), ax), cy = copysignf(powf(fabsf(ay), p->aim_curve), ay);
-        p->ch.yaw -= cx * p->aim_yaw_speed * dt; p->ch.pitch += cy * p->aim_pitch_speed * dt;
+        p->ch.yaw -= cx * p->aim_yaw_speed * (p->ch.sprinting ? p->cp.yaw_sprint : 1.0f) * dt; p->ch.pitch += cy * p->aim_pitch_speed * dt;   /* (sprinting: the game's yaw sprint modifier) */
         if (p->ch.pitch > 1.35f) p->ch.pitch = 1.35f;
         if (p->ch.pitch < -1.35f) p->ch.pitch = -1.35f;
         ci.look_x = ci.look_y = 0;
@@ -1959,8 +2009,9 @@ static void camera_for(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32
 {
     if (p->in_turret >= 0 && !p->classic_cam) {                               /* manning a turret: behind and above its pivot, along the aim */
         f32 y = p->ch.yaw, pt = -p->ch.pitch, fwd[3] = { -sinf(y) * cosf(pt), sinf(pt), -cosf(y) * cosf(pt) };
-        f32 back = 5.0f + p->turret[p->in_turret].rad, up = 1.5f;
-        f32 want[3] = { -fwd[0] * back, -fwd[1] * back + up, -fwd[2] * back }, wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]);
+        const ak_turret_def *td = p->turret[p->in_turret].def;               /* the blueprint's gunner camera: CameraBestZ back, CameraBestY up */
+        f32 back = td->cam_z, up = td->cam_y, fl = sqrtf(fwd[0] * fwd[0] + fwd[2] * fwd[2]) + 1e-6f;
+        f32 want[3] = { -fwd[0] / fl * back, up, -fwd[2] / fl * back }, wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]);
         f32 dir[3] = { want[0] / wl, want[1] / wl, want[2] / wl }, lim = wl; ak_col_hit h;
         if (ak_col_raycast(&p->col, p->ch.pos, dir, wl, AK_COL_NOT_BODIES, &h)) lim = h.t - 0.3f;
         if (lim < 0.5f) lim = 0.5f;
@@ -2051,7 +2102,8 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
             if (ps->owner < 2) { side = ps->owner == p->team ? 0 : 1; k = ps->progress / full; }
             else if (ps->capturing < 2) { side = ps->capturing == p->team ? 0 : 1; k = 1 - ps->progress / full; }
             k = k < 0 ? 0 : k > 1 ? 1 : k;
-            f32 col[4]; for (int c = 0; c < 4; c++) col[c] = tc[2][c] + (tc[side][c] - tc[2][c]) * k;
+            static f32 glow = -1; if (glow < 0) glow = ak_setting_float("AK_POST_GLOW", 0.75f);   /* the light's strength: 0 unlit .. 1 full */
+            f32 col[4]; for (int c = 0; c < 4; c++) col[c] = (tc[2][c] + (tc[side][c] - tc[2][c]) * k) * (c < 3 ? glow : 1.0f);
             const f32 *pp = p->cq.post[i].pos;
             ak_gfx_set_tint(col);
             ak_scene_force_pipe(AK_PIPE_ADD);                                  /* the hologram is light: additive, unlit */

@@ -79,7 +79,7 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     d->max_acc = ak_bp_float(o, "MaxAcc", 15); d->boost_acc = ak_bp_float(o, "BoostAcc", 30); d->strafe_acc = ak_bp_float(o, "MaxStrafeAcc", 0);
     d->vel_damp = ak_bp_float(o, "VelDamp", 1.5f); d->turn_rate = ak_bp_float(o, "MaxTurnYaw", 85) * DEG;
     d->roll_deg = ak_bp_float(o, "CosmeticRoll", 0);
-    d->health = ak_bp_float(o, "Health", 800); d->cam_z = ak_bp_float(o, "CameraBestZ", 12); d->cam_y = ak_bp_float(o, "CameraBestY", 4);
+    d->health = ak_bp_float(o, "Health", 800); d->cam_z = ak_bp_float(o, "CameraBestZ", 20); d->cam_y = ak_bp_float(o, "CameraBestY", 5);   /* (defaults: the game's, 0x08AEEE24 / 0x08AEEE2C) */
     d->target_range = ak_bp_float(o, "TargetRange", 100);
     const ak_model *md = &m->models[d->model];
     f32 wx = md->bmax[0] - md->bmin[0], wz = md->bmax[2] - md->bmin[2];
