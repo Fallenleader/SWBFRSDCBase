@@ -10,7 +10,7 @@
 #           CIRCLE (free camera): model gallery (every model of the level in its bind pose): d-pad left / right previous / next model,
 #           right stick turns, left stick zooms, CIRCLE again back to the level.
 #           SQUARE: play (a soldier in a conquest match with bots) / free camera.  Playing: left stick move, right stick aim
-#           (twin stick), CROSS jump, R fire, L hold lock-on, TRIANGLE get in / out of a vehicle; START changes level (a new match
+#           (twin stick), CROSS jump, R fire, L hold lock-on, TRIANGLE get in / out of a vehicle or man a turret of your side; START changes level (a new match
 #           starts; TRIANGLE goes back a level only in the free camera).  Driving: left stick throttle / steer, L held strafe, CROSS boost.
 #           Flying: left stick pitch (forward = nose down; AK_INVERT_Y flips it) and bank, CROSS boost, L held slow down, R fire; any
 #           input on the ground takes off, touching down slowly and level lands.  In any vehicle with a secondary weapon (torpedoes,
@@ -78,6 +78,8 @@ AK_BOT_VEHICLES=0.6
 AK_BOT_PASSIVE=0
 # vehicles at the levels' vehicle spawns (1 = on); seconds before a wreck's spawn makes a new one (unset = each spawn's own, 10 s)
 AK_VEHICLES=1
+# the steepest ground (degrees) a tank, walker or speeder can drive up; steeper faces (cliffs, bunker walls) stop it like a wall
+AK_VEH_MAX_SLOPE_DEG=40
 #AK_VEHICLE_RESPAWN=10
 # gravity (m/s^2): the game's is 10
 AK_GRAVITY=10

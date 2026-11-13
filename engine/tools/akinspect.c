@@ -1,6 +1,7 @@
 /* akinspect: load a level with the native engine's loaders and report what it holds.
  *   akinspect <LEVEL.PSP> [--obj out.obj] [--tex out_dir]
  * --obj writes the level geometry (engine axes) as Wavefront OBJ, one group per batch; --tex writes every texture as PPM/PAM. */
+#define BODY_IGNORE_I (AK_COL_NOT_BODIES | AK_COL_NOT_SOLDIERS)
 #include "../assets/asura.h"
 #include "../assets/model.h"
 #include "../assets/entity.h"
@@ -211,6 +212,72 @@ int main(int argc, char **argv)
                                 for (int k = 0; k < 5; k++) { f32 o[3] = { x, top, z }, d[3] = { 0, -1, 0 }; ak_col_hit h; if (!ak_col_raycast(&col, o, d, 80, 0, &h)) break;
                                     printf("  %.2f (n.y %.2f fl %04x)", h.pos[1], h.normal[1], h.flags); top = h.pos[1] - 0.01f; }
                                 printf("\n"); } }
+                        {   /* false blocks: a soldier that stops though the way ahead is a low step with no wall */
+                            u32 runs = 0, blocked = 0, shown = 0, knee = 0; u32 r3 = 99;
+                            for (int r = 0; r < 3000 && nav.nnode; r++) {
+                                r3 = r3 * 1103515245u + 12345u; const ak_nav_node *nn = &nav.node[(r3 >> 8) % nav.nnode];
+                                r3 = r3 * 1103515245u + 12345u; f32 yaw = (r3 >> 8) % 6283 / 1000.0f, off = (r3 >> 20) % 800 / 100.0f;
+                                f32 s0[3] = { nn->pos[0] - sinf(yaw + 1.3f) * off, nn->pos[1], nn->pos[2] - cosf(yaw + 1.3f) * off }, gy;
+                                if (!ak_char_ground_below(&col, s0, 3.0f, &gy)) continue;
+                                ak_character ch; s0[1] = gy; ak_char_spawn(&ch, s0, yaw); ak_char_input ci = { 0, 1, 0, 0, false };
+                                for (int f = 0; f < 10; f++) ak_char_update(&ch, &cp, &col, &(ak_char_input){ 0 }, 1.0f / 60.0f);   /* settle */
+                                if (!ch.on_ground) continue;
+                                f32 a0[3] = { ch.pos[0], ch.pos[1], ch.pos[2] }; runs++;
+                                for (int f = 0; f < 60; f++) ak_char_update(&ch, &cp, &col, &ci, 1.0f / 60.0f);
+                                f32 dx = ch.pos[0] - a0[0], dz = ch.pos[2] - a0[2];
+                                if (dx * dx + dz * dz > 1.0f || !ch.on_ground) continue;
+                                /* why: the ground over the next 1.2 m and a wall ray at knee, chest and head height */
+                                f32 fx = -sinf(yaw), fz = -cosf(yaw), rise = -1e9f, base = ch.pos[1]; bool hole = false;
+                                for (int k = 1; k <= 6; k++) { f32 q[3] = { ch.pos[0] + fx * 0.2f * k, base + 1.6f, ch.pos[2] + fz * 0.2f * k }, g;
+                                    ak_col_hit hh; f32 dn[3] = { 0, -1, 0 };
+                                    if (ak_col_raycast(&col, q, dn, 3.0f, BODY_IGNORE_I, &hh)) { g = hh.pos[1] - base; if (g > rise) rise = g; if (hh.normal[1] < cp.walkable) rise = 9; } else hole = true; }
+                                bool wall = false; f32 hs[3] = { 0.5f, 1.0f, 1.6f };
+                                for (int k = 0; k < 3; k++) { f32 o[3] = { ch.pos[0], base + hs[k], ch.pos[2] }, dd[3] = { fx, 0, fz }; ak_col_hit hh; if (ak_col_raycast(&col, o, dd, cp.radius + 0.6f, BODY_IGNORE_I, &hh)) wall = true; }
+                                { bool upper = false; for (int k = 1; k < 3; k++) { f32 o[3] = { ch.pos[0], base + hs[k], ch.pos[2] }, dd[3] = { fx, 0, fz }; ak_col_hit hh; if (ak_col_raycast(&col, o, dd, cp.radius + 0.6f, BODY_IGNORE_I, &hh)) upper = true; }
+                                  if (!upper && !hole && rise > cp.step && rise < 1.0f) { knee++; if (getenv("AK_WALK_DEBUG") && knee < 8) printf("  knee-high edge at %.2f %.2f %.2f facing %.2f (rises %.2f m)\n", ch.pos[0], ch.pos[1], ch.pos[2], yaw, rise); }
+                                }
+                                if (wall || hole || rise > cp.step) continue;
+                                blocked++;
+                                if (getenv("AK_WALK_DEBUG") && shown++ < 20) printf("  false block at %.2f %.2f %.2f facing %.2f (ground ahead rises %.2f m)\n", ch.pos[0], ch.pos[1], ch.pos[2], yaw, rise);
+                            }
+                            printf("blocks     %u one-second runs: %u stopped with no wall or high step ahead, %u at a knee-high edge (%.2f..1 m, open above)\n", runs, blocked, knee, cp.step);
+                        }
+                        if (getenv("AK_NAVPATH")) { f32 A[3], B[3]; if (sscanf(getenv("AK_NAVPATH"), "%f,%f,%f,%f,%f,%f", &A[0], &A[1], &A[2], &B[0], &B[1], &B[2]) == 6) {
+                            s32 s = ak_nav_nearest(&nav, A, 40), g = ak_nav_nearest(&nav, B, 40); static u32 out[4096]; f32 cost;
+                            u32 k = s >= 0 && g >= 0 ? ak_nav_path(&nav, (u32)s, (u32)g, 0, out, 4096, &cost, &a) : 0;
+                            for (u32 q = 0; q < k; q++) printf("  navpath %.1f %.1f %.1f\n", nav.node[out[q]].pos[0], nav.node[out[q]].pos[1], nav.node[out[q]].pos[2]); } }
+                        if (getenv("AK_PICK")) { f32 P[5]; if (sscanf(getenv("AK_PICK"), "%f,%f,%f,%f,%f", &P[0], &P[1], &P[2], &P[3], &P[4]) == 5)
+                            for (int s = -6; s <= 6; s++) { f32 yw = P[3] + s * 0.08f, d[3] = { -sinf(yw) * cosf(P[4]), sinf(P[4]), -cosf(yw) * cosf(P[4]) }, best = 1e9f; s32 bb = -1; u32 bt = 0;
+                                const ak_level_geom *g = &l.geom;
+                                for (u32 b = 0; b < g->nbatch; b++) for (u32 t = g->batch[b].first; t + 2 < g->batch[b].first + g->batch[b].count; t += 3) {
+                                    const f32 *A = g->vtx[g->idx[t]].pos, *B = g->vtx[g->idx[t + 1]].pos, *C = g->vtx[g->idx[t + 2]].pos;
+                                    f32 e1[3] = { B[0] - A[0], B[1] - A[1], B[2] - A[2] }, e2[3] = { C[0] - A[0], C[1] - A[1], C[2] - A[2] };
+                                    f32 pv[3] = { d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0] }, det = e1[0] * pv[0] + e1[1] * pv[1] + e1[2] * pv[2];
+                                    if (fabsf(det) < 1e-9f) continue;
+                                    f32 inv = 1 / det, tv[3] = { P[0] - A[0], P[1] - A[1], P[2] - A[2] };
+                                    f32 u = (tv[0] * pv[0] + tv[1] * pv[1] + tv[2] * pv[2]) * inv; if (u < 0 || u > 1) continue;
+                                    f32 qv[3] = { tv[1] * e1[2] - tv[2] * e1[1], tv[2] * e1[0] - tv[0] * e1[2], tv[0] * e1[1] - tv[1] * e1[0] };
+                                    f32 vv = (d[0] * qv[0] + d[1] * qv[1] + d[2] * qv[2]) * inv; if (vv < 0 || u + vv > 1) continue;
+                                    f32 tt = (e2[0] * qv[0] + e2[1] * qv[1] + e2[2] * qv[2]) * inv; if (tt > 0.05f && tt < best) { best = tt; bb = (s32)b; bt = t; } }
+                                if (bb < 0) { printf("  pick %+.2f: nothing\n", s * 0.08f); continue; }
+                                const ak_batch *B = &g->batch[bb]; const ak_material *mt = B->material < l.nmat ? &l.mat[B->material] : NULL;
+                                const ak_vtx *V = &g->vtx[g->idx[bt]];
+                                printf("  pick %+.2f: %.1f m  object %u layer %u material %u flags %05x mode %d tex %s  col %u %u %u %u\n", s * 0.08f, best, B->object, B->layer, B->material,
+                                       mt ? mt->flags : 0, mt ? mt->mode : 0, mt && mt->texture >= 0 ? l.tex[mt->texture].name : "-", V->col[0], V->col[1], V->col[2], V->col[3]); } }
+                        if (getenv("AK_MATS")) for (u32 mi = 0; mi < l.nmat; mi++) { const ak_material *mt = &l.mat[mi]; double cs = 0; u32 cn = 0;
+                            for (u32 b = 0; b < l.geom.nbatch; b++) if (l.geom.batch[b].material == mi && l.geom.batch[b].layer == 0) for (u32 t = l.geom.batch[b].first; t < l.geom.batch[b].first + l.geom.batch[b].count; t++) { const u8 *c = l.geom.vtx[l.geom.idx[t]].col; cs += (c[0] + c[1] + c[2]) / 3.0; cn++; }
+                            printf("  mat %2u flags %05x mode %2d extra %3d tex %d %d %d %d %d %d  verts %5u mean col %5.1f  %s\n", mi, mt->flags, mt->mode, mt->extra, mt->tex[0], mt->tex[1], mt->tex[2], mt->tex[3], mt->tex[4], mt->tex[5], cn, cn ? cs / cn : 0, mt->texture >= 0 ? l.tex[mt->texture].name : "-"); }
+                        if (getenv("AK_TRIS_NEAR")) { f32 P[4]; if (sscanf(getenv("AK_TRIS_NEAR"), "%f,%f,%f,%f", &P[0], &P[1], &P[2], &P[3]) == 4) {
+                            const ak_level_geom *g = &l.geom;
+                            for (u32 b = 0; b < g->nbatch; b++) for (u32 t = g->batch[b].first; t + 2 < g->batch[b].first + g->batch[b].count; t += 3) {
+                                const ak_vtx *A = &g->vtx[g->idx[t]], *B = &g->vtx[g->idx[t + 1]], *C = &g->vtx[g->idx[t + 2]];
+                                f32 c[3] = { (A->pos[0] + B->pos[0] + C->pos[0]) / 3, (A->pos[1] + B->pos[1] + C->pos[1]) / 3, (A->pos[2] + B->pos[2] + C->pos[2]) / 3 };
+                                if ((c[0] - P[0]) * (c[0] - P[0]) + (c[1] - P[1]) * (c[1] - P[1]) + (c[2] - P[2]) * (c[2] - P[2]) > P[3] * P[3]) continue;
+                                f32 e1[3] = { B->pos[0] - A->pos[0], B->pos[1] - A->pos[1], B->pos[2] - A->pos[2] }, e2[3] = { C->pos[0] - A->pos[0], C->pos[1] - A->pos[1], C->pos[2] - A->pos[2] };
+                                f32 cx = e1[1] * e2[2] - e1[2] * e2[1], cy = e1[2] * e2[0] - e1[0] * e2[2], cz = e1[0] * e2[1] - e1[1] * e2[0], wa = 0.5f * sqrtf(cx * cx + cy * cy + cz * cz);
+                                f32 ua = 0.5f * fabsf((B->uv[0] - A->uv[0]) * (C->uv[1] - A->uv[1]) - (C->uv[0] - A->uv[0]) * (B->uv[1] - A->uv[1]));
+                                printf("  tri b%u o%u m%u ov%u area %.2f uvarea %.4f dens %.4f  uv (%.2f %.2f) (%.2f %.2f) (%.2f %.2f) at %.1f %.1f %.1f\n", b, g->batch[b].object, g->batch[b].material, g->batch[b].overlay, wa, ua, wa > 1e-6f ? ua / wa : 0,
+                                       A->uv[0], A->uv[1], B->uv[0], B->uv[1], C->uv[0], C->uv[1], c[0], c[1], c[2]); } } }
                         printf("on links   %u navigation links walked: %u not completed\n", tried, fails);
                     }
                     printf("on foot    %u soldiers x 20 s of random running and jumping: %u fell out of the world, %u stayed within 2 m, on the ground %.0f%% of the time, %.1f m from the start on average, %.2f ms per soldier-second\n",
