@@ -45,6 +45,21 @@ static void find_levels(ak_vfs *v, ak_arena *tmp)
 
 typedef struct { ak_v3 pos; f32 yaw, pitch; } camera;
 
+/* tests: where a held lightsaber's blade is at clip time t (gallery: the motion fan from the clip itself) */
+static bool gallery_blade(const ak_model_set *ms, const ak_model *body, const ak_anim_clip *clip, f32 t, s32 wm, f32 base[3], f32 tip[3])
+{
+    static ak_quat q[512]; static f32 lt[512][3], b[512][12];
+    if (body->skeleton < 0 || wm < 0) return false;
+    const ak_skeleton *sk = &ms->skels[body->skeleton]; const ak_marker *gm = ak_model_marker(body, "gun");
+    if (!gm || sk->nbones > 512) return false;
+    if (clip) { ak_anim_sample(clip, sk, t, true, q, lt); ak_skeleton_pose_matrices(sk, q, (const f32 (*)[3])lt, b); } else ak_skeleton_bind_matrices(sk, b);
+    f32 G[12], lp[3], ld[3], ax[3], al; ak_marker_matrix(b[gm->bone], gm, G); ak_model_long_axis(&ms->models[wm], lp, ld);
+    for (int r = 0; r < 3; r++) ax[r] = G[r * 4] * ld[0] + G[r * 4 + 1] * ld[1] + G[r * 4 + 2] * ld[2];
+    al = sqrtf(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]); if (al < 1e-6f) return false;
+    for (int r = 0; r < 3; r++) { base[r] = G[r * 4] * lp[0] + G[r * 4 + 1] * lp[1] + G[r * 4 + 2] * lp[2] + G[r * 4 + 3]; tip[r] = base[r] + ax[r] / al; }
+    return true;
+}
+
 int main(int argc, char **argv)
 {
     if (!ak_plat_init()) return 1;
@@ -212,7 +227,14 @@ int main(int argc, char **argv)
                         for (int r = 0; r < 3; r++) { a[r] = G[r * 4] * lp[0] + G[r * 4 + 1] * lp[1] + G[r * 4 + 2] * lp[2] + G[r * 4 + 3]; c[r] = a[r] + ax[r] / al; }
                         f32 e3[3] = { eye.x, eye.y, eye.z }; static ak_vtx bv[AK_BEAM_VERTS];
                         u32 nb = ak_beam(bv, a, c, 0.3f * 0.25f, e3, (u32)ak_setting_int("AK_GALLERY_BLADE_RGB", (int)0xFFFF2020u), 255, 255);
-                        ak_gfx_set_transform(NULL); if (nb) ak_gfx_draw_immediate(AK_PIPE_BEAM, NULL, bv, nb);
+                        ak_gfx_set_transform(NULL);
+                        if (clip && ak_setting_int("AK_GALLERY_FAN", 1)) {               /* the motion fan over the last 8 frames of the clip */
+                            f32 fb[8][3], ft[8][3], fa[8]; u32 nf = 0; static ak_vtx fv[8 * 6 * 6];
+                            for (u32 k = 0; k < 8; k++) if (gallery_blade(&models, m, clip, anim_t - (f32)k / 60.0f, wm, fb[nf], ft[nf])) { fa[nf] = (f32)k / 60.0f; nf++; }
+                            u32 nfv = ak_saber_fan(fv, sizeof fv / sizeof fv[0], (const f32 (*)[3])fb, (const f32 (*)[3])ft, fa, nf, 0.12f, (u32)ak_setting_int("AK_GALLERY_BLADE_RGB", (int)0xFFFF2020u));
+                            if (nfv) ak_gfx_draw_immediate(AK_PIPE_BEAM, NULL, fv, nfv);
+                        }
+                        if (nb) ak_gfx_draw_immediate(AK_PIPE_BEAM, NULL, bv, nb);
                     }
                 }
             }

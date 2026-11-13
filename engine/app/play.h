@@ -98,7 +98,8 @@ typedef struct {
     ak_char_params cp; ak_character ch; ak_soldier_look look;
     s32 clip[PLAY_NCLIPS]; int state; f32 clip_t, land_t;
     s32 sclip[PLAY_NCLIPS];            /* the saber heroes' (generic_male LightSabre clips) */
-    ak_play_hero hero[2]; bool hero_declined; int hero_answer;   /* the player's answer to an offer: 1 yes, -1 no */
+    ak_play_hero hero[2]; bool hero_declined; int hero_answer;
+    struct { s32 unit; u32 n; f32 base[8][3], tip[8][3], age[8], last; } fan[2];   /* each side's saber hero: its blade's recent positions (the motion fan) */   /* the player's answer to an offer: 1 yes, -1 no */
     ak_soldier_look base_look; ak_weapon_def base_wdef; bool base_armed; f32 base_max_health;
     /* camera */
     bool classic_cam;

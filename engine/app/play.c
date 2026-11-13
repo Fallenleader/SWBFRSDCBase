@@ -441,6 +441,7 @@ static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set 
     p->sclip[PLAY_JUMP] = p->clip[PLAY_JUMP]; p->sclip[PLAY_FALL] = p->clip[PLAY_FALL]; p->sclip[PLAY_LAND] = find_clip(m, sab_land);
     (void)sab_jump;
     for (int k = 0; k < PLAY_NCLIPS; k++) if (p->sclip[k] < 0) p->sclip[k] = p->clip[k];
+    memset(p->fan, 0, sizeof p->fan); p->fan[0].unit = p->fan[1].unit = -1;
     const ak_bp_type *ty = ak_bp_find_type(bp, "Humanoid");
     f32 unlock = ak_setting_float("AK_HERO_UNLOCK", 3.0f) * 60.0f;
     for (int t = 0; t < 2; t++) {
@@ -1837,6 +1838,20 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         if (al < 1e-6f) continue;
         for (int r = 0; r < 3; r++) { a[r] = G[r * 4] * lp[0] + G[r * 4 + 1] * lp[1] + G[r * 4 + 2] * lp[2] + G[r * 4 + 3]; c[r] = a[r] + ax[r] / al * h->wdef.length * S; }
         if (n + AK_BEAM_VERTS <= sizeof bv / sizeof bv[0]) n += ak_beam(bv + n, a, c, h->wdef.thickness * 0.25f * S, p->eye, h->wdef.colour | 0xFF000000u, 255, 255);
+        {   /* the motion fan: the blade's last 8 positions (newest first), drawn from them */
+            int t = (int)(h - p->hero); __typeof__(p->fan[0]) *f = &p->fan[t];
+            if (f->unit != (s32)u) { f->unit = (s32)u; f->n = 0; f->last = p->clock; }
+            f32 el = p->clock - f->last; f->last = p->clock;
+            for (u32 k = 0; k < f->n; k++) f->age[k] += el;
+            if (el > 0 || !f->n) {
+                for (u32 k = (f->n < 8 ? f->n : 7); k > 0; k--) { memcpy(f->base[k], f->base[k - 1], 12); memcpy(f->tip[k], f->tip[k - 1], 12); f->age[k] = f->age[k - 1]; }
+                memcpy(f->base[0], a, 12); memcpy(f->tip[0], c, 12); f->age[0] = 0; if (f->n < 8) f->n++;
+            }
+            static ak_vtx fv[8 * 6 * 6];
+            f32 dx = a[0] - p->eye[0], dz = a[2] - p->eye[2];
+            u32 nf = dx * dx + dz * dz < 60.0f * 60.0f ? ak_saber_fan(fv, sizeof fv / sizeof fv[0], (const f32 (*)[3])f->base, (const f32 (*)[3])f->tip, f->age, f->n, 0.12f, h->wdef.colour) : 0;
+            if (nf) ak_gfx_draw_immediate(AK_PIPE_BEAM, NULL, fv, nf);
+        }
     }
     n += ak_bolts_vertices(&p->bolts, p->eye, bv + n, sizeof bv / sizeof bv[0] - n);
     for (u32 i = 0; i < AK_MAX_PROJ; i++) {                                    /* torpedoes, missiles, bombs: a bright streak and a glow (their PFX come later) */

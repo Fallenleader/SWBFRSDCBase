@@ -65,6 +65,12 @@ void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *targets, u
 u32 ak_beam(ak_vtx *out, const f32 *a, const f32 *c, f32 halfw, const f32 *eye, u32 rgba, u8 alpha_a, u8 alpha_c);
 /* a round flash facing the camera (6 vertices) */
 u32 ak_flash(ak_vtx *out, const f32 *pos, f32 halfw, const f32 *eye, u32 rgba, u8 alpha);
+/* A lightsaber's motion fan (DICE's "new motion fan", from the owner's reference GIFs): the surface the blade swept over its last
+ * few positions (samples newest first: blade base / tip, age in seconds).  Between samples the blade's direction is interpolated
+ * (normalised lerp, 6 steps; at most ~90 degrees of arc), so the fan's outer edge is an arc that follows the swing rather than a straight chord (the "old motion
+ * fan").  Drawn with AK_PIPE_BEAM, the uv being each edge's age / life: a white leading edge, the blade's colour behind it, fading out
+ * by `life` seconds; a little dimmer toward the hilt.  Returns vertices written (0 when the blade barely moved). */
+u32 ak_saber_fan(ak_vtx *out, u32 max, const f32 (*base)[3], const f32 (*tip)[3], const f32 *age, u32 n, f32 life, u32 rgba);
 /* the bolts (the game's half-width: thickness x 0.5; far bolts scaled by the bolt's DistanceScaling) and the impact flashes,
  * all for AK_PIPE_BEAM; returns vertices written */
 u32  ak_bolts_vertices(const ak_bolts *b, const f32 *eye, ak_vtx *out, u32 max);

@@ -219,6 +219,47 @@ u32 ak_flash(ak_vtx *v, const f32 *pos, f32 halfw, const f32 *eye, u32 rgba, u8 
     return ak_beam(v, a, c, halfw, eye, rgba, alpha, alpha);
 }
 
+u32 ak_saber_fan(ak_vtx *out, u32 max, const f32 (*base)[3], const f32 (*tip)[3], const f32 *age, u32 n, f32 life, u32 rgba)
+{
+    enum { STEPS = 6 };
+    u32 w = 0; f32 swept = 0;                                                 /* the fan covers at most ~90 degrees of arc */
+    f32 cr = (f32)((rgba >> 16) & 255) / 255.0f, cg = (f32)((rgba >> 8) & 255) / 255.0f, cb = (f32)(rgba & 255) / 255.0f;
+    for (u32 i = 0; i + 1 < n; i++) {
+        if (age[i] >= life) break;
+        f32 d0[3], d1[3], l0 = 0, l1 = 0;
+        for (int k = 0; k < 3; k++) { d0[k] = tip[i][k] - base[i][k]; d1[k] = tip[i + 1][k] - base[i + 1][k]; l0 += d0[k] * d0[k]; l1 += d1[k] * d1[k]; }
+        l0 = sqrtf(l0); l1 = sqrtf(l1);
+        if (l0 < 1e-4f || l1 < 1e-4f) continue;
+        f32 dt[3] = { tip[i][0] - tip[i + 1][0], tip[i][1] - tip[i + 1][1], tip[i][2] - tip[i + 1][2] };
+        if (dt[0] * dt[0] + dt[1] * dt[1] + dt[2] * dt[2] < 0.03f * 0.03f) continue;   /* (no smear when the blade is still) */
+        {   f32 c = (d0[0] * d1[0] + d0[1] * d1[1] + d0[2] * d1[2]) / (l0 * l1); c = c > 1 ? 1 : c < -1 ? -1 : c;
+            swept += acosf(c); if (swept > 1.6f && i > 0) break; }
+        f32 pb[3], pt[3], pa = age[i];
+        memcpy(pb, base[i], 12); memcpy(pt, tip[i], 12);
+        for (int s = 1; s <= STEPS && w + 6 <= max; s++) {
+            f32 f = (f32)s / STEPS, d[3], dl = 0, nb[3], nt[3];
+            for (int k = 0; k < 3; k++) { d[k] = d0[k] / l0 * (1 - f) + d1[k] / l1 * f; dl += d[k] * d[k]; }
+            dl = sqrtf(dl); if (dl < 1e-6f) continue;
+            f32 len = l0 * (1 - f) + l1 * f, na = age[i] * (1 - f) + age[i + 1] * f;
+            for (int k = 0; k < 3; k++) { nb[k] = base[i][k] * (1 - f) + base[i + 1][k] * f; nt[k] = nb[k] + d[k] / dl * len; }
+            /* the beam shader's glow across the fan: uv = how old that edge is (0 = the blade now: the white core; 1 = gone), so
+               the fan has a white leading edge, the blade's colour behind it, fading out toward the oldest edge */
+            f32 u0 = 0.55f * pa / life, u1 = 0.55f * na / life;                 /* (0.55: the glow stays strong across the fan) */
+            if (pa >= life) u0 = 1;
+            if (na >= life) u1 = 1;
+            const f32 *P[4] = { pb, pt, nt, nb }; f32 U[4] = { u0, u0, u1, u1 }, A[4] = { 0.6f, 1, 1, 0.6f };   /* a little dimmer toward the hilt */
+            static const int T[6] = { 0, 1, 2, 0, 2, 3 };
+            for (int q = 0; q < 6; q++) {
+                ak_vtx *v = &out[w++]; int j = T[q];
+                memcpy(v->pos, P[j], 12); v->uv[0] = U[j]; v->uv[1] = 0; v->nrm[0] = v->nrm[1] = v->nrm[3] = 0; v->nrm[2] = 127;
+                v->col[0] = (u8)(cr * 127); v->col[1] = (u8)(cg * 127); v->col[2] = (u8)(cb * 127); v->col[3] = (u8)(A[j] * 255);
+            }
+            memcpy(pb, nb, 12); memcpy(pt, nt, 12); pa = na;
+        }
+    }
+    return w;
+}
+
 u32 ak_bolts_vertices(const ak_bolts *b, const f32 *eye, ak_vtx *out, u32 max)
 {
     u32 n = 0;
