@@ -261,6 +261,10 @@ int main(int argc, char **argv)
                         play.match.tickets[1], ow, play.match.captures, play.match.winner, play.alive ? "up" : "down", play.health, play.deaths,
                         play.ch.pos[0], play.ch.pos[1], play.ch.pos[2]);
             }
+            if (playing && play.ready && shot && frame == shot_frame - 1 && (play.hero[0].enabled || play.hero[1].enabled))
+                for (int t = 0; t < 2; t++) { const ak_play_hero *hh = &play.hero[t]; if (!hh->enabled) continue;
+                    AK_INFO("test", "hero %d: %s, %s (health %.0f), next in %.0f s", t + 1, hh->name, hh->unit < 0 ? "not in play" : hh->unit == 0 ? "the player" : "a bot",
+                            hh->unit >= 0 ? play.target[hh->unit].health : 0.0f, hh->timer); }
             if (playing && play.ready && play.nveh && shot && frame == shot_frame - 1) {
                 char vl[512]; int k = 0;
                 for (u32 v = 0; v < play.nveh && k < 480; v++) {
@@ -397,6 +401,19 @@ int main(int argc, char **argv)
                     }
                     if (cq->winner >= 0)
                         ak_gfx_text((f32)w * 0.5f - 60, (f32)h * 0.5f - 60, 0xFFFFFFFF, cq->winner == me ? "VICTORY" : cq->winner == them ? "DEFEAT" : "DRAW");
+                    {   const ak_play_hero *hm = &play.hero[me], *ht = &play.hero[them];   /* heroes: the offer, who plays them, the countdown */
+                        if (hm->enabled && hm->offered == 0) {
+                            snprintf(line, sizeof line, "become %s?  up: yes  down: no  (%.0f s)", hm->name, hm->decide);
+                            ak_gfx_text((f32)w * 0.5f - 150, (f32)h * 0.5f - 80, 0xFFFFE070, line);
+                        }
+                        if (hm->enabled || ht->enabled) {
+                            char a[64], b[64];
+                            if (!hm->enabled) snprintf(a, sizeof a, "-"); else if (hm->unit == 0) snprintf(a, sizeof a, "you are %s", hm->name);
+                            else if (hm->unit > 0) snprintf(a, sizeof a, "%s in the field", hm->name); else snprintf(a, sizeof a, "%s in %.0f s", hm->name, hm->timer > 0 ? hm->timer : 0);
+                            if (!ht->enabled) snprintf(b, sizeof b, "-"); else if (ht->unit >= 0) snprintf(b, sizeof b, "%s in the field", ht->name); else snprintf(b, sizeof b, "%s in %.0f s", ht->name, ht->timer > 0 ? ht->timer : 0);
+                            snprintf(line, sizeof line, "heroes: %s  -  %s", a, b); ak_gfx_text(8, 152, 0xFFC0C0FF, line);
+                        }
+                    }
                 }
                 ak_gfx_text(8, 116, 0xFFC0C0C0, play.twin_stick ? "left stick: move  right stick: aim  cross: jump  R: fire  L: lock on  square: free camera"
                                                                 : "left stick: move  right stick: turn  cross: jump  R: fire  L: lock on  square: free camera");

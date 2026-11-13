@@ -38,7 +38,10 @@
  * Flyers take off, keep above the ground (rays below and ahead), attack the nearest enemy vehicle (else soldiers near an enemy post) in
  * runs and fire when the nose is on it.  Bots' weapons carry the game's bot modifiers (Weapon "Modifier_Bot_Damage" x0.3,
  * "Modifier_Bot_RateOfFire" x3 the time between shots) and aim error ("AIWeapon_Accuracy_Normal", 5 degrees).  The game's own AI is not
- * traced: when and how bots use vehicles is this engine's. */
+ * traced: when and how bots use vehicles is this engine's.
+ *
+ * Heroes (AK_HEROES): each side's hero comes when its countdown (AK_HERO_UNLOCK minutes, the game's 3) runs out, offered to the
+ * player (d-pad up takes it, down declines) or given to a bot - the game's rules (func 08974318); see heroes_init in play.c. */
 #ifndef AK_PLAY_H
 #define AK_PLAY_H
 #include "core/ak_core.h"
@@ -68,8 +71,17 @@ enum { PLAY_IDLE, PLAY_RUN, PLAY_BACK, PLAY_LEFT, PLAY_RIGHT, PLAY_JUMP, PLAY_FA
 #define PLAY_MAX_BOOMS 8
 typedef struct { f32 pos[3], yaw; s32 def[2]; s32 post; f32 respawn; bool fixed; s32 mpost; } ak_play_vspawn;   /* mpost: the post it carries (-1 none) */   /* a vehicle spawn: one vehicle per side (index into vdef, -1 none), the post whose owner gets it; fixed = a walker placed in the level (no respawn, not drivable) */
 typedef struct { f32 pos[3], t; } ak_play_boom;
+/* a side's hero (traced: the hero manager func 08974318, the switch func 089826E8; see heroes_update in play.c) */
+typedef struct {
+    bool enabled; const char *name;    /* the Humanoid blueprint (Hero = 1) of the side's faction that this level has */
+    ak_soldier_look look; ak_weapon_def wdef, bdef; bool armed, saber;   /* bdef: in a bot's hands */
+    f32 health, drain, per_kill;       /* Health, HeroDeathRate, HeroHealthAddPerKill */
+    f32 unlock, timer, decide;         /* seconds until the next hero (BFF.HeroUnlockTime minutes x 60), the offer's countdown */
+    s32 offered, unit;                 /* target index (0 the player, 1 + i bot i) offered / playing the hero; -1 none */
+} ak_play_hero;
+
 typedef struct {                       /* a bot soldier */
-    ak_soldier_look look; ak_character ch; int team; ak_weapon weapon; bool alive;
+    ak_soldier_look look, base_look; bool hero; ak_character ch; int team; ak_weapon weapon; bool alive;
     f32 bones[64][12]; int state; f32 clip_t, land_t, dead_t, pose_dt; s32 death_clip; bool was_ground;
     /* the mind */
     s32 goal; u32 path[128]; u32 npath, path_i; f32 hold[3]; bool holding;
@@ -85,6 +97,9 @@ typedef struct {
     ak_collision col; ak_nav nav; bool have_nav;
     ak_char_params cp; ak_character ch; ak_soldier_look look;
     s32 clip[PLAY_NCLIPS]; int state; f32 clip_t, land_t;
+    s32 sclip[PLAY_NCLIPS];            /* the saber heroes' (generic_male LightSabre clips) */
+    ak_play_hero hero[2]; bool hero_declined; int hero_answer;   /* the player's answer to an offer: 1 yes, -1 no */
+    ak_soldier_look base_look; ak_weapon_def base_wdef; bool base_armed; f32 base_max_health;
     /* camera */
     bool classic_cam;
     f32 fov, pivot_h, pivot_x, cam_back, cam_up, cam_side, pull_out_rate, pull_in_rate;

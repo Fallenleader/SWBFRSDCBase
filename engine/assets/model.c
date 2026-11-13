@@ -20,7 +20,7 @@ static void qrot(ak_quat q, const f32 *v, f32 *o)
 /* the axis change is a half turn about X (asura.h): a rotation quaternion's axis turns with it */
 static ak_quat q_from_game(f32 x, f32 y, f32 z, f32 w) { ak_quat q = { x, -y, -z, w }; return q; }
 
-/* HSKN v8: u32 0, u32 bone count, name (NUL, padded to 4), u32 parent[count] (the root's entry is 0), count x { f32 t[3], q[4] } */
+/* HSKN v8: u32 count of 72-byte records to skip (0, or the weighted meshes' extra data), u32 bone count, name (NUL, padded to 4), u32 parent[count] (the root's entry is 0), count x { f32 t[3], q[4] } */
 static bool skel_parse(const ak_chunk *c, ak_arena *a, ak_skeleton *s)
 {
     const u8 *b = c->body; memset(s, 0, sizeof *s);
@@ -28,6 +28,10 @@ static bool skel_parse(const ak_chunk *c, ak_arena *a, ak_skeleton *s)
     u32 n = ak_rd32(b + 4);
     const char *name = (const char *)b + 8; size_t nl = strnlen(name, c->size - 8);
     u32 o = 8 + (u32)((nl + 1 + 3) & ~(size_t)3);
+    u32 skip = ak_rd32(b);                                                  /* word 0: count of 72-byte records before the bones
+                                                                               (the weighted meshes' skeletons, func 08826794) */
+    if (skip > c->size / 72) return false;
+    o += 72u * skip;
     if (n == 0 || n > 512 || (size_t)o + 4u * n + 28u * n > c->size) return false;
     s->name = name; s->name_hash = ak_hash_name(name); s->nbones = n;
     s->parent = AK_NEW(a, s16, n); s->bind_t = (f32 (*)[3])ak_arena_alloc(a, 12u * n, 4); s->bind_q = AK_NEW(a, ak_quat, n);
@@ -245,9 +249,9 @@ static bool mesh_parse(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_leve
  * name: the name again (padded to 4), u32 vertex count, u32 group count, count x { u32 material, u32 vertex count, u32 first vertex,
  * u8 bone palette[4] }, then the vertices, 20 bytes each in the PSP's native order: u8 weight[4] (128 = 1.0, for the group's palette),
  * u16 uv[2] (/32768), s16 normal[3] (/16384), s16 position[3] (/4096, model space, the bind pose).  Each group is one triangle strip.
- * Drawn rigid in the bind pose for now (skinning comes with the heroes and creatures). */
+ * The palette entries are bones of the skeleton of the same name; the renderer skins each vertex by its 4 weights. */
 static bool mesh_parse_v2(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_level *l, const ak_names *tex_names,
-                          const ak_material *mats, u32 nmats)
+                          const ak_material *mats, u32 nmats, const ak_skeleton *sk)
 {
     const u8 *b = r->data; u32 sz = r->size;
     size_t nl = strnlen((const char *)b, sz); u32 o = (u32)((nl + 1 + 3) & ~(size_t)3);
@@ -259,6 +263,21 @@ static bool mesh_parse_v2(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_l
     m->nparts = ng; m->parts = AK_NEW(a, ak_model_part, ng ? ng : 1);
     m->vtx = AK_NEW(a, ak_vtx, nv); m->nvtx = nv; m->idx = AK_NEW(a, u32, 3u * nv + 3);
     if (!m->parts || !m->vtx || !m->idx) return false;
+    if (sk) {
+        m->skin = AK_NEW(a, struct ak_skin_w, nv);
+        if (!m->skin) return false;
+        for (u32 gi = 0; gi < ng; gi++) {
+            const u8 *g = b + go + 16 * gi; u32 cnt = ak_rd32(g + 4), first = ak_rd32(g + 8);
+            if ((size_t)first + cnt > nv) return false;
+            for (u32 i = first; i < first + cnt; i++) {
+                const u8 *v = b + vo + 20 * i; u32 sum = 0;
+                for (int k = 0; k < 4; k++) {
+                    u8 bo = g[12 + k]; m->skin[i].bone[k] = bo < sk->nbones ? bo : 0; m->skin[i].w[k] = bo < sk->nbones ? v[k] : 0; sum += m->skin[i].w[k];
+                }
+                if (!sum) { m->skin[i].w[0] = 128; m->skin[i].bone[0] = 0; }
+            }
+        }
+    }
     for (int k = 0; k < 3; k++) { m->bmin[k] = 1e30f; m->bmax[k] = -1e30f; }
     f32 r2 = 0;
     for (u32 i = 0; i < nv; i++) {
@@ -383,8 +402,9 @@ bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
             ak_model *m = &out->models[out->nmodels]; memset(m, 0, sizeof *m);
             const char *base = r.name; m->lod = 0;
             if (base[0] == 'L' && base[1] >= '1' && base[1] <= '9' && base[2] == '#') { m->lod = (u8)(base[1] - '0'); base += 3; }
-            m->name = r.name; m->base_hash = ak_hash_name(base); m->skeleton = -1;   /* drawn in the bind pose (model space) */
-            if (mesh_parse_v2(&r, a, m, l, &text, mats, nmats)) out->nmodels++;
+            m->name = r.name; m->base_hash = ak_hash_name(base); m->skeleton = -1;
+            for (u32 i = out->nskels; i-- > 0;) if (out->skels[i].name_hash == m->base_hash) { m->skeleton = (s32)i; break; }
+            if (mesh_parse_v2(&r, a, m, l, &text, mats, nmats, m->skeleton >= 0 ? &out->skels[m->skeleton] : NULL)) out->nmodels++;
             else AK_WARN("model", "%s (v2) did not parse", r.name);
         }
     }

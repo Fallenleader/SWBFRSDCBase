@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "ak_scene.h"
 #include <stdlib.h>
 #include <math.h>
@@ -172,11 +173,64 @@ static ak_gfx_tex *coloured(ak_scene_models *s, s32 ti, const ak_model_colours *
     return g;
 }
 
+/* a weighted (v2) mesh: each vertex moved by its bones' pose x inverse bind, blended by weight, on the CPU into this frame's memory
+   (heroes and creatures are few; the soldiers stay rigid parts on the GPU) */
+static void draw_skinned(ak_scene_models *s, const ak_model *m, const ak_m4 *vw, const f32 (*bones)[12], const ak_model_colours *colours, ak_scene_stats *st)
+{
+    static f32 K[256][12]; static ak_vtx *sv, *tri; static u32 svcap, tricap;
+    const ak_skeleton *sk = &s->set->skels[m->skeleton];
+    u32 nb = sk->nbones < 256 ? sk->nbones : 256;
+    for (u32 i = 0; i < nb; i++) {                                  /* K = pose x inverse(bind) */
+        ak_quat q = sk->world_q[i]; f32 x = q.x, y = q.y, z = q.z, w = q.w, R[9], t[3];
+        R[0] = 1 - 2 * (y * y + z * z); R[1] = 2 * (x * y - z * w);     R[2] = 2 * (x * z + y * w);
+        R[3] = 2 * (x * y + z * w);     R[4] = 1 - 2 * (x * x + z * z); R[5] = 2 * (y * z - x * w);
+        R[6] = 2 * (x * z - y * w);     R[7] = 2 * (y * z + x * w);     R[8] = 1 - 2 * (x * x + y * y);
+        for (int r = 0; r < 3; r++) t[r] = -(R[r] * sk->world_t[i][0] + R[3 + r] * sk->world_t[i][1] + R[6 + r] * sk->world_t[i][2]);   /* -R^T t */
+        const f32 *P = bones[i];
+        for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 3; c++) K[i][r * 4 + c] = P[r * 4] * R[c * 3] + P[r * 4 + 1] * R[c * 3 + 1] + P[r * 4 + 2] * R[c * 3 + 2];   /* P R^T */
+            K[i][r * 4 + 3] = P[r * 4] * t[0] + P[r * 4 + 1] * t[1] + P[r * 4 + 2] * t[2] + P[r * 4 + 3];
+        }
+    }
+    if (m->nvtx > svcap) { ak_vtx *n = (ak_vtx *)realloc(sv, sizeof *sv * m->nvtx); if (!n) return; sv = n; svcap = m->nvtx; }
+    if (m->nidx > tricap) { ak_vtx *n = (ak_vtx *)realloc(tri, sizeof *tri * m->nidx); if (!n) return; tri = n; tricap = m->nidx; }
+    for (u32 i = 0; i < m->nvtx; i++) {
+        const ak_vtx *v = &m->vtx[i]; const struct ak_skin_w *sw = &m->skin[i]; f32 p[3] = { 0, 0, 0 }, n[3] = { 0, 0, 0 };
+        f32 vn[3] = { v->nrm[0] / 127.0f, v->nrm[1] / 127.0f, v->nrm[2] / 127.0f };
+        for (int k = 0; k < 4; k++) {
+            if (!sw->w[k]) continue;
+            const f32 *A = K[sw->bone[k] < nb ? sw->bone[k] : 0]; f32 wt = sw->w[k] * (1.0f / 128.0f);
+            for (int r = 0; r < 3; r++) {
+                p[r] += wt * (A[r * 4] * v->pos[0] + A[r * 4 + 1] * v->pos[1] + A[r * 4 + 2] * v->pos[2] + A[r * 4 + 3]);
+                n[r] += wt * (A[r * 4] * vn[0] + A[r * 4 + 1] * vn[1] + A[r * 4 + 2] * vn[2]);
+            }
+        }
+        sv[i] = *v; memcpy(sv[i].pos, p, 12);
+        for (int r = 0; r < 3; r++) { f32 q = n[r] * 127.0f; sv[i].nrm[r] = (s8)(q < -127 ? -127 : q > 127 ? 127 : q); }
+    }
+    ak_gfx_set_cull(false); ak_gfx_set_transform(vw);
+    for (int pass = 0; pass < 2; pass++)
+        for (u32 p = 0; p < m->nparts; p++) {
+            const ak_model_part *pt = &m->parts[p];
+            if (!pt->count) continue;
+            ak_pipe pipe = (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
+                         : ((pt->flags & AK_MAT_ALPHA_TEST)) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
+            if ((pipe >= AK_PIPE_LAYER) != (pass == 1)) continue;
+            for (u32 k = 0; k < pt->count; k++) tri[k] = sv[m->idx[pt->first + k]];
+            ak_gfx_tex *gt = pt->texture < 0 ? NULL : colours && s->masked[pt->texture] ? coloured(s, pt->texture, colours) : s->level->tex[pt->texture];
+            ak_gfx_draw_immediate(pipe, gt, tri, pt->count);
+            if (st) { st->draws++; st->tris += pt->count / 3; }
+        }
+    ak_gfx_set_transform(NULL);
+    ak_gfx_set_cull(true);
+}
+
 void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_m4 *world, const f32 (*bones)[12],
                           const ak_model_colours *colours, ak_scene_stats *st)
 {
     const ak_model *m = &s->set->models[mi];
     ak_m4 vw = ak_m4_mul(vp, world);
+    if (m->skin && bones && m->skeleton >= 0) { draw_skinned(s, m, &vw, bones, colours, st); return; }
     ak_gfx_set_cull(false);
     for (int pass = 0; pass < 2; pass++)                      /* opaque and cutout parts first, blended after */
         for (u32 p = 0; p < m->nparts; p++) {

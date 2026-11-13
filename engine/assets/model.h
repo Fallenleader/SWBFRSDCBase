@@ -41,6 +41,8 @@ typedef struct {
     f32 radius;                        /* bounding sphere of the bind pose, around the model origin */
     f32 bmin[3], bmax[3];              /* bind-pose box in model space */
     ak_marker *markers; u32 nmarkers;  /* shared by the model's levels of detail */
+    struct ak_skin_w { u8 bone[4], w[4]; } *skin;   /* weighted meshes (v2): per vertex, skeleton bones and weights (sum 128); the
+                                                     * vertices are then in model space, the bind pose (NULL: rigid parts) */
 } ak_model;
 
 /* animation clip (HCAN v5).  One channel per bone in the skeleton's order (plus a root-motion channel when flagged); every key is the
