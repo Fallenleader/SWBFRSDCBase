@@ -34,6 +34,7 @@ typedef struct {
     /* flyers ("Flyer" blueprints: starfighters, bombers, interceptors, transports, the snowspeeder): CruisingSpeed, StallSpeed (the
      * slowest it flies), TopSpeed (boost), MaxTurnPitch / Yaw / Roll and RollRemoval (degrees a second), AnimLanded / AnimFlight */
     f32 cruise, pitch_rate, roll_rate, roll_removal, bank; s32 clip_flight, clip_landed;
+    int flyer_type;                    /* Flyer_Type (AK_FLY_*: the space AI commander's roles) */
 } ak_vehicle_def;
 
 typedef struct {

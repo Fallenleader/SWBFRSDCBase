@@ -212,6 +212,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     }
     p->seed = 12345;
     p->have_cq = ak_conquest_load(l, &p->cq);
+    p->is_space = ak_space_load(l, &p->space) && p->space.nobj > p->space.nhangar;   /* space maps: attack runs on capital ships (Hoth has 2 hangar runs only) */
+    for (u32 i = 0; i < AK_MAX_OBJECTIVES; i++) p->obj_unit[i] = -1;
     p->team = ak_setting_int("AK_TEAM", ak_faction_team(p->look.faction) + 1) == 2;
     p->team_faction[p->team] = p->look.faction; p->team_faction[1 - p->team] = p->look.faction ^ 1;
     ak_cq_rules_default(&p->rules);
@@ -572,7 +574,7 @@ static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
 static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a)
 {
     p->in_veh = -1; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 10.0f);   /* (the spawn records say 10 s) */
-    p->bot_drive = ak_setting_float("AK_BOT_VEHICLES", 0.6f);
+    p->bot_drive = ak_setting_float("AK_BOT_VEHICLES", p->is_space ? 1.0f : 0.6f);   /* space: every bot that can flies */
     if (!ak_setting_int("AK_VEHICLES", 1)) return;
     ak_entity_set es; size_t mark = a->used;
     if (!ak_entities_load(l, m, a, &es)) { a->used = mark; return; }
@@ -630,7 +632,7 @@ static bool bot_take_vehicle(ak_play *p, ak_play_bot *b)
         const f32 *pp = p->cq.post[i].pos; f32 dx = pp[0] - b->ch.pos[0], dz = pp[2] - b->ch.pos[2];
         if (!p->cq.post[i].disabled && p->match.post[i].owner != b->team && dx * dx + dz * dz < 30.0f * 30.0f) return false;
     }
-    s32 best = -1; f32 bd = 40.0f * 40.0f;
+    s32 best = -1; f32 bd = p->is_space ? 90.0f * 90.0f : 40.0f * 40.0f;   /* (a capital ship's hangar is wide) */
     for (u32 v = 0; v < p->nveh; v++) {
         const ak_vehicle *vh = &p->veh[v];
         if (!vh->def || !vh->alive || vh->driver >= 0 || !vh->def->drivable || vh->team != b->team) continue;
@@ -653,7 +655,7 @@ static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v)
     vh->driver = (s32)(1 + idx); vh->aim_yaw = vh->aim_pitch = 0; vh->volley_t = 0;
     b->veh = (s32)v; b->want_veh = -1; b->enemy = -1; b->rev_t = 0; b->vstuck_t = 0; b->vstucks = 0; b->run_t = 0;
     memcpy(b->ch.pos, vh->pos, 12); memcpy(b->vstuck_pos, vh->pos, 12);
-    b->fly_alt = vh->pos[1];
+    b->fly_alt = vh->pos[1]; b->role = 0; b->role_obj = -1; b->role_leg = 0; b->fly_phase = 0; b->fly_t = rnd(&b->seed) * 2.0f;
     p->target[1 + idx].alive = false;                                         /* the soldier is inside: the vehicle is the target now */
     b->goal = -1; bot_choose_goal(p, b);
     if (ak_setting_int("AK_DEBUG_BOTVEH", 0)) AK_INFO("botveh", "%.1f s: bot %u (team %d) gets in %u %s", p->clock, idx, b->team, v, vh->def->name);
@@ -703,13 +705,107 @@ static void bot_vehicle_gun(ak_play *p, const ak_model_set *m, ak_play_bot *b, u
     vehicle_fire(p, m, v, tgt, dt);
 }
 
-/* a flyer: take off, then attack runs on the nearest enemy vehicle (else soldiers near an enemy post), keeping clear of the level */
+/* ---- space: the team AI commander (traced: funcs 0898EDBC..089919F4, the pilots' goals 089424AC / 08950BE8)
+ * Each team's commander gives a flyer that has just become free a role by its Flyer_Type (func 0899129C, the capture-the-flag branch
+ * left out): a fighter takes an attack run on the enemy capital ship 40 % of the time (kind 2), else 20 % (kind 1), else general
+ * combat; a bomber always takes one (kind 2 first); a transport flies into the enemy hangar and lands ("land in hangar", 100 %);
+ * interceptors, heroes and the rest fight.  Runs and hangars are the level's AI objectives (game/ak_space.h); the commander's percent
+ * rolls are its own (50 / 100 / 20 / 40 / 100 at 08B1BBB0..C0).  Which free objective it hands out is not traced (here: the nearest);
+ * a finished run is rolled again for the same flyer (the game re-offers it to the nearest fighter, func 08991768). */
+enum { SPACE_COMBAT, SPACE_RUN, SPACE_LAND };
+static int obj_team(const ak_play *p, const ak_space_obj *o)
+{   /* a hangar run belongs to whoever holds the hangar's post (the post nearest its inner end); attack runs to their ship */
+    if (o->kind != AK_OBJ_HANGAR || !p->have_cq) return o->team;
+    s32 best = -1; f32 bd = 200.0f * 200.0f;
+    for (u32 i = 0; i < p->cq.nposts; i++) {
+        f32 dx = p->cq.post[i].pos[0] - o->path[2][0], dy = p->cq.post[i].pos[1] - o->path[2][1], dz = p->cq.post[i].pos[2] - o->path[2][2];
+        f32 d2 = dx * dx + dy * dy + dz * dz; if (d2 < bd) { bd = d2; best = (s32)i; }
+    }
+    return best < 0 ? o->team : p->match.post[best].owner;
+}
+static bool obj_free(const ak_play *p, u32 i)
+{
+    s32 u = p->obj_unit[i]; if (u < 0) return true;
+    const ak_play_bot *b = &p->bot[u];
+    return !b->alive || b->veh < 0 || b->role_obj != (s32)i;
+}
+static s32 pick_obj(const ak_play *p, const ak_play_bot *b, int kind, const f32 *from)
+{
+    s32 best = -1; f32 bd = 1e30f;
+    for (u32 i = 0; i < p->space.nobj; i++) {
+        const ak_space_obj *o = &p->space.obj[i];
+        if (o->kind != kind || obj_team(p, o) == b->team || !obj_free(p, i)) continue;
+        f32 dx = o->path[0][0] - from[0], dy = o->path[0][1] - from[1], dz = o->path[0][2] - from[2], d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 < bd) { bd = d2; best = (s32)i; }
+    }
+    return best;
+}
+static void space_assign(ak_play *p, ak_play_bot *b, u32 idx)
+{
+    const ak_vehicle *vh = &p->veh[b->veh];
+    if (b->role_obj >= 0 && p->obj_unit[b->role_obj] == (s32)idx) p->obj_unit[b->role_obj] = -1;
+    b->role = SPACE_COMBAT; b->role_obj = -1; b->role_leg = 0; b->role_t = 0;
+    s32 o = -1; int role = SPACE_COMBAT;
+    switch (vh->def->flyer_type) {
+    case AK_FLY_FIGHTER:
+        o = pick_obj(p, b, AK_OBJ_RUN2, vh->pos);
+        if (o >= 0 && rnd(&b->seed) * 100.0f < 40.0f) { role = SPACE_RUN; break; }
+        o = pick_obj(p, b, AK_OBJ_RUN1, vh->pos);
+        if (o >= 0 && rnd(&b->seed) * 100.0f < 20.0f) role = SPACE_RUN;
+        break;
+    case AK_FLY_BOMBER:
+        o = pick_obj(p, b, AK_OBJ_RUN2, vh->pos); if (o < 0) o = pick_obj(p, b, AK_OBJ_RUN1, vh->pos);
+        if (o >= 0) role = SPACE_RUN;
+        break;
+    case AK_FLY_TRANSPORT:
+        o = pick_obj(p, b, AK_OBJ_HANGAR, vh->pos); if (o >= 0) role = SPACE_LAND;
+        break;
+    default: break;
+    }
+    if (role != SPACE_COMBAT && o >= 0) { b->role = role; b->role_obj = o; p->obj_unit[o] = (s32)idx; }
+    if (ak_setting_int("AK_DEBUG_BOTVEH", 0))
+        AK_INFO("botveh", "%.1f s: bot %u (%s) role %s%s", p->clock, idx, vh->def->name, role == SPACE_RUN ? "attack run" : role == SPACE_LAND ? "land in the enemy hangar" : "general combat",
+                b->role_obj >= 0 ? (p->space.obj[b->role_obj].kind == 2 ? " (kind 2)" : p->space.obj[b->role_obj].kind == 1 ? " (kind 1)" : "") : "");
+}
+
+/* a flyer: take off (from a capital ship's hangar: out along its hangar run, traced from the take-off behaviour 0894C438 - up
+ * 2 s at 10 m/s, then toward the run's outer point for up to 10 s), then its role: attack runs along an objective, landing in the
+ * enemy hangar (then out to capture its post), or general combat - runs on the nearest enemy vehicle (else soldiers near an enemy
+ * post), keeping clear of the level */
 static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, f32 dt)
 {
     u32 v = (u32)b->veh; ak_vehicle *vh = &p->veh[v]; const ak_vehicle_def *d = vh->def;
     vh->strafe = 0; vh->brake = false; b->boost = false;
-    if (!vh->flying) { vh->throttle = -0.6f; vh->steer = 0; return; }         /* stick back: lift off */
+    if (!vh->flying) {
+        if (b->role == SPACE_LAND && b->role_leg >= 2) {                       /* landed in the enemy hangar: out, to take its post */
+            if (b->role_obj >= 0 && p->obj_unit[b->role_obj] == (s32)idx) p->obj_unit[b->role_obj] = -1;
+            bot_exit(p, b, idx); return;
+        }
+        b->fly_t -= dt;                                                        /* waits a moment before it lifts off (up to 2 s) */
+        vh->throttle = vh->steer = 0;
+        if (b->fly_t <= 0) { vh->throttle = -0.6f; b->fly_phase = 1; }         /* stick back: lift off */
+        return;
+    }
     if (vh->takeoff > 0) { vh->throttle = 0; vh->steer = 0; return; }
+    if (b->fly_phase == 1) {                                                   /* off the deck: a hangar run of our own close by? */
+        b->fly_phase = 3; b->fly_t = 0;
+        for (u32 i = 0; i < p->space.nobj; i++) {
+            const ak_space_obj *o = &p->space.obj[i]; if (o->kind != AK_OBJ_HANGAR) continue;
+            f32 dx = o->path[2][0] - vh->pos[0], dy = o->path[2][1] - vh->pos[1], dz = o->path[2][2] - vh->pos[2];
+            if (dx * dx + dy * dy + dz * dz < 2500.0f) { memcpy(b->fly_pt, o->path[0], 12); b->fly_phase = 2; b->fly_t = 10.0f; break; }
+        }
+        if (b->fly_phase == 3) space_assign(p, b, idx);
+    }
+    if (b->fly_phase == 2) {                                                   /* leaving the hangar: straight for the run's outer point */
+        b->fly_t -= dt;
+        f32 tx = b->fly_pt[0] - vh->pos[0], ty = b->fly_pt[1] - vh->pos[1], tz = b->fly_pt[2] - vh->pos[2], h = sqrtf(tx * tx + tz * tz);
+        if (b->fly_t <= 0 || h < 25.0f) { b->fly_phase = 3; space_assign(p, b, idx); }
+        else {
+            f32 dyaw = wrap(atan2f(-tx, -tz) - vh->yaw), dp = atan2f(ty, fmaxf(h, 1.0f)) - vh->pitch;
+            vh->steer = clampf(-dyaw * 2.0f, -1, 1); vh->throttle = clampf(-dp * 3.0f, -1, 1); vh->brake = true;
+            return;
+        }
+    }
     /* pick a target now and then */
     b->think_t -= dt; b->run_t -= dt;
     if (b->think_t <= 0) {
@@ -733,10 +829,15 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
         if (b->goal < 0 || (p->have_cq && p->match.post[b->goal].owner == b->team)) bot_choose_goal(p, b);
     }
     if (b->enemy >= 0 && !p->target[b->enemy].alive) b->enemy = -1;
-    /* where to: the target (an attack run), else over the goal post */
+    /* where to: the role's path, else the target (an attack run), else over the goal post */
     f32 dest[3];
     const ak_target *en = b->enemy >= 0 ? &p->target[b->enemy] : NULL;
-    if (en) {
+    const ak_space_obj *ob = b->role != SPACE_COMBAT && b->role_obj >= 0 ? &p->space.obj[b->role_obj] : NULL;
+    if (ob && (obj_team(p, ob) == b->team || (b->role == SPACE_LAND && b->role_leg < 3 && !obj_free(p, (u32)b->role_obj) && p->obj_unit[b->role_obj] != (s32)idx)))
+        { space_assign(p, b, idx); ob = b->role != SPACE_COMBAT && b->role_obj >= 0 ? &p->space.obj[b->role_obj] : NULL; }   /* taken meanwhile */
+    const ak_target *chase = ob ? NULL : en;
+    if (ob) memcpy(dest, ob->path[b->role_leg < 3 ? b->role_leg : 2], 12);
+    else if (en) {
         dest[0] = en->feet[0]; dest[1] = en->feet[1] + en->height * 0.5f; dest[2] = en->feet[2];
         if (b->enemy >= (s32)NS(p)) {                                        /* a moving vehicle: steer for where it will be (lead pursuit) */
             const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
@@ -748,12 +849,20 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
     else if (b->goal >= 0) memcpy(dest, p->cq.post[b->goal].pos, 12);
     else { dest[0] = b->hold[0]; dest[1] = b->hold[1]; dest[2] = b->hold[2]; }
     f32 tx = dest[0] - vh->pos[0], ty = dest[1] - vh->pos[1], tz = dest[2] - vh->pos[2], h = sqrtf(tx * tx + tz * tz), dist = sqrtf(h * h + ty * ty);
+    if (ob) {                                                                  /* along the objective's three points */
+        f32 reach = b->role == SPACE_LAND ? (b->role_leg >= 2 ? 6.0f : 25.0f) : (b->role_leg >= 2 ? 70.0f : 35.0f);
+        b->role_t += dt;
+        if (dist < reach || (b->role == SPACE_RUN && b->role_leg >= 2 && b->feel && dist < 160.0f) || b->role_t > 40.0f) {
+            b->role_leg++; b->role_t = 0;
+            if (b->role == SPACE_RUN && b->role_leg >= 3) { space_assign(p, b, idx); ob = NULL; }
+        }
+    }
     /* the ground below */
     f32 down[3] = { 0, -1, 0 }, gy = -1e9f; ak_col_hit hit; bool ground = false;
     if (ak_col_raycast(&p->col, vh->pos, down, 400.0f, FLY_RAYS, &hit)) { gy = hit.pos[1]; ground = true; }   /* (none: space, or high up) */
     f32 want_yaw = atan2f(-tx, -tz), want_pitch;
-    bool run = en && dist < 160.0f && b->run_t <= -1.0f && in_sight(p, vh->pos, dest);
-    if (en && dist < 25.0f && b->run_t <= -1.0f) {                            /* too close head-on: break off and climb away, then turn back */
+    bool run = chase && dist < 160.0f && b->run_t <= -1.0f && in_sight(p, vh->pos, dest);
+    if (chase && dist < 25.0f && b->run_t <= -1.0f) {                            /* too close head-on: break off and climb away, then turn back */
         bool tail = false;
         if (b->enemy >= (s32)NS(p)) { const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
             tail = ev->vel[0] * vh->vel[0] + ev->vel[1] * vh->vel[1] + ev->vel[2] * vh->vel[2] > 0.5f * ev->speed * vh->speed; }
@@ -762,8 +871,8 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
     if (b->run_t > 0) { want_yaw = vh->yaw; want_pitch = 0.45f; }
     else if (run) want_pitch = atan2f(ty, h);                                 /* the run: nose on it */
     else {
-        f32 alt = ground ? fmaxf(dest[1] + 25.0f, gy + 30.0f) : dest[1] + (en ? 0.0f : 25.0f);
-        want_pitch = atan2f(alt - vh->pos[1], fmaxf(h, 80.0f));
+        f32 alt = ob ? dest[1] : ground ? fmaxf(dest[1] + 25.0f, gy + 30.0f) : dest[1] + (en ? 0.0f : 25.0f);
+        want_pitch = atan2f(alt - vh->pos[1], fmaxf(h, ob ? 1.0f : 80.0f));
     }
     want_pitch = clampf(want_pitch, -0.7f, 0.7f);
     if (ground && vh->pos[1] - gy > 160.0f && !run) want_pitch = fminf(want_pitch, -0.15f);   /* not too high over the ground */
@@ -791,20 +900,29 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
         }
         b->feel = blocked;
     }
-    if (b->feel) { want_yaw = b->feel_yaw; want_pitch = b->feel_pitch; vh->brake = b->near_wall; }
+    bool landing = ob && b->role == SPACE_LAND && b->role_leg >= 1;
+    if (landing) {                                                             /* into the hangar slowly; past its inner point, down */
+        vh->brake = true;
+        if (b->role_leg >= 3) { want_yaw = vh->yaw; want_pitch = -0.25f; }
+        if (b->role_leg == 1 && b->feel) { want_yaw = b->feel_yaw; want_pitch = b->feel_pitch; }
+    } else if (b->feel) { want_yaw = b->feel_yaw; want_pitch = b->feel_pitch; vh->brake = b->near_wall; }
     else if (ground && vh->pos[1] - gy < 10.0f) want_pitch = fmaxf(want_pitch, 0.3f);   /* low over open ground: up a little */
     f32 dyaw = wrap(want_yaw - vh->yaw), dp = want_pitch - vh->pitch;
     vh->steer = clampf(-dyaw * 2.0f, -1, 1);
     vh->throttle = clampf(-dp * 3.0f, -1, 1);
-    b->boost = (!en && dist > 250.0f && !b->feel) || (en && dist > 300.0f);
-    if (en && b->enemy >= (s32)NS(p) && dist < 90.0f && b->run_t <= 0) {      /* on its tail: no faster than it */
+    b->boost = !landing && ((!chase && dist > 250.0f && !b->feel) || (chase && dist > 300.0f));
+    if (chase && b->enemy >= (s32)NS(p) && dist < 90.0f && b->run_t <= 0) {      /* on its tail: no faster than it */
         const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
         if (ev->speed < vh->speed - 5.0f) vh->brake = true;
     }
     if (ak_setting_int("AK_DEBUG_BOTVEH", 0) > 1 && fmodf(p->clock, 1.0f) < dt)
         AK_INFO("botveh", "%.1f s: %s bot %u at %.0f %.0f %.0f clear %.0f pitch %.2f->%.2f yaw %.2f speed %.0f enemy %d dist %.0f run %.1f", p->clock, d->name, idx,
                 vh->pos[0], vh->pos[1], vh->pos[2], vh->pos[1] - gy, vh->pitch, want_pitch, vh->yaw, vh->speed, b->enemy, dist, b->run_t);
-    if (en) bot_vehicle_gun(p, m, b, v, dt, true); else vh->volley_t = 0;
+    if (en && !landing) bot_vehicle_gun(p, m, b, v, dt, true);
+    else if (ob && b->role == SPACE_RUN && b->role_leg == 2 && dist < 500.0f) {   /* the run's last leg: strafe the hull ahead */
+        f32 cp2 = cosf(vh->pitch), fw2[3] = { -sinf(vh->yaw) * cp2, sinf(vh->pitch), -cosf(vh->yaw) * cp2 };
+        if ((fw2[0] * tx + fw2[1] * ty + fw2[2] * tz) > cosf(0.3f) * dist) vehicle_fire(p, m, v, dest, dt); else vh->volley_t = 0;
+    } else vh->volley_t = 0;
 }
 
 /* a ground vehicle or a walker: along the navigation graph to the goal post; at a post its side does not hold, out to capture it */

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "ak_space.h"
 #include "game/ak_vehicle.h"
 
 #define VEH_IGNORE (AK_COL_NOT_BODIES | AK_COL_NOT_SOLDIERS)
@@ -36,7 +37,7 @@ static f32 walk_speed_of(const ak_model_set *m, s32 model, s32 clip)
 
 bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const char *name, ak_vehicle_def *d)
 {
-    memset(d, 0, sizeof *d);
+    memset(d, 0, sizeof *d); d->flyer_type = AK_FLY_OTHER;
     const ak_bp_object *o = ak_bp_find(bp, "Tank", name);
     bool walker = false, flyer = false;
     if (!o) { o = ak_bp_find(bp, "Walker", name); walker = o != NULL; }
@@ -49,6 +50,7 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     d->kind = flyer ? AK_VEH_FLYER : walker ? AK_VEH_WALKER : !strcmp(tt, "speeder_bike") ? AK_VEH_SPEEDER : !strcmp(tt, "track_tank") ? AK_VEH_TRACK : !strcmp(tt, "creature_tank") ? AK_VEH_CREATURE : AK_VEH_HOVER;
     d->clip_walk = d->clip_idle = d->clip_death = d->clip_flight = d->clip_landed = -1;
     if (flyer) {
+        d->flyer_type = ak_flyer_type(ak_bp_string(o, "Flyer_Type", ""));
         d->cruise = ak_bp_float(o, "CruisingSpeed", 85); d->pitch_rate = ak_bp_float(o, "MaxTurnPitch", 80) * DEG;
         d->roll_rate = ak_bp_float(o, "MaxTurnRoll", 115) * DEG; d->roll_removal = ak_bp_float(o, "RollRemoval", 50) * DEG;
         d->bank = (d->roll_rate > 0 ? 60.0f : ak_bp_float(o, "CosmeticRoll", 10)) * DEG;   /* the snowspeeder (no roll) only leans */

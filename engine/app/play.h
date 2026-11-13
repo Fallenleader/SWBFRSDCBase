@@ -52,6 +52,7 @@
 #include "game/ak_weapon.h"
 #include "game/ak_conquest.h"
 #include "game/ak_vehicle.h"
+#include "game/ak_space.h"
 #include "render/ak_scene.h"
 #include "platform/plat.h"
 
@@ -73,6 +74,8 @@ typedef struct {                       /* a bot soldier */
     f32 think_t, goal_t, react_t, burst_t, stuck_t, strafe_t; f32 stuck_pos[3]; s32 enemy; f32 strafe; u32 seed;
     /* vehicles: the one it drives (-1 on foot), the one it walks to; getting unstuck; a flyer's attack run */
     s32 veh, want_veh; bool boost; f32 veh_cool, rev_t, vstuck_t, vstuck_pos[3]; u32 vstucks; f32 fly_alt, run_t, feel_t, feel_yaw, feel_pitch; bool feel, near_wall;
+    /* space: the commander's role (SPACE_COMBAT, SPACE_RUN, SPACE_LAND) and its objective / leg; leaving the hangar */
+    int role, role_leg; s32 role_obj; f32 role_t; int fly_phase; f32 fly_pt[3], fly_t;
 } ak_play_bot;
 
 typedef struct {
@@ -97,6 +100,7 @@ typedef struct {
     ak_vehicle_def vdef[PLAY_MAX_DEFS]; u32 nvdef;
     ak_play_vspawn vspawn[PLAY_MAX_VEH]; ak_vehicle veh[PLAY_MAX_VEH]; u32 nveh; s32 in_veh; f32 veh_respawn;
     f32 bot_drive;                     /* the chance a bot near a free vehicle of its side takes it (AK_BOT_VEHICLES) */
+    ak_space_map space; bool is_space; s32 obj_unit[AK_MAX_OBJECTIVES];   /* space maps: AI objectives, the bot on each */
     ak_play_boom boom[PLAY_MAX_BOOMS]; u32 nboom;
     u32 kills, deaths;
     s32 idle_clip, death_clips[3];
