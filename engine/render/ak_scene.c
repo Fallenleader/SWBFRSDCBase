@@ -1,3 +1,4 @@
+#include "../core/ak_settings.h"
 #include <stdio.h>
 #include "ak_scene.h"
 #include <stdlib.h>
@@ -97,6 +98,10 @@ void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *vp, ak_scene_stats *st)
     for (u32 i = 0; i < g->nbatch; i++) {
         const ak_batch *bt = &g->batch[i];
         if (!s->obj_visible[bt->object]) continue;
+        {   static int only = -2; if (only == -2) only = ak_setting_int("AK_DEBUG_ONLY_OBJ", -1);   /* (tests: draw one level object) */
+            if (only >= 0 && bt->object != (u32)only) continue;
+            static int lay = -2; if (lay == -2) lay = ak_setting_int("AK_DEBUG_LAYER", -1);   /* (tests: one layer only) */
+            if (lay >= 0 && bt->layer != (u32)lay) continue; }
         const ak_material *m = bt->material < l->nmat ? &l->mat[bt->material] : NULL;
         s32 ti = m ? (bt->layer && m->texture2 >= 0 ? m->texture2 : m->texture) : -1;
         u32 pipe = bt->layer ? AK_PIPE_LAYER
