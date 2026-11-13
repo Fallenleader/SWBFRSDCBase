@@ -36,6 +36,7 @@ typedef struct {
      * slowest it flies), TopSpeed (boost), MaxTurnPitch / Yaw / Roll and RollRemoval (degrees a second), AnimLanded / AnimFlight */
     f32 cruise, pitch_rate, roll_rate, roll_removal, bank; s32 clip_flight, clip_landed;
     int flyer_type;                    /* Flyer_Type (AK_FLY_*: the space AI commander's roles) */
+    bool carries_cp; const char *cp_marker;   /* CarriesCommandPost (AT-AT, transports): a command post of its side rides it, at CommandPostMarker */
     ak_secondary sec; const char *sec_muzzle[4]; u32 nsec_muzzles;   /* HardpointW2 (torpedoes, missiles, bombs) from HardpointW2Marker1..4 */
     f32 lock_angle, lock_time, lose_lock_angle, lose_lock_range;   /* LockAngle / LockOnTime / LoseLockOnAngle (radians) / LoseLockOnRange */
 } ak_vehicle_def;

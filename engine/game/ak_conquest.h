@@ -35,6 +35,7 @@ typedef struct {
     f32 region[3]; bool has_region;
     int start_owner;                   /* 0, 1 or AK_CQ_NEUTRAL */
     f32 amount; u32 flags; bool disabled;
+    bool mobile, absent;               /* mobile: carried by a vehicle (CarriesCommandPost); absent: its carrier is wrecked (not a post) */
 } ak_post;
 
 /* vehicle spawns (ENTI type 27): the record's word 6 is the respawn time (10 s on every level), word 11 the command post it
@@ -51,7 +52,7 @@ typedef struct { int owner, capturing; f32 progress, contest; } ak_post_state;
 typedef struct { f32 pos[3]; int team; bool alive; f32 weight; } ak_cq_soldier;
 typedef struct {
     ak_post_state post[AK_MAX_POSTS];
-    s32 tickets[2]; u32 held[2]; u32 living[2];
+    s32 tickets[2]; u32 held[2]; u32 living[2]; u32 present;   /* present: posts that exist now (vehicle-carried ones come and go) */
     f32 bleed_t[2], drain_t[2];        /* the majority bleed and the fast drain, per losing team */
     int all_team; f32 loss_t;          /* a team holding every post, and the time left */
     int winner;                        /* -1 playing, 0 / 1, or AK_CQ_NEUTRAL for a draw */
@@ -67,5 +68,7 @@ void ak_conquest_start(const ak_conquest_map *m, const ak_cq_rules *r, ak_conque
 bool ak_conquest_update(const ak_conquest_map *m, const ak_cq_rules *r, ak_conquest *s, const ak_cq_soldier *sol, u32 n, f32 dt);
 void ak_conquest_killed(const ak_cq_rules *r, ak_conquest *s, int team);
 /* the team's spawn at an owned post nearest `near` (or any owned post's); false if the team owns none */
+/* a vehicle-carried post (see play): where it is, whose it is, and whether it exists; it never counts as a capture */
+void ak_conquest_mobile(const ak_conquest_map *m, ak_conquest *s, u32 i, int owner, bool present);
 bool ak_conquest_spawn(const ak_conquest_map *m, const ak_conquest *s, int team, const f32 *near, f32 *pos, f32 *yaw);
 #endif

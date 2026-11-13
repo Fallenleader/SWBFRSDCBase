@@ -66,7 +66,7 @@ enum { PLAY_IDLE, PLAY_RUN, PLAY_BACK, PLAY_LEFT, PLAY_RIGHT, PLAY_JUMP, PLAY_FA
 #define PLAY_MAX_TURRETS 32
 #define PLAY_MAX_TARGETS (1 + PLAY_MAX_BOTS + PLAY_MAX_VEH + PLAY_MAX_TURRETS)
 #define PLAY_MAX_BOOMS 8
-typedef struct { f32 pos[3], yaw; s32 def[2]; s32 post; f32 respawn; bool fixed; } ak_play_vspawn;   /* a vehicle spawn: one vehicle per side (index into vdef, -1 none), the post whose owner gets it; fixed = a walker placed in the level (no respawn, not drivable) */
+typedef struct { f32 pos[3], yaw; s32 def[2]; s32 post; f32 respawn; bool fixed; s32 mpost; } ak_play_vspawn;   /* mpost: the post it carries (-1 none) */   /* a vehicle spawn: one vehicle per side (index into vdef, -1 none), the post whose owner gets it; fixed = a walker placed in the level (no respawn, not drivable) */
 typedef struct { f32 pos[3], t; } ak_play_boom;
 typedef struct {                       /* a bot soldier */
     ak_soldier_look look; ak_character ch; int team; ak_weapon weapon; bool alive;

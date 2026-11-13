@@ -115,7 +115,17 @@ int ak_faction_team(int faction) { return faction & 1; }
 static void recount(const ak_conquest_map *m, ak_conquest *s)
 {
     s->held[0] = s->held[1] = 0;
-    for (u32 i = 0; i < m->nposts; i++) if (s->post[i].owner < 2) s->held[s->post[i].owner]++;
+    s->present = 0;
+    for (u32 i = 0; i < m->nposts; i++) { if (m->post[i].absent) continue; s->present++; if (s->post[i].owner < 2) s->held[s->post[i].owner]++; }
+}
+
+void ak_conquest_mobile(const ak_conquest_map *m, ak_conquest *s, u32 i, int owner, bool present)
+{
+    ak_post_state *p = &s->post[i];
+    if (p->owner == owner && !m->post[i].absent == present) return;
+    p->owner = owner; p->progress = m->post[i].amount; p->capturing = AK_CQ_NEUTRAL;
+    ((ak_conquest_map *)m)->post[i].absent = !present;
+    recount(m, s);
 }
 
 void ak_conquest_start(const ak_conquest_map *m, const ak_cq_rules *r, ak_conquest *s)
@@ -190,14 +200,14 @@ bool ak_conquest_update(const ak_conquest_map *m, const ak_cq_rules *r, ak_conqu
             s->drain_t[t] += dt;
             while (s->drain_t[t] >= r->drain_time) { s->drain_t[t] -= r->drain_time; lose_ticket(s, t); }
         } else s->drain_t[t] = 0;
-        if (s->held[o] * 2 > m->nposts && s->tickets[t] > (s32)s->living[t]) {   /* the other side holds the majority */
+        if (s->held[o] * 2 > s->present && s->tickets[t] > (s32)s->living[t]) {   /* the other side holds the majority (of the posts that exist) */
             s->bleed_t[t] += dt;
             while (s->bleed_t[t] >= r->bleed_time) { s->bleed_t[t] -= r->bleed_time; lose_ticket(s, t); }
         } else s->bleed_t[t] = 0;
     }
     /* total loss: every post held by one team */
     int all = AK_CQ_NEUTRAL;
-    for (int t = 0; t < 2; t++) if (m->nposts && s->held[t] == m->nposts) all = t;
+    for (int t = 0; t < 2; t++) if (s->present && s->held[t] == s->present) all = t;
     if (all != s->all_team) { s->all_team = all; s->loss_t = r->loss_time; }
     if (all != AK_CQ_NEUTRAL && s->winner < 0) {
         s->loss_t -= dt * (s->living[1 - all] ? 1.0f : 11.0f);
@@ -213,7 +223,7 @@ bool ak_conquest_spawn(const ak_conquest_map *m, const ak_conquest *s, int team,
 {
     s32 best = -1; f32 bd = 1e30f;
     for (u32 i = 0; i < m->nposts; i++) {
-        if (s->post[i].owner != team || !m->post[i].has_spawn[team]) continue;
+        if (s->post[i].owner != team || !m->post[i].has_spawn[team] || m->post[i].absent) continue;
         f32 d = 0;
         if (near) { f32 dx = m->post[i].pos[0] - near[0], dz = m->post[i].pos[2] - near[2]; d = dx * dx + dz * dz; }
         if (d < bd) { bd = d; best = (s32)i; }

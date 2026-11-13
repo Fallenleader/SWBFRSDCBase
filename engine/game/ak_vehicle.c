@@ -116,6 +116,7 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
             if (*s2 && (ak_model_marker(md, s2) || (d->turret_model >= 0 && ak_model_marker(&m->models[d->turret_model], s2)))) d->sec_muzzle[d->nsec_muzzles++] = s2;
         }
     }
+    d->carries_cp = ak_bp_int(o, "CarriesCommandPost", 0) != 0; d->cp_marker = ak_bp_string(o, "CommandPostMarker", "cp");
     d->lock_angle = ak_bp_float(o, "LockAngle", 15) * 0.017453293f; d->lock_time = ak_bp_float(o, "LockOnTime", 2);
     d->lose_lock_angle = ak_bp_float(o, "LoseLockOnAngle", 45) * 0.017453293f; d->lose_lock_range = ak_bp_float(o, "LoseLockOnRange", 0);
     if (d->sec.lock_time > 0) d->lock_time = d->sec.lock_time;                /* (the weapon's LockonTime, where it has one) */

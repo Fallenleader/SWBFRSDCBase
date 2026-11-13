@@ -604,9 +604,43 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
             int team = ak_faction_team(ak_bp_int(d->bp, "Faction", 3));
             if (team == 1) { sp->def[1] = sp->def[0]; sp->def[0] = -1; }
         }
+        sp->mpost = -1;
+        {   s32 dd = sp->def[0] >= 0 ? sp->def[0] : sp->def[1];               /* CarriesCommandPost: a post of its own (func 089D66C4) */
+            if (any && dd >= 0 && p->vdef[dd].carries_cp && p->have_cq && p->cq.nposts < AK_MAX_POSTS) {
+                u32 k = p->cq.nposts++; ak_post *po = &p->cq.post[k]; memset(po, 0, sizeof *po);
+                memcpy(po->pos, sp->pos, 12); po->amount = 10; po->flags = 5; po->disabled = true; po->mobile = true; po->absent = true;
+                po->start_owner = AK_CQ_NEUTRAL; p->cq.post_id[k] = 0;
+                p->match.post[k].owner = AK_CQ_NEUTRAL; p->match.post[k].capturing = AK_CQ_NEUTRAL; p->match.post[k].progress = po->amount;
+                sp->mpost = (s32)k;
+            }
+        }
         if (any) p->nveh++;
     }
     a->used = mark;                                                           /* the entity list was only needed here */
+}
+
+/* vehicle-carried posts (the game: func 089D66C4 makes a command post for a vehicle with CarriesCommandPost - the AT-AT, the
+ * transports - of the vehicle's Faction, flags | 5 (not capturable), CommandPostSkin an invisible skin, and fixes it to the
+ * CommandPostMarker "cp"; func 089D6840 takes it away with the vehicle).  It is a spawn point of the vehicle's side while the vehicle
+ * stands (flyers: while landed; spawning in flight is not done here), and counts as a post of that side. */
+static void mobile_posts(ak_play *p, const ak_model_set *m)
+{
+    for (u32 v = 0; v < p->nveh; v++) {
+        s32 k = p->vspawn[v].mpost; if (k < 0) continue;
+        const ak_vehicle *vh = &p->veh[v]; ak_post *po = &p->cq.post[k];
+        bool present = vh->alive && vh->def && !(vh->def->kind == AK_VEH_FLYER && vh->flying) && vh->team >= 0 && vh->team < 2;
+        if (present) {
+            f32 T[12];
+            if (ak_vehicle_marker(vh, m, vh->def->cp_marker, T)) { po->pos[0] = T[3]; po->pos[1] = T[7]; po->pos[2] = T[11]; }
+            else memcpy(po->pos, vh->pos, 12);
+            f32 o[3] = { po->pos[0] + cosf(vh->yaw) * (vh->def->radius * 0.3f), po->pos[1] + 1.0f, po->pos[2] - sinf(vh->yaw) * (vh->def->radius * 0.3f) }, gy;
+            int t = vh->team;
+            if (ak_char_ground_below(&p->col, o, 60.0f, &gy)) { po->spawn[t][0] = o[0]; po->spawn[t][1] = gy; po->spawn[t][2] = o[2]; }
+            else memcpy(po->spawn[t], vh->pos, 12);
+            po->spawn_yaw[t] = vh->yaw; po->has_spawn[t] = true; po->has_spawn[1 - t] = false;
+        }
+        ak_conquest_mobile(&p->cq, &p->match, (u32)k, present ? vh->team : AK_CQ_NEUTRAL, present);
+    }
 }
 
 static void vehicle_fire(ak_play *p, const ak_model_set *m, u32 v, const f32 *target, f32 dt)
@@ -1395,6 +1429,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             }
         } }
     turrets_update(p, m, dt);
+    if (p->have_cq) mobile_posts(p, m);
     ak_projs_update(&p->projs, &p->col, p->target, NT(p), p->cp.gravity, dt, proj_boom, p);
     /* the shots in flight */
     bool alive_before[PLAY_MAX_TARGETS];
