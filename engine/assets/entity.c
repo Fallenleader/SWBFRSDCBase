@@ -55,10 +55,11 @@ bool ak_entities_load(const ak_level *l, const ak_model_set *ms, ak_arena *a, ak
                 e->model[0] = model_by_hash(ms, l, W(7), mesh_hash); e->model[1] = model_by_hash(ms, l, W(8), mesh_hash);
             }
             gp[0] = F(12); gp[1] = F(13); gp[2] = F(14); gq = quat_from_euler(F(15), F(16), F(17)); have = true;
-        } else if (e->flagged && e->type == 13 && nw >= 20) {
-            e->model[0] = model_by_hash(ms, l, W(7), mesh_hash);
-            gp[0] = F(8); gp[1] = F(9); gp[2] = F(10);
-            f32 m[9]; for (int k = 0; k < 9; k++) m[k] = F(11 + k);
+        } else if (e->flagged && e->type == 13 && nw >= 20 && W(4) <= 4) {
+            u32 k0 = 6 + W(4);                                              /* word 4: extra words before the model hash */
+            e->model[0] = model_by_hash(ms, l, W(k0), mesh_hash);
+            gp[0] = F(k0 + 1); gp[1] = F(k0 + 2); gp[2] = F(k0 + 3);
+            f32 m[9]; for (int k = 0; k < 9; k++) m[k] = F(k0 + 4 + k);
             gq = quat_from_rows(m); have = true;
         } else {
             for (u32 i = 3; i < nw && e->model[0] < 0; i++) {

@@ -57,6 +57,7 @@
 #include "game/ak_vehicle.h"
 #include "game/ak_space.h"
 #include "game/ak_turret.h"
+#include "game/ak_path.h"
 #include "render/ak_scene.h"
 #include "platform/plat.h"
 
@@ -69,7 +70,7 @@ enum { PLAY_IDLE, PLAY_RUN, PLAY_BACK, PLAY_LEFT, PLAY_RIGHT, PLAY_JUMP, PLAY_FA
 #define PLAY_MAX_TURRETS 32
 #define PLAY_MAX_TARGETS (1 + PLAY_MAX_BOTS + PLAY_MAX_VEH + PLAY_MAX_TURRETS)
 #define PLAY_MAX_BOOMS 8
-typedef struct { f32 pos[3], yaw; s32 def[2]; s32 post; f32 respawn; bool fixed; s32 mpost; } ak_play_vspawn;   /* mpost: the post it carries (-1 none) */   /* a vehicle spawn: one vehicle per side (index into vdef, -1 none), the post whose owner gets it; fixed = a walker placed in the level (no respawn, not drivable) */
+typedef struct { f32 pos[3], yaw; s32 def[2]; s32 post; f32 respawn; bool fixed; s32 mpost; ak_route *route; f32 route_d; } ak_play_vspawn;   /* route: a placed walker's path (ak_path.h), how far along it is */   /* mpost: the post it carries (-1 none) */   /* a vehicle spawn: one vehicle per side (index into vdef, -1 none), the post whose owner gets it; fixed = a walker placed in the level (no respawn, not drivable) */
 typedef struct { f32 pos[3], t; } ak_play_boom;
 /* a side's hero (traced: the hero manager func 08974318, the switch func 089826E8; see heroes_update in play.c) */
 typedef struct {

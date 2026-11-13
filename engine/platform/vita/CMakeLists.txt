@@ -25,7 +25,7 @@ add_compile_options(-O3 -march=armv7-a+simd -mtune=cortex-a9 -mfpu=neon -mfloat-
                     -Wall -Wextra -Wno-unused-parameter)
 include_directories(${E})
 add_executable(aurek
-  ${E}/app/viewer.c ${E}/app/play.c ${E}/core/ak_core.c ${E}/core/ak_vfs.c ${E}/core/ak_settings.c ${E}/assets/asura.c ${E}/assets/model.c ${E}/assets/entity.c ${E}/assets/blueprint.c ${E}/game/ak_soldier.c ${E}/game/ak_character.c ${E}/game/ak_weapon.c ${E}/game/ak_conquest.c ${E}/game/ak_vehicle.c ${E}/game/ak_space.c ${E}/game/ak_turret.c ${E}/game/ak_projectile.c ${E}/world/ak_collision.c ${E}/world/ak_nav.c ${E}/render/ak_scene.c
+  ${E}/app/viewer.c ${E}/app/play.c ${E}/core/ak_core.c ${E}/core/ak_vfs.c ${E}/core/ak_settings.c ${E}/assets/asura.c ${E}/assets/model.c ${E}/assets/entity.c ${E}/assets/blueprint.c ${E}/game/ak_soldier.c ${E}/game/ak_character.c ${E}/game/ak_weapon.c ${E}/game/ak_conquest.c ${E}/game/ak_vehicle.c ${E}/game/ak_space.c ${E}/game/ak_turret.c ${E}/game/ak_projectile.c ${E}/game/ak_path.c ${E}/world/ak_collision.c ${E}/world/ak_nav.c ${E}/render/ak_scene.c
   plat_vita.c gfx_gxm.c)
 add_dependencies(aurek independence)
 target_compile_definitions(aurek PRIVATE AK_BUILD_ID="${AK_GIT_ID}")

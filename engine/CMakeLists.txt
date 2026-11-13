@@ -28,7 +28,7 @@ endif()
 
 add_custom_target(independence ALL COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_independence.sh VERBATIM)
 
-add_library(akcore STATIC core/ak_core.c core/ak_vfs.c core/ak_settings.c assets/asura.c assets/model.c assets/entity.c assets/blueprint.c game/ak_soldier.c game/ak_character.c game/ak_weapon.c game/ak_conquest.c game/ak_vehicle.c game/ak_space.c game/ak_turret.c game/ak_projectile.c world/ak_collision.c world/ak_nav.c render/ak_scene.c)
+add_library(akcore STATIC core/ak_core.c core/ak_vfs.c core/ak_settings.c assets/asura.c assets/model.c assets/entity.c assets/blueprint.c game/ak_soldier.c game/ak_character.c game/ak_weapon.c game/ak_conquest.c game/ak_vehicle.c game/ak_space.c game/ak_turret.c game/ak_projectile.c game/ak_path.c world/ak_collision.c world/ak_nav.c render/ak_scene.c)
 target_include_directories(akcore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(akcore PUBLIC m)
 

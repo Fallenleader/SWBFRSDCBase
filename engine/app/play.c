@@ -799,7 +799,11 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
             int team = ak_faction_team(ak_bp_int(d->bp, "Faction", 3));
             if (team == 1) { sp->def[1] = sp->def[0]; sp->def[0] = -1; }
         }
-        sp->mpost = -1;
+        sp->mpost = -1; sp->route = NULL; sp->route_d = 0;
+        if (sp->fixed && ak_setting_int("AK_WALKER_PATHS", 1)) {             /* a placed walker walks its path (the record's start node) */
+            ak_route *r = (ak_route *)ak_arena_alloc(a, sizeof *r, 4);
+            if (r && ak_route_for_unit(l, e->id, r)) { sp->route = r; if (ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "walker %u: a path of %u points, %.0f m", p->nveh + 1, r->n, r->length); }
+        }
         {   s32 dd = sp->def[0] >= 0 ? sp->def[0] : sp->def[1];               /* CarriesCommandPost: a post of its own (func 089D66C4) */
             if (any && dd >= 0 && p->vdef[dd].carries_cp && p->have_cq && p->cq.nposts < AK_MAX_POSTS) {
                 u32 k = p->cq.nposts++; ak_post *po = &p->cq.post[k]; memset(po, 0, sizeof *po);
@@ -1596,6 +1600,35 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         } else if (vh->driver > 0) {                                          /* a bot drives (its controls are set in bot_drive) */
             ak_vehicle_update(vh, &p->col, p->cp.gravity, p->bot[vh->driver - 1].boost, dt);
             memcpy(p->bot[vh->driver - 1].ch.pos, vh->pos, 12);
+        } else if (p->vspawn[v].route && vh->def->kind == AK_VEH_WALKER) {      /* a placed walker: along its path at its walking pace, then it stands */
+            ak_play_vspawn *sp = &p->vspawn[v]; f32 at[3], dir[3], ahead[3], d2[3];
+            bool going = ak_route_at(sp->route, sp->route_d, at, dir);
+            ak_route_at(sp->route, sp->route_d + 6.0f, ahead, d2);                /* steer for a point a little ahead */
+            f32 dx = ahead[0] - vh->pos[0], dz = ahead[2] - vh->pos[2];
+            f32 want = atan2f(-dx, -dz);
+            f32 dy = wrap(want - vh->yaw);
+            vh->steer = dy > 0.05f ? -1.0f : dy < -0.05f ? 1.0f : -dy * 20.0f; if (vh->steer > 1) vh->steer = 1; if (vh->steer < -1) vh->steer = -1;
+            vh->throttle = going && fabsf(dy) < 0.8f ? (f32)ak_setting_float("AK_WALKER_THROTTLE", 1.0f) : 0.0f; vh->strafe = 0; vh->brake = false;
+            ak_vehicle_update(vh, &p->col, p->cp.gravity, false, dt);
+            {   /* progress: the projection of the walker onto the path near where it was */
+                f32 best = sp->route_d, bd = 1e30f;
+                for (f32 s = sp->route_d - 2.0f; s <= sp->route_d + 4.0f; s += 0.25f) { f32 q[3], qd[3]; ak_route_at(sp->route, s, q, qd);
+                    f32 ex = q[0] - vh->pos[0], ez = q[2] - vh->pos[2]; if (ex * ex + ez * ez < bd) { bd = ex * ex + ez * ez; best = s; } }
+                if (best > sp->route_d) sp->route_d = best; }
+            {   /* its guns: the nearest enemy in its range within the head's reach (the game's walker gunnery is not traced) */
+                static s32 cached[PLAY_MAX_VEH]; static f32 next[PLAY_MAX_VEH];   /* (looked for every half second) */
+                if ((next[v] -= dt) <= 0) { next[v] = 0.5f; cached[v] = find_enemy(p, vh->team, vh->pos, vh->yaw, vh->def->hover + vh->def->height * 0.8f, vh->def->target_range > 0 ? vh->def->target_range : 100.0f, true); }
+                s32 e = cached[v]; if (e >= 0 && !p->target[e].alive) e = cached[v] = -1;
+                if (e >= 0 && vh->def->armed) {
+                    const ak_target *en = &p->target[e];
+                    f32 ex = en->feet[0] - vh->pos[0], ez = en->feet[2] - vh->pos[2], want = wrap(atan2f(-ex, -ez) - vh->yaw);
+                    vh->aim_yaw += clampf(clampf(want, -1.2f, 1.2f) - vh->aim_yaw, -1.0f * dt, 1.0f * dt);
+                    if (fabsf(want - vh->aim_yaw) < 0.25f) { f32 tg[3] = { en->feet[0], en->feet[1] + en->height * 0.5f, en->feet[2] }; vehicle_fire(p, m, v, tg, dt); }
+                    else vh->volley_t = 0;
+                } else vh->volley_t = 0;
+            }
+            if (ak_setting_int("AK_DEBUG_VEH", 0) > 1 && (int)(p->clock / 2.0f) != (int)((p->clock - dt) / 2.0f))
+                AK_INFO("veh", "%.0f s: %s at %.1f %.1f %.1f, %.1f of %.0f m along its path, path point %.1f %.1f", p->clock, vh->def->name, vh->pos[0], vh->pos[1], vh->pos[2], sp->route_d, sp->route->length, at[0], at[2]);
         } else {                                                              /* empty: it brakes to a stop */
             vh->throttle = vh->steer = vh->strafe = 0; f32 k = expf(-4.0f * dt); vh->vel[0] *= k; vh->vel[2] *= k;
             ak_vehicle_update(vh, &p->col, p->cp.gravity, false, dt);
@@ -1721,6 +1754,8 @@ bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12])
 static void camera_for(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy);
 void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy)
 {
+    {   const char *fc = ak_setting_str("AK_DEBUG_CAM_AT", NULL);              /* tests: a fixed camera "x,y,z,yaw,pitch" over the match */
+        if (fc && sscanf(fc, "%f,%f,%f,%f,%f", &eye->x, &eye->y, &eye->z, yaw, pitch) == 5) { *fovy = p->fov; p->aim_ok = false; return; } }
     {   int fv = ak_setting_int("AK_DEBUG_FOLLOW_VEH", 0);                  /* tests: ride behind vehicle N (whoever drives) */
         if (fv > 0 && (u32)fv <= p->nveh && p->in_veh < 0 && p->veh[fv - 1].alive) {
             p->in_veh = fv - 1; ak_play_camera(p, dt, eye, yaw, pitch, fovy); p->in_veh = -1; return; } }
