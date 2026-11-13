@@ -143,7 +143,7 @@ int main(int argc, char **argv)
             continue;
         }
         if (in.pressed & AK_BTN_SELECT) show = !show;
-        if (in.pressed & AK_BTN_CIRCLE) gallery_on = !gallery_on;
+        if ((in.pressed & AK_BTN_CIRCLE) && !(playing && play.ready)) gallery_on = !gallery_on;   /* (playing: circle fires a vehicle's secondary) */
         /* the gallery model as a soldier (a Humanoid blueprint of that name): its head, its faction's colours */
         has_look = gallery_on && ngallery && ak_soldier_look_make(&bps, &models, models.models[gallery[gsel]].name, ghead, col1, col2, &look);
         if (gallery_on && (in.pressed & AK_BTN_L)) col1 = ((has_look ? look.colour1 : col1 < 0 ? 0 : col1) + 1) & 15;   /* personalisation: L colour 1, R colour 2 */
@@ -236,6 +236,7 @@ int main(int argc, char **argv)
                         in.lx = a; in.ly = b; in.rx = c; in.ry = d;
                         if (strchr(bt, 'f')) in.held |= AK_BTN_R;
                         if (strchr(bt, 'l')) in.held |= AK_BTN_L;
+                        if (strchr(bt, 'c')) in.held |= AK_BTN_CIRCLE;                 /* c: a vehicle's secondary */
                         if (frame == at && strchr(bt, 'j')) in.pressed |= AK_BTN_CROSS;
                         if (frame == at && strchr(bt, 'g')) in.pressed |= AK_BTN_TRIANGLE;   /* g: get in / out */
                     }
@@ -267,6 +268,7 @@ int main(int argc, char **argv)
                     k += snprintf(vl + k, sizeof vl - (size_t)k, " %s:%s%.0f/%.0f", vh->def ? vh->def->name : "-", vh->alive ? (vh->driver > 0 ? "bot " : vh->driver == 0 ? "you " : "") : "wreck ", t->health, vh->def ? vh->def->health : 0);
                 }
                 AK_INFO("test", "vehicles:%s", vl);
+                AK_INFO("test", "projectiles: %u fired, %u hits", play.projs.fired, play.projs.hits);
                 if (play.nturret) { k = 0;
                     for (u32 v = 0; v < play.nturret && k < 480; v++)
                         k += snprintf(vl + k, sizeof vl - (size_t)k, " %s:%s%.0f(%u hits)", play.turret[v].def->name, play.turret[v].alive ? "" : "wreck ", play.target[1 + play.nbots + play.nveh + v].health, play.target[1 + play.nbots + play.nveh + v].hits);
@@ -357,6 +359,21 @@ int main(int argc, char **argv)
                     snprintf(line, sizeof line, "%s  armour %.0f / %.0f  speed %.0f m/s  triangle: get out  cross: boost  L: strafe", vh->def->name,
                              play.target[1 + play.nbots + play.in_veh].health, vh->def->health, sqrtf(vh->vel[0] * vh->vel[0] + vh->vel[2] * vh->vel[2]));
                     ak_gfx_text(8, 152, 0xFFA0FFA0, line);
+                    if (vh->def->sec.armed) {                                 /* the secondary: ammo / reload, and the lock-on */
+                        const ak_target *lt = vh->lock >= 0 ? &play.target[vh->lock] : NULL;
+                        char lk[64] = "";
+                        if (lt && vh->locked) snprintf(lk, sizeof lk, "  LOCKED");
+                        else if (lt && vh->def->sec.tracks) snprintf(lk, sizeof lk, "  locking %.0f%%", 100.0f * vh->lock_t / (vh->def->lock_time > 0 ? vh->def->lock_time : 1));
+                        if (vh->sec_reload > 0) snprintf(line, sizeof line, "circle: %s  reloading %.1f s%s", vh->def->sec.weapon, vh->sec_reload, lk);
+                        else snprintf(line, sizeof line, "circle: %s  %d / %d%s", vh->def->sec.weapon, vh->sec_ammo, vh->def->sec.clip, lk);
+                        ak_gfx_text(8, 170, vh->locked ? 0xFF4040FF : 0xFFA0FFA0, line);
+                        if (lt) {                                             /* a mark on the locked / locking target */
+                            f32 X = lt->feet[0], Y = lt->feet[1] + lt->height * 0.5f, Z = lt->feet[2];
+                            f32 cx = vp.m[0] * X + vp.m[4] * Y + vp.m[8] * Z + vp.m[12], cy = vp.m[1] * X + vp.m[5] * Y + vp.m[9] * Z + vp.m[13], cw = vp.m[3] * X + vp.m[7] * Y + vp.m[11] * Z + vp.m[15];
+                            if (cw > 0.1f) { f32 sx = ((cx / cw) * 0.5f + 0.5f) * (f32)w, sy = (0.5f - (cy / cw) * 0.5f) * (f32)h;
+                                ak_gfx_text(sx - 12, sy - 6, vh->locked ? 0xFF4040FF : 0xFF40FFFF, vh->locked ? "[ X ]" : "[   ]"); }
+                        }
+                    }
                 } else {
                     s32 nv = -1; f32 bd = 1e30f;
                     for (u32 v = 0; v < play.nveh; v++) { const ak_vehicle *vh = &play.veh[v]; if (!vh->def || !vh->alive || vh->driver >= 0) continue;

@@ -7,13 +7,15 @@
 #
 # Controls: left stick move, right stick look, L / R down / up, hold Cross to move faster,
 #           START next level, TRIANGLE previous level, SELECT figures on/off.  Log: ux0:data/Aurek/log.txt (one line per second).
-#           CIRCLE: model gallery (every model of the level in its bind pose): d-pad left / right previous / next model,
+#           CIRCLE (free camera): model gallery (every model of the level in its bind pose): d-pad left / right previous / next model,
 #           right stick turns, left stick zooms, CIRCLE again back to the level.
 #           SQUARE: play (a soldier in a conquest match with bots) / free camera.  Playing: left stick move, right stick aim
 #           (twin stick), CROSS jump, R fire, L hold lock-on, TRIANGLE get in / out of a vehicle; START changes level (a new match
 #           starts; TRIANGLE goes back a level only in the free camera).  Driving: left stick throttle / steer, L held strafe, CROSS boost.
 #           Flying: left stick pitch (forward = nose down; AK_INVERT_Y flips it) and bank, CROSS boost, L held slow down, R fire; any
-#           input on the ground takes off, touching down slowly and level lands.  Bots take free vehicles of their side too.
+#           input on the ground takes off, touching down slowly and level lands.  In any vehicle with a secondary weapon (torpedoes,
+#           missiles, bombs) CIRCLE fires it; keeping an enemy in the sights locks on (the HUD shows locking / LOCKED) and a tracking
+#           weapon then guides itself.  Bots take free vehicles of their side too.
 
 # ---- start
 # level shown first, as "<ERA> <MAP>" (eras: CLASSIC, PREQUEL, CAMPAIGN)

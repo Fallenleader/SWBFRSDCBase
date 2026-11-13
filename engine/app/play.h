@@ -103,6 +103,7 @@ typedef struct {
     ak_play_vspawn vspawn[PLAY_MAX_VEH]; ak_vehicle veh[PLAY_MAX_VEH]; u32 nveh; s32 in_veh; f32 veh_respawn;
     f32 bot_drive;                     /* the chance a bot near a free vehicle of its side takes it (AK_BOT_VEHICLES) */
     ak_space_map space; bool is_space; s32 obj_unit[AK_MAX_OBJECTIVES];   /* space maps: AI objectives, the bot on each */
+    ak_projs projs;                    /* torpedoes, missiles, bombs in flight */
     ak_turret_def tdef[8]; u32 ntdef; ak_turret turret[PLAY_MAX_TURRETS]; u32 nturret;   /* level turrets (ENTI type 30) */
     ak_play_boom boom[PLAY_MAX_BOOMS]; u32 nboom;
     u32 kills, deaths;

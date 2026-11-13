@@ -15,6 +15,7 @@
 #include "assets/model.h"
 #include "world/ak_collision.h"
 #include "game/ak_weapon.h"
+#include "game/ak_projectile.h"
 
 enum { AK_VEH_HOVER, AK_VEH_SPEEDER, AK_VEH_TRACK, AK_VEH_CREATURE, AK_VEH_WALKER, AK_VEH_FLYER };
 
@@ -35,6 +36,8 @@ typedef struct {
      * slowest it flies), TopSpeed (boost), MaxTurnPitch / Yaw / Roll and RollRemoval (degrees a second), AnimLanded / AnimFlight */
     f32 cruise, pitch_rate, roll_rate, roll_removal, bank; s32 clip_flight, clip_landed;
     int flyer_type;                    /* Flyer_Type (AK_FLY_*: the space AI commander's roles) */
+    ak_secondary sec; const char *sec_muzzle[4]; u32 nsec_muzzles;   /* HardpointW2 (torpedoes, missiles, bombs) from HardpointW2Marker1..4 */
+    f32 lock_angle, lock_time, lose_lock_angle, lose_lock_range;   /* LockAngle / LockOnTime / LoseLockOnAngle (radians) / LoseLockOnRange */
 } ak_vehicle_def;
 
 typedef struct {
@@ -44,6 +47,7 @@ typedef struct {
     s32 driver;                            /* -1 empty, 0 the player, 1 + i bot i */
     s32 spawn; f32 respawn_t, dead_t;
     f32 volley_t; u32 fired_mask; f32 aim_yaw, aim_pitch;
+    s32 sec_ammo; f32 sec_t, sec_reload; u32 sec_next; s32 lock; f32 lock_t; bool locked; f32 bot_sec_t;   /* the secondary: clip, cool-down, reload, which muzzle; the lock-on */
     f32 throttle, steer, strafe;           /* the driver's controls, -1..1 */
     f32 anim_t; s32 clip; bool posed; f32 bones[64][12];   /* the pose (walkers walk; the rest hold their bind pose) */
     bool flying, crashed; f32 speed, takeoff; bool brake;  /* flyers */

@@ -624,6 +624,54 @@ static void vehicle_fire(ak_play *p, const ak_model_set *m, u32 v, const f32 *ta
     if (vh->volley_t >= (bot ? d->volley_bot : d->volley)) vh->volley_t = 0;
 }
 
+/* the secondary (HardpointW2): one projectile from the next muzzle toward `aim`, guided at `target` when it tracks (-1: straight);
+ * the clip empties at RateOfFire and reloads in ReloadTime */
+static bool vehicle_fire2(ak_play *p, const ak_model_set *m, u32 v, const f32 *aim, s32 target)
+{
+    ak_vehicle *vh = &p->veh[v]; const ak_vehicle_def *d = vh->def; const ak_secondary *s = &d->sec;
+    if (!s->armed || vh->sec_t > 0 || vh->sec_reload > 0) return false;
+    f32 mz[3] = { vh->pos[0], vh->pos[1] + d->hover + d->height * 0.5f, vh->pos[2] }, T[12];
+    if (d->nsec_muzzles && ak_vehicle_marker(vh, m, d->sec_muzzle[vh->sec_next % d->nsec_muzzles], T)) { mz[0] = T[3]; mz[1] = T[7]; mz[2] = T[11]; }
+    vh->sec_next++;
+    f32 dir[3] = { aim[0] - mz[0], aim[1] - mz[1], aim[2] - mz[2] }, l = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+    if (l < 0.01f) return false;
+    for (int k = 0; k < 3; k++) dir[k] /= l;
+    bool bot = vh->driver > 0;
+    ak_proj_launch(&p->projs, &s->proj, mz, dir, vh->vel, vh->team, vh->driver, s->tracks ? target : -1, bot ? s->bot_dmg : 1.0f);
+    vh->sec_t = s->rate;
+    if (s->clip > 0 && --vh->sec_ammo <= 0) { vh->sec_reload = s->reload; vh->sec_ammo = s->clip; }
+    return true;
+}
+
+/* the lock-on of a vehicle's tracking secondary: the enemy nearest the line of `fwd` within LockAngle and reach, held for LockOnTime;
+ * lost past LoseLockOnAngle or LoseLockOnRange (ground vehicles: 300 m) */
+static void vehicle_lock(ak_play *p, ak_vehicle *vh, const f32 *eye, const f32 *fwd, f32 dt)
+{
+    const ak_vehicle_def *d = vh->def;
+    if (!d->sec.armed || !d->sec.tracks) { vh->lock = -1; vh->locked = false; return; }
+    f32 reach = d->lose_lock_range > 0 ? d->lose_lock_range : 300.0f;
+    if (vh->lock >= 0) {
+        const ak_target *t = &p->target[vh->lock];
+        f32 c[3] = { t->feet[0] - eye[0], t->feet[1] + t->height * 0.5f - eye[1], t->feet[2] - eye[2] }, dl = sqrtf(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
+        f32 ang = dl > 0.01f ? acosf(fmaxf(-1, fminf(1, (c[0] * fwd[0] + c[1] * fwd[1] + c[2] * fwd[2]) / dl))) : 0;
+        if (!t->alive || dl > reach || ang > (vh->locked ? d->lose_lock_angle : d->lock_angle)) { vh->lock = -1; vh->locked = false; vh->lock_t = 0; }
+        else { vh->lock_t += dt; if (vh->lock_t >= d->lock_time) vh->locked = true; return; }
+    }
+    s32 best = -1; f32 bc = cosf(d->lock_angle);
+    for (u32 i = 0; i < NT(p); i++) {
+        const ak_target *t = &p->target[i];
+        if (!t->alive || t->team == vh->team || t->team == AK_CQ_NEUTRAL) continue;
+        if (i >= NS(p) && i < NV(p) && p->veh[i - NS(p)].driver < 0) continue;
+        f32 c[3] = { t->feet[0] - eye[0], t->feet[1] + t->height * 0.5f - eye[1], t->feet[2] - eye[2] }, dl = sqrtf(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
+        if (dl > reach || dl < 1) continue;
+        f32 cs = (c[0] * fwd[0] + c[1] * fwd[1] + c[2] * fwd[2]) / dl;
+        if (cs > bc) { bc = cs; best = (s32)i; }
+    }
+    vh->lock = best; vh->lock_t = 0; vh->locked = false;
+}
+
+static void proj_boom(void *ctx, const f32 *pos, f32 radius) { (void)radius; boom((ak_play *)ctx, pos); }
+
 /* ------------------------------------------------------------------ bots in vehicles */
 #define FLY_RAYS (AK_COL_NOT_BODIES | AK_COL_NOT_FLYERS)
 static f32 clampf(f32 x, f32 lo, f32 hi) { return x < lo ? lo : x > hi ? hi : x; }
@@ -705,6 +753,15 @@ static void bot_vehicle_gun(ak_play *p, const ak_model_set *m, ak_play_bot *b, u
         if ((fw[0] * dx + fw[1] * dy2 + fw[2] * dz) < cosf(0.3f) * dist) { vh->volley_t = 0; return; }   /* (the guns converge on it within ~17 degrees) */
     } else if (fabsf(want_yaw - vh->aim_yaw) > 0.25f) { vh->volley_t = 0; return; }
     f32 err = p->bot_aim * dist;
+    /* the secondary: the game's AI fires it at most every 15 s, with the target within 5 degrees (func 08948A9C: 0x08B1B754, 0x08AEDAE8) */
+    if (d->sec.armed && vh->bot_sec_t <= 0 && dist < (d->lose_lock_range > 0 ? d->lose_lock_range : 300.0f)) {
+        f32 cp = cosf(vh->pitch), fx = nose_only ? -sinf(vh->yaw) * cp : -sinf(vh->yaw + vh->aim_yaw), fy = nose_only ? sinf(vh->pitch) : 0, fz = nose_only ? -cosf(vh->yaw) * cp : -cosf(vh->yaw + vh->aim_yaw);
+        f32 hd = nose_only ? dist : sqrtf(dx * dx + dz * dz);
+        if ((fx * dx + fy * dy2 * (nose_only ? 1.0f : 0.0f) + fz * dz) > cosf(5.0f * 0.017453293f) * hd) {
+            f32 c[3] = { en->feet[0], en->feet[1] + en->height * 0.5f, en->feet[2] };
+            if (vehicle_fire2(p, m, v, c, b->enemy)) vh->bot_sec_t = 15.0f;
+        }
+    }
     tgt[0] += (rnd(&b->seed) * 2 - 1) * err; tgt[1] += (rnd(&b->seed) * 2 - 1) * err * 0.6f; tgt[2] += (rnd(&b->seed) * 2 - 1) * err;
     vehicle_fire(p, m, v, tgt, dt);
 }
@@ -955,6 +1012,10 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
         if (ak_setting_int("AK_DEBUG_BOTVEH", 0) > 2 && fmodf(p->clock, 0.5f) < dt)
             AK_INFO("botveh", "%.1f s: bot %u run end: dist %.0f, aim %.0f m, nose on %d, turret %s", p->clock, idx, dist, ad, on, bt < 200.0f * 200.0f ? "yes" : "no");
         if (on) vehicle_fire(p, m, v, aimp, dt); else vh->volley_t = 0;
+        if (on && d->sec.armed && vh->bot_sec_t <= 0 && ad < 400.0f) {          /* (the same 15 s rule for the secondary: bombs, torpedoes) */
+            s32 tt = -1; for (u32 k = 0; k < p->nturret; k++) if (p->turret[k].alive && p->turret[k].pos[0] == aimp[0] && p->turret[k].pos[2] == aimp[2]) tt = (s32)TT(p, k);
+            if (vehicle_fire2(p, m, v, aimp, tt)) vh->bot_sec_t = 15.0f;
+        }
     } else if (en && !landing) bot_vehicle_gun(p, m, b, v, dt, true);
     else vh->volley_t = 0;
 }
@@ -1274,6 +1335,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     for (u32 v = 0; v < p->nveh; v++) {
         ak_vehicle *vh = &p->veh[v];
         if (!vh->def) continue;
+        vh->sec_t -= dt; if (vh->sec_reload > 0) vh->sec_reload -= dt; vh->bot_sec_t -= dt;
         if (!vh->alive) {                                                     /* wrecked: back after the respawn delay */
             vh->dead_t += dt;
             if (vh->def->kind == AK_VEH_WALKER && vh->dead_t < 8.0f) ak_vehicle_pose(vh, m, dt);   /* the death clip */
@@ -1291,6 +1353,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (vh->aim_pitch < -0.4f) vh->aim_pitch = -0.4f;
             ak_vehicle_update(vh, &p->col, p->cp.gravity, (vin->held & AK_BTN_CROSS) != 0, dt);
             if ((vin->held & AK_BTN_R) && p->aim_ok) vehicle_fire(p, m, v, p->aim_point, dt); else vh->volley_t = 0;
+            if (p->aim_ok) vehicle_lock(p, vh, p->eye, p->aim, dt);                /* circle: the secondary (locked: guided) */
+            if ((vin->held & AK_BTN_CIRCLE) && p->aim_ok) vehicle_fire2(p, m, v, p->aim_point, vh->locked ? vh->lock : -1);
             memcpy(p->ch.pos, vh->pos, 12); p->ch.yaw = vh->yaw + vh->aim_yaw; p->ch.vel[0] = p->ch.vel[1] = p->ch.vel[2] = 0;
         } else if (vh->driver > 0) {                                          /* a bot drives (its controls are set in bot_drive) */
             ak_vehicle_update(vh, &p->col, p->cp.gravity, p->bot[vh->driver - 1].boost, dt);
@@ -1331,6 +1395,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             }
         } }
     turrets_update(p, m, dt);
+    ak_projs_update(&p->projs, &p->col, p->target, NT(p), p->cp.gravity, dt, proj_boom, p);
     /* the shots in flight */
     bool alive_before[PLAY_MAX_TARGETS];
     for (u32 i = 0; i < nt; i++) alive_before[i] = p->target[i].alive;
@@ -1551,6 +1616,14 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         ak_gfx_set_tint(NULL);
     }
     n += ak_bolts_vertices(&p->bolts, p->eye, bv + n, sizeof bv / sizeof bv[0] - n);
+    for (u32 i = 0; i < AK_MAX_PROJ; i++) {                                    /* torpedoes, missiles, bombs: a bright streak and a glow (their PFX come later) */
+        const ak_proj *q = &p->projs.p[i]; if (!q->alive) continue;
+        if (n + AK_BEAM_VERTS + 6 > sizeof bv / sizeof bv[0]) break;
+        f32 sp = sqrtf(q->vel[0] * q->vel[0] + q->vel[1] * q->vel[1] + q->vel[2] * q->vel[2]), k = sp > 1 ? fminf(6.0f, sp * 0.05f) / sp : 0;
+        f32 a[3] = { q->pos[0] - q->vel[0] * k, q->pos[1] - q->vel[1] * k, q->pos[2] - q->vel[2] * k };
+        n += ak_beam(bv + n, a, q->pos, 0.35f, p->eye, q->d->colour, 0, 255);
+        n += ak_flash(bv + n, q->pos, 0.9f, p->eye, q->d->colour, 220);
+    }
     for (u32 i = 0; i < p->nboom; i++) {                                      /* wrecks: a fireball (the game's PFX comes with the particles) */
         const ak_play_boom *b = &p->boom[i]; if (b->t > 1.2f) continue;
         f32 k = b->t / 1.2f;

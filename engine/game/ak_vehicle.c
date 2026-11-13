@@ -108,6 +108,17 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     }
     /* a volley every RateOfFire seconds (the Weapon's: tank lasers 0.25, fighters 0.3, TIE fighter 0.2, X-wing 2), the barrels at their
      * HardpointW1Time offsets within it (how the game combines the two is not traced; never shorter than the last barrel's offset) */
+    /* the secondary (HardpointW2) and the lock-on */
+    if (ak_secondary_load(bp, ak_bp_string(o, "HardpointW2", ""), &d->sec)) {
+        static const char *mk2[4] = { "HardpointW2Marker1", "HardpointW2Marker2", "HardpointW2Marker3", "HardpointW2Marker4" };
+        for (int i = 0; i < 4; i++) {
+            const char *s2 = ak_bp_string(o, mk2[i], "");
+            if (*s2 && (ak_model_marker(md, s2) || (d->turret_model >= 0 && ak_model_marker(&m->models[d->turret_model], s2)))) d->sec_muzzle[d->nsec_muzzles++] = s2;
+        }
+    }
+    d->lock_angle = ak_bp_float(o, "LockAngle", 15) * 0.017453293f; d->lock_time = ak_bp_float(o, "LockOnTime", 2);
+    d->lose_lock_angle = ak_bp_float(o, "LoseLockOnAngle", 45) * 0.017453293f; d->lose_lock_range = ak_bp_float(o, "LoseLockOnRange", 0);
+    if (d->sec.lock_time > 0) d->lock_time = d->sec.lock_time;                /* (the weapon's LockonTime, where it has one) */
     d->volley = hw ? ak_bp_float(hw, "RateOfFire", last + 0.5f) : last + 0.5f;
     if (d->volley < last + 0.05f) d->volley = last + 0.05f;
     {   /* bots: the hardpoint's Weapon blueprint (else Weapon "Base") scales damage and the time between volleys */
@@ -124,6 +135,7 @@ void ak_vehicle_spawn(ak_vehicle *v, const ak_vehicle_def *d, const f32 *pos, f3
     memset(v, 0, sizeof *v);
     v->def = d; memcpy(v->pos, pos, 12); v->yaw = yaw; v->team = team; v->spawn = sp;
     v->health = d->health; v->alive = true; v->driver = -1; v->aim_yaw = 0;
+    v->sec_ammo = d->sec.clip; v->lock = -1;
 }
 
 static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool boost, f32 dt)
