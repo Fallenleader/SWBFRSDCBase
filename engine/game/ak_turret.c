@@ -48,6 +48,10 @@ bool ak_turret_def_load(const ak_blueprints *bp, const ak_model_set *m, const ch
         if (d->muzzle_time[d->nmuzzles] > last) last = d->muzzle_time[d->nmuzzles];
         d->nmuzzles++;
     }
+    d->face = 1;
+    if (d->nmuzzles && carrier >= 0) { const ak_marker *mk = ak_model_marker(&m->models[carrier], d->muzzle[0]);
+        static const f32 I[12] = { 1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0 }; f32 o[12];
+        if (mk) { ak_marker_matrix(I, mk, o); if (o[11] < -0.2f) d->face = -1; } }
     d->volley = hw ? ak_bp_float(hw, "RateOfFire", last + 0.5f) : last + 0.5f;
     if (d->volley < last + 0.05f) d->volley = last + 0.05f;
     const ak_bp_object *w = hw ? hw : ak_bp_find(bp, "Weapon", "Base");
@@ -153,11 +157,12 @@ bool ak_turret_aim_at(const ak_turret *t, const ak_model_set *m, const f32 *targ
     const f32 *B = t->base; f32 d[3] = { target[0] - B[3], target[1] - B[7], target[2] - B[11] };
     f32 lx = B[0] * d[0] + B[4] * d[1] + B[8] * d[2], ly = B[1] * d[0] + B[5] * d[1] + B[9] * d[2], lz = B[2] * d[0] + B[6] * d[1] + B[10] * d[2];
     f32 tur[12]; if (marker_of(m, t->def->base, "tur", tur)) ly -= tur[7];
-    f32 y = atan2f(lx, lz), p = atan2f(ly, sqrtf(lx * lx + lz * lz));
+    f32 F = t->def->face;                                                    /* a -z facing model: yaw by a half turn, pitch reversed */
+    f32 y = atan2f(F * lx, F * lz), p = atan2f(ly, sqrtf(lx * lx + lz * lz));
     bool ok = true;
     if (t->def->yaw_min != 0 || t->def->yaw_max != 0) { if (y < t->def->yaw_min) { y = t->def->yaw_min; ok = false; } if (y > t->def->yaw_max) { y = t->def->yaw_max; ok = false; } }
     if (p < t->def->pitch_min) { p = t->def->pitch_min; ok = false; }
     if (p > t->def->pitch_max) { p = t->def->pitch_max; ok = false; }
-    *yaw = y; *pitch = p;
+    *yaw = y; *pitch = F * p;
     return ok;
 }

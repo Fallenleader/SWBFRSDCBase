@@ -9,7 +9,7 @@
  * MaxPivotY its yaw limits, both 0 = all round; "bar" marker) -> Barrel (tilts, MinPivotX / MaxPivotX degrees) -> its muzzles
  * (HardpointW1Marker1/2 at HardpointW1Time1/2).  HardpointW1 a Weapon (its Projectile the LaserBolt) or a LaserBolt; Health;
  * DestroyedTurret (a model name or asset path) stands after it is destroyed; Boardable (0: an automatic turret).
- * Models face +z. */
+ * Most models face +z; some (Hoth_Turret_Defence: its muzzle at z -2.6) face -z: `face` is the sign, from the first muzzle. */
 #ifndef AK_TURRET_H
 #define AK_TURRET_H
 #include "core/ak_core.h"
@@ -24,6 +24,7 @@ typedef struct {
     bool boardable, armed;
     ak_weapon_def gun, gun_bot; f32 volley, volley_bot;
     const char *muzzle[2]; f32 muzzle_time[2]; u32 nmuzzles;
+    f32 face;                          /* +1: the parts face +z, -1: they face -z */
 } ak_turret_def;
 
 typedef struct {

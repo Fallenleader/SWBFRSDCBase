@@ -229,6 +229,7 @@ int main(int argc, char **argv)
             for (u32 k = 0; k < ms.nmodels; k++) if (!strcmp(argv[i + 1], ms.models[k].name))
                 for (u32 q = 0; q < ms.models[k].nmarkers; q++) { const ak_marker *mk = &ms.models[k].markers[q];
                     printf("  marker %-12s bone %u at %.2f %.2f %.2f  rows %.2f %.2f %.2f / %.2f %.2f %.2f / %.2f %.2f %.2f\n", mk->name, mk->bone, mk->m[3], mk->m[7], mk->m[11], mk->m[0], mk->m[1], mk->m[2], mk->m[4], mk->m[5], mk->m[6], mk->m[8], mk->m[9], mk->m[10]); }
+        if (!strcmp(argv[i], "--markers")) for (u32 k = 0; k < ms.nmodels; k++) if (!strcmp(argv[i + 1], ms.models[k].name)) printf("  box %.2f %.2f %.2f .. %.2f %.2f %.2f\n", ms.models[k].bmin[0], ms.models[k].bmin[1], ms.models[k].bmin[2], ms.models[k].bmax[0], ms.models[k].bmax[1], ms.models[k].bmax[2]);
         if (!strcmp(argv[i], "--atab"))                                      /* the animation tables: rows of each set's body column */
             for (u32 k = 0; k < ms.ntables; k++) {
                 const ak_anim_table *t = &ms.tables[k]; u32 n = 0, f = 0;

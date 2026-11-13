@@ -421,8 +421,15 @@ int main(int argc, char **argv)
                 } else {
                     s32 nv = -1; f32 bd = 1e30f;
                     for (u32 v = 0; v < play.nveh; v++) { const ak_vehicle *vh = &play.veh[v]; if (!vh->def || !vh->alive || vh->driver >= 0) continue;
+                        if (!vh->def->drivable && !play.vspawn[v].route) continue;                  /* (only what can be boarded) */
+                        if (play.vspawn[v].route && vh->team != play.team) continue;
                         f32 dx = vh->pos[0] - play.ch.pos[0], dz = vh->pos[2] - play.ch.pos[2], r = vh->def->radius + 3.0f; if (dx * dx + dz * dz < r * r && dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; nv = (s32)v; } }
-                    if (nv >= 0) { snprintf(line, sizeof line, "triangle: get in the %s", play.veh[nv].def->name); ak_gfx_text((f32)w * 0.5f - 100, (f32)h * 0.5f + 60, 0xFFFFFFFF, line); }
+                    s32 nt2 = -1;
+                    for (u32 i = 0; i < play.nturret && play.in_turret < 0; i++) { const ak_turret *t = &play.turret[i]; if (!t->alive || !t->def->boardable || t->team != play.team) continue;
+                        f32 dx = t->pos[0] - play.ch.pos[0], dz = t->pos[2] - play.ch.pos[2], r = t->rad + 2.5f; if (dx * dx + dz * dz < r * r && fabsf(t->pos[1] - play.ch.pos[1]) < 5.0f) nt2 = (s32)i; }
+                    if (play.in_turret >= 0) ak_gfx_text((f32)w * 0.5f - 100, (f32)h * 0.5f + 60, 0xFFFFFFFF, "triangle: leave the turret");
+                    else if (nt2 >= 0) { snprintf(line, sizeof line, "triangle: man the %s", play.turret[nt2].def->name); ak_gfx_text((f32)w * 0.5f - 100, (f32)h * 0.5f + 60, 0xFFFFFFFF, line); }
+                    else if (nv >= 0) { snprintf(line, sizeof line, "triangle: get in the %s", play.veh[nv].def->name); ak_gfx_text((f32)w * 0.5f - 100, (f32)h * 0.5f + 60, 0xFFFFFFFF, line); }
                 }
                 if (play.have_cq) {
                     const ak_conquest *cq = &play.match; int me = play.team, them = 1 - me;

@@ -393,6 +393,10 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     }
     vehicles_init(p, l, m, bp, a);
     p->nturret = 0; p->ntdef = 0; turrets_init(p, l, m, bp);
+    {   int tt = ak_setting_int("AK_TEST_AT_TURRET", 0);                    /* tests: start beside turret N */
+        if (tt > 0 && (u32)tt <= p->nturret) { f32 q[3] = { p->turret[tt - 1].pos[0] + p->turret[tt - 1].rad + 1.0f, p->turret[tt - 1].pos[1] + 2.0f, p->turret[tt - 1].pos[2] }, gy;
+            if (ak_char_ground_below(&p->col, q, 10.0f, &gy)) q[1] = gy;
+            ak_char_spawn(&p->ch, q, p->ch.yaw); } }
     p->base_look = p->look; p->base_wdef = p->wdef; p->base_armed = p->armed; p->base_max_health = p->max_health;
     heroes_init(p, bp, m);
     {   /* the health and ammo droids (traced: the health droid, class 0x800F, func 089E812C, reads UtilityDroid "MedicalDroid":
@@ -850,7 +854,7 @@ static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
 
 static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a)
 {
-    p->in_veh = -1; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 10.0f);   /* (the spawn records say 10 s) */
+    p->in_veh = -1; p->in_turret = -1; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 10.0f);   /* (the spawn records say 10 s) */
     p->bot_drive = ak_setting_float("AK_BOT_VEHICLES", p->is_space ? 1.0f : 0.6f);   /* space: every bot that can flies */
     if (!ak_setting_int("AK_VEHICLES", 1)) return;
     ak_entity_set es; size_t mark = a->used;
@@ -918,6 +922,26 @@ static void mobile_posts(ak_play *p, const ak_model_set *m)
         }
         ak_conquest_mobile(&p->cq, &p->match, (u32)k, present ? vh->team : AK_CQ_NEUTRAL, present);
     }
+}
+
+/* a placed walker along its path at its walking pace (it stands at the end) - with or without a gunner aboard */
+static void walker_route_step(ak_play *p, u32 v, f32 dt)
+{
+    ak_vehicle *vh = &p->veh[v];
+    ak_play_vspawn *sp = &p->vspawn[v]; f32 at[3], dir[3], ahead[3], d2[3];
+    bool going = ak_route_at(sp->route, sp->route_d, at, dir);
+    ak_route_at(sp->route, sp->route_d + 6.0f, ahead, d2);        /* steer for a point a little ahead */
+    f32 dx = ahead[0] - vh->pos[0], dz = ahead[2] - vh->pos[2];
+    f32 want = atan2f(-dx, -dz);
+    f32 dy = wrap(want - vh->yaw);
+    vh->steer = dy > 0.05f ? -1.0f : dy < -0.05f ? 1.0f : -dy * 20.0f; if (vh->steer > 1) vh->steer = 1; if (vh->steer < -1) vh->steer = -1;
+    vh->throttle = going && fabsf(dy) < 0.8f ? (f32)ak_setting_float("AK_WALKER_THROTTLE", 1.0f) : 0.0f; vh->strafe = 0; vh->brake = false;
+    ak_vehicle_update(vh, &p->col, p->cp.gravity, false, dt);
+    {   /* progress: the projection of the walker onto the path near where it was */
+        f32 best = sp->route_d, bd = 1e30f;
+        for (f32 s = sp->route_d - 2.0f; s <= sp->route_d + 4.0f; s += 0.25f) { f32 q[3], qd[3]; ak_route_at(sp->route, s, q, qd);
+            f32 ex = q[0] - vh->pos[0], ez = q[2] - vh->pos[2]; if (ex * ex + ez * ez < bd) { bd = ex * ex + ez * ez; best = s; } }
+        if (best > sp->route_d) sp->route_d = best; }
 }
 
 static void vehicle_fire(ak_play *p, const ak_model_set *m, u32 v, const f32 *target, f32 dt)
@@ -1450,6 +1474,7 @@ static void turret_destroyed(ak_play *p, u32 i)
     ak_turret *t = &p->turret[i]; if (!t->alive) return;
     t->alive = false; t->health = 0; boom(p, t->pos);
     if (p->target[TT(p, i)].last_attacker == 0) p->kills++;
+    if (p->in_turret == (s32)i) { p->in_turret = -1; if (p->alive) { p->target[0].alive = true; p->target[0].health = 0; player_down(p); } }   /* the gunner goes with it */
 }
 
 static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
@@ -1461,6 +1486,23 @@ static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
         f32 rep = ak_bp_float(d->bp, "Auto_Repair_Rate", 5);                  /* self repair */
         if (t->health < d->health) { t->health = fminf(d->health, t->health + rep * dt); g->health = t->health; }
         int side = turret_side(p, t); if (side != t->team) { t->team = side; g->team = side < 0 ? AK_CQ_NEUTRAL : side; t->enemy = -1; }
+        if ((s32)i == p->in_turret) {                                       /* the player's: turn toward where the view aims, R fires */
+            f32 wy, wp;
+            if (p->aim_ok) { ak_turret_aim_at(t, m, p->aim_point, &wy, &wp);    /* (held at its limits when the view goes past them) */
+                f32 step = d->turn_rate * dt, dy = wrap(wy - t->yaw), dp = wp - t->pitch;
+                t->yaw = wrap(t->yaw + clampf(dy, -step, step)); t->pitch += clampf(dp, -step, step);
+            }
+            if (p->turret_fire && d->armed && d->nmuzzles) {
+                f32 prev = t->volley_t; t->volley_t += dt;
+                ak_weapon w; ak_weapon_give(&w, &d->gun); w.team = t->team; w.owner = 0;
+                for (u32 k = 0; k < d->nmuzzles; k++) {
+                    if (!(prev <= d->muzzle_time[k] && t->volley_t > d->muzzle_time[k]) && !(prev == 0 && d->muzzle_time[k] == 0)) continue;
+                    f32 muz[3]; if (ak_turret_muzzle(t, m, k, muz)) ak_weapon_fire(&w, &p->bolts, &p->col, p->target, NT(p), muz, p->aim_point, &p->seed);
+                }
+                if (t->volley_t >= d->volley) t->volley_t = 0;
+            } else t->volley_t = 0;
+            continue;
+        }
         if (t->team < 0 || p->bots_passive || !(p->is_space || !d->boardable) || !d->armed || !d->nmuzzles) continue;
         /* think: the nearest enemy it can point at and see */
         t->think_t -= dt;
@@ -1545,7 +1587,24 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     static const ak_input none;
     if (!p->alive) in = &none;                                               /* down: no control until the spawn wave */
     const ak_input *vin = in;                                                 /* the controls, for the vehicle when driving */
-    if (p->alive && (vin->pressed & AK_BTN_TRIANGLE)) {                       /* triangle: get in / out */
+    bool tri = p->alive && (vin->pressed & AK_BTN_TRIANGLE);
+    if (tri && p->in_turret >= 0) {                                           /* triangle: out of the turret, beside it */
+        const ak_turret *t = &p->turret[p->in_turret]; f32 out[3] = { t->pos[0] + t->rad + 1.0f, t->pos[1] + 1.0f, t->pos[2] }, gy;
+        if (ak_char_ground_below(&p->col, out, 8.0f, &gy)) out[1] = gy; else memcpy(out, p->ch.pos, 12);
+        ak_char_spawn(&p->ch, out, p->ch.yaw); p->in_turret = -1; p->target[0].alive = true; tri = false;
+    } else if (tri && p->in_veh < 0) {                                        /* a boardable turret of our side within reach */
+        s32 best = -1; f32 bd = 1e30f;
+        for (u32 i = 0; i < p->nturret; i++) {
+            const ak_turret *t = &p->turret[i]; if (!t->alive || !t->def->boardable || t->team != p->team) continue;
+            f32 dx = t->pos[0] - p->ch.pos[0], dz = t->pos[2] - p->ch.pos[2], d2 = dx * dx + dz * dz, r = t->rad + 2.5f;
+            if (d2 < r * r && d2 < bd && fabsf(t->pos[1] - p->ch.pos[1]) < 5.0f) { bd = d2; best = (s32)i; }
+        }
+        if (best >= 0) {
+            p->in_turret = best; p->target[0].alive = false; p->lock = -1; tri = false;
+            f32 B[12]; if (ak_turret_barrel(&p->turret[best], m, B)) { f32 F = p->turret[best].def->face; p->ch.yaw = atan2f(-F * B[2], -F * B[10]); p->ch.pitch = 0; }   /* the view starts along the barrel */
+        }
+    }
+    if (tri) {                                                                /* triangle: get in / out of a vehicle */
         if (p->in_veh >= 0) {
             ak_vehicle *vh = &p->veh[p->in_veh]; f32 out[3], gy;
             f32 rx = cosf(vh->yaw), rz = -sinf(vh->yaw), dd = vh->def->radius + p->cp.radius + 0.5f;
@@ -1556,7 +1615,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         } else {
             s32 best = -1; f32 bd = 1e30f;
             for (u32 v = 0; v < p->nveh; v++) {
-                const ak_vehicle *vh = &p->veh[v]; if (!vh->alive || vh->driver >= 0 || !vh->def->drivable) continue;
+                const ak_vehicle *vh = &p->veh[v]; if (!vh->alive || vh->driver >= 0 || (!vh->def->drivable && !p->vspawn[v].route) || (p->vspawn[v].route && vh->team != p->team)) continue;   /* (a placed walker: its gunner's seat) */
                 f32 dx = vh->pos[0] - p->ch.pos[0], dz = vh->pos[2] - p->ch.pos[2], d2 = dx * dx + dz * dz, r = vh->def->radius + 3.0f;
                 if (d2 < r * r && d2 < bd && fabsf(vh->pos[1] - p->ch.pos[1]) < 4) { bd = d2; best = (s32)v; }
             }
@@ -1568,6 +1627,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         }
     }
     if (p->in_veh >= 0) in = &none;                                           /* the soldier stands still inside */
+    static ak_input manned; if (p->in_turret >= 0) { manned = *in; manned.lx = manned.ly = 0; manned.pressed &= ~AK_BTN_CROSS; in = &manned; }   /* a gunner aims only */
     /* the soldier's pitch is positive looking down (the camera uses -pitch): stick up looks up unless AK_INVERT_Y */
     ak_char_input ci = { in->lx, in->ly, in->rx, p->invert_y ? in->ry : -in->ry, (in->pressed & AK_BTN_CROSS) != 0 };
     if (p->twin_stick) {
@@ -1603,6 +1663,21 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     } else p->lock = -1;
     bool was_ground = p->ch.on_ground;
     ak_char_update(&p->ch, &p->cp, &p->col, &ci, dt);
+    if (p->in_turret >= 0) {                                                  /* manning a turret: seated at it, it follows the aim */
+        ak_turret *t = &p->turret[p->in_turret];
+        if (!t->alive || t->team != p->team) { p->in_turret = -1; p->target[0].alive = true; }
+        else {                                                                /* the view rides above the turret's pivot */
+            f32 P[12]; if (ak_turret_pivot(t, m, P)) { p->ch.pos[0] = P[3]; p->ch.pos[1] = P[7] + 0.5f; p->ch.pos[2] = P[11]; } else { memcpy(p->ch.pos, t->pos, 12); p->ch.pos[1] += 2.0f; }
+            p->ch.vel[0] = p->ch.vel[1] = p->ch.vel[2] = 0;
+            const ak_turret_def *d = t->def;                                  /* the view keeps to the turret's arc (the limits are symmetric) */
+            if (d->yaw_min != 0 || d->yaw_max != 0) {
+                f32 F = d->face, c = atan2f(-F * t->base[2], -F * t->base[10]), w = fmaxf(-d->yaw_min, d->yaw_max);
+                f32 dy = remainderf(p->ch.yaw - c, 6.2831853f);
+                dy = fminf(fmaxf(dy, -w), w);
+                p->ch.yaw = c + dy;
+            }
+        }
+    }
     /* the clip for the state */
     f32 hs; int st = motion_state(&p->ch, &p->cp, was_ground, &p->land_t, dt, &hs);
     const s32 *pcl = unit_clips(p, 0);
@@ -1626,17 +1701,18 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         else for (int k = 0; k < 3; k++) p->aim_point[k] = p->eye[k] + p->aim[k] * reach;
     }
     /* the weapon (reloads when empty, as in the game) */
+    p->turret_fire = p->in_turret >= 0 && p->alive && (in->held & AK_BTN_R);
     p->alert_t -= dt; p->shoot_t += dt;                                       /* the alert pose: firing or locked on, and 3 s after */
     if (p->alive && p->in_veh < 0 && (in->held & (AK_BTN_R | AK_BTN_L))) { p->alert_t = 3.0f; if (in->held & AK_BTN_R) p->shoot_t = 0; }
     {   int ht = p->hero[p->team].offered == 0 ? 1 : 0;                       /* an offer of the hero: up takes it, down declines */
         if (ht && (in->pressed & AK_BTN_UP)) p->hero_answer = 1; else if (ht && (in->pressed & AK_BTN_DOWN)) p->hero_answer = -1; }
     if (p->armed && hero_of(p, 0) && hero_of(p, 0)->saber) {
         ak_weapon_update(&p->weapon, dt, false);
-        hero_attack(p, m, hero_of(p, 0), (in->held & AK_BTN_R) && p->alive && p->in_veh < 0, &p->weapon, p->ch.pos, p->ch.yaw, dt);
+        hero_attack(p, m, hero_of(p, 0), (in->held & AK_BTN_R) && p->alive && p->in_veh < 0 && p->in_turret < 0, &p->weapon, p->ch.pos, p->ch.yaw, dt);
     } else if (p->armed) {
         ak_weapon_update(&p->weapon, dt, false);
         f32 gun[12], muz[3];
-        if ((in->held & AK_BTN_R) && p->alive && p->aim_ok && ak_play_weapon_matrix(p, m, gun)) {   /* (the camera has aimed once) */
+        if ((in->held & AK_BTN_R) && p->alive && p->in_turret < 0 && p->aim_ok && ak_play_weapon_matrix(p, m, gun)) {   /* (the camera has aimed once) */
             muzzle_of(m, &p->wdef, gun, muz);
             f32 tgt[3]; memcpy(tgt, p->aim_point, 12);
             if (p->lock >= 0 && p->target[p->lock].alive) {                    /* locked on: the chest, then the head */
@@ -1667,6 +1743,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             continue;
         }
         if (vh->driver == 0) {                                                /* the player drives: left stick, cross boosts, right stick aims, R fires */
+            bool rails = p->vspawn[v].route && vh->def->kind == AK_VEH_WALKER;   /* a placed walker keeps to its path: the gunner aims and fires */
             vh->throttle = vin->ly; vh->steer = vin->lx; vh->strafe = 0; vh->brake = false;
             if (vh->def->kind == AK_VEH_FLYER) { vh->brake = (vin->held & AK_BTN_L) != 0; if (p->invert_y) vh->throttle = -vh->throttle; }   /* L held: slow down */
             else if (vin->held & AK_BTN_L) { vh->strafe = vin->lx; vh->steer = 0; }   /* L held: strafe (hover craft) */
@@ -1675,7 +1752,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (vh->aim_yaw < -1.2f) vh->aim_yaw = -1.2f;
             if (vh->aim_pitch > 0.6f) vh->aim_pitch = 0.6f;
             if (vh->aim_pitch < -0.4f) vh->aim_pitch = -0.4f;
-            ak_vehicle_update(vh, &p->col, p->cp.gravity, (vin->held & AK_BTN_CROSS) != 0, dt);
+            if (rails) walker_route_step(p, v, dt); else ak_vehicle_update(vh, &p->col, p->cp.gravity, (vin->held & AK_BTN_CROSS) != 0, dt);
             if ((vin->held & AK_BTN_R) && p->aim_ok) vehicle_fire(p, m, v, p->aim_point, dt); else vh->volley_t = 0;
             if (p->aim_ok) vehicle_lock(p, vh, p->eye, p->aim, dt);                /* circle: the secondary (locked: guided) */
             if ((vin->held & AK_BTN_CIRCLE) && p->aim_ok) vehicle_fire2(p, m, v, p->aim_point, vh->locked ? vh->lock : -1);
@@ -1684,20 +1761,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             ak_vehicle_update(vh, &p->col, p->cp.gravity, p->bot[vh->driver - 1].boost, dt);
             memcpy(p->bot[vh->driver - 1].ch.pos, vh->pos, 12);
         } else if (p->vspawn[v].route && vh->def->kind == AK_VEH_WALKER) {      /* a placed walker: along its path at its walking pace, then it stands */
-            ak_play_vspawn *sp = &p->vspawn[v]; f32 at[3], dir[3], ahead[3], d2[3];
-            bool going = ak_route_at(sp->route, sp->route_d, at, dir);
-            ak_route_at(sp->route, sp->route_d + 6.0f, ahead, d2);                /* steer for a point a little ahead */
-            f32 dx = ahead[0] - vh->pos[0], dz = ahead[2] - vh->pos[2];
-            f32 want = atan2f(-dx, -dz);
-            f32 dy = wrap(want - vh->yaw);
-            vh->steer = dy > 0.05f ? -1.0f : dy < -0.05f ? 1.0f : -dy * 20.0f; if (vh->steer > 1) vh->steer = 1; if (vh->steer < -1) vh->steer = -1;
-            vh->throttle = going && fabsf(dy) < 0.8f ? (f32)ak_setting_float("AK_WALKER_THROTTLE", 1.0f) : 0.0f; vh->strafe = 0; vh->brake = false;
-            ak_vehicle_update(vh, &p->col, p->cp.gravity, false, dt);
-            {   /* progress: the projection of the walker onto the path near where it was */
-                f32 best = sp->route_d, bd = 1e30f;
-                for (f32 s = sp->route_d - 2.0f; s <= sp->route_d + 4.0f; s += 0.25f) { f32 q[3], qd[3]; ak_route_at(sp->route, s, q, qd);
-                    f32 ex = q[0] - vh->pos[0], ez = q[2] - vh->pos[2]; if (ex * ex + ez * ez < bd) { bd = ex * ex + ez * ez; best = s; } }
-                if (best > sp->route_d) sp->route_d = best; }
+            walker_route_step(p, v, dt);
             {   /* its guns: the nearest enemy in its range within the head's reach (the game's walker gunnery is not traced) */
                 static s32 cached[PLAY_MAX_VEH]; static f32 next[PLAY_MAX_VEH];   /* (looked for every half second) */
                 if ((next[v] -= dt) <= 0) { next[v] = 0.5f; cached[v] = find_enemy(p, vh->team, vh->pos, vh->yaw, vh->def->hover + vh->def->height * 0.8f, vh->def->target_range > 0 ? vh->def->target_range : 100.0f, true); }
@@ -1711,7 +1775,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 } else vh->volley_t = 0;
             }
             if (ak_setting_int("AK_DEBUG_VEH", 0) > 1 && (int)(p->clock / 2.0f) != (int)((p->clock - dt) / 2.0f))
-                AK_INFO("veh", "%.0f s: %s at %.1f %.1f %.1f, %.1f of %.0f m along its path, path point %.1f %.1f", p->clock, vh->def->name, vh->pos[0], vh->pos[1], vh->pos[2], sp->route_d, sp->route->length, at[0], at[2]);
+                AK_INFO("veh", "%.0f s: %s at %.1f %.1f %.1f, %.1f of %.0f m along its path", p->clock, vh->def->name, vh->pos[0], vh->pos[1], vh->pos[2], p->vspawn[v].route_d, p->vspawn[v].route->length);
         } else {                                                              /* empty: it brakes to a stop */
             vh->throttle = vh->steer = vh->strafe = 0; f32 k = expf(-4.0f * dt); vh->vel[0] *= k; vh->vel[2] *= k;
             ak_vehicle_update(vh, &p->col, p->cp.gravity, false, dt);
@@ -1893,6 +1957,19 @@ void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *f
 
 static void camera_for(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy)
 {
+    if (p->in_turret >= 0 && !p->classic_cam) {                               /* manning a turret: behind and above its pivot, along the aim */
+        f32 y = p->ch.yaw, pt = -p->ch.pitch, fwd[3] = { -sinf(y) * cosf(pt), sinf(pt), -cosf(y) * cosf(pt) };
+        f32 back = 5.0f + p->turret[p->in_turret].rad, up = 1.5f;
+        f32 want[3] = { -fwd[0] * back, -fwd[1] * back + up, -fwd[2] * back }, wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]);
+        f32 dir[3] = { want[0] / wl, want[1] / wl, want[2] / wl }, lim = wl; ak_col_hit h;
+        if (ak_col_raycast(&p->col, p->ch.pos, dir, wl, AK_COL_NOT_BODIES, &h)) lim = h.t - 0.3f;
+        if (lim < 0.5f) lim = 0.5f;
+        *eye = ak_v3_make(p->ch.pos[0] + dir[0] * lim, p->ch.pos[1] + dir[1] * lim, p->ch.pos[2] + dir[2] * lim);
+        *yaw = y; *pitch = pt; *fovy = p->fov; p->aim_ok = true;
+        p->eye[0] = eye->x; p->eye[1] = eye->y; p->eye[2] = eye->z;
+        p->aim[0] = fwd[0]; p->aim[1] = fwd[1]; p->aim[2] = fwd[2];
+        return;
+    }
     f32 y = p->ch.yaw + ak_setting_float("AK_DEBUG_CAM_ORBIT", 0);    /* (orbit: tests look from the side) */
     f32 pt = p->classic_cam ? -p->ch.pitch * 0.6f : -p->ch.pitch;
     f32 sy = sinf(y), cy = cosf(y);
@@ -1925,7 +2002,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
     if (!p->ready || !p->posed) return;
     static f32 gun[12];
     ak_frustum fr = ak_frustum_from(vp);
-    if (p->in_veh < 0) {
+    if (p->in_veh < 0 && p->in_turret < 0) {
         draw_soldier(ms, m, &p->look, p->ch.pos, p->ch.yaw, (const f32 (*)[12])p->bones, vp, st);
         if (p->armed && p->alive && ak_play_weapon_matrix(p, m, gun)) draw_weapon(ms, m, &p->wdef, gun, vp, st);
     }

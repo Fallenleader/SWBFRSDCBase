@@ -124,6 +124,7 @@ typedef struct {
     ak_target target[PLAY_MAX_TARGETS];    /* 0: the player, 1 + i: bot i, 1 + nbots + v: vehicle v, then the turrets */
     ak_vehicle_def vdef[PLAY_MAX_DEFS]; u32 nvdef;
     ak_play_vspawn vspawn[PLAY_MAX_VEH]; ak_vehicle veh[PLAY_MAX_VEH]; u32 nveh; s32 in_veh; f32 veh_respawn;
+    s32 in_turret; bool turret_fire;   /* the boardable turret the player mans (-1 none); R held in it */
     f32 bot_drive;                     /* the chance a bot near a free vehicle of its side takes it (AK_BOT_VEHICLES) */
     ak_space_map space; bool is_space; s32 obj_unit[AK_MAX_OBJECTIVES];   /* space maps: AI objectives, the bot on each */
     ak_projs projs;                    /* torpedoes, missiles, bombs in flight */
