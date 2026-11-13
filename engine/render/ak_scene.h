@@ -36,6 +36,8 @@ typedef struct { u32 colour1, colour2; } ak_model_colours;
 bool ak_scene_models_init(ak_scene_models *s, const ak_model_set *set, const ak_scene_level *level, ak_arena *a);
 void ak_scene_models_free(ak_scene_models *s);
 /* bones: model-space 3x4 matrix per bone (ak_skeleton_bind_matrices, or an animated pose); NULL = parts at the model origin */
+/* every part of the model draws that follow with this pipeline (-1: each part's own) - holograms drawn as light */
+void ak_scene_force_pipe(int pipe);
 void ak_scene_models_draw(ak_scene_models *s, u32 model, const ak_m4 *view_proj, const ak_m4 *world, const f32 (*bones)[12],
                           const ak_model_colours *colours, ak_scene_stats *st);
 #endif

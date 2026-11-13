@@ -1968,14 +1968,22 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
             if (p->cq.post[i].disabled) continue;
             const ak_post_state *ps = &p->match.post[i];
             static const f32 tc[3][4] = { { 0.45f, 0.75f, 1.5f, 1 }, { 1.5f, 0.4f, 0.3f, 1 }, { 1.0f, 1.0f, 1.0f, 1 } };   /* ours, theirs, neutral */
-            int o = ps->owner < 2 ? (ps->owner == p->team ? 0 : 1) : 2;
+            /* the colour follows the capture: an owned post fades to white as it is drained, a neutral one from white to its
+               capturer's colour as the capture fills */
+            f32 full = p->cq.post[i].amount > 0 ? p->cq.post[i].amount : 1, k = 0; int side = 2;
+            if (ps->owner < 2) { side = ps->owner == p->team ? 0 : 1; k = ps->progress / full; }
+            else if (ps->capturing < 2) { side = ps->capturing == p->team ? 0 : 1; k = 1 - ps->progress / full; }
+            k = k < 0 ? 0 : k > 1 ? 1 : k;
+            f32 col[4]; for (int c = 0; c < 4; c++) col[c] = tc[2][c] + (tc[side][c] - tc[2][c]) * k;
             const f32 *pp = p->cq.post[i].pos;
-            ak_gfx_set_tint(tc[o]);
+            ak_gfx_set_tint(col);
+            ak_scene_force_pipe(AK_PIPE_ADD);                                  /* the hologram is light: additive, unlit */
             if (cone >= 0) { ak_m4 w; world_of(pp, p->cq.post[i].yaw, &w); ak_scene_models_draw(ms, (u32)cone, vp, &w, NULL, NULL, st); }
             if (ps->owner < 2) {
                 s32 lg = ak_models_find(m, logo[p->team_faction[ps->owner] & 3]);
                 if (lg >= 0) { f32 lp[3] = { pp[0], pp[1] + 1.25f, pp[2] }; ak_m4 w; world_of(lp, spin + (f32)i, &w); ak_scene_models_draw(ms, (u32)lg, vp, &w, NULL, NULL, st); }
             }
+            ak_scene_force_pipe(-1);
         }
         ak_gfx_set_tint(NULL);
     }

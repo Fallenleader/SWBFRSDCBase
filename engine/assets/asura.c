@@ -1,4 +1,5 @@
 #include "asura.h"
+#include "../core/ak_settings.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -388,5 +389,13 @@ bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *l)
             *(slot ? &l->mat[i].texture2 : &l->mat[i].texture) = ak_level_find_texture(l, nm);
         }
     }
+    /* self-lit surfaces (consoles, windows, lights: AK_MAT_SELF_LIT) glow: the game draws them unlit, so their vertex colours (the baked
+       lighting) do not darken them - full brightness (128) */
+    if (have_env && have_env_mtrl && ak_setting_int("AK_SELF_LIT", 1))
+        for (u32 b = 0; b < l->geom.nbatch; b++) {
+            const ak_batch *bt = &l->geom.batch[b];
+            if (bt->material >= l->nmat || !(l->mat[bt->material].flags & AK_MAT_SELF_LIT)) continue;
+            for (u32 k = 0; k < bt->count; k++) { ak_vtx *v = &l->geom.vtx[l->geom.idx[bt->first + k]]; if (v->col[0] < 128) v->col[0] = 128; if (v->col[1] < 128) v->col[1] = 128; if (v->col[2] < 128) v->col[2] = 128; }
+        }
     return have_env && have_env_mtrl;
 }

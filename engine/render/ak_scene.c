@@ -175,6 +175,9 @@ static ak_gfx_tex *coloured(ak_scene_models *s, s32 ti, const ak_model_colours *
 
 /* a weighted (v2) mesh: each vertex moved by its bones' pose x inverse bind, blended by weight, on the CPU into this frame's memory
    (heroes and creatures are few; the soldiers stay rigid parts on the GPU) */
+static int g_force_pipe = -1;
+void ak_scene_force_pipe(int pipe) { g_force_pipe = pipe; }
+
 static void draw_skinned(ak_scene_models *s, const ak_model *m, const ak_m4 *vw, const f32 (*bones)[12], const ak_model_colours *colours, ak_scene_stats *st)
 {
     static f32 K[256][12]; static ak_vtx *sv, *tri; static u32 svcap, tricap;
@@ -213,7 +216,7 @@ static void draw_skinned(ak_scene_models *s, const ak_model *m, const ak_m4 *vw,
         for (u32 p = 0; p < m->nparts; p++) {
             const ak_model_part *pt = &m->parts[p];
             if (!pt->count) continue;
-            ak_pipe pipe = (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
+            ak_pipe pipe = g_force_pipe >= 0 ? (ak_pipe)g_force_pipe : (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
                          : ((pt->flags & AK_MAT_ALPHA_TEST)) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
             if ((pipe >= AK_PIPE_LAYER) != (pass == 1)) continue;
             for (u32 k = 0; k < pt->count; k++) tri[k] = sv[m->idx[pt->first + k]];
@@ -236,7 +239,7 @@ void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_
         for (u32 p = 0; p < m->nparts; p++) {
             const ak_model_part *pt = &m->parts[p];
             if (!pt->count) continue;
-            ak_pipe pipe = (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
+            ak_pipe pipe = g_force_pipe >= 0 ? (ak_pipe)g_force_pipe : (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
                          : ((pt->flags & AK_MAT_ALPHA_TEST)) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
             if ((pipe >= AK_PIPE_LAYER) != (pass == 1)) continue;
             ak_m4 bm;
