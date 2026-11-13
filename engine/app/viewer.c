@@ -198,6 +198,22 @@ int main(int argc, char **argv)
                 ak_soldier_head_matrix(m, &models.skels[m->skeleton], look.head_bone, bp, hm[0]);
                 ak_scene_models_draw(&mscene, (u32)look.head, &vp, &ident, (const f32 (*)[12])hm, &gcol, &ms);
             }
+            {   const char *gw = ak_setting_str("AK_GALLERY_WEAPON", NULL);       /* tests: a weapon in the hand (a lightsaber with its blade) */
+                const ak_marker *gm = bp ? ak_model_marker(m, "gun") : NULL; s32 wm = gw ? ak_models_find(&models, gw) : -1;
+                if (gm && wm >= 0) {
+                    f32 G[12]; ak_marker_matrix(bp[gm->bone], gm, G);
+                    ak_m4 gw4 = { { G[0], G[4], G[8], 0,  G[1], G[5], G[9], 0,  G[2], G[6], G[10], 0,  G[3], G[7], G[11], 1 } };
+                    ak_scene_models_draw(&mscene, (u32)wm, &vp, &gw4, NULL, NULL, &ms);
+                    const ak_model *hm = &models.models[wm];
+                    {   /* the blade: from the hilt's top end, up its axis (as play draws it) */
+                        f32 lp[3] = { (hm->bmin[0] + hm->bmax[0]) * 0.5f, hm->bmax[1], (hm->bmin[2] + hm->bmax[2]) * 0.5f }, a[3], c[3], ax[3] = { G[1], G[5], G[9] }, al = sqrtf(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]);
+                        for (int r = 0; r < 3; r++) { a[r] = G[r * 4] * lp[0] + G[r * 4 + 1] * lp[1] + G[r * 4 + 2] * lp[2] + G[r * 4 + 3]; c[r] = a[r] + ax[r] / al; }
+                        f32 e3[3] = { eye.x, eye.y, eye.z }; static ak_vtx bv[AK_BEAM_VERTS];
+                        u32 nb = ak_beam(bv, a, c, 0.3f * 0.25f, e3, (u32)ak_setting_int("AK_GALLERY_BLADE_RGB", (int)0xFFFF2020u), 255, 255);
+                        ak_gfx_set_transform(NULL); if (nb) ak_gfx_draw_immediate(AK_PIPE_BEAM, NULL, bv, nb);
+                    }
+                }
+            }
             if (show) {
                 char line[200];
                 snprintf(line, sizeof line, "Aurek %s  %s  %.1f fps  %.2f ms", AK_BUILD_ID, ak_gfx_name(), fps, frame_ms); ak_gfx_text(8, 8, 0xFFFFFFFF, line);

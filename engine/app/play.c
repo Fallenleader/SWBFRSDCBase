@@ -1823,15 +1823,16 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         }
         ak_gfx_set_tint(NULL);
     }
-    for (u32 u = 0; u < NS(p); u++) {                                          /* saber heroes: the blade (the hilt's "blade" marker, up its axis) */
+    for (u32 u = 0; u < NS(p); u++) {                                          /* saber heroes: the blade, up the hilt's axis */
         const ak_play_hero *h = NULL; for (int t = 0; t < 2; t++) if (p->hero[t].unit == (s32)u && p->hero[t].saber) h = &p->hero[t];
         if (!h || !p->target[u].alive || h->wdef.model < 0) continue;
         f32 G[12];
         if (u == 0) { if (p->in_veh >= 0 || !ak_play_weapon_matrix(p, m, G)) continue; }
         else { const ak_play_bot *b = &p->bot[u - 1]; if (b->veh >= 0 || !weapon_world(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, G)) continue; }
-        const ak_marker *bm = ak_model_marker(&m->models[h->wdef.model], "blade");
-        f32 lp[3] = { 0, 0.2f, 0 }; if (bm) { lp[0] = bm->m[3]; lp[1] = bm->m[7]; lp[2] = bm->m[11]; }
-        f32 ld[3] = { 0, 1, 0 };                                              /* along the hilt (its +y), from the marker */
+        /* the hilt's top end (its "blade" marker sits 0.1 m off the end and 0.09 m off its axis, so the blade starts at the end) */
+        const ak_model *hm = &m->models[h->wdef.model];
+        f32 lp[3] = { (hm->bmin[0] + hm->bmax[0]) * 0.5f, hm->bmax[1], (hm->bmin[2] + hm->bmax[2]) * 0.5f };
+        f32 ld[3] = { 0, 1, 0 };                                              /* along the hilt (its +y) */
         f32 a[3], c[3], ax[3], al;
         for (int r = 0; r < 3; r++) ax[r] = G[r * 4] * ld[0] + G[r * 4 + 1] * ld[1] + G[r * 4 + 2] * ld[2];
         al = sqrtf(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]);
