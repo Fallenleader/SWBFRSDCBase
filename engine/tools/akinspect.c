@@ -184,6 +184,35 @@ int main(int argc, char **argv)
                         }
                         f32 dx = ch.pos[0] - start[0], dz = ch.pos[2] - start[2], dd = sqrtf(dx * dx + dz * dz); moved += dd; if (dd < 2.0f) stuck++;
                     }
+                    {   /* the navigation links on foot: the game's bots walk them, so a soldier steered along one must get to its end */
+                        u32 tried = 0, fails = 0, shown = 0; u32 rs2 = 11;
+                        for (int r = 0; r < 600 && nav.nnode; r++) {
+                            rs2 = rs2 * 1103515245u + 12345u; u32 a = (rs2 >> 8) % nav.nnode; const ak_nav_node *na = &nav.node[a];
+                            if (!na->nlinks) continue;
+                            const ak_nav_node *nb = &nav.node[nav.link[na->first_link + (rs2 >> 20) % na->nlinks].to];
+                            f32 ga, gb; if (!ak_char_ground_below(&col, na->pos, 3.0f, &ga) || !ak_char_ground_below(&col, nb->pos, 3.0f, &gb)) continue;
+                            f32 len = sqrtf((nb->pos[0] - na->pos[0]) * (nb->pos[0] - na->pos[0]) + (nb->pos[2] - na->pos[2]) * (nb->pos[2] - na->pos[2]));
+                            if (len < 1.5f || len > 40) continue;
+                            ak_character ch; f32 sp[3] = { na->pos[0], ga, na->pos[2] }; ak_char_spawn(&ch, sp, 0); tried++;
+                            ak_char_input ci = { 0, 1, 0, 0, false }; bool ok = false; int f;
+                            for (f = 0; f < (int)((len / cp.run_speed * 2 + 2) * 60); f++) {
+                                f32 dx = nb->pos[0] - ch.pos[0], dz = nb->pos[2] - ch.pos[2];
+                                if (dx * dx + dz * dz < 1.0f) { ok = true; break; }
+                                ch.yaw = atan2f(-dx, -dz);
+                                ci.jump = getenv("AK_WALK_JUMP") && ch.on_ground && (f % 30) == 29;    /* (a jump every half second) */
+                                ak_char_update(&ch, &cp, &col, &ci, 1.0f / 60.0f);
+                            }
+                            if (!ok) { fails++;
+                                if (getenv("AK_WALK_DEBUG") && shown++ < 25) printf("  link stuck (link flags %04x, nodes %04x %04x): %.1f %.1f %.1f -> %.1f %.1f %.1f (%.1f m), ended at %.1f %.1f %.1f %s\n", nav.link[na->first_link + (rs2 >> 20) % na->nlinks].flags, na->flags, nb->flags, sp[0], sp[1], sp[2], nb->pos[0], gb, nb->pos[2], len,
+                                                     ch.pos[0], ch.pos[1], ch.pos[2], ch.on_ground ? "on the ground" : "in the air"); }
+                        }
+                        if (getenv("AK_PROFILE")) { f32 a0, b0, a1, b1; if (sscanf(getenv("AK_PROFILE"), "%f,%f,%f,%f", &a0, &b0, &a1, &b1) == 4)
+                            for (int s = 0; s <= 24; s++) { f32 x = a0 + (a1 - a0) * s / 24, z = b0 + (b1 - b0) * s / 24, top = 30; printf("  profile %5.2f %7.2f:", x, z);
+                                for (int k = 0; k < 5; k++) { f32 o[3] = { x, top, z }, d[3] = { 0, -1, 0 }; ak_col_hit h; if (!ak_col_raycast(&col, o, d, 80, 0, &h)) break;
+                                    printf("  %.2f (n.y %.2f fl %04x)", h.pos[1], h.normal[1], h.flags); top = h.pos[1] - 0.01f; }
+                                printf("\n"); } }
+                        printf("on links   %u navigation links walked: %u not completed\n", tried, fails);
+                    }
                     printf("on foot    %u soldiers x 20 s of random running and jumping: %u fell out of the world, %u stayed within 2 m, on the ground %.0f%% of the time, %.1f m from the start on average, %.2f ms per soldier-second\n",
                            runs, fell, stuck, total_t > 0 ? 100.0f * ground_t / total_t : 0, runs ? moved / runs : 0, total_t > 0 ? (ak_plat_time_us() - tw) / 1000.0f / total_t : 0);
                 }

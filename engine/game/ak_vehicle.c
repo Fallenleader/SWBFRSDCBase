@@ -5,6 +5,7 @@
 #include <string.h>
 #include "ak_space.h"
 #include "game/ak_vehicle.h"
+#include "core/ak_settings.h"
 
 #define VEH_IGNORE (AK_COL_NOT_BODIES | AK_COL_NOT_SOLDIERS)
 #define DEG (3.14159265f / 180.0f)
@@ -196,6 +197,15 @@ static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bo
     for (int k = 0; k < 3; k++) v->pos[k] += v->vel[k] * dt;
 }
 
+/* the ground under a point: the first surface below a probe from a few metres above it */
+#define AK_VEH_CLIMB 0.6f
+static bool ground_at(const ak_collision *col, const f32 *pos, f32 hover, u16 mask, f32 *gy, f32 *ny)
+{
+    f32 o[3] = { pos[0], pos[1] + hover + 3.0f, pos[2] }, dn[3] = { 0, -1, 0 }; ak_col_hit h;
+    if (!ak_col_raycast(col, o, dn, hover + 3.0f + 6.0f, mask, &h)) return false;
+    *gy = h.pos[1]; *ny = h.normal[1]; return true;
+}
+
 void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool boost, f32 dt)
 {
     const ak_vehicle_def *d = v->def;
@@ -220,7 +230,11 @@ void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool
     /* move, then out of the walls (a circle at the body's middle height) */
     f32 step = sqrtf(v->vel[0] * v->vel[0] + v->vel[2] * v->vel[2]) * dt;
     int n = (int)(step / (d->radius * 0.5f)) + 1; if (n > 8) n = 8;
+    u16 gmask = d->kind == AK_VEH_HOVER || d->kind == AK_VEH_SPEEDER ? AK_COL_NOT_BODIES : VEH_IGNORE;
+    f32 g0, n0; bool has0 = ground_at(col, v->pos, d->hover, gmask, &g0, &n0);
+    static f32 steep = -1; if (steep < 0) steep = cosf(ak_setting_float("AK_VEH_MAX_SLOPE_DEG", 40.0f) * DEG);
     for (int i = 0; i < n; i++) {
+        f32 was[2] = { v->pos[0], v->pos[2] };
         v->pos[0] += v->vel[0] * dt / n; v->pos[2] += v->vel[2] * dt / n;
         f32 rr = d->radius * 0.6f, c[3] = { v->pos[0], v->pos[1] + d->hover + rr + 1.2f, v->pos[2] };   /* above the slopes it can climb */
         if (ak_col_sphere_resolve(col, c, rr, VEH_IGNORE, true, NULL)) {
@@ -231,6 +245,19 @@ void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool
                 f32 nx = dx / l, nz = dz / l, into = v->vel[0] * nx + v->vel[2] * nz;
                 if (into < 0) { v->vel[0] -= nx * into; v->vel[2] -= nz * into; }
             }
+        }
+        /* no stepping up onto what rises faster than a steep slope (a bunker's roof, a wall top under the body's sphere), nor up
+         * ground steeper than AK_VEH_MAX_SLOPE_DEG (cliffs): either is a wall */
+        f32 g1, n1, mx = v->pos[0] - was[0], mz = v->pos[2] - was[1], ml = sqrtf(mx * mx + mz * mz);
+        if (has0 && ml > 1e-4f && ground_at(col, v->pos, d->hover, gmask, &g1, &n1)) {
+            /* steepness over a metre ahead, so a kerb or a seam is stepped over but a cliff face or a bunker's sloped wall is not */
+            f32 ah[3] = { v->pos[0] + mx / ml, v->pos[1], v->pos[2] + mz / ml }, g2 = 0, n2 = 0;
+            bool up_steep = g1 > g0 + 0.15f * ml && ground_at(col, ah, d->hover, gmask, &g2, &n2) && n2 < steep && g2 - g0 > 0.3f;   /* (along or across the face) */
+            if ((g1 - g0 > AK_VEH_CLIMB + 1.2f * ml || up_steep)) {
+                v->pos[0] = was[0]; v->pos[2] = was[1];
+                f32 ux = mx / ml, uz = mz / ml, into = v->vel[0] * ux + v->vel[2] * uz;
+                if (into > 0) { v->vel[0] -= ux * into; v->vel[2] -= uz * into; }
+            } else g0 = g1;
         }
     }
     /* the ground: hover craft float at their height, the rest sit on it; the body leans with the slope */
