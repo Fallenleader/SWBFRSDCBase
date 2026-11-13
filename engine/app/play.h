@@ -85,7 +85,7 @@ typedef struct {
 } ak_play_hero;
 
 typedef struct {                       /* a bot soldier */
-    ak_soldier_look look, base_look; bool hero; ak_character ch; int team; ak_weapon weapon; bool alive;
+    ak_soldier_look look, base_look; bool hero; f32 alert_t, shoot_t; ak_character ch; int team; ak_weapon weapon; bool alive;
     f32 bones[64][12]; int state; f32 clip_t, land_t, dead_t, pose_dt; s32 death_clip; bool was_ground;
     /* the mind */
     s32 goal; u32 path[128]; u32 npath, path_i; f32 hold[3]; bool holding;
@@ -102,6 +102,8 @@ typedef struct {
     ak_char_params cp; ak_character ch; ak_soldier_look look;
     s32 clip[PLAY_NCLIPS]; int state; f32 clip_t, land_t;
     s32 sclip[PLAY_NCLIPS];            /* the saber heroes' (generic_male LightSabre clips) */
+    s32 aclip[PLAY_NCLIPS], shoot_clip;   /* the alert set (rifle raised: generic_male set 5) and its shoot layer (column 1) */
+    f32 alert_t, shoot_t;              /* the player: seconds of alert pose left; seconds since the trigger was last held */
     ak_play_hero hero[2]; bool hero_declined; int hero_answer;
     struct { s32 unit; u32 n; f32 base[8][3], tip[8][3], age[8], last; } fan[2];   /* each side's saber hero: its blade's recent positions (the motion fan) */   /* the player's answer to an offer: 1 yes, -1 no */
     ak_soldier_look base_look; ak_weapon_def base_wdef; bool base_armed; f32 base_max_health;

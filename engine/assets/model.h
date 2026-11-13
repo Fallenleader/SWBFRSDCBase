@@ -81,6 +81,8 @@ const ak_anim_table *ak_anim_table_find(const ak_model_set *s, const char *name)
 /* a clip's pose at time t (seconds, wrapped when loop): local rotation and translation per bone (skeleton order).  Bones the clip
  * has no channel for (or a channel without keys: upper-body overlay clips) keep the skeleton's bind pose. */
 void ak_anim_sample(const ak_anim_clip *c, const ak_skeleton *s, f32 t, bool loop, ak_quat *lq, f32 (*lt)[3]);
+/* the same laid over a pose already in lq / lt: only the bones the clip has keys for change (upper-body layers: shoot, reload) */
+void ak_anim_sample_over(const ak_anim_clip *c, const ak_skeleton *s, f32 t, bool loop, ak_quat *lq, f32 (*lt)[3]);
 /* model-space 3x4 matrices from local transforms */
 void ak_skeleton_pose_matrices(const ak_skeleton *s, const ak_quat *lq, const f32 (*lt)[3], f32 (*m)[12]);
 

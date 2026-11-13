@@ -101,14 +101,17 @@ static ak_quat q_nlerp(ak_quat a, ak_quat b, f32 t)
     return r;
 }
 
-void ak_anim_sample(const ak_anim_clip *c, const ak_skeleton *s, f32 t, bool loop, ak_quat *lq, f32 (*lt)[3])
+static void anim_sample(const ak_anim_clip *c, const ak_skeleton *s, f32 t, bool loop, ak_quat *lq, f32 (*lt)[3], bool over);
+void ak_anim_sample(const ak_anim_clip *c, const ak_skeleton *s, f32 t, bool loop, ak_quat *lq, f32 (*lt)[3]) { anim_sample(c, s, t, loop, lq, lt, false); }
+void ak_anim_sample_over(const ak_anim_clip *c, const ak_skeleton *s, f32 t, bool loop, ak_quat *lq, f32 (*lt)[3]) { anim_sample(c, s, t, loop, lq, lt, true); }
+static void anim_sample(const ak_anim_clip *c, const ak_skeleton *s, f32 t, bool loop, ak_quat *lq, f32 (*lt)[3], bool over)
 {
     f32 u = c->duration > 0 ? t / c->duration : 0;
     if (loop) u -= floorf(u);
     else u = u < 0 ? 0 : u > 1 ? 1 : u;
     f32 tu = u * 65535.0f;
     for (u32 b = 0; b < s->nbones; b++) {
-        lq[b] = s->bind_q[b]; memcpy(lt[b], s->bind_t[b], 12);
+        if (!over) { lq[b] = s->bind_q[b]; memcpy(lt[b], s->bind_t[b], 12); }
         if (b >= c->nbones) continue;
         const ak_anim_channel *ch = &c->chan[b];
         if (!ch->rot_count) continue;

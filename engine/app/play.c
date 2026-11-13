@@ -27,6 +27,21 @@ static void pose(const ak_model_set *m, const ak_soldier_look *lk, s32 clip, f32
     } else ak_skeleton_bind_matrices(sk, bones);
 }
 
+/* the body clip with an upper-body layer over it (the shoot layer: only the bones it has keys for) */
+static void pose_layer(const ak_model_set *m, const ak_soldier_look *lk, s32 clip, f32 t, bool loop, s32 over, f32 over_t, f32 (*bones)[12])
+{
+    static ak_quat lq[64]; static f32 lt[64][3];
+    const ak_model *body = &m->models[lk->body];
+    if (over < 0) { pose(m, lk, clip, t, loop, bones); return; }
+    if (body->skeleton < 0) return;
+    const ak_skeleton *sk = &m->skels[body->skeleton];
+    if (sk->nbones > 64) return;
+    if (clip >= 0) { const ak_anim_clip *c = &m->clips[clip]; if (!loop && t > c->duration) t = c->duration - 1e-4f; ak_anim_sample(c, sk, t, loop, lq, lt); }
+    else for (u32 b = 0; b < sk->nbones; b++) { lq[b] = sk->bind_q[b]; memcpy(lt[b], sk->bind_t[b], 12); }
+    ak_anim_sample_over(&m->clips[over], sk, over_t, true, lq, lt);
+    ak_skeleton_pose_matrices(sk, lq, (const f32 (*)[3])lt, bones);
+}
+
 static bool poseable(const ak_model_set *m, const ak_soldier_look *lk)
 {
     const ak_model *body = &m->models[lk->body];
@@ -259,6 +274,16 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->clip[PLAY_LEFT] = find_clip(m, left); p->clip[PLAY_RIGHT] = find_clip(m, right); p->clip[PLAY_JUMP] = find_clip(m, jump);
     p->clip[PLAY_FALL] = find_clip(m, fall); p->clip[PLAY_LAND] = find_clip(m, land);
     p->idle_clip = p->clip[PLAY_IDLE]; p->death_clips[0] = find_clip(m, d1); p->death_clips[1] = find_clip(m, d2); p->death_clips[2] = find_clip(m, d3);
+    /* the alert set (the game's generic_male table, set 5: rifle raised - when shooting or locked on) and its shoot layer; the
+       relaxed body clips stay the ones above (set 4 is the same family) */
+    memcpy(p->aclip, p->clip, sizeof p->aclip); p->shoot_clip = -1;
+    {   const ak_anim_table *gt = ak_anim_table_find(m, "generic_male");
+        static const int row[PLAY_NCLIPS] = { [PLAY_IDLE] = 0, [PLAY_RUN] = 3, [PLAY_BACK] = 4, [PLAY_LEFT] = 5, [PLAY_RIGHT] = 6, [PLAY_JUMP] = 8, [PLAY_FALL] = 12, [PLAY_LAND] = 10 };
+        if (gt && gt->sets > 5 && gt->cols > 1 && gt->rows > 12) {
+            for (int k = 0; k < PLAY_NCLIPS; k++) if (AK_ATAB(gt, 5, row[k], 0) >= 0) p->aclip[k] = AK_ATAB(gt, 5, row[k], 0);
+            p->shoot_clip = AK_ATAB(gt, 5, 0, 1);
+        }
+    }
     /* camera: the game's numbers, or the over-the-shoulder framing */
     const ak_bp_object *cam = ak_bp_find(bp, "Camera", "humanoid 3rd person");
     p->classic_cam = ak_setting_str("AK_CAM_STYLE", "modern")[0] == 'c';
@@ -593,6 +618,7 @@ static void hero_attack(ak_play *p, const ak_model_set *m, ak_play_hero *h, bool
 static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, f32 dt, const ak_frustum *fr)
 {
     ak_target *self = &p->target[1 + idx];
+    b->alert_t -= dt; b->shoot_t += dt;
     if (!b->alive) {
         b->dead_t += dt;
         if (b->dead_t < 3.0f && poseable(m, &b->look)) pose(m, &b->look, b->death_clip, b->dead_t, false, b->bones);
@@ -682,6 +708,8 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         b->pose_dt = 0;
         const ak_play_hero *bh = b->hero ? hero_of(p, (s32)(1 + idx)) : NULL;
         if (bh && bh->atk_i >= 0) pose(m, &b->look, bh->atk[bh->atk_i], bh->atk_t, false, b->bones);   /* a stroke: the whole body */
+        else if (!bh && b->alert_t > 0)
+            pose_layer(m, &b->look, p->aclip[b->state], b->clip_t, b->state != PLAY_JUMP && b->state != PLAY_LAND, b->shoot_t < 0.3f ? p->shoot_clip : -1, b->shoot_t, b->bones);
         else pose(m, &b->look, bcl[b->state], b->clip_t, b->state != PLAY_JUMP && b->state != PLAY_LAND, b->bones);
     }
     body_target(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, self);
@@ -705,8 +733,10 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
             f32 err = p->bot_aim * d;                                    /* the aim error: an angle, so it grows with distance */
             tgt[0] += (rnd(&b->seed) * 2 - 1) * err; tgt[1] += (rnd(&b->seed) * 2 - 1) * err * 0.6f; tgt[2] += (rnd(&b->seed) * 2 - 1) * err;
             ak_weapon_fire(&b->weapon, &p->bolts, &p->col, p->target, NT(p), muz, tgt, &b->seed);
+            b->shoot_t = 0;
         }
     }
+    if (en) b->alert_t = 3.0f;
 }
 
 
@@ -1490,10 +1520,11 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         }
     }
     if (p->in_veh >= 0) in = &none;                                           /* the soldier stands still inside */
-    ak_char_input ci = { in->lx, in->ly, in->rx, in->ry, (in->pressed & AK_BTN_CROSS) != 0 };
+    /* the soldier's pitch is positive looking down (the camera uses -pitch): stick up looks up unless AK_INVERT_Y */
+    ak_char_input ci = { in->lx, in->ly, in->rx, p->invert_y ? in->ry : -in->ry, (in->pressed & AK_BTN_CROSS) != 0 };
     if (p->twin_stick) {
         /* free aim with a response curve (fine near the centre, fast at the edge); the body turns with the aim */
-        f32 ax = in->rx, ay = p->invert_y ? -in->ry : in->ry;
+        f32 ax = in->rx, ay = p->invert_y ? in->ry : -in->ry;
         f32 cx = copysignf(powf(fabsf(ax), p->aim_curve), ax), cy = copysignf(powf(fabsf(ay), p->aim_curve), ay);
         p->ch.yaw -= cx * p->aim_yaw_speed * dt; p->ch.pitch += cy * p->aim_pitch_speed * dt;
         if (p->ch.pitch > 1.35f) p->ch.pitch = 1.35f;
@@ -1535,6 +1566,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     else if (p->posed) {
         const ak_play_hero *ph = hero_of(p, 0);
         if (ph && ph->atk_i >= 0) pose(m, &p->look, ph->atk[ph->atk_i], ph->atk_t, false, p->bones);
+        else if (!ph && p->alert_t > 0)                                          /* alert: rifle raised, the shoot layer while firing */
+            pose_layer(m, &p->look, p->aclip[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->shoot_t < 0.3f ? p->shoot_clip : -1, p->shoot_t, p->bones);
         else pose(m, &p->look, pcl[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->bones);
         if (p->in_veh < 0) body_target(m, &p->look, (const f32 (*)[12])p->bones, p->ch.pos, p->ch.yaw, &p->target[0]);
     }
@@ -1545,6 +1578,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         else for (int k = 0; k < 3; k++) p->aim_point[k] = p->eye[k] + p->aim[k] * reach;
     }
     /* the weapon (reloads when empty, as in the game) */
+    p->alert_t -= dt; p->shoot_t += dt;                                       /* the alert pose: firing or locked on, and 3 s after */
+    if (p->alive && p->in_veh < 0 && (in->held & (AK_BTN_R | AK_BTN_L))) { p->alert_t = 3.0f; if (in->held & AK_BTN_R) p->shoot_t = 0; }
     {   int ht = p->hero[p->team].offered == 0 ? 1 : 0;                       /* an offer of the hero: up takes it, down declines */
         if (ht && (in->pressed & AK_BTN_UP)) p->hero_answer = 1; else if (ht && (in->pressed & AK_BTN_DOWN)) p->hero_answer = -1; }
     if (p->armed && hero_of(p, 0) && hero_of(p, 0)->saber) {
