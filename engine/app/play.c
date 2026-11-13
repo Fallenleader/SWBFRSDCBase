@@ -829,7 +829,7 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
                 if (d2 < bd) { bd = d2; best = (s32)i; }
             }
         }
-        if (best != b->enemy) { b->enemy = best; b->react_t = 0.5f + rnd(&b->seed) * 0.5f; }
+        if (best != b->enemy) { b->enemy = best; b->react_t = 0.5f + rnd(&b->seed) * 0.5f; b->circle = false; }
         if (b->goal < 0 || (p->have_cq && p->match.post[b->goal].owner == b->team)) bot_choose_goal(p, b);
     }
     if (b->enemy >= 0 && !p->target[b->enemy].alive) b->enemy = -1;
@@ -865,18 +865,38 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
     f32 down[3] = { 0, -1, 0 }, gy = -1e9f; ak_col_hit hit; bool ground = false;
     if (ak_col_raycast(&p->col, vh->pos, down, 400.0f, FLY_RAYS, &hit)) { gy = hit.pos[1]; ground = true; }   /* (none: space, or high up) */
     f32 want_yaw = atan2f(-tx, -tz), want_pitch;
-    bool run = chase && dist < 160.0f && b->run_t <= -1.0f && in_sight(p, vh->pos, dest);
-    if (chase && dist < 25.0f && b->run_t <= -1.0f) {                            /* too close head-on: break off and climb away, then turn back */
-        bool tail = false;
-        if (b->enemy >= (s32)NS(p) && b->enemy < (s32)NV(p)) { const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
-            tail = ev->vel[0] * vh->vel[0] + ev->vel[1] * vh->vel[1] + ev->vel[2] * vh->vel[2] > 0.5f * ev->speed * vh->speed; }
-        if (!tail) b->run_t = 2.5f;
+    /* against a craft or a turret: the game's attack behaviour (traced: func 08948A9C, states FOLLOWING / CIRCLING_ROUND from the
+     * debug names at 0x08B1B618).  FOLLOWING: nose on it.  Closer than 100 m on its tail (its heading and ours agree), 300 m head-on,
+     * or 500 m for anything that is not a craft: CIRCLING_ROUND - fly level along cross(its heading, down), a direction square to its
+     * course (func 08949450), until it is 500 m away, then FOLLOWING again.  (The third state, DOING_STUNT, is never entered by it.) */
+    bool craft = chase && b->enemy >= (s32)NS(p) && b->enemy < (s32)NV(p), tur = chase && b->enemy >= (s32)NV(p), run = false;
+    if (craft || tur) {
+        f32 tf[3];
+        if (craft) { const ak_vehicle *ev = &p->veh[b->enemy - NS(p)]; f32 c = cosf(ev->pitch); tf[0] = -sinf(ev->yaw) * c; tf[1] = sinf(ev->pitch); tf[2] = -cosf(ev->yaw) * c; }
+        else { const ak_turret *tu = &p->turret[b->enemy - NV(p)]; tf[0] = tu->base[2]; tf[1] = tu->base[6]; tf[2] = tu->base[10]; }
+        if (!b->circle) {
+            f32 c = cosf(vh->pitch), mf[3] = { -sinf(vh->yaw) * c, sinf(vh->pitch), -cosf(vh->yaw) * c };
+            f32 th = tur ? 500.0f : (tf[0] * mf[0] + tf[1] * mf[1] + tf[2] * mf[2] < 0 ? 300.0f : 100.0f);
+            if (dist < th) {
+                f32 cx = tf[2], cz = -tf[0], cl = sqrtf(cx * cx + cz * cz);
+                if (cl < 1e-3f) { cx = -sinf(vh->yaw + 1.57f); cz = -cosf(vh->yaw + 1.57f); cl = 1; }
+                b->circle = true; b->circle_dir[0] = cx / cl; b->circle_dir[1] = 0; b->circle_dir[2] = cz / cl;
+            }
+        } else if (dist > 500.0f) b->circle = false;
+        if (b->circle) { want_yaw = atan2f(-b->circle_dir[0], -b->circle_dir[2]); want_pitch = 0; }
+        else want_pitch = atan2f(ty, h);
+        if (ground && !b->circle) want_pitch = fmaxf(want_pitch, atan2f(gy + 15.0f - vh->pos[1], fmaxf(h, 40.0f)));   /* (not into the ground) */
+    } else {
+    run = chase && dist < 160.0f && b->run_t <= -1.0f && in_sight(p, vh->pos, dest);
+    if (chase && dist < 25.0f && b->run_t <= -1.0f) {                            /* soldiers: too close: break off and climb away, then turn back */
+        b->run_t = 2.5f;
     }
     if (b->run_t > 0) { want_yaw = vh->yaw; want_pitch = 0.45f; }
     else if (run) want_pitch = atan2f(ty, h);                                 /* the run: nose on it */
     else {
         f32 alt = ob ? dest[1] : ground ? fmaxf(dest[1] + 25.0f, gy + 30.0f) : dest[1] + (en ? 0.0f : 25.0f);
         want_pitch = atan2f(alt - vh->pos[1], fmaxf(h, ob ? 1.0f : 80.0f));
+    }
     }
     want_pitch = clampf(want_pitch, -0.7f, 0.7f);
     if (ground && vh->pos[1] - gy > 160.0f && !run) want_pitch = fminf(want_pitch, -0.15f);   /* not too high over the ground */
@@ -915,7 +935,7 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
     vh->steer = clampf(-dyaw * 2.0f, -1, 1);
     vh->throttle = clampf(-dp * 3.0f, -1, 1);
     b->boost = !landing && ((!chase && dist > 250.0f && !b->feel) || (chase && dist > 300.0f));
-    if (chase && b->enemy >= (s32)NS(p) && b->enemy < (s32)NV(p) && dist < 90.0f && b->run_t <= 0) {   /* on its tail: no faster than it */
+    if (craft && !b->circle && dist < 90.0f) {                               /* on its tail: no faster than it */
         const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
         if (ev->speed < vh->speed - 5.0f) vh->brake = true;
     }

@@ -77,7 +77,7 @@ typedef struct {                       /* a bot soldier */
     /* vehicles: the one it drives (-1 on foot), the one it walks to; getting unstuck; a flyer's attack run */
     s32 veh, want_veh; bool boost; f32 veh_cool, rev_t, vstuck_t, vstuck_pos[3]; u32 vstucks; f32 fly_alt, run_t, feel_t, feel_yaw, feel_pitch; bool feel, near_wall;
     /* space: the commander's role (SPACE_COMBAT, SPACE_RUN, SPACE_LAND) and its objective / leg; leaving the hangar */
-    int role, role_leg; s32 role_obj; f32 role_t; int fly_phase; f32 fly_pt[3], fly_t;
+    int role, role_leg; s32 role_obj; f32 role_t; int fly_phase; f32 fly_pt[3], fly_t; bool circle; f32 circle_dir[3];
 } ak_play_bot;
 
 typedef struct {
