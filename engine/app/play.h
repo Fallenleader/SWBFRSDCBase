@@ -105,6 +105,7 @@ typedef struct {
     s32 aclip[PLAY_NCLIPS], shoot_clip;   /* the alert set (rifle raised: generic_male set 5) and its shoot layer (column 1) */
     f32 alert_t, shoot_t;              /* the player: seconds of alert pose left; seconds since the trigger was last held */
     ak_play_hero hero[2]; bool hero_declined; int hero_answer;
+    struct { f32 heal, radius, pulse, ammo_radius, ammo_pulse, t, ammo_t; } droids;   /* the UtilityDroid blueprints (MedicalDroid, AmmunitionDroid) */
     struct { s32 unit; u32 n; f32 base[8][3], tip[8][3], age[8], last; } fan[2];   /* each side's saber hero: its blade's recent positions (the motion fan) */   /* the player's answer to an offer: 1 yes, -1 no */
     ak_soldier_look base_look; ak_weapon_def base_wdef; bool base_armed; f32 base_max_health;
     /* camera */

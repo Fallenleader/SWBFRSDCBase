@@ -66,6 +66,43 @@ static void turrets_init(ak_play *p, const ak_level *l, const ak_model_set *m, c
 #define VT(p, v) (1 + (p)->nbots + (v))        /* vehicle v's target */
 
 static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set *m);
+static void droids_update(ak_play *p, f32 dt);
+/* each soldier near a droid: health (the traced pulse, above) and ammo (the ammo droid, class 0x8010: its pulse - AmmunitionDroid
+   PulseLength 1 s, EffectiveRadius 8 m - is not traced: here it gives back one clip a pulse, up to a full load) */
+static void droids_update(ak_play *p, f32 dt)
+{
+    if (!p->have_cq || !p->cq.ndroid) return;
+    bool heal = (p->droids.t -= dt) <= 0, ammo = (p->droids.ammo_t -= dt) <= 0;
+    if (heal) p->droids.t += p->droids.pulse;
+    if (ammo) p->droids.ammo_t += p->droids.ammo_pulse;
+    if (!heal && !ammo) return;
+    for (u32 u = 0; u < NS(p); u++) {
+        ak_target *t = &p->target[u];
+        if (!t->alive || (u == 0 ? p->in_veh >= 0 : p->bot[u - 1].veh >= 0)) continue;
+        f32 maxh = u == 0 ? p->max_health : ak_bp_float(p->bot[u - 1].look.bp, "Health", 100.0f);
+        for (int t2 = 0; t2 < 2; t2++) if (p->hero[t2].unit == (s32)u) maxh = p->hero[t2].health;
+        ak_weapon *w = u == 0 ? (p->armed ? &p->weapon : NULL) : (p->bot[u - 1].weapon.def ? &p->bot[u - 1].weapon : NULL);
+        bool gave_h = false, gave_a = false;
+        for (u32 k = 0; k < p->cq.ndroid; k++) {
+            const ak_droid *d = &p->cq.droid[k];
+            f32 dx = t->feet[0] - d->pos[0], dy = t->feet[1] - d->pos[1], dz = t->feet[2] - d->pos[2], d2 = dx * dx + dy * dy + dz * dz;
+            if (!d->ammo && heal && !gave_h && t->health < maxh && d2 <= p->droids.radius * p->droids.radius) {
+                f32 o[3] = { d->pos[0], d->pos[1] + 0.6f, d->pos[2] }, dir[3] = { t->feet[0] - o[0], t->feet[1] + 1.0f - o[1], t->feet[2] - o[2] }, l = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+                ak_col_hit hh;
+                if (l > 0.01f) { dir[0] /= l; dir[1] /= l; dir[2] /= l; }
+                if (l <= 0.01f || !ak_col_raycast(&p->col, o, dir, l, AK_COL_NOT_BODIES, &hh)) {
+                    t->health += p->droids.heal; if (t->health > maxh) t->health = maxh; gave_h = true;
+                    if (u == 0) p->health = t->health;
+                }
+            }
+            if (d->ammo && ammo && !gave_a && w && w->def && w->def->clip > 0 && d2 <= p->droids.ammo_radius * p->droids.ammo_radius) {
+                s32 full = w->def->clip * (w->def->clips > 0 ? w->def->clips - 1 : 0);
+                if (w->spare < full) { w->spare += w->def->clip; if (w->spare > full) w->spare = full; gave_a = true; }
+            }
+        }
+    }
+}
+
 static void heroes_drain(ak_play *p, f32 dt);
 static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a);
 static bool vehicle_make(ak_play *p, u32 v);
@@ -260,6 +297,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         }
         if (post >= 0) ak_post_spawn(&p->cq.post[post], p->team, p->seed, sp, &syaw);
     }
+    {   int td = ak_setting_int("AK_TEST_AT_DROID", 0);                     /* tests: start 3 m from droid N */
+        if (p->have_cq && td > 0 && (u32)td <= p->cq.ndroid) { memcpy(sp, p->cq.droid[td - 1].pos, 12); sp[0] += 3.0f; sp[1] += 1.0f; post = 0; } }
     {   int tp = ak_setting_int("AK_TEST_AT_POST", 0);                      /* tests: start on command post N */
         if (p->have_cq && tp > 0 && (u32)tp <= p->cq.nposts) { memcpy(sp, p->cq.post[tp - 1].pos, 12); post = tp - 1; } }
     if (post < 0 && p->have_nav) { s32 n = ak_nav_nearest(&p->nav, start, 1e6f); if (n >= 0) memcpy(sp, p->nav.node[n].pos, 12); }
@@ -356,6 +395,15 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->nturret = 0; p->ntdef = 0; turrets_init(p, l, m, bp);
     p->base_look = p->look; p->base_wdef = p->wdef; p->base_armed = p->armed; p->base_max_health = p->max_health;
     heroes_init(p, bp, m);
+    {   /* the health and ammo droids (traced: the health droid, class 0x800F, func 089E812C, reads UtilityDroid "MedicalDroid":
+           PulseLength, EffectiveRadius, HealingCapacity; every PulseLength it heals each living soldier on foot within the radius, in
+           sight and below full health, by HealingCapacity up to full - funcs 089E8428, 089E86E8, 089E868C) */
+        const ak_bp_object *md = ak_bp_find(bp, "UtilityDroid", "MedicalDroid"), *ad = ak_bp_find(bp, "UtilityDroid", "AmmunitionDroid");
+        p->droids.heal = md ? ak_bp_float(md, "HealingCapacity", 10) : 10; p->droids.radius = md ? ak_bp_float(md, "EffectiveRadius", 8) : 8;
+        p->droids.pulse = md ? ak_bp_float(md, "PulseLength", 2) : 2;
+        p->droids.ammo_radius = ad ? ak_bp_float(ad, "EffectiveRadius", 8) : 8; p->droids.ammo_pulse = ad ? ak_bp_float(ad, "PulseLength", 1) : 1;
+        p->droids.t = p->droids.pulse; p->droids.ammo_t = p->droids.ammo_pulse;
+    }
     for (u32 v = 0; v < p->nveh; v++) if (!vehicle_make(p, v)) { p->veh[v].alive = false; p->veh[v].def = &p->vdef[p->vspawn[v].def[0] >= 0 ? p->vspawn[v].def[0] : p->vspawn[v].def[1]]; p->veh[v].dead_t = p->vspawn[v].respawn - 5.0f; p->target[VT(p, v)].alive = false; }
     if (ak_setting_int("AK_DEBUG_VEH", 0))
         for (u32 v = 0; v < p->nveh; v++) AK_INFO("veh", "vehicle %u: %s / %s, post %d, %s%s", v + 1, p->vspawn[v].def[0] >= 0 ? p->vdef[p->vspawn[v].def[0]].name : "-",
@@ -1750,6 +1798,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         static f32 w; w += dt; if (w >= p->rules.respawn_delay) { w = 0; wave = true; }
     }
     heroes_update(p, m, dt);
+    droids_update(p, dt);
     bool playing = !p->have_cq || p->match.winner < 0;
     if (wave && playing) {
         if (!p->alive && p->dead_t > 1.0f) {                                  /* back with the wave */

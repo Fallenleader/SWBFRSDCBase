@@ -95,6 +95,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
             nl++;
         } else if ((type == 15 || type == 16) && find_pos_quat(&c, gp, gq)) {
             int t = type == 16; if (nsp[t] < 64) { ak_from_game(gp, sp[t][nsp[t]]); sp[t][nsp[t]][3] = yaw_of(gq); nsp[t]++; }
+            if (out->ndroid < AK_MAX_DROIDS) { ak_droid *dr = &out->droid[out->ndroid++]; ak_from_game(gp, dr->pos); dr->ammo = t == 1; }
         } else if (type == 37 && nrg < 64 && find_pos_mat(&c, gp)) ak_from_game(gp, rg[nrg++]);
         else if (type == 27 && c.size >= 48 && out->nvlink < AK_MAX_VSPAWN_LINKS) {
             ak_vspawn_link *v = &out->vlink[out->nvlink++]; v->id = ak_rd32(c.body); v->respawn = wf(c.body + 24);
@@ -117,7 +118,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
             for (u32 i = 0; i < nl; i++) if (lid[i] == link_id[k][j]) { memcpy(p->loc[q].pos, lpos[i], 12); p->loc[q].yaw = lpos[i][3]; p->loc[q].own = lown[i]; break; }
         }
     }
-    (void)nsp; (void)sp;                                                      /* (types 15 / 16: not the posts' spawns) */
+    (void)nsp; (void)sp;                                                      /* (types 15 / 16: the droids, not the posts' spawns) */
     for (u32 i = 0; i < nrg; i++)
         for (u32 k = 0; k < out->nposts; k++) {
             f32 dx = rg[i][0] - out->post[k].pos[0], dz = rg[i][2] - out->post[k].pos[2];

@@ -5,7 +5,7 @@
  *   type 8  (flagged, sub-kind 6)   a command post: position + rotation quaternion, then 100.0 ...
  *   type 39 (flagged, class 0x8027) a spawn point ("locator", func 089EE83C): version, position, flags (bit 0: it has a place of
  *                                   its own), 3x3 rows
- *   type 15 / 16 (sub-kind 1 / 2)   per-team points near the posts (not where soldiers spawn: see ak_post_spawn)
+ *   type 15 / 16 (class 0x800F / 0x8010) the health and ammo droids (HealthRechargeDroid / AmmoDroid models): position + quaternion
  *   type 37 (flagged)               a region: position + 3x3 matrix - on the posts (their capture areas), a few elsewhere
  * A post record ends with: the owner (0 = team 1, 1 = team 2, else neutral), the capture amount (seconds for one soldier: 10 on most
  * posts, 20-30 on a few, 300 on the space maps' capital ships), the flags (bit 0: not capturable - the capital ships), then a list of
@@ -45,8 +45,10 @@ typedef struct {
  * belongs to - the side holding that post gets the spawn's vehicle */
 #define AK_MAX_VSPAWN_LINKS 32
 typedef struct { u32 id; s32 post; f32 respawn; } ak_vspawn_link;
+#define AK_MAX_DROIDS 32
+typedef struct { f32 pos[3]; bool ammo; } ak_droid;   /* a health (class 0x800F) or ammo (0x8010) droid where the level places it */
 typedef struct { ak_post post[AK_MAX_POSTS]; u32 nposts; u32 nregions; u32 post_id[AK_MAX_POSTS];
-                 ak_vspawn_link vlink[AK_MAX_VSPAWN_LINKS]; u32 nvlink; } ak_conquest_map;
+                 ak_vspawn_link vlink[AK_MAX_VSPAWN_LINKS]; u32 nvlink; ak_droid droid[AK_MAX_DROIDS]; u32 ndroid; } ak_conquest_map;
 
 bool ak_conquest_load(const ak_level *l, ak_conquest_map *out);
 
