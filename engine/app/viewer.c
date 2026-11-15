@@ -147,9 +147,8 @@ int main(int argc, char **argv)
             AK_INFO("audio", "%s: %u sounds and events", levels[cur].label, ak_audio_bank_add(&b, true));
             {   char mp[160]; ak_blob mb;                         /* the level's music: its first "OGM Music 1" track, looping */
                 if (have_mus && ak_audio_level_music(&b, ak_setting_str("AK_MUSIC_LIST", "OGM Music 1"), (u32)ak_setting_int("AK_MUSIC_TRACK", 0), mp, sizeof mp)) {
-                    ak_arena_reset(&musmem);
-                    if (ak_vfs_read(vfs, mp, &musmem, &mb)) { ak_audio_music(mb.data, (u32)mb.size, true); AK_INFO("audio", "music %s", mp); }
-                    else AK_WARN("audio", "no %s (copy the game's SOUNDS folder)", mp);
+                    ak_arena_reset(&musmem); bool hb = ak_vfs_read(vfs, mp, &musmem, &mb);   /* (only its header is used: the delay and the loop) */
+                    ak_audio_music_play(mp, hb ? mb.data : NULL, hb ? (u32)(mb.size < 4096 ? mb.size : 4096) : 0, true);
                 } }
             {   /* bind-pose bone matrices of every model, once (placed models are drawn in their bind pose for now) */
                 u32 nb = 0; bind_first = AK_NEW(&lvl, u32, models.nmodels ? models.nmodels : 1);
@@ -388,7 +387,7 @@ int main(int argc, char **argv)
             ak_play_sound_update(&play, dt);
             if (play.snd.music_req && have_mus) {                          /* the match is over: the level's victory / defeat music */
                 char mp[160]; ak_blob mb;
-                if (ak_audio_level_music(&b_level_keep, play.snd.music_req, 0, mp, sizeof mp)) { ak_arena_reset(&musmem); if (ak_vfs_read(vfs, mp, &musmem, &mb)) ak_audio_music(mb.data, (u32)mb.size, false); }
+                if (ak_audio_level_music(&b_level_keep, play.snd.music_req, 0, mp, sizeof mp)) { ak_arena_reset(&musmem); bool hb = ak_vfs_read(vfs, mp, &musmem, &mb); ak_audio_music_play(mp, hb ? mb.data : NULL, hb ? (u32)(mb.size < 4096 ? mb.size : 4096) : 0, false); }
                 play.snd.music_req = NULL;
             }
         } else {

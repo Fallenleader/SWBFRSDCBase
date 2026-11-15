@@ -32,13 +32,6 @@ target_compile_definitions(aurek PRIVATE AK_BUILD_ID="${AK_GIT_ID}")
 target_link_options(aurek PRIVATE -flto=auto -O3 -Wl,--gc-sections)
 target_link_libraries(aurek vitashark SceShaccCg_stub SceShaccCgExt taihen_stub SceGxm_stub SceDisplay_stub SceCtrl_stub ScePower_stub
                       SceSysmodule_stub SceKernelDmacMgr_stub SceIofilemgr_stub SceAppMgr_stub SceAudio_stub m)
-# music: FFmpeg's ATRAC3plus decoder built for the Vita (tools/build_ffmpeg_atrac3p.sh)
-set(AK_FFMPEG_DIR "${E}/../build/ffmpeg/vita" CACHE PATH "ATRAC3plus decoder for the Vita")
-if(EXISTS "${AK_FFMPEG_DIR}/lib/libavcodec.a")
-  target_compile_definitions(aurek PRIVATE AK_HAVE_ATRAC3P)
-  target_include_directories(aurek PRIVATE ${AK_FFMPEG_DIR}/include)
-  target_link_libraries(aurek ${AK_FFMPEG_DIR}/lib/libavcodec.a ${AK_FFMPEG_DIR}/lib/libavutil.a m)
-endif()
 
 vita_create_self(eboot.bin aurek UNSAFE)        # unsafe: loads ur0:data/libshacccg.suprx (the system Cg compiler) at first start
 vita_create_vpk(aurek.vpk ${VITA_TITLEID} eboot.bin

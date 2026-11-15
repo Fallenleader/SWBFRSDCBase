@@ -203,7 +203,7 @@ void ak_audio_listener(const f32 *pos, f32 yaw)
 
 void ak_audio_level_reset(void)
 {
-    ak_audio_music(NULL, 0, false);
+    ak_music_stop();
     lock();
     for (u32 i = 0; i < MAX_VOICES; i++) voices[i].live = false;
     u32 n = 0;
@@ -256,7 +256,30 @@ bool ak_audio_init(void)
 }
 void ak_audio_shutdown(void) { if (opened) ak_plat_audio_close(); opened = false; ak_audio_level_reset(); }
 
-void ak_audio_music(const u8 *data, u32 size, bool loop) { ak_music_start(data, size, loop); }
+/* music: the converted WAV of a track (converted/<game path>.wav in a data folder); the original's header gives the encoder delay
+ * (fact) and the loop (smpl), in the decoded stream's samples, which the converted copy keeps */
+bool ak_audio_music_play(const char *game_path, const u8 *head, u32 hsize, bool loop)
+{
+    u32 delay = 0, ls = 0, le = 0;
+    if (head && hsize >= 12 && !memcmp(head, "RIFF", 4))
+        for (u32 p = 12; p + 8 <= hsize;) {
+            u32 n = ak_rd32(head + p + 4); const u8 *b = head + p + 8;
+            if (!memcmp(head + p, "fact", 4) && n >= 8 && p + 16 <= hsize) delay = ak_rd32(b + 4);
+            else if (!memcmp(head + p, "smpl", 4) && n >= 60 && p + 68 <= hsize && ak_rd32(b + 28) > 0) { ls = ak_rd32(b + 44); le = ak_rd32(b + 48) + 1; }
+            else if (!memcmp(head + p, "data", 4)) break;
+            p += 8 + n + (n & 1);
+        }
+    int nd; const char *const *dirs = ak_plat_data_dirs(&nd);
+    for (int i = 0; i < nd; i++) {
+        char path[512]; int o = snprintf(path, sizeof path, "%s/converted/", dirs[i]);   /* (the converter writes the game path upper case) */
+        for (const char *q = game_path; *q && o < (int)sizeof path - 5; q++) path[o++] = (*q >= 'a' && *q <= 'z') ? (char)(*q - 32) : *q;
+        snprintf(path + o, sizeof path - (size_t)o, ".wav");
+        if (ak_music_play_wav(path, loop, delay, ls, le)) { AK_INFO("audio", "music %s", path); return true; }
+    }
+    AK_WARN("audio", "no converted copy of %s (run the media conversion: it writes converted/%s.wav)", game_path, game_path);
+    return false;
+}
+void ak_audio_music_stop(void) { ak_music_stop(); }
 bool ak_audio_music_playing(void) { return ak_music_active(); }
 
 /* MMUS: u32 lists; per list a name, a hash, a block of state words, then its files - "Sounds\\Music\\mxAllHot01_Amb02_lp.wav"

@@ -124,3 +124,4 @@ void ak_plat_log_write(const char *line)
 /* audio without a device (tools): the SDL back end (plat_sdl.c) provides the real ones */
 __attribute__((weak)) bool ak_plat_audio_open(u32 rate, ak_audio_fn fn, void *user) { (void)rate; (void)fn; (void)user; return false; }
 __attribute__((weak)) void ak_plat_audio_close(void) {}
+__attribute__((weak)) const char *const *ak_plat_data_dirs(int *n) { static const char *d[1] = { "." }; *n = 1; return d; }

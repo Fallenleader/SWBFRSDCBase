@@ -31,14 +31,6 @@ add_custom_target(independence ALL COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/
 add_library(akcore STATIC core/ak_core.c core/ak_vfs.c core/ak_settings.c assets/asura.c assets/model.c assets/entity.c assets/blueprint.c game/ak_soldier.c game/ak_character.c game/ak_weapon.c game/ak_conquest.c game/ak_vehicle.c game/ak_space.c game/ak_turret.c game/ak_projectile.c game/ak_path.c world/ak_collision.c world/ak_nav.c render/ak_scene.c audio/ak_audio.c audio/ak_music.c)
 target_include_directories(akcore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(akcore PUBLIC m)
-# music: FFmpeg's ATRAC3plus decoder alone (tools/build_ffmpeg_atrac3p.sh); without it the game runs with sound effects only
-set(AK_FFMPEG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../build/ffmpeg/host" CACHE PATH "ATRAC3plus decoder (libavcodec + libavutil)")
-if(EXISTS "${AK_FFMPEG_DIR}/lib/libavcodec.a")
-  target_compile_definitions(akcore PUBLIC AK_HAVE_ATRAC3P)
-  target_include_directories(akcore PUBLIC ${AK_FFMPEG_DIR}/include)
-  target_link_libraries(akcore PUBLIC ${AK_FFMPEG_DIR}/lib/libavcodec.a ${AK_FFMPEG_DIR}/lib/libavutil.a)
-  message(STATUS "music: ATRAC3plus from ${AK_FFMPEG_DIR}")
-endif()
 
 add_library(akplat_desktop STATIC platform/desktop/plat_desktop.c)
 target_link_libraries(akplat_desktop PUBLIC akcore)

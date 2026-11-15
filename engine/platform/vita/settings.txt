@@ -86,8 +86,9 @@ AK_BOT_PASSIVE=0
 AK_VEHICLES=1
 # the steepest ground (degrees) a tank, walker or speeder can drive up; steeper faces (cliffs, bunker walls) stop it like a wall
 AK_VEH_MAX_SLOPE_DEG=40
-# ---- sound (1.9): the game's sounds and music.  Needs the game's SOUNDS folder (GMSND.ASR, GMSND.AM, MUSIC, SPEECH) beside
-# ENVS and MISC in the game data folder.  0 turns all sound off.
+# ---- sound (1.9): the game's sounds and music.  Effects come from the game's SOUNDS/GMSND.ASR and the levels; music plays from
+# the converted WAV copies (ux0:data/SWBFRS/converted, written by the media conversion), never the original ATRAC3plus files.
+# 0 turns all sound off.
 AK_AUDIO=1
 # effects and music volume, 0 .. 1
 AK_SFX_VOLUME=1.0

@@ -5,7 +5,7 @@
  * and a pitch range, the distances a 3D sound fades over, and one or more samples (h31 hashes of SDSM names), one picked per
  * play.  SOUNDS/GMSND.ASR is the shared bank (weapons, footsteps, interface); each level adds its own (its vehicles, ambience,
  * deaths), which replace shared events of the same name.  Music is the level's MMUS list (ATRAC3plus .AT3 files in
- * SOUNDS/MUSIC), decoded by FFmpeg's ATRAC3plus decoder when the build has it (AK_HAVE_ATRAC3P).
+ * SOUNDS/MUSIC), played from the project's converted WAV copies (never decoded at run time).
  *
  * Output: 48 kHz stereo s16, mixed on the platform's audio thread (ak_plat_audio_open); calls from the game thread are safe. */
 #ifndef AK_AUDIO_H
@@ -35,8 +35,10 @@ void ak_audio_stop(u32 handle);
 bool ak_audio_playing(u32 handle);
 void ak_audio_listener(const f32 *pos, f32 yaw);   /* the camera: yaw 0 looks down -z */
 
-/* music: an .AT3 file's bytes (kept by the caller while it plays); NULL stops */
-void ak_audio_music(const u8 *data, u32 size, bool loop);
+/* music: a track by its game path ("PSP_GAME/USRDIR/SOUNDS/MUSIC/X.AT3"), played from its converted WAV (converted/<path>.wav in a
+ * data folder); `head` is the start of the original file (its fact / smpl chunks: the delay and the loop), or NULL */
+bool ak_audio_music_play(const char *game_path, const u8 *head, u32 hsize, bool loop);
+void ak_audio_music_stop(void);
 bool ak_audio_music_playing(void);
 
 /* the mixer itself (the platform's callback; tests call it to render to a file) */
