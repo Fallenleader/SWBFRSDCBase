@@ -98,6 +98,7 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     const char *hp = ak_bp_string(o, "HardpointW1", "");
     const ak_bp_object *hw = *hp ? ak_bp_find(bp, "Weapon", hp) : NULL;
     d->armed = ak_weapon_def_bolt(bp, hw ? ak_bp_string(hw, "Projectile", hp) : hp, &d->gun) || ak_weapon_def_bolt(bp, hp, &d->gun);
+    if (d->armed && hw) d->gun.fire_snd = ak_bp_string(hw, "Fire Sound", NULL);   /* the hardpoint Weapon's "Fire Sound" */
     static const char *mk[4] = { "HardpointW1Marker1", "HardpointW1Marker2", "HardpointW1Marker3", "HardpointW1Marker4" };
     static const char *tm[4] = { "HardpointW1Time1", "HardpointW1Time2", "HardpointW1Time3", "HardpointW1Time4" };
     f32 last = 0;

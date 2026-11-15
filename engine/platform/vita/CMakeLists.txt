@@ -25,13 +25,20 @@ add_compile_options(-O3 -march=armv7-a+simd -mtune=cortex-a9 -mfpu=neon -mfloat-
                     -Wall -Wextra -Wno-unused-parameter)
 include_directories(${E})
 add_executable(aurek
-  ${E}/app/viewer.c ${E}/app/play.c ${E}/core/ak_core.c ${E}/core/ak_vfs.c ${E}/core/ak_settings.c ${E}/assets/asura.c ${E}/assets/model.c ${E}/assets/entity.c ${E}/assets/blueprint.c ${E}/game/ak_soldier.c ${E}/game/ak_character.c ${E}/game/ak_weapon.c ${E}/game/ak_conquest.c ${E}/game/ak_vehicle.c ${E}/game/ak_space.c ${E}/game/ak_turret.c ${E}/game/ak_projectile.c ${E}/game/ak_path.c ${E}/world/ak_collision.c ${E}/world/ak_nav.c ${E}/render/ak_scene.c
+  ${E}/app/viewer.c ${E}/app/play.c ${E}/app/play_sound.c ${E}/core/ak_core.c ${E}/core/ak_vfs.c ${E}/core/ak_settings.c ${E}/assets/asura.c ${E}/assets/model.c ${E}/assets/entity.c ${E}/assets/blueprint.c ${E}/game/ak_soldier.c ${E}/game/ak_character.c ${E}/game/ak_weapon.c ${E}/game/ak_conquest.c ${E}/game/ak_vehicle.c ${E}/game/ak_space.c ${E}/game/ak_turret.c ${E}/game/ak_projectile.c ${E}/game/ak_path.c ${E}/world/ak_collision.c ${E}/world/ak_nav.c ${E}/render/ak_scene.c ${E}/audio/ak_audio.c ${E}/audio/ak_music.c
   plat_vita.c gfx_gxm.c)
 add_dependencies(aurek independence)
 target_compile_definitions(aurek PRIVATE AK_BUILD_ID="${AK_GIT_ID}")
 target_link_options(aurek PRIVATE -flto=auto -O3 -Wl,--gc-sections)
 target_link_libraries(aurek vitashark SceShaccCg_stub SceShaccCgExt taihen_stub SceGxm_stub SceDisplay_stub SceCtrl_stub ScePower_stub
-                      SceSysmodule_stub SceKernelDmacMgr_stub SceIofilemgr_stub SceAppMgr_stub m)
+                      SceSysmodule_stub SceKernelDmacMgr_stub SceIofilemgr_stub SceAppMgr_stub SceAudio_stub m)
+# music: FFmpeg's ATRAC3plus decoder built for the Vita (tools/build_ffmpeg_atrac3p.sh)
+set(AK_FFMPEG_DIR "${E}/../build/ffmpeg/vita" CACHE PATH "ATRAC3plus decoder for the Vita")
+if(EXISTS "${AK_FFMPEG_DIR}/lib/libavcodec.a")
+  target_compile_definitions(aurek PRIVATE AK_HAVE_ATRAC3P)
+  target_include_directories(aurek PRIVATE ${AK_FFMPEG_DIR}/include)
+  target_link_libraries(aurek ${AK_FFMPEG_DIR}/lib/libavcodec.a ${AK_FFMPEG_DIR}/lib/libavutil.a m)
+endif()
 
 vita_create_self(eboot.bin aurek UNSAFE)        # unsafe: loads ur0:data/libshacccg.suprx (the system Cg compiler) at first start
 vita_create_vpk(aurek.vpk ${VITA_TITLEID} eboot.bin

@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "app/play.h"
+#include "audio/ak_audio.h"
 #include "core/ak_settings.h"
 #include "assets/entity.h"
 
@@ -93,11 +94,12 @@ static void droids_update(ak_play *p, f32 dt)
                 if (l <= 0.01f || !ak_col_raycast(&p->col, o, dir, l, AK_COL_NOT_BODIES, &hh)) {
                     t->health += p->droids.heal; if (t->health > maxh) t->health = maxh; gave_h = true;
                     if (u == 0) p->health = t->health;
+                    ak_audio_play("Health_Ammo_Dispense", d->pos, false);
                 }
             }
             if (d->ammo && ammo && !gave_a && w && w->def && w->def->clip > 0 && d2 <= p->droids.ammo_radius * p->droids.ammo_radius) {
                 s32 full = w->def->clip * (w->def->clips > 0 ? w->def->clips - 1 : 0);
-                if (w->spare < full) { w->spare += w->def->clip; if (w->spare > full) w->spare = full; gave_a = true; }
+                if (w->spare < full) { w->spare += w->def->clip; if (w->spare > full) w->spare = full; gave_a = true; ak_audio_play("Health_Ammo_Dispense", d->pos, false); }
             }
         }
     }
@@ -1743,6 +1745,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             f32 s = sinf(p->ch.yaw), c = cosf(p->ch.yaw), fx = -s, fz = -c, rx = c, rz = -s, v = p->roll_len[k] / p->roll_dur[k];
             f32 lx = k == 1 ? -1.0f : k == 2 ? 1.0f : 0.0f, ly = k == 0 ? 1.0f : k == 3 ? -1.0f : 0.0f;
             p->roll_v[0] = (fx * ly + rx * lx) * v; p->roll_v[1] = (fz * ly + rz * lx) * v; p->roll_i = k; p->roll_t = 0;
+            const char *rs = ak_play_surface_sound(p, ak_play_ground_material(p, p->ch.pos), "roll_soldier"); if (rs) ak_audio_play(rs, p->ch.pos, false);
         }
     }
     p->roll_req = false;

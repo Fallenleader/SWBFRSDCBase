@@ -14,6 +14,7 @@
 #include "../assets/blueprint.h"
 #include "../game/ak_soldier.h"
 #include "play.h"
+#include "../audio/ak_audio.h"
 #include "../platform/plat.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -104,6 +105,14 @@ int main(int argc, char **argv)
         } else AK_WARN("aurek", "MISC/COMMON.ASR: no blueprints (soldiers get no heads)");
     }
     if (!nlevels) { AK_ERROR("aurek", "no levels in PSP_GAME/USRDIR/ENVS"); return 1; }
+    /* audio (1.9): the shared sound bank once; each level adds its own and its music */
+    ak_arena sndmem, musmem; ak_audio_init();
+    if (ak_arena_init(&sndmem, 3u << 20)) { ak_blob sb;
+        if (ak_vfs_read(vfs, "PSP_GAME/USRDIR/SOUNDS/GMSND.ASR", &sndmem, &sb)) AK_INFO("audio", "SOUNDS/GMSND.ASR: %u sounds and events", ak_audio_bank_add(&sb, false));
+        else AK_WARN("audio", "no SOUNDS/GMSND.ASR (copy the game's SOUNDS folder next to ENVS): shared sounds missing"); }
+    bool have_mus = ak_arena_init(&musmem, 4u << 20);
+    FILE *dumpf = NULL; u32 dump_frames = 0; ak_blob b_level_keep = { 0 };
+    if (getenv("AK_AUDIO_DUMP")) { dumpf = fopen(getenv("AK_AUDIO_DUMP"), "wb"); if (dumpf) { static const u8 z[44]; fwrite(z, 1, 44, dumpf); } }
     int cur = 0;
     const char *want = ak_setting_str("AK_LEVEL", "CLASSIC HOTH");
     for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, want)) cur = i;
@@ -134,6 +143,14 @@ int main(int argc, char **argv)
             }
             if (!ak_models_load(&level, &lvl, &models) || !ak_scene_models_init(&mscene, &models, &scene, &lvl)) AK_WARN("aurek", "models did not load");
             ak_entities_load(&level, &models, &lvl, &ents);
+            ak_audio_level_reset(); b_level_keep = b;
+            AK_INFO("audio", "%s: %u sounds and events", levels[cur].label, ak_audio_bank_add(&b, true));
+            {   char mp[160]; ak_blob mb;                         /* the level's music: its first "OGM Music 1" track, looping */
+                if (have_mus && ak_audio_level_music(&b, ak_setting_str("AK_MUSIC_LIST", "OGM Music 1"), (u32)ak_setting_int("AK_MUSIC_TRACK", 0), mp, sizeof mp)) {
+                    ak_arena_reset(&musmem);
+                    if (ak_vfs_read(vfs, mp, &musmem, &mb)) { ak_audio_music(mb.data, (u32)mb.size, true); AK_INFO("audio", "music %s", mp); }
+                    else AK_WARN("audio", "no %s (copy the game's SOUNDS folder)", mp);
+                } }
             {   /* bind-pose bone matrices of every model, once (placed models are drawn in their bind pose for now) */
                 u32 nb = 0; bind_first = AK_NEW(&lvl, u32, models.nmodels ? models.nmodels : 1);
                 for (u32 i = 0; i < models.nmodels; i++) { bind_first[i] = nb; nb += models.models[i].skeleton >= 0 ? models.skels[models.models[i].skeleton].nbones : 0; }
@@ -362,11 +379,18 @@ int main(int argc, char **argv)
             if (!ak_play_init(&play, &level, &models, &bps, &lvl, ak_setting_str("AK_SOLDIER", "Stormtrooper"), st)) { AK_WARN("aurek", "no soldier for this level"); playing = false; }
             else AK_INFO("aurek", "playing as %s (%s, head %d) at %.1f %.1f %.1f", models.models[play.look.body].name, ak_faction_name(play.look.faction),
                          play.look.head_index + 1, play.ch.pos[0], play.ch.pos[1], play.ch.pos[2]);
+            if (play.ready) ak_play_sound_start(&play, &level, &bps);
         }
         f32 fovy = 1.05f;
         if (playing && play.ready) {
             ak_play_update(&play, &models, &in, dt);
             ak_play_camera(&play, dt, &cam.pos, &cam.yaw, &cam.pitch, &fovy);
+            ak_play_sound_update(&play, dt);
+            if (play.snd.music_req && have_mus) {                          /* the match is over: the level's victory / defeat music */
+                char mp[160]; ak_blob mb;
+                if (ak_audio_level_music(&b_level_keep, play.snd.music_req, 0, mp, sizeof mp)) { ak_arena_reset(&musmem); if (ak_vfs_read(vfs, mp, &musmem, &mb)) ak_audio_music(mb.data, (u32)mb.size, false); }
+                play.snd.music_req = NULL;
+            }
         } else {
         /* free camera */
         cam.yaw -= in.rx * 2.0f * dt; cam.pitch += in.ry * 1.5f * dt;
@@ -506,6 +530,15 @@ int main(int argc, char **argv)
             }
         }
         ak_gfx_end(&gs);
+        {   f32 lp[3] = { cam.pos.x, cam.pos.y, cam.pos.z }; ak_audio_listener(lp, cam.yaw); }
+        if (dumpf) {                                                          /* (tests: the mix, frame by frame, as a WAV file) */
+            static s16 ab[2 * 4800]; u32 nf = (u32)(dt * AK_AUDIO_RATE + 0.5f); if (nf > 4800) nf = 4800;
+            ak_audio_mix(ab, nf); fwrite(ab, 4, nf, dumpf); dump_frames += nf;
+            u8 hd[44]; u32 dl = dump_frames * 4; memcpy(hd, "RIFF", 4); u32 v32 = 36 + dl; memcpy(hd + 4, &v32, 4); memcpy(hd + 8, "WAVEfmt ", 8);
+            v32 = 16; memcpy(hd + 16, &v32, 4); u16 v16 = 1; memcpy(hd + 20, &v16, 2); v16 = 2; memcpy(hd + 22, &v16, 2); v32 = AK_AUDIO_RATE; memcpy(hd + 24, &v32, 4);
+            v32 = AK_AUDIO_RATE * 4; memcpy(hd + 28, &v32, 4); v16 = 4; memcpy(hd + 32, &v16, 2); v16 = 16; memcpy(hd + 34, &v16, 2); memcpy(hd + 36, "data", 4); memcpy(hd + 40, &dl, 4);
+            long here = ftell(dumpf); fseek(dumpf, 0, SEEK_SET); fwrite(hd, 1, 44, dumpf); fseek(dumpf, here, SEEK_SET); fflush(dumpf);
+        }
         frame++; fps_frames++;
         u64 t1 = ak_plat_time_us(); frame_ms = (t1 - now) / 1000.0f;
         if (t1 - fps_t0 >= 1000000) {

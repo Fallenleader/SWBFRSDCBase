@@ -86,6 +86,15 @@ AK_BOT_PASSIVE=0
 AK_VEHICLES=1
 # the steepest ground (degrees) a tank, walker or speeder can drive up; steeper faces (cliffs, bunker walls) stop it like a wall
 AK_VEH_MAX_SLOPE_DEG=40
+# ---- sound (1.9): the game's sounds and music.  Needs the game's SOUNDS folder (GMSND.ASR, GMSND.AM, MUSIC, SPEECH) beside
+# ENVS and MISC in the game data folder.  0 turns all sound off.
+AK_AUDIO=1
+# effects and music volume, 0 .. 1
+AK_SFX_VOLUME=1.0
+AK_MUSIC_VOLUME=0.6
+# which of the level's music lists plays during the match (OGM Music 1 or OGM Music 2), and which of its tracks (0, 1, 2)
+AK_MUSIC_LIST=OGM Music 1
+AK_MUSIC_TRACK=0
 # command post hologram light: 0 = unlit .. 1 = full strength
 AK_POST_GLOW=0.75
 #AK_VEHICLE_RESPAWN=10

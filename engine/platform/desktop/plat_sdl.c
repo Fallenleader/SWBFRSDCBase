@@ -57,3 +57,19 @@ bool ak_plat_poll(ak_input *in)
     in->held = h; in->pressed = h & ~prev;
     return true;
 }
+
+/* ---- audio: an SDL audio device, its callback asking the engine's mixer */
+static SDL_AudioDeviceID adev; static ak_audio_fn afn; static void *auser;
+static void sdl_audio_cb(void *u, Uint8 *stream, int len) { (void)u; afn((s16 *)stream, (u32)len / 4, auser); }
+bool ak_plat_audio_open(u32 rate, ak_audio_fn fn, void *user)
+{
+    if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) return false;
+    afn = fn; auser = user;
+    SDL_AudioSpec want = { 0 }, have;
+    want.freq = (int)rate; want.format = AUDIO_S16SYS; want.channels = 2; want.samples = 1024; want.callback = sdl_audio_cb;
+    adev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+    if (!adev) { AK_WARN("plat", "audio: %s", SDL_GetError()); return false; }
+    SDL_PauseAudioDevice(adev, 0);
+    return true;
+}
+void ak_plat_audio_close(void) { if (adev) SDL_CloseAudioDevice(adev); adev = 0; }

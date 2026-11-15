@@ -146,12 +146,24 @@ typedef struct {
     f32 scale;                         /* soldiers' size relative to the world (AK_SOLDIER_SCALE) */
     f32 clock;                         /* seconds of play (spinning logos) */
     s32 near_post;                     /* the post the soldier stands at (the HUD's capture bar), or -1 */
+    struct {                           /* sound (app/play_sound.c) */
+        const ak_level *lvl; const ak_bp_object *surf[10];   /* the Material blueprints by surface number (MTRL mode) */
+        u32 amb[3], eng[PLAY_MAX_VEH], hum[AK_MAX_POSTS];
+        f32 step[129]; bool ground[129], alive[129];         /* 0 the player, 1 + i bot i */
+        u32 impacts; int post_owner[AK_MAX_POSTS]; int winner; bool hero;
+        const char *music_req;                               /* a MMUS list the viewer should start ("VICTORY" / "FAIL") */
+    } snd;
 } ak_play;
 
 /* body: a Humanoid blueprint name; start: where to look for the nearest walkable spot */
 bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a, const char *body, const f32 *start);
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt);
 void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy);
+/* sound (app/play_sound.c): set up with the level, then once a frame after ak_play_update */
+void ak_play_sound_start(ak_play *p, const ak_level *l, const ak_blueprints *bp);
+void ak_play_sound_update(ak_play *p, f32 dt);
+const char *ak_play_surface_sound(const ak_play *p, u16 material, const char *key);   /* a Material blueprint's event */
+u16  ak_play_ground_material(const ak_play *p, const f32 *pos);
 /* the held weapon's world matrix (3x4 rows) */
 bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12]);
 /* damage to the player's soldier (from bots, falls, tests) */

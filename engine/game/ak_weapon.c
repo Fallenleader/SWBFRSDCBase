@@ -2,6 +2,7 @@
 #include <math.h>
 #include <string.h>
 #include "game/ak_weapon.h"
+#include "audio/ak_audio.h"
 
 #define SHOT_IGNORE 0          /* shots hit everything the level has (0x0004 surfaces stop shots and sight, not bodies) */
 
@@ -16,6 +17,7 @@ bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, con
             if (t->objects[i].parent == w && ak_bp_int(&t->objects[i], "Faction", -1) == faction) { w = &t->objects[i]; break; }
     }
     d->bp = w; d->name = w->name;
+    d->fire_snd = ak_bp_string(w, "Fire Sound", NULL);
     d->model = ak_models_find(models, ak_bp_string(w, "WeaponModel", ""));
     d->rate_of_fire = ak_bp_float(w, "RateOfFire", 0.3f);
     d->reload_time = ak_bp_float(w, "ReloadTime", 2.0f);
@@ -91,11 +93,12 @@ static void hurt(ak_target *T, f32 dmg_inf, f32 dmg_veh, bool head, bool allow_h
 
 static f32 rnd(u32 *s) { *s = *s * 1664525u + 1013904223u; return (f32)(*s >> 8) / 16777216.0f; }
 
-static void impact(ak_bolts *b, const ak_col_hit *h, u32 colour)
+static void impact(ak_bolts *b, const ak_col_hit *h, u32 colour, bool body)
 {
     ak_impact *im = &b->imp[b->next_imp]; b->next_imp = (b->next_imp + 1) % AK_MAX_IMPACTS; if (b->nimp < AK_MAX_IMPACTS) b->nimp++;
     memcpy(im->pos, h->pos, 12); memcpy(im->normal, h->normal, 12); im->age = 0; im->colour = colour;
-    b->hits++;
+    im->material = body ? 0xFFFF : h->material; im->body = body;
+    b->hits++; b->impacts++;
 }
 
 u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target *tg, u32 ntg, const f32 *muzzle, const f32 *target, u32 *seed)
@@ -121,7 +124,7 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
             bool wall = ak_col_raycast(col, muzzle, dd, reach, SHOT_IGNORE, &h); if (wall) reach = h.t;
             s32 ti = ray_targets(tg, ntg, muzzle, dd, reach, &tt, &head, w->team);
             if (ti >= 0) hurt(&tg[ti], d->dmg_infantry, d->dmg_vehicle, head, d->headshots, dd, w->owner);
-            else if (wall) impact(b, &h, 0xFFFFFFFFu);
+            else if (wall) impact(b, &h, 0xFFFFFFFFu, false);
             continue;
         }
         if (b->n >= AK_MAX_BOLTS) break;
@@ -132,6 +135,7 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
     b->fired++;
     w->cooldown = d->rate_of_fire;
     if (d->clip > 0) w->ammo--;
+    if (d->fire_snd) ak_audio_play(d->fire_snd, muzzle, false);       /* the weapon's "Fire Sound" */
     return 1;
 }
 
@@ -157,8 +161,8 @@ void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *tg, u32 nt
         if (ti >= 0) {
             hurt(&tg[ti], o->damage, o->damage_vehicle, head, o->headshots, o->dir, o->owner);
             ak_col_hit fake; for (int k = 0; k < 3; k++) { fake.pos[k] = o->pos[k] + o->dir[k] * tt; fake.normal[k] = -o->dir[k]; }
-            impact(b, &fake, o->colour); step = tt; dead = true;
-        } else if (wall) { impact(b, &h, o->colour); dead = true; }
+            fake.material = 0xFFFF; impact(b, &fake, o->colour, true); step = tt; dead = true;
+        } else if (wall) { impact(b, &h, o->colour, false); dead = true; }
         for (int k = 0; k < 3; k++) o->pos[k] += o->dir[k] * step;
         o->travelled += step;
         if (dead) b->b[i] = b->b[--b->n]; else i++;

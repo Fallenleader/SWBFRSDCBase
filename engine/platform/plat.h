@@ -38,6 +38,11 @@ bool ak_plat_poll(ak_input *in);         /* false: the user asked to quit */
  * New 3DS: yes (the C-stick; twin-stick is an option there, AK_TWIN_STICK); Old 3DS: no - only the game's own scheme. */
 bool ak_plat_has_right_stick(void);
 
+/* audio output (1.9): the device calls `fn` from its own audio thread for `frames` of interleaved stereo s16 at `rate` */
+typedef void (*ak_audio_fn)(s16 *out, u32 frames, void *user);
+bool ak_plat_audio_open(u32 rate, ak_audio_fn fn, void *user);
+void ak_plat_audio_close(void);
+
 /* log output (the core formats; the device writes: stdout + log.txt, ux0:data/SWBFRS/log.txt, sdmc:/3ds/SWBFRS/log.txt) */
 void ak_plat_log_write(const char *line);
 

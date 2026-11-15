@@ -23,15 +23,16 @@ typedef struct {
     f32 dmg_infantry, dmg_vehicle, speed, range, length, thickness;
     u32 colour;                        /* 0xAARRGGBB */
     f32 dscale_max, dscale_dist;       /* DistanceScalingMaxScale / MaxDist: bolts drawn bigger with distance (0 = off) */
+    const char *fire_snd;              /* the weapon's "Fire Sound" event (played at the muzzle) */
 } ak_weapon_def;
 
 typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; } ak_weapon;   /* team/owner: set after ak_weapon_give */
 
 typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle; u32 colour; f32 dscale_max, dscale_dist; bool headshots; int team; s32 owner; } ak_bolt;
-typedef struct { f32 pos[3], normal[3]; f32 age; u32 colour; } ak_impact;
+typedef struct { f32 pos[3], normal[3]; f32 age; u32 colour; u16 material; bool body; } ak_impact;   /* material: the surface's (0xFFFF none) */
 #define AK_MAX_BOLTS 512
 #define AK_MAX_IMPACTS 64
-typedef struct { ak_bolt b[AK_MAX_BOLTS]; u32 n; ak_impact imp[AK_MAX_IMPACTS]; u32 nimp, next_imp; u32 fired, hits; } ak_bolts;
+typedef struct { ak_bolt b[AK_MAX_BOLTS]; u32 n; ak_impact imp[AK_MAX_IMPACTS]; u32 nimp, next_imp; u32 fired, hits, impacts; } ak_bolts;   /* impacts: ever made */
 
 /* Something a shot can hurt: a standing body (vertical capsule from its feet) with a head sphere.  Soldiers have 100 health (the
  * game's default for a Humanoid blueprint without "Health": func_089826E8 reads it with 100.0 from 0x08AEE53C; heroes say 600) and

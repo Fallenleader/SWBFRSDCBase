@@ -7,6 +7,7 @@
 #include <psp2/io/stat.h>
 #include <psp2/ctrl.h>
 #include <psp2/power.h>
+#include <psp2/audioout.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
@@ -85,3 +86,23 @@ bool ak_plat_poll(ak_input *in)
     in->held = h; in->pressed = h & ~prev;
     return true;                                   /* the PS button / LiveArea closes the application */
 }
+
+/* ---- audio: a thread feeding the main audio port, 256 frames a grain at 48 kHz (sceAudioOutOutput blocks until the port
+ * wants the next grain) */
+static ak_audio_fn afn; static void *auser; static int aport = -1; static volatile int arun; static ak_thread *athr;
+static void audio_thread(void *arg)
+{
+    (void)arg; static s16 buf[2][256 * 2]; int b = 0;
+    while (arun) { afn(buf[b], 256, auser); sceAudioOutOutput(aport, buf[b]); b ^= 1; }
+}
+bool ak_plat_audio_open(u32 rate, ak_audio_fn fn, void *user)
+{
+    afn = fn; auser = user;
+    aport = sceAudioOutOpenPort(SCE_AUDIO_OUT_PORT_TYPE_MAIN, 256, (int)rate, SCE_AUDIO_OUT_MODE_STEREO);
+    if (aport < 0) { AK_WARN("plat", "audio: port 0x%08x", (unsigned)aport); return false; }
+    int vol[2] = { SCE_AUDIO_VOLUME_0DB, SCE_AUDIO_VOLUME_0DB };
+    sceAudioOutSetVolume(aport, SCE_AUDIO_VOLUME_FLAG_L_CH | SCE_AUDIO_VOLUME_FLAG_R_CH, vol);
+    arun = 1; athr = ak_plat_thread_start("aurek_audio", audio_thread, NULL, 2, 64 * 1024);
+    return athr != NULL;
+}
+void ak_plat_audio_close(void) { arun = 0; if (athr) ak_plat_thread_join(athr); athr = NULL; if (aport >= 0) sceAudioOutReleasePort(aport); aport = -1; }
