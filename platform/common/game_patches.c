@@ -195,6 +195,27 @@ void rs_ai_bots(unsigned fr){
                 GU32(o + 12), p[0], p[1], p[2], d, idle[k] * 2, alive, o, sq, sq ? GU32(sq + 0x4C) : 0, sq ? GU32(sq + 0x3C) : 0, GU32(o + 0xF0), GU8(o + 0xE8), GU32(o + 0xF8), GU32(o + 0x54));
         if ((idle[k] >= 3 || getenv("RS_AI_BOTS_ALL")) && !sq) fprintf(stderr, "[BOT]    no squad: ctl %u flags %08x b0 %08x goal %d 149 %u\n", GU32(o + 0x54), GU32(o + 0xC8), GU32(o + 0xB0), ai_goal(o), GU8(o + 0x149)); }
     fprintf(stderr, "[BOT] f%u: %d soldiers, %d idle 6 s or more\n", fr, nb, nidle); }
+/* RS_DRIVE (hle.c) state report.  Every object the game made registers in its object hash (buckets at 0x08C2C200, mask 0x08C2C204 - 1;
+ * entries { object, next, removed }, func_08A037D4); its info block (object + vtable[-16]) holds the id (+4) and the class (+8:
+ * 0x8005 soldier, 0x8004 flyer, ...); its placement component (object + vtable[-12]) answers position (method +12) and keeps health
+ * at +0x28 (as 08A049C0 and func_0898CD0C read them).  One line per soldier and vehicle:
+ *   "obj <id> <class> <x> <y> <z> <health> <player> m <3x3 rows>"  (game axes; the matrix from the component's method +16),
+ * player = 1 for the soldier the pad drives (+92 = the input object).  (health: +0x28 reads 0 for these objects - not the field.) */
+u32 rs_input_object(void);
+void rs_drive_report(FILE *f){
+    u32 bk = GU32(IMG(0x08C2C200u)), nb = GU32(IMG(0x08C2C204u)), me = rs_input_object(); if (!gok(bk) || nb == 0 || nb > 65536) return;
+    for (u32 bi = 0; bi < nb; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
+        if (GU8(nd + 8)) continue; u32 o = GU32(nd); if (!gok(o) || !gok(GU32(o))) continue;
+        u32 vt = GU32(o), info = o + GU32(vt - 16), plc = o + GU32(vt - 12); if (!gok(info) || !gok(plc) || !gok(GU32(plc))) continue;
+        u32 cls = GU16(info + 8); if (cls != 0x8005 && cls != 0x8004 && (cls < 0x8008 || cls > 0x801F)) continue;
+        u32 fn = GU32(GU32(plc) + 12); if (!gok(fn)) continue;
+        u32 pp = ((ifn_t)GFN(fn))(plc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).v0; if (!gok(pp)) continue;
+        const float *p = (const float *)GP(pp);
+        u32 fm = GU32(GU32(plc) + 16); const float *m = 0;
+        if (gok(fm)) { u32 mp = ((ifn_t)GFN(fm))(plc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).v0; if (gok(mp)) m = (const float *)GP(mp); }
+        fprintf(f, "obj %x %x %.4f %.4f %.4f %.2f %d", GU32(info + 4), cls, p[0], p[1], p[2], GF32(plc + 0x28), me && cls == 0x8005 && GU32(o + 92) == me);
+        if (m) fprintf(f, " m %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
+        fprintf(f, "\n"); } }
 /* The AI bridge's view of the bots (ai_bridge.c, AIAgents branch): one record per AI-driven soldier in the game's AI object
  * table, with the fields traced above.  raw (may be 0) gets the first rawn bytes of each AI object, for finding the fields that
  * are not traced yet (health, ammunition, weapon, facing). */

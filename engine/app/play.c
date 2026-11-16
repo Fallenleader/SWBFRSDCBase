@@ -372,6 +372,11 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         if (p->have_cq && tp > 0 && (u32)tp <= p->cq.nposts) { memcpy(sp, p->cq.post[tp - 1].pos, 12); post = tp - 1; } }
     if (post < 0 && p->have_nav) { s32 n = ak_nav_nearest(&p->nav, start, 1e6f); if (n >= 0) memcpy(sp, p->nav.node[n].pos, 12); }
     if (ak_char_ground_below(&p->col, sp, 50.0f, &gy)) sp[1] = gy;
+    {   /* tests against the original (tools/harness): AK_TEST_SPAWN = gx,gy,gz,fx,fz - the start and facing in game axes, as the
+         * harness reports the original's player (forward = its matrix's third column) */
+        const char *ts = ak_setting_str("AK_TEST_SPAWN", NULL); f32 g[5];
+        if (ts && sscanf(ts, "%f,%f,%f,%f,%f", &g[0], &g[1], &g[2], &g[3], &g[4]) == 5) {
+            ak_from_game(g, sp); syaw = atan2f(-g[3], g[4]); } }
     ak_char_spawn(&p->ch, sp, syaw);
     static const char *idle[] = { "Human_Rifle_Stand_Idle_lookaround2", "Human_Rifle_Stand_Idle_checkweap", NULL };
     static const char *run[] = { "Human_Rifle_Stand_RunForward", NULL }, *back[] = { "Human_Rifle_Stand_RunBackward", "Human_Rifle_Stand_WalkBackward", NULL };
@@ -1867,6 +1872,11 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         p->ch.body_box = body != 0;
         for (int k = 0; k < 3; k++) { p->ch.body_min[k] = mn[k] * S; p->ch.body_max[k] = mx[k] * S; } }
     ak_char_update(&p->ch, use, &p->col, &ci, dt);
+    {   /* tests against the original: AK_TEST_TRACE = a file - the player's position in game axes every 10 frames */
+        static FILE *tf; static int tinit; static u32 tfr;
+        if (!tinit) { tinit = 1; const char *tp = ak_setting_str("AK_TEST_TRACE", NULL); if (tp) tf = fopen(tp, "w"); }
+        if (tf && (tfr++ % 10) == 0) { f32 g[3]; ak_from_game(p->ch.pos, g);   /* (the flip is its own inverse) */
+            fprintf(tf, "%u %.4f %.4f %.4f %d\n", tfr - 1, g[0], g[1], g[2], p->ch.on_ground); fflush(tf); } }
     {   static u32 fr; static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
         if (dbg >= 3 && (fr++ % 30) == 0)
             AK_INFO("body", "player at %.2f %.2f %.2f vel %.2f %.2f %.2f %s", p->ch.pos[0], p->ch.pos[1], p->ch.pos[2], p->ch.vel[0], p->ch.vel[1], p->ch.vel[2], p->ch.on_ground ? "ground" : "air"); }

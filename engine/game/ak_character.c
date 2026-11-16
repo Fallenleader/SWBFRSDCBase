@@ -58,8 +58,9 @@ static bool body_slide(ak_character *c, const ak_collision *col, f32 move[3], f3
         body_place(c, ctr, ax, h);
         if (!ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, move, BODY_IGNORE, &t, n, &fl)) { for (int k = 0; k < 3; k++) c->pos[k] += move[k]; break; }
         f32 adv = t * L - SKIN; if (adv < 0) adv = 0;
+        if (t <= 0) for (int k = 0; k < 3; k++) c->pos[k] += n[k] * SKIN;   /* touching already (a corner just under it): back out to the skin */
         static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
-        if (dbg >= 4 && n[1] < WALKABLE) AK_INFO("body", "pass %d t %.3f n %.2f %.2f %.2f flags %04x at %.2f %.2f %.2f", pass, t, n[0], n[1], n[2], fl, c->pos[0], c->pos[1], c->pos[2]);
+        if ((dbg >= 4 && n[1] < WALKABLE) || dbg >= 5) AK_INFO("body", "pass %d t %.3f n %.2f %.2f %.2f flags %04x at %.2f %.2f %.2f", pass, t, n[0], n[1], n[2], fl, c->pos[0], c->pos[1], c->pos[2]);
         for (int k = 0; k < 3; k++) { c->pos[k] += move[k] / L * adv; move[k] *= 1.0f - adv / L; }
         if (n[1] >= WALKABLE) { ground = true; memcpy(gn, n, 12); }
         f32 dm = move[0] * n[0] + move[1] * n[1] + move[2] * n[2], dv = c->vel[0] * n[0] + c->vel[1] * n[1] + c->vel[2] * n[2];

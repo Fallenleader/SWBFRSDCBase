@@ -244,9 +244,9 @@ static bool ray_tri(const ak_col_tri *T, const f32 *o, const f32 *d, f32 *t)
 static bool box_tri_sweep(const ak_col_tri *T, const f32 *c0, const f32 (*ax)[3], const f32 *h, const f32 *mv, f32 *t_out, f32 *n_out)
 {
     bool hit = false; f32 best = 2.0f;
-    f32 dn = dot(mv, T->n);
+    f32 dn = dot(mv, T->n), eps = 1e-5f * sqrtf(dot(mv, mv));               /* (a move along the face is not into it) */
     bool two = (T->flags & AK_COL_TWO_SIDED) != 0;
-    if (dn < 0 || (two && dn > 0)) {                                          /* corners against the face */
+    if (dn < -eps || (two && dn > eps)) {                                     /* corners against the face */
         for (int i = 0; i < 8; i++) {
             f32 o[3]; for (int k = 0; k < 3; k++) o[k] = c0[k] + ax[0][k] * h[0] * ((i & 1) ? 1 : -1) + ax[1][k] * h[1] * ((i & 2) ? 1 : -1) + ax[2][k] * h[2] * ((i & 4) ? 1 : -1);
             f32 sg = dn < 0 ? 1.0f : -1.0f, t;

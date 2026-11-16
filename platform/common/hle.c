@@ -255,7 +255,32 @@ void rs_atrac_note_file(const char *host_path);
 /* Platform backends supply pad state. Defaults below are used by the headless host build. */
 typedef struct { u32 buttons; u8 lx, ly, rx, ry; } rs_pad_t;
 /* Headless default backend: optional script  RS_SCRIPT="frame:hexbuttons[:lx:ly[:rx:ry]];..."  (state holds from that frame on) */
+/* RS_DRIVE=<dir> (tests): lock-step input from a driver program (tools/harness/drive.py).  Every RS_DRIVE_EVERY vblanks (default 10)
+ * the frame is written to <dir>/frame.ppm and its number to <dir>/frame.txt, then the game waits until <dir>/pad.txt holds a line
+ * "<that frame number> <hex buttons> [lx ly rx ry]"; that pad state holds until the next step.  A driver that sees each screen and
+ * answers it makes menu navigation independent of how long loading takes. */
+static rs_pad_t drive_pad = { 0, 0x80, 0x80, 0x80, 0x80 };
+static int drive_on(void){ static int on = -1; if (on < 0) on = getenv("RS_DRIVE") != 0; return on; }
+static void dump_frame(const char *dir, int n);
+static void drive_step(int frame){
+    static int every = -1; if (every < 0) { every = getenv("RS_DRIVE_EVERY") ? atoi(getenv("RS_DRIVE_EVERY")) : 10; if (every < 1) every = 1; }
+    if (frame % every) return;
+    const char *dir = getenv("RS_DRIVE"); char a[600], b[600];
+    static u32 buf[480 * 272]; if (rs_display_read(buf)) { snprintf(a, sizeof a, "%s/frame.tmp", dir); FILE *f = fopen(a, "wb");
+        if (f) { fprintf(f, "P6\n480 272\n255\n"); for (int i = 0; i < 480 * 272; i++) { u8 rgb[3] = {buf[i] & 255, (buf[i] >> 8) & 255, (buf[i] >> 16) & 255}; fwrite(rgb, 1, 3, f); } fclose(f);
+            snprintf(b, sizeof b, "%s/frame.ppm", dir); rename(a, b); } }
+    { extern void rs_drive_report(FILE *) __attribute__((weak));        /* the game's state for the driver (game_patches.c) */
+      snprintf(a, sizeof a, "%s/state.tmp", dir); FILE *sf = fopen(a, "w"); if (sf) { fprintf(sf, "frame %d\n", frame); if (rs_drive_report) rs_drive_report(sf); fclose(sf); snprintf(b, sizeof b, "%s/state.txt", dir); rename(a, b); } }
+    snprintf(a, sizeof a, "%s/frame.txt.tmp", dir); FILE *f = fopen(a, "w"); if (f) { fprintf(f, "%d\n", frame); fclose(f); snprintf(b, sizeof b, "%s/frame.txt", dir); rename(a, b); }
+    snprintf(a, sizeof a, "%s/pad.txt", dir);
+    for (;;) {                                                     /* wait for the driver's answer to this frame */
+        FILE *pf = fopen(a, "r"); if (pf) { int fr = -1; unsigned bt = 0, lx = 128, ly = 128, rx = 128, ry = 128;
+            int n = fscanf(pf, "%d %x %u %u %u %u", &fr, &bt, &lx, &ly, &rx, &ry); fclose(pf);
+            if (n >= 2 && fr == frame) { drive_pad.buttons = bt; drive_pad.lx = (u8)lx; drive_pad.ly = (u8)ly; drive_pad.rx = (u8)rx; drive_pad.ry = (u8)ry; return; }
+            if (n >= 1 && fr == -1) exit(0); }                      /* "-1": the driver is done */
+        usleep(1000); } }
 void rs_script_read_pad(rs_pad_t *p){                  /* RS_SCRIPT (tests): scripted input */
+    if (drive_on()) { *p = drive_pad; return; }
     p->buttons = 0; p->lx = p->ly = p->rx = p->ry = 0x80;
     static char *scr; static int init; if (!init) { init = 1; const char *e = getenv("RS_SCRIPT"); if (e) scr = strdup(e); }
     if (!scr) return; char *s = strdup(scr), *save = 0;
@@ -324,7 +349,7 @@ static void spike_check(void){
     if (ms <= 0) return; u64 t = now_us();
     if (last && t - last > (u64)ms * 1000u) fprintf(stderr, "[SPIKE] frame %d took %.1f ms; %u files opened during it (last: %s)\n", g_frames, (t - last) / 1000.0, rs_spike_opens, rs_spike_opens ? rs_spike_last : "-");
     rs_spike_opens = 0; last = t; }
-static void h_WaitVblank(sdkcall_t *c){ spike_check(); static int fast = -1; if (fast < 0) fast = getenv("RS_FAST") != 0; if (fast) { rs_patch_apply_fps_cap(); yield_big(); } else pace_frame(); rs_patch_vblank(); g_frames++; { const char *md = ENV_ONCE("RS_MEMDUMP"); if (md) { char b[200]; snprintf(b, sizeof b, "%s", md); for (char *s = strtok(b, ","); s; s = strtok(0, ",")) if (atoi(s) == g_frames) { extern const u32 rs_image_size; char p[300]; snprintf(p, sizeof p, "%s/d_%d.img", getenv("RS_MEMDIR"), g_frames); FILE *f = fopen(p, "wb"); fwrite(GP(GIMG(0x08804000u)), 1, rs_image_size, f); fclose(f); snprintf(p, sizeof p, "%s/d_%d.heap", getenv("RS_MEMDIR"), g_frames); f = fopen(p, "wb"); fwrite(GP(0x0A000000u), 1, 64u << 20, f); fclose(f); } } }   /* TEMP */ if (++since_flip >= 30) { since_flip = 0; gfx_frame_ready(); } perf_report();   /* no flip for half a second: show what there is */
+static void h_WaitVblank(sdkcall_t *c){ spike_check(); static int fast = -1; if (fast < 0) fast = getenv("RS_FAST") != 0; if (fast) { rs_patch_apply_fps_cap(); yield_big(); } else pace_frame(); rs_patch_vblank(); g_frames++; if (drive_on()) drive_step(g_frames); { const char *md = ENV_ONCE("RS_MEMDUMP"); if (md) { char b[200]; snprintf(b, sizeof b, "%s", md); for (char *s = strtok(b, ","); s; s = strtok(0, ",")) if (atoi(s) == g_frames) { extern const u32 rs_image_size; char p[300]; snprintf(p, sizeof p, "%s/d_%d.img", getenv("RS_MEMDIR"), g_frames); FILE *f = fopen(p, "wb"); fwrite(GP(GIMG(0x08804000u)), 1, rs_image_size, f); fclose(f); snprintf(p, sizeof p, "%s/d_%d.heap", getenv("RS_MEMDIR"), g_frames); f = fopen(p, "wb"); fwrite(GP(0x0A000000u), 1, 64u << 20, f); fclose(f); } } }   /* TEMP */ if (++since_flip >= 30) { since_flip = 0; gfx_frame_ready(); } perf_report();   /* no flip for half a second: show what there is */
     if (ENV_ONCE("RS_FRAMELOG")) { fl_vb++; fl_note_ra(c->r[31]); if (fl_vb >= 600) { fprintf(stderr, "[FRAME] %d vblank waits, %d frame-buffer flips, %d SystemTimeLow + %d RtcTick queries; vblank callers:", fl_vb, fl_fb, fl_tick2, fl_rtc);
         for (int i = 0; i < 8 && fl_ran[i]; i++) fprintf(stderr, " %08x x%d", fl_ra[i], fl_ran[i]);
         fprintf(stderr, "; time callers:"); for (int i = 0; i < 8 && tl_n[i]; i++) fprintf(stderr, " %08x x%d", tl_ra[i], tl_n[i]); memset(tl_n, 0, sizeof tl_n); fprintf(stderr, "\n"); fl_vb = fl_fb = fl_tick = fl_tick2 = fl_rtc = 0; memset(fl_ran, 0, sizeof fl_ran); } }

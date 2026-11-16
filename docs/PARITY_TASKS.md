@@ -20,7 +20,8 @@ textures and how they are used. Section R lists only what must be in place so th
 
 ## 0. Ground rules and tooling
 
-- [ ] **0.1 A side-by-side harness against the original.**
+- [x] **0.1 A side-by-side harness against the original.** *(Done 2026-11-16: `tools/harness` - the original runs headless in
+  lock-step with a driver that reads its screens; `compare_walk.py` gives the report. See tools/harness/README.md.)*
   - Scripted inputs that drive both the original game and Aurek.
   - Captures from both: positions, timings, screenshots.
   - Exit: one command produces a comparison report for a level.
@@ -38,7 +39,8 @@ textures and how they are used. Section R lists only what must be in place so th
 
 ## 1. Soldiers: body and movement
 
-- [ ] **1.1 Speed from the animation [assumed].**
+- [ ] **1.1 Speed from the animation [assumed].** *(First harness result, Hoth, 10 s forward: the original runs 6.2-6.4 m/s,
+  varying with the clip; Aurek a flat 6.0. Gap after 63 m: 1.6-2.2 m.)*
   - The game: velocity is the playing clip's root motion, turned to the soldier's facing and laid along the ground (08993D38,
     0x08995560-0x08995860).
   - Aurek: blueprint speed plus an acceleration of 30 m/s² (invented).
