@@ -19,7 +19,9 @@ typedef struct { u16 ch; f32 u, v, w; } glyph;
 
 #define MAX_SPRITES 192
 static sprite spr[MAX_SPRITES]; static u32 nspr;
-static struct { glyph g[512]; u32 n; f32 line, tw, th; ak_gfx_tex *tex; } font;
+typedef struct { glyph g[512]; u32 n; f32 line, tw, th; ak_gfx_tex *tex; } fontdef;
+static fontdef fonts[2], *fontp = &fonts[0];   /* Franklin Gothic Medium Cond 9 (most of the HUD) and 13 (the timer, 08A5BE24) */
+#define font (*fontp)
 static ak_arena mem; static bool ready;
 static u32 wpn_first[2], wpn_n[2];                 /* the weapon icons: classic, prequel */
 
@@ -153,6 +155,7 @@ bool ak_hud_load(ak_vfs *vfs)
     }
     wpn_first[0] = nspr; wpn_n[0] = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD_WEAPONS_CLASSIC.ASR");
     wpn_first[1] = nspr; wpn_n[1] = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD_WEAPONS_PREQUEL.ASR");
+    fontp = &fonts[1]; load_font(vfs, "Cond_13"); fontp = &fonts[0];
     bool f = load_font(vfs, "Cond_9");
     load_cpnames(vfs); load_stdtext(vfs);
     ready = n > 0;
@@ -182,6 +185,30 @@ static void pic(const sprite *s, f32 x, f32 y, bool centred, u32 argb, f32 fill)
     if (centred) { x -= w * 0.5f; y -= h * 0.5f; }
     f32 u1 = s->u0 + (s->u1 - s->u0) * fill;
     quad(s->tex, x, y, x + w * fill, y + h, s->u0, s->v0, u1, s->v1, argb);
+}
+/* func 08A50324 -> 088CF0A8: a picture turned by `a` (radians) about its middle at (x, y): its corners at (+-w/2, +-h/2) carried to
+ * x + cos a * cx - sin a * cy, y + sin a * cx + cos a * cy, each keeping its corner of the picture */
+static void pic_rot(const sprite *s, f32 x, f32 y, f32 a, u32 argb)
+{
+    if (!s || !s->tex) return;
+    f32 w = s->w * (s->u1 - s->u0), h = s->h * (s->v1 - s->v0), c = cosf(a), sn = sinf(a);
+    const f32 lx[4] = { -w * 0.5f, w * 0.5f, w * 0.5f, -w * 0.5f }, ly[4] = { -h * 0.5f, -h * 0.5f, h * 0.5f, h * 0.5f };
+    const f32 us[4] = { s->u0, s->u1, s->u1, s->u0 }, vs[4] = { s->v0, s->v0, s->v1, s->v1 };
+    if (s->tex != vtex || !vset || nv + 6 > MAXV) { flush(); vtex = s->tex; vset = true; }
+    u8 col[4] = { (u8)(argb >> 16), (u8)(argb >> 8), (u8)argb, (u8)(argb >> 24) };
+    static const int tri[6] = { 0, 1, 3, 3, 1, 2 };
+    for (int k = 0; k < 6; k++) {
+        int j = tri[k]; ak_vtx *v = &vb[nv++]; memset(v, 0, sizeof *v);
+        v->pos[0] = x + c * lx[j] - sn * ly[j]; v->pos[1] = y + sn * lx[j] + c * ly[j]; v->uv[0] = us[j]; v->uv[1] = vs[j]; memcpy(v->col, col, 4);
+    }
+}
+/* func 08A50840 (via 08A50968): a picture mirrored left to right */
+static void pic_mirror(const sprite *s, f32 x, f32 y, bool centred, u32 argb)
+{
+    if (!s || !s->tex) return;
+    f32 w = s->w * (s->u1 - s->u0), h = s->h * (s->v1 - s->v0);
+    if (centred) { x -= w * 0.5f; y -= h * 0.5f; }
+    quad(s->tex, x, y, x + w, y + h, s->u1, s->v0, s->u0, s->v1, argb);
 }
 static const sprite *idx(int i) { return i >= 0 && i < (int)S_COUNT && by_index[i] >= 0 ? &spr[by_index[i]] : NULL; }
 static const glyph *glyph_of(u16 c) { for (u32 i = 0; i < font.n; i++) if (font.g[i].ch == c) return &font.g[i]; return NULL; }
@@ -445,12 +472,16 @@ static void vehicle_lock(const ak_hud_state *s)
     if (s->locked) lock_mark(1.0f, s->lock_x, s->lock_y, 0xFFFF0000u);
     else if (s->lock_fill > 0) lock_mark(s->lock_fill, s->lock_x, s->lock_y, lerp_argb(0xFFFFFFFFu, 0xFFFF0000u, s->lock_fill));
 }
+static u32 pulse(f32 t, u32 argb); static f32 elem_clock;
+/* the soldier's lock (func 08A51AA0): held up to 1 s (Controls 0x4DB0F6A9, default 1) the mark closes, t x (1 / 1), red; then locked:
+ * the mark open, red pulsing (08A516BC); with headshots from 4 s (0x15600269) to 5 s (0x320173F2) it closes again on the head, then
+ * locked again pulsing.  (UI_Target_Select plays at each lock: the viewer.) */
 static void lock_on(const ak_hud_state *s)
 {
-    f32 t = s->lock_t, fill = 0;
-    if (t <= 1.0f) fill = t;
-    else if (s->lock_head && t >= 4.0f && t < 5.0f) fill = t - 4.0f;
-    lock_mark(fill, s->lock_x, s->lock_y, 0xFFFF0000u);
+    f32 t = s->lock_t;
+    if (t <= 1.0f) { lock_mark(t, s->lock_x, s->lock_y, 0xFFFF0000u); return; }
+    if (s->lock_head && t >= 4.0f && t < 5.0f) { lock_mark(t - 4.0f, s->lock_x, s->lock_y, 0xFFFF0000u); return; }
+    lock_mark(0, s->lock_x, s->lock_y, pulse(elem_clock, 0xFFFF0000u));
 }
 
 /* func 08A514E4: the health colour - full health green (heroes, 200 and more, can reach blue): f = health / max (x 2/3 below 200
@@ -468,7 +499,7 @@ static u32 health_colour(f32 health, f32 max)
 /* the weapon panel (func 08A52DF8 / 08A52FF4, positions func 08A532AC): the icon centred at (395, y), the ammo underlay centred
  * at (460, y), the clip's count centred at x 445 and the rest's at x 470, bottoms at y + 8, in black; unlimited: the infinity
  * mark centred at (455, y), black.  y = 240 for the weapon in hand; with a second weapon the first moves up to 210 */
-static void weapon_panel(const char *name, s32 ammo, s32 spare, bool prequel, f32 y)
+static void weapon_panel(const char *name, s32 ammo, s32 spare, bool prequel, f32 y, bool counts)
 {
     if (name) {
         const char *nm = name;                                             /* (the weapon's HUDIcon) */
@@ -478,6 +509,7 @@ static void weapon_panel(const char *name, s32 ammo, s32 spare, bool prequel, f3
     }
     pic(idx(S_AMMO_UNDERLAY), 460, y, true, 0xFFFFFFFFu, 1);
     char t[16];
+    if (!counts) return;                                                   /* (the bar in their place: the caller) */
     if (ammo < 0) pic(idx(S_INFINITY), 455, y, true, 0xFF000000u, 1);
     else { snprintf(t, sizeof t, "%d", ammo); text(445, y + 8, 0xFF000000u, 0x24, t); }
     if (spare >= 0 && ammo >= 0) { snprintf(t, sizeof t, "%d", spare); text(470, y + 8, 0xFF000000u, 0x24, t); }
@@ -486,13 +518,119 @@ static void weapon_panel(const char *name, s32 ammo, s32 spare, bool prequel, f3
 /* the ticket counters (func 08A5B80C / 08A5B968, positions 08A5BC40): ours centred at x 167.5, theirs at 312.5; each side's
  * logo (faction 0 Republic, 1 CIS, 2 Alliance, 3 Empire) centred at y 25, the count in white centred above it, its bottom at
  * y 25 - 9; unlimited: the infinity mark centred at y 25 - 18 */
-static void tickets(s32 n, int faction, f32 x)
+static void tickets(s32 n, int faction, f32 x, u32 col)   /* col: the number's and the infinity mark's, the level's (08A5B9A4) */
 {
     static const int logo[4] = { 14, 13, 11, 12 };
     char t[16];
-    if (n < 0) pic(idx(S_INFINITY), x, 25 - 18, true, 0xFFFFFFFFu, 1);
-    else { snprintf(t, sizeof t, "%d", n); text(x, 25 - 9, 0xFFFFFFFFu, 0x24, t); }
+    if (n < 0) pic(idx(S_INFINITY), x, 25 - 18, true, col, 1);
+    else { snprintf(t, sizeof t, "%d", n); text(x, 25 - 9, col, 0x24, t); }
     if (faction >= 0 && faction < 4) pic(idx(logo[faction]), x, 25, true, 0xFFFFFFFFu, 1);
+}
+
+/* func 08A516BC: the pulse of a locked mark - t the element's clock (0..2 s, 08A4FAC0), p = 2 x 1/3; alpha (1/2 + t/(2p)) up to p,
+ * 1 to 2p, then 1/2 - t/(2p) (below 0: the game packs it as it is, the byte wrapping); the colour's channels kept */
+static u32 pulse(f32 t, u32 argb)
+{
+    f32 p = 2.0f * 0.33333334f, a;
+    if (t <= p) a = 0.5f / p * t + 0.5f;
+    else if (t <= p + p) a = 1.0f;
+    else a = 0.5f - t / p * 0.5f;
+    a *= 255.0f; a += a > 0 ? 0.5f : -0.5f;
+    s32 r = (s32)((f32)((argb >> 16) & 0xFF) * 0.003921569f * 255.0f + 0.5f), g = (s32)((f32)((argb >> 8) & 0xFF) * 0.003921569f * 255.0f + 0.5f),
+        b = (s32)((f32)(argb & 0xFF) * 0.003921569f * 255.0f + 0.5f);
+    return (u32)((((s32)a * 0x100 + r) * 0x100 + g) * 0x100 + b);
+}
+static f32 elem_clock;                 /* the elements' clock (08A4FAC0: + dt while 2 s or less, then back to 0) */
+
+/* func 08A4FC78: a colour's alpha scaled by f (rounded) */
+static u32 fade(f32 f, u32 argb) { f32 a = (f32)(argb >> 24) * f; a += a > 0 ? 0.5f : -0.5f; return (u32)(s32)a << 24 | (argb & 0xFFFFFF); }
+
+/* the weapon ring (func 08A5C3F0): n = value x 10 (at most 10); pieces 0..n of HUD_Level_Indicator, piece i turned to a = 0.3642 i - 0.25
+ * and centred r = 19 (zoomed) or 16 from the middle at (-r cos a, -r sin a), drawn turned by a - pi/2; coloured from A to B by
+ * i x 0.1 (08A5C728, the lock's blend): type 1 0xFFC0C0C0 -> 0xFF404040, 2 0xFFFF00FF -> 0xFF8000FF, 3 0xFFFFFF00 -> 0xFFFF0000;
+ * type 4 all green 0xFF00FF00 */
+static void ring(const ak_hud_state *s)
+{
+    if (s->ring_type <= 0 || s->ring_value == 0) return;
+    int n = (int)(s->ring_value * 10.0f); if ((f32)n > 10.0f) n = 10;
+    u32 A = 0, B = 0;
+    if (s->ring_type == 1) { A = 0xFFC0C0C0u; B = 0xFF404040u; }
+    else if (s->ring_type == 2) { A = 0xFFFF00FFu; B = 0xFF8000FFu; }
+    else if (s->ring_type == 3) { A = 0xFFFFFF00u; B = 0xFFFF0000u; }
+    f32 r = s->zoomed ? 19.0f : 16.0f;
+    for (int i = 0; i <= n; i++) {
+        f32 a = (f32)i * 0.36415929f - 0.25f;
+        u32 c = s->ring_type == 4 ? 0xFF00FF00u : lerp_argb(A, B, (f32)i * 0.1f);
+        pic_rot(idx(0x14), s->ring_x - r * cosf(a), s->ring_y - r * sinf(a), a - 1.5707964f, c);
+    }
+}
+
+/* a bar with its frame (08A512F8 / 08A513E8): the frame's top-left at (x, y), the bar over it cut at `fill` */
+static void framed_bar(int bar, int frame, f32 x, f32 y, f32 fill, u32 bar_col, u32 frame_col)
+{
+    pic(idx(frame), x, y, false, frame_col, 1);
+    if (fill != 0) pic(idx(bar), x, y, false, bar_col, fill);
+}
+
+/* stamina / energy (func 08A5B42C, positions 08A5B568): while not 3 s full, fading as 1 - t / 3 (08A512A0); the icon (stamina 0x16
+ * for a soldier, energy 0x19) centred at (10, 244) in the level's colour; HUD_Stamina_Bar_Frame at (20, 241) grey 0xFF808080; the bar
+ * over it cut at the fill, 0xFFE6E4E4 */
+static void stamina_bar(const ak_hud_state *s)
+{
+    if (!s->bar || s->bar_full_t >= 3.0f) return;
+    f32 f = 1.0f - s->bar_full_t / 3.0f; if (f < 0) f = 0; if (f > 1) f = 1;
+    pic(idx(s->bar_soldier ? 0x16 : 0x19), 10, 244, true, fade(f, s->dark ? 0xFF000000u : 0xFFFFFFFFu), 1);
+    framed_bar(0x11, 0x12, 20, 241, s->bar_fill, fade(f, 0xFFE6E4E4u), fade(f, 0xFF808080u));
+}
+
+/* the jetpack / shield (func 08A5AE84, positions 08A5B1A0): shown while in use or less than 3 s (0x08AF0630) full; the icon (jetpack
+ * 0x1E, else energy 0x19) centred at (10, 234) in the level's colour; the frame at (20, 230) grey, the bar 0xFFE6E4E4 cut at the fill;
+ * all faded by 1 - full time x 1/3 (08A5B01C) */
+static void jet_bar(const ak_hud_state *s)
+{
+    if (!s->jet || !(s->jet_using || s->jet_full_t < 3.0f) || s->jet_fill == 0) return;
+    f32 f = 1.0f - s->jet_full_t * 0.33333334f;
+    pic(idx(s->jet_pack ? 0x1E : 0x19), 10, 234, true, fade(f, s->dark ? 0xFF000000u : 0xFFFFFFFFu), 1);
+    pic(idx(0x12), 20, 230, false, fade(f, 0xFF808080u), 1);
+    pic(idx(0x11), 20, 230, false, fade(f, 0xFFE6E4E4u), s->jet_fill);
+}
+
+/* the timer (func 08A5BE80, positions 08A5BF94, font Cond_13: 08A5BE24): "m:ss" (seconds below 10 padded with a 0), else " n/total ";
+ * centred at x 430, its bottom at y 112, in the level's colour */
+static void timer(const ak_hud_state *s)
+{
+    char t[32];
+    if (s->timer_s > 0) {
+        u32 m = (u32)s->timer_s / 60, sec = (u32)s->timer_s % 60;
+        if (sec < 10) snprintf(t, sizeof t, "%u:%u%u", m, 0u, sec); else snprintf(t, sizeof t, "%u:%u", m, sec);
+    } else if (s->count_total > 0) snprintf(t, sizeof t, " %d/%d ", s->count, s->count_total);
+    else return;
+    fontp = &fonts[1]; text(430, 112, s->dark ? 0xFF000000u : 0xFFFFFFFFu, 0x24, t); fontp = &fonts[0];
+}
+
+/* the target's panel (func 08A566C0, positions 08A57170): its name (scale 0.75, centred, wrapped in the box (196, 20) - (284, 100));
+ * HUD_Target_Info_Bracket centred at (185, 20) and mirrored at (295, 20) in the level's colour; its health bar (the bar for its
+ * maximum, as the player's: 08A564C4) centred at (240, 15): full - the health colour (08A56D2C, as 08A514E4); part - the health
+ * colour up to the fill and white beyond; empty - white */
+static void target_panel(const ak_hud_state *s)
+{
+    if (!s->target || s->target_health <= 0) return;
+    u32 col = s->dark ? 0xFF000000u : 0xFFFFFFFFu;
+    if (s->target_name) text16_box(196, 20, 284, 0.75f, col, s->target_name, s->target_name_len, true, true);
+    pic(idx(0x28), 185, 20, true, col, 1);
+    pic_mirror(idx(0x28), 295, 20, true, col);
+    f32 k = s->target_max * 0.030303f; int q = (int)(k + 0.5f);
+    int bar = q <= 3 ? S_HEALTH_3 : q == 4 ? S_HEALTH_4 : q == 5 ? S_HEALTH_5 : S_HEALTH_BAR;
+    const sprite *b = idx(bar); if (!b) return;
+    f32 fill = s->target_max > 0 ? s->target_health / s->target_max : 0; if (fill < 0) fill = 0; if (fill > 1) fill = 1;
+    f32 w = b->w * (b->u1 - b->u0), h = b->h * (b->v1 - b->v0), x0 = 240 - w * 0.5f, y0 = 15 - h * 0.5f;
+    u32 hc = health_colour(s->target_health, s->target_max);
+    if (fill == 1) pic(b, 240, 15, true, hc, 1);
+    else if (fill > 0) {
+        f32 um = b->u0 + (b->u1 - b->u0) * fill;
+        quad(b->tex, x0, y0, x0 + w * fill, y0 + h, b->u0, b->v0, um, b->v1, hc);
+        quad(b->tex, x0 + w * fill, y0, x0 + w, y0 + h, um, b->v0, b->u1, b->v1, 0xFFFFFFFFu);
+    } else pic(b, 240, 15, true, 0xFFFFFFFFu, 1);
 }
 
 void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
@@ -501,9 +639,12 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     if (!ready || !s || !ak_setting_int("AK_HUD", 1)) return;
     ak_m4 o = ak_m4_ortho2d(480.0f, 272.0f); ak_gfx_set_transform(&o); ak_gfx_set_tint(NULL);
     if (s->radar && s->alive) radar(s);
+    if (elem_clock <= 2.0f) elem_clock += s->dt;
+    if (elem_clock > 2.0f) elem_clock = 0;
     if (s->post && s->alive && !s->vehicle) capture_panel(s);
     messages(s->dt);
-    if (s->tickets) { tickets(s->tickets_own, s->faction_own, 167.5f); tickets(s->tickets_enemy, s->faction_enemy, 312.5f); }
+    if (s->alive) { target_panel(s); stamina_bar(s); if (!s->vehicle) jet_bar(s); timer(s); ring(s); }
+    if (s->tickets) { u32 tc = s->dark ? 0xFF000000u : 0xFFFFFFFFu; tickets(s->tickets_own, s->faction_own, 167.5f, tc); tickets(s->tickets_enemy, s->faction_enemy, 312.5f, tc); }
     if (s->alive) {
         if (s->vehicle) {
             if (s->aim) pic(idx(S_RETICLE), s->aim_x, s->aim_y, true, 0xFFFFFFFFu, 1);
@@ -520,9 +661,14 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
         f32 f = s->health_max > 0 ? s->health / s->health_max : 0; if (f < 0) f = 0; if (f > 1) f = 1;
         pic(idx(bar), 20, 252, false, 0xFFC0C0C0u, 1);
         if (f > 0) pic(idx(bar), 20, 252, false, health_colour(s->health, s->health_max), f);
-        pic(idx(S_ICON_HEALTH), 10, 256, true, 0xFFFFFFFFu, 1);
-        if (s->weapon2) { weapon_panel(s->weapon, s->ammo, s->spare, s->prequel, 210); weapon_panel(s->weapon2, s->ammo2, s->spare2, s->prequel, 240); }
-        else if (s->weapon) weapon_panel(s->weapon, s->ammo, s->spare, s->prequel, 240);
+        pic(idx(S_ICON_HEALTH), 10, 256, true, s->dark ? 0xFF000000u : 0xFFFFFFFFu, 1);   /* (08A57518: the level's colour) */
+        /* the lower weapon (08A52FF4): reloading, the PowerUp bar and its frame (both 0xFF404040) top-left at (427, 237) instead of the counts */
+        /* (a single weapon is the upper one's, 08A52DF8, moved down: no bar) */
+        if (s->weapon2) {
+            weapon_panel(s->weapon, s->ammo, s->spare, s->prequel, 210, true);
+            weapon_panel(s->weapon2, s->ammo2, s->spare2, s->prequel, 240, s->weapon2_bar < 0);
+            if (s->weapon2_bar >= 0) framed_bar(0x22, 0x23, 427, 237, s->weapon2_bar, 0xFF404040u, 0xFF404040u);
+        } else if (s->weapon) weapon_panel(s->weapon, s->ammo, s->spare, s->prequel, 240, true);
     }
     flush();
     ak_gfx_set_transform(NULL);

@@ -25,9 +25,21 @@ typedef struct {
     f32 dscale_max, dscale_dist;       /* DistanceScalingMaxScale / MaxDist: bolts drawn bigger with distance (0 = off) */
     const char *fire_snd;              /* the weapon's "Fire Sound" event (played at the muzzle) */
     const char *hud_icon;              /* "HUDIcon": its picture on the HUD's weapon sheets ("EMP_Blaster_Rifle.tga") */
+    f32 heat_shot, heat_decay, heat_recover, burst_time;   /* OverheatPershot / OverheatDecay / OverheatRecoveryTime, BurstTime */
 } ak_weapon_def;
 
-typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; } ak_weapon;   /* team/owner: set after ak_weapon_give */
+/* A weapon's heat (the game's, weapon loader 08A16FD8: OverheatPershot / Decay / RecoveryTime at w+0x7C / +0x80 / +0x84, the heat
+ * at w+0x78).  A shot (08A1C950) adds OverheatPershot - x ProjectilesPerShot (at least 1) when BurstTime is 0 - and marks the weapon
+ * as fired (w+0x16C bit 0x4000); past 100 (0x08AEF85C) it overheats (state 6, 08A1A0D0): the heat is held at 100 and the weapon
+ * cannot fire for OverheatRecoveryTime, after which the fired mark is clear.  Every update (08A186EC) outside that state the heat
+ * falls by OverheatDecay a second once fired, else 200 a second (0x08AEF860), not below 0.  Only weapons in a player's hands heat
+ * (the shot adds heat only with w+0x16C bit 0x40, set by 08A19C8C when the owner is player-controlled). */
+typedef struct { f32 heat, recover_t; bool fired; } ak_heat;
+static inline bool ak_heat_ready(const ak_heat *h) { return h->recover_t <= 0; }
+void ak_heat_shot(ak_heat *h, const ak_weapon_def *d);
+void ak_heat_update(ak_heat *h, const ak_weapon_def *d, f32 dt);
+
+typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; ak_heat heat; bool heats; } ak_weapon;   /* team/owner: set after ak_weapon_give; heats: a player's (ak_heat) */
 
 typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle; u32 colour; f32 dscale_max, dscale_dist; bool headshots; int team; s32 owner; } ak_bolt;
 typedef struct { f32 pos[3], normal[3]; f32 age; u32 colour; u16 material; bool body; } ak_impact;   /* material: the surface's (0xFFFF none) */
@@ -41,7 +53,7 @@ typedef struct { ak_bolt b[AK_MAX_BOLTS]; u32 n; ak_impact imp[AK_MAX_IMPACTS]; 
 typedef struct {
     f32 feet[3], height, radius;
     f32 head[3], head_radius;
-    f32 health, headshot_mult;
+    f32 health, headshot_mult, max_health;   /* max_health: the HUD's target panel */
     bool alive, vehicle;
     int team;                          /* shots of the same team pass through (friendly fire off, the game's default) */
     s32 last_attacker;                 /* the owner of the last shot that hurt it (-1 none) */
@@ -52,6 +64,8 @@ typedef struct {
 /* the weapon a soldier of `faction` gets for `name` (the faction rule above); false = no such weapon */
 bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, const char *name, int faction, ak_weapon_def *out);
 void ak_weapon_give(ak_weapon *w, const ak_weapon_def *d);
+/* the Overheat keys (and BurstTime) of Weapon `w` into `d` */
+void ak_weapon_def_heat(const ak_bp_object *w, ak_weapon_def *d);
 /* a bare LaserBolt as a weapon (vehicle hardpoints): no model, endless, fired by the caller's timing */
 bool ak_weapon_def_bolt(const ak_blueprints *bp, const char *bolt, ak_weapon_def *out);
 /* trigger held: fires when ready (from `muzzle` toward `target`); returns shots fired */

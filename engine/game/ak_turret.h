@@ -31,6 +31,7 @@ typedef struct {
 typedef struct {
     const ak_turret_def *def; u32 id;
     f32 pos[3]; ak_quat rot; f32 base[12];   /* the base's world matrix (3x4 rows) */
+    ak_heat heat[4];                   /* the player's: one Weapon per marker, each with its heat */
     f32 yaw, pitch, health, range, volley_t, think_t, aim_t, rad;   /* rad: the base model's size (the hit body) */
     bool alive; int team; u32 post_id; s32 enemy;
 } ak_turret;

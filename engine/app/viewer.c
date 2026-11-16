@@ -514,6 +514,48 @@ int main(int argc, char **argv)
                         else if (vh->locked && lock_armed) { lock_armed = false; ak_audio_play("UI_Target_Select", vh->pos, false); }
                     } else lock_armed = false;
                 }
+                {   /* the level's colour (HUD +0x1C, 08A5D0A0: HOTH and HOTH_ION_CANNON black); the zoom view; the ring, bars and target */
+                    const char *ln = strrchr(levels[cur].path, '/'); ln = ln ? ln + 1 : levels[cur].path;
+                    hs.dark = !strcasecmp(ln, "HOTH.PSP") || !strcasecmp(ln, "HOTH_ION_CANNON.PSP");
+                    hs.zoomed = play.zoom > 0; hs.weapon2_bar = -1;
+                    static f32 bar_full_t; f32 bar_fill = -1; s32 tgt = -1;
+                    if (!hs.vehicle) {
+                        /* on foot: the ring about the screen's middle (240, 136; 08A5C958) - reloading (state 2: 1 - left / ReloadTime),
+                         * else the heat x 0.01 (08999378); the stamina bar (08A5B328: stamina / its top); the target - the lock's */
+                        hs.ring_x = 240; hs.ring_y = 136;
+                        if (play.armed && play.weapon.def) {
+                            if (play.weapon.reload_t > 0 && play.weapon.def->reload_time > 0) {
+                                f32 v = 1.0f - play.weapon.reload_t / play.weapon.def->reload_time; hs.ring_type = 1; hs.ring_value = v < 0 ? 0 : v > 1 ? 1 : v;
+                            } else { f32 v = play.weapon.heat.heat * 0.01f; hs.ring_type = 3; hs.ring_value = v < 0 ? 0 : v > 100 ? 100 : v; }
+                        }
+                        hs.bar = true; hs.bar_soldier = true; bar_fill = play.stamina_max > 0 ? play.stamina / play.stamina_max : 0;
+                        tgt = play.lock;
+                    } else {
+                        const ak_vehicle *vh = play.in_veh >= 0 ? &play.veh[play.in_veh] : NULL;
+                        const ak_turret *tu = vh ? NULL : &play.turret[play.in_turret];
+                        bool guns = vh ? vh->def->armed : tu->def->armed;
+                        /* the ring about the projected aim point (08A5C3F0), the first barrel's heat x 0.01 (089C8AA4) */
+                        if (guns && hs.aim) { hs.ring_x = hs.aim_x; hs.ring_y = hs.aim_y; f32 v = (vh ? vh->heat[0].heat : tu->heat[0].heat) * 0.01f;
+                                              hs.ring_type = 3; hs.ring_value = v < 0 ? 0 : v > 100 ? 100 : v; }
+                        if (vh) {   /* the energy bar (08A5B328): the energy, or for one not Boardable its health; the energy icon */
+                            hs.bar = true; hs.bar_soldier = false;
+                            bar_fill = vh->def->boardable ? (vh->def->energy_max > 0 ? vh->energy / vh->def->energy_max : 0) : (vh->def->health > 0 ? vh->health / vh->def->health : 0);
+                            if (vh->def->sec.armed && vh->sec_reload > 0 && vh->def->sec.reload > 0) {   /* the lower weapon reloading */
+                                f32 v = 1.0f - vh->sec_reload / vh->def->sec.reload; hs.weapon2_bar = v < 0 ? 0 : v > 1 ? 1 : v; }
+                            tgt = vh->lock;
+                        }
+                    }
+                    if (ak_setting_int("AK_DEBUG_HUD", 0) > 2) AK_INFO("hud", "ring %d %.2f at %.0f %.0f, bar %.2f, target %d", hs.ring_type, hs.ring_value, hs.ring_x, hs.ring_y, bar_fill, tgt);
+                    if (bar_fill >= 0) { hs.bar_fill = bar_fill; if (bar_fill < 1.0f) bar_full_t = 0; else bar_full_t += dt; hs.bar_full_t = bar_full_t; }
+                    if (tgt >= 0 && play.target[tgt].alive) { hs.target = true; hs.target_health = play.target[tgt].health; hs.target_max = play.target[tgt].max_health; }
+                    /* the soldier's lock sounds (08A51AA0): UI_Target_Select once on locking (past 1 s) and once on the head lock (5 s) */
+                    static int lock_stage;
+                    if (hs.lock && !hs.vehicle) {
+                        int st = hs.lock_t > 1.0f ? (hs.lock_head && hs.lock_t >= 5.0f ? 2 : 1) : 0;
+                        if (st > lock_stage && st > 0) ak_audio_play("UI_Target_Select", play.ch.pos, false);
+                        lock_stage = st;
+                    } else if (!hs.vehicle) lock_stage = 0;
+                }
                 if (play.have_cq) {                                            /* messages: captures and the bleed (func 089EA3D0) */
                     static int prev_owner[AK_MAX_POSTS], prev_bleed = -2; static const void *prev_level;
                     if (prev_level != levels[cur].path) { prev_level = levels[cur].path; ak_hud_messages_clear(); prev_bleed = -2;

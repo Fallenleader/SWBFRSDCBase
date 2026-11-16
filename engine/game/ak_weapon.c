@@ -35,7 +35,29 @@ bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, con
     d->length = ak_bp_float(lb, "length", 1.5f); d->thickness = ak_bp_float(lb, "thickness", 0.2f);
     d->colour = (u32)ak_bp_int(lb, "colour", (s32)0xFFFF2020u);
     d->dscale_dist = ak_bp_float(lb, "DistanceScalingMaxDist", 0); d->dscale_max = ak_bp_float(lb, "DistanceScalingMaxScale", 1);
+    ak_weapon_def_heat(w, d);
     return true;
+}
+
+void ak_weapon_def_heat(const ak_bp_object *w, ak_weapon_def *d)
+{
+    d->heat_shot = ak_bp_float(w, "OverheatPershot", 0); d->heat_decay = ak_bp_float(w, "OverheatDecay", 0);
+    d->heat_recover = ak_bp_float(w, "OverheatRecoveryTime", 0); d->burst_time = ak_bp_float(w, "BurstTime", 0);
+    if (!d->per_shot) d->per_shot = 1;
+}
+
+void ak_heat_shot(ak_heat *h, const ak_weapon_def *d)
+{
+    if (d->heat_shot <= 0) return;
+    h->heat += d->burst_time == 0 ? (f32)d->per_shot * d->heat_shot : d->heat_shot;
+    h->fired = true;
+    if (h->heat > 100.0f) { h->heat = 100.0f; h->recover_t = d->heat_recover; h->fired = false; }
+}
+
+void ak_heat_update(ak_heat *h, const ak_weapon_def *d, f32 dt)
+{
+    if (h->recover_t > 0) { h->recover_t -= dt; if (h->recover_t < 0) h->recover_t = 0; return; }
+    if (h->heat > 0) { h->heat -= dt * (h->fired ? d->heat_decay : 200.0f); if (h->heat < 0) h->heat = 0; }
 }
 
 bool ak_weapon_def_bolt(const ak_blueprints *bp, const char *bolt, ak_weapon_def *d)
@@ -105,7 +127,7 @@ static void impact(ak_bolts *b, const ak_col_hit *h, u32 colour, bool body)
 u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target *tg, u32 ntg, const f32 *muzzle, const f32 *target, u32 *seed)
 {
     const ak_weapon_def *d = w->def;
-    if (!d || w->cooldown > 0 || w->reload_t > 0) return 0;
+    if (!d || w->cooldown > 0 || w->reload_t > 0 || (w->heats && !ak_heat_ready(&w->heat))) return 0;
     if (d->clip > 0 && w->ammo <= 0) { if (w->spare > 0) w->reload_t = d->reload_time; return 0; }
     f32 dir[3] = { target[0] - muzzle[0], target[1] - muzzle[1], target[2] - muzzle[2] };
     f32 l = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]); if (l < 1e-4f) return 0;
@@ -136,6 +158,7 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
     b->fired++;
     w->cooldown = d->rate_of_fire;
     if (d->clip > 0) w->ammo--;
+    if (w->heats) ak_heat_shot(&w->heat, d);
     if (d->fire_snd) ak_audio_play(d->fire_snd, muzzle, false);       /* the weapon's "Fire Sound" */
     return 1;
 }
@@ -144,6 +167,7 @@ void ak_weapon_update(ak_weapon *w, f32 dt, bool reload)
 {
     const ak_weapon_def *d = w->def; if (!d) return;
     if (w->cooldown > 0) w->cooldown -= dt;
+    ak_heat_update(&w->heat, d, dt);
     if (reload && d->clip > 0 && w->ammo < d->clip && w->spare > 0 && w->reload_t <= 0) w->reload_t = d->reload_time;
     if (w->reload_t > 0) {
         w->reload_t -= dt;

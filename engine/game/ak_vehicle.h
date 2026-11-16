@@ -23,6 +23,10 @@ typedef struct {
     const ak_bp_object *bp; const char *name; s32 model, turret_model; const char *turret_marker;
     int kind;
     f32 top_speed, stall_speed, max_acc, boost_acc, strafe_acc, vel_damp, turn_rate, roll_deg;
+    /* energy (vehicle loader 089C4A2C): EnergyMax (089C6478, default 100) both the store and its top; EnergyBoost a second while
+     * boosting (089C644C, default 10), EnergyStunt a stunt (089C66C4), EnergyRecharge a second (089C64A4, default 10); Boardable
+     * (089C6AE8, default true): the HUD's bar shows the energy, else the health (08AC4BAC) */
+    f32 energy_max, energy_boost, energy_stunt, energy_recharge; bool boardable;
     f32 health, cam_z, cam_y, target_range;
     f32 hover, radius, height;             /* hover height above the ground; collision circle; body height */
     ak_weapon_def gun; bool armed;          /* HardpointW1: the bolt */
@@ -49,6 +53,8 @@ typedef struct {
     bool open;                             /* left empty after use: neutral (the game's team 4), anyone may board it */
     s32 spawn; f32 respawn_t, dead_t;
     f32 volley_t; u32 fired_mask; f32 aim_yaw, aim_pitch;
+    f32 energy; bool energy_spent, boost_held;      /* the game's +0xA0, and its "spent this frame" mark (+0xC1) */
+    ak_heat heat[4];                   /* each HardpointW1 marker is a Weapon of its own in the game (089C4A2C), with its own heat */
     s32 sec_ammo; f32 sec_t, sec_reload; u32 sec_next; s32 lock; f32 lock_t; bool locked; f32 bot_sec_t;   /* the secondary: clip, cool-down, reload, which muzzle; the lock-on */
     f32 throttle, steer, strafe;           /* the driver's controls, -1..1 */
     f32 anim_t; s32 clip; bool posed; f32 bones[64][12];   /* the pose (walkers walk; the rest hold their bind pose) */

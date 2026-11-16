@@ -32,6 +32,22 @@ typedef struct {
      * reticle at the projected aim point (aim, aim_x / aim_y); the lock (lock, lock_x / lock_y) filled by lock_fill, held once locked */
     bool vehicle, aim; f32 aim_x, aim_y, lock_fill; bool locked;
     bool post; s32 post_name; int post_owner, post_capturer; f32 post_fill; bool post_contested; f32 post_time;
+    bool dark;                         /* HOTH and HOTH_ION_CANNON (HUD +0x1C, 08A5D0A0): the level-coloured text and icons black, else white */
+    bool zoomed;                       /* the zoom view (089DD9AC): the weapon ring's radius 19, else 16 */
+    /* the weapon ring (element 08A5C0C4: update 08A5C110, draw 08A5C3F0) about (ring_x, ring_y): type 1 reloading (1 - the reload left /
+     * ReloadTime), 2 charging, 3 the heat x 0.01, 4 a tool's target's health; 0 = none */
+    int ring_type; f32 ring_value, ring_x, ring_y;
+    /* stamina / energy (element 08A5B2F0: update 08A5B328, draw 08A5B42C): bar_fill the share left, bar_full_t how long it has been
+     * full (the bar goes after 3 s), bar_soldier: the stamina icon (else the energy one) */
+    bool bar; f32 bar_fill, bar_full_t; bool bar_soldier;
+    /* the jetpack / shield (element 08A5ABBC: update 08A5AC74, draw 08A5AE84): its fill, how long full, a pack (else a shield) */
+    bool jet; f32 jet_fill, jet_full_t; bool jet_pack, jet_using;
+    /* the timer (element 08A5BDE4, draw 08A5BE80): seconds left (0 = none), else a count out of a total (0 = none) */
+    s32 timer_s, count, count_total;
+    /* the lower weapon's bar instead of its counts (08A52FF4 / 08A513E8): reloading, 1 - the reload left / ReloadTime; < 0 = none */
+    f32 weapon2_bar;
+    /* the target's panel (element 08A56438: update 08A564C4, draw 08A566C0): its name (UTF-16; NULL none), health and maximum */
+    bool target; const u16 *target_name; u32 target_name_len; f32 target_health, target_max;
 } ak_hud_state;
 
 bool ak_hud_load(ak_vfs *vfs);

@@ -40,6 +40,8 @@ target_link_libraries(akplat_desktop PUBLIC Threads::Threads)
 add_executable(akinspect tools/akinspect.c)
 target_link_libraries(akinspect PRIVATE akcore akplat_desktop)
 target_link_options(akinspect PRIVATE -Wl,--gc-sections)
+add_executable(akbp tools/akbp.c)
+target_link_libraries(akbp PRIVATE akcore akplat_desktop)
 
 # the level viewer (milestone 1.2), desktop OpenGL back end
 find_package(SDL2 REQUIRED)

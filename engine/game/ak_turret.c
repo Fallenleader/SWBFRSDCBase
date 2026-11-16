@@ -40,7 +40,7 @@ bool ak_turret_def_load(const ak_blueprints *bp, const ak_model_set *m, const ch
     const char *hp = ak_bp_string(o, "HardpointW1", "");
     const ak_bp_object *hw = *hp ? ak_bp_find(bp, "Weapon", hp) : NULL;
     d->armed = ak_weapon_def_bolt(bp, hw ? ak_bp_string(hw, "Projectile", hp) : hp, &d->gun) || ak_weapon_def_bolt(bp, hp, &d->gun);
-    if (d->armed && hw) { d->gun.fire_snd = ak_bp_string(hw, "Fire Sound", NULL); d->gun.hud_icon = ak_bp_string(hw, "HUDIcon", NULL); }   /* the hardpoint Weapon's "Fire Sound", "HUDIcon" */
+    if (d->armed && hw) { d->gun.fire_snd = ak_bp_string(hw, "Fire Sound", NULL); d->gun.hud_icon = ak_bp_string(hw, "HUDIcon", NULL); ak_weapon_def_heat(hw, &d->gun); }   /* the hardpoint Weapon's "Fire Sound", "HUDIcon" */
     static const char *mk[2] = { "HardpointW1Marker1", "HardpointW1Marker2" }, *tm[2] = { "HardpointW1Time1", "HardpointW1Time2" };
     f32 last = 0; s32 carrier = d->barrel >= 0 ? d->barrel : d->pivot >= 0 ? d->pivot : d->base;
     for (int i = 0; i < 2 && carrier >= 0; i++) {

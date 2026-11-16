@@ -246,7 +246,7 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
     b->goal = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
     b->stuck_t = 0; memcpy(b->stuck_pos, pos, 12); b->veh = b->want_veh = -1; b->rev_t = 0; b->vstucks = 0; b->veh_cool = 0;
     ak_target *t = &p->target[1 + idx];
-    t->health = ak_bp_float(b->look.bp, "Health", 100.0f); t->headshot_mult = ak_bp_float(b->look.bp, "Headshot multiplier", 4.0f);
+    t->health = t->max_health = ak_bp_float(b->look.bp, "Health", 100.0f); t->headshot_mult = ak_bp_float(b->look.bp, "Headshot multiplier", 4.0f);
     t->alive = true; t->team = b->team; t->last_attacker = -1;
     if (p->team_armed[b->team]) { ak_weapon_give(&b->weapon, &p->team_bdef[b->team]); b->weapon.team = b->team; b->weapon.owner = (s32)(1 + idx); }
     if (poseable(m, &b->look)) { pose(m, &b->look, p->idle_clip, b->clip_t, true, b->bones); body_target(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, t); }
@@ -364,13 +364,15 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         p->aim_curve = ak_setting_float("AK_AIM_CURVE", 2.0f); p->invert_y = ak_setting_int("AK_INVERT_Y", 0) != 0;
     }
     const ak_bp_object *ctl = ak_bp_find(bp, "Controls", "Humanoid");
+    p->stamina = p->stamina_max = 100.0f; p->stamina_regen = 10.0f; p->stamina_spent = false;
+    p->sprint_cost = ak_bp_float(ctl, "sprint cost", 20.0f); p->roll_cost = ak_bp_float(ctl, "roll stamina cost", 0.0f);
     p->lock = -1; p->lock_range = ak_bp_float(ctl, "targeting range", 50.0f); p->lock_turn = ak_bp_float(ctl, "aim yaw speed", 3.5f);
     p->lock_head_time = ak_bp_float(ctl, "lock on to head time", 5.0f);
     const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
     p->armed = ak_weapon_def_load(bp, m, wname, p->look.faction, &p->wdef);
-    if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; }
+    if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
     {   ak_target *t = &p->target[0];
-        t->health = p->health; t->headshot_mult = ak_bp_float(p->look.bp, "Headshot multiplier", 4.0f); t->alive = true; t->team = p->team; t->last_attacker = -1;
+        t->health = p->health; t->max_health = p->max_health; t->headshot_mult = ak_bp_float(p->look.bp, "Headshot multiplier", 4.0f); t->alive = true; t->team = p->team; t->last_attacker = -1;
         memcpy(t->feet, p->ch.pos, 12); t->height = 1.45f * S; t->radius = 0.35f * S; t->head_radius = 0.2f * S; memcpy(t->head, p->ch.pos, 12); t->head[1] += 1.6f * S; }
     /* bots */
     p->sight = p->lock_range;
@@ -598,14 +600,14 @@ static void hero_make(ak_play *p, const ak_model_set *m, int t, s32 unit)
     h->unit = unit; h->offered = -1; h->atk_i = -1;
     if (unit == 0) {
         p->look = h->look; p->wdef = h->wdef; p->armed = h->armed; p->max_health = h->health;
-        if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; }
+        if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
         p->state = PLAY_IDLE; p->clip_t = 0; p->lock = -1;
     } else {
         ak_play_bot *b = &p->bot[unit - 1];
         b->look = h->look; b->hero = true; b->state = PLAY_IDLE; b->clip_t = 0;
         if (h->armed) { ak_weapon_give(&b->weapon, &h->bdef); b->weapon.team = b->team; b->weapon.owner = unit; } else b->weapon.def = NULL;
     }
-    tg->health = h->health; tg->headshot_mult = ak_bp_float(h->look.bp, "Headshot multiplier", 4.0f);
+    tg->health = tg->max_health = h->health; tg->headshot_mult = ak_bp_float(h->look.bp, "Headshot multiplier", 4.0f);
     if (unit == 0) p->health = h->health;
     (void)m;
     if (ak_setting_int("AK_DEBUG_HERO", 0)) AK_INFO("hero", "%.1f s: %s is %s", p->clock, unit ? "a bot" : "the player", h->name);
@@ -846,7 +848,7 @@ static bool vehicle_make(ak_play *p, u32 v)
     ak_vehicle *vh = &p->veh[v]; vh->spawn = (s32)v;
     ak_vehicle_spawn(vh, &p->vdef[sp->def[team]], sp->pos, sp->yaw, team);
     ak_target *t = &p->target[VT(p, v)]; memset(t, 0, sizeof *t);
-    t->health = vh->def->health; t->alive = true; t->last_attacker = -1;
+    t->health = t->max_health = vh->def->health; t->alive = true; t->last_attacker = -1;
     vehicle_target(p, v);
     return true;
 }
@@ -973,9 +975,11 @@ static void vehicle_fire(ak_play *p, const ak_model_set *m, u32 v, const f32 *ta
     ak_weapon w; ak_weapon_give(&w, bot ? &d->gun_bot : &d->gun); w.team = vh->team; w.owner = (s32)(vh->driver >= 0 ? vh->driver : -1);
     for (u32 i = 0; i < d->nmuzzles; i++) {
         if (!(prev <= d->muzzle_time[i] && vh->volley_t > d->muzzle_time[i]) && !(prev == 0 && d->muzzle_time[i] == 0)) continue;
+        if (vh->driver == 0 && !ak_heat_ready(&vh->heat[i])) continue;       /* the player's: that barrel's weapon overheated */
         f32 W[12]; if (!ak_vehicle_marker(vh, m, d->muzzle[i], W)) continue;
         f32 muz[3] = { W[3], W[7], W[11] };
-        ak_weapon_fire(&w, &p->bolts, &p->col, p->target, NT(p), muz, target, &p->seed);
+        w.cooldown = 0;
+        if (ak_weapon_fire(&w, &p->bolts, &p->col, p->target, NT(p), muz, target, &p->seed) && vh->driver == 0) ak_heat_shot(&vh->heat[i], &d->gun);
     }
     if (vh->volley_t >= (bot ? d->volley_bot : d->volley)) vh->volley_t = 0;
 }
@@ -1024,6 +1028,29 @@ static void vehicle_lock(ak_play *p, ak_vehicle *vh, const f32 *eye, const f32 *
         if (cs > bc) { bc = cs; best = (s32)i; }
     }
     vh->lock = best; vh->lock_t = 0; vh->locked = false;
+}
+
+/* a vehicle's boost and energy: held, it boosts only while the energy is above a frame's EnergyBoost, paying it (089CABFC /
+ * 089CAC4C, through 089DCE7C); each frame (089DA874) below EnergyMax the energy grows by EnergyRecharge x dt unless some was spent
+ * that frame (the mark then cleared) - none while the boost is held (089CAC74: +0x34C bit 0x100, set by the boost button, 089A99CC) */
+static bool vehicle_boost(ak_vehicle *vh, bool held, f32 dt)
+{
+    const ak_vehicle_def *d = vh->def; bool boost = false;
+    if (held && vh->energy > dt * d->energy_boost) {
+        f32 cost = dt * d->energy_boost;
+        if (cost > 0) vh->energy_spent = true;
+        vh->energy -= cost; boost = true;
+    }
+    vh->boost_held = held;
+    return boost;
+}
+
+/* func 089DCE7C: pay `cost` of stamina if there is that much (a positive cost marks it spent this frame either way) */
+static bool stamina_pay(ak_play *p, f32 cost)
+{
+    if (cost > 0) p->stamina_spent = true;
+    if (cost > p->stamina) return false;
+    p->stamina -= cost; return true;
 }
 
 static void proj_boom(void *ctx, const f32 *pos, f32 radius) { (void)radius; boom((ak_play *)ctx, pos); }
@@ -1504,7 +1531,8 @@ static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
     for (u32 i = 0; i < p->nturret; i++) {
         ak_turret *t = &p->turret[i]; ak_target *g = &p->target[TT(p, i)]; const ak_turret_def *d = t->def;
         if (!t->alive) continue;
-        t->health = g->health;
+        t->health = g->health; g->max_health = d->health;
+        if (d->armed) for (u32 k = 0; k < 4; k++) ak_heat_update(&t->heat[k], &d->gun, dt);
         f32 rep = ak_bp_float(d->bp, "Auto_Repair_Rate", 5);                  /* self repair */
         if (t->health < d->health) { t->health = fminf(d->health, t->health + rep * dt); g->health = t->health; }
         int side = turret_side(p, t); if (side != t->team) { t->team = side; g->team = side < 0 ? AK_CQ_NEUTRAL : side; t->enemy = -1; }
@@ -1519,7 +1547,9 @@ static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
                 ak_weapon w; ak_weapon_give(&w, &d->gun); w.team = t->team; w.owner = 0;
                 for (u32 k = 0; k < d->nmuzzles; k++) {
                     if (!(prev <= d->muzzle_time[k] && t->volley_t > d->muzzle_time[k]) && !(prev == 0 && d->muzzle_time[k] == 0)) continue;
-                    f32 muz[3]; if (ak_turret_muzzle(t, m, k, muz)) ak_weapon_fire(&w, &p->bolts, &p->col, p->target, NT(p), muz, p->aim_point, &p->seed);
+                    if (!ak_heat_ready(&t->heat[k])) continue;
+                    f32 muz[3]; w.cooldown = 0;
+                    if (ak_turret_muzzle(t, m, k, muz) && ak_weapon_fire(&w, &p->bolts, &p->col, p->target, NT(p), muz, p->aim_point, &p->seed)) ak_heat_shot(&t->heat[k], &d->gun);
                 }
                 if (t->volley_t >= d->volley) t->volley_t = 0;
             } else t->volley_t = 0;
@@ -1737,7 +1767,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     } else p->lock = -1;
     bool was_ground = p->ch.on_ground;
     /* the roll: the stick's way (forward dive, left, right, back), carried as far as the clip's own root motion over its length */
-    if (p->roll_req && p->roll_i < 0 && p->alive && p->ch.on_ground && p->in_veh < 0 && p->in_turret < 0 && !hero_of(p, 0)) {
+    if (p->roll_req && p->roll_i < 0 && p->alive && p->ch.on_ground && p->in_veh < 0 && p->in_turret < 0 && !hero_of(p, 0) && stamina_pay(p, p->roll_cost)) {
         int k = 0; f32 sx = in->lx, sy = in->ly;
         if (fabsf(sx) > fabsf(sy) && fabsf(sx) > 0.3f) k = sx < 0 ? 1 : 2; else if (sy < -0.3f) k = 3;
         if (p->roll_clip[k] < 0) k = 0;
@@ -1766,6 +1796,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         p->roll_t += dt; if (p->roll_t >= p->roll_dur[p->roll_i]) p->roll_i = -1;
     }
     ak_char_update(&p->ch, use, &p->col, &ci, dt);
+    if (p->ch.sprinting && !stamina_pay(p, p->sprint_cost * dt)) p->stamina = 0;   /* the sprint's cost (08993D38) */
+    if (p->stamina < p->stamina_max) {                                         /* regeneration (089DA874, 08AC3D40) */
+        if (!p->stamina_spent) { if (!p->ch.sprinting) p->stamina += dt * p->stamina_regen; }
+        else p->stamina_spent = false;
+        if (p->stamina > p->stamina_max) p->stamina = p->stamina_max;
+    } else p->stamina_spent = false;
     if (p->in_turret >= 0) {                                                  /* manning a turret: seated at it, it follows the aim */
         ak_turret *t = &p->turret[p->in_turret];
         if (!t->alive || t->team != p->team) { p->in_turret = -1; p->target[0].alive = true; }
@@ -1840,6 +1876,13 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         ak_vehicle *vh = &p->veh[v];
         if (!vh->def) continue;
         vh->sec_t -= dt; if (vh->sec_reload > 0) vh->sec_reload -= dt; vh->bot_sec_t -= dt;
+        if (vh->def->armed) for (u32 k = 0; k < 4; k++) ak_heat_update(&vh->heat[k], &vh->def->gun, dt);
+        if (vh->energy < vh->def->energy_max) {                               /* the recharge (089DA874), driven or not */
+            if (!vh->energy_spent) { if (!vh->boost_held) vh->energy += dt * vh->def->energy_recharge; }
+            else vh->energy_spent = false;
+            if (vh->energy > vh->def->energy_max) vh->energy = vh->def->energy_max;
+        } else vh->energy_spent = false;
+        vh->boost_held = false;
         if (!vh->alive) {                                                     /* wrecked: back after the respawn delay */
             vh->dead_t += dt;
             if (vh->def->kind == AK_VEH_WALKER && vh->dead_t < 8.0f) ak_vehicle_pose(vh, m, dt);   /* the death clip */
@@ -1856,13 +1899,13 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (vh->aim_yaw < -1.2f) vh->aim_yaw = -1.2f;
             if (vh->aim_pitch > 0.6f) vh->aim_pitch = 0.6f;
             if (vh->aim_pitch < -0.4f) vh->aim_pitch = -0.4f;
-            if (rails) walker_route_step(p, v, dt); else ak_vehicle_update(vh, &p->col, p->cp.gravity, (vin->held & AK_BTN_CROSS) != 0, dt);
+            if (rails) walker_route_step(p, v, dt); else ak_vehicle_update(vh, &p->col, p->cp.gravity, vehicle_boost(vh, (vin->held & AK_BTN_CROSS) != 0, dt), dt);
             if ((vin->held & AK_BTN_R) && p->aim_ok) vehicle_fire(p, m, v, p->aim_point, dt); else vh->volley_t = 0;
             if (p->aim_ok) vehicle_lock(p, vh, p->eye, p->aim, dt);                /* circle: the secondary (locked: guided) */
             if ((vin->held & AK_BTN_CIRCLE) && p->aim_ok) vehicle_fire2(p, m, v, p->aim_point, vh->locked ? vh->lock : -1);
             memcpy(p->ch.pos, vh->pos, 12); p->ch.yaw = vh->yaw + vh->aim_yaw; p->ch.vel[0] = p->ch.vel[1] = p->ch.vel[2] = 0;
         } else if (vh->driver > 0) {                                          /* a bot drives (its controls are set in bot_drive) */
-            ak_vehicle_update(vh, &p->col, p->cp.gravity, p->bot[vh->driver - 1].boost, dt);
+            ak_vehicle_update(vh, &p->col, p->cp.gravity, vehicle_boost(vh, p->bot[vh->driver - 1].boost, dt), dt);
             memcpy(p->bot[vh->driver - 1].ch.pos, vh->pos, 12);
         } else if (p->vspawn[v].route && vh->def->kind == AK_VEH_WALKER) {      /* a placed walker: along its path at its walking pace, then it stands */
             walker_route_step(p, v, dt);
@@ -1977,7 +2020,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 hero_unmake_player(p);
                 ak_char_spawn(&p->ch, sp, syaw); p->alive = true; p->health = p->max_health; p->dead_t = 0; p->state = PLAY_IDLE; p->clip_t = 0;
                 p->target[0].alive = true; p->target[0].health = p->max_health; p->target[0].last_attacker = -1;
-                if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; }
+                if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
+                p->stamina = p->stamina_max; p->stamina_spent = false;   /* a new soldier */
             }
         }
         for (u32 i = 0; i < p->nbots; i++) {

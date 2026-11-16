@@ -76,6 +76,9 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
         d->sprint_scale = ak_bp_float(o, "SprintingSpeedScale", 1);
     }
     d->top_speed = ak_bp_float(o, "TopSpeed", 25); d->stall_speed = ak_bp_float(o, "StallSpeed", -10);
+    d->energy_max = ak_bp_float(o, "EnergyMax", 100); d->energy_boost = ak_bp_float(o, "EnergyBoost", 10);
+    d->energy_stunt = ak_bp_float(o, "EnergyStunt", 0); d->energy_recharge = ak_bp_float(o, "EnergyRecharge", 10);
+    d->boardable = ak_bp_bool(o, "Boardable", true);
     d->max_acc = ak_bp_float(o, "MaxAcc", 15); d->boost_acc = ak_bp_float(o, "BoostAcc", 30); d->strafe_acc = ak_bp_float(o, "MaxStrafeAcc", 0);
     d->vel_damp = ak_bp_float(o, "VelDamp", 1.5f); d->turn_rate = ak_bp_float(o, "MaxTurnYaw", 85) * DEG;
     d->roll_deg = ak_bp_float(o, "CosmeticRoll", 0);
@@ -98,7 +101,7 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     const char *hp = ak_bp_string(o, "HardpointW1", "");
     const ak_bp_object *hw = *hp ? ak_bp_find(bp, "Weapon", hp) : NULL;
     d->armed = ak_weapon_def_bolt(bp, hw ? ak_bp_string(hw, "Projectile", hp) : hp, &d->gun) || ak_weapon_def_bolt(bp, hp, &d->gun);
-    if (d->armed && hw) { d->gun.fire_snd = ak_bp_string(hw, "Fire Sound", NULL); d->gun.hud_icon = ak_bp_string(hw, "HUDIcon", NULL); }   /* the hardpoint Weapon's "Fire Sound", "HUDIcon" */
+    if (d->armed && hw) { d->gun.fire_snd = ak_bp_string(hw, "Fire Sound", NULL); d->gun.hud_icon = ak_bp_string(hw, "HUDIcon", NULL); ak_weapon_def_heat(hw, &d->gun); }   /* the hardpoint Weapon's "Fire Sound", "HUDIcon" */
     static const char *mk[4] = { "HardpointW1Marker1", "HardpointW1Marker2", "HardpointW1Marker3", "HardpointW1Marker4" };
     static const char *tm[4] = { "HardpointW1Time1", "HardpointW1Time2", "HardpointW1Time3", "HardpointW1Time4" };
     f32 last = 0;
@@ -137,7 +140,7 @@ void ak_vehicle_spawn(ak_vehicle *v, const ak_vehicle_def *d, const f32 *pos, f3
     s32 sp = v->spawn;
     memset(v, 0, sizeof *v);
     v->def = d; memcpy(v->pos, pos, 12); v->yaw = yaw; v->team = team; v->spawn = sp;
-    v->health = d->health; v->alive = true; v->driver = -1; v->aim_yaw = 0;
+    v->health = d->health; v->alive = true; v->driver = -1; v->aim_yaw = 0; v->energy = d->energy_max; v->energy_spent = false;
     v->sec_ammo = d->sec.clip; v->lock = -1;
 }
 

@@ -105,6 +105,12 @@ typedef struct {
     s32 aclip[PLAY_NCLIPS], shoot_clip;   /* the alert set (rifle raised: generic_male set 5) and its shoot layer (column 1) */
     f32 alert_t, shoot_t;              /* the player: seconds of alert pose left; seconds since the trigger was last held */
     bool psp_buttons, l_was, sprint;   /* the PSP button layout (AK_BUTTONS=psp): L tap jumps, L held sprints */
+    /* stamina (the game's: object +0xA0, maximum +0xA4, regeneration +0xA8 - 100 / 100 / 10 a second by default, 089D9EE0, and no
+     * Humanoid sets "Stamina"): sprinting pays Controls "sprint cost" a second (the soldier update 08993D38; Humanoid: 15) and a
+     * roll "roll stamina cost" (089A392C; 40) through 089DCE7C - paid only when there is that much, which marks it spent this
+     * frame; a sprint that cannot pay empties it.  Each frame (089DA874) below the maximum it grows by the regeneration x dt unless
+     * something was spent (that frame's mark is cleared instead); none while sprinting (08AC3D40, +0x208 bit 5) */
+    f32 stamina, stamina_max, stamina_regen, sprint_cost, roll_cost; bool stamina_spent;
     f32 l_t;                           /* how long L has been held */
     s32 roll_clip[4]; f32 roll_len[4], roll_dur[4];   /* circle: the rolls (forward dive, left, right, back), their travel and time */
     s32 roll_i; f32 roll_t, roll_v[2]; bool roll_req;
