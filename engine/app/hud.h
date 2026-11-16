@@ -16,6 +16,8 @@ typedef struct {
     s32 ammo, spare;                   /* the clip and the rest; ammo < 0 = unlimited (the infinity mark) */
     const char *weapon2; s32 ammo2, spare2;   /* the second weapon (grenades): shown above when there is one */
     bool prequel;                      /* the prequel era's weapon icons */
+    bool tickets; s32 tickets_own, tickets_enemy;   /* conquest: each side's tickets (< 0 = unlimited) */
+    int faction_own, faction_enemy;    /* 0 Republic, 1 CIS, 2 Alliance, 3 Empire */
 } ak_hud_state;
 
 bool ak_hud_load(ak_vfs *vfs);         /* once; false = the files are missing (the HUD stays off) */

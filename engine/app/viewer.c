@@ -456,6 +456,8 @@ int main(int argc, char **argv)
                 if (play.armed && play.weapon.def && play.in_veh < 0 && play.in_turret < 0) {
                     hs.weapon = play.weapon.def->hud_icon; hs.ammo = play.weapon.ammo; hs.spare = play.weapon.spare; }
                 hs.prequel = strstr(levels[cur].path, "PREQUEL") != NULL;
+                if (play.have_cq) { hs.tickets = true; hs.tickets_own = play.match.tickets[play.team]; hs.tickets_enemy = play.match.tickets[1 - play.team];
+                                    hs.faction_own = play.team_faction[play.team]; hs.faction_enemy = play.team_faction[1 - play.team]; }
                 ak_hud_draw(&hs, w, h);
                 if (play.lock >= 0) ak_gfx_text((f32)w * 0.5f - 4, (f32)h * 0.5f - 8, 0xFF4040FF, "+");   /* (lock-on: until its marks are in) */
             }

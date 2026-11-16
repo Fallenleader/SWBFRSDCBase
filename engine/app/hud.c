@@ -184,11 +184,24 @@ static void weapon_panel(const char *name, s32 ammo, s32 spare, bool prequel, f3
     if (spare >= 0 && ammo >= 0) { snprintf(t, sizeof t, "%d", spare); text(470, y + 8, 0xFF000000u, 0x24, t); }
 }
 
+/* the ticket counters (func 08A5B80C / 08A5B968, positions 08A5BC40): ours centred at x 167.5, theirs at 312.5; each side's
+ * logo (faction 0 Republic, 1 CIS, 2 Alliance, 3 Empire) centred at y 25, the count in white centred above it, its bottom at
+ * y 25 - 9; unlimited: the infinity mark centred at y 25 - 18 */
+static void tickets(s32 n, int faction, f32 x)
+{
+    static const int logo[4] = { 14, 13, 11, 12 };
+    char t[16];
+    if (n < 0) pic(idx(S_INFINITY), x, 25 - 18, true, 0xFFFFFFFFu, 1);
+    else { snprintf(t, sizeof t, "%d", n); text(x, 25 - 9, 0xFFFFFFFFu, 0x24, t); }
+    if (faction >= 0 && faction < 4) pic(idx(logo[faction]), x, 25, true, 0xFFFFFFFFu, 1);
+}
+
 void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
 {
     (void)sw; (void)sh;
     if (!ready || !s || !ak_setting_int("AK_HUD", 1)) return;
     ak_m4 o = ak_m4_ortho2d(480.0f, 272.0f); ak_gfx_set_transform(&o); ak_gfx_set_tint(NULL);
+    if (s->tickets) { tickets(s->tickets_own, s->faction_own, 167.5f); tickets(s->tickets_enemy, s->faction_enemy, 312.5f); }
     if (s->alive) {
         if (s->reticle) pic(idx(S_RETICLE), 240, 136, true, 0xFFFFFFFFu, 1);                 /* func 08A51AA0 */
         /* health (func 08A574BC, positions 08A578DC): the bar for the maximum (08A57854: max / 33 rounded - 3 or less: the
