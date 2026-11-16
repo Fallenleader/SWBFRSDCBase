@@ -557,6 +557,13 @@ int main(int argc, char **argv)
                         }
                         prev_h = h0;
                     }
+                    hs.missile = -1;                                           /* space, in a flyer: a guided missile coming at it */
+                    if (play.is_space && play.in_veh >= 0 && play.veh[play.in_veh].def->kind == AK_VEH_FLYER) {
+                        s32 me = (s32)(1 + play.nbots + (u32)play.in_veh);
+                        for (u32 k = 0; k < AK_MAX_PROJ; k++) { const ak_proj *q = &play.projs.p[k];
+                            if (q->alive && q->target == me) { const f32 *vp2 = play.veh[play.in_veh].pos; f32 dx = q->pos[0] - vp2[0], dy = q->pos[1] - vp2[1], dz = q->pos[2] - vp2[2];
+                                hs.missile = (s32)sqrtf(dx * dx + dy * dy + dz * dz); break; } }
+                    }
                     /* the soldier's lock sounds (08A51AA0): UI_Target_Select once on locking (past 1 s) and once on the head lock (5 s) */
                     static int lock_stage;
                     if (hs.lock && !hs.vehicle) {
@@ -571,7 +578,8 @@ int main(int argc, char **argv)
                         for (u32 i = 0; i < play.cq.nposts; i++) prev_owner[i] = play.match.post[i].owner;
                         if (ak_setting_int("AK_TEST_MESSAGES", 0) && play.cq.nposts) {      /* tests: one of each colour */
                             u32 nl; const u16 *nm = ak_hud_post_name(play.cq.post[0].name, &nl);
-                            ak_hud_message(1, 0x38, nm, nl); ak_hud_message(2, 0x3A, nm, nl); ak_hud_message(2, 0x3B, NULL, 0); } }
+                            ak_hud_message(1, 0x38, nm, nl); ak_hud_message(2, 0x3A, nm, nl); ak_hud_message(2, 0x3B, NULL, 0);
+                            ak_hud_message(3, 0x38, nm, nl); ak_hud_message(4, 0x3B, NULL, 0); } }
                     for (u32 i = 0; i < play.cq.nposts; i++) {
                         int o = play.match.post[i].owner, was = prev_owner[i]; if (o == was) continue;
                         prev_owner[i] = o; u32 nl; const u16 *nm = ak_hud_post_name(play.cq.post[i].name, &nl);

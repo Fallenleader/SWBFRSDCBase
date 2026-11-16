@@ -126,6 +126,7 @@ static void load_stdtext(ak_vfs *vfs)
         break;
     }
 }
+static const u16 *stdtext_get(u32 id, u32 *len) { if (!stdtext || id >= nstd || !stdtext[id]) { *len = 0; return NULL; } *len = stdlen[id]; return stdtext[id]; }
 const u16 *ak_hud_post_name(s32 i, u32 *len) { if (i < 0 || (u32)i >= ncp) { *len = 0; return NULL; } *len = cplen[i]; return cpname[i]; }
 static void load_cpnames(ak_vfs *vfs)
 {
@@ -147,7 +148,7 @@ static void load_cpnames(ak_vfs *vfs)
 bool ak_hud_load(ak_vfs *vfs)
 {
     if (ready) return true;
-    if (!ak_arena_init(&mem, 1u << 20)) return false;
+    if (!ak_arena_init(&mem, 4u << 20)) return false;
     u32 n = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD.ASR");
     for (u32 i = 0; i < S_COUNT; i++) {
         const sprite *s = find(table[i], 0, n);
@@ -415,15 +416,42 @@ void ak_hud_message(int ch, u32 id, const u16 *arg, u32 an)
                                              AK_INFO("hud", "message %d (%.0f s): %s", ch, s->life, a); }
 }
 
-static void messages(f32 dt)
+/* the box behind styles 3 and 4 (func 08A50F44, called by 08A50E40 when the style's flag, 0x08AE59D4, is set): for text h high,
+ * n = ceil((h - 20) / 6) middle pieces (none up to 20), the box 6 n + 24 high, white with the text's alpha; centred at x 240,
+ * HUD_Text_Box_Top at y = top + h / 2 - box / 2 + 5, then 5 lower and each HUD_Text_Box_Mid 3 below that and 3 more, then
+ * HUD_Text_Box_Bottom 7 below; the stack still steps by the text's height */
+static void text_box(f32 y, f32 h, u32 argb)
 {
+    f32 n = 0;
+    if (h - 20.0f > 0) { f32 v = (h - 20.0f) * 0.16666667f, r = v + (v > 0 ? 0.5f : -0.5f); n = (f32)(s32)r; if (v - n > 0) n += 1.0f; }
+    f32 bh = n * 6.0f + 10.0f + 14.0f;
+    f32 a = (f32)(argb >> 24) * 0.003921569f * 255.0f; a += a > 0 ? 0.5f : -0.5f;
+    u32 col = (u32)(s32)a << 24 | 0xFFFFFF;
+    f32 yy = (y + h * 0.5f - bh * 0.5f) + 5.0f;
+    pic(idx(0x21), 240, yy, true, col, 1);
+    yy += 5.0f;
+    for (u32 k = 0; k < (u32)n; k++) { yy += 3.0f; pic(idx(0x20), 240, yy, true, col, 1); yy += 3.0f; }
+    pic(idx(0x1F), 240, yy + 7.0f, true, col, 1);
+}
+static void messages(f32 dt, bool alive)
+{
+    /* the walk (func 08A4F1FC): styles 0..2 share one queue (08A4EE08: 0x08C2E354) drawn from the top of their box; style 3 its own
+     * (0x08C2EC04) from its top; style 4 its own (0x08C2F4B4) set at the bottom of its box: it starts (y1 - y0) - its lines'
+     * height - 15 (0x08AF0218) down from y0 */
     f32 y = 0;
     for (int ch = 0; ch < 5; ch++) {
-        if (ch == 0 || ch >= 3) y = msg_box[ch][1];                          /* (0..2 share their box: one stack) */
+        if (!alive && ch > 2) break;                                       /* (dead: the left queue only) */
+        if (ch == 0 || ch == 3) y = msg_box[ch][1];                          /* (0..2 share their box: one stack) */
+        if (ch == 4) {
+            f32 tot = 0;
+            for (u32 k = 0; k < 4; k++) { msg_slot *s = &msgs[ch][(msg_head[ch] + k) & 3]; if (s->on && s->t + dt < s->life) tot += text16_box(msg_box[ch][0], 0, msg_box[ch][2], 0.75f, 0, s->text, s->n, false, true); }
+            y = msg_box[ch][1] + (msg_box[ch][3] - msg_box[ch][1]) - tot - 15.0f;
+        }
         for (u32 k = 0; k < 4; k++) {
             msg_slot *s = &msgs[ch][(msg_head[ch] + k) & 3]; if (!s->on) continue;
             s->t += dt;
             if (s->t >= s->life) { s->on = false; if (((msg_head[ch] + k) & 3) == msg_head[ch]) msg_head[ch] = (msg_head[ch] + 1) & 3; continue; }
+            if (ch >= 3) text_box(y, text16_box(msg_box[ch][0], y, msg_box[ch][2], 0.75f, 0, s->text, s->n, false, true), msg_colour[ch]);
             y += text16_box(msg_box[ch][0], y, msg_box[ch][2], 0.75f, msg_colour[ch], s->text, s->n, true, ch >= 3);   /* (0x182 / 0x184) */
         }
     }
@@ -525,6 +553,20 @@ static void tickets(s32 n, int faction, f32 x, u32 col)   /* col: the number's a
     if (n < 0) pic(idx(S_INFINITY), x, 25 - 18, true, col, 1);
     else { snprintf(t, sizeof t, "%d", n); text(x, 25 - 9, col, 0x24, t); }
     if (faction >= 0 && faction < 4) pic(idx(logo[faction]), x, 25, true, 0xFFFFFFFFu, 1);
+}
+
+/* the message controller (func 08A4F1FC): dead - only the left queue; on a space level (DAT_08C29324: the level's name holds
+ * "space_", 08978924) a flyer with a missile coming at it (its slot 0x154, +0x78) - "INCOMING MISSILE!" (STDTEXT 0xB9) centred at
+ * (240, 60) and the missile's distance ("%d", truncated) at (240, 75), Cond_9, pulsing red (08A516BC), instead of the queues.
+ * ("LOCK ON!", 0xB8, for a soldier whose +0x74 is set: nothing sets it outside the constructor, so it never shows here.) */
+static bool missile_warning(const ak_hud_state *s)
+{
+    if (s->missile < 0 || !s->alive) return false;
+    u32 n; const u16 *w = stdtext_get(0xB9, &n);
+    u32 col = pulse(elem_clock, 0xFFFF0000u);
+    if (w) text16_box(0, 60, 480, 1.0f, col, w, n, true, true);
+    char t[16]; snprintf(t, sizeof t, "%d", s->missile); text(240, 75, col, 0x04, t);
+    return true;
 }
 
 /* the hit-direction marks (element 08A541E8: add 08A547B8, update 08A543C8, draw 08A54E4C; on foot only).  A hit from a position
@@ -687,7 +729,7 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     if (elem_clock <= 2.0f) elem_clock += s->dt;
     if (elem_clock > 2.0f) elem_clock = 0;
     if (s->post && s->alive && !s->vehicle) capture_panel(s);
-    messages(s->dt);
+    if (!missile_warning(s)) messages(s->dt, s->alive);
     if (s->alive) hit_marks(s); else nhits = 0;
     if (s->alive) { target_panel(s); stamina_bar(s); if (!s->vehicle) jet_bar(s); timer(s); ring(s); }
     if (s->tickets) { u32 tc = s->dark ? 0xFF000000u : 0xFFFFFFFFu; tickets(s->tickets_own, s->faction_own, 167.5f, tc); tickets(s->tickets_enemy, s->faction_enemy, 312.5f, tc); }

@@ -47,6 +47,7 @@ typedef struct {
     /* the lower weapon's bar instead of its counts (08A52FF4 / 08A513E8): reloading, 1 - the reload left / ReloadTime; < 0 = none */
     f32 weapon2_bar;
     /* the target's panel (element 08A56438: update 08A564C4, draw 08A566C0): its name (UTF-16; NULL none), health and maximum */
+    s32 missile;                       /* space, in a flyer: an incoming guided missile's distance (game units), < 0 none */
     bool target; const u16 *target_name; u32 target_name_len; f32 target_health, target_max;
 } ak_hud_state;
 
