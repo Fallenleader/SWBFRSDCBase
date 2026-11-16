@@ -527,6 +527,51 @@ static void tickets(s32 n, int faction, f32 x, u32 col)   /* col: the number's a
     if (faction >= 0 && faction < 4) pic(idx(logo[faction]), x, 25, true, 0xFFFFFFFFu, 1);
 }
 
+/* the hit-direction marks (element 08A541E8: add 08A547B8, update 08A543C8, draw 08A54E4C; on foot only).  A hit from a position
+ * already marked renews that mark, else a new one; a mark goes after 1 s (removed once older than 1, then aged).  Its sector
+ * (08A548C8, again whenever the soldier or the camera moves): the source's bearing from the soldier, theta = atan2(dx, dz) in game
+ * axes, 0..2 pi (acos(|dz| / len) and its quadrant), less the camera's yaw (atan2 of its matrix's m02, m22), x 4 / pi, truncated
+ * toward 0.  Drawn (not zoomed): HUD_Hit_Direction red, turned a = (2 k + 1) pi / 8, at (250 + 19 sin a, 140 - 19 cos a) less half
+ * its size (08A50324, "centred" before the turn) */
+typedef struct { f32 src[3], age; int k; } hitmark;
+static hitmark hits[16]; static u32 nhits; static f32 hit_pos[3], hit_yaw; static bool hit_have_view;
+static int hit_sector(const f32 *src)
+{
+    f32 dx = src[0] - hit_pos[0], dz = -(src[2] - hit_pos[2]), L = sqrtf(dx * dx + dz * dz), th = 0;   /* (game axes: z flipped) */
+    if (L != 0) {
+        f32 al = acosf(fminf(fabsf(dz) / L, 1.0f));
+        if (dx > 0) th = dz < 0 ? 3.1415927f - al : al;
+        else if (dx < 0) th = dz < 0 ? al + 3.1415927f : 6.2831855f - al;
+        else th = al;
+    }
+    return (int)((th - hit_yaw) * 1.2732395f);
+}
+void ak_hud_hit(const f32 src[3])
+{
+    for (u32 i = 0; i < nhits; i++) if (!memcmp(hits[i].src, src, 12)) { hits[i].age = 0; return; }
+    if (nhits >= 16) return;
+    hitmark *h = &hits[nhits++]; memcpy(h->src, src, 12); h->age = 0; h->k = hit_sector(src);
+}
+static void hit_marks(const ak_hud_state *s)
+{
+    for (u32 i = 0; i < nhits;) {                                  /* the update: older than 1 s goes, the rest age */
+        if (hits[i].age > 1.0f) { hits[i] = hits[--nhits]; continue; }
+        hits[i].age += s->dt; i++;
+    }
+    f32 yaw = atan2f(s->fwd[0], -s->fwd[2]);                       /* the camera's yaw, game axes */
+    if (!hit_have_view || memcmp(hit_pos, s->pos, 12) || yaw != hit_yaw) {
+        memcpy(hit_pos, s->pos, 12); hit_yaw = yaw; hit_have_view = true;
+        for (u32 i = 0; i < nhits; i++) hits[i].k = hit_sector(hits[i].src);
+    }
+    if (s->zoomed || s->vehicle) return;
+    const sprite *sp = idx(0x13); if (!sp) return;
+    f32 w = sp->w * (sp->u1 - sp->u0), h = sp->h * (sp->v1 - sp->v0);
+    for (u32 i = 0; i < nhits; i++) {
+        f32 a = (f32)(2 * hits[i].k + 1) * 0.39269909f;
+        pic_rot(sp, 250 + sinf(a) * 19 - w * 0.5f, 140 - cosf(a) * 19 - h * 0.5f, a, 0xFFFF0000u);
+    }
+}
+
 /* func 08A516BC: the pulse of a locked mark - t the element's clock (0..2 s, 08A4FAC0), p = 2 x 1/3; alpha (1/2 + t/(2p)) up to p,
  * 1 to 2p, then 1/2 - t/(2p) (below 0: the game packs it as it is, the byte wrapping); the colour's channels kept */
 static u32 pulse(f32 t, u32 argb)
@@ -643,6 +688,7 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     if (elem_clock > 2.0f) elem_clock = 0;
     if (s->post && s->alive && !s->vehicle) capture_panel(s);
     messages(s->dt);
+    if (s->alive) hit_marks(s); else nhits = 0;
     if (s->alive) { target_panel(s); stamina_bar(s); if (!s->vehicle) jet_bar(s); timer(s); ring(s); }
     if (s->tickets) { u32 tc = s->dark ? 0xFF000000u : 0xFFFFFFFFu; tickets(s->tickets_own, s->faction_own, 167.5f, tc); tickets(s->tickets_enemy, s->faction_enemy, 312.5f, tc); }
     if (s->alive) {

@@ -55,6 +55,8 @@ bool ak_hud_load(ak_vfs *vfs);
  * replaced by `arg` (UTF-16, e.g. a post's name; NULL none); it stays 4 s a line, less 1 */
 void ak_hud_message(int channel, u32 text, const u16 *arg, u32 arg_len);
 void ak_hud_messages_clear(void);
+/* the player was hurt from `src` (engine space; the attacker's position: message 0x8050, 089E3868) - the hit-direction marks */
+void ak_hud_hit(const f32 src[3]);
 /* a post's name (TEXT/CPNAMES.ASR entry `i`) */
 const u16 *ak_hud_post_name(s32 i, u32 *len);
 void ak_hud_level(const ak_blob *level);   /* the level's radar map (its hmap chunk and picture); per level */         /* once; false = the files are missing (the HUD stays off) */

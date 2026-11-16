@@ -548,6 +548,15 @@ int main(int argc, char **argv)
                     if (ak_setting_int("AK_DEBUG_HUD", 0) > 2) AK_INFO("hud", "ring %d %.2f at %.0f %.0f, bar %.2f, target %d", hs.ring_type, hs.ring_value, hs.ring_x, hs.ring_y, bar_fill, tgt);
                     if (bar_fill >= 0) { hs.bar_fill = bar_fill; if (bar_fill < 1.0f) bar_full_t = 0; else bar_full_t += dt; hs.bar_full_t = bar_full_t; }
                     if (tgt >= 0 && play.target[tgt].alive) { hs.target = true; hs.target_health = play.target[tgt].health; hs.target_max = play.target[tgt].max_health; }
+                    {   /* the hit-direction marks: the player hurt - his attacker's position (089E3868 sends the source's) */
+                        static f32 prev_h = -1; f32 h0 = play.target[0].health; s32 a = play.target[0].last_attacker;
+                        if (prev_h >= 0 && h0 < prev_h && a > 0 && (u32)(a - 1) < play.nbots) {
+                            const ak_play_bot *bb = &play.bot[a - 1];
+                            ak_hud_hit(bb->veh >= 0 ? play.veh[bb->veh].pos : bb->ch.pos);
+                            if (ak_setting_int("AK_DEBUG_HUD", 0)) AK_INFO("hud", "frame %d: hit by bot %d", frame, a - 1);
+                        }
+                        prev_h = h0;
+                    }
                     /* the soldier's lock sounds (08A51AA0): UI_Target_Select once on locking (past 1 s) and once on the head lock (5 s) */
                     static int lock_stage;
                     if (hs.lock && !hs.vehicle) {
