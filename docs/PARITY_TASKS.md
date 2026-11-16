@@ -49,10 +49,13 @@ textures and how they are used. Section R lists only what must be in place so th
   - Result: Hoth run 10 s within 0.23 m, walk within 0.21 m, run-and-stop within 0.14 m.
   - [ ] **1.1c** Find the two gait thresholds (0.35 / 0.56, measured to 0.01) in the soldier code.
   - [ ] **1.1d** On slopes the original is 0.5 % slower across the ground than the clip (Aurek keeps the horizontal speed).
-- [ ] **1.2 Confirm the body box [partial].**
-  - Traced: the HSBB bind-pose box, which is 1.67 m wide for a Stormtrooper.
-  - Confirm in the original that a soldier cannot pass a gap narrower than that, and that the box keeps its spawn yaw.
-  - Exit: gap and door tests match.
+- [x] **1.2 The soldier's body box [done 2026-11-16 - corrected].**
+  - Read from the running original (harness RS_DRIVE_BODY=1 dumps the player's physics body: soldier +40 -> +12, corners at
+    +0x118): the box is 0.6 x 1.8 x 0.6 m from the feet up, on the world axes, and never turns (its matrix stays the identity).
+  - Traced: the physics' built-in shape 0 (08A061BC builds it from -0.3 / 0.3 / -1.8; 08A05F60 returns shapes 0 / 1 for small
+    kinds; shape 1 is a 0.2 m cube). The model box (HSBB, 1.67 m for a Stormtrooper) was wrong for soldiers.
+  - Aurek: play.c soldier_shape for the player's body and every soldier's push box; body_yaw is always 0.
+  - Still to confirm: which objects get model boxes (vehicles, turrets) - with 1.13.
 - [ ] **1.3 The body sweep's remaining code.** Read 088B3784 (the box sweep) and 088CA2D0 (the contact hook) in full.
   - Confirm: no edge-against-edge test, how it handles starting inside a surface, and the 10-degree "resting" rule's effect.
 - [ ] **1.4 How AI soldiers stay on the ground [assumed].**

@@ -162,6 +162,7 @@ few large draws, no per-draw CPU vertex conversion, textures in GXM-native forma
 Tools: `build/engine/akinspect <LEVEL.PSP> [--obj out.obj] [--tex dir]` prints what a level holds and exports it.
 `build/engine/aurek_viewer` (desktop) with `AK_DATA_DIR`, `AK_LEVEL="CLASSIC HOTH"`, `AK_SCREENSHOT=out.ppm`, `AK_CAMERA=x,y,z,yaw,pitch` for headless image checks.
 Vita: `cmake -S engine/platform/vita -B build/aurek_vita && cmake --build build/aurek_vita` (VitaSDK 2026-10-15 + vitaShaRK, SceShaccCgExt, taihen).
+| 2026-11-16 | 1.1 | **the soldier's body box, corrected (PARITY_TASKS 1.2).** The harness now reads the original's player body while it runs (RS_DRIVE_BODY=1: soldier +40 is the body wrapper, its +12 the physics body; the 8 world corners at body +0x118): a box 0.6 m across and 1.8 m tall from the feet, on the world axes, its matrix the identity whatever the soldier faces. Traced: the physics' built-in shape 0, built by 08A061BC from the constants -0.3 / 0.3 / -1.8 (0x08AEF690..), handed out by 08A05F60 for shape kinds 0 and 1 (1 is a 0.2 m cube). The bind-pose HSBB box (1.67 m for a Stormtrooper, row "the player's soldier moves with the game's body") was wrong for soldiers. **Engine:** play.c soldier_shape for the player's swept body and every soldier's push box, never turned (ak_char_spawn keeps body_yaw 0). Harness results unchanged (run 0.23 m, walk 0.20 m, stop 0.14 m); seven levels walked 30 s with a jump without a fall |
 
 ## Known issues (cleanup pass once gameplay reaches parity)
 

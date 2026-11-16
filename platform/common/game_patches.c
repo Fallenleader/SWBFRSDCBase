@@ -215,7 +215,11 @@ void rs_drive_report(FILE *f){
         if (gok(fm)) { u32 mp = ((ifn_t)GFN(fm))(plc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).v0; if (gok(mp)) m = (const float *)GP(mp); }
         fprintf(f, "obj %x %x %.4f %.4f %.4f %.2f %d", GU32(info + 4), cls, p[0], p[1], p[2], GF32(plc + 0x28), me && cls == 0x8005 && GU32(o + 92) == me);
         if (m) fprintf(f, " m %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
-        fprintf(f, "\n"); } }
+        fprintf(f, "\n");
+        if (me && cls == 0x8005 && GU32(o + 92) == me && getenv("RS_DRIVE_BODY")) {   /* the player's physics body (soldier +40 -> +12), raw */
+            u32 w = GU32(o + 40), b = gok(w) ? GU32(w + 12) : 0;
+            if (gok(b)) { fprintf(f, "pbody %x", b); for (u32 k = 0; k < 0x180; k += 4) fprintf(f, " %08x", GU32(b + k)); fprintf(f, "\n");
+                u32 cp = GU32(b + 0x118); if (gok(cp)) { fprintf(f, "pcorn"); for (u32 k = 0; k < 8 * 16; k += 4) fprintf(f, " %.4f", GF32(cp + k)); fprintf(f, "\n"); } } } } }
 /* The AI bridge's view of the bots (ai_bridge.c, AIAgents branch): one record per AI-driven soldier in the game's AI object
  * table, with the fields traced above.  raw (may be 0) gets the first rawn bytes of each AI object, for finding the fields that
  * are not traced yet (health, ammunition, weapon, facing). */

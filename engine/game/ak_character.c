@@ -32,7 +32,7 @@ void ak_char_spawn(ak_character *c, const f32 *pos, f32 yaw)
     bool box = c->body_box; f32 mn[3], mx[3]; memcpy(mn, c->body_min, 12); memcpy(mx, c->body_max, 12);
     memset(c, 0, sizeof *c);
     memcpy(c->pos, pos, 12); c->yaw = yaw; c->ground_normal[1] = 1;
-    c->body_box = box; memcpy(c->body_min, mn, 12); memcpy(c->body_max, mx, 12); c->body_yaw = yaw;   /* a new body: this yaw */
+    c->body_box = box; memcpy(c->body_min, mn, 12); memcpy(c->body_max, mx, 12); c->body_yaw = 0; (void)yaw;   /* the body never turns: on the world axes */
 }
 
 /* ------------------------------------------------------------------ the game's body: swept box, move and slide */

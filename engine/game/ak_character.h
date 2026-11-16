@@ -34,8 +34,9 @@ typedef struct {
     f32 ground_normal[3];
     f32 air_time;
     /* the game's body (set by the caller; kept through ak_char_spawn): an upright box (model space, engine axes, at the soldier's
-     * scale) that keeps the yaw the soldier spawned with - the soldier class sets body flag 0x2000 (0899C544 -> 088BAC78(2)), after
-     * which 088BAB50 no longer turns the physics body.  Moved by a swept move-and-slide (ak_char_update); 0 = the engine's spheres. */
+     * scale) that never turns - the soldier class sets body flag 0x2000 (0899C544 -> 088BAC78(2)) so 088BAB50 no longer turns the
+     * physics body, which is made with the identity (read from the running original: its corners stay on the world axes).  body_yaw
+     * stays 0.  Moved by a swept move-and-slide (ak_char_update); 0 = the engine's spheres. */
     bool body_box; f32 body_min[3], body_max[3], body_yaw;
 } ak_character;
 

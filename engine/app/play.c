@@ -90,6 +90,10 @@ static void turrets_init(ak_play *p, const ak_level *l, const ak_model_set *m, c
 
 /* ------------------------------------------------------------------ bodies (ak_box.h) */
 static const f32 default_box[2][3] = { { -0.3f, 0, -0.3f }, { 0.3f, 2.0f, 0.3f } };   /* 08A061BC: 0.6 x 2.0 x 0.6 m on the origin */
+/* a soldier's body: the physics' built-in shape 0 (08A061BC builds it, 08A05F60 hands it out for shape kinds 0 / 1), a box 0.6 m
+ * across and 1.8 m tall from the feet, never turned (read from the running original: the player's body matrix stays the identity
+ * and its 8 corners stay on the world axes whatever the soldier faces) */
+static const f32 soldier_shape[2][3] = { { -0.3f, 0, -0.3f }, { 0.3f, 1.8f, 0.3f } };
 static void model_box(const ak_model_set *m, s32 mi, const f32 **mn, const f32 **mx)
 {
     *mn = default_box[0]; *mx = default_box[1];
@@ -99,10 +103,9 @@ static void model_box(const ak_model_set *m, s32 mi, const f32 **mn, const f32 *
 }
 static void soldier_box(const ak_model_set *m, const ak_soldier_look *look, const ak_character *ch, ak_box *b)
 {
-    const f32 *mn, *mx; model_box(m, look->body, &mn, &mx);
-    f32 s = sinf(ch->body_yaw) * S, c = cosf(ch->body_yaw) * S;   /* the body keeps its spawn yaw (body flag 0x2000: ak_character.h) */
-    f32 W[12] = { c, 0, s, ch->pos[0],  0, S, 0, ch->pos[1],  -s, 0, c, ch->pos[2] };
-    ak_box_place(b, mn, mx, W);
+    (void)m; (void)look;
+    f32 W[12] = { S, 0, 0, ch->pos[0],  0, S, 0, ch->pos[1],  0, 0, S, ch->pos[2] };   /* (on the world axes) */
+    ak_box_place(b, soldier_shape[0], soldier_shape[1], W);
 }
 static void vehicle_box(const ak_model_set *m, const ak_vehicle *vh, ak_box *b)
 {
@@ -1894,9 +1897,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         ci.jump = ci.sprint = false; rp.run_speed = v; rp.accel = 400.0f; use = &rp;
         p->roll_t += dt; if (p->roll_t >= p->roll_dur[p->roll_i]) p->roll_i = -1;
     }
-    {   /* the player's body: the game's swept box (ak_character.h), the soldier model's box at the soldier's scale; AK_SOLDIER_BODY=0
+    {   /* the player's body: the game's swept box (ak_character.h), the soldier's shape at the soldier's scale; AK_SOLDIER_BODY=0
          * selects the engine's spheres */
-        const f32 *mn, *mx; model_box(m, p->look.body, &mn, &mx);
+        const f32 *mn = soldier_shape[0], *mx = soldier_shape[1];
         static int body = -1; if (body < 0) body = ak_setting_int("AK_SOLDIER_BODY", 1);
         p->ch.body_box = body != 0;
         for (int k = 0; k < 3; k++) { p->ch.body_min[k] = mn[k] * S; p->ch.body_max[k] = mx[k] * S; } }
