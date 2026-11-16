@@ -1900,12 +1900,16 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     }
     p->zoom_req = false;
     if (p->ch.sprinting || p->roll_i >= 0 || p->in_veh >= 0 || p->in_turret >= 0 || !p->alive) p->zoom = 0;
-    ak_char_params rp = p->cp; const ak_char_params *use = &p->cp;
-    if (p->roll_i >= 0) {                                                     /* rolling: the body goes the roll's way at its pace */
-        f32 s = sinf(p->ch.yaw), c = cosf(p->ch.yaw), v = sqrtf(p->roll_v[0] * p->roll_v[0] + p->roll_v[1] * p->roll_v[1]) + 1e-6f;
-        ci.move_y = (-s * p->roll_v[0] - c * p->roll_v[1]) / v; ci.move_x = (c * p->roll_v[0] - s * p->roll_v[1]) / v;
-        ci.jump = ci.sprint = false; rp.run_speed = v; rp.accel = 400.0f; use = &rp;
-        p->roll_t += dt; if (p->roll_t >= p->roll_dur[p->roll_i]) p->roll_i = -1;
+    const ak_char_params *use = &p->cp;
+    if (p->roll_i >= 0) {
+        /* rolling: the roll clip's own root motion carries the body, at playback rate 1, with no crossfade in or out (measured: the
+           dive's speed steps through its key slopes 7.1, 8.0, 7.2, 5.8, 4.3, 4.6, 3.4, 2.9 m/s; the run comes back at full speed from
+           its first key); the roll gives way 0.05 s before its clip ends, its last key segment unplayed [PARITY(1.7b): measured] */
+        f32 v[2] = { 0, 0 };
+        if (p->roots) ak_root_track_vel(&p->roots[p->roll_clip[p->roll_i]], p->roll_t, v);
+        ci.root = true; ci.root_vel[0] = v[0] * S; ci.root_vel[1] = v[1] * S; ci.jump = ci.sprint = false;
+        p->roll_t += dt;
+        if (p->roll_t >= p->roll_dur[p->roll_i] - 0.05f) { p->roll_i = -1; p->roll_end = true; }
     }
     {   /* the player's body: the game's swept box (ak_character.h), the soldier's shape at the soldier's scale; AK_SOLDIER_BODY=0
          * selects the engine's spheres */
@@ -1925,8 +1929,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         const s32 *ucl = unit_clips(p, 0);
         if (ucl[intent] < 0) intent = gait ? PLAY_RUN : PLAY_IDLE;
         bool on_feet = p->alive && p->roll_i < 0 && p->in_veh < 0 && p->in_turret < 0 && p->ch.on_ground && !(hero_of(p, 0) && hero_of(p, 0)->atk_i >= 0);
+        if (on_feet && p->zoom > 0) intent = PLAY_IDLE;                      /* zoomed in, the soldier stands (measured: it slows to a stop) */
         if (on_feet && p->roots) {
             const s32 *cl = (!hero_of(p, 0) && p->alert_t > 0) ? p->aclip : ucl;
+            if (p->roll_end) { ak_loco_reset(&p->loco, cl[intent]); p->roll_end = false; }   /* out of a roll: no crossfade */
             ak_loco_play(&p->loco, cl[intent]);
             f32 v[2]; ak_loco_vel(&p->loco, p->roots, v);
             if (intent == PLAY_LEFT || intent == PLAY_RIGHT) {                 /* the strafe clips carry the root forward: take it sideways */

@@ -87,10 +87,17 @@ textures and how they are used. Section R lists only what must be in place so th
     motion). Harness: run-jump, jump-back and stand-jump-forward within 0.25 m.
   - [ ] **1.5b** Find the 0.5 s and the per-frame rate in the code; "jump max hold time" / "max jump impulse" (holding the
     button for a higher jump?) are not tested.
-- [ ] **1.6 Crouch [missing].** The Crouch_Roll clips and the crouched sets in the animation table exist.
-  - Trace the input, the body change and speed.
-- [ ] **1.7 Rolls [partial].** Traced: distance and duration from root motion.
-  - To trace: "roll no lock on time" (2 s), and stamina cost gating.
+- [x] **1.6 Crouch [checked 2026-11-16: not on the player's controls].** Held in the original (harness, Hoth): d-pad down,
+  circle, triangle, square and R - none crouches, and the body box stays 1.8 m. The crouched animation sets serve the rolls
+  (Crouch_Roll_*) and possibly the AI; nothing to build for the player.
+- [x] **1.7 Rolls [done 2026-11-16, measured].**
+  - Circle while running dives forward. Measured every frame: the dive clip's own root motion at rate 1 (7.1, 8.0, 7.2, 5.8, 4.3,
+    4.6, 3.4, 2.9 m/s, its key slopes), no crossfade in or out (the run returns at full speed from its first key), and the roll
+    gives way 0.05 s before its clip ends. Also measured: triangle (zoom) while running brings the soldier to a stop (0.2 s
+    fade), and it stays still while zoomed.
+  - Aurek: play.c rolls move by the roll clip's root track and end 0.05 s early, with an instant switch back; zoomed = standing.
+    Harness run_roll within 0.5 m (Aurek 2 frames earlier: the original's press latency plus one still frame as the roll begins).
+  - [ ] **1.7b** Find the 0.05 s in the code; "roll no lock on time" (2 s) and the roll stamina gate are not tested yet.
 - [ ] **1.8 Stamina gating of sprint [assumed].** Does an empty stamina bar end a sprint (HUD item too)?
 - [ ] **1.9 Falling and level-boundary damage [missing].** Trace fall damage, kill heights, and out-of-bounds timers.
 - [ ] **1.10 Respawn [assumed].** AK_RESPAWN_DELAY is 10 s. Trace the delay and the spawn-point choice per mode.

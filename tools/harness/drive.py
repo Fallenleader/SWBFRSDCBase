@@ -61,6 +61,9 @@ def main():
     ap.add_argument('--limit', type=int, default=40000, help='give up after this frame')
     ap.add_argument('--keep', action='store_true', help='keep every step frame after the match starts')
     ap.add_argument('--env', action='append', default=[], help='extra NAME=VALUE for the game (logs)')
+    ap.add_argument('--buttons', default='0', help="the 'hold' program's buttons (hex), held from --at frames into the match")
+    ap.add_argument('--at', type=int, default=60)
+    ap.add_argument('--until', type=int, default=100000, help="the 'hold' program's buttons are let go after this many frames")
     ap.add_argument('--hold', default='128,0', help="the 'hold' program's stick: LX,LY (0..255, 128 centred)")
     ap.add_argument('--fine', type=int, default=0, help='after the match starts, step every frame for this many frames')
     a = ap.parse_args()
@@ -90,7 +93,7 @@ def main():
                 pad = queue.pop(0) if queue else (0, 128, 128)
             else:
                 i = fr - start
-                pad = (0,) + tuple(int(x) for x in a.hold.split(',')) if a.program == 'hold' else PROGRAMS[a.program](i, fr)
+                pad = ((int(a.buttons, 16) if a.at <= i < a.until else 0),) + tuple(int(x) for x in a.hold.split(',')) if a.program == 'hold' else PROGRAMS[a.program](i, fr)
                 if a.keep: shutil.copy(img, os.path.join(a.out, 'step_%05d.ppm' % fr))
                 try: states.write(open(os.path.join(drv, 'state.txt')).read())
                 except OSError: pass

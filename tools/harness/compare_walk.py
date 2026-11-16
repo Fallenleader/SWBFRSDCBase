@@ -11,10 +11,10 @@
 import argparse, math, os, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '../..'))
-MOVES = {'jump_back': '0,1,0,0', 'still_jump_fwd': '0,0,0,0', 'run_jump': '0,1,0,0', 'walk_forward': '0,1,0,0', 'idle': '0,0,0,0', 'walk_stop': '0,1,0,0', 'walk_half': '0,0.63,0,0'}
-DRIVE = {'walk_half': ['--program', 'hold', '--hold', '128,48'], 'walk_stop': ['--program', 'walk_stop']}           # (the original's pad for the same stick: 48 = 0.63 up)
+MOVES = {'run_roll': '0,1,0,0', 'jump_back': '0,1,0,0', 'still_jump_fwd': '0,0,0,0', 'run_jump': '0,1,0,0', 'walk_forward': '0,1,0,0', 'idle': '0,0,0,0', 'walk_stop': '0,1,0,0', 'walk_half': '0,0.63,0,0'}
+DRIVE = {'run_roll': ['--program', 'hold', '--hold', '128,0', '--buttons', '2000', '--at', '60', '--until', '64'], 'walk_half': ['--program', 'hold', '--hold', '128,48'], 'walk_stop': ['--program', 'walk_stop']}           # (the original's pad for the same stick: 48 = 0.63 up)
 UNTIL = {'walk_stop': 60}
-EXTRA = {'run_jump': {'AK_TEST_JUMP': '63'}, 'jump_back': {'AK_TEST_JUMP': '63', 'AK_TEST_MOVE_AT': '75:0,-1,0,0'},
+EXTRA = {'run_roll': {'AK_TEST_SCRIPT': '64:0,1,0,0;1:0,1,0,0,o;400:0,1,0,0'}, 'run_jump': {'AK_TEST_JUMP': '63'}, 'jump_back': {'AK_TEST_JUMP': '63', 'AK_TEST_MOVE_AT': '75:0,-1,0,0'},
          'still_jump_fwd': {'AK_TEST_JUMP': '63', 'AK_TEST_MOVE_AT': '75:0,1,0,0'}}                                # (L held 60-63 in the original: let go at 64)                                                  # frames before the stick is let go
 
 def original(a):
