@@ -38,6 +38,7 @@ typedef struct {
     f32 region[3]; bool has_region;
     int start_owner;                   /* 0, 1 or AK_CQ_NEUTRAL */
     f32 amount; u32 flags; bool disabled;
+    s32 name;                          /* its name: an entry of TEXT/CPNAMES.ASR (the record's index before the table's hash 0x3A6386FB), -1 none */
     bool mobile, absent;               /* mobile: carried by a vehicle (CarriesCommandPost); absent: its carrier is wrecked (not a post) */
 } ak_post;
 

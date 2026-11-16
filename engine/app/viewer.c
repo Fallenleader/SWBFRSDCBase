@@ -469,6 +469,22 @@ int main(int argc, char **argv)
                 for (u32 i = 0; i < play.nveh && nb < 256; i++) if (play.veh[i].alive && play.veh[i].driver < 0 && (s32)i != play.in_veh) {
                     ak_hud_blip *b = &blips[nb++]; memcpy(b->pos, play.veh[i].pos, 12); b->kind = 2; b->team = 4; }
                 hs.blips = blips; hs.nblips = nb;
+                {   static s32 at_post = -1; static f32 at_t;                  /* the capture panel: the post within 5 units, on foot */
+                    s32 near = -1;
+                    if (play.have_cq && play.in_veh < 0 && play.in_turret < 0)
+                        for (u32 i = 0; i < play.cq.nposts; i++) {
+                            if (play.cq.post[i].absent) continue;
+                            f32 dx = play.cq.post[i].pos[0] - play.ch.pos[0], dz = play.cq.post[i].pos[2] - play.ch.pos[2];
+                            if (dx * dx + dz * dz < 25.0f) { near = (s32)i; break; }
+                        }
+                    if (near != at_post) { at_post = near; at_t = 0; } else if (near >= 0) at_t += dt;
+                    if (near >= 0) {
+                        const ak_post_state *ps = &play.match.post[near]; f32 full = play.cq.post[near].amount > 0 ? play.cq.post[near].amount : 1;
+                        hs.post = true; hs.post_name = play.cq.post[near].name; hs.post_owner = ps->owner;
+                        hs.post_capturer = ps->owner == AK_CQ_NEUTRAL && ps->progress > 0 ? play.team : AK_CQ_NEUTRAL;
+                        hs.post_fill = 1.0f - ps->progress / full; hs.post_contested = ps->contest > 0; hs.post_time = at_t;
+                    }
+                }
                 ak_hud_draw(&hs, w, h);
                 if (play.lock >= 0) ak_gfx_text((f32)w * 0.5f - 4, (f32)h * 0.5f - 8, 0xFF4040FF, "+");   /* (lock-on: until its marks are in) */
             }

@@ -38,7 +38,7 @@ static const char *const table[] = {
     "HUD_PowerUp_Frame", "HUD_Infinity_Symbol", "HUD_Flag_Carrier_Icon", "HUD_Radar_Blip_Flag_Carrier", "HUD_Target_Info_Bracket",
     "HUD_Radar_Blip_CZ", "HUD_Capture_Point_Cross", "HUD_Icon_CTF_Bacta_Tank", "HUD_Icon_CTF_Data_Cube", "HUD_Icon_CTF_Energy_Cell",
 };
-enum { S_RETICLE = 0, S_RADAR_HALF = 1, S_RADAR_BLIP = 2, S_AMMO_UNDERLAY = 3, S_BLIP_NPC_LEVEL = 0x1B, S_HEALTH_BAR = 7, S_HEALTH_3 = 8, S_HEALTH_4 = 9, S_HEALTH_5 = 10, S_ICON_HEALTH = 0x15,
+enum { S_RETICLE = 0, S_RADAR_HALF = 1, S_RADAR_BLIP = 2, S_AMMO_UNDERLAY = 3, S_CAPTURE_POINT = 6, S_BLIP_NPC_LEVEL = 0x1B, S_HEALTH_BAR = 7, S_HEALTH_3 = 8, S_HEALTH_4 = 9, S_HEALTH_5 = 10, S_ICON_HEALTH = 0x15,
        S_INFINITY = 0x24, S_COUNT = sizeof table / sizeof table[0] };
 static s32 by_index[S_COUNT];
 
@@ -98,6 +98,26 @@ static bool load_font(ak_vfs *vfs, const char *want)
     return font.tex != NULL;
 }
 
+/* TEXT/CPNAMES.ASR: one PTXT per language - u32 table hash (0x3A6386FB), u32 n, u32 language, "CPNames", then n x { u32 length,
+ * UTF-16 text with its 0 } - the length counts the 0, nothing padded; language 0 is English */
+static u16 *cpname[128]; static u32 cplen[128], ncp;
+static void load_cpnames(ak_vfs *vfs)
+{
+    ak_blob b; if (!ak_vfs_read(vfs, "PSP_GAME/USRDIR/TEXT/CPNAMES.ASR", &mem, &b) || !ak_asura_check(&b)) return;
+    u32 pos = 8; ak_chunk c; int lang = ak_setting_int("AK_LANGUAGE", 0);
+    while (ak_asura_next(&b, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('P', 'T', 'X', 'T') || c.size < 16 || (int)ak_rd32(c.body + 8) != lang) continue;
+        u32 n = ak_rd32(c.body + 4), p = 12; p += ((u32)strnlen((const char *)c.body + p, c.size - p) + 1 + 3) & ~3u;
+        for (u32 i = 0; i < n && i < 128 && p + 4 <= c.size; i++) {
+            u32 len = ak_rd32(c.body + p); p += 4; if (p + len * 2 > c.size) break;
+            cpname[i] = ak_arena_alloc(&mem, (len + 1) * 2, 2); cplen[i] = len ? len - 1 : 0;
+            if (cpname[i]) for (u32 k = 0; k < len; k++) cpname[i][k] = ak_rd16(c.body + p + k * 2);
+            p += len * 2; ncp = i + 1;
+        }
+        break;
+    }
+}
+
 bool ak_hud_load(ak_vfs *vfs)
 {
     if (ready) return true;
@@ -110,8 +130,9 @@ bool ak_hud_load(ak_vfs *vfs)
     wpn_first[0] = nspr; wpn_n[0] = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD_WEAPONS_CLASSIC.ASR");
     wpn_first[1] = nspr; wpn_n[1] = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD_WEAPONS_PREQUEL.ASR");
     bool f = load_font(vfs, "Cond_9");
+    load_cpnames(vfs);
     ready = n > 0;
-    AK_INFO("hud", "%u HUD pictures, %u + %u weapon icons, font %s (%u glyphs)", n, wpn_n[0], wpn_n[1], f ? "Franklin Gothic Medium Cond 9" : "missing", font.n);
+    AK_INFO("hud", "%u HUD pictures, %u + %u weapon icons, font %s (%u glyphs), %u post names", n, wpn_n[0], wpn_n[1], f ? "Franklin Gothic Medium Cond 9" : "missing", font.n, ncp);
     return ready;
 }
 
@@ -258,6 +279,58 @@ static void radar(const ak_hud_state *st)
     }
 }
 
+/* UTF-16 text in a box (func 088CBE34 / 088CCF50, flags 0x184: the box's top-left, centred across it, words wrapped to its
+ * width); returns its height */
+static f32 text16_box(f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s, u32 n, bool draw)
+{
+    if (!font.tex || !s) return 0;
+    f32 lh = font.line * scale, y = y0, bw = x1 - x0; u32 i = 0;
+    while (i < n) {
+        u32 j = i, brk = i; f32 w = 0, wb = 0;                                   /* one line: as many words as fit */
+        while (j < n) {
+            const glyph *g = glyph_of(s[j]); f32 gw = g ? g->w * scale : 0;
+            if (s[j] == ' ') { brk = j; wb = w; }
+            if (w + gw > bw && j > i) { if (brk > i) { j = brk; w = wb; } break; }
+            w += gw; j++;
+        }
+        if (draw) {
+            f32 x = x0 + (bw - w) * 0.5f;
+            for (u32 k = i; k < j; k++) {
+                const glyph *g = glyph_of(s[k]); if (!g) continue;
+                quad(font.tex, x, y, x + g->w * scale, y + lh, g->u, g->v, g->u + g->w / font.tw, g->v + font.line / font.th, argb);
+                x += g->w * scale;
+            }
+        }
+        y += lh; i = j; while (i < n && s[i] == ' ') i++;
+    }
+    return y - y0;
+}
+
+/* the capture panel (func 08A53964 / 08A53B94 / 08A53DBC; the box 08A53FB0; in range 08A535AC): on foot within 5 units of a post
+ * (0x08AF0410 = 25, squared, across the ground) - its name at 0.75 in white, centred in the box 385..475 from y 112, for its
+ * first 5 seconds there; under it (y = 112 + the name's height + 5) HUD_Capture_Point, top-left at x 430 - 22.5: split across -
+ * the top `f` in grey 0xFF808080, the rest in the colour (f = 1 - the post's amount / its full amount: an owned post in its
+ * owner's colour, grey coming down as it drains; a neutral one grey, the capturer's colour coming up); contested: half blue
+ * 0xFF0000FF over half red 0xFFFF0000 */
+static void capture_panel(const ak_hud_state *s)
+{
+    const u16 *nm = s->post_name >= 0 && (u32)s->post_name < ncp ? cpname[s->post_name] : NULL; u32 nn = nm ? cplen[s->post_name] : 0;
+    f32 th = text16_box(385, 112, 475, 0.75f, 0xFFFFFFFFu, nm, nn, s->post_time < 5.0f);
+    f32 x = (475 + 385) * 0.5f - 22.5f, y = 112 + th + 5;
+    const sprite *cp = idx(S_CAPTURE_POINT); if (!cp) return;
+    f32 f = s->post_fill; u32 back = 0xFF808080u, front;
+    if (s->post_contested) { f = 0.5f; back = 0xFF0000FFu; front = 0xFFFF0000u; }
+    else {
+        int t = s->post_owner == 4 ? s->post_capturer : s->post_owner;
+        front = s->post_owner == 4 && s->post_capturer == 4 ? 0xFF808080u : team_colour(t, s->team);
+    }
+    if (f < 0) f = 0;
+    if (f > 1) f = 1;
+    f32 w = cp->w * (cp->u1 - cp->u0), h = cp->h * (cp->v1 - cp->v0), vm = cp->v0 + (cp->v1 - cp->v0) * f;
+    if (f > 0) quad(cp->tex, x, y, x + w, y + h * f, cp->u0, cp->v0, cp->u1, vm, back);
+    if (f < 1) quad(cp->tex, x, y + h * f, x + w, y + h, cp->u0, vm, cp->u1, cp->v1, front);
+}
+
 /* func 08A514E4: the health colour - full health green (heroes, 200 and more, can reach blue): f = health / max (x 2/3 below 200
  * maximum); up to 1/3 red to yellow, to 2/3 yellow to green, beyond green to blue */
 static u32 health_colour(f32 health, f32 max)
@@ -306,6 +379,7 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     if (!ready || !s || !ak_setting_int("AK_HUD", 1)) return;
     ak_m4 o = ak_m4_ortho2d(480.0f, 272.0f); ak_gfx_set_transform(&o); ak_gfx_set_tint(NULL);
     if (s->radar && s->alive) radar(s);
+    if (s->post && s->alive) capture_panel(s);
     if (s->tickets) { tickets(s->tickets_own, s->faction_own, 167.5f); tickets(s->tickets_enemy, s->faction_enemy, 312.5f); }
     if (s->alive) {
         if (s->reticle) pic(idx(S_RETICLE), 240, 136, true, 0xFFFFFFFFu, 1);                 /* func 08A51AA0 */

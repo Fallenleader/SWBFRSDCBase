@@ -25,6 +25,8 @@ typedef struct {
     bool radar, space;                 /* the radar; a space level (its zoom) */
     f32 pos[3], fwd[3]; int team;      /* the player (or the vehicle he is in) and the camera's forward direction, engine space */
     const ak_hud_blip *blips; u32 nblips;
+    /* the capture panel: the post the soldier stands at (within 5 units, on foot) */
+    bool post; s32 post_name; int post_owner, post_capturer; f32 post_fill; bool post_contested; f32 post_time;
 } ak_hud_state;
 
 bool ak_hud_load(ak_vfs *vfs);
