@@ -257,7 +257,7 @@ typedef struct { u32 buttons; u8 lx, ly, rx, ry; } rs_pad_t;
 /* Headless default backend: optional script  RS_SCRIPT="frame:hexbuttons[:lx:ly[:rx:ry]];..."  (state holds from that frame on) */
 /* RS_DRIVE=<dir> (tests): lock-step input from a driver program (tools/harness/drive.py).  Every RS_DRIVE_EVERY vblanks (default 10)
  * the frame is written to <dir>/frame.ppm and its number to <dir>/frame.txt, then the game waits until <dir>/pad.txt holds a line
- * "<that frame number> <hex buttons> [lx ly rx ry]"; that pad state holds until the next step.  A driver that sees each screen and
+ * "<that frame number> <hex buttons> [lx ly rx ry [step]]"; that pad state holds until the next step (step: a new step length).  A driver that sees each screen and
  * answers it makes menu navigation independent of how long loading takes. */
 static rs_pad_t drive_pad = { 0, 0x80, 0x80, 0x80, 0x80 };
 static int drive_on(void){ static int on = -1; if (on < 0) on = getenv("RS_DRIVE") != 0; return on; }
@@ -274,9 +274,11 @@ static void drive_step(int frame){
     snprintf(a, sizeof a, "%s/frame.txt.tmp", dir); FILE *f = fopen(a, "w"); if (f) { fprintf(f, "%d\n", frame); fclose(f); snprintf(b, sizeof b, "%s/frame.txt", dir); rename(a, b); }
     snprintf(a, sizeof a, "%s/pad.txt", dir);
     for (;;) {                                                     /* wait for the driver's answer to this frame */
-        FILE *pf = fopen(a, "r"); if (pf) { int fr = -1; unsigned bt = 0, lx = 128, ly = 128, rx = 128, ry = 128;
-            int n = fscanf(pf, "%d %x %u %u %u %u", &fr, &bt, &lx, &ly, &rx, &ry); fclose(pf);
-            if (n >= 2 && fr == frame) { drive_pad.buttons = bt; drive_pad.lx = (u8)lx; drive_pad.ly = (u8)ly; drive_pad.rx = (u8)rx; drive_pad.ry = (u8)ry; return; }
+        FILE *pf = fopen(a, "r"); if (pf) { int fr = -1, ev = 0; unsigned bt = 0, lx = 128, ly = 128, rx = 128, ry = 128;
+            int n = fscanf(pf, "%d %x %u %u %u %u %d", &fr, &bt, &lx, &ly, &rx, &ry, &ev); fclose(pf);
+            if (n >= 2 && fr == frame) { drive_pad.buttons = bt; drive_pad.lx = (u8)lx; drive_pad.ly = (u8)ly; drive_pad.rx = (u8)rx; drive_pad.ry = (u8)ry;
+                if (n >= 7 && ev > 0) every = ev;                          /* an optional 7th field: the next steps' length */
+                return; }
             if (n >= 1 && fr == -1) exit(0); }                      /* "-1": the driver is done */
         usleep(1000); } }
 void rs_script_read_pad(rs_pad_t *p){                  /* RS_SCRIPT (tests): scripted input */

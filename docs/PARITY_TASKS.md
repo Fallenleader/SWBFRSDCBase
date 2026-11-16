@@ -39,13 +39,16 @@ textures and how they are used. Section R lists only what must be in place so th
 
 ## 1. Soldiers: body and movement
 
-- [ ] **1.1 Speed from the animation [assumed].** *(First harness result, Hoth, 10 s forward: the original runs 6.2-6.4 m/s,
-  varying with the clip; Aurek a flat 6.0. Gap after 63 m: 1.6-2.2 m.)*
-  - The game: velocity is the playing clip's root motion, turned to the soldier's facing and laid along the ground (08993D38,
-    0x08995560-0x08995860).
-  - Aurek: blueprint speed plus an acceleration of 30 m/s² (invented).
-  - To trace: how "max run speed" / "max sprint speed" relate to the clip (playback rate or scaling), and how speed blends
-    between clips.
+- [x] **1.1 Speed from the animation [done 2026-11-16].**
+  - Traced: the anim player (088155D0) sums its layers' root velocities by weight (+0x48, flag 0x80000, read by 088166EC); the
+    soldier update turns that by the facing and lays it on the ground.
+  - Measured (harness, per frame): speed = the playing clip's root-key slope at playback rate 1; clip changes crossfade linearly over
+    0.2 s from the new clip's start; the stick picks the clip: stand below 0.35, walk below 0.56, run above (after the game's 0.25
+    per-axis dead zone, 088FDA34); pulling back runs backward.
+  - Aurek: game/ak_loco.h (precomputed root slopes, two-clip crossfade), ak_char_input.root, play.c pose_mix.
+  - Result: Hoth run 10 s within 0.23 m, walk within 0.21 m, run-and-stop within 0.14 m.
+  - [ ] **1.1c** Find the two gait thresholds (0.35 / 0.56, measured to 0.01) in the soldier code.
+  - [ ] **1.1d** On slopes the original is 0.5 % slower across the ground than the clip (Aurek keeps the horizontal speed).
 - [ ] **1.2 Confirm the body box [partial].**
   - Traced: the HSBB bind-pose box, which is 1.67 m wide for a Stormtrooper.
   - Confirm in the original that a soldier cannot pass a gap narrower than that, and that the box keeps its spawn yaw.
@@ -74,6 +77,12 @@ textures and how they are used. Section R lists only what must be in place so th
   - Done: dynamic versus kinematic boxes.
   - Still to do: the player body's response to *moving* kinematic bodies (platforms, vehicles carrying it: flag bit 12 in the body
     step).
+- [ ] **1.14 The classic scheme's facing [measured, not built].** In the original (no right stick) the camera does not turn with
+  the left stick: the soldier turns to face the stick's direction relative to the camera, closing the angle by 8/s (each frame
+  the rest shrinks by 1 - 8 dt: 0.8666 at 60 Hz), and runs its forward clip; with the stick pulled back (back half) it faces the
+  mirrored direction and runs its backward clip (stick down-left: faces 45 degrees right, runs back). Stick straight right: turns 90
+  degrees and runs. Aurek ties the camera to the body (ch.yaw), so this needs a separate view yaw (with 9.3). The strafe clips
+  (RunForward_left / _Right) carry the root forward: they are a run with the upper body turned, for aiming to the side.
 
 ## 2. Weapons, items and projectiles
 

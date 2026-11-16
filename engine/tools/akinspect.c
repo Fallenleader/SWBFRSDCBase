@@ -79,6 +79,13 @@ int main(int argc, char **argv)
                     if (k == nf && nf < 64) { fl[nf++] = cf.tri[i].flags; } if (k < 64) fc[k]++; }
                 for (u32 k = 0; k < nf; k++) printf("water flags 0x%04x x%u\n", fl[k], fc[k]); }
             if (n) { printf("flag 0x%04x %6u tris  materials:", 1u << bit, n); for (int k = 0; k < 16; k++) if (surf[k]) printf(" %d:%u", k, surf[k]); printf("\n"); } } }
+    if (getenv("AK_INSPECT_TABLE")) {   /* AK_INSPECT_TABLE=set: the clips of every animation table's set */
+        u32 set = (u32)atoi(getenv("AK_INSPECT_TABLE"));
+        for (u32 k = 0; k < ms.ntables; k++) { const ak_anim_table *t = &ms.tables[k]; if (set >= t->sets) continue;
+            printf("table %08x set %u (%u sets, %u rows, %u cols)\n", t->name_hash, set, t->sets, t->rows, t->cols);
+            for (u32 r = 0; r < t->rows; r++) { printf("  row %2u", r);
+                for (u32 c = 0; c < t->cols; c++) { s32 ci = t->clip[(set * t->rows + r) * t->cols + c]; printf(" | %s", ci >= 0 ? ms.clips[ci].name : "-"); }
+                printf("\n"); } } }
     if (getenv("AK_INSPECT_BOXES")) for (u32 i = 0; i < ms.nskels; i++) { const ak_skeleton *k = &ms.skels[i];
         printf("box %-32s %s x %.3f %.3f y %.3f %.3f z %.3f %.3f\n", k->name, k->col_from == 1 ? "own  " : k->col_from == 2 ? "bones" : "deflt",
                k->col_min[0], k->col_max[0], k->col_min[1], k->col_max[1], k->col_min[2], k->col_max[2]); }
@@ -198,7 +205,7 @@ int main(int argc, char **argv)
                         rs = rs * 1103515245u + 12345u; const ak_nav_node *nn = &nav.node[(rs >> 8) % nav.nnode];
                         f32 gy; if (!ak_char_ground_below(&col, nn->pos, 4.0f, &gy)) continue;
                         ak_character ch; f32 sp[3] = { nn->pos[0], gy, nn->pos[2] }; ak_char_spawn(&ch, sp, 0); runs++;
-                        ak_char_input ci = { 0, 1, 0, 0, false, false }; f32 start[3] = { sp[0], sp[1], sp[2] };
+                        ak_char_input ci = { 0, 1, 0, 0, false, false, false, { 0, 0 } }; f32 start[3] = { sp[0], sp[1], sp[2] };
                         for (int f = 0; f < 60 * 20; f++) {
                             if (f % 90 == 0) { rs = rs * 1103515245u + 12345u; ci.look_x = ((rs >> 8) % 200) / 100.0f - 1.0f; ci.move_y = 1; ci.move_x = ((rs >> 16) % 3) - 1.0f; }
                             ci.jump = (f % 150) == 75;
@@ -229,7 +236,7 @@ int main(int argc, char **argv)
                             f32 len = sqrtf((nb->pos[0] - na->pos[0]) * (nb->pos[0] - na->pos[0]) + (nb->pos[2] - na->pos[2]) * (nb->pos[2] - na->pos[2]));
                             if (len < 1.5f || len > 40) continue;
                             ak_character ch; f32 sp[3] = { na->pos[0], ga, na->pos[2] }; ak_char_spawn(&ch, sp, 0); tried++;
-                            ak_char_input ci = { 0, 1, 0, 0, false, false }; bool ok = false; int f;
+                            ak_char_input ci = { 0, 1, 0, 0, false, false, false, { 0, 0 } }; bool ok = false; int f;
                             for (f = 0; f < (int)((len / cp.run_speed * 2 + 2) * 60); f++) {
                                 f32 dx = nb->pos[0] - ch.pos[0], dz = nb->pos[2] - ch.pos[2];
                                 if (dx * dx + dz * dz < 1.0f) { ok = true; break; }
@@ -253,7 +260,7 @@ int main(int argc, char **argv)
                                 r3 = r3 * 1103515245u + 12345u; f32 yaw = (r3 >> 8) % 6283 / 1000.0f, off = (r3 >> 20) % 800 / 100.0f;
                                 f32 s0[3] = { nn->pos[0] - sinf(yaw + 1.3f) * off, nn->pos[1], nn->pos[2] - cosf(yaw + 1.3f) * off }, gy;
                                 if (!ak_char_ground_below(&col, s0, 3.0f, &gy)) continue;
-                                ak_character ch; s0[1] = gy; ak_char_spawn(&ch, s0, yaw); ak_char_input ci = { 0, 1, 0, 0, false, false };
+                                ak_character ch; s0[1] = gy; ak_char_spawn(&ch, s0, yaw); ak_char_input ci = { 0, 1, 0, 0, false, false, false, { 0, 0 } };
                                 for (int f = 0; f < 10; f++) ak_char_update(&ch, &cp, &col, &(ak_char_input){ 0 }, 1.0f / 60.0f);   /* settle */
                                 if (!ch.on_ground) continue;
                                 f32 a0[3] = { ch.pos[0], ch.pos[1], ch.pos[2] }; runs++;

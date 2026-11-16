@@ -23,7 +23,7 @@
 typedef struct {
     f32 run_speed, jump_impulse, air_control, air_speed, yaw_speed, pitch_speed;   /* the game's (Controls: Humanoid) */
     f32 sprint_speed, yaw_sprint;      /* "max sprint speed" (no blueprint sets it: the game's default 12 m/s), "yaw sprint modifier" */
-    f32 gravity, accel, radius, height, step, walkable;                            /* not yet traced: settings */   /* PARITY(1.1 1.4) */
+    f32 gravity, accel, radius, height, step, walkable;                            /* not yet traced: settings */   /* PARITY(1.4 1.5) */
 } ak_char_params;
 
 typedef struct {
@@ -39,7 +39,11 @@ typedef struct {
     bool body_box; f32 body_min[3], body_max[3], body_yaw;
 } ak_character;
 
-typedef struct { f32 move_x, move_y; f32 look_x, look_y; bool jump, sprint; } ak_char_input;   /* move: right / forward, -1..1 */
+typedef struct {
+    f32 move_x, move_y; f32 look_x, look_y; bool jump, sprint;   /* move: right / forward, -1..1 */
+    bool root; f32 root_vel[2];        /* on the ground, move with this velocity (forward, right m/s: the clips' root motion, ak_loco.h)
+                                        * instead of the stick at a fixed speed */
+} ak_char_input;
 
 void ak_char_params_load(const ak_blueprints *bp, ak_char_params *out);
 void ak_char_spawn(ak_character *c, const f32 *pos, f32 yaw);

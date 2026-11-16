@@ -20,7 +20,7 @@ void ak_char_params_load(const ak_blueprints *bp, ak_char_params *p)
     p->sprint_speed = ak_bp_float(c, "max sprint speed", 12.0f);
     p->yaw_sprint   = ak_bp_float(c, "yaw sprint modifier", 0.25f);
     p->gravity  = ak_setting_float("AK_GRAVITY", 10.0f);      /* the game's: see ak_character.h */
-    p->accel    = ak_setting_float("AK_RUN_ACCEL", 30.0f);   /* PARITY(1.1) */
+    p->accel    = ak_setting_float("AK_RUN_ACCEL", 30.0f);   /* (no longer the player's ground motion - ak_loco.h; still the bots' and air control) PARITY(1.4 1.5) */
     p->radius   = ak_setting_float("AK_BODY_RADIUS", 0.35f);   /* PARITY(1.4) */
     p->height   = ak_setting_float("AK_BODY_HEIGHT", 1.8f);   /* PARITY(1.4) */
     p->step     = ak_setting_float("AK_STEP_HEIGHT", 0.45f);   /* PARITY(1.4) */
@@ -74,11 +74,15 @@ static bool body_slide(ak_character *c, const ak_collision *col, f32 move[3], f3
 static void body_update(ak_character *c, const ak_char_params *p, const ak_collision *col, f32 dt)
 {
     bool was = c->on_ground;
-    if (c->on_ground && c->vel[1] <= 0) {                                /* on the ground the move follows it */
-        const f32 *n = c->ground_normal; c->vel[1] = 0;
-        f32 d = c->vel[0] * n[0] + c->vel[2] * n[2];
-        if (n[1] > 0.1f) c->vel[1] = -d / n[1];                          /* keep the horizontal speed, along the plane */
-    }
+    if (c->on_ground && c->vel[1] <= 0) {                                /* on the ground the move is laid along it, keeping its */
+        const f32 *n = c->ground_normal; c->vel[1] = 0;                  /* horizontal speed and heading (measured on Hoth's     */
+        f32 d = c->vel[0] * n[0] + c->vel[2] * n[2];                     /* slopes: a projection onto the plane would turn and   */
+        if (n[1] > 0.1f) c->vel[1] = -d / n[1];                          /* slow it; the original's heading matches this to      */
+    }                                                                    /* 0.05 degrees) [PARITY(1.1d): 0.5 % on slopes]       */
+    /* at rest: a body standing still on ground within 10 degrees of level stays put (the body step's 10-degree resting rule,
+       [PARITY(1.3)] - its exact form is still to read in 088B3784); measured: the original's idle soldier does not creep down slopes */
+    if (c->on_ground && c->ground_normal[1] >= 0.98481f && c->vel[0] * c->vel[0] + c->vel[2] * c->vel[2] < 1e-6f && c->vel[1] <= 0) {
+        c->vel[1] = 0; return; }
     c->vel[1] -= p->gravity * dt;                                        /* physics gravity, always on */
     f32 move[3] = { c->vel[0] * dt, c->vel[1] * dt, c->vel[2] * dt }, gn[3];
     bool ground = body_slide(c, col, move, gn);
@@ -151,7 +155,11 @@ void ak_char_update(ak_character *c, const ak_char_params *p, const ak_collision
     if (c->on_ground) c->sprinting = in->sprint && my > 0.3f;                  /* (forward only; kept through a jump) */
     f32 vmax = c->sprinting ? p->sprint_speed : p->run_speed;
     f32 want[2] = { (fwd[0] * my + right[0] * mx) * vmax, (fwd[1] * my + right[1] * mx) * vmax };
-    if (c->on_ground) {
+    if (c->on_ground && in->root) {                                          /* the clips carry the body (ak_loco.h) */
+        c->vel[0] = fwd[0] * in->root_vel[0] + right[0] * in->root_vel[1];
+        c->vel[2] = fwd[1] * in->root_vel[0] + right[1] * in->root_vel[1];
+        if (in->jump) { c->vel[1] = p->jump_impulse; c->on_ground = false; c->jumped = true; c->air_time = 0; }
+    } else if (c->on_ground) {
         f32 dvx = want[0] - c->vel[0], dvz = want[1] - c->vel[2], dl = sqrtf(dvx * dvx + dvz * dvz), mxd = p->accel * dt;
         if (dl > mxd) { dvx *= mxd / dl; dvz *= mxd / dl; }
         c->vel[0] += dvx; c->vel[2] += dvz;

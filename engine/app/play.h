@@ -51,6 +51,7 @@
 #include "world/ak_collision.h"
 #include "world/ak_nav.h"
 #include "game/ak_character.h"
+#include "game/ak_loco.h"
 #include "game/ak_soldier.h"
 #include "game/ak_weapon.h"
 #include "game/ak_conquest.h"
@@ -61,7 +62,7 @@
 #include "render/ak_scene.h"
 #include "platform/plat.h"
 
-enum { PLAY_IDLE, PLAY_RUN, PLAY_BACK, PLAY_LEFT, PLAY_RIGHT, PLAY_JUMP, PLAY_FALL, PLAY_LAND, PLAY_SPRINT, PLAY_NCLIPS };
+enum { PLAY_IDLE, PLAY_RUN, PLAY_BACK, PLAY_LEFT, PLAY_RIGHT, PLAY_JUMP, PLAY_FALL, PLAY_LAND, PLAY_SPRINT, PLAY_WALK, PLAY_WALK_BACK, PLAY_NCLIPS };
 
 #define PLAY_MAX_BOTS 127
 #define PLAY_MAX_CLASSES 8
@@ -101,6 +102,8 @@ typedef struct {
     ak_collision col; ak_nav nav; bool have_nav;
     ak_char_params cp; ak_character ch; ak_soldier_look look;
     s32 clip[PLAY_NCLIPS]; int state; f32 clip_t, land_t;
+    ak_root_track *roots;              /* every clip's root motion (ak_loco.h) */
+    ak_loco loco;                      /* the player's body clips: the one playing, the one fading out - they move the body */
     s32 sclip[PLAY_NCLIPS];            /* the saber heroes' (generic_male LightSabre clips) */
     s32 aclip[PLAY_NCLIPS], shoot_clip;   /* the alert set (rifle raised: generic_male set 5) and its shoot layer (column 1) */
     f32 alert_t, shoot_t;              /* the player: seconds of alert pose left; seconds since the trigger was last held */

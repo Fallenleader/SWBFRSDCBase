@@ -37,11 +37,14 @@ def menu_actions(screen, planet, state):
     if screen == 'spawn_map': state['launched'] = True; return press(CROSS)                      # the default spawn point
     return None
 
-# ---- test programs: (step index since the match began, frame) -> pad (buttons, lx, ly)
+# ---- test programs: (frames since the match began, frame) -> pad (buttons, lx, ly)
 def prog_idle(i, fr): return (0, 128, 128)
 def prog_walk_forward(i, fr): return (0, 128, 0)                                  # left stick full forward
-def prog_cross_mash(i, fr): return (CROSS if i % 3 == 0 else 0, 128, 128)        # get through class / spawn screens
-PROGRAMS = {'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
+def prog_cross_mash(i, fr): return (CROSS if (i // STEP) % 3 == 0 else 0, 128, 128)   # get through class / spawn screens
+def prog_walk_stop(i, fr): return (0, 128, 0) if i < 60 else (0, 128, 128)       # run 1 s, then let go
+def prog_half_stick(i, fr): return (0, 128, 64)                                    # left stick half forward
+def prog_strafe_switch(i, fr): return (0, 128, 0) if i < 60 else (0, 255, 128)     # run forward 1 s, then strafe right
+PROGRAMS = {'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
 
 def main():
     ap = argparse.ArgumentParser()
@@ -54,6 +57,8 @@ def main():
     ap.add_argument('--limit', type=int, default=40000, help='give up after this frame')
     ap.add_argument('--keep', action='store_true', help='keep every step frame after the match starts')
     ap.add_argument('--env', action='append', default=[], help='extra NAME=VALUE for the game (logs)')
+    ap.add_argument('--hold', default='128,0', help="the 'hold' program's stick: LX,LY (0..255, 128 centred)")
+    ap.add_argument('--fine', type=int, default=0, help='after the match starts, step every frame for this many frames')
     a = ap.parse_args()
     shutil.rmtree(a.out, ignore_errors=True); os.makedirs(a.out)
     drv = tempfile.mkdtemp(prefix='rsdrive_'); save = tempfile.mkdtemp(prefix='rssave_')
@@ -80,14 +85,16 @@ def main():
                         queue = act if act else [(0, 128, 128)] * 3
                 pad = queue.pop(0) if queue else (0, 128, 128)
             else:
-                i = (fr - start) // STEP
-                pad = PROGRAMS[a.program](i, fr)
+                i = fr - start
+                pad = (0,) + tuple(int(x) for x in a.hold.split(',')) if a.program == 'hold' else PROGRAMS[a.program](i, fr)
                 if a.keep: shutil.copy(img, os.path.join(a.out, 'step_%05d.ppm' % fr))
                 try: states.write(open(os.path.join(drv, 'state.txt')).read())
                 except OSError: pass
                 if fr - start >= a.frames: open(os.path.join(drv, 'pad.txt'), 'w').write('-1\n'); break
             if fr > a.limit: open(os.path.join(drv, 'pad.txt'), 'w').write('-1\n'); break
-            tmp = os.path.join(drv, 'pad.tmp'); open(tmp, 'w').write('%d %x %d %d 128 128\n' % (fr, pad[0], pad[1], pad[2])); os.replace(tmp, os.path.join(drv, 'pad.txt'))
+            ev = STEP
+            if start is not None and a.fine: ev = 1 if fr - start < a.fine else STEP
+            tmp = os.path.join(drv, 'pad.tmp'); open(tmp, 'w').write('%d %x %d %d 128 128 %d\n' % (fr, pad[0], pad[1], pad[2], ev)); os.replace(tmp, os.path.join(drv, 'pad.txt'))
         p.wait(timeout=60)
     finally:
         if p.poll() is None: p.kill()

@@ -39,3 +39,11 @@ python3 tools/harness/compare_walk.py ... --reuse      # Aurek again against the
 
 Planet rows in Instant Action: 0 Boz Pity, 1 Endor, 2 Geonosis, 3 Hoth, 4 Echo Base, 5 Kashyyyk, 6 Korriban, 7 Mustafar, and
 further down the list.
+
+## Per-frame runs and stick tests
+
+- `drive.py --fine N` steps every frame for the first N frames of the match (the driver's pad file takes an optional 7th field, the
+  next step's length), so state.log has every frame. compare_walk.py always uses it.
+- `drive.py --program hold --hold LX,LY` holds the left stick (0..255, 128 centred): e.g. `--hold 128,48` is 0.63 up, a walk.
+- Programs: `walk_forward`, `walk_stop` (run 1 s, let go), `half_stick`, `strafe_switch` (run 1 s, then stick right).
+- `compare_walk.py --program walk_forward | walk_stop | walk_half [--lag N]` (Aurek's AK_TEST_MOVE_UNTIL lets go of the stick).

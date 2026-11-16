@@ -11,12 +11,14 @@
 import argparse, math, os, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '../..'))
-MOVES = {'walk_forward': '0,1,0,0', 'idle': '0,0,0,0'}
+MOVES = {'walk_forward': '0,1,0,0', 'idle': '0,0,0,0', 'walk_stop': '0,1,0,0', 'walk_half': '0,0.63,0,0'}
+DRIVE = {'walk_half': ['--program', 'hold', '--hold', '128,48'], 'walk_stop': ['--program', 'walk_stop']}           # (the original's pad for the same stick: 48 = 0.63 up)
+UNTIL = {'walk_stop': 60}                                                  # frames before the stick is let go
 
 def original(a):
     out = os.path.join(a.out, 'original')
-    if not a.reuse: subprocess.run([sys.executable, os.path.join(HERE, 'drive.py'), '--planet', str(a.planet), '--out', out, '--program', a.program,
-                    '--frames', str(a.frames)], check=True, stdout=subprocess.DEVNULL)
+    if not a.reuse: subprocess.run([sys.executable, os.path.join(HERE, 'drive.py'), '--planet', str(a.planet), '--out', out, *(DRIVE.get(a.program) or ['--program', a.program]),
+                    '--frames', str(a.frames), '--fine', str(a.frames)], check=True, stdout=subprocess.DEVNULL)   # (every frame logged from the start)
     path, frame = [], None
     for line in open(os.path.join(out, 'state.log')):
         w = line.split()
@@ -32,20 +34,24 @@ def aurek(a, start):
     _, x, y, z, m = start
     fx, fz = (m[2], m[8]) if m else (0.0, 1.0)                 # forward = the matrix's third column (game axes)
     trace = os.path.join(a.out, 'aurek_trace.txt')
-    env = dict(os.environ, AK_LEVEL=a.level, AK_PLAY='1', AK_BOTS='0', AK_FIXED_DT='0.0166667', AK_TEST_MOVE=MOVES[a.program],
-               AK_TEST_SPAWN='%f,%f,%f,%f,%f' % (x, y, z, fx, fz), AK_TEST_TRACE=trace,
+    env = dict(os.environ, AK_LEVEL=a.level, AK_PLAY='1', AK_BOTS='0', AK_FIXED_DT='0.0166667', AK_TEST_MOVE=MOVES[a.program], AK_TEST_MOVE_UNTIL=str(UNTIL.get(a.program, -1)),
+               AK_TEST_SPAWN='%f,%f,%f,%f,%f' % (x, y, z, fx, fz), AK_TEST_TRACE=trace, AK_TEST_TRACE_EVERY='1',
                AK_SCREENSHOT=os.path.join(a.out, 'aurek_end.ppm'), AK_SCREENSHOT_FRAME=str(a.frames + 30))
     subprocess.run(['xvfb-run', '-a', os.path.join(ROOT, 'build/engine/aurek_viewer')], cwd=a.data, env=env,
                    stdout=open(os.path.join(a.out, 'aurek.log'), 'w'), stderr=subprocess.STDOUT, timeout=900)
     path = []
     for line in open(trace):
         f, x, y, z, g = line.split(); path.append((int(f), float(x), float(y), float(z)))
-    f0 = path[0][0]
+    f0 = path[0][0] - a.lag
     return [(f - f0, x, y, z) for f, x, y, z in path]
 
 def at(path, f):
-    for p in path:
-        if p[0] >= f: return p
+    """the position at frame f, interpolated between the logged ones (the logs need not share frame numbers)"""
+    if f <= path[0][0]: return path[0]
+    for p, q in zip(path, path[1:]):
+        if q[0] >= f:
+            u = (f - p[0]) / max(1, q[0] - p[0])
+            return (f,) + tuple(p[k] + (q[k] - p[k]) * u for k in (1, 2, 3))
     return path[-1]
 
 def report(a, orig, ak):
@@ -69,6 +75,8 @@ def main():
     ap.add_argument('--planet', type=int, default=3)
     ap.add_argument('--level', default='CLASSIC HOTH')
     ap.add_argument('--program', default='walk_forward', choices=sorted(MOVES))
+    ap.add_argument('--lag', type=int, default=0, help="frames to delay Aurek's trace by: from standing, the original starts its "
+                    "crossfade a frame after the pad asks (a latency Aurek does not copy: about 0.1 m ahead from then on)")
     ap.add_argument('--frames', type=int, default=600)
     ap.add_argument('--out', default='/tmp/cmp')
     ap.add_argument('--data', default='/home/claude/gd', help="the folder Aurek runs in (its game data)")

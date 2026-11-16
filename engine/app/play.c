@@ -44,6 +44,28 @@ static void pose_layer(const ak_model_set *m, const ak_soldier_look *lk, s32 cli
     ak_skeleton_pose_matrices(sk, lq, (const f32 (*)[3])lt, bones);
 }
 
+/* the body crossfading from one clip to another (weight w on `clip`; ak_loco.h: 0.2 s), an upper-body layer over it (over >= 0) */
+static void pose_mix(const ak_model_set *m, const ak_soldier_look *lk, s32 from, f32 from_t, s32 clip, f32 t, f32 w, bool loop, s32 over, f32 over_t, f32 (*bones)[12])
+{
+    static ak_quat lq[64], fq[64]; static f32 lt[64][3], ft[64][3];
+    if (from < 0 || from == clip || w >= 1) { pose_layer(m, lk, clip, t, loop, over, over_t, bones); return; }
+    const ak_model *body = &m->models[lk->body];
+    if (body->skeleton < 0) return;
+    const ak_skeleton *sk = &m->skels[body->skeleton];
+    if (sk->nbones > 64) return;
+    for (u32 b = 0; b < sk->nbones; b++) { lq[b] = fq[b] = sk->bind_q[b]; memcpy(lt[b], sk->bind_t[b], 12); memcpy(ft[b], sk->bind_t[b], 12); }
+    if (clip >= 0) { const ak_anim_clip *c = &m->clips[clip]; if (!loop && t > c->duration) t = c->duration - 1e-4f; ak_anim_sample(c, sk, t, loop, lq, lt); }
+    { const ak_anim_clip *c = &m->clips[from]; ak_anim_sample(c, sk, from_t, true, fq, ft); }
+    for (u32 b = 0; b < sk->nbones; b++) {                                    /* nlerp along the shorter arc */
+        ak_quat a = fq[b], q = lq[b]; f32 d = a.x * q.x + a.y * q.y + a.z * q.z + a.w * q.w, sg = d < 0 ? -1.0f : 1.0f, u = 1 - w;
+        ak_quat r = { a.x * u + q.x * w * sg, a.y * u + q.y * w * sg, a.z * u + q.z * w * sg, a.w * u + q.w * w * sg };
+        f32 n = sqrtf(r.x * r.x + r.y * r.y + r.z * r.z + r.w * r.w); if (n > 1e-8f) { r.x /= n; r.y /= n; r.z /= n; r.w /= n; }
+        lq[b] = r; for (int k = 0; k < 3; k++) lt[b][k] = ft[b][k] * u + lt[b][k] * w;
+    }
+    if (over >= 0) ak_anim_sample_over(&m->clips[over], sk, over_t, true, lq, lt);
+    ak_skeleton_pose_matrices(sk, lq, (const f32 (*)[3])lt, bones);
+}
+
 static bool poseable(const ak_model_set *m, const ak_soldier_look *lk)
 {
     const ak_model *body = &m->models[lk->body];
@@ -382,11 +404,16 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     static const char *run[] = { "Human_Rifle_Stand_RunForward", NULL }, *back[] = { "Human_Rifle_Stand_RunBackward", "Human_Rifle_Stand_WalkBackward", NULL };
     static const char *left[] = { "Human_Rifle_Stand_RunForward_left", NULL }, *right[] = { "Human_Rifle_Stand_RunForward_Right", NULL };
     static const char *sprint[] = { "Human_Rifle_Stand_sprint_full", NULL };
+    static const char *walk[] = { "Human_Rifle_Stand_WalkForward", NULL }, *wback[] = { "Human_Rifle_Stand_WalkBackward", NULL };
     static const char *jump[] = { "Human_Rifle_jump", NULL }, *fall[] = { "Human_Rifle_JumpFall", NULL }, *land[] = { "Human_Rifle_Jump_Land_Soft", "Human_Rifle_Jump_Land", NULL };
     static const char *d1[] = { "Human_Rifle_Stand_Death_backwards", NULL }, *d2[] = { "Human_Rifle_Stand_Death_left", NULL }, *d3[] = { "Human_Rifle_Stand_Death_right", NULL };
     p->clip[PLAY_IDLE] = find_clip(m, idle); p->clip[PLAY_RUN] = find_clip(m, run); p->clip[PLAY_BACK] = find_clip(m, back);
     p->clip[PLAY_LEFT] = find_clip(m, left); p->clip[PLAY_RIGHT] = find_clip(m, right); p->clip[PLAY_JUMP] = find_clip(m, jump);
     p->clip[PLAY_FALL] = find_clip(m, fall); p->clip[PLAY_LAND] = find_clip(m, land); p->clip[PLAY_SPRINT] = find_clip(m, sprint);
+    p->clip[PLAY_WALK] = find_clip(m, walk); p->clip[PLAY_WALK_BACK] = find_clip(m, wback);
+    if (p->clip[PLAY_WALK] < 0) p->clip[PLAY_WALK] = p->clip[PLAY_RUN];
+    if (p->clip[PLAY_WALK_BACK] < 0) p->clip[PLAY_WALK_BACK] = p->clip[PLAY_BACK];
+    p->roots = ak_root_tracks_make(m, a); ak_loco_reset(&p->loco, p->clip[PLAY_IDLE]);
     {   /* the rolls: each clip's root-motion channel (its last) says how far it carries the body: the dive 3.9 m forward in 0.73 s,
            the side rolls 1.9 / 1.3 m in 0.6 s, the back roll 2.3 m in 0.73 s */
         static const char *rn[4] = { "Human_Rifle_Stand_Diveroll_Forward", "Human_Rifle_Crouch_Roll_Left", "Human_Rifle_Crouch_Roll_Right", "Human_Rifle_Crouch_Roll_Back" };
@@ -406,7 +433,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
        relaxed body clips stay the ones above (set 4 is the same family) */
     memcpy(p->aclip, p->clip, sizeof p->aclip); p->shoot_clip = -1;
     {   const ak_anim_table *gt = ak_anim_table_find(m, "generic_male");
-        static const int row[PLAY_NCLIPS] = { [PLAY_IDLE] = 0, [PLAY_RUN] = 3, [PLAY_BACK] = 4, [PLAY_LEFT] = 5, [PLAY_RIGHT] = 6, [PLAY_JUMP] = 8, [PLAY_FALL] = 12, [PLAY_LAND] = 10, [PLAY_SPRINT] = 7 };
+        static const int row[PLAY_NCLIPS] = { [PLAY_IDLE] = 0, [PLAY_RUN] = 3, [PLAY_BACK] = 4, [PLAY_LEFT] = 5, [PLAY_RIGHT] = 6, [PLAY_JUMP] = 8, [PLAY_FALL] = 12, [PLAY_LAND] = 10, [PLAY_SPRINT] = 7,
+                                              [PLAY_WALK] = 1, [PLAY_WALK_BACK] = 2 };
         if (gt && gt->sets > 5 && gt->cols > 1 && gt->rows > 12) {
             for (int k = 0; k < PLAY_NCLIPS; k++) if (AK_ATAB(gt, 5, row[k], 0) >= 0) p->aclip[k] = AK_ATAB(gt, 5, row[k], 0);
             p->shoot_clip = AK_ATAB(gt, 5, 0, 1);
@@ -650,7 +678,8 @@ static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set 
            strafe, 8 jump, 13 land, 16 fall; 17-19 the attack combo */
         h->tab = ak_anim_table_find(m, ak_bp_string(o, "Animtable", "generic_male"));
         if (h->tab && h->tab->cols < 10) h->tab = NULL;                         /* (the soldiers' generic_male: they keep their own clips) */
-        static const int row[PLAY_NCLIPS] = { [PLAY_IDLE] = 0, [PLAY_RUN] = 3, [PLAY_BACK] = 4, [PLAY_LEFT] = 5, [PLAY_RIGHT] = 6, [PLAY_JUMP] = 8, [PLAY_FALL] = 16, [PLAY_LAND] = 13, [PLAY_SPRINT] = 3 };
+        static const int row[PLAY_NCLIPS] = { [PLAY_IDLE] = 0, [PLAY_RUN] = 3, [PLAY_BACK] = 4, [PLAY_LEFT] = 5, [PLAY_RIGHT] = 6, [PLAY_JUMP] = 8, [PLAY_FALL] = 16, [PLAY_LAND] = 13, [PLAY_SPRINT] = 3,
+                                              [PLAY_WALK] = 1, [PLAY_WALK_BACK] = 2 };
         for (int k = 0; k < PLAY_NCLIPS; k++) {
             h->clip[k] = h->saber ? p->sclip[k] : p->clip[k];
             if (h->tab && row[k] < (int)h->tab->rows && AK_ATAB(h->tab, 0, row[k], 0) >= 0) h->clip[k] = AK_ATAB(h->tab, 0, row[k], 0);
@@ -816,7 +845,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     f32 dyaw = wrap(face - b->ch.yaw), mx = p->cp.yaw_speed * dt;
     b->ch.yaw += dyaw > mx ? mx : dyaw < -mx ? -mx : dyaw;
     /* the stick: toward `want`, relative to the facing; slower and strafing in a fight */
-    ak_char_input ci = { 0, 0, 0, 0, false, false };
+    ak_char_input ci = { 0, 0, 0, 0, false, false, false, { 0, 0 } };
     f32 speed = en && !saber ? 0.55f : 1.0f;
     f32 rx = cosf(b->ch.yaw), rz = -sinf(b->ch.yaw), fx = -sinf(b->ch.yaw), fz = -cosf(b->ch.yaw);
     if (moving) { ci.move_x = (mdx * rx + mdz * rz) * speed; ci.move_y = (mdx * fx + mdz * fz) * speed; }
@@ -1803,7 +1832,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (p->in_veh >= 0) in = &none;                                           /* the soldier stands still inside */
     static ak_input manned; if (p->in_turret >= 0) { manned = *in; manned.lx = manned.ly = 0; manned.pressed &= ~AK_BTN_CROSS; in = &manned; }   /* a gunner aims only */
     /* the soldier's pitch is positive looking down (the camera uses -pitch): stick up looks up unless AK_INVERT_Y */
-    ak_char_input ci = { in->lx, in->ly, in->rx, p->invert_y ? in->ry : -in->ry, (in->pressed & AK_BTN_CROSS) != 0, p->sprint && p->in_turret < 0 };
+    ak_char_input ci = { in->lx, in->ly, in->rx, p->invert_y ? in->ry : -in->ry, (in->pressed & AK_BTN_CROSS) != 0, p->sprint && p->in_turret < 0, false, { 0, 0 } };
     if (p->twin_stick) {
         /* free aim with a response curve (fine near the centre, fast at the edge); the body turns with the aim */
         f32 ax = in->rx, ay = p->invert_y ? in->ry : -in->ry;
@@ -1871,11 +1900,32 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         static int body = -1; if (body < 0) body = ak_setting_int("AK_SOLDIER_BODY", 1);
         p->ch.body_box = body != 0;
         for (int k = 0; k < 3; k++) { p->ch.body_min[k] = mn[k] * S; p->ch.body_max[k] = mx[k] * S; } }
+    /* the body clip the stick asks for, and the velocity the clips give (ak_loco.h): the stick's magnitude chooses standing, walking
+       or running (the game reads each axis past a 0.25 dead zone), its direction against the facing the forward / back / strafe clip */
+    int intent = PLAY_IDLE;
+    {   f32 sx = ak_loco_stick_axis(ci.move_x), sy = ak_loco_stick_axis(ci.move_y);
+        int gait = ak_loco_gait(sqrtf(sx * sx + sy * sy));
+        if (gait == 0) intent = PLAY_IDLE;
+        else if (fabsf(sx) > fabsf(sy)) intent = sx > 0 ? PLAY_LEFT : PLAY_RIGHT;   /* (strafing: the modern twin-stick scheme) */
+        else if (sy >= 0) intent = gait == 1 ? PLAY_WALK : p->ch.sprinting || (ci.sprint && p->ch.on_ground) ? PLAY_SPRINT : PLAY_RUN;
+        else intent = gait == 1 ? PLAY_WALK_BACK : PLAY_BACK;
+        const s32 *ucl = unit_clips(p, 0);
+        if (ucl[intent] < 0) intent = gait ? PLAY_RUN : PLAY_IDLE;
+        bool on_feet = p->alive && p->roll_i < 0 && p->in_veh < 0 && p->in_turret < 0 && p->ch.on_ground && !(hero_of(p, 0) && hero_of(p, 0)->atk_i >= 0);
+        if (on_feet && p->roots) {
+            const s32 *cl = (!hero_of(p, 0) && p->alert_t > 0) ? p->aclip : ucl;
+            ak_loco_play(&p->loco, cl[intent]);
+            f32 v[2]; ak_loco_vel(&p->loco, p->roots, v);
+            if (intent == PLAY_LEFT || intent == PLAY_RIGHT) {                 /* the strafe clips carry the root forward: take it sideways */
+                f32 sp = sqrtf(v[0] * v[0] + v[1] * v[1]); v[0] = 0; v[1] = intent == PLAY_LEFT ? sp : -sp; }
+            ci.root = true; ci.root_vel[0] = v[0] * S; ci.root_vel[1] = v[1] * S;
+        } }
     ak_char_update(&p->ch, use, &p->col, &ci, dt);
     {   /* tests against the original: AK_TEST_TRACE = a file - the player's position in game axes every 10 frames */
         static FILE *tf; static int tinit; static u32 tfr;
         if (!tinit) { tinit = 1; const char *tp = ak_setting_str("AK_TEST_TRACE", NULL); if (tp) tf = fopen(tp, "w"); }
-        if (tf && (tfr++ % 10) == 0) { f32 g[3]; ak_from_game(p->ch.pos, g);   /* (the flip is its own inverse) */
+        static int every = 0; if (!every) { every = ak_setting_int("AK_TEST_TRACE_EVERY", 10); if (every < 1) every = 1; }
+        if (tf && (tfr++ % (u32)every) == 0) { f32 g[3]; ak_from_game(p->ch.pos, g);   /* (the flip is its own inverse) */
             fprintf(tf, "%u %.4f %.4f %.4f %d\n", tfr - 1, g[0], g[1], g[2], p->ch.on_ground); fflush(tf); } }
     {   static u32 fr; static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
         if (dbg >= 3 && (fr++ % 30) == 0)
@@ -1904,18 +1954,21 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     /* the clip for the state */
     f32 hs; int st = motion_state(&p->ch, &p->cp, was_ground, &p->land_t, dt, &hs);
     const s32 *pcl = unit_clips(p, 0);
+    if (st != PLAY_JUMP && st != PLAY_FALL && st != PLAY_LAND) st = intent;   /* on the ground: the clip the stick asked for */
     if (pcl[st] < 0) st = pcl[PLAY_RUN] >= 0 && hs >= 0.5f ? PLAY_RUN : PLAY_IDLE;
-    if (st != p->state) { p->state = st; p->clip_t = 0; }
-    p->clip_t += dt * clip_rate(st, hs, &p->cp);
+    {   const s32 *cl = (!hero_of(p, 0) && p->alert_t > 0) ? p->aclip : pcl;
+        ak_loco_play(&p->loco, cl[st]); ak_loco_advance(&p->loco, dt, 1.0f); }     /* (playback rate 1: the clips are not sped up) */
+    if (st != p->state) p->state = st;
+    p->clip_t = p->loco.t;
     p->posed = poseable(m, &p->look);
     if (!p->alive) { p->dead_t += dt; if (p->posed) pose(m, &p->look, p->death_clips[0], p->dead_t, false, p->bones); }
     else if (p->posed) {
         const ak_play_hero *ph = hero_of(p, 0);
         if (ph && ph->atk_i >= 0) pose(m, &p->look, ph->atk[ph->atk_i], ph->atk_t, false, p->bones);
         else if (p->roll_i >= 0) pose(m, &p->look, p->roll_clip[p->roll_i], p->roll_t, false, p->bones);
-        else if (!ph && p->alert_t > 0)                                          /* alert: rifle raised, the shoot layer while firing */
-            pose_layer(m, &p->look, p->aclip[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->shoot_t < 0.3f ? p->shoot_clip : -1, p->shoot_t, p->bones);
-        else pose(m, &p->look, pcl[p->state], p->clip_t, p->state != PLAY_JUMP && p->state != PLAY_LAND, p->bones);
+        else                                                                   /* the body clips crossfading; alert: the shoot layer while firing */
+            pose_mix(m, &p->look, p->loco.prev, p->loco.prev_t, p->loco.cur, p->loco.t, p->loco.w, p->state != PLAY_JUMP && p->state != PLAY_LAND,
+                     !ph && p->alert_t > 0 && p->shoot_t < 0.3f ? p->shoot_clip : -1, p->shoot_t, p->bones);
         if (p->in_veh < 0) body_target(m, &p->look, (const f32 (*)[12])p->bones, p->ch.pos, p->ch.yaw, &p->target[0]);
     }
     /* where the centre of the view meets the level: shots go there unless locked on */

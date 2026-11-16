@@ -362,6 +362,8 @@ int main(int argc, char **argv)
         {   /* scripted input for headless tests: AK_TEST_MOVE = lx,ly,rx,ry (held), AK_TEST_JUMP = the frame to jump on */
             const char *tm = ak_setting_str("AK_TEST_MOVE", NULL);
             if (tm) sscanf(tm, "%f,%f,%f,%f", &in.lx, &in.ly, &in.rx, &in.ry);
+            {   int until = ak_setting_int("AK_TEST_MOVE_UNTIL", -1);       /* the frame the stick is let go */
+                if (tm && until >= 0 && frame >= until) in.lx = in.ly = in.rx = in.ry = 0; }
             if (ak_setting_int("AK_TEST_JUMP", -1) == frame) { in.held |= AK_BTN_L; in.pressed |= AK_BTN_L; }   /* (a tap of L) */
             if (ak_setting_int("AK_TEST_FIRE", 0)) in.held |= AK_BTN_CROSS;
             if (ak_setting_int("AK_TEST_LOCK", 0)) in.held |= AK_BTN_R;
