@@ -71,6 +71,9 @@ int main(int argc, char **argv)
     printf("batches    %u (%u objects with geometry, %u object slots), %u overlay triangles\n", g->nbatch, objs, g->nobj, g->overlay_tris);
     ak_model_set ms; u64 t2 = ak_plat_time_us();
     bool mok = ak_models_load(&l, &a, &ms);
+    if (getenv("AK_INSPECT_BOXES")) for (u32 i = 0; i < ms.nskels; i++) { const ak_skeleton *k = &ms.skels[i];
+        printf("box %-32s %s x %.3f %.3f y %.3f %.3f z %.3f %.3f\n", k->name, k->col_from == 1 ? "own  " : k->col_from == 2 ? "bones" : "deflt",
+               k->col_min[0], k->col_max[0], k->col_min[1], k->col_max[1], k->col_min[2], k->col_max[2]); }
     u32 lod0 = 0, tris_m = 0; for (u32 i = 0; i < ms.nmodels; i++) { lod0 += ms.models[i].lod == 0; tris_m += ms.models[i].nidx / 3; }
     {   ak_conquest_map cq;
         if (ak_conquest_load(&l, &cq)) {

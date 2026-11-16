@@ -1,4 +1,5 @@
 /* Aurek - play mode (see play.h) */
+#include "game/ak_box.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -64,6 +65,70 @@ static void world_of(const f32 *pos, f32 yaw, ak_m4 *w) { world_of_scaled(pos, y
 #define NT(p) (NV(p) + (p)->nturret)            /* every target: soldiers, vehicles, then turrets */
 #define TT(p, t) (NV(p) + (t))                  /* turret t's target */
 static void turrets_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp);
+
+/* ------------------------------------------------------------------ bodies (ak_box.h) */
+static const f32 default_box[2][3] = { { -0.3f, 0, -0.3f }, { 0.3f, 2.0f, 0.3f } };   /* 08A061BC: 0.6 x 2.0 x 0.6 m on the origin */
+static void model_box(const ak_model_set *m, s32 mi, const f32 **mn, const f32 **mx)
+{
+    *mn = default_box[0]; *mx = default_box[1];
+    if (mi < 0 || (u32)mi >= m->nmodels || m->models[mi].skeleton < 0) return;
+    const ak_skeleton *sk = &m->skels[m->models[mi].skeleton];
+    *mn = sk->col_min; *mx = sk->col_max;
+}
+static void soldier_box(const ak_model_set *m, const ak_soldier_look *look, const ak_character *ch, ak_box *b)
+{
+    const f32 *mn, *mx; model_box(m, look->body, &mn, &mx);
+    f32 s = sinf(ch->yaw) * S, c = cosf(ch->yaw) * S;
+    f32 W[12] = { c, 0, s, ch->pos[0],  0, S, 0, ch->pos[1],  -s, 0, c, ch->pos[2] };
+    ak_box_place(b, mn, mx, W);
+}
+static void vehicle_box(const ak_model_set *m, const ak_vehicle *vh, ak_box *b)
+{
+    const f32 *mn, *mx; model_box(m, vh->def->model, &mn, &mx);
+    f32 W[12]; ak_vehicle_matrix(vh, W); ak_box_place(b, mn, mx, W);
+}
+static void bodies_push(ak_play *p, const ak_model_set *m)
+{
+    ak_box me, o; f32 push[3];
+    if (p->in_veh >= 0) {                                                     /* the player's vehicle */
+        ak_vehicle *vh = &p->veh[p->in_veh]; if (!vh->alive) return;
+        bool flyer = vh->def->kind == AK_VEH_FLYER && vh->flying;
+        for (int pass = 0; pass < 2; pass++) {                               /* (a second pass settles a push into another body) */
+            vehicle_box(m, vh, &me);
+            for (u32 j = 0; j < NV(p) - 1 + p->nturret; j++) {
+                if (j < p->nbots) { if (!p->target[1 + j].alive || p->bot[j].veh >= 0) continue; soldier_box(m, &p->bot[j].look, &p->bot[j].ch, &o); }
+                else if (j < p->nbots + p->nveh) { u32 v = j - p->nbots; if ((s32)v == p->in_veh || !p->veh[v].alive) continue; vehicle_box(m, &p->veh[v], &o); }
+                else { const ak_turret *t = &p->turret[j - p->nbots - p->nveh]; if (!t->alive) continue; const f32 *mn, *mx; model_box(m, t->def->base, &mn, &mx); ak_box_place(&o, mn, mx, t->base); }
+                if (!ak_box_push(&me, &o, push)) continue;
+                if (!flyer) push[1] = 0;                                      /* ground vehicles keep to their own ground handling */
+                for (int k = 0; k < 3; k++) vh->pos[k] += push[k];
+                f32 l2 = push[0] * push[0] + push[1] * push[1] + push[2] * push[2];
+                if (l2 > 1e-10f) { f32 vn = (vh->vel[0] * push[0] + vh->vel[1] * push[1] + vh->vel[2] * push[2]) / l2;
+                    if (vn < 0) for (int k = 0; k < 3; k++) vh->vel[k] -= vn * push[k]; }
+                vehicle_box(m, vh, &me);
+            }
+        }
+        return;
+    }
+    if (!p->target[0].alive || p->in_turret >= 0) return;                    /* (attached to something: its body is off, 08A049C0) */
+    ak_character *ch = &p->ch;
+    for (int pass = 0; pass < 2; pass++) {
+        soldier_box(m, &p->look, ch, &me);
+        for (u32 j = 0; j < p->nbots + p->nveh + p->nturret; j++) {
+            if (j < p->nbots) { if (!p->target[1 + j].alive || p->bot[j].veh >= 0) continue; soldier_box(m, &p->bot[j].look, &p->bot[j].ch, &o); }
+            else if (j < p->nbots + p->nveh) { u32 v = j - p->nbots; if (!p->veh[v].alive) continue; vehicle_box(m, &p->veh[v], &o); }
+            else { const ak_turret *t = &p->turret[j - p->nbots - p->nveh]; if (!t->alive) continue; const f32 *mn, *mx; model_box(m, t->def->base, &mn, &mx); ak_box_place(&o, mn, mx, t->base); }
+            if (!ak_box_push(&me, &o, push)) continue;
+            if (ak_setting_int("AK_DEBUG_BODY", 0)) AK_INFO("body", "player pushed %.3f %.3f %.3f by body %u", push[0], push[1], push[2], j);
+            for (int k = 0; k < 3; k++) ch->pos[k] += push[k];
+            f32 l2 = push[0] * push[0] + push[1] * push[1] + push[2] * push[2];
+            if (l2 > 1e-10f) { f32 vn = (ch->vel[0] * push[0] + ch->vel[1] * push[1] + ch->vel[2] * push[2]) / l2;
+                if (vn < 0) for (int k = 0; k < 3; k++) ch->vel[k] -= vn * push[k]; }
+            if (push[1] > 0 && push[1] * push[1] > 0.5f * l2) { ch->on_ground = true; ch->jumped = false; }   /* standing on it */
+            soldier_box(m, &p->look, ch, &me);
+        }
+    }
+}
 #define VT(p, v) (1 + (p)->nbots + (v))        /* vehicle v's target */
 
 static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set *m);
@@ -1938,26 +2003,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (vh->pos[1] < -400.0f) { p->target[VT(p, v)].alive = false; }
     }
     for (u32 i = 0; i < p->nboom; i++) p->boom[i].t += dt;
-    /* soldiers are solid to each other: push apart (two body radii) */
-    {   f32 rr = p->cp.radius * 2;
-        for (u32 i = 0; i < NS(p); i++) {
-            if (!p->target[i].alive) continue;
-            ak_character *a = i ? &p->bot[i - 1].ch : &p->ch;
-            for (u32 v = 0; v < p->nveh; v++) {                                /* and out of the vehicles */
-                const ak_vehicle *vh = &p->veh[v]; if (!vh->alive) continue;
-                f32 vr = vh->def->radius + p->cp.radius, dx = a->pos[0] - vh->pos[0], dz = a->pos[2] - vh->pos[2], d2 = dx * dx + dz * dz;
-                if (d2 >= vr * vr || d2 < 1e-8f || a->pos[1] > vh->pos[1] + vh->def->hover + vh->def->height || a->pos[1] + 2 < vh->pos[1]) continue;
-                f32 d = sqrtf(d2); a->pos[0] += dx / d * (vr - d); a->pos[2] += dz / d * (vr - d);
-            }
-            for (u32 j = i + 1; j < NS(p); j++) {
-                if (!p->target[j].alive) continue;
-                ak_character *b = &p->bot[j - 1].ch;
-                f32 dx = a->pos[0] - b->pos[0], dz = a->pos[2] - b->pos[2], d2 = dx * dx + dz * dz;
-                if (d2 >= rr * rr || d2 < 1e-8f || fabsf(a->pos[1] - b->pos[1]) > 1.6f * S) continue;
-                f32 d = sqrtf(d2), push = (rr - d) * 0.5f; dx /= d; dz /= d;
-                a->pos[0] += dx * push; a->pos[2] += dz * push; b->pos[0] -= dx * push; b->pos[2] -= dz * push;
-            }
-        } }
+    /* bodies (ak_box.h, traced): the one the local player controls is pushed out of every other soldier's, vehicle's and turret's
+     * box; the rest are kinematic - never pushed, and they pass through each other */
+    bodies_push(p, m);
     turrets_update(p, m, dt);
     if (p->have_cq) mobile_posts(p, m);
     ak_projs_update(&p->projs, &p->col, p->target, NT(p), p->cp.gravity, dt, proj_boom, p);

@@ -15,6 +15,15 @@ typedef struct {
     s16 *parent;                       /* -1 = root */
     f32 (*bind_t)[3]; ak_quat *bind_q; /* local bind pose (relative to the parent) */
     f32 (*world_t)[3]; ak_quat *world_q;  /* bind pose in model space */
+    /* The collision box of every object drawn with this model (engine axes, model space).  Traced: an object's physics shape
+     * (slot 0x8C, 08A04EB4 -> the shape callback 08A05F60) is the SHAP hull named like its model if the level has one (debris
+     * fragments and a few props only), else the model's own box (model +0x80, 08817BF8): the box stored at the end of HSKN when its
+     * chunk flags have bit 2 (08826794 -> 08817C14: AT-ST, AT-AT, Taun-Taun, the Hoth turrets, TIE Advanced), else the union of the
+     * HSBB per-bone boxes (bit 0 of each record) placed by the bind pose (08826EE8 -> 08817484; bone 0 skipped when HSKN word 0 is
+     * not 0), else 0.6 x 2.0 x 0.6 m standing on the origin (08A061BC).  The physics turns it into a box of 8 corners (088CA654). */
+    f32 col_min[3], col_max[3];
+    u8 col_from;                       /* 0 the default, 1 HSKN's own box, 2 the bone boxes */
+    u32 skip;                          /* HSKN word 0 */
 } ak_skeleton;
 
 typedef struct {

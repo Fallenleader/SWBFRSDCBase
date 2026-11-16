@@ -24,6 +24,14 @@ static ak_quat q_from_game(f32 x, f32 y, f32 z, f32 w) { ak_quat q = { x, -y, -z
 /* the game's own name hash (h * 31 + c over the lower-cased bytes): the animation tables name clips and tables by it */
 static u32 game_hash(const char *n) { u32 h = 0; for (; *n; n++) h = h * 31u + (u32)(*n >= 'A' && *n <= 'Z' ? *n + 32 : *n); return h; }
 
+/* game box (min x, max x, min y, max y, min z, max z) -> engine min / max (y and z flip) */
+static void box_from_game(const u8 *r, f32 *mn, f32 *mx)
+{
+    mn[0] = ak_rdf32(r);      mx[0] = ak_rdf32(r + 4);
+    mn[1] = -ak_rdf32(r + 12); mx[1] = -ak_rdf32(r + 8);
+    mn[2] = -ak_rdf32(r + 20); mx[2] = -ak_rdf32(r + 16);
+}
+
 static bool skel_parse(const ak_chunk *c, ak_arena *a, ak_skeleton *s)
 {
     const u8 *b = c->body; memset(s, 0, sizeof *s);
@@ -55,7 +63,46 @@ static bool skel_parse(const ak_chunk *c, ak_arena *a, ak_skeleton *s)
             s->world_q[i] = qmul(s->world_q[p], s->bind_q[i]);
         }
     }
+    /* the collision box (see model.h): the default, or the HSKN's own after the per-bone meshes (chunk flags bit 0: n x { name,
+     * u32 size, size bytes }) when the flags have bit 2 */
+    s->skip = skip;
+    s->col_min[0] = -0.3f; s->col_max[0] = 0.3f; s->col_min[1] = 0; s->col_max[1] = 2.0f; s->col_min[2] = -0.3f; s->col_max[2] = 0.3f;
+    o += 28 * n;
+    if (c->flags & 1) for (u32 i = 0; i < n && o < c->size; i++) {
+        size_t l = strnlen((const char *)b + o, c->size - o); o += (u32)((l + 1 + 3) & ~(size_t)3);
+        if ((size_t)o + 4 > c->size) { o = c->size; break; }
+        o += 4 + ak_rd32(b + o);
+    }
+    if ((c->flags & 2) && (size_t)o + 24 <= c->size) { box_from_game(b + o, s->col_min, s->col_max); s->col_from = 1; }
     return true;
+}
+
+/* HSBB v1: name (padded), u32 count, count x { f32 box[6] (bone space, game axes), u32 flags }: the box of what each bone carries */
+static void hsbb_parse(const ak_chunk *c, ak_model_set *out)
+{
+    const u8 *b = c->body; size_t nl = strnlen((const char *)b, c->size);
+    u32 o = (u32)((nl + 1 + 3) & ~(size_t)3);
+    if ((size_t)o + 4 > c->size) return;
+    u32 n = ak_rd32(b + o), h = ak_hash_name((const char *)b); o += 4;
+    if ((size_t)o + 28u * n > c->size) return;
+    for (u32 k = out->nskels; k-- > 0;) {
+        ak_skeleton *s = &out->skels[k];
+        if (s->name_hash != h || s->nbones != n) continue;
+        if (s->col_from == 1) return;                                         /* its own box stands (flags 5: no update) */
+        f32 lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
+        for (u32 i = s->skip ? 1 : 0; i < n; i++) {
+            const u8 *r = b + o + 28 * i;
+            if (!(ak_rd32(r + 24) & 1)) continue;
+            f32 g[6]; for (int q = 0; q < 6; q++) g[q] = ak_rdf32(r + 4 * q);
+            for (int cx = 0; cx < 8; cx++) {
+                f32 gc[3] = { g[(cx & 1) ? 1 : 0], g[(cx & 2) ? 3 : 2], g[(cx & 4) ? 5 : 4] }, e[3], w[3];
+                ak_from_game(gc, e); qrot(s->world_q[i], e, w);
+                for (int q = 0; q < 3; q++) { w[q] += s->world_t[i][q]; if (w[q] < lo[q]) lo[q] = w[q]; if (w[q] > hi[q]) hi[q] = w[q]; }
+            }
+        }
+        if (lo[0] <= hi[0]) { memcpy(s->col_min, lo, 12); memcpy(s->col_max, hi, 12); s->col_from = 2; }
+        return;
+    }
 }
 
 static void mat34(ak_quat q, const f32 *t, f32 *r)
@@ -426,6 +473,7 @@ bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
         if (tag == AK_TAG('T', 'E', 'X', 'T')) ak_text_parse(&c, a, &text);
         else if (tag == AK_TAG('M', 'T', 'R', 'L')) { if (!ak_mtrl_parse(&c, a, &mats, &nmats)) { mats = NULL; nmats = 0; } }
         else if (tag == AK_TAG('H', 'S', 'K', 'N') && c.version == 8) { if (skel_parse(&c, a, &out->skels[out->nskels])) out->nskels++; }
+        else if (tag == AK_TAG('H', 'S', 'B', 'B') && c.version == 1) hsbb_parse(&c, out);
         else if (tag == AK_TAG('H', 'C', 'A', 'N')) { if (clip_parse(&c, a, &out->clips[out->nclips])) out->nclips++; }
         else if (tag == AK_TAG('A', 'T', 'E', 'X') && c.size >= 16) {             /* animation tables: resolved after the clips (below) */
             u32 sets = ak_rd32(c.body + 4), rows = ak_rd32(c.body + 8), cols = ak_rd32(c.body + 12);
