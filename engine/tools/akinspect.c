@@ -76,7 +76,7 @@ int main(int argc, char **argv)
             u32 n = 0, surf[16] = { 0 }; for (u32 i = 0; i < cf.ntri; i++) if (cf.tri[i].flags & (1u << bit)) { n++; u32 mm = cf.tri[i].material; surf[mm < 16 ? mm : 15]++; }
             if (n && bit == 0) { u32 fl[64] = { 0 }, fc[64] = { 0 }, nf = 0;          /* the flag sets of water (surface 7) */
                 for (u32 i = 0; i < cf.ntri; i++) { if (cf.tri[i].material != 7) continue; u32 k = 0; while (k < nf && fl[k] != cf.tri[i].flags) k++;
-                    if (k == nf && nf < 64) fl[nf++] = cf.tri[i].flags; if (k < 64) fc[k]++; }
+                    if (k == nf && nf < 64) { fl[nf++] = cf.tri[i].flags; } if (k < 64) fc[k]++; }
                 for (u32 k = 0; k < nf; k++) printf("water flags 0x%04x x%u\n", fl[k], fc[k]); }
             if (n) { printf("flag 0x%04x %6u tris  materials:", 1u << bit, n); for (int k = 0; k < 16; k++) if (surf[k]) printf(" %d:%u", k, surf[k]); printf("\n"); } } }
     if (getenv("AK_INSPECT_BOXES")) for (u32 i = 0; i < ms.nskels; i++) { const ak_skeleton *k = &ms.skels[i];
