@@ -11,9 +11,11 @@
 import argparse, math, os, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '../..'))
-MOVES = {'walk_forward': '0,1,0,0', 'idle': '0,0,0,0', 'walk_stop': '0,1,0,0', 'walk_half': '0,0.63,0,0'}
+MOVES = {'jump_back': '0,1,0,0', 'still_jump_fwd': '0,0,0,0', 'run_jump': '0,1,0,0', 'walk_forward': '0,1,0,0', 'idle': '0,0,0,0', 'walk_stop': '0,1,0,0', 'walk_half': '0,0.63,0,0'}
 DRIVE = {'walk_half': ['--program', 'hold', '--hold', '128,48'], 'walk_stop': ['--program', 'walk_stop']}           # (the original's pad for the same stick: 48 = 0.63 up)
-UNTIL = {'walk_stop': 60}                                                  # frames before the stick is let go
+UNTIL = {'walk_stop': 60}
+EXTRA = {'run_jump': {'AK_TEST_JUMP': '63'}, 'jump_back': {'AK_TEST_JUMP': '63', 'AK_TEST_MOVE_AT': '75:0,-1,0,0'},
+         'still_jump_fwd': {'AK_TEST_JUMP': '63', 'AK_TEST_MOVE_AT': '75:0,1,0,0'}}                                # (L held 60-63 in the original: let go at 64)                                                  # frames before the stick is let go
 
 def original(a):
     out = os.path.join(a.out, 'original')
@@ -35,7 +37,7 @@ def aurek(a, start):
     fx, fz = (m[2], m[8]) if m else (0.0, 1.0)                 # forward = the matrix's third column (game axes)
     trace = os.path.join(a.out, 'aurek_trace.txt')
     env = dict(os.environ, AK_LEVEL=a.level, AK_PLAY='1', AK_BOTS='0', AK_FIXED_DT='0.0166667', AK_TEST_MOVE=MOVES[a.program], AK_TEST_MOVE_UNTIL=str(UNTIL.get(a.program, -1)),
-               AK_TEST_SPAWN='%f,%f,%f,%f,%f' % (x, y, z, fx, fz), AK_TEST_TRACE=trace, AK_TEST_TRACE_EVERY='1',
+               AK_TEST_SPAWN='%f,%f,%f,%f,%f' % (x, y, z, fx, fz), AK_TEST_TRACE=trace, AK_TEST_TRACE_EVERY='1', **EXTRA.get(a.program, {}),
                AK_SCREENSHOT=os.path.join(a.out, 'aurek_end.ppm'), AK_SCREENSHOT_FRAME=str(a.frames + 30))
     subprocess.run(['xvfb-run', '-a', os.path.join(ROOT, 'build/engine/aurek_viewer')], cwd=a.data, env=env,
                    stdout=open(os.path.join(a.out, 'aurek.log'), 'w'), stderr=subprocess.STDOUT, timeout=900)

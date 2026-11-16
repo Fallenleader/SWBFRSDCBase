@@ -2,6 +2,7 @@
 #include <math.h>
 #include <string.h>
 #include "game/ak_character.h"
+#include "game/ak_loco.h"
 #include "core/ak_settings.h"
 
 #define BODY_IGNORE (AK_COL_NOT_BODIES | AK_COL_NOT_SOLDIERS)
@@ -169,12 +170,30 @@ void ak_char_update(ak_character *c, const ak_char_params *p, const ak_collision
     if (c->on_ground && in->root) {                                          /* the clips carry the body (ak_loco.h) */
         c->vel[0] = fwd[0] * in->root_vel[0] + right[0] * in->root_vel[1];
         c->vel[2] = fwd[1] * in->root_vel[0] + right[1] * in->root_vel[1];
-        if (in->jump) { c->vel[1] = p->jump_impulse; c->on_ground = false; c->jumped = true; c->air_time = 0; }
+        /* the jump adds its impulse to the velocity along the ground (measured: running 0.8 m/s downhill, the original leaves the
+           ground at 6 - 0.8 m/s, then gravity) */
+        if (in->jump) {
+            const f32 *n = c->ground_normal; f32 along = n[1] > 0.1f ? -(c->vel[0] * n[0] + c->vel[2] * n[2]) / n[1] : 0;
+            c->vel[1] = along + p->jump_impulse; c->on_ground = false; c->jumped = true; c->air_time = 0; }
     } else if (c->on_ground) {
         f32 dvx = want[0] - c->vel[0], dvz = want[1] - c->vel[2], dl = sqrtf(dvx * dvx + dvz * dvz), mxd = p->accel * dt;
         if (dl > mxd) { dvx *= mxd / dl; dvz *= mxd / dl; }
         c->vel[0] += dvx; c->vel[2] += dvz;
         if (in->jump) { c->vel[1] = p->jump_impulse; c->on_ground = false; c->jumped = true; c->air_time = 0; }
+    } else if (c->body_box) {
+        /* in the air (measured with the harness, Hoth): the horizontal velocity of the take-off is kept; from 0.5 s after leaving the
+           ground the stick pushes it at "air control scale" per frame (0.15 m/s each 1/60 s: 9 m/s^2) - but never past "max air
+           speed" (4 m/s) by pushing, so a faster take-off speed is kept while the stick holds it [PARITY(1.5): the 0.5 s and the
+           per-frame rate are measured, not yet found in the code] */
+        if (c->air_time >= 0.5f) {
+            f32 sx = ak_loco_stick_axis(in->move_x), sz = ak_loco_stick_axis(in->move_y), sl = sqrtf(sx * sx + sz * sz);
+            if (sl > 1) { sx /= sl; sz /= sl; }
+            f32 a = p->air_control * 60.0f * dt, h0 = sqrtf(c->vel[0] * c->vel[0] + c->vel[2] * c->vel[2]);
+            c->vel[0] += (fwd[0] * sz + right[0] * sx) * a; c->vel[2] += (fwd[1] * sz + right[1] * sx) * a;
+            f32 h1 = sqrtf(c->vel[0] * c->vel[0] + c->vel[2] * c->vel[2]), cap = h0 > p->air_speed ? h0 : p->air_speed;
+            if (h1 > cap) { c->vel[0] *= cap / h1; c->vel[2] *= cap / h1; }
+        }
+        c->air_time += dt;
     } else {
         /* air control: a fraction of the ground response, capped at the air speed */
         c->vel[0] += (want[0] - c->vel[0]) * p->air_control * p->accel * dt / vmax;

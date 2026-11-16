@@ -77,9 +77,16 @@ textures and how they are used. Section R lists only what must be in place so th
     player's; only body-against-body pushes skip them.
   - Aurek: bots use the player's swept box (AK_BOT_BODY=0 keeps the spheres with their 0.45 m step).
   - The AI's speeds are not root motion (they hold 5.0, 7.4, 8.5 or 11.5 m/s and change every ~6 frames): moved to section 4.
-- [ ] **1.5 Jump and air control [partial].**
-  - Traced: the jump impulse (089A0308).
-  - To trace: how "air control scale" and "max air speed" are applied, and whether landing has a delay or slowdown.
+- [x] **1.5 Jump and air control [done 2026-11-16, measured].**
+  - Measured with the harness (run + jump, run + jump + pull back, stand + jump + push forward; every frame):
+    - the impulse (6) is added to the velocity along the ground (running 0.8 m/s downhill leaves at 5.2); gravity 10;
+    - the take-off's horizontal velocity is kept; from 0.5 s after take-off the stick pushes it at 0.15 m/s per frame (air
+      control scale x 60 = 9 m/s^2), never past max air speed (4) by pushing - a faster take-off is kept while the stick holds it;
+    - on landing the speed drops to zero and the run crossfades in again from the next frame (no landing pause while moving).
+  - Aurek: ak_character.c (body characters), play.c (no LAND state while the stick asks to move; the air clips carry no root
+    motion). Harness: run-jump, jump-back and stand-jump-forward within 0.25 m.
+  - [ ] **1.5b** Find the 0.5 s and the per-frame rate in the code; "jump max hold time" / "max jump impulse" (holding the
+    button for a higher jump?) are not tested.
 - [ ] **1.6 Crouch [missing].** The Crouch_Roll clips and the crouched sets in the animation table exist.
   - Trace the input, the body change and speed.
 - [ ] **1.7 Rolls [partial].** Traced: distance and duration from root motion.
@@ -150,6 +157,8 @@ textures and how they are used. Section R lists only what must be in place so th
 - [ ] **4.3 Turret AI [assumed].** States NEUTRAL / SEARCHING / ORIENTATING (0x08B1B6AC) and who aims.
 - [ ] **4.4 Movement behaviour.** Path following, strafing, cover, objective choice, and retreat. Compare against the original's
   decisions.
+  - Measured (1.4): AI soldiers' speeds come from the AI controller (soldier +88 -> +72), not the clips: 5.0, 7.4, 8.5, 11.5
+    m/s seen on Hoth, changing every ~6 frames. Trace where they come from.
 - [ ] **4.5 Bot counts per mode and level [assumed].** AK_BOTS is 15.
 - [ ] **4.6 Space AI [partial].** Commander roles are traced; dogfight states FOLLOWING / CIRCLING_ROUND / DOING_STUNT are not.
 

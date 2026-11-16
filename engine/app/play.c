@@ -417,6 +417,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     if (p->clip[PLAY_WALK] < 0) p->clip[PLAY_WALK] = p->clip[PLAY_RUN];
     if (p->clip[PLAY_WALK_BACK] < 0) p->clip[PLAY_WALK_BACK] = p->clip[PLAY_BACK];
     p->roots = ak_root_tracks_make(m, a); ak_loco_reset(&p->loco, p->clip[PLAY_IDLE]);
+
     {   /* the rolls: each clip's root-motion channel (its last) says how far it carries the body: the dive 3.9 m forward in 0.73 s,
            the side rolls 1.9 / 1.3 m in 0.6 s, the back roll 2.3 m in 0.73 s */
         static const char *rn[4] = { "Human_Rifle_Stand_Diveroll_Forward", "Human_Rifle_Crouch_Roll_Left", "Human_Rifle_Crouch_Roll_Right", "Human_Rifle_Crouch_Roll_Back" };
@@ -443,6 +444,9 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             p->shoot_clip = AK_ATAB(gt, 5, 0, 1);
         }
     }
+    if (p->roots) for (int k = PLAY_JUMP; k <= PLAY_LAND; k++) {               /* (the air's clips carry nothing) */
+        if (p->clip[k] >= 0) p->roots[p->clip[k]].n = 0;
+        if (p->aclip[k] >= 0) p->roots[p->aclip[k]].n = 0; }
     /* camera: the game's numbers, or the over-the-shoulder framing */
     const ak_bp_object *cam = ak_bp_find(bp, "Camera", "humanoid 3rd person");
     p->classic_cam = ak_setting_str("AK_CAM_STYLE", "modern")[0] == 'c';
@@ -1963,7 +1967,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     /* the clip for the state */
     f32 hs; int st = motion_state(&p->ch, &p->cp, was_ground, &p->land_t, dt, &hs);
     const s32 *pcl = unit_clips(p, 0);
-    if (st != PLAY_JUMP && st != PLAY_FALL && st != PLAY_LAND) st = intent;   /* on the ground: the clip the stick asked for */
+    /* on the ground: the clip the stick asked for - straight from the landing too (measured: the original lands and starts its run
+       crossfade the next frame, as from standing); the landing clip only when the stick is idle */
+    if (st != PLAY_JUMP && st != PLAY_FALL && (st != PLAY_LAND || intent != PLAY_IDLE)) st = intent;
     if (pcl[st] < 0) st = pcl[PLAY_RUN] >= 0 && hs >= 0.5f ? PLAY_RUN : PLAY_IDLE;
     {   const s32 *cl = (!hero_of(p, 0) && p->alert_t > 0) ? p->aclip : pcl;
         ak_loco_play(&p->loco, cl[st]); ak_loco_advance(&p->loco, dt, 1.0f); }     /* (playback rate 1: the clips are not sped up) */
