@@ -65,6 +65,9 @@ engine/
 Karis split-sum environment term with Lagarde's specular occlusion. The existing Vulkan version is in `platform/linux_test/gfx_vk.c`
 (reference only; the engine's renderer gets its own).
 
+**Parity task list:** [PARITY_TASKS.md](PARITY_TASKS.md) - every behaviour still assumed, partial or missing, and the groundwork the
+lightweight PBR renderer needs. Work continues from that list.
+
 ## Stages
 
 ### Stage 1: independence (owner priority 1)

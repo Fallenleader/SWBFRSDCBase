@@ -1,0 +1,257 @@
+# Aurek parity task list
+
+What Aurek still has to match before it duplicates the original game's behaviour. The rule for every item:
+
+- **Find what the game does and why** (trace it in BOOT.BIN / the data).
+- **Write Aurek's own native version** that gives the same result. PSP-only limits are not copied.
+
+Each item says what Aurek does now and what has to happen.
+- **[assumed]**: Aurek currently uses its own numbers or rules here, so it may not match.
+- **[partial]**: part of it is traced.
+- **[missing]**: not built yet.
+- **Exit:** when the item counts as done.
+
+Exit checks compare against the original game running (the decompiled build or PPSSPP) wherever that is possible.
+
+The one exception to "trace, then match" is the renderer (section R). It gets a new lightweight PBR design that keeps the game's
+textures and how they are used. Section R lists only what must be in place so that work can start later. It is not the PBR work itself.
+
+---
+
+## 0. Ground rules and tooling
+
+- [ ] **0.1 A side-by-side harness against the original.**
+  - Scripted inputs that drive both the original game and Aurek.
+  - Captures from both: positions, timings, screenshots.
+  - Exit: one command produces a comparison report for a level.
+- [ ] **0.2 Reconcile stale docs.** NATIVE_ENGINE.md rows that conflict with later traces:
+  - Gravity is shown as "provisional 9.81" in one place and traced as 10 in another.
+  - Rows still say "not yet" for lock-on and missiles, which have since been built.
+  - Exit: every row matches the code.
+- [ ] **0.3 Mark every engine-invented value in code.** Every setting that stands in for something untraced:
+  - AK_RUN_ACCEL, AK_BODY_RADIUS, AK_LOD_SCALE, AK_FOV, AK_COLOUR_SCALE, AK_POST_GLOW, AK_VEH_MAX_SLOPE_DEG, AK_BOT_VEHICLES,
+    AK_BOTS, AK_TICKETS, AK_RESPAWN_DELAY, AK_VEHICLE_RESPAWN, AK_TOTAL_LOSS_TIME, AK_HERO_UNLOCK, AK_WALKER_THROTTLE.
+  - Each gets a tag in code linking it to its item here.
+  - Exit: the list is empty once every item is traced.
+
+## 1. Soldiers: body and movement
+
+- [ ] **1.1 Speed from the animation [assumed].**
+  - The game: velocity is the playing clip's root motion, turned to the soldier's facing and laid along the ground (08993D38,
+    0x08995560-0x08995860).
+  - Aurek: blueprint speed plus an acceleration of 30 m/s² (invented).
+  - To trace: how "max run speed" / "max sprint speed" relate to the clip (playback rate or scaling), and how speed blends
+    between clips.
+- [ ] **1.2 Confirm the body box [partial].**
+  - Traced: the HSBB bind-pose box, which is 1.67 m wide for a Stormtrooper.
+  - Confirm in the original that a soldier cannot pass a gap narrower than that, and that the box keeps its spawn yaw.
+  - Exit: gap and door tests match.
+- [ ] **1.3 The body sweep's remaining code.** Read 088B3784 (the box sweep) and 088CA2D0 (the contact hook) in full.
+  - Confirm: no edge-against-edge test, how it handles starting inside a surface, and the 10-degree "resting" rule's effect.
+- [ ] **1.4 How AI soldiers stay on the ground [assumed].**
+  - AI bodies are kinematic, so the physics never moves them; their movement code places them.
+  - Trace that (navigation heights or level queries).
+  - Aurek: bots use their own spheres plus a ray down, with a 0.45 m step that the game does not have.
+- [ ] **1.5 Jump and air control [partial].**
+  - Traced: the jump impulse (089A0308).
+  - To trace: how "air control scale" and "max air speed" are applied, and whether landing has a delay or slowdown.
+- [ ] **1.6 Crouch [missing].** The Crouch_Roll clips and the crouched sets in the animation table exist.
+  - Trace the input, the body change and speed.
+- [ ] **1.7 Rolls [partial].** Traced: distance and duration from root motion.
+  - To trace: "roll no lock on time" (2 s), and stamina cost gating.
+- [ ] **1.8 Stamina gating of sprint [assumed].** Does an empty stamina bar end a sprint (HUD item too)?
+- [ ] **1.9 Falling and level-boundary damage [missing].** Trace fall damage, kill heights, and out-of-bounds timers.
+- [ ] **1.10 Respawn [assumed].** AK_RESPAWN_DELAY is 10 s. Trace the delay and the spawn-point choice per mode.
+- [ ] **1.11 Hit reactions and flinch [missing].** Not traced (play.h:28).
+- [ ] **1.12 Hit shapes [assumed].**
+  - Aurek: its own head/body shapes for bolts.
+  - Trace how projectiles test soldiers (physics boxes, per-bone shapes, or the HSKN per-bone meshes) and how headshots are decided.
+- [ ] **1.13 Soldier against soldier and vehicle [partial].**
+  - Done: dynamic versus kinematic boxes.
+  - Still to do: the player body's response to *moving* kinematic bodies (platforms, vehicles carrying it: flag bit 12 in the body
+    step).
+
+## 2. Weapons, items and projectiles
+
+- [ ] **2.1 Loadouts [assumed].**
+  - Aurek: every soldier carries a blaster rifle (AK_WEAPON).
+  - Trace classes from the Humanoid blueprints (Loadout_1..5) and the class choice.
+- [ ] **2.2 Ammo pickups and droids [assumed].** Aurek gives back one clip per pulse (play.c:137). Trace the real refill.
+- [ ] **2.3 Secondary items [missing].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
+  incinerator, fusion cutter, shields, jetpack, jump pack, stealth. Trace each one's blueprint use.
+- [ ] **2.4 Guided projectiles [assumed].** Aurek turns them at 100°/s; trace the turn rate.
+- [ ] **2.5 Blast damage fall-off [assumed].**
+- [ ] **2.6 Bot accuracy [assumed].** How AIWeapon_Accuracy_* and Modifier_Bot_* are applied.
+- [ ] **2.7 Damage tables [partial].** Check every damage path against DamageToInfantry, DamageToVehicle, armour and friendly fire.
+
+## 3. Vehicles
+
+- [ ] **3.1 Ground vehicle handling [assumed].** Aurek's own:
+  - the handling model (how the Tank numbers combine);
+  - hover height;
+  - slope limit (AK_VEH_MAX_SLOPE_DEG 40);
+  - how the barrel aims;
+  - volley period;
+  - the speeder rider's pose.
+- [ ] **3.2 Vehicle bodies against the level [assumed].**
+  - The vehicle the player drives is a dynamic body (box move-and-slide, mask 0x2804 / 0x0804 / 0x4804).
+  - AI vehicles are kinematic.
+  - Replace Aurek's ground rays and circles. Trace AI vehicles' ground-following.
+  - The hover craft's ride over water is still Aurek's own rule.
+- [ ] **3.3 Flyers [partial].** To trace:
+  - the flight model's remaining constants;
+  - landing and crash rules (currently Aurek's);
+  - stunts (Immelmann, barrel roll: the EnergyStunt use).
+- [ ] **3.4 Walkers [assumed].** Driving and gunnery code, what happens at a path's end, and the ATBL animation chunks (not read).
+- [ ] **3.5 Vehicle life cycle [assumed].**
+  - Respawn time (AK_VEHICLE_RESPAWN 10).
+  - How long a wreck stays and its effects (play.c:1528).
+  - Which vehicle a level uses when it has two (play.c:596).
+  - Boarding and leaving rules.
+- [ ] **3.6 Secondary weapons and lock-on.** Verify HardpointW2 and the lock rules against the original. The docs list them as
+  "not yet" (stale).
+- [ ] **3.7 Space [partial].** Capital ship turrets (ENTI type 30), the pilots' dogfight states, and hangar and shield rules.
+
+## 4. AI
+
+- [ ] **4.1 Bot vehicle use [assumed].** All Aurek's, including AK_BOT_VEHICLES 0.6.
+- [ ] **4.2 Target selection [assumed].** Aurek takes the nearest (play.c:1223). Trace the game's choice, memory and reaction time.
+- [ ] **4.3 Turret AI [assumed].** States NEUTRAL / SEARCHING / ORIENTATING (0x08B1B6AC) and who aims.
+- [ ] **4.4 Movement behaviour.** Path following, strafing, cover, objective choice, and retreat. Compare against the original's
+  decisions.
+- [ ] **4.5 Bot counts per mode and level [assumed].** AK_BOTS is 15.
+- [ ] **4.6 Space AI [partial].** Commander roles are traced; dogfight states FOLLOWING / CIRCLING_ROUND / DOING_STUNT are not.
+
+## 5. Game rules and modes
+
+- [ ] **5.1 Tickets [assumed].** Per mode and level (AK_TICKETS 100), ticket bleed, and AK_TOTAL_LOSS_TIME 60.
+- [ ] **5.2 Heroes [partial].** Unlock threshold (AK_HERO_UNLOCK 3), and how HeroDeathRate and HeroHealthAddPerKill are applied.
+- [ ] **5.3 Remaining entity types [partial].** Regions, soldier spawns, other ENTI types (doc 1.4 "still open").
+- [ ] **5.4 Modes.** CTF, hunt and space completeness. Galactic conquest and campaign rules (credits, map moves, unlocks).
+- [ ] **5.5 Command posts [partial].** The capture cross (post flag 0x74 bit 0), the colour pulse (08A516BC), and capture speed per
+  soldier count.
+
+## 6. Animation
+
+- [ ] **6.1 Animation tables for soldiers [partial].** Soldiers still use hand-picked Human_Rifle clips; they should use the ATEX
+  tables (sets, rows, columns) and the game's layer and blend rules.
+- [ ] **6.2 Skinning [missing].** v2 meshes (Taun-Taun, Vader, the cone, flags) are drawn rigid in the bind pose.
+- [ ] **6.3 Death animations and ragdoll.** The death clips. After death the body has gravity on (08993D38): trace what it does next.
+- [ ] **6.4 Command post cone [assumed].** Its capture animation and the logo height (1.25 m is an estimate).
+- [ ] **6.5 Heroes [missing].** Saber combos, blocking, force powers, saber throw. Blaster heroes' own tables.
+
+## 7. Audio
+
+- [ ] **7.1 Music mixing [partial].** audio/ak_music.c "not yet mixed" into the mixer groups.
+- [ ] **7.2 Missing effects.** Vehicle collisions ("Collision sound"), Doppler, any reverb or occlusion the game uses.
+- [ ] **7.3 Speech [partial].** Trigger rules for every line category.
+
+## 8. HUD and front end
+
+- [ ] **8.1 HUD gaps.**
+  - Bot names in the target panel (player records, 0897DD80).
+  - Jetpack and shield bars.
+  - The unmanned turret's hit source.
+  - World markers (08A55238).
+  - The capture cross.
+  - The missile-warning check against a screenshot of the original.
+- [ ] **8.2 Front end (1.10) [missing].** Menus, loadouts, colour picker, map selection, galactic conquest, campaign, subtitles.
+
+## 9. Camera and input
+
+- [ ] **9.1 Soldier camera [assumed].** FOV (AK_FOV 55) and near/far planes. Trace per mode, including zoom.
+- [ ] **9.2 Vehicle cameras [partial].** CameraVelocityWeight and the "Min" values.
+- [ ] **9.3 Controls.** The PSP layout is traced. Twin-stick aiming (AK_AIM_*) is a modern option and stays as one, kept apart from
+  the classic controls.
+
+## 10. Network and server (1.11)
+
+- [ ] **10.1** The RS server protocol, hosting, and dedicated server mode.
+
+---
+
+## R. Renderer: lightweight PBR for Aurek, ready to build
+
+**Goal.** Keep every original texture and how the game uses it (slots, alpha, blending, self-lit, animated materials). Light them
+with a modern model at three tiers:
+
+- **Tier V (Vita):** basic PBR.
+- **Tier F (PC / PS5 / Steam Deck):** the Frostbite BRDF of DICE's Battlefront II (2017):
+  - Burley diffuse;
+  - GGX;
+  - height-correlated Smith visibility;
+  - Schlick Fresnel;
+  - split-sum IBL with specular occlusion.
+- **Tier RT (PS5 / PC):** ray-traced shadows, reflections and AO on top of Tier F.
+
+The old experiment in `platform/linux_test/gfx_vk.c` is a reference only; this is written from scratch for Aurek. Only the
+groundwork below is needed before the parity work starts. The tiers come later.
+
+### Original look, traced first
+
+- [ ] **R.1 Level lighting.** Today it is approximated as vertex colour × 2. Read the game's own level lighting data.
+- [ ] **R.2 Fog.** The FOG values are read but not understood (Tatooine 11–75 m). Trace them.
+- [ ] **R.3 Sky.** The sky set-up.
+- [ ] **R.4 Material modes.** All 6 texture slots of a material, its mode, its "extra" field and animated materials (water,
+  screens, lightning). Aurek handles diffuse plus flags only.
+- [ ] **R.5 LOD distances.** AK_LOD_SCALE 12 is Aurek's own; trace the real ones.
+- [ ] **R.6 Particles and effects (PFX).** Explosions, muzzle flashes, impacts, streaks, and the command post glow (AK_POST_GLOW
+  is Aurek's own).
+- [ ] **R.7 Shadows and decals.** Shadow blobs and scorch marks as the game places them.
+- [ ] **R.8 Screen effects.** Damage, zoom overlay, hyperspace.
+
+### Groundwork before any PBR code
+
+- [ ] **R.9 A "Classic" mode.** It reproduces the PSP output: unlit texture × vertex colour, the game's fog, the game's blending. It
+  is the reference for parity screenshots, and each PBR tier can be compared against it.
+- [ ] **R.10 Back-end interface rework.**
+  - Today: fixed pipes with one MVP matrix.
+  - Rework to: per-draw model matrix plus view and projection constants, so world-space position and normal reach shaders.
+  - A material handle instead of a texture handle.
+  - Passes declared up front (depth, opaque, cutout, transparent, additive, post, HUD) in a small frame-graph, so tiers can add
+    passes (G-buffer, shadows, RT) without touching game code.
+- [ ] **R.11 Vertex streams.**
+  - Keep the 28-byte ak_vtx for Tier V.
+  - Add an optional stream with tangents (MikkTSpace-generated at load) and a second UV for the higher tiers.
+  - Skinned meshes get bone indices and weights.
+- [ ] **R.12 Material translation layer.** The game's material becomes Aurek's material:
+  - albedo (the original texture);
+  - normal (derived where none exists, optional);
+  - roughness and metalness (from the game's Surface type: Default, Snow, Sand, Grass, Wood, Stone, Metal, Water, Soft, Marsh -
+    already traced - plus per-material overrides);
+  - occlusion (from the baked vertex colour);
+  - emissive (self-lit);
+  - alpha mode (opaque / cutout / blend / additive);
+  - layers.
+  - The data lives in a table file so it can be tuned and modded without code changes. The original textures are never
+    replaced.
+- [ ] **R.13 Light and environment data.**
+  - From the traced level lighting (R.1): sun direction and colour, an ambient term (spherical harmonics) and an environment
+    probe per level.
+  - A dynamic light list (muzzle flashes, explosions, lasers) with a per-tier budget.
+- [ ] **R.14 Texture pipeline.**
+  - A converted-texture cache per device format (GXT/PVRTC or DXT on Vita, BC7 on PC/PS5, ASTC where useful).
+  - Mips and derived maps, generated offline from the original files.
+  - Optional texture packs as mod content later.
+- [ ] **R.15 Ray-tracing readiness.**
+  - Static geometry kept in stable GPU buffers with stable triangle ids.
+  - A hook to build acceleration structures for the level and for skinned or moving models.
+  - Materials reachable from shaders through a bindless table.
+  - Nothing ray-tracing-specific is built until Tier RT.
+- [ ] **R.16 Per-tier budgets.**
+  - Vita: 30 fps with 64 bots, Tier V at most one pass per light group.
+  - Deck / PC / PS5: frame-time targets per tier.
+  - Exit: a profile per device.
+- [ ] **R.17 HDR output and tonemapping.**
+  - Tier F/RT render in HDR with a filmic tonemap matched to Classic's exposure.
+  - Tier V renders LDR with the same curve baked in.
+
+---
+
+## Order
+
+1. **First:** section 0.
+2. **Then the gameplay sections, 1 to 6:** each item is traced, written natively, then checked against the original.
+3. **Alongside them:** R.1 to R.8 (the original look) and R.9 to R.12 (the groundwork). Gameplay work then draws through the new
+   interface from the start.
+4. **Last:** R.13 to R.17 and the PBR tiers themselves.
