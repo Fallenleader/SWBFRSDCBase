@@ -93,9 +93,10 @@ AK_AUDIO=1
 # effects and music volume, 0 .. 1
 AK_SFX_VOLUME=1.0
 AK_MUSIC_VOLUME=0.6
-# which of the level's music lists plays during the match (OGM Music 1 or OGM Music 2), and which of its tracks (0, 1, 2)
-AK_MUSIC_LIST=OGM Music 1
-AK_MUSIC_TRACK=0
+# the match music is the level script's pick, as the game does it: one of "OGM Music 1" / "OGM Music 2" and one of their three
+# loops, at random, for the whole match.  To force one instead: the list (OGM Music 1 or OGM Music 2) and its track (0, 1, 2)
+#AK_MUSIC_LIST=OGM Music 1
+#AK_MUSIC_TRACK=0
 # speech (narrator and AI chatter) plays from the converted voice WAVs (converted/PSP_GAME/USRDIR/SOUNDS/GMSND.AM.d).
 # 1 shows the narrator's line text at the bottom of the screen (the game's own subtitle display is not traced yet)
 AK_SUBTITLES=0

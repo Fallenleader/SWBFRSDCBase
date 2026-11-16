@@ -150,8 +150,14 @@ int main(int argc, char **argv)
             ak_entities_load(&level, &models, &lvl, &ents);
             ak_audio_level_reset(); b_level_keep = b;
             AK_INFO("audio", "%s: %u sounds and events", levels[cur].label, ak_audio_bank_add(&b, true));
-            {   char mp[160]; ak_blob mb;                         /* the level's music: its first "OGM Music 1" track, looping */
-                if (have_mus && ak_audio_level_music(&b, ak_setting_str("AK_MUSIC_LIST", "OGM Music 1"), (u32)ak_setting_int("AK_MUSIC_TRACK", 0), mp, sizeof mp)) {
+            {   char mp[160], list[64]; ak_blob mb; u32 lh = 0, st = 0, nth = 0;   /* the level's music, as its script picks it */
+                bool scripted = ak_audio_level_music_start(&b, (u32)ak_plat_time_us() ^ 0x9E3779B9u, &lh, &st);
+                const char *ol = ak_setting_str("AK_MUSIC_LIST", ""); int ot = ak_setting_int("AK_MUSIC_TRACK", -1);
+                if (!ak_audio_level_music_state(&b, lh, st, list, sizeof list, &nth)) { snprintf(list, sizeof list, "OGM Music 1"); nth = 0; }
+                if (ol && *ol) snprintf(list, sizeof list, "%s", ol);
+                if (ot >= 0) nth = (u32)ot;
+                if (have_mus) AK_INFO("audio", "music: %s, state %u, file %u (%s)", list, st, nth, scripted ? "the level script's pick" : "no script: the code's pick");
+                if (have_mus && ak_audio_level_music(&b, list, nth, mp, sizeof mp)) {
                     ak_arena_reset(&musmem); bool hb = ak_vfs_read(vfs, mp, &musmem, &mb);   /* (only its header is used: the delay and the loop) */
                     ak_audio_music_play(mp, hb ? mb.data : NULL, hb ? (u32)(mb.size < 4096 ? mb.size : 4096) : 0, true);
                 } }

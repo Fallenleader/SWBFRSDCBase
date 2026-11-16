@@ -24,6 +24,10 @@ const char *ak_audio_find(const char *prefix, const char *suffix, u32 nth);   /*
 /* the level's music (its MMUS chunk): the nth file of the list named `list` ("OGM Music 1", "VICTORY", "FAIL"), as a game path
  * ("PSP_GAME/USRDIR/SOUNDS/MUSIC/MXALLHOT01_AMB02_LP.AT3"); false when there is none */
 bool ak_audio_level_music(const ak_blob *level, const char *list, u32 nth, char *path, u32 size);
+/* the music the level's script starts (traced: a random one of its lists' loop states); false = no script, the code's own pick */
+bool ak_audio_level_music_start(const ak_blob *level, u32 seed, u32 *list_hash, u32 *state);
+/* a list (by hash) and state -> the list's name and which of its files plays */
+bool ak_audio_level_music_state(const ak_blob *level, u32 list_hash, u32 state, char *list, u32 lsize, u32 *nth);
 
 /* play an event: pos = NULL plays it flat (2D, `pan` -1 left .. 1 right); loop keeps it going until ak_audio_stop.  Returns a
  * handle (0 = nothing played). */

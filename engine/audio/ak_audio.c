@@ -342,6 +342,118 @@ bool ak_audio_music_play(const char *game_path, const u8 *head, u32 hsize, bool 
 void ak_audio_music_stop(void) { ak_music_stop(); }
 bool ak_audio_music_playing(void) { return ak_music_active(); }
 
+/* ---- which music the level starts, as the game decides it (traced).  In a game this console runs (single player, or the
+ * host: the session's script callback set, func 08970FB0), the level script picks it: a timer entity (type 1, 0 s) fires a
+ * message group (SMSG) that activates a selector (type 0xB, flags 1: a weighted random pick, func 08870E0C), whose six entries
+ * are groups that each activate one music entity (type 0x1F: the list hash and flags - 0x10 play the list, then state 4 / 7 / 10
+ * for flag 2 / 4 / 8; func 0886F41C).  A list's states 4, 7 and 10 are its loops, one file each (MMUS).  Without a script
+ * the code picks "OGM Music 1" or "2" itself at state 4 (func 08972170).
+ * SMSG (the entities use side 0): u32 groups; u32 side (version >= 2); a u8 count per group; then messages: u16 type, u16 extra
+ * size, u32 target entity, three u32 more (version 6); then the extra bytes, padded to 4, when the chunk's flag 1 is clear.
+ * ENTI: u32 id, u32 type, 16 bytes common; type 0x1F: u32 version, u32 list hash, u32 flags; type 0xB: u32 version, u32 flags,
+ * u32 n, n x { u32 group | 0x10000 enabled, u32 weight }; type 1: u32 version (4), 5 x s16 groups (the one fired: [2]),
+ * f32 time (+0x30). */
+typedef struct { u16 type; u32 target; } smsg_t;
+static u32 mrng;
+static u32 music_rand(void) { mrng = mrng * 1664525u + 1013904223u; return mrng >> 8; }
+
+static bool script_fire(const ak_blob *f, const smsg_t *msg, const u32 *gfirst, const u8 *gcount, u32 ngroups, s32 g, u32 depth,
+                        u32 *hash, u32 *state)
+{
+    if (g < 0 || (u32)g >= ngroups || depth > 8) return false;
+    for (u32 m = 0; m < gcount[g]; m++) {
+        const smsg_t *s = &msg[gfirst[g] + m]; if (s->type != 5) continue;          /* 5: activate */
+        u32 pos = 8; ak_chunk c;
+        while (ak_asura_next(f, &pos, &c)) {
+            if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 0x24 || ak_rd32(c.body) != s->target) continue;
+            u32 type = ak_rd32(c.body + 4);
+            if (type == 0x1F) {
+                u32 fl = ak_rd32(c.body + 0x20); if (!(fl & 0x10)) break;
+                *hash = ak_rd32(c.body + 0x1C); *state = (fl & 2) ? 4 : (fl & 4) ? 7 : (fl & 8) ? 10 : 0;
+                return true;
+            }
+            if (type == 0xB) {
+                u32 fl = ak_rd32(c.body + 0x1C), n = ak_rd32(c.body + 0x20), total = 0;
+                if (0x24 + n * 8 > c.size) break;
+                for (u32 i = 0; i < n; i++) if (ak_rd32(c.body + 0x24 + i * 8) & 0x10000) total += ak_rd32(c.body + 0x28 + i * 8);
+                if ((fl & 1) && total) {                                             /* a weighted random pick */
+                    u32 r = music_rand() % total;
+                    for (u32 i = 0; i < n; i++) {
+                        u32 e = ak_rd32(c.body + 0x24 + i * 8), w = ak_rd32(c.body + 0x28 + i * 8); if (!(e & 0x10000)) continue;
+                        if (r < w) return script_fire(f, msg, gfirst, gcount, ngroups, (s32)(e & 0xFFFF), depth + 1, hash, state);
+                        r -= w;
+                    }
+                } else for (u32 i = 0; i < n; i++) {                                 /* (all, or in turn: the first) */
+                    u32 e = ak_rd32(c.body + 0x24 + i * 8);
+                    if ((e & 0x10000) && script_fire(f, msg, gfirst, gcount, ngroups, (s32)(e & 0xFFFF), depth + 1, hash, state)) return true;
+                }
+            }
+            break;
+        }
+    }
+    return false;
+}
+
+bool ak_audio_level_music_start(const ak_blob *f, u32 seed, u32 *hash, u32 *state)
+{
+    mrng = seed ? seed : 1u;
+    if (!ak_asura_check(f)) return false;
+    u32 pos = 8; ak_chunk c; bool found = false;
+    while (!found && ak_asura_next(f, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('S', 'M', 'S', 'G') || c.size < 8) continue;
+        u32 ver = c.version & 0xFFFF, ng = ak_rd32(c.body), p = 4, side = 0;
+        if (ver >= 2) { side = ak_rd32(c.body + 4); p = 8; }
+        if (side != 0 || ng > 4096 || p + ng > c.size) continue;
+        u32 msz = 8 + (ver >= 3 ? 4 : 0) + (ver > 4 ? 4 : 0) + (ver > 5 ? 4 : 0), nm = 0;
+        const u8 *cnt = c.body + p; p += ng;
+        for (u32 g = 0; g < ng; g++) nm += cnt[g];
+        smsg_t *msg = malloc((nm ? nm : 1) * sizeof *msg); u32 *first = malloc((ng ? ng : 1) * sizeof *first);
+        if (!msg || !first) { free(msg); free(first); return false; }
+        u32 k = 0; bool ok = true;
+        for (u32 g = 0; g < ng && ok; g++) {
+            first[g] = k;
+            for (u32 m = 0; m < cnt[g]; m++) {
+                if (p + msz > c.size) { ok = false; break; }
+                u16 ex = ak_rd16(c.body + p + 2);
+                msg[k].type = ak_rd16(c.body + p); msg[k].target = ak_rd32(c.body + p + 4); k++;
+                p += msz + (!(c.flags & 1) ? ((ex + 3u) & ~3u) : 0);
+            }
+        }
+        if (ok) {                                                                    /* the timers: each fires its group [2] */
+            u32 ep = 8; ak_chunk e;
+            while (!found && ak_asura_next(f, &ep, &e))
+                if (ak_chunk_tag(&e) == AK_TAG('E', 'N', 'T', 'I') && e.size >= 0x34 && ak_rd32(e.body + 4) == 1 && ak_rd32(e.body + 0x1C) >= 4)
+                    found = script_fire(f, msg, first, cnt, ng, (s16)ak_rd16(e.body + 0x24), 0, hash, state);
+        }
+        free(msg); free(first);
+    }
+    if (!found) { *hash = (music_rand() >> 4) & 1 ? 0x4A32E16Bu : 0x4A32E16Cu; *state = 4; }   /* (no script: the code's own pick) */
+    return found;
+}
+
+/* a list's record in MMUS: name (padded to 4); u32 hash; 9 words (word 10 of the record: the start state); 13 states x
+ * { u32 exists, 0, 0, u32 file - 1-based }; its files follow.  -> the list's name and the file (0-based) for the state */
+bool ak_audio_level_music_state(const ak_blob *f, u32 hash, u32 state, char *list, u32 lsize, u32 *nth)
+{
+    if (!ak_asura_check(f) || state > 12) return false;
+    u32 pos = 8; ak_chunk c;
+    while (ak_asura_next(f, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('M', 'M', 'U', 'S')) continue;
+        for (u32 p = 4; p + 8 <= c.size; p += 4) {
+            if (ak_rd32(c.body + p) != hash || p < 8) continue;
+            u32 s = p; while (s > 4 && c.body[s - 1] == 0) s--; while (s > 4 && c.body[s - 1] >= 32 && c.body[s - 1] < 127) s--; s = (s + 3) & ~3u;                    /* (names start 4-aligned) */
+            if (p + 64 * 4 > c.size) return false;
+            u32 n = 0; while (s + n < p && c.body[s + n] && n + 1 < lsize) { list[n] = (char)c.body[s + n]; n++; } list[n] = 0;
+            while (n && list[n - 1] == ' ') list[--n] = 0;
+            u32 st = state ? state : ak_rd32(c.body + p + 40);
+            if (st > 12 || !ak_rd32(c.body + p + 48 + st * 16)) return false;
+            u32 file = ak_rd32(c.body + p + 60 + st * 16); *nth = file ? file - 1 : 0;
+            return n > 0;
+        }
+    }
+    return false;
+}
+
 /* MMUS: u32 lists; per list a name, a hash, a block of state words, then its files - "Sounds\\Music\\mxAllHot01_Amb02_lp.wav"
  * and an f32 each.  The files live as SOUNDS/MUSIC/<NAME>.AT3 (upper case, ATRAC3plus).  This walks the strings in order. */
 bool ak_audio_level_music(const ak_blob *f, const char *list, u32 nth, char *path, u32 size)
