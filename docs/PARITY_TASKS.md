@@ -56,8 +56,18 @@ textures and how they are used. Section R lists only what must be in place so th
     kinds; shape 1 is a 0.2 m cube). The model box (HSBB, 1.67 m for a Stormtrooper) was wrong for soldiers.
   - Aurek: play.c soldier_shape for the player's body and every soldier's push box; body_yaw is always 0.
   - Still to confirm: which objects get model boxes (vehicles, turrets) - with 1.13.
-- [ ] **1.3 The body sweep's remaining code.** Read 088B3784 (the box sweep) and 088CA2D0 (the contact hook) in full.
-  - Confirm: no edge-against-edge test, how it handles starting inside a surface, and the 10-degree "resting" rule's effect.
+- [x] **1.3 The body sweep [done 2026-11-16].**
+  - Read 088B3784: a swept separating-axis test of the moving box against each triangle's front over 13 axes (the 9 box-axis x
+    edge crosses, the 3 box axes, the face normal; axes under sqrt(0.001) skipped), the latest entry (from -0.0001) is the time and
+    its axis the normal; no entering axis = "inside" (-1); "edge" when the unnormalised face normal projects under 0.999 on it.
+    The caller takes the earliest hit, ties to the contact facing the move more (088C6260). So there *is* an edge-against-edge
+    test - the corner sweep was wrong.
+  - Read the response (088C5354..088C55B8): a contact makes the body rest when it is a face within 45 degrees, an edge within 10,
+    or a surface flagged 0x0010; a resting body moving under 3.2e-7 across gravity stops.
+  - Aurek: world/ak_collision.c box_tri_sweep_game (AK_BOX_SWEEP_CORNERS=1 keeps the old sweep), the rest rule in body_update
+    (physics rest kept apart from the soldier's footing), and a new body is set down on its lowest corner.
+  - [ ] **1.3b** What the body step does with "inside" (088B6510). Aurek treats a box sunk under 2 cm into the face it moves into
+    as touching it, and skips the triangle otherwise.
 - [ ] **1.4 How AI soldiers stay on the ground [assumed].**
   - AI bodies are kinematic, so the physics never moves them; their movement code places them.
   - Trace that (navigation heights or level queries).

@@ -48,21 +48,24 @@ static void body_place(const ak_character *c, f32 ctr[3], f32 ax[3][3], f32 h[3]
 }
 
 /* move the box by `move` (sliding); returns whether it touched walkable ground (normal into *gn) */
-static bool body_slide(ak_character *c, const ak_collision *col, f32 move[3], f32 *gn)
+static bool body_slide(ak_character *c, const ak_collision *col, f32 move[3], f32 *gn, bool *resting)
 {
-    bool ground = false;
+    bool ground = false; *resting = false;
     for (int pass = 0; pass < 10; pass++) {
         f32 L = sqrtf(move[0] * move[0] + move[1] * move[1] + move[2] * move[2]);
         if (L < 1e-4f) break;
-        f32 ctr[3], ax[3][3], h[3], t, n[3]; u16 fl;
+        f32 ctr[3], ax[3][3], h[3], t, n[3]; u16 fl; bool edge = false;
         body_place(c, ctr, ax, h);
-        if (!ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, move, BODY_IGNORE, &t, n, &fl)) { for (int k = 0; k < 3; k++) c->pos[k] += move[k]; break; }
+        if (!ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, move, BODY_IGNORE, &t, n, &fl, &edge)) { for (int k = 0; k < 3; k++) c->pos[k] += move[k]; break; }
         f32 adv = t * L - SKIN; if (adv < 0) adv = 0;
         if (t <= 0) for (int k = 0; k < 3; k++) c->pos[k] += n[k] * SKIN;   /* touching already (a corner just under it): back out to the skin */
         static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
         if ((dbg >= 4 && n[1] < WALKABLE) || dbg >= 5) AK_INFO("body", "pass %d t %.3f n %.2f %.2f %.2f flags %04x at %.2f %.2f %.2f", pass, t, n[0], n[1], n[2], fl, c->pos[0], c->pos[1], c->pos[2]);
         for (int k = 0; k < 3; k++) { c->pos[k] += move[k] / L * adv; move[k] *= 1.0f - adv / L; }
-        if (n[1] >= WALKABLE) { ground = true; memcpy(gn, n, 12); }
+        /* resting on it (088C5508..088C5554): a face up to 45 degrees from level, an edge up to 10 degrees (cos 0.9848), or a surface
+           flagged 0x0010 */
+        if ((edge ? n[1] >= 0.9848f : n[1] >= WALKABLE) || (fl & 0x0010)) *resting = true;
+        if (n[1] >= WALKABLE) { ground = true; memcpy(gn, n, 12); }      /* the soldier's own footing: walkable ground, any contact */
         f32 dm = move[0] * n[0] + move[1] * n[1] + move[2] * n[2], dv = c->vel[0] * n[0] + c->vel[1] * n[1] + c->vel[2] * n[2];
         if (dm < 0) for (int k = 0; k < 3; k++) move[k] -= n[k] * dm;                      /* slide on along the surface */
         if (dv < 0) for (int k = 0; k < 3; k++) c->vel[k] -= n[k] * dv;
@@ -73,25 +76,33 @@ static bool body_slide(ak_character *c, const ak_collision *col, f32 move[3], f3
 
 static void body_update(ak_character *c, const ak_char_params *p, const ak_collision *col, f32 dt)
 {
+    if (!c->body_settled) {                                              /* a new body: set down on the ground below its feet, */
+        c->body_settled = true;                                          /* resting on its lowest corner (a box placed by its   */
+        f32 ctr[3], ax[3][3], h[3], t, n[3], drop[3] = { 0, -1.0f, 0 }; u16 fl;   /* centre on a slope would start inside it) */
+        c->pos[1] += 0.5f; body_place(c, ctr, ax, h);
+        if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, drop, BODY_IGNORE, &t, n, &fl, NULL) && t >= 0) c->pos[1] += -1.0f * t + SKIN;
+        else c->pos[1] -= 0.5f;
+    }
     bool was = c->on_ground;
     if (c->on_ground && c->vel[1] <= 0) {                                /* on the ground the move is laid along it, keeping its */
         const f32 *n = c->ground_normal; c->vel[1] = 0;                  /* horizontal speed and heading (measured on Hoth's     */
         f32 d = c->vel[0] * n[0] + c->vel[2] * n[2];                     /* slopes: a projection onto the plane would turn and   */
         if (n[1] > 0.1f) c->vel[1] = -d / n[1];                          /* slow it; the original's heading matches this to      */
     }                                                                    /* 0.05 degrees) [PARITY(1.1d): 0.5 % on slopes]       */
-    /* at rest: a body standing still on ground within 10 degrees of level stays put (the body step's 10-degree resting rule,
-       [PARITY(1.3)] - its exact form is still to read in 088B3784); measured: the original's idle soldier does not creep down slopes */
-    if (c->on_ground && c->ground_normal[1] >= 0.98481f && c->vel[0] * c->vel[0] + c->vel[2] * c->vel[2] < 1e-6f && c->vel[1] <= 0) {
+    /* at rest: a resting body (above) whose velocity across gravity is under 3.2e-7 stops (088C5564..088C55B8) - a soldier standing
+       on a slope it could walk does not slide down it */
+    if (c->on_ground && c->resting && c->vel[0] * c->vel[0] + c->vel[2] * c->vel[2] < 3.2e-7f && c->vel[1] <= 0) {
         c->vel[1] = 0; return; }
     c->vel[1] -= p->gravity * dt;                                        /* physics gravity, always on */
     f32 move[3] = { c->vel[0] * dt, c->vel[1] * dt, c->vel[2] * dt }, gn[3];
-    bool ground = body_slide(c, col, move, gn);
+    bool rest = false, ground = body_slide(c, col, move, gn, &rest);
     if (!ground && c->vel[1] <= 0.01f) {                                 /* resting on the ground below the skin: a short probe keeps the state steady */
-        f32 ctr[3], ax[3][3], h[3], t, n[3], probe[3] = { 0, -(SKIN * 4 + 0.02f), 0 }; u16 fl;
+        f32 ctr[3], ax[3][3], h[3], t, n[3], probe[3] = { 0, -(SKIN * 4 + 0.02f), 0 }; u16 fl; bool pe = false;
         body_place(c, ctr, ax, h);
-        if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, probe, BODY_IGNORE, &t, n, &fl) && n[1] >= WALKABLE) { ground = true; memcpy(gn, n, 12); }
+        if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, probe, BODY_IGNORE, &t, n, &fl, &pe) && n[1] >= WALKABLE) { ground = true; memcpy(gn, n, 12);
+            if ((pe ? n[1] >= 0.9848f : n[1] >= WALKABLE) || (fl & 0x0010)) rest = true; }
     }
-    c->on_ground = ground;
+    c->on_ground = ground; c->resting = rest;
     if (ground) { memcpy(c->ground_normal, gn, 12); if (c->vel[1] < 0) c->vel[1] = 0; c->jumped = false; }
     if (!ground && was) c->air_time = 0;
 }

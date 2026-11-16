@@ -37,7 +37,8 @@ typedef struct {
      * scale) that never turns - the soldier class sets body flag 0x2000 (0899C544 -> 088BAC78(2)) so 088BAB50 no longer turns the
      * physics body, which is made with the identity (read from the running original: its corners stay on the world axes).  body_yaw
      * stays 0.  Moved by a swept move-and-slide (ak_char_update); 0 = the engine's spheres. */
-    bool body_box; f32 body_min[3], body_max[3], body_yaw;
+    bool body_box, body_settled, resting;   /* resting: the physics' rest state (below) */
+     f32 body_min[3], body_max[3], body_yaw;
 } ak_character;
 
 typedef struct {

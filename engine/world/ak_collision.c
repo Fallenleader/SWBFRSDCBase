@@ -1,4 +1,5 @@
 #include "ak_collision.h"
+#include "core/ak_settings.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -286,9 +287,63 @@ static bool box_tri_sweep(const ak_col_tri *T, const f32 *c0, const f32 (*ax)[3]
     return hit;
 }
 
-bool ak_col_box_sweep(const ak_collision *c, const f32 *c0, const f32 (*ax)[3], const f32 *h, const f32 *mv, u16 ignore,
-                      f32 *t_out, f32 *normal, u16 *flags)
+/* The game's box sweep (088B3784), read from the code: a moving box against a still triangle by separating axes, over 13 axes - the
+ * 9 crosses of the box's axes with the triangle's edges, the 3 box axes and the triangle's normal (an axis shorter than sqrt(0.001)
+ * is skipped).  Each axis is turned to point from the triangle toward the box; the box's interval (centre +- radius) and the
+ * triangle's are compared along it, with the move's component v: apart for the whole move -> no hit; otherwise the entry and exit
+ * times, the latest entry (from -0.0001) and earliest exit kept.  No entering axis at all (overlapping and still): -1, "inside".
+ * The axis of the latest entry is the contact normal; the hit is "an edge" when the triangle's unnormalised normal (edge cross
+ * product) projects below 0.999 on it.  The body step passes the triangle's front only (a move not into the face is skipped). */
+static f32 box_tri_sweep_game(const ak_col_tri *T, const f32 *C, const f32 (*A)[3], const f32 *h, const f32 *mv, f32 tmax, f32 *n_out, bool *edge)
 {
+    f32 V[3][3], e[3][3], N[3];
+    for (int k = 0; k < 3; k++) { V[0][k] = T->a[k]; V[1][k] = T->a[k] + T->e1[k]; V[2][k] = T->a[k] + T->e2[k]; }
+    sub(V[1], V[0], e[0]); sub(V[2], V[1], e[1]); sub(V[0], V[2], e[2]);
+    cross(e[0], T->e2, N);                                                    /* (v1 - v0) x (v2 - v0), not normalised */
+    *edge = false;
+    if (dot(N, mv) >= 0) return 2.0f;                                         /* the front only */
+    f32 L[13][3];
+    for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++) cross(A[i], e[j], L[i * 3 + j]);
+    for (int i = 0; i < 3; i++) memcpy(L[9 + i], A[i], 12);
+    memcpy(L[12], N, 12);
+    f32 d[3] = { (V[0][0] + V[1][0] + V[2][0]) / 3.0f - C[0], (V[0][1] + V[1][1] + V[2][1]) / 3.0f - C[1], (V[0][2] + V[1][2] + V[2][2]) / 3.0f - C[2] };
+    f32 enter = -1e-4f, exit = tmax, face_near = -1e30f; int axis = 13;
+    for (int a = 0; a < 13; a++) {
+        f32 *l = L[a], ll = dot(l, l);
+        if (ll < 0.001f) continue;
+        if (dot(l, d) > 0) { l[0] = -l[0]; l[1] = -l[1]; l[2] = -l[2]; }       /* from the triangle toward the box */
+        f32 inv = 1.0f / sqrtf(ll); l[0] *= inv; l[1] *= inv; l[2] *= inv;
+        f32 r = fabsf(dot(l, A[0])) * h[0] + fabsf(dot(l, A[1])) * h[1] + fabsf(dot(l, A[2])) * h[2];
+        f32 p0 = dot(l, V[0]), p1 = dot(l, V[1]), p2 = dot(l, V[2]);
+        f32 lo = p0 < p1 ? p0 : p1, hi = p0 < p1 ? p1 : p0; if (p2 < lo) lo = p2; if (p2 > hi) hi = p2;
+        f32 mid = (lo + hi) * 0.5f, hw = hi - mid, off = dot(l, C) - mid, v = dot(l, mv);
+        f32 far = off + r + hw, near = off - r - hw;                          /* the box's far and near side past the triangle's */
+        if (a == 12 && dot(l, N) > 0) face_near = near;
+        if (near + (v < 0 ? v : 0) > 0) return 2.0f;                         /* apart along this axis for the whole move */
+        if (far + (v > 0 ? v : 0) < 0) return 2.0f;
+        if (fabsf(v) > 1e-7f) {
+            f32 ta = -far / v, tb = -near / v, t0 = ta < tb ? ta : tb, t1 = ta < tb ? tb : ta;
+            if (t0 > enter) { enter = t0; axis = a; }
+            if (t1 < exit) exit = t1;
+        }
+        if (exit < enter) return 2.0f;
+        if (exit <= 0) return 2.0f;
+    }
+    if (axis >= 13) {                                                         /* inside */
+        /* [PARITY(1.3b)] what the body step does with "inside" (088B6510) is not read yet; a box sunk at most 2 cm into the face it is
+           moving into (placed on the ground, rounding) is taken as touching it now */
+        if (face_near < 0 && face_near > -0.02f) { f32 inv = 1.0f / sqrtf(dot(N, N)); for (int k = 0; k < 3; k++) n_out[k] = N[k] * inv; return 0.0f; }
+        return -1.0f; }
+    memcpy(n_out, L[axis], 12);
+    if (enter >= 1.0f) return 2.0f;
+    if (enter >= 0) *edge = dot(N, n_out) < 0.999f;
+    return enter;
+}
+
+bool ak_col_box_sweep(const ak_collision *c, const f32 *c0, const f32 (*ax)[3], const f32 *h, const f32 *mv, u16 ignore,
+                      f32 *t_out, f32 *normal, u16 *flags, bool *edge_out)
+{
+    static int corners = -1; if (corners < 0) corners = ak_setting_int("AK_BOX_SWEEP_CORNERS", 0);   /* (the engine's old sweep, for comparing) */
     if (!c->ntri) return false;
     f32 ext[3], mn[3], mx[3];
     for (int k = 0; k < 3; k++) {
@@ -305,9 +360,16 @@ bool ak_col_box_sweep(const ak_collision *c, const f32 *c0, const f32 (*ax)[3], 
         for (u32 i = nd->first_or_right; i < nd->first_or_right + nd->count; i++) {
             const ak_col_tri *T = &c->tri[i];
             if (T->flags & ignore) continue;
-            f32 t, n[3];
-            if (!box_tri_sweep(T, c0, ax, h, mv, &t, n)) continue;
-            if (t < best) { best = t; memcpy(normal, n, 12); if (flags) *flags = T->flags; any = true; }
+            f32 t, n[3]; bool edge = false;
+            if (corners) { if (!box_tri_sweep(T, c0, ax, h, mv, &t, n)) continue; }
+            else {
+                t = box_tri_sweep_game(T, c0, ax, h, mv, best < 1.0f ? best : 1.0f, n, &edge);
+                if (t > 1.0f || t < -0.5f) continue;                          /* no hit, or inside it (-1) [PARITY(1.3b)] */
+                if (t == best && any) {                                       /* a tie: the contact that faces the move more (088C6260) */
+                    if (!(dot(n, mv) < dot(normal, mv))) continue;
+                    memcpy(normal, n, 12); if (flags) *flags = T->flags; if (edge_out) *edge_out = edge; continue; }
+            }
+            if (t < best) { best = t; memcpy(normal, n, 12); if (flags) *flags = T->flags; if (edge_out) *edge_out = edge; any = true; }
         }
     }
     if (any) *t_out = best;

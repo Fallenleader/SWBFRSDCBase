@@ -41,10 +41,11 @@ bool ak_col_raycast(const ak_collision *c, const f32 *origin, const f32 *dir, f3
  * With `horizontal`, pushes are flattened to the ground plane (walls stop a walker without lifting it; the ground is a ray's job).
  * Returns how many triangles pushed; *wall (if given) gets the summed push direction. */
 u32 ak_col_sphere_resolve(const ak_collision *c, f32 *center, f32 radius, u16 ignore, bool horizontal, f32 *wall);
-/* A box (centre, unit axes, half extents) moving by `move`: the earliest time t in [0, 1] it touches a triangle, with that
- * contact's normal (pointing back toward the box) and the triangle's flags.  As the game's body step does it: the box's corners
- * swept against triangle faces (one-sided ones from the front only), plus the vertices of steep triangles swept against the box's
- * faces; no edge-against-edge test.  False if nothing is touched. */
+/* A box (centre, unit axes, half extents) moving by `move`: the earliest time t (from -0.0001, below 1) it touches a triangle, with
+ * that contact's normal (pointing toward the box), the triangle's flags and whether the contact is an edge (*edge may be NULL).
+ * As the game's body step does it (088B3784): a swept separating-axis test over 13 axes against each triangle's front; ties go
+ * to the contact facing the move most.  A triangle the box starts inside is skipped.  False if nothing is touched.
+ * AK_BOX_SWEEP_CORNERS=1 selects the engine's older corner sweep. */
 bool ak_col_box_sweep(const ak_collision *c, const f32 *centre, const f32 (*axis)[3], const f32 *half, const f32 *move, u16 ignore,
-                      f32 *t_out, f32 *normal, u16 *flags);
+                      f32 *t_out, f32 *normal, u16 *flags, bool *edge);
 #endif
