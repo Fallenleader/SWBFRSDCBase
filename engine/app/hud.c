@@ -38,7 +38,7 @@ static const char *const table[] = {
     "HUD_PowerUp_Frame", "HUD_Infinity_Symbol", "HUD_Flag_Carrier_Icon", "HUD_Radar_Blip_Flag_Carrier", "HUD_Target_Info_Bracket",
     "HUD_Radar_Blip_CZ", "HUD_Capture_Point_Cross", "HUD_Icon_CTF_Bacta_Tank", "HUD_Icon_CTF_Data_Cube", "HUD_Icon_CTF_Energy_Cell",
 };
-enum { S_RETICLE = 0, S_AMMO_UNDERLAY = 3, S_HEALTH_BAR = 7, S_HEALTH_3 = 8, S_HEALTH_4 = 9, S_HEALTH_5 = 10, S_ICON_HEALTH = 0x15,
+enum { S_RETICLE = 0, S_RADAR_HALF = 1, S_RADAR_BLIP = 2, S_AMMO_UNDERLAY = 3, S_BLIP_NPC_LEVEL = 0x1B, S_HEALTH_BAR = 7, S_HEALTH_3 = 8, S_HEALTH_4 = 9, S_HEALTH_5 = 10, S_ICON_HEALTH = 0x15,
        S_INFINITY = 0x24, S_COUNT = sizeof table / sizeof table[0] };
 static s32 by_index[S_COUNT];
 
@@ -118,10 +118,10 @@ bool ak_hud_load(ak_vfs *vfs)
 /* ---- drawing, in the game's 480 x 272 */
 #define MAXV 6 * 256
 static ak_vtx vb[MAXV]; static u32 nv; static ak_gfx_tex *vtex;
-static void flush(void) { if (nv) ak_gfx_draw_immediate(AK_PIPE_HUD, vtex, vb, nv); nv = 0; }
+static bool vset; static void flush(void) { if (nv) ak_gfx_draw_immediate(AK_PIPE_HUD, vtex, vb, nv); nv = 0; }
 static void quad(ak_gfx_tex *t, f32 x0, f32 y0, f32 x1, f32 y1, f32 u0, f32 v0, f32 u1, f32 v1, u32 argb)
 {
-    if (t != vtex || nv + 6 > MAXV) { flush(); vtex = t; }
+    if (t != vtex || !vset || nv + 6 > MAXV) { flush(); vtex = t; vset = true; }
     u8 col[4] = { (u8)(argb >> 16), (u8)(argb >> 8), (u8)argb, (u8)(argb >> 24) };
     const f32 xs[6] = { x0, x1, x0, x0, x1, x1 }, ys[6] = { y0, y0, y1, y1, y0, y1 }, us[6] = { u0, u1, u0, u0, u1, u1 }, vs[6] = { v0, v0, v1, v1, v0, v1 };
     for (int i = 0; i < 6; i++) {
@@ -151,6 +151,110 @@ static void text(f32 x, f32 y, u32 argb, u32 flags, const char *s)
         const glyph *g = glyph_of((u8)*s); if (!g) continue;
         quad(font.tex, x, y, x + g->w, y + font.line, g->u, g->v, g->u + g->w / font.tw, g->v + font.line / font.th, argb);
         x += g->w;
+    }
+}
+
+/* ---- the radar (traced; see docs, 1.10).  func 08A5857C draws it: the disc and the map (08A5A6E0), the frame (08A50A00: the
+ * HUD_Radar_Background_Half picture twice), the player's blip (HUD_Radar_Blip, centred), the blips (08A59464 -> 08A59BC4).
+ * Centre (430, 50), radius 36 (08A59F44, 0x08AF0590).  The disc: 32 slices of 0xFF86807B, which also mark the stencil the map is
+ * cut to (ours: the map drawn as the same fan with its own texture coordinates - the same circle).  The level's map: its hmap
+ * chunk (version 5: f32 origin x, y, z; f32 width, depth; u32 the picture's hash - a TTXT entry, e.g. Hoth_Spawn.tga on
+ * Hoth_map.asr), centred on the origin, turned with the camera, zoom 0.9 radar pixels a unit (0.05 in space; 08A57BD4).
+ * In the game's own space (x, y, z; ours is x, -y, -z): a point P shows at  d = (P.x - p.x, p.z - P.z),
+ * (x, y) = (d.x c + d.z s, d.z c - d.x s) x zoom  with (s, c) the camera's forward (x, z) (08A59D38); the map's texel for it:
+ * u = 0.5 + (P.x - origin.x) / width, v = 0.5 - (P.z - origin.z) / depth. */
+static struct { bool have; f32 ox, oz, w, d; sprite pic; ak_gfx_tex *tex; } map;
+
+void ak_hud_level(const ak_blob *b)
+{
+    if (map.tex) ak_gfx_free_tex(map.tex);
+    memset(&map, 0, sizeof map);
+    if (!b || !ak_asura_check(b)) return;
+    u32 pos = 8, hash = 0; ak_chunk c;
+    while (ak_asura_next(b, &pos, &c))
+        if (ak_chunk_tag(&c) == AK_TAG('h', 'm', 'a', 'p') && c.size >= 24) {     /* (the body as our reader gives it: from the origin) */
+            map.ox = rdf(c.body); map.oz = rdf(c.body + 8); map.w = rdf(c.body + 12); map.d = rdf(c.body + 16); hash = ak_rd32(c.body + 20);
+        }
+    if (!hash || map.w <= 0.1f || map.d <= 0.1f) { AK_INFO("hud", "radar map: none (hmap %08X, %.1f x %.1f)", hash, map.w, map.d); return; }
+    char sheet[96] = "";
+    pos = 8;                                                           /* the picture: a TTXT entry with that hash, on its sheet */
+    while (ak_asura_next(b, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('T', 'T', 'X', 'T') || c.size < 8) continue;
+        u32 n = ak_rd32(c.body), p = 4; const char *sh = (const char *)c.body + p;
+        p += ((u32)strnlen(sh, c.size - p) + 1 + 3) & ~3u;
+        for (u32 i = 0; i < n && p + 24 < c.size; i++) {
+            sprite s; s.u0 = rdf(c.body + p); s.v0 = rdf(c.body + p + 4); s.u1 = rdf(c.body + p + 8); s.v1 = rdf(c.body + p + 12);
+            s.w = rdf(c.body + p + 16); s.h = rdf(c.body + p + 20); p += 24;
+            const char *nm = (const char *)c.body + p; p += ((u32)strnlen(nm, c.size - p) + 1 + 3) & ~3u;
+            if (h31(nm) == hash) { map.pic = s; snprintf(sheet, sizeof sheet, "%s", sh); }
+        }
+    }
+    if (!*sheet) { AK_INFO("hud", "radar map: picture %08X not in the level", hash); return; }
+    pos = 8;
+    while (ak_asura_next(b, &pos, &c)) {
+        ak_rscf r; ak_texture t;
+        if (ak_chunk_tag(&c) != AK_TAG('R', 'S', 'C', 'F') || !ak_rscf_parse(&c, &r) || r.type != AK_RSCF_TEXTURE) continue;
+        const char *rb = strrchr(r.name, '\\'); rb = rb ? rb + 1 : r.name;
+        if (!ieq(rb, sheet) && ak_texture_parse(&r, &mem, &t)) { map.tex = ak_gfx_texture(&t); break; }
+    }
+    map.have = map.tex != NULL;
+    AK_INFO("hud", "radar map: %s, origin %.1f %.1f, %.1f x %.1f", map.have ? sheet : "missing", map.ox, map.oz, map.w, map.d);
+}
+
+static u32 team_colour(int team, int own)       /* func 08A055A0: ours blue, nobody's (4) grey, theirs red */
+{
+    return team == own ? 0xFF0000FFu : team == 4 ? 0xFF808080u : 0xFFFF0000u;
+}
+
+static void radar(const ak_hud_state *st)
+{
+    const f32 cx = 430, cy = 50, R = 36, zoom = st->space ? 0.05f : 0.9f;
+    f32 px = st->pos[0], pz = -st->pos[2];                                   /* (the game's space) */
+    f32 fl = sqrtf(st->fwd[0] * st->fwd[0] + st->fwd[2] * st->fwd[2]);
+    f32 s = fl > 1e-4f ? st->fwd[0] / fl : 0, c = fl > 1e-4f ? -st->fwd[2] / fl : 1;
+    /* the disc, then the map in it (32 slices from angle 0, 0x08AF0600 = pi / 16) */
+    const int N = 32;
+    for (int pass = 0; pass < (map.have && (!st->space || zoom <= 0.5f) ? 2 : 1); pass++)
+        for (int i = 0; i < N; i++) {
+            f32 a0 = 6.2831853f * i / N, a1 = 6.2831853f * (i + 1) / N;
+            f32 xs[3] = { 0, cosf(a0) * R, cosf(a1) * R }, ys[3] = { 0, sinf(a0) * R, sinf(a1) * R };
+            ak_gfx_tex *t = pass ? map.tex : NULL;                                  /* (the disc: flat colour - no texture is white) */
+            if (t != vtex || !vset || nv + 3 > MAXV) { flush(); vtex = t; vset = true; }
+            u32 argb = pass ? 0xFFFFFFFFu : 0xFF86807Bu;
+            u8 col[4] = { (u8)(argb >> 16), (u8)(argb >> 8), (u8)argb, (u8)(argb >> 24) };
+            for (int k = 0; k < 3; k++) {
+                ak_vtx *v = &vb[nv++]; memset(v, 0, sizeof *v);
+                v->pos[0] = cx + xs[k]; v->pos[1] = cy + ys[k]; memcpy(v->col, col, 4);
+                if (pass) {                                                    /* the screen offset back to the world */
+                    f32 X = xs[k] / zoom, Y = ys[k] / zoom, dx = X * c - Y * s, dz = X * s + Y * c;
+                    f32 wx = px + dx, wz = pz - dz;
+                    f32 u = 0.5f + (wx - map.ox) / map.w, vv = 0.5f - (wz - map.oz) / map.d;
+                    v->uv[0] = map.pic.u0 + u * (map.pic.u1 - map.pic.u0); v->uv[1] = map.pic.v0 + vv * (map.pic.v1 - map.pic.v0);
+                }
+            }
+        }
+    /* the frame: the half picture left of the centre as it is, right of it mirrored (08A50A00 / 08A50840; flips 0x08AE5A14 / 18) */
+    const sprite *h = idx(S_RADAR_HALF);
+    if (h) {
+        f32 w = h->w * (h->u1 - h->u0), hh = h->h * (h->v1 - h->v0);
+        quad(h->tex, cx - w, cy - hh * 0.5f, cx, cy + hh * 0.5f, h->u0, h->v0, h->u1, h->v1, 0xFFFFFFFFu);
+        quad(h->tex, cx, cy - hh * 0.5f, cx + w, cy + hh * 0.5f, h->u1, h->v0, h->u0, h->v1, 0xFFFFFFFFu);
+    }
+    pic(idx(S_RADAR_BLIP), cx, cy, true, 0xFFFFFFFFu, 1);
+    /* the blips (08A59BC4): soldiers fade from 32 to 38 pixels out and are not drawn past 36; posts stay on the rim */
+    for (u32 i = 0; i < st->nblips; i++) {
+        const ak_hud_blip *b = &st->blips[i];
+        f32 dx = b->pos[0] - px, dz = pz - (-b->pos[2]);
+        f32 x = (dx * c + dz * s) * zoom, y = (dz * c - dx * s) * zoom, dist = sqrtf(x * x + y * y);
+        bool rim = b->kind == 1;
+        u32 col = team_colour(b->team, st->team);
+        if (!rim) {
+            if (dist >= R) continue;
+            f32 a = 1.0f; if (dist > 38) a = 0; else if (dist > 32) a = (38 - dist) / 6.0f;
+            col = (col & 0x00FFFFFFu) | (u32)(a * 255 + 0.5f) << 24;
+        } else if (dist > R) { x *= R / dist; y *= R / dist; }
+        if (x == 0 && y == 0) continue;
+        pic(idx(rim ? S_RADAR_BLIP : S_BLIP_NPC_LEVEL), cx + x, cy + y, true, col, 1);
     }
 }
 
@@ -201,6 +305,7 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     (void)sw; (void)sh;
     if (!ready || !s || !ak_setting_int("AK_HUD", 1)) return;
     ak_m4 o = ak_m4_ortho2d(480.0f, 272.0f); ak_gfx_set_transform(&o); ak_gfx_set_tint(NULL);
+    if (s->radar && s->alive) radar(s);
     if (s->tickets) { tickets(s->tickets_own, s->faction_own, 167.5f); tickets(s->tickets_enemy, s->faction_enemy, 312.5f); }
     if (s->alive) {
         if (s->reticle) pic(idx(S_RETICLE), 240, 136, true, 0xFFFFFFFFu, 1);                 /* func 08A51AA0 */

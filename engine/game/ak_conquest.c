@@ -71,6 +71,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
         if (type == 8 && out->nposts < AK_MAX_POSTS && find_pos_quat(&c, gp, gq)) {
             out->post_id[out->nposts] = ak_rd32(c.body);
             ak_post *p = &out->post[out->nposts++]; ak_from_game(gp, p->pos); p->yaw = yaw_of(gq);
+            if (ak_setting_int("AK_DEBUG_POSTS", 0)) AK_INFO("conquest", "post %u at game %.1f %.1f %.1f", out->nposts - 1, gp[0], gp[1], gp[2]);
             /* the record's tail: owner, capture amount, flags, then the links (count, count x { id, kind }) */
             u32 n = c.size / 4; p->start_owner = AK_CQ_NEUTRAL; p->amount = 10.0f;
             for (u32 k = 0; k < 40; k++) {

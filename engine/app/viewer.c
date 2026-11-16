@@ -150,7 +150,7 @@ int main(int argc, char **argv)
             }
             if (!ak_models_load(&level, &lvl, &models) || !ak_scene_models_init(&mscene, &models, &scene, &lvl)) AK_WARN("aurek", "models did not load");
             ak_entities_load(&level, &models, &lvl, &ents);
-            ak_audio_level_reset(); b_level_keep = b;
+            ak_audio_level_reset(); b_level_keep = b; ak_hud_level(&b);
             AK_INFO("audio", "%s: %u sounds and events", levels[cur].label, ak_audio_bank_add(&b, true));
             {   char mp[160], list[64]; ak_blob mb; u32 lh = 0, st = 0, nth = 0;   /* the level's music, as its script picks it */
                 bool scripted = ak_audio_level_music_start(&b, (u32)ak_plat_time_us() ^ 0x9E3779B9u, &lh, &st);
@@ -458,6 +458,17 @@ int main(int argc, char **argv)
                 hs.prequel = strstr(levels[cur].path, "PREQUEL") != NULL;
                 if (play.have_cq) { hs.tickets = true; hs.tickets_own = play.match.tickets[play.team]; hs.tickets_enemy = play.match.tickets[1 - play.team];
                                     hs.faction_own = play.team_faction[play.team]; hs.faction_enemy = play.team_faction[1 - play.team]; }
+                static ak_hud_blip blips[256]; u32 nb = 0;                   /* the radar's blips */
+                hs.radar = true; hs.space = play.is_space; hs.team = play.team; memcpy(hs.fwd, play.aim, 12);
+                if (play.in_veh >= 0) memcpy(hs.pos, play.veh[play.in_veh].pos, 12); else memcpy(hs.pos, play.ch.pos, 12);
+                for (u32 i = 0; i < play.nbots && nb < 256; i++) if (play.bot[i].alive) {
+                    ak_hud_blip *b = &blips[nb++]; memcpy(b->pos, play.bot[i].ch.pos, 12); b->kind = 0; b->team = play.bot[i].team; }
+                if (play.have_cq) for (u32 i = 0; i < play.cq.nposts && nb < 256; i++) if (!play.cq.post[i].absent) {
+                    ak_hud_blip *b = &blips[nb++]; memcpy(b->pos, play.cq.post[i].pos, 12); b->kind = 1;
+                    int o = play.match.post[i].owner; b->team = o == 0 || o == 1 ? o : 4; }
+                for (u32 i = 0; i < play.nveh && nb < 256; i++) if (play.veh[i].alive && play.veh[i].driver < 0 && (s32)i != play.in_veh) {
+                    ak_hud_blip *b = &blips[nb++]; memcpy(b->pos, play.veh[i].pos, 12); b->kind = 2; b->team = 4; }
+                hs.blips = blips; hs.nblips = nb;
                 ak_hud_draw(&hs, w, h);
                 if (play.lock >= 0) ak_gfx_text((f32)w * 0.5f - 4, (f32)h * 0.5f - 8, 0xFF4040FF, "+");   /* (lock-on: until its marks are in) */
             }
