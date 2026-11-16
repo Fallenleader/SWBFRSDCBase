@@ -4,7 +4,7 @@
  * LoseLockOnRange - Flyer "Base": 15 degrees, 2 s, 45 degrees, 1500 m; fighters 3.5 s, bombers 0.5 s, transports 5 s).
  * Projectile fields: ProjectileSpeed, Timer (life), ExplodesOnImpact / ExplodesOnTimer, ExplosionRadius, DamageToVehicle /
  * DamageToInfantry, WillTrack, FeelsGravity, AddFirerVelocity, ToLaunchDirection, Drop_Time (proton bombs: a drop before the motor).
- * Not traced (this engine's): how fast a tracking projectile turns (here 100 degrees a second), the blast fall-off (here full damage
+ * Not traced (this engine's): how fast a tracking projectile turns (here 100 degrees a second), the blast fall-off (here full damage [PARITY(2.4 2.5)]
  * in the inner half of the radius, falling to a quarter at its edge). */
 #ifndef AK_PROJECTILE_H
 #define AK_PROJECTILE_H

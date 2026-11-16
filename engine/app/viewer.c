@@ -266,7 +266,7 @@ int main(int argc, char **argv)
             ak_m4 proj = ak_m4_perspective(0.8f, (f32)w / (f32)h, dist * 0.02f, dist * 10.0f);
             ak_m4 view = ak_m4_view_yaw_pitch(eye, orbit_yaw, orbit_pitch), vp = ak_m4_mul(&proj, &view), ident;
             memset(&ident, 0, sizeof ident); ident.m[0] = ident.m[5] = ident.m[10] = ident.m[15] = 1;
-            ak_gfx_env env = { { 0, 0, 0 }, 0, 0, ak_setting_float("AK_COLOUR_SCALE", 2.0f) };
+            ak_gfx_env env = { { 0, 0, 0 }, 0, 0, ak_setting_float("AK_COLOUR_SCALE", 2.0f) };   /* PARITY(R.1) */
             ak_gfx_begin(0x40382Eu | 0xFF000000u, &vp, &env);
             ak_scene_stats ms; memset(&ms, 0, sizeof ms);
             const f32 (*bp)[12] = NULL;
@@ -425,10 +425,10 @@ int main(int argc, char **argv)
         }
 
         int w, h; ak_gfx_size(&w, &h);
-        ak_m4 proj = ak_m4_perspective(fovy, (f32)w / (f32)h, playing && play.ready ? 0.25f : ak_setting_float("AK_NEAR", 0.75f), ak_setting_float("AK_FAR", 8000.0f));
+        ak_m4 proj = ak_m4_perspective(fovy, (f32)w / (f32)h, playing && play.ready ? 0.25f : ak_setting_float("AK_NEAR", 0.75f), ak_setting_float("AK_FAR", 8000.0f));   /* PARITY(9.1) */
         ak_m4 view = ak_m4_view_yaw_pitch(cam.pos, cam.yaw, cam.pitch), vp = ak_m4_mul(&proj, &view);
         ak_gfx_env env = { { 0.55f, 0.62f, 0.70f }, ak_setting_float("AK_FOG_START", 0), ak_setting_float("AK_FOG_END", 0),
-                           ak_setting_float("AK_COLOUR_SCALE", 2.0f) };
+                           ak_setting_float("AK_COLOUR_SCALE", 2.0f) };   /* PARITY(R.1) */
         ak_gfx_begin(0x6B5A4Cu | 0xFF000000u, &vp, &env);
         if (ak_setting_int("AK_SKY", 1)) ak_scene_sky_draw(&scene, &proj, &view, ak_setting_float("AK_FAR", 8000.0f) * 0.45f);
         ak_scene_stats ss; ak_scene_level_draw(&scene, &vp, &ss);
@@ -445,7 +445,7 @@ int main(int argc, char **argv)
                 f32 r = m->radius, mn[3] = { e->pos[0] - r, e->pos[1] - r, e->pos[2] - r }, mx[3] = { e->pos[0] + r, e->pos[1] + r, e->pos[2] + r };
                 if (!ak_frustum_aabb(&fr, mn, mx)) continue;
                 f32 dx = e->pos[0] - cam.pos.x, dy = e->pos[1] - cam.pos.y, dz = e->pos[2] - cam.pos.z, d = sqrtf(dx * dx + dy * dy + dz * dz);
-                f32 lod_d = (r < 2 ? 2 : r) * ak_setting_float("AK_LOD_SCALE", 12.0f);
+                f32 lod_d = (r < 2 ? 2 : r) * ak_setting_float("AK_LOD_SCALE", 12.0f);   /* PARITY(R.5) */
                 while (d > lod_d && models.models[mi].lod_next >= 0 && models.models[models.models[mi].lod_next].nidx) { mi = models.models[mi].lod_next; lod_d *= 2.5f; }
                 ak_quat q = e->rot; f32 x = q.x, y = q.y, z = q.z, w = q.w;
                 ak_m4 wm = { { 1 - 2 * (y * y + z * z), 2 * (x * y + z * w), 2 * (x * z - y * w), 0,

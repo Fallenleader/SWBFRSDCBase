@@ -24,11 +24,13 @@ textures and how they are used. Section R lists only what must be in place so th
   - Scripted inputs that drive both the original game and Aurek.
   - Captures from both: positions, timings, screenshots.
   - Exit: one command produces a comparison report for a level.
-- [ ] **0.2 Reconcile stale docs.** NATIVE_ENGINE.md rows that conflict with later traces:
+- [x] **0.2 Reconcile stale docs.** *(Done 2026-11-16: superseded claims marked in place, the 2026-11-16 rows moved back into the
+  progress log.)* NATIVE_ENGINE.md rows that conflict with later traces:
   - Gravity is shown as "provisional 9.81" in one place and traced as 10 in another.
   - Rows still say "not yet" for lock-on and missiles, which have since been built.
   - Exit: every row matches the code.
-- [ ] **0.3 Mark every engine-invented value in code.** Every setting that stands in for something untraced:
+- [x] **0.3 Mark every engine-invented value in code.** *(Done 2026-11-16: 36 `PARITY(<task>)` markers;
+  `engine/tools/parity_assumed.sh` lists them.)* Every setting that stands in for something untraced:
   - AK_RUN_ACCEL, AK_BODY_RADIUS, AK_LOD_SCALE, AK_FOV, AK_COLOUR_SCALE, AK_POST_GLOW, AK_VEH_MAX_SLOPE_DEG, AK_BOT_VEHICLES,
     AK_BOTS, AK_TICKETS, AK_RESPAWN_DELAY, AK_VEHICLE_RESPAWN, AK_TOTAL_LOSS_TIME, AK_HERO_UNLOCK, AK_WALKER_THROTTLE.
   - Each gets a tag in code linking it to its item here.
@@ -128,6 +130,8 @@ textures and how they are used. Section R lists only what must be in place so th
 - [ ] **5.2 Heroes [partial].** Unlock threshold (AK_HERO_UNLOCK 3), and how HeroDeathRate and HeroHealthAddPerKill are applied.
 - [ ] **5.3 Remaining entity types [partial].** Regions, soldier spawns, other ENTI types (doc 1.4 "still open").
 - [ ] **5.4 Modes.** CTF, hunt and space completeness. Galactic conquest and campaign rules (credits, map moves, unlocks).
+- [ ] **5.6 Entity placement [assumed].** From the Known-issues table: many meshes float or sit in the wrong place (likely
+  parent-relative transforms), and command post models are not in place (only the cone and logo). Trace the game's placement.
 - [ ] **5.5 Command posts [partial].** The capture cross (post flag 0x74 bit 0), the colour pulse (08A516BC), and capture speed per
   soldier count.
 

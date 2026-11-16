@@ -133,11 +133,11 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
 /* ------------------------------------------------------------------ the match */
 void ak_cq_rules_default(ak_cq_rules *r)
 {
-    s32 t = ak_setting_int("AK_TICKETS", 100);                              /* the option's range is 25..200 */
+    s32 t = ak_setting_int("AK_TICKETS", 100);                              /* the option's range is 25..200 */   /* PARITY(5.1) */
     r->tickets = t < 25 ? 25 : t > 200 ? 200 : t;
     r->capture_radius = 5.0f; r->max_rate = 5.0f; r->contest_time = 30.0f;
     r->bleed_time = 4.0f; r->drain_time = 0.1f;
-    r->loss_time = ak_setting_float("AK_TOTAL_LOSS_TIME", 60.0f); r->respawn_delay = ak_setting_float("AK_RESPAWN_DELAY", 10.0f);
+    r->loss_time = ak_setting_float("AK_TOTAL_LOSS_TIME", 60.0f); r->respawn_delay = ak_setting_float("AK_RESPAWN_DELAY", 10.0f);   /* PARITY(1.10 5.1) */
 }
 
 int ak_faction_team(int faction) { return faction & 1; }

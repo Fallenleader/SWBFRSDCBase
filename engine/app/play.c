@@ -134,7 +134,7 @@ static void bodies_push(ak_play *p, const ak_model_set *m)
 static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set *m);
 static void droids_update(ak_play *p, f32 dt);
 /* each soldier near a droid: health (the traced pulse, above) and ammo (the ammo droid, class 0x8010: its pulse - AmmunitionDroid
-   PulseLength 1 s, EffectiveRadius 8 m - is not traced: here it gives back one clip a pulse, up to a full load) */
+   PulseLength 1 s, EffectiveRadius 8 m - is not traced: here it gives back one clip a pulse, up to a full load) */   /* PARITY(2.2) */
 static void droids_update(ak_play *p, f32 dt)
 {
     if (!p->have_cq || !p->cq.ndroid) return;
@@ -418,7 +418,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         p->cam_back = -ak_bp_float(cam, "desired z offset", -7.0f); p->cam_up = -ak_bp_float(cam, "desired y offset", -0.5f);   /* game y points down */
         p->cam_side = ak_bp_float(cam, "desired x offset", -0.2f);
     } else {
-        p->fov = ak_setting_float("AK_FOV", 55.0f) * 3.14159265f / 180.0f;
+        p->fov = ak_setting_float("AK_FOV", 55.0f) * 3.14159265f / 180.0f;   /* PARITY(9.1) */
         p->pivot_h = 1.55f; p->pivot_x = 0.0f; p->cam_back = 1.8f; p->cam_up = 0.05f; p->cam_side = 0.6f;
     }
     p->pivot_h *= S; p->pivot_x *= S; p->cam_back *= S; p->cam_up *= S; p->cam_side *= S;
@@ -443,9 +443,9 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->sight = p->lock_range;
     {   /* the aim error: the weapon's AIWeapon_Accuracy_Normal (degrees; Weapon "Base": 5), unless AK_BOT_AIM says otherwise */
         const ak_bp_object *wb = ak_bp_find(bp, "Weapon", "Base");
-        p->bot_aim = ak_setting_float("AK_BOT_AIM", wb ? ak_bp_float(wb, "AIWeapon_Accuracy_Normal", 5.0f) : 5.0f) * 3.14159265f / 180.0f; }
+        p->bot_aim = ak_setting_float("AK_BOT_AIM", wb ? ak_bp_float(wb, "AIWeapon_Accuracy_Normal", 5.0f) : 5.0f) * 3.14159265f / 180.0f; }   /* PARITY(2.6) */
     p->bots_passive = ak_setting_int("AK_BOT_PASSIVE", 0) != 0;
-    u32 want = (u32)ak_setting_int("AK_BOTS", 15); if (want > PLAY_MAX_BOTS) want = PLAY_MAX_BOTS;
+    u32 want = (u32)ak_setting_int("AK_BOTS", 15); if (want > PLAY_MAX_BOTS) want = PLAY_MAX_BOTS;   /* PARITY(4.5) */
     if (!p->have_nav || !p->nav.nnode) want = 0;
     if (want) {
         for (int t = 0; t < 2; t++) {
@@ -593,7 +593,7 @@ static s32 bot_find_enemy(ak_play *p, ak_play_bot *b) { return find_enemy(p, b->
  * and the countdown restarts at 5 s (0x08AEE2F0); a side with no human to offer it gives the hero at once to one of its bots
  * (func 089826E8: a new unit of the hero's class where the old one stood).  When the hero dies the countdown restarts from the full
  * time and the marks are cleared.  The hero of a side is its faction's Humanoid with Hero = 1 that the level has a model for (the game
- * reads it from a per-faction table, hash 0x203E217D, not traced: where a level has two, the first in blueprint order is taken). */
+ * reads it from a per-faction table, hash 0x203E217D, not traced: where a level has two, the first in blueprint order is taken). */   /* PARITY(3.5) */
 static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set *m)
 {
     static const char *sab_idle[] = { "Human_saber_ready_idle", "Human_Jedi_Stand_Idle_Block", NULL }, *sab_run[] = { "Human_jedi_Stand_run", "Human_Jedi_Stand_RunForward", NULL };
@@ -608,7 +608,7 @@ static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set 
     for (int k = 0; k < PLAY_NCLIPS; k++) if (p->sclip[k] < 0) p->sclip[k] = p->clip[k];
     memset(p->fan, 0, sizeof p->fan); p->fan[0].unit = p->fan[1].unit = -1;
     const ak_bp_type *ty = ak_bp_find_type(bp, "Humanoid");
-    f32 unlock = ak_setting_float("AK_HERO_UNLOCK", 3.0f) * 60.0f;
+    f32 unlock = ak_setting_float("AK_HERO_UNLOCK", 3.0f) * 60.0f;   /* PARITY(5.2) */
     for (int t = 0; t < 2; t++) {
         ak_play_hero *h = &p->hero[t]; memset(h, 0, sizeof *h); h->unit = h->offered = -1;
         if (!ak_setting_int("AK_HEROES", 1) || p->is_space) continue;           /* (space: the hero flyers come later) */
@@ -723,7 +723,7 @@ static void heroes_update(ak_play *p, const ak_model_set *m, f32 dt)
 
 static ak_play_hero *hero_of(ak_play *p, s32 unit) { for (int t = 0; t < 2; t++) if (unit >= 0 && p->hero[t].unit == unit) return &p->hero[t]; return NULL; }
 /* a lightsaber stroke (Weapon "Lightsaber": Projectile "Lightsaber" DamageToInfantry 30 / DamageToVehicle 10 every RateOfFire 0.2 s,
-   blade Length 1 m): every enemy within reach in front.  The game's saber combat (its clips, blocking, combos) is not traced yet. */
+   blade Length 1 m): every enemy within reach in front.  The game's saber combat (its clips, blocking, combos) is not traced yet. */   /* PARITY(6.5) */
 static void saber_strike(ak_play *p, s32 unit, ak_weapon *w, const f32 *pos, f32 yaw)
 {
     if (w->cooldown > 0) return;
@@ -740,7 +740,7 @@ static void saber_strike(ak_play *p, s32 unit, ak_weapon *w, const f32 *pos, f32
 
 /* a saber hero's attack: the trigger starts the combo (its table's rows 17-19); pressed again in the second half of a stroke it goes
    on to the next; the blade hurts in the middle of each stroke (the Lightsaber's RateOfFire apart).  The game's own timing (when a
-   stroke hurts, how a combo is chained) is not traced. */
+   stroke hurts, how a combo is chained) is not traced. */   /* PARITY(6.5) */
 static void hero_attack(ak_play *p, const ak_model_set *m, ak_play_hero *h, bool trigger, ak_weapon *w, const f32 *pos, f32 yaw, f32 dt)
 {
     if (!h->natk) { if (trigger) saber_strike(p, h->unit, w, pos, yaw); return; }
@@ -942,8 +942,8 @@ static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
 
 static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a)
 {
-    p->in_veh = -1; p->in_turret = -1; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 10.0f);   /* (the spawn records say 10 s) */
-    p->bot_drive = ak_setting_float("AK_BOT_VEHICLES", p->is_space ? 1.0f : 0.6f);   /* space: every bot that can flies */
+    p->in_veh = -1; p->in_turret = -1; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 10.0f);   /* (the spawn records say 10 s) */   /* PARITY(3.5) */
+    p->bot_drive = ak_setting_float("AK_BOT_VEHICLES", p->is_space ? 1.0f : 0.6f);   /* space: every bot that can flies */   /* PARITY(4.1) */
     if (!ak_setting_int("AK_VEHICLES", 1)) return;
     ak_entity_set es; size_t mark = a->used;
     if (!ak_entities_load(l, m, a, &es)) { a->used = mark; return; }
@@ -1023,7 +1023,7 @@ static void walker_route_step(ak_play *p, u32 v, f32 dt)
     f32 want = atan2f(-dx, -dz);
     f32 dy = wrap(want - vh->yaw);
     vh->steer = dy > 0.05f ? -1.0f : dy < -0.05f ? 1.0f : -dy * 20.0f; if (vh->steer > 1) vh->steer = 1; if (vh->steer < -1) vh->steer = -1;
-    vh->throttle = going && fabsf(dy) < 0.8f ? (f32)ak_setting_float("AK_WALKER_THROTTLE", 1.0f) : 0.0f; vh->strafe = 0; vh->brake = false;
+    vh->throttle = going && fabsf(dy) < 0.8f ? (f32)ak_setting_float("AK_WALKER_THROTTLE", 1.0f) : 0.0f; vh->strafe = 0; vh->brake = false;   /* PARITY(3.4) */
     ak_vehicle_update(vh, &p->col, p->cp.gravity, false, dt);
     {   /* progress: the projection of the walker onto the path near where it was */
         f32 best = sp->route_d, bd = 1e30f;
@@ -1220,7 +1220,7 @@ static void bot_vehicle_gun(ak_play *p, const ak_model_set *m, ak_play_bot *b, u
  * left out): a fighter takes an attack run on the enemy capital ship 40 % of the time (kind 2), else 20 % (kind 1), else general
  * combat; a bomber always takes one (kind 2 first); a transport flies into the enemy hangar and lands ("land in hangar", 100 %);
  * interceptors, heroes and the rest fight.  Runs and hangars are the level's AI objectives (game/ak_space.h); the commander's percent
- * rolls are its own (50 / 100 / 20 / 40 / 100 at 08B1BBB0..C0).  Which free objective it hands out is not traced (here: the nearest);
+ * rolls are its own (50 / 100 / 20 / 40 / 100 at 08B1BBB0..C0).  Which free objective it hands out is not traced (here: the nearest); [PARITY(4.4)]
  * a finished run is rolled again for the same flyer (the game re-offers it to the nearest fighter, func 08991768). */
 enum { SPACE_COMBAT, SPACE_RUN, SPACE_LAND };
 static int obj_team(const ak_play *p, const ak_space_obj *o)
@@ -1525,7 +1525,7 @@ static void bot_drive(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
  * when not Boardable (the automatic ones), it aims and fires on its own (the game's turret AI states: NEUTRAL,
  * SEARCHING_FOR_THREAT, ORIENTATING_TO_THREAT at 0x08B1B6AC): the nearest enemy in its reach (the record's range: 500 m in space,
  * 100 m on the ground) that it can point at and see, leading moving vehicles, with the bot modifiers and aim error (who aims for the
- * game's turret AI is not traced yet).  It repairs itself at the blueprint's Auto_Repair_Rate (5 a second); a destroyed one leaves its
+ * game's turret AI is not traced yet).  It repairs itself at the blueprint's Auto_Repair_Rate (5 a second); a destroyed one leaves its [PARITY(4.3)]
  * DestroyedTurret model (no rebuilding: not traced). */
 static void turret_target(ak_play *p, u32 i)
 {
@@ -1983,7 +1983,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             memcpy(p->bot[vh->driver - 1].ch.pos, vh->pos, 12);
         } else if (p->vspawn[v].route && vh->def->kind == AK_VEH_WALKER) {      /* a placed walker: along its path at its walking pace, then it stands */
             walker_route_step(p, v, dt);
-            {   /* its guns: the nearest enemy in its range within the head's reach (the game's walker gunnery is not traced) */
+            {   /* its guns: the nearest enemy in its range within the head's reach (the game's walker gunnery is not traced) */   /* PARITY(3.4) */
                 static s32 cached[PLAY_MAX_VEH]; static f32 next[PLAY_MAX_VEH];   /* (looked for every half second) */
                 if ((next[v] -= dt) <= 0) { next[v] = 0.5f; cached[v] = find_enemy(p, vh->team, vh->pos, vh->yaw, vh->def->hover + vh->def->height * 0.8f, vh->def->target_range > 0 ? vh->def->target_range : 100.0f, true); }
                 s32 e = cached[v]; if (e >= 0 && !p->target[e].alive) e = cached[v] = -1;
@@ -2272,7 +2272,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
             if (ps->owner < 2) { side = ps->owner == p->team ? 0 : 1; k = ps->progress / full; }
             else if (ps->capturing < 2) { side = ps->capturing == p->team ? 0 : 1; k = 1 - ps->progress / full; }
             k = k < 0 ? 0 : k > 1 ? 1 : k;
-            static f32 glow = -1; if (glow < 0) glow = ak_setting_float("AK_POST_GLOW", 0.75f);   /* the light's strength: 0 unlit .. 1 full */
+            static f32 glow = -1; if (glow < 0) glow = ak_setting_float("AK_POST_GLOW", 0.75f);   /* the light's strength: 0 unlit .. 1 full */   /* PARITY(R.6) */
             f32 col[4]; for (int c = 0; c < 4; c++) col[c] = (tc[2][c] + (tc[side][c] - tc[2][c]) * k) * (c < 3 ? glow : 1.0f);
             const f32 *pp = p->cq.post[i].pos;
             ak_gfx_set_tint(col);

@@ -16,7 +16,7 @@ static struct {
     FILE *f; u32 data_off, frames, rate;               /* frames: in the WAV */
     u32 start, loop_start, loop_end; bool loop, on;
     u32 next;                                          /* the next frame to read */
-    s16 buf[2 * 8192]; u32 have, read;                 /* interleaved stereo, not yet mixed */
+    s16 buf[2 * 8192]; u32 have, read;                 /* interleaved stereo, not yet mixed */   /* PARITY(7.1) */
     double frac;
 } m;
 static volatile int mlock;

@@ -23,7 +23,7 @@
 typedef struct {
     f32 run_speed, jump_impulse, air_control, air_speed, yaw_speed, pitch_speed;   /* the game's (Controls: Humanoid) */
     f32 sprint_speed, yaw_sprint;      /* "max sprint speed" (no blueprint sets it: the game's default 12 m/s), "yaw sprint modifier" */
-    f32 gravity, accel, radius, height, step, walkable;                            /* not yet traced: settings */
+    f32 gravity, accel, radius, height, step, walkable;                            /* not yet traced: settings */   /* PARITY(1.1 1.4) */
 } ak_char_params;
 
 typedef struct {

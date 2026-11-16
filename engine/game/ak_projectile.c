@@ -28,7 +28,7 @@ bool ak_secondary_load(const ak_blueprints *bp, const char *hp, ak_secondary *s)
     const ak_bp_object *w = ak_bp_find(bp, "Weapon", hp);
     if (!w) return false;
     s->weapon = w->name; s->hud_icon = ak_bp_string(w, "HUDIcon", NULL);
-    if (!proj_def(bp, ak_bp_string(w, "Projectile", ""), &s->proj)) return false;   /* (beams, mortars, harpoons: not yet) */
+    if (!proj_def(bp, ak_bp_string(w, "Projectile", ""), &s->proj)) return false;   /* (beams, mortars, harpoons: not yet) */   /* PARITY(2.3) */
     s->rate = ak_bp_float(w, "RateOfFire", 0.5f); s->reload = ak_bp_float(w, "ReloadTime", 5);
     s->clip = ak_bp_int(w, "AmmoPerClip", 1); if (s->clip <= 0) s->clip = 1;
     s->lock_time = ak_bp_float(w, "LockonTime", 0);
@@ -86,7 +86,7 @@ void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *tg, u32 n
             f32 sp = sqrtf(p->vel[0] * p->vel[0] + p->vel[1] * p->vel[1] + p->vel[2] * p->vel[2]); if (sp < 1) sp = 1;
             f32 want[3] = { c[0] - p->pos[0], c[1] - p->pos[1], c[2] - p->pos[2] }, wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]);
             if (wl > 0.01f) {
-                f32 cur[3] = { p->vel[0] / sp, p->vel[1] / sp, p->vel[2] / sp }, turn = 1.75f * dt;   /* (100 degrees a second: not traced) */
+                f32 cur[3] = { p->vel[0] / sp, p->vel[1] / sp, p->vel[2] / sp }, turn = 1.75f * dt;   /* (100 degrees a second: not traced) */   /* PARITY(2.4) */
                 for (int k = 0; k < 3; k++) want[k] /= wl;
                 f32 dot = cur[0] * want[0] + cur[1] * want[1] + cur[2] * want[2], ang = acosf(dot > 1 ? 1 : dot < -1 ? -1 : dot);
                 f32 s = ang > turn ? turn / ang : 1.0f;

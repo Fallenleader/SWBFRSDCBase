@@ -6,7 +6,7 @@
  * HardpointW1 (a LaserBolt) fired from HardpointW1Marker1..4 at HardpointW1Time1..4 within each volley, Turret0 / TurretMarker0.
  * A vehicle spawn (ENTI type 27) names one model per side; the side that holds the nearest command post gets its vehicle.
  *
- * Not traced from the game's code yet, so this engine's: the handling model (how the numbers combine), the hover height, how the barrel
+ * Not traced from the game's code yet, so this engine's: the handling model (how the numbers combine), the hover height, how the barrel [PARITY(3.1)]
  * times combine with the Weapon's RateOfFire (the volley period), and the turret aiming. */
 #ifndef AK_VEHICLE_H
 #define AK_VEHICLE_H

@@ -463,7 +463,7 @@ static void messages(f32 dt, bool alive)
  * 08A51AA0: t = the time held / 1 s while under 1 s (the defaults of three "controls" values the game asks for - 1, 4 and 5 s,
  * 0x08AF0328 / 0350 / 0354; the keys, hashes 0x4DB0F6A9, 0x15600269, 0x320173F2, are not in the data); then 0 (locked) - and with
  * headshots from 4 s to 5 s it closes in once more ((t - 4) / 1), then 0 (the head); red 0xFFFF0000 (the game also pulses it
- * once locked, 08A516BC - not yet) */
+ * once locked, 08A516BC - not yet) */   /* PARITY(5.5) */
 static void lock_mark(f32 t, f32 cx, f32 cy, u32 argb)
 {
     const sprite *q = idx(S_LOCK_QUARTER); if (!q) return;

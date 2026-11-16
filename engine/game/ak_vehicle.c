@@ -113,7 +113,7 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
         d->nmuzzles++;
     }
     /* a volley every RateOfFire seconds (the Weapon's: tank lasers 0.25, fighters 0.3, TIE fighter 0.2, X-wing 2), the barrels at their
-     * HardpointW1Time offsets within it (how the game combines the two is not traced; never shorter than the last barrel's offset) */
+     * HardpointW1Time offsets within it (how the game combines the two is not traced; never shorter than the last barrel's offset) */   /* PARITY(3.1) */
     /* the secondary (HardpointW2) and the lock-on */
     if (ak_secondary_load(bp, ak_bp_string(o, "HardpointW2", ""), &d->sec)) {
         static const char *mk2[4] = { "HardpointW2Marker1", "HardpointW2Marker2", "HardpointW2Marker3", "HardpointW2Marker4" };
@@ -237,7 +237,7 @@ void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool
     int n = (int)(step / (d->radius * 0.5f)) + 1; if (n > 8) n = 8;
     u16 gmask = d->kind == AK_VEH_HOVER || d->kind == AK_VEH_SPEEDER ? AK_COL_NOT_BODIES : VEH_IGNORE;
     f32 g0, n0; bool has0 = ground_at(col, v->pos, d->hover, gmask, &g0, &n0);
-    static f32 steep = -1; if (steep < 0) steep = cosf(ak_setting_float("AK_VEH_MAX_SLOPE_DEG", 40.0f) * DEG);
+    static f32 steep = -1; if (steep < 0) steep = cosf(ak_setting_float("AK_VEH_MAX_SLOPE_DEG", 40.0f) * DEG);   /* PARITY(3.1) */
     for (int i = 0; i < n; i++) {
         f32 was[2] = { v->pos[0], v->pos[2] };
         v->pos[0] += v->vel[0] * dt / n; v->pos[2] += v->vel[2] * dt / n;

@@ -14,7 +14,7 @@
  * weapon reloads when empty.
  *
  * Clips are picked by state (idle, run forward / back / sideways, jump, fall, land) from the level's Human_Rifle_* animations; the
- * game's own animation table ("Animtable: generic_male") is not traced yet.  Every soldier carries a blaster rifle (AK_WEAPON,
+ * game's own animation table ("Animtable: generic_male") is not traced yet.  Every soldier carries a blaster rifle (AK_WEAPON, [PARITY(2.1 6.1)]
  * default "BlasterRifle", the faction's own version).
  *
  * Conquest (game/ak_conquest.h): the posts start with the level's owners; soldiers within 5 m capture; each death costs the team a
@@ -25,7 +25,7 @@
  * heavy) that this level has models for.  Each picks a command post its side does not hold (the nearest, with some randomness),
  * walks there along the level's navigation graph and stands on it until it is theirs, then moves on; with every post held it
  * defends one.  It fights any enemy it can see within the targeting range (50 m): turns to it, holds the trigger in bursts with an
- * aim error that grows with distance, and keeps moving (slower, strafing).  The game's own AI is not traced yet: the reaction
+ * aim error that grows with distance, and keeps moving (slower, strafing).  The game's own AI is not traced yet: the reaction [PARITY(4.2 4.4)]
  * time, the aim error (AK_BOT_AIM, degrees), the bursts and the field of view are this engine's.
  *
  * Vehicles (game/ak_vehicle.h): each vehicle spawn makes the vehicle of the side holding the nearest command post.  Triangle gets in

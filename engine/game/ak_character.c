@@ -20,10 +20,10 @@ void ak_char_params_load(const ak_blueprints *bp, ak_char_params *p)
     p->sprint_speed = ak_bp_float(c, "max sprint speed", 12.0f);
     p->yaw_sprint   = ak_bp_float(c, "yaw sprint modifier", 0.25f);
     p->gravity  = ak_setting_float("AK_GRAVITY", 10.0f);      /* the game's: see ak_character.h */
-    p->accel    = ak_setting_float("AK_RUN_ACCEL", 30.0f);
-    p->radius   = ak_setting_float("AK_BODY_RADIUS", 0.35f);
-    p->height   = ak_setting_float("AK_BODY_HEIGHT", 1.8f);
-    p->step     = ak_setting_float("AK_STEP_HEIGHT", 0.45f);
+    p->accel    = ak_setting_float("AK_RUN_ACCEL", 30.0f);   /* PARITY(1.1) */
+    p->radius   = ak_setting_float("AK_BODY_RADIUS", 0.35f);   /* PARITY(1.4) */
+    p->height   = ak_setting_float("AK_BODY_HEIGHT", 1.8f);   /* PARITY(1.4) */
+    p->step     = ak_setting_float("AK_STEP_HEIGHT", 0.45f);   /* PARITY(1.4) */
     p->walkable = cosf(ak_setting_float("AK_MAX_SLOPE_DEG", 45.0f) * 3.14159265f / 180.0f);
 }
 
