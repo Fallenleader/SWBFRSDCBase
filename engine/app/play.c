@@ -868,6 +868,12 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         }
         b->stuck_t = 0; memcpy(b->stuck_pos, b->ch.pos, 12);
     }
+    {   /* the body: the same box as the player's, swept against the level (measured in the original: an AI soldier's height over the
+           ground is its box resting on the highest ground under its corners, to 1 cm - so the level sweep moves AI bodies too, though
+           no other body pushes them); AK_BOT_BODY=0 gives the engine's spheres */
+        static int body = -1; if (body < 0) body = ak_setting_int("AK_BOT_BODY", 1);
+        b->ch.body_box = body != 0;
+        for (int k = 0; k < 3; k++) { b->ch.body_min[k] = soldier_shape[0][k] * S; b->ch.body_max[k] = soldier_shape[1][k] * S; } }
     ak_char_update(&b->ch, &p->cp, &p->col, &ci, dt);
     /* the clip */
     f32 hs; int st = motion_state(&b->ch, &p->cp, b->was_ground, &b->land_t, dt, &hs);
