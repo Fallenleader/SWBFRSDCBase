@@ -139,6 +139,29 @@ int main(int argc, char **argv)
             ak_nav nav; u64 t4 = ak_plat_time_us();
             if (ak_nav_load(&l, &a, &nav)) {
                 f32 tl = (ak_plat_time_us() - t4) / 1000.0f;
+                if (getenv("AK_INSPECT_STEPS")) {   /* the ground along every nav link, sampled every 2 cm: rises that are steps, not slopes */
+                    u32 hist[8] = { 0 }, riser_solid = 0, riser_open = 0, samples = 0, edges_step = 0, nedges = 0; f32 worst = 0;
+                    for (u32 i = 0; i < nav.nnode; i++) for (u32 k = nav.node[i].first_link; k < nav.node[i].first_link + nav.node[i].nlinks; k++) {
+                        u32 t = nav.link[k].to; if (t >= nav.nnode || t < i) continue;
+                        const f32 *A = nav.node[i].pos, *B = nav.node[t].pos; f32 dx = B[0] - A[0], dz = B[2] - A[2], L = sqrtf(dx * dx + dz * dz);
+                        if (L < 0.1f) { continue; } nedges++;
+                        u32 n = (u32)(L / 0.02f); f32 prev = 0; bool have = false, stepped = false;
+                        for (u32 j = 0; j <= n; j++) {
+                            f32 f = (f32)j / (f32)n, o[3] = { A[0] + dx * f, A[1] + (B[1] - A[1]) * f + 2.0f, A[2] + dz * f }, d[3] = { 0, -1, 0 }; ak_col_hit h;
+                            if (!ak_col_raycast(&col, o, d, 4.0f, AK_COL_SOLDIER_MASK, &h) || h.normal[1] < 0.7071f) { have = false; continue; }
+                            if (have) { f32 r = h.pos[1] - prev; samples++;
+                                if (r > 0.04f) {   /* is the riser solid to soldiers?  a level ray just above the lower tread, toward the step */
+                                    f32 back = 0.04f / (L > 0 ? L : 1), ro[3] = { o[0] - dx * back, prev + 0.03f, o[2] - dz * back }, rd[3] = { dx / L, 0, dz / L }; ak_col_hit rh;
+                                    if (ak_col_raycast(&col, ro, rd, 0.08f, AK_COL_SOLDIER_MASK, &rh)) riser_solid++; else riser_open++;
+                                    if (getenv("AK_INSPECT_STEPS")[0] == '2' && r > 0.15f && r < 0.35f) printf("  rise %.2f at %.1f %.1f %.1f riser %s\n", r, o[0], prev, o[2], ak_col_raycast(&col, ro, rd, 0.08f, AK_COL_SOLDIER_MASK, &rh) ? "solid" : "open"); }
+                                if (r > 0.04f) { int b = r < 0.1f ? 0 : r < 0.2f ? 1 : r < 0.3f ? 2 : r < 0.45f ? 3 : r < 0.6f ? 4 : 5; hist[b]++; stepped = true; if (r > worst && r < 1.0f) worst = r; } }
+                            prev = h.pos[1]; have = true;
+                        }
+                        edges_step += stepped;
+                    }
+                    printf("steps      %u nav links, %u cross a rise > 4 cm in 2 cm: 4-10 cm %u, 10-20 %u, 20-30 %u, 30-45 %u, 45-60 %u, more %u (largest under 1 m %.2f); risers solid %u, open %u\n",
+                           nedges, edges_step, hist[0], hist[1], hist[2], hist[3], hist[4], hist[5], worst, riser_solid, riser_open);
+                }
                 u32 bad = 0, sym = 0, onground = 0, comp_max = 0, ncomp = 0;
                 for (u32 i = 0; i < nav.nnode; i++)
                     for (u32 k = nav.node[i].first_link; k < nav.node[i].first_link + nav.node[i].nlinks; k++) {

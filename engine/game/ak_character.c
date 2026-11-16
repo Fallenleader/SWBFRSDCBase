@@ -29,8 +29,66 @@ void ak_char_params_load(const ak_blueprints *bp, ak_char_params *p)
 
 void ak_char_spawn(ak_character *c, const f32 *pos, f32 yaw)
 {
+    bool box = c->body_box; f32 mn[3], mx[3]; memcpy(mn, c->body_min, 12); memcpy(mx, c->body_max, 12);
     memset(c, 0, sizeof *c);
     memcpy(c->pos, pos, 12); c->yaw = yaw; c->ground_normal[1] = 1;
+    c->body_box = box; memcpy(c->body_min, mn, 12); memcpy(c->body_max, mx, 12); c->body_yaw = yaw;   /* a new body: this yaw */
+}
+
+/* ------------------------------------------------------------------ the game's body: swept box, move and slide */
+#define SKIN 0.005f                                                    /* 088C4CF4: the stop short of a contact (0x08AEC804) */
+#define WALKABLE 0.70710678f                                           /* 45 degrees (0x08AEC80C) */
+static void body_place(const ak_character *c, f32 ctr[3], f32 ax[3][3], f32 h[3])
+{
+    f32 cy = cosf(c->body_yaw), sy = sinf(c->body_yaw);
+    f32 lc[3]; for (int k = 0; k < 3; k++) { lc[k] = (c->body_min[k] + c->body_max[k]) * 0.5f; h[k] = (c->body_max[k] - c->body_min[k]) * 0.5f; }
+    /* the soldiers' model matrix rows (play.c): { c, 0, s }, { 0, 1, 0 }, { -s, 0, c } - its columns are the box's axes */
+    ax[0][0] = cy; ax[0][1] = 0; ax[0][2] = -sy;  ax[1][0] = 0; ax[1][1] = 1; ax[1][2] = 0;  ax[2][0] = sy; ax[2][1] = 0; ax[2][2] = cy;
+    for (int k = 0; k < 3; k++) ctr[k] = c->pos[k] + ax[0][k] * lc[0] + ax[1][k] * lc[1] + ax[2][k] * lc[2];
+}
+
+/* move the box by `move` (sliding); returns whether it touched walkable ground (normal into *gn) */
+static bool body_slide(ak_character *c, const ak_collision *col, f32 move[3], f32 *gn)
+{
+    bool ground = false;
+    for (int pass = 0; pass < 10; pass++) {
+        f32 L = sqrtf(move[0] * move[0] + move[1] * move[1] + move[2] * move[2]);
+        if (L < 1e-4f) break;
+        f32 ctr[3], ax[3][3], h[3], t, n[3]; u16 fl;
+        body_place(c, ctr, ax, h);
+        if (!ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, move, BODY_IGNORE, &t, n, &fl)) { for (int k = 0; k < 3; k++) c->pos[k] += move[k]; break; }
+        f32 adv = t * L - SKIN; if (adv < 0) adv = 0;
+        static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
+        if (dbg >= 4 && n[1] < WALKABLE) AK_INFO("body", "pass %d t %.3f n %.2f %.2f %.2f flags %04x at %.2f %.2f %.2f", pass, t, n[0], n[1], n[2], fl, c->pos[0], c->pos[1], c->pos[2]);
+        for (int k = 0; k < 3; k++) { c->pos[k] += move[k] / L * adv; move[k] *= 1.0f - adv / L; }
+        if (n[1] >= WALKABLE) { ground = true; memcpy(gn, n, 12); }
+        f32 dm = move[0] * n[0] + move[1] * n[1] + move[2] * n[2], dv = c->vel[0] * n[0] + c->vel[1] * n[1] + c->vel[2] * n[2];
+        if (dm < 0) for (int k = 0; k < 3; k++) move[k] -= n[k] * dm;                      /* slide on along the surface */
+        if (dv < 0) for (int k = 0; k < 3; k++) c->vel[k] -= n[k] * dv;
+        if (n[1] > 0 && n[1] < WALKABLE) { if (move[1] > 0) move[1] = 0; if (c->vel[1] > 0) c->vel[1] = 0; }   /* too steep: no climbing */
+    }
+    return ground;
+}
+
+static void body_update(ak_character *c, const ak_char_params *p, const ak_collision *col, f32 dt)
+{
+    bool was = c->on_ground;
+    if (c->on_ground && c->vel[1] <= 0) {                                /* on the ground the move follows it */
+        const f32 *n = c->ground_normal; c->vel[1] = 0;
+        f32 d = c->vel[0] * n[0] + c->vel[2] * n[2];
+        if (n[1] > 0.1f) c->vel[1] = -d / n[1];                          /* keep the horizontal speed, along the plane */
+    }
+    c->vel[1] -= p->gravity * dt;                                        /* physics gravity, always on */
+    f32 move[3] = { c->vel[0] * dt, c->vel[1] * dt, c->vel[2] * dt }, gn[3];
+    bool ground = body_slide(c, col, move, gn);
+    if (!ground && c->vel[1] <= 0.01f) {                                 /* resting on the ground below the skin: a short probe keeps the state steady */
+        f32 ctr[3], ax[3][3], h[3], t, n[3], probe[3] = { 0, -(SKIN * 4 + 0.02f), 0 }; u16 fl;
+        body_place(c, ctr, ax, h);
+        if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, probe, BODY_IGNORE, &t, n, &fl) && n[1] >= WALKABLE) { ground = true; memcpy(gn, n, 12); }
+    }
+    c->on_ground = ground;
+    if (ground) { memcpy(c->ground_normal, gn, 12); if (c->vel[1] < 0) c->vel[1] = 0; c->jumped = false; }
+    if (!ground && was) c->air_time = 0;
 }
 
 bool ak_char_ground_below(const ak_collision *col, const f32 *pos, f32 range, f32 *ground)
@@ -103,9 +161,10 @@ void ak_char_update(ak_character *c, const ak_char_params *p, const ak_collision
         c->vel[2] += (want[1] - c->vel[2]) * p->air_control * p->accel * dt / vmax;
         f32 hs = sqrtf(c->vel[0] * c->vel[0] + c->vel[2] * c->vel[2]), cap = p->air_speed > vmax ? p->air_speed : vmax;
         if (hs > cap) { c->vel[0] *= cap / hs; c->vel[2] *= cap / hs; }
-        c->vel[1] -= p->gravity * dt;
+        if (!c->body_box) c->vel[1] -= p->gravity * dt;                 /* (the game's body adds it in body_update) */
         c->air_time += dt;
     }
+    if (c->body_box) { body_update(c, p, col, dt); return; }
     /* move in steps no longer than half the radius, so nothing thin is passed through */
     f32 dist = sqrtf(c->vel[0] * c->vel[0] + c->vel[1] * c->vel[1] + c->vel[2] * c->vel[2]) * dt;
     int n = (int)(dist / (p->radius * 0.5f)) + 1; if (n > 16) n = 16;

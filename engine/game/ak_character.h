@@ -8,8 +8,12 @@
  * settings: ground acceleration (AK_RUN_ACCEL), body size and step height.  The steepest walkable slope is the game's 45 degrees (the
  * body step 088C4CF4: soldiers' bodies carry flag 0x2000000, which removes the climbing part of a move up anything steeper).
  *
- * The body: two spheres (knees-up and chest) pushed out of walls horizontally, plus a ray down for the ground that steps up kerbs
- * and stairs and keeps the feet on slopes.  Collision ignores what the game's soldiers ignore (flags 0x0004 and 0x1000). */
+ * The body, the game's (when body_box is set; the player): its box swept along each frame's move against the level (the body
+ * step 088C4CF4): stop 0.005 m short of the first triangle it would touch and slide on along it, at most 10 passes; physics gravity
+ * always on (soldiers: 088BB208(1)); on walkable ground (within 45 degrees) the move follows the ground plane (the soldier update
+ * projects its velocity on the ground, 0x08995700); nothing steeper is climbed (body flag 0x2000000); no step-up - kerbs need a
+ * ramp or a jump.  The engine's own body (bots, which the game moves without its physics): two spheres (knees-up and chest)
+ * pushed out of walls horizontally, plus a ray down for the ground that steps up kerbs and stairs and keeps the feet on slopes.  Collision ignores what the game's soldiers ignore (flags 0x0004 and 0x1000). */
 #ifndef AK_CHARACTER_H
 #define AK_CHARACTER_H
 #include "core/ak_core.h"
@@ -29,6 +33,10 @@ typedef struct {
     bool on_ground, jumped, sprinting;  /* sprinting: running at the sprint speed this step */
     f32 ground_normal[3];
     f32 air_time;
+    /* the game's body (set by the caller; kept through ak_char_spawn): an upright box (model space, engine axes, at the soldier's
+     * scale) that keeps the yaw the soldier spawned with - the soldier class sets body flag 0x2000 (0899C544 -> 088BAC78(2)), after
+     * which 088BAB50 no longer turns the physics body.  Moved by a swept move-and-slide (ak_char_update); 0 = the engine's spheres. */
+    bool body_box; f32 body_min[3], body_max[3], body_yaw;
 } ak_character;
 
 typedef struct { f32 move_x, move_y; f32 look_x, look_y; bool jump, sprint; } ak_char_input;   /* move: right / forward, -1..1 */

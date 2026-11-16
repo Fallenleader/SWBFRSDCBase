@@ -78,7 +78,7 @@ static void model_box(const ak_model_set *m, s32 mi, const f32 **mn, const f32 *
 static void soldier_box(const ak_model_set *m, const ak_soldier_look *look, const ak_character *ch, ak_box *b)
 {
     const f32 *mn, *mx; model_box(m, look->body, &mn, &mx);
-    f32 s = sinf(ch->yaw) * S, c = cosf(ch->yaw) * S;
+    f32 s = sinf(ch->body_yaw) * S, c = cosf(ch->body_yaw) * S;   /* the body keeps its spawn yaw (body flag 0x2000: ak_character.h) */
     f32 W[12] = { c, 0, s, ch->pos[0],  0, S, 0, ch->pos[1],  -s, 0, c, ch->pos[2] };
     ak_box_place(b, mn, mx, W);
 }
@@ -1860,7 +1860,16 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         ci.jump = ci.sprint = false; rp.run_speed = v; rp.accel = 400.0f; use = &rp;
         p->roll_t += dt; if (p->roll_t >= p->roll_dur[p->roll_i]) p->roll_i = -1;
     }
+    {   /* the player's body: the game's swept box (ak_character.h), the soldier model's box at the soldier's scale; AK_SOLDIER_BODY=0
+         * selects the engine's spheres */
+        const f32 *mn, *mx; model_box(m, p->look.body, &mn, &mx);
+        static int body = -1; if (body < 0) body = ak_setting_int("AK_SOLDIER_BODY", 1);
+        p->ch.body_box = body != 0;
+        for (int k = 0; k < 3; k++) { p->ch.body_min[k] = mn[k] * S; p->ch.body_max[k] = mx[k] * S; } }
     ak_char_update(&p->ch, use, &p->col, &ci, dt);
+    {   static u32 fr; static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
+        if (dbg >= 3 && (fr++ % 30) == 0)
+            AK_INFO("body", "player at %.2f %.2f %.2f vel %.2f %.2f %.2f %s", p->ch.pos[0], p->ch.pos[1], p->ch.pos[2], p->ch.vel[0], p->ch.vel[1], p->ch.vel[2], p->ch.on_ground ? "ground" : "air"); }
     if (p->ch.sprinting && !stamina_pay(p, p->sprint_cost * dt)) p->stamina = 0;   /* the sprint's cost (08993D38) */
     if (p->stamina < p->stamina_max) {                                         /* regeneration (089DA874, 08AC3D40) */
         if (!p->stamina_spent) { if (!p->ch.sprinting) p->stamina += dt * p->stamina_regen; }

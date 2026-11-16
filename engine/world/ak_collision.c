@@ -222,3 +222,94 @@ u32 ak_col_sphere_resolve(const ak_collision *c, f32 *p, f32 r, u16 ignore, bool
     }
     return pushes;
 }
+
+
+/* ------------------------------------------------------------------ swept box (ak_col_box_sweep) */
+/* The game's body step sweeps the box's corners (body +0x118, its 8 corners, 088C4CF4 at 0x088C6354): each corner moving along the
+ * step against the triangle's face; here also each vertex of a steep triangle against the box's faces (so a wall's corner stops
+ * the box's flat side).  No edge-against-edge test: a corner passes over a seam between ground pieces instead of catching on it. */
+static bool ray_tri(const ak_col_tri *T, const f32 *o, const f32 *d, f32 *t)
+{
+    f32 p[3], q[3], s[3]; cross(d, T->e2, p);
+    f32 det = dot(T->e1, p);
+    if (fabsf(det) < 1e-12f) return false;
+    f32 inv = 1.0f / det; sub(o, T->a, s);
+    f32 u = dot(s, p) * inv; if (u < 0 || u > 1) return false;
+    cross(s, T->e1, q);
+    f32 v = dot(d, q) * inv; if (v < 0 || u + v > 1) return false;
+    *t = dot(T->e2, q) * inv;
+    return *t >= 0 && *t <= 1;
+}
+
+static bool box_tri_sweep(const ak_col_tri *T, const f32 *c0, const f32 (*ax)[3], const f32 *h, const f32 *mv, f32 *t_out, f32 *n_out)
+{
+    bool hit = false; f32 best = 2.0f;
+    f32 dn = dot(mv, T->n);
+    bool two = (T->flags & AK_COL_TWO_SIDED) != 0;
+    if (dn < 0 || (two && dn > 0)) {                                          /* corners against the face */
+        for (int i = 0; i < 8; i++) {
+            f32 o[3]; for (int k = 0; k < 3; k++) o[k] = c0[k] + ax[0][k] * h[0] * ((i & 1) ? 1 : -1) + ax[1][k] * h[1] * ((i & 2) ? 1 : -1) + ax[2][k] * h[2] * ((i & 4) ? 1 : -1);
+            f32 sg = dn < 0 ? 1.0f : -1.0f, t;
+            f32 rel[3]; sub(o, T->a, rel); f32 sd = dot(rel, T->n) * sg;     /* the corner's height over the face, on the side it comes from */
+            if (sd < 0 && sd > -0.02f) {                                       /* just behind it already (resting on it, or placed on it): */
+                f32 pr[3] = { o[0] - T->n[0] * sg * sd, o[1] - T->n[1] * sg * sd, o[2] - T->n[2] * sg * sd }, up[3] = { T->n[0] * sg, T->n[1] * sg, T->n[2] * sg };
+                f32 pr2[3] = { pr[0] + up[0] * 0.01f, pr[1] + up[1] * 0.01f, pr[2] + up[2] * 0.01f }, dn2[3] = { -up[0] * 0.02f, -up[1] * 0.02f, -up[2] * 0.02f }, tt;
+                if (ray_tri(T, pr2, dn2, &tt)) t = 0; else continue;           /* touching now, if it is over the triangle */
+            } else if (!ray_tri(T, o, mv, &t)) continue;
+            if (t < best) { best = t; hit = true; for (int k = 0; k < 3; k++) n_out[k] = T->n[k] * sg; }
+        }
+    }
+    if (T->n[1] < 0.70710678f && T->n[1] > -0.70710678f) {                  /* a wall's vertices against the box's faces */
+        f32 P[3][3];
+        for (int k = 0; k < 3; k++) { P[0][k] = T->a[k]; P[1][k] = T->a[k] + T->e1[k]; P[2][k] = T->a[k] + T->e2[k]; }
+        for (int j = 0; j < 3; j++) {
+            f32 rel[3]; sub(P[j], c0, rel);
+            f32 lo = 0, hi = 1; int face = -1; f32 fs = 0; bool ok = true;
+            for (int k = 0; k < 3 && ok; k++) {                               /* slab test in the box's axes: the vertex moves by -mv */
+                f32 o = dot(rel, ax[k]), d = -dot(mv, ax[k]);
+                if (fabsf(d) < 1e-12f) { if (o < -h[k] || o > h[k]) ok = false; continue; }
+                f32 t0 = (-h[k] - o) / d, t1 = (h[k] - o) / d, sg = -1;
+                if (t0 > t1) { f32 x = t0; t0 = t1; t1 = x; sg = 1; }
+                if (t0 > lo) { lo = t0; face = k; fs = sg; }
+                if (t1 < hi) hi = t1;
+                if (lo > hi) ok = false;
+            }
+            if (!ok || face < 0 || lo > 1 || lo >= best) continue;            /* (face < 0: the vertex starts inside the box) */
+            best = lo; hit = true;
+            for (int k = 0; k < 3; k++) n_out[k] = ax[face][k] * fs;        /* the box face it meets, facing back into the box */
+            /* fs: the side the vertex enters from is -sign(d) of that axis; the push goes the other way */
+            f32 dd = -dot(mv, ax[face]); if ((dd > 0) == (fs > 0)) for (int k = 0; k < 3; k++) n_out[k] = -n_out[k];
+            if (dot(n_out, mv) > 0) for (int k = 0; k < 3; k++) n_out[k] = -n_out[k];
+        }
+    }
+    if (hit) *t_out = best;
+    return hit;
+}
+
+bool ak_col_box_sweep(const ak_collision *c, const f32 *c0, const f32 (*ax)[3], const f32 *h, const f32 *mv, u16 ignore,
+                      f32 *t_out, f32 *normal, u16 *flags)
+{
+    if (!c->ntri) return false;
+    f32 ext[3], mn[3], mx[3];
+    for (int k = 0; k < 3; k++) {
+        ext[k] = h[0] * fabsf(ax[0][k]) + h[1] * fabsf(ax[1][k]) + h[2] * fabsf(ax[2][k]);
+        f32 a = c0[k], b = c0[k] + mv[k];
+        mn[k] = (a < b ? a : b) - ext[k] - 0.01f; mx[k] = (a < b ? b : a) + ext[k] + 0.01f;
+    }
+    f32 best = 2.0f; bool any = false;
+    u32 stack[64], sp = 0; stack[sp++] = 0;
+    while (sp) {
+        u32 id = stack[--sp]; const ak_col_node *nd = &c->node[id];
+        if (mx[0] < nd->min[0] || mn[0] > nd->max[0] || mx[1] < nd->min[1] || mn[1] > nd->max[1] || mx[2] < nd->min[2] || mn[2] > nd->max[2]) continue;
+        if (!nd->count) { if (sp + 2 <= 64) { stack[sp++] = nd->first_or_right; stack[sp++] = id + 1; } continue; }
+        for (u32 i = nd->first_or_right; i < nd->first_or_right + nd->count; i++) {
+            const ak_col_tri *T = &c->tri[i];
+            if (T->flags & ignore) continue;
+            f32 t, n[3];
+            if (!box_tri_sweep(T, c0, ax, h, mv, &t, n)) continue;
+            if (t < best) { best = t; memcpy(normal, n, 12); if (flags) *flags = T->flags; any = true; }
+        }
+    }
+    if (any) *t_out = best;
+    return any;
+}
