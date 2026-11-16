@@ -65,6 +65,15 @@ static bool gallery_blade(const ak_model_set *ms, const ak_model *body, const ak
 
 /* the debug text: one colour that reads on the level's colours - black on the Vita (its screens show a blue backdrop behind
  * the text), grey elsewhere; AK_DEBUG_TEXT_RGB (0xRRGGBB) overrides.  (The crosshair and lock marks keep their colours.) */
+/* a world point (engine space) on the HUD's 480 x 272 screen; false behind the camera */
+static bool hud_project(const ak_m4 *vp, const f32 *p, f32 *x, f32 *y)
+{
+    const f32 *m = vp->m;
+    f32 cx = m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], cy = m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13];
+    f32 cw = m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15];
+    if (cw <= 0) return false;
+    *x = (cx / cw * 0.5f + 0.5f) * 480.0f; *y = (0.5f - cy / cw * 0.5f) * 272.0f; return true;
+}
 static void dbg_text(f32 x, f32 y, u32 col, const char *s)
 {
     static s32 c = -2; (void)col;
@@ -470,13 +479,40 @@ int main(int argc, char **argv)
                     ak_hud_blip *b = &blips[nb++]; memcpy(b->pos, play.veh[i].pos, 12); b->kind = 2; b->team = 4; }
                 hs.blips = blips; hs.nblips = nb; hs.dt = dt;
                 {   f32 lp[3];                                                 /* the lock-on's point on the 480 x 272 screen */
-                    if (play.in_veh < 0 && play.in_turret < 0 && ak_play_lock_point(&play, lp)) {
-                        const f32 *m = vp.m; f32 cxp = m[0] * lp[0] + m[4] * lp[1] + m[8] * lp[2] + m[12], cyp = m[1] * lp[0] + m[5] * lp[1] + m[9] * lp[2] + m[13];
-                        f32 cw = m[3] * lp[0] + m[7] * lp[1] + m[11] * lp[2] + m[15];
-                        if (cw > 0) { hs.lock = true; hs.lock_x = (cxp / cw * 0.5f + 0.5f) * 480.0f; hs.lock_y = (0.5f - cyp / cw * 0.5f) * 272.0f;
-                                      hs.lock_t = play.lock_t; hs.lock_head = play.wdef.headshots;
-                                      if (ak_setting_int("AK_DEBUG_HUD", 0) > 1) AK_INFO("hud", "lock at %.0f %.0f, %.2f s", hs.lock_x, hs.lock_y, hs.lock_t); }
+                    if (play.in_veh < 0 && play.in_turret < 0 && ak_play_lock_point(&play, lp) && hud_project(&vp, lp, &hs.lock_x, &hs.lock_y)) {
+                        hs.lock = true; hs.lock_t = play.lock_t; hs.lock_head = play.wdef.headshots;
+                        if (ak_setting_int("AK_DEBUG_HUD", 0) > 1) AK_INFO("hud", "lock at %.0f %.0f, %.2f s", hs.lock_x, hs.lock_y, hs.lock_t);
                     }
+                }
+                /* in a vehicle or a turret: its health, its weapons (HardpointW1 above, HardpointW2 below), the reticle where its guns
+                 * point - 1000 ahead of it (089DC9CC: the aiming frame's forward), walkers 1000 ahead of the camera (089C1064),
+                 * turrets 100 ahead (089B6F74) - and its lock (UI_Target_Select, 0x5580D8FF, once it locks: 08A523B4) */
+                if (play.in_veh >= 0 || play.in_turret >= 0) {
+                    static bool lock_armed;
+                    hs.vehicle = true; hs.reticle = false;
+                    const ak_vehicle *vh = play.in_veh >= 0 ? &play.veh[play.in_veh] : NULL;
+                    const ak_turret *tu = vh ? NULL : &play.turret[play.in_turret];
+                    const ak_weapon_def *gun = vh ? (vh->def->armed ? &vh->def->gun : NULL) : (tu->def->armed ? &tu->def->gun : NULL);
+                    hs.health = vh ? vh->health : tu->health; hs.health_max = vh ? vh->def->health : tu->def->health;
+                    if (gun) { hs.weapon = gun->hud_icon; hs.ammo = -1; hs.spare = -1; }
+                    if (vh && vh->def->sec.armed) {
+                        const ak_secondary *sc = &vh->def->sec;
+                        if (hs.weapon) { hs.weapon2 = sc->hud_icon; hs.ammo2 = sc->clip < 0 ? -1 : vh->sec_ammo; hs.spare2 = -1; }
+                        else { hs.weapon = sc->hud_icon; hs.ammo = sc->clip < 0 ? -1 : vh->sec_ammo; hs.spare = -1; }
+                    }
+                    if (gun && play.aim_ok) {
+                        const f32 *from = vh ? (vh->def->kind == AK_VEH_WALKER ? play.eye : vh->pos) : tu->pos; f32 reach = vh ? 1000.0f : 100.0f;
+                        f32 ap[3] = { from[0] + play.aim[0] * reach, from[1] + play.aim[1] * reach, from[2] + play.aim[2] * reach };
+                        hs.aim = hud_project(&vp, ap, &hs.aim_x, &hs.aim_y);
+                    }
+                    if (vh && vh->lock >= 0 && play.target[vh->lock].alive) {
+                        const ak_target *t = &play.target[vh->lock];
+                        f32 lt = vh->def->lock_time > 0 ? vh->def->lock_time : 1.0f;
+                        hs.locked = vh->locked; hs.lock_fill = vh->locked ? 1.0f : vh->lock_t / lt; if (hs.lock_fill > 1) hs.lock_fill = 1;
+                        hs.lock = hud_project(&vp, t->feet, &hs.lock_x, &hs.lock_y);
+                        if (!vh->locked && hs.lock_fill > 0) lock_armed = true;
+                        else if (vh->locked && lock_armed) { lock_armed = false; ak_audio_play("UI_Target_Select", vh->pos, false); }
+                    } else lock_armed = false;
                 }
                 if (play.have_cq) {                                            /* messages: captures and the bleed (func 089EA3D0) */
                     static int prev_owner[AK_MAX_POSTS], prev_bleed = -2; static const void *prev_level;
@@ -558,12 +594,6 @@ int main(int argc, char **argv)
                         if (vh->sec_reload > 0) snprintf(line, sizeof line, "square: %s  reloading %.1f s%s", vh->def->sec.weapon, vh->sec_reload, lk);
                         else snprintf(line, sizeof line, "square: %s  %d / %d%s", vh->def->sec.weapon, vh->sec_ammo, vh->def->sec.clip, lk);
                         dbg_text(8, 170, vh->locked ? 0xFF4040FF : 0xFFA0FFA0, line);
-                        if (lt) {                                             /* a mark on the locked / locking target */
-                            f32 X = lt->feet[0], Y = lt->feet[1] + lt->height * 0.5f, Z = lt->feet[2];
-                            f32 cx = vp.m[0] * X + vp.m[4] * Y + vp.m[8] * Z + vp.m[12], cy = vp.m[1] * X + vp.m[5] * Y + vp.m[9] * Z + vp.m[13], cw = vp.m[3] * X + vp.m[7] * Y + vp.m[11] * Z + vp.m[15];
-                            if (cw > 0.1f) { f32 sx = ((cx / cw) * 0.5f + 0.5f) * (f32)w, sy = (0.5f - (cy / cw) * 0.5f) * (f32)h;
-                                ak_gfx_text(sx - 12, sy - 6, vh->locked ? 0xFF4040FF : 0xFF40FFFF, vh->locked ? "[ X ]" : "[   ]"); }
-                        }
                     }
                 } else {
                     s32 nv = -1; f32 bd = 1e30f;

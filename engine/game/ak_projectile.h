@@ -24,6 +24,7 @@ typedef struct {
 typedef struct {
     bool armed; const char *weapon; ak_proj_def proj;
     f32 rate, reload, lock_time; s32 clip;   /* clip < 0: never runs dry */
+    const char *hud_icon;                    /* the Weapon's "HUDIcon" (its picture on the HUD) */
     bool tracks; f32 bot_dmg;                /* tracks: Weapon or Projectile WillTrack; bot_dmg: the Weapon's Modifier_Bot_Damage */
 } ak_secondary;
 

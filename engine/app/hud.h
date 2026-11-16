@@ -28,6 +28,9 @@ typedef struct {
     /* the capture panel: the post the soldier stands at (within 5 units, on foot) */
     f32 dt;                            /* the frame's time (the messages' clocks) */
     bool lock; f32 lock_x, lock_y, lock_t; bool lock_head;   /* the lock-on: the held point on the 480 x 272 screen, seconds held, headshots */
+    /* in a vehicle or a turret (the game's vehicle HUDs, funcs 08A5DAD0 / 08A5DDF8): no soldier's reticle, no capture panel; the
+     * reticle at the projected aim point (aim, aim_x / aim_y); the lock (lock, lock_x / lock_y) filled by lock_fill, held once locked */
+    bool vehicle, aim; f32 aim_x, aim_y, lock_fill; bool locked;
     bool post; s32 post_name; int post_owner, post_capturer; f32 post_fill; bool post_contested; f32 post_time;
 } ak_hud_state;
 

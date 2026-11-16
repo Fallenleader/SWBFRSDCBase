@@ -27,16 +27,21 @@ static u32 h31(const char *s) { u32 h = 0; for (; *s; s++) { u8 c = (u8)*s; if (
 static f32 rdf(const u8 *b) { f32 f; memcpy(&f, b, 4); return f; }
 static int ieq(const char *a, const char *b) { for (; *a && *b; a++, b++) { int x = *a, y = *b; if (x >= 'A' && x <= 'Z') x += 32; if (y >= 'A' && y <= 'Z') y += 32; if (x != y) return 1; } return *a != *b; }
 
-/* the game's table, in its order (index = what the HUD code passes) */
-static const char *const table[] = {
-    "HUD_Reticule_01", "HUD_Radar_Background_Half", "HUD_Radar_Blip", "HUD_Ammo_Underlay", "HUD_Arrow_Lock", "HUD_Arrow_NPC",
-    "HUD_Capture_Point", "HUD_Health_Bar", "HUD_Health_3_Bar", "HUD_Health_4_Bar", "HUD_Health_5_Bar", "HUD_Logo_Alliance",
-    "HUD_Logo_Empire", "HUD_Logo_CIS", "HUD_Logo_Republic", "HUD_Objective_Flag", "HUD_Radar_Blip_NPC", "HUD_Stamina_Bar",
-    "HUD_Stamina_Bar_Frame", "HUD_Hit_Direction", "HUD_Level_Indicator", "HUD_Icon_Health", "HUD_Icon_Stamina", "HUD_Lock_On_Quarter",
-    "HUD_Target_Leading_Indicator", "HUD_Icon_Energy", "HUD_Force_Bar", "HUD_Radar_Blip_NPC_Level", "HUD_Space_Lock_On_Quarter",
-    "HUD_Space_Arrow_Lock", "HUD_Icon_Jetpack", "HUD_Text_Box_Bottom", "HUD_Text_Box_Mid", "HUD_Text_Box_Top", "HUD_PowerUp_Bar",
-    "HUD_PowerUp_Frame", "HUD_Infinity_Symbol", "HUD_Flag_Carrier_Icon", "HUD_Radar_Blip_Flag_Carrier", "HUD_Target_Info_Bracket",
-    "HUD_Radar_Blip_CZ", "HUD_Capture_Point_Cross", "HUD_Icon_CTF_Bacta_Tank", "HUD_Icon_CTF_Data_Cube", "HUD_Icon_CTF_Energy_Cell",
+/* the game's table, in its order (index = what the HUD code passes): h31 of "HUD_....tga", 0x08B1C8A4 (8 bytes each).
+ * 0 Reticule_01, 1 Radar_Background_Half, 2 Radar_Blip, 3 Ammo_Underlay, 4 Arrow_Lock, 5 Arrow_NPC, 6 Capture_Point, 7 Health_Bar,
+ * 8..10 Health_3/4/5_Bar, 0xB..0xE Logo_Alliance/Empire/CIS/Republic, 0xF Objective_Flag, 0x10 Radar_Blip_NPC, 0x11 Stamina_Bar,
+ * 0x12 Stamina_Bar_Frame, 0x13 Hit_Direction, 0x14 Level_Indicator, 0x15 Icon_Health, 0x16 Icon_Stamina, 0x17 Lock_On_Quarter,
+ * 0x18 Target_Leading_Indicator, 0x19 Icon_Energy, 0x1A Force_Bar, 0x1B Radar_Blip_NPC_Level, 0x1C Space_Lock_On_Quarter,
+ * 0x1D Space_Arrow_Lock, 0x1E Icon_Jetpack, 0x1F..0x21 Text_Box_Bottom/Mid/Top, 0x22 PowerUp_Bar, 0x23 PowerUp_Frame,
+ * 0x24 Infinity_Symbol, 0x25 Flag_Carrier_Icon, 0x26 (a picture not on the disc), 0x27 Radar_Blip_Flag_Carrier,
+ * 0x28 Target_Info_Bracket, 0x29 Radar_Blip_CZ, 0x2A Capture_Point_Cross, 0x2B..0x2D Icon_CTF_Bacta_Tank/Data_Cube/Energy_Cell */
+static const u32 table[] = {
+    0xAFAAE005, 0x8EE36003, 0x2B9E8932, 0x3D4CABB5, 0xFB3A84C9, 0xC615E843, 0xC7E867EF, 0x2A8DDD58,
+    0xBEA6DC0C, 0x52EB4B0D, 0xE72FBA0E, 0x1273BEE3, 0x6FF53DC0, 0x8E506B61, 0x4F8F6A88, 0x27D7E35A,
+    0x6E354954, 0xA7989ADB, 0x32D57809, 0xF6B4D06B, 0xA4A4BF2C, 0xFF31FDFA, 0xCC17D3D1, 0x116EF9F8,
+    0x9AB85090, 0x20683826, 0xE3BEE557, 0x8E53B659, 0x2EF44F3F, 0x5B68BF22, 0xBF0D7014, 0xF67A9B09,
+    0x7F62D76A, 0xFC94A3F7, 0x0C75B1CC, 0xE4208FE6, 0x41661627, 0x12A505EB, 0x1AE1BC90, 0x72F92FD2,
+    0x29F6F99D, 0x0A04D664, 0x4E207370, 0x92D5A200, 0x1EF01562, 0x37349CF1,
 };
 enum { S_RETICLE = 0, S_RADAR_HALF = 1, S_RADAR_BLIP = 2, S_AMMO_UNDERLAY = 3, S_CAPTURE_POINT = 6, S_LOCK_QUARTER = 0x17, S_BLIP_NPC_LEVEL = 0x1B, S_HEALTH_BAR = 7, S_HEALTH_3 = 8, S_HEALTH_4 = 9, S_HEALTH_5 = 10, S_ICON_HEALTH = 0x15,
        S_INFINITY = 0x24, S_COUNT = sizeof table / sizeof table[0] };
@@ -143,7 +148,7 @@ bool ak_hud_load(ak_vfs *vfs)
     if (!ak_arena_init(&mem, 1u << 20)) return false;
     u32 n = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD.ASR");
     for (u32 i = 0; i < S_COUNT; i++) {
-        char nm[64]; snprintf(nm, sizeof nm, "%s.tga", table[i]); const sprite *s = find(h31(nm), 0, n);
+        const sprite *s = find(table[i], 0, n);
         by_index[i] = s ? (s32)(s - spr) : -1;
     }
     wpn_first[0] = nspr; wpn_n[0] = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD_WEAPONS_CLASSIC.ASR");
@@ -421,6 +426,25 @@ static void lock_mark(f32 t, f32 cx, f32 cy, u32 argb)
         }
     }
 }
+/* a vehicle's lock (func 08A523B4, element 08A522E4; its update 08A52334): the target (the vehicle's +0x1C0) projected; while
+ * locking (+0x1D4 clear) t = the lock timer / LockOnTime (+0x1D0 / the Weapon's LockOnTime, 089C6524) - nothing at 0 - in white
+ * turning red with t (08A5269C: each channel a / 255 (1 - t) + b / 255 t, x 255, rounded); once locked t = 1 in red.  The reticle,
+ * HUD_Reticule_01 centred on the projected aim point, shows while the vehicle has guns (its +0x2D0, the count of its HardpointW1
+ * weapons: 089C8C68) */
+static u32 lerp_argb(u32 a, u32 b, f32 t)
+{
+    u32 out = 0;
+    for (int sh = 24; sh >= 0; sh -= 8) {
+        f32 c = ((f32)((a >> sh) & 0xFF) / 255.0f * (1 - t) + (f32)((b >> sh) & 0xFF) / 255.0f * t) * 255.0f;
+        c += c > 0 ? 0.5f : -0.5f; out |= (u32)(s32)c << sh;
+    }
+    return out;
+}
+static void vehicle_lock(const ak_hud_state *s)
+{
+    if (s->locked) lock_mark(1.0f, s->lock_x, s->lock_y, 0xFFFF0000u);
+    else if (s->lock_fill > 0) lock_mark(s->lock_fill, s->lock_x, s->lock_y, lerp_argb(0xFFFFFFFFu, 0xFFFF0000u, s->lock_fill));
+}
 static void lock_on(const ak_hud_state *s)
 {
     f32 t = s->lock_t, fill = 0;
@@ -477,12 +501,17 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     if (!ready || !s || !ak_setting_int("AK_HUD", 1)) return;
     ak_m4 o = ak_m4_ortho2d(480.0f, 272.0f); ak_gfx_set_transform(&o); ak_gfx_set_tint(NULL);
     if (s->radar && s->alive) radar(s);
-    if (s->post && s->alive) capture_panel(s);
+    if (s->post && s->alive && !s->vehicle) capture_panel(s);
     messages(s->dt);
     if (s->tickets) { tickets(s->tickets_own, s->faction_own, 167.5f); tickets(s->tickets_enemy, s->faction_enemy, 312.5f); }
     if (s->alive) {
-        if (s->reticle) pic(idx(S_RETICLE), 240, 136, true, 0xFFFFFFFFu, 1);                 /* func 08A51AA0 */
-        if (s->lock) lock_on(s);
+        if (s->vehicle) {
+            if (s->aim) pic(idx(S_RETICLE), s->aim_x, s->aim_y, true, 0xFFFFFFFFu, 1);
+            if (s->lock) vehicle_lock(s);
+        } else {
+            if (s->reticle) pic(idx(S_RETICLE), 240, 136, true, 0xFFFFFFFFu, 1);             /* func 08A51AA0 */
+            if (s->lock) lock_on(s);
+        }
         /* health (func 08A574BC, positions 08A578DC): the bar for the maximum (08A57854: max / 33 rounded - 3 or less: the
          * 3-section bar, 4, 5, 6 and more: the long one), top-left at (20, 252), grey behind, the fill in the health colour; the
          * health icon centred at (10, 256) */

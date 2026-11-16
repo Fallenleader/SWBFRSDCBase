@@ -27,7 +27,7 @@ bool ak_secondary_load(const ak_blueprints *bp, const char *hp, ak_secondary *s)
     if (!hp || !*hp) return false;
     const ak_bp_object *w = ak_bp_find(bp, "Weapon", hp);
     if (!w) return false;
-    s->weapon = w->name;
+    s->weapon = w->name; s->hud_icon = ak_bp_string(w, "HUDIcon", NULL);
     if (!proj_def(bp, ak_bp_string(w, "Projectile", ""), &s->proj)) return false;   /* (beams, mortars, harpoons: not yet) */
     s->rate = ak_bp_float(w, "RateOfFire", 0.5f); s->reload = ak_bp_float(w, "ReloadTime", 5);
     s->clip = ak_bp_int(w, "AmmoPerClip", 1); if (s->clip <= 0) s->clip = 1;
