@@ -104,6 +104,7 @@ typedef struct {
     s32 clip[PLAY_NCLIPS]; int state; f32 clip_t, land_t;
     ak_root_track *roots;              /* every clip's root motion (ak_loco.h) */
     ak_loco loco;                      /* the player's body clips: the one playing, the one fading out - they move the body */
+    bool sprint_spent;                 /* the stamina ran out in this sprint: none until L is let go */
     bool roll_end;                     /* a roll just ended: the next body clip starts at full weight */
     s32 sclip[PLAY_NCLIPS];            /* the saber heroes' (generic_male LightSabre clips) */
     s32 aclip[PLAY_NCLIPS], shoot_clip;   /* the alert set (rifle raised: generic_male set 5) and its shoot layer (column 1) */

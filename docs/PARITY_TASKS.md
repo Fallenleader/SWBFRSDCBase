@@ -98,7 +98,11 @@ textures and how they are used. Section R lists only what must be in place so th
   - Aurek: play.c rolls move by the roll clip's root track and end 0.05 s early, with an instant switch back; zoomed = standing.
     Harness run_roll within 0.5 m (Aurek 2 frames earlier: the original's press latency plus one still frame as the roll begins).
   - [ ] **1.7b** Find the 0.05 s in the code; "roll no lock on time" (2 s) and the roll stamina gate are not tested yet.
-- [ ] **1.8 Stamina gating of sprint [assumed].** Does an empty stamina bar end a sprint (HUD item too)?
+- [x] **1.8 Sprint and stamina [done 2026-11-16, measured].** Holding L while running (harness, 15 s): the sprint starts 0.1 s
+  after L goes down (a 4-frame press is still a jump tap), crossfades over 0.2 s to the sprint clip's root motion (about 10.3
+  m/s), ends when the stamina is gone (100 / "sprint cost" 15 a second: 6.7 s) and does not come back while L stays held - the
+  soldier runs on. A one-frame lift over a crest at sprint speed does not interrupt the run. Aurek matches within 0.22 m over
+  15 s (play.c: 0.1 s hold, sprint_spent; motion_state falls only after 0.1 s off the ground unless jumping).
 - [ ] **1.9 Falling and level-boundary damage [missing].** Trace fall damage, kill heights, and out-of-bounds timers.
 - [ ] **1.10 Respawn [assumed].** AK_RESPAWN_DELAY is 10 s. Trace the delay and the spawn-point choice per mode.
 - [ ] **1.11 Hit reactions and flinch [missing].** Not traced (play.h:28).

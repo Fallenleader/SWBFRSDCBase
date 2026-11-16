@@ -270,7 +270,10 @@ static int motion_state(const ak_character *ch, const ak_char_params *cp, bool w
     f32 sy = sinf(ch->yaw), cy = cosf(ch->yaw);
     f32 fwd = -sy * ch->vel[0] - cy * ch->vel[2], side = cy * ch->vel[0] - sy * ch->vel[2], hs = sqrtf(fwd * fwd + side * side);
     int st;
-    if (!ch->on_ground) st = ch->vel[1] > 0 && ch->jumped ? PLAY_JUMP : PLAY_FALL;
+    /* off the ground: the jump, or a fall once it lasts (a crest crossed at a sprint lifts the box for a frame; the original's run
+       carries on - measured) [PARITY(1.5b): the 0.1 s is the engine's] */
+    if (!ch->on_ground && (ch->jumped || ch->air_time > 0.1f)) st = ch->vel[1] > 0 && ch->jumped ? PLAY_JUMP : PLAY_FALL;
+    else if (!ch->on_ground) { st = PLAY_RUN; *hs_out = 0; *land_t -= dt; return st; }   /* (play.c keeps the stick's clip) */
     else if (!was_ground && ch->air_time > 0.4f) { st = PLAY_LAND; *land_t = 0.25f; }
     else if (*land_t > 0 && hs < 1.0f) st = PLAY_LAND;
     else if (hs < 0.5f) st = PLAY_IDLE;
@@ -1772,9 +1775,13 @@ static ak_input psp_layout(ak_play *p, const ak_input *raw, f32 dt)
         if (P & AK_BTN_R) g.pressed |= AK_BTN_L;
         if (P & AK_BTN_L) p->l_t = 0;
         if (H & AK_BTN_L) p->l_t += dt;
-        else if (p->l_was && p->l_t < 0.2f) g.pressed |= AK_BTN_CROSS;       /* a tap: jump */
+        else if (p->l_was && p->l_t < 0.1f) g.pressed |= AK_BTN_CROSS;       /* a tap: jump */
         p->l_was = (H & AK_BTN_L) != 0;
-        p->sprint = p->l_was && p->l_t >= 0.2f && !(H & (AK_BTN_CROSS | AK_BTN_R));   /* held: sprint (not while firing or locked on) */
+        /* held: sprint (not while firing or locked on).  Measured: the sprint starts 0.1 s after L goes down (4 frames is still a
+           tap), lasts while the stamina does (100 / "sprint cost" 15 a second: 6.7 s), and once it runs out L must be let go
+           before another - holding on, the soldier runs */
+        if (!p->l_was) p->sprint_spent = false;
+        p->sprint = p->l_was && p->l_t >= 0.1f && !(H & (AK_BTN_CROSS | AK_BTN_R)) && !p->sprint_spent;
         if (P & AK_BTN_CIRCLE) p->roll_req = true;                             /* circle: roll */
         if (P & AK_BTN_TRIANGLE) p->zoom_req = true;                           /* triangle: zoom */
     }
@@ -1949,7 +1956,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     {   static u32 fr; static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
         if (dbg >= 3 && (fr++ % 30) == 0)
             AK_INFO("body", "player at %.2f %.2f %.2f vel %.2f %.2f %.2f %s", p->ch.pos[0], p->ch.pos[1], p->ch.pos[2], p->ch.vel[0], p->ch.vel[1], p->ch.vel[2], p->ch.on_ground ? "ground" : "air"); }
-    if (p->ch.sprinting && !stamina_pay(p, p->sprint_cost * dt)) p->stamina = 0;   /* the sprint's cost (08993D38) */
+    if (p->ch.sprinting && !stamina_pay(p, p->sprint_cost * dt)) { p->stamina = 0; p->sprint_spent = true; p->ch.sprinting = false; }   /* the sprint's cost (08993D38) */
     if (p->stamina < p->stamina_max) {                                         /* regeneration (089DA874, 08AC3D40) */
         if (!p->stamina_spent) { if (!p->ch.sprinting) p->stamina += dt * p->stamina_regen; }
         else p->stamina_spent = false;
