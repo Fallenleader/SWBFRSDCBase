@@ -175,6 +175,66 @@ static u32 start(const char *event, const f32 *pos, f32 pan, f32 gain, bool loop
     return id;
 }
 
+/* ---- sounds played from converted WAV files (speech): loaded on first use, kept while memory allows (8 MB), least recently
+ * used first out - never one a voice is playing */
+#define MAX_FILES 96
+static struct { char path[192]; snd_sample s; u32 used; u32 bytes; } files[MAX_FILES]; static u32 nfiles, file_clock, file_bytes;
+static bool sample_busy(const snd_sample *s) { for (u32 i = 0; i < MAX_VOICES; i++) if (voices[i].live && voices[i].s == s) return true; return false; }
+static const snd_sample *file_sample(const char *path)
+{
+    for (u32 i = 0; i < nfiles; i++) if (!strcmp(files[i].path, path)) { files[i].used = ++file_clock; return &files[i].s; }
+    FILE *f = fopen(path, "rb"); if (!f) return NULL;
+    u8 h[256]; size_t n = fread(h, 1, sizeof h, f);
+    u32 rate = 0, ch = 0, bits = 0, doff = 0, dlen = 0;
+    if (n >= 44 && !memcmp(h, "RIFF", 4) && !memcmp(h + 8, "WAVE", 4))
+        for (u32 p = 12; p + 8 <= n;) {
+            u32 len = ak_rd32(h + p + 4);
+            if (!memcmp(h + p, "fmt ", 4) && p + 24 <= n) { ch = ak_rd16(h + p + 10); rate = ak_rd32(h + p + 12); bits = ak_rd16(h + p + 22); }
+            else if (!memcmp(h + p, "data", 4)) { doff = p + 8; dlen = len; break; }
+            p += 8 + len + (len & 1);
+        }
+    if (!doff || bits != 16 || (ch != 1 && ch != 2) || !rate) { fclose(f); return NULL; }
+    u32 frames = dlen / (2 * ch); s16 *pcm = ak_plat_alloc((size_t)frames * 2 + 2, 16), *tmp = ch == 2 ? ak_plat_alloc((size_t)frames * 4, 16) : NULL;
+    if (!pcm || (ch == 2 && !tmp)) { fclose(f); if (pcm) ak_plat_free(pcm); if (tmp) ak_plat_free(tmp); return NULL; }
+    fseek(f, (long)doff, SEEK_SET);
+    if (ch == 1) frames = (u32)fread(pcm, 2, frames, f);
+    else { frames = (u32)fread(tmp, 4, frames, f); for (u32 i = 0; i < frames; i++) pcm[i] = (s16)((tmp[2 * i] + tmp[2 * i + 1]) / 2); ak_plat_free(tmp); }
+    fclose(f);
+    u32 bytes = frames * 2;
+    lock();
+    while ((nfiles == MAX_FILES || file_bytes + bytes > (8u << 20)) && nfiles) {   /* make room: the least recently used idle one */
+        s32 old = -1; for (u32 i = 0; i < nfiles; i++) if (!sample_busy(&files[i].s) && (old < 0 || files[i].used < files[(u32)old].used)) old = (s32)i;
+        if (old < 0) break;
+        ak_plat_free(files[old].s.pcm); file_bytes -= files[old].bytes; files[old] = files[--nfiles];
+    }
+    const snd_sample *r = NULL;
+    if (nfiles < MAX_FILES) {
+        u32 i = nfiles++; snprintf(files[i].path, sizeof files[i].path, "%s", path);
+        files[i].s = (snd_sample){ 0, files[i].path, pcm, frames, rate, false }; files[i].used = ++file_clock; files[i].bytes = bytes;
+        file_bytes += bytes; r = &files[i].s;
+    } else ak_plat_free(pcm);
+    unlock();
+    return r;
+}
+
+u32 ak_audio_play_wav(const char *path, const f32 *pos, f32 gain, f32 dmin, f32 dmax, u32 skip)
+{
+    const snd_sample *s = file_sample(path); if (!s) return 0;
+    lock();
+    voice *v = NULL; for (u32 i = 0; i < MAX_VOICES && !v; i++) if (!voices[i].live) v = &voices[i];
+    u32 id = 0;
+    if (v) {
+        memset(v, 0, sizeof *v);
+        v->s = s; v->step = (u64)((double)s->rate / AK_AUDIO_RATE * 4294967296.0); v->pos = (u64)(skip < s->len ? skip : 0) << 32;
+        v->gain = 1.0f; v->user_gain = gain; v->dmin = dmin; v->dmax = dmax > dmin ? dmax : dmin + 1; v->live = true;
+        if (pos) { memcpy(v->p, pos, 12); v->pos3d = true; }
+        v->id = id = next_id++; if (!next_id) next_id = 1;
+        voice_gains(v);
+    }
+    unlock();
+    return id;
+}
+
 u32  ak_audio_play(const char *event, const f32 *pos, bool loop)        { return start(event, pos, 0, 1, loop); }
 u32  ak_audio_play2d(const char *event, f32 pan, f32 gain, bool loop)   { return start(event, NULL, pan, gain, loop); }
 const char *ak_audio_find(const char *prefix, const char *suffix, u32 nth)

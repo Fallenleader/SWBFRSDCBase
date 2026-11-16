@@ -96,6 +96,9 @@ AK_MUSIC_VOLUME=0.6
 # which of the level's music lists plays during the match (OGM Music 1 or OGM Music 2), and which of its tracks (0, 1, 2)
 AK_MUSIC_LIST=OGM Music 1
 AK_MUSIC_TRACK=0
+# speech (narrator and AI chatter) plays from the converted voice WAVs (converted/PSP_GAME/USRDIR/SOUNDS/GMSND.AM.d).
+# 1 shows the narrator's line text at the bottom of the screen (the game's own subtitle display is not traced yet)
+AK_SUBTITLES=0
 # command post hologram light: 0 = unlit .. 1 = full strength
 AK_POST_GLOW=0.75
 #AK_VEHICLE_RESPAWN=10

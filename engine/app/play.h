@@ -152,6 +152,9 @@ typedef struct {
         f32 step[129]; bool ground[129], alive[129];         /* 0 the player, 1 + i bot i */
         u32 impacts; int post_owner[AK_MAX_POSTS]; int winner; bool hero;
         const char *music_req;                               /* a MMUS list the viewer should start ("VICTORY" / "FAIL") */
+        f32 hp[129], hit_t[129]; s32 enemy[129]; u32 voice[129];   /* speech: last health, the hit line's 3 s wait, last enemy, the line playing */
+        u32 narr; const char *sub; f32 sub_t; bool said_reinf, said_end;   /* narration: the line playing, its subtitle and time left */
+        u32 rng;
     } snd;
 } ak_play;
 

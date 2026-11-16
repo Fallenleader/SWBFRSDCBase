@@ -135,6 +135,26 @@ bool ak_vfs_read(ak_vfs *v, const char *path, ak_arena *a, ak_blob *out)
     return ak_file_read(p, a, out);
 }
 
+bool ak_vfs_read_part(ak_vfs *v, const char *path, u32 offset, u32 max, ak_arena *a, ak_blob *out)
+{
+    u32 size = 0; FILE *f = NULL; char p[1024]; u32 lba = 0;
+    if (v->iso) { bool isdir; if (!iso_lookup(v, path, &lba, &size, &isdir) || isdir) return false; }
+    else {
+        if (!dir_resolve(v->dir, path, p, sizeof p) || !(f = fopen(p, "rb"))) return false;
+        fseek(f, 0, SEEK_END); size = (u32)ftell(f);
+    }
+    u32 n = offset >= size ? 0 : (size - offset < max ? size - offset : max);
+    out->data = (u8 *)ak_arena_alloc(a, (size_t)n + 1, 64); out->size = n;
+    bool ok = out->data != NULL;
+    if (ok && n) {
+        if (v->iso) ok = iso_read(v, lba + offset / 2048, offset % 2048, out->data, n);
+        else ok = fseek(f, (long)offset, SEEK_SET) == 0 && fread(out->data, 1, n, f) == n;
+    }
+    if (f) fclose(f);
+    if (ok) out->data[n] = 0;
+    return ok;
+}
+
 static int name_cmp(const void *x, const void *y) { return strcmp(*(const char *const *)x, *(const char *const *)y); }
 
 int ak_vfs_list(ak_vfs *v, const char *dir, ak_arena *a, const char ***names)

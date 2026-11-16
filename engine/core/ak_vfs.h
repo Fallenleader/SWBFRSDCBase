@@ -10,6 +10,8 @@ ak_vfs *ak_vfs_open(const char *const *data_dirs, int ndirs);  /* first folder h
 void    ak_vfs_close(ak_vfs *v);
 const char *ak_vfs_describe(const ak_vfs *v);                   /* "game.iso in ux0:data/SWBFRS" (log) */
 bool    ak_vfs_read(ak_vfs *v, const char *path, ak_arena *a, ak_blob *out);
+/* part of a file: up to `max` bytes from `offset` (fewer at its end) */
+bool    ak_vfs_read_part(ak_vfs *v, const char *path, u32 offset, u32 max, ak_arena *a, ak_blob *out);
 /* names (files only, upper case as stored) of a directory; returns the count, names written into the arena */
 int     ak_vfs_list(ak_vfs *v, const char *dir, ak_arena *a, const char ***names);
 #endif

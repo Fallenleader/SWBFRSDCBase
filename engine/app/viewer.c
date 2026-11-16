@@ -15,6 +15,7 @@
 #include "../game/ak_soldier.h"
 #include "play.h"
 #include "../audio/ak_audio.h"
+#include "../audio/ak_speech.h"
 #include "../platform/plat.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -108,7 +109,11 @@ int main(int argc, char **argv)
     /* audio (1.9): the shared sound bank once; each level adds its own and its music */
     ak_arena sndmem, musmem; ak_audio_init();
     if (ak_arena_init(&sndmem, 3u << 20)) { ak_blob sb;
-        if (ak_vfs_read(vfs, "PSP_GAME/USRDIR/SOUNDS/GMSND.ASR", &sndmem, &sb)) AK_INFO("audio", "SOUNDS/GMSND.ASR: %u sounds and events", ak_audio_bank_add(&sb, false));
+        if (ak_vfs_read(vfs, "PSP_GAME/USRDIR/SOUNDS/GMSND.ASR", &sndmem, &sb)) {
+            AK_INFO("audio", "SOUNDS/GMSND.ASR: %u sounds and events", ak_audio_bank_add(&sb, false));
+            ak_blob am;                                                   /* speech: GMSND.AM's index (its lines, the bundle's table) */
+            if (ak_vfs_read_part(vfs, "PSP_GAME/USRDIR/SOUNDS/GMSND.AM", 0, 256u << 10, &sndmem, &am)) ak_speech_load(&am, &sb);
+        }
         else AK_WARN("audio", "no SOUNDS/GMSND.ASR (copy the game's SOUNDS folder next to ENVS): shared sounds missing"); }
     bool have_mus = ak_arena_init(&musmem, 4u << 20);
     FILE *dumpf = NULL; u32 dump_frames = 0; ak_blob b_level_keep = { 0 };
@@ -438,6 +443,8 @@ int main(int argc, char **argv)
         if (playing && play.ready) {
             ak_play_draw(&play, &mscene, &models, &vp, &ss);
             ak_gfx_text((f32)w * 0.5f - 4, (f32)h * 0.5f - 8, play.lock >= 0 ? 0xFF4040FF : 0xFFFFFFFF, "+");   /* crosshair */
+            if (play.snd.sub && ak_setting_int("AK_SUBTITLES", 0))                 /* the narrator's line (the game's subtitle text) */
+                dbg_text((f32)w * 0.5f - 4.0f * (f32)strlen(play.snd.sub), (f32)h - 64, 0xFFFFFFFF, play.snd.sub);
         }
         if (show) {
             char line[160];
