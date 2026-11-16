@@ -24,7 +24,7 @@ void ak_char_params_load(const ak_blueprints *bp, ak_char_params *p)
     p->radius   = ak_setting_float("AK_BODY_RADIUS", 0.35f);
     p->height   = ak_setting_float("AK_BODY_HEIGHT", 1.8f);
     p->step     = ak_setting_float("AK_STEP_HEIGHT", 0.45f);
-    p->walkable = cosf(ak_setting_float("AK_MAX_SLOPE_DEG", 50.0f) * 3.14159265f / 180.0f);
+    p->walkable = cosf(ak_setting_float("AK_MAX_SLOPE_DEG", 45.0f) * 3.14159265f / 180.0f);
 }
 
 void ak_char_spawn(ak_character *c, const f32 *pos, f32 yaw)

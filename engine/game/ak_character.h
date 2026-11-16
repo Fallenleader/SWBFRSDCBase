@@ -5,7 +5,8 @@
  * pitch speed 5 rad/s.  Gravity 10 m/s^2: the game's physics world step (func_088AFEF0) adds direction x dt x 10.0 (the constant at
  * 0x08AEC4F8) x the body's gravity factor (body +252, 1.0 by default; only thrown objects set 2.0) to every body that feels gravity
  * (flag bit 22 of body +248); the direction is (0, 1, 0) in game axes - straight down - set by func_088AF78C.  Not yet traced, and so
- * settings: ground acceleration (AK_RUN_ACCEL), body size and step height.
+ * settings: ground acceleration (AK_RUN_ACCEL), body size and step height.  The steepest walkable slope is the game's 45 degrees (the
+ * body step 088C4CF4: soldiers' bodies carry flag 0x2000000, which removes the climbing part of a move up anything steeper).
  *
  * The body: two spheres (knees-up and chest) pushed out of walls horizontally, plus a ray down for the ground that steps up kerbs
  * and stairs and keeps the feet on slopes.  Collision ignores what the game's soldiers ignore (flags 0x0004 and 0x1000). */
