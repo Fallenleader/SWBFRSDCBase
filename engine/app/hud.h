@@ -26,10 +26,17 @@ typedef struct {
     f32 pos[3], fwd[3]; int team;      /* the player (or the vehicle he is in) and the camera's forward direction, engine space */
     const ak_hud_blip *blips; u32 nblips;
     /* the capture panel: the post the soldier stands at (within 5 units, on foot) */
+    f32 dt;                            /* the frame's time (the messages' clocks) */
     bool post; s32 post_name; int post_owner, post_capturer; f32 post_fill; bool post_contested; f32 post_time;
 } ak_hud_state;
 
 bool ak_hud_load(ak_vfs *vfs);
+/* a message (the game's queue, func 08A4ED60): channel 1 green (good news), 2 red (bad news); text = a STDTEXT entry, its %s
+ * replaced by `arg` (UTF-16, e.g. a post's name; NULL none); it stays 4 s a line, less 1 */
+void ak_hud_message(int channel, u32 text, const u16 *arg, u32 arg_len);
+void ak_hud_messages_clear(void);
+/* a post's name (TEXT/CPNAMES.ASR entry `i`) */
+const u16 *ak_hud_post_name(s32 i, u32 *len);
 void ak_hud_level(const ak_blob *level);   /* the level's radar map (its hmap chunk and picture); per level */         /* once; false = the files are missing (the HUD stays off) */
 void ak_hud_draw(const ak_hud_state *s, int screen_w, int screen_h);   /* after the 3D, before ak_gfx_end */
 #endif

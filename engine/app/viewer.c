@@ -468,7 +468,33 @@ int main(int argc, char **argv)
                     int o = play.match.post[i].owner; b->team = o == 0 || o == 1 ? o : 4; }
                 for (u32 i = 0; i < play.nveh && nb < 256; i++) if (play.veh[i].alive && play.veh[i].driver < 0 && (s32)i != play.in_veh) {
                     ak_hud_blip *b = &blips[nb++]; memcpy(b->pos, play.veh[i].pos, 12); b->kind = 2; b->team = 4; }
-                hs.blips = blips; hs.nblips = nb;
+                hs.blips = blips; hs.nblips = nb; hs.dt = dt;
+                if (play.have_cq) {                                            /* messages: captures and the bleed (func 089EA3D0) */
+                    static int prev_owner[AK_MAX_POSTS], prev_bleed = -2; static const void *prev_level;
+                    if (prev_level != levels[cur].path) { prev_level = levels[cur].path; ak_hud_messages_clear(); prev_bleed = -2;
+                        for (u32 i = 0; i < play.cq.nposts; i++) prev_owner[i] = play.match.post[i].owner;
+                        if (ak_setting_int("AK_TEST_MESSAGES", 0) && play.cq.nposts) {      /* tests: one of each colour */
+                            u32 nl; const u16 *nm = ak_hud_post_name(play.cq.post[0].name, &nl);
+                            ak_hud_message(1, 0x38, nm, nl); ak_hud_message(2, 0x3A, nm, nl); ak_hud_message(2, 0x3B, NULL, 0); } }
+                    for (u32 i = 0; i < play.cq.nposts; i++) {
+                        int o = play.match.post[i].owner, was = prev_owner[i]; if (o == was) continue;
+                        prev_owner[i] = o; u32 nl; const u16 *nm = ak_hud_post_name(play.cq.post[i].name, &nl);
+                        int us = play.team, them = 1 - play.team;
+                        if (o == us) ak_hud_message(1, 0x38, nm, nl);                              /* We captured the %s */
+                        else if (o == them) ak_hud_message(2, 0x3A, nm, nl);                       /* The enemy captured the %s */
+                        else if (was == us) ak_hud_message(2, 0x37, nm, nl);                       /* We lost the %s */
+                        else if (was == them) ak_hud_message(1, 0x39, nm, nl);                     /* The enemy lost the %s */
+                    }
+                    int bleed = -1;                                            /* the side losing reinforcements to the majority */
+                    for (int t = 0; t < 2; t++) if (play.match.held[1 - t] * 2 > play.match.present) bleed = t;
+                    if (prev_bleed != -2 && bleed != prev_bleed) {
+                        if (bleed == play.team) ak_hud_message(2, 0x3B, NULL, 0);                  /* We are losing reinforcements */
+                        else if (bleed == 1 - play.team) ak_hud_message(1, 0x3D, NULL, 0);         /* The enemy are losing ... */
+                        else if (prev_bleed == play.team) ak_hud_message(1, 0x3C, NULL, 0);        /* We are no longer losing ... */
+                        else ak_hud_message(2, 0x3E, NULL, 0);                                     /* The enemy are no longer ... */
+                    }
+                    prev_bleed = bleed;
+                }
                 {   static s32 at_post = -1; static f32 at_t;                  /* the capture panel: the post within 5 units, on foot */
                     s32 near = -1;
                     if (play.have_cq && play.in_veh < 0 && play.in_turret < 0)

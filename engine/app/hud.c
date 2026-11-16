@@ -101,6 +101,25 @@ static bool load_font(ak_vfs *vfs, const char *want)
 /* TEXT/CPNAMES.ASR: one PTXT per language - u32 table hash (0x3A6386FB), u32 n, u32 language, "CPNames", then n x { u32 length,
  * UTF-16 text with its 0 } - the length counts the 0, nothing padded; language 0 is English */
 static u16 *cpname[128]; static u32 cplen[128], ncp;
+static u16 **stdtext; static u32 *stdlen, nstd;            /* TEXT/STDTEXT.ASR: LTXT per language - u32 n, u32 language, n x { u32 length with the 0, UTF-16 } */
+static void load_stdtext(ak_vfs *vfs)
+{
+    ak_blob b; if (!ak_vfs_read(vfs, "PSP_GAME/USRDIR/TEXT/STDTEXT.ASR", &mem, &b) || !ak_asura_check(&b)) return;
+    u32 pos = 8; ak_chunk c; int lang = ak_setting_int("AK_LANGUAGE", 0);
+    while (ak_asura_next(&b, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('L', 'T', 'X', 'T') || c.size < 8 || (int)ak_rd32(c.body + 4) != lang) continue;
+        u32 n = ak_rd32(c.body), p = 8; if (n > 4096) break;
+        stdtext = ak_arena_alloc(&mem, n * sizeof *stdtext, 8); stdlen = ak_arena_alloc(&mem, n * 4, 4); if (!stdtext || !stdlen) break;
+        for (u32 i = 0; i < n && p + 4 <= c.size; i++) {
+            u32 len = ak_rd32(c.body + p); p += 4; if (p + len * 2 > c.size) break;
+            stdtext[i] = ak_arena_alloc(&mem, (len + 1) * 2, 2); stdlen[i] = len ? len - 1 : 0;
+            if (stdtext[i]) for (u32 k = 0; k < len; k++) stdtext[i][k] = ak_rd16(c.body + p + k * 2);
+            p += len * 2; nstd = i + 1;
+        }
+        break;
+    }
+}
+const u16 *ak_hud_post_name(s32 i, u32 *len) { if (i < 0 || (u32)i >= ncp) { *len = 0; return NULL; } *len = cplen[i]; return cpname[i]; }
 static void load_cpnames(ak_vfs *vfs)
 {
     ak_blob b; if (!ak_vfs_read(vfs, "PSP_GAME/USRDIR/TEXT/CPNAMES.ASR", &mem, &b) || !ak_asura_check(&b)) return;
@@ -130,9 +149,9 @@ bool ak_hud_load(ak_vfs *vfs)
     wpn_first[0] = nspr; wpn_n[0] = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD_WEAPONS_CLASSIC.ASR");
     wpn_first[1] = nspr; wpn_n[1] = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD_WEAPONS_PREQUEL.ASR");
     bool f = load_font(vfs, "Cond_9");
-    load_cpnames(vfs);
+    load_cpnames(vfs); load_stdtext(vfs);
     ready = n > 0;
-    AK_INFO("hud", "%u HUD pictures, %u + %u weapon icons, font %s (%u glyphs), %u post names", n, wpn_n[0], wpn_n[1], f ? "Franklin Gothic Medium Cond 9" : "missing", font.n, ncp);
+    AK_INFO("hud", "%u HUD pictures, %u + %u weapon icons, font %s (%u glyphs), %u post names, %u texts", n, wpn_n[0], wpn_n[1], f ? "Franklin Gothic Medium Cond 9" : "missing", font.n, ncp, nstd);
     return ready;
 }
 
@@ -281,7 +300,7 @@ static void radar(const ak_hud_state *st)
 
 /* UTF-16 text in a box (func 088CBE34 / 088CCF50, flags 0x184: the box's top-left, centred across it, words wrapped to its
  * width); returns its height */
-static f32 text16_box(f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s, u32 n, bool draw)
+static f32 text16_box(f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s, u32 n, bool draw, bool centre)
 {
     if (!font.tex || !s) return 0;
     f32 lh = font.line * scale, y = y0, bw = x1 - x0; u32 i = 0;
@@ -294,7 +313,7 @@ static f32 text16_box(f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s,
             w += gw; j++;
         }
         if (draw) {
-            f32 x = x0 + (bw - w) * 0.5f;
+            f32 x = centre ? x0 + (bw - w) * 0.5f : x0;                   /* (flag 4: centred; else from the left) */
             for (u32 k = i; k < j; k++) {
                 const glyph *g = glyph_of(s[k]); if (!g) continue;
                 quad(font.tex, x, y, x + g->w * scale, y + lh, g->u, g->v, g->u + g->w / font.tw, g->v + font.line / font.th, argb);
@@ -315,7 +334,7 @@ static f32 text16_box(f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s,
 static void capture_panel(const ak_hud_state *s)
 {
     const u16 *nm = s->post_name >= 0 && (u32)s->post_name < ncp ? cpname[s->post_name] : NULL; u32 nn = nm ? cplen[s->post_name] : 0;
-    f32 th = text16_box(385, 112, 475, 0.75f, 0xFFFFFFFFu, nm, nn, s->post_time < 5.0f);
+    f32 th = text16_box(385, 112, 475, 0.75f, 0xFFFFFFFFu, nm, nn, s->post_time < 5.0f, true);
     f32 x = (475 + 385) * 0.5f - 22.5f, y = 112 + th + 5;
     const sprite *cp = idx(S_CAPTURE_POINT); if (!cp) return;
     f32 f = s->post_fill; u32 back = 0xFF808080u, front;
@@ -329,6 +348,53 @@ static void capture_panel(const ak_hud_state *s)
     f32 w = cp->w * (cp->u1 - cp->u0), h = cp->h * (cp->v1 - cp->v0), vm = cp->v0 + (cp->v1 - cp->v0) * f;
     if (f > 0) quad(cp->tex, x, y, x + w, y + h * f, cp->u0, cp->v0, cp->u1, vm, back);
     if (f < 1) quad(cp->tex, x, y + h * f, x + w, y + h, cp->u0, vm, cp->u1, cp->v1, front);
+}
+
+/* ---- messages (traced: queue 08A4EE08 / 08A4EED4, a slot 08A4E1E8, its clock 08A4E51C, drawn 08A4E64C -> 08A50E40; boxes
+ * 08A4E788): per channel 4 slots - a new one takes the first free slot from the oldest, or replaces the oldest; its time is
+ * 4 s a line less 1 (0x08AF01CC / 01BC; lines = the wrapped height over the line).  Channels 0..2 share the box (5, 5)..(130,
+ * 272), 3 (135, 65)..(345, 272), 4 (135, 160)..(345, 272); text Franklin Gothic Medium Cond 9 at 0.75 in the channel's colour
+ * (0x08AE59AC: 0xBF7F2F2F, green 0xFF00FF00, red 0xFFFF0000, white, white), the slots stacked down from the box's top (the
+ * three channels sharing a box in one stack, channel by channel - the caller that walks them is not found yet) */
+#define MSG_LEN 256
+typedef struct { bool on; u16 text[MSG_LEN]; u32 n; f32 t, life; } msg_slot;
+static msg_slot msgs[5][4]; static u32 msg_head[5];
+static const f32 msg_box[5][4] = { { 5, 5, 130, 272 }, { 5, 5, 130, 272 }, { 5, 5, 130, 272 }, { 135, 65, 345, 272 }, { 135, 160, 345, 272 } };
+static const u32 msg_colour[5] = { 0xBF7F2F2Fu, 0xFF00FF00u, 0xFFFF0000u, 0xFFFFFFFFu, 0xFFFFFFFFu };
+
+void ak_hud_messages_clear(void) { memset(msgs, 0, sizeof msgs); memset(msg_head, 0, sizeof msg_head); }
+
+void ak_hud_message(int ch, u32 id, const u16 *arg, u32 an)
+{
+    if (ch < 0 || ch > 4 || !stdtext || id >= nstd || !stdtext[id]) return;
+    msg_slot *s = NULL; u32 h = msg_head[ch];
+    for (u32 k = 0; k < 4 && !s; k++) if (!msgs[ch][(h + k) & 3].on) s = &msgs[ch][(h + k) & 3];
+    if (!s) { s = &msgs[ch][h]; msg_head[ch] = (h + 1) & 3; }                  /* all full: the oldest goes */
+    memset(s, 0, sizeof *s);
+    const u16 *f = stdtext[id]; u32 fn = stdlen[id];
+    for (u32 i = 0; i < fn && s->n < MSG_LEN - 1; i++) {                       /* the text, "%s" filled */
+        if (f[i] == '%' && i + 1 < fn && f[i + 1] == 's') { for (u32 k = 0; arg && k < an && s->n < MSG_LEN - 1; k++) s->text[s->n++] = arg[k]; i++; }
+        else s->text[s->n++] = f[i];
+    }
+    f32 hgt = text16_box(msg_box[ch][0], 0, msg_box[ch][2], 0.75f, 0, s->text, s->n, false, ch >= 3);
+    f32 lines = font.line > 0 ? hgt / (font.line * 0.75f) : 1; u32 l = (u32)(lines + 0.5f); if (!l) l = 1;
+    s->life = (f32)l * 4.0f - 1.0f; s->on = true;
+    if (ak_setting_int("AK_DEBUG_HUD", 0)) { char a[MSG_LEN]; u32 k = 0; for (; k < s->n && k < MSG_LEN - 1; k++) a[k] = s->text[k] < 128 ? (char)s->text[k] : '?'; a[k] = 0;
+                                             AK_INFO("hud", "message %d (%.0f s): %s", ch, s->life, a); }
+}
+
+static void messages(f32 dt)
+{
+    f32 y = 0;
+    for (int ch = 0; ch < 5; ch++) {
+        if (ch == 0 || ch >= 3) y = msg_box[ch][1];                          /* (0..2 share their box: one stack) */
+        for (u32 k = 0; k < 4; k++) {
+            msg_slot *s = &msgs[ch][(msg_head[ch] + k) & 3]; if (!s->on) continue;
+            s->t += dt;
+            if (s->t >= s->life) { s->on = false; if (((msg_head[ch] + k) & 3) == msg_head[ch]) msg_head[ch] = (msg_head[ch] + 1) & 3; continue; }
+            y += text16_box(msg_box[ch][0], y, msg_box[ch][2], 0.75f, msg_colour[ch], s->text, s->n, true, ch >= 3);   /* (0x182 / 0x184) */
+        }
+    }
 }
 
 /* func 08A514E4: the health colour - full health green (heroes, 200 and more, can reach blue): f = health / max (x 2/3 below 200
@@ -380,6 +446,7 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     ak_m4 o = ak_m4_ortho2d(480.0f, 272.0f); ak_gfx_set_transform(&o); ak_gfx_set_tint(NULL);
     if (s->radar && s->alive) radar(s);
     if (s->post && s->alive) capture_panel(s);
+    messages(s->dt);
     if (s->tickets) { tickets(s->tickets_own, s->faction_own, 167.5f); tickets(s->tickets_enemy, s->faction_enemy, 312.5f); }
     if (s->alive) {
         if (s->reticle) pic(idx(S_RETICLE), 240, 136, true, 0xFFFFFFFFu, 1);                 /* func 08A51AA0 */
