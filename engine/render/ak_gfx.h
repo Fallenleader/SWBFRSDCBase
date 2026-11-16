@@ -22,6 +22,8 @@ typedef enum {
                               * from the UV, which holds the position across the beam in half-widths (length(uv) = distance from the
                               * core; 0 = centre, 1 = edge): a white-hot core and a coloured falloff, premultiplied blending (it
                               * darkens what is behind it a little, so the colour reads on snow), no depth write */
+    AK_PIPE_HUD,             /* the 2D overlay (HUD sprites, the game's fonts): alpha-blended, no depth test or write, no fog, the
+                              * vertex colour as it is; drawn after the 3D with an orthographic transform (ak_m4_ortho2d) */
     AK_PIPE_COUNT
 } ak_pipe;
 

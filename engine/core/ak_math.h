@@ -28,6 +28,13 @@ static inline ak_m4 ak_m4_perspective(f32 fovy, f32 aspect, f32 zn, f32 zf)
     r.m[0] = f / aspect; r.m[5] = f; r.m[10] = (zf + zn) / (zn - zf); r.m[11] = -1.0f; r.m[14] = 2.0f * zf * zn / (zn - zf);
     return r;
 }
+/* screen space: x 0..w left to right, y 0..h top to bottom (the HUD's 480 x 272) -> clip space */
+static inline ak_m4 ak_m4_ortho2d(f32 w, f32 h)
+{
+    ak_m4 r; memset(&r, 0, sizeof r);
+    r.m[0] = 2.0f / w; r.m[5] = -2.0f / h; r.m[10] = 1.0f; r.m[12] = -1.0f; r.m[13] = 1.0f; r.m[15] = 1.0f;
+    return r;
+}
 /* view matrix for a camera at pos looking along forward (yaw about +Y, pitch about the camera's right axis) */
 static inline ak_m4 ak_m4_view_yaw_pitch(ak_v3 pos, f32 yaw, f32 pitch)
 {

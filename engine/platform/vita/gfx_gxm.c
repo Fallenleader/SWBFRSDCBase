@@ -396,21 +396,24 @@ void ak_gfx_set_tint(const f32 *rgba)
     f32 t[4] = { 1, 1, 1, 1 }; if (rgba) memcpy(t, rgba, sizeof t);
     if (memcmp(t, tint_, sizeof t)) { memcpy(tint_, t, sizeof t); vp_dirty = true; }
 }
-static void upload_vertex_uniforms(void)
+static void upload_vertex_uniforms(int pipe)
 {
     void *ub; sceGxmReserveVertexDefaultUniformBuffer(ctx, &ub);
     if (p_tint) sceGxmSetUniformDataF(ub, p_tint, 0, 4, tint_);
     sceGxmSetUniformDataF(ub, p_vp, 0, 16, vp_t.m);
-    f32 fr[3] = { env_.fog_start, env_.fog_end, env_.colour_scale }; sceGxmSetUniformDataF(ub, p_fogr, 0, 3, fr);
+    f32 fr[3] = { env_.fog_start, env_.fog_end, env_.colour_scale };
+    if (pipe == AK_PIPE_HUD) { fr[0] = fr[1] = 0.0f; fr[2] = 1.0f; }             /* (the HUD: no fog, colours as they are) */
+    sceGxmSetUniformDataF(ub, p_fogr, 0, 3, fr);
     vp_dirty = false;
 }
 
 void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 first, u32 count)
 {
-    if (vp_dirty && (int)p == cur_pipe) upload_vertex_uniforms();
+    if (vp_dirty && (int)p == cur_pipe) upload_vertex_uniforms((int)p);
     if ((int)p != cur_pipe) {
         sceGxmSetVertexProgram(ctx, vp3d); sceGxmSetFragmentProgram(ctx, fp3d[p]);
-        upload_vertex_uniforms();
+        upload_vertex_uniforms((int)p);
+        sceGxmSetFrontDepthFunc(ctx, p == AK_PIPE_HUD ? SCE_GXM_DEPTH_FUNC_ALWAYS : SCE_GXM_DEPTH_FUNC_LESS_EQUAL);
         if (p_fog[p]) { void *fb_; sceGxmReserveFragmentDefaultUniformBuffer(ctx, &fb_); sceGxmSetUniformDataF(fb_, p_fog[p], 0, 3, env_.fog_rgb); }
         sceGxmSetFrontDepthWriteEnable(ctx, p >= AK_PIPE_LAYER ? SCE_GXM_DEPTH_WRITE_DISABLED : SCE_GXM_DEPTH_WRITE_ENABLED);
         if (p == AK_PIPE_OVERLAY || p == AK_PIPE_BLEND) sceGxmSetFrontDepthBias(ctx, -1, -2); else sceGxmSetFrontDepthBias(ctx, 0, 0);

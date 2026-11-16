@@ -24,6 +24,7 @@ typedef struct {
     u32 colour;                        /* 0xAARRGGBB */
     f32 dscale_max, dscale_dist;       /* DistanceScalingMaxScale / MaxDist: bolts drawn bigger with distance (0 = off) */
     const char *fire_snd;              /* the weapon's "Fire Sound" event (played at the muzzle) */
+    const char *hud_icon;              /* "HUDIcon": its picture on the HUD's weapon sheets ("EMP_Blaster_Rifle.tga") */
 } ak_weapon_def;
 
 typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; } ak_weapon;   /* team/owner: set after ak_weapon_give */

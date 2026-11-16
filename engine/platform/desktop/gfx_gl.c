@@ -82,7 +82,7 @@ bool ak_gfx_init(const ak_gfx_config *c)
     if (!glc) { AK_ERROR("gl", "context: %s", SDL_GetError()); return false; }
     SDL_GL_SetSwapInterval(c->vsync ? 1 : 0);
     snprintf(name, sizeof name, "OpenGL %s (%s)", (const char *)glGetString(GL_VERSION), (const char *)glGetString(GL_RENDERER));
-    fs_src[AK_PIPE_OPAQUE] = fs_opaque; fs_src[AK_PIPE_CUTOUT] = fs_src[AK_PIPE_OVERLAY] = fs_cutout; fs_src[AK_PIPE_LAYER] = fs_src[AK_PIPE_BLEND] = fs_src[AK_PIPE_ADD] = fs_alpha; fs_src[AK_PIPE_BEAM] = fs_beam;
+    fs_src[AK_PIPE_OPAQUE] = fs_opaque; fs_src[AK_PIPE_CUTOUT] = fs_src[AK_PIPE_OVERLAY] = fs_cutout; fs_src[AK_PIPE_LAYER] = fs_src[AK_PIPE_BLEND] = fs_src[AK_PIPE_ADD] = fs_alpha; fs_src[AK_PIPE_BEAM] = fs_beam; fs_src[AK_PIPE_HUD] = fs_alpha;
     for (int i = 0; i < AK_PIPE_COUNT; i++) {
         prog[i] = link(vs_src, fs_src[i]);
         u_vp[i] = glGetUniformLocation(prog[i], "uVP"); u_fog[i] = glGetUniformLocation(prog[i], "uFog"); u_fogr[i] = glGetUniformLocation(prog[i], "uFogRange"); u_tint[i] = glGetUniformLocation(prog[i], "uTint");
@@ -200,7 +200,9 @@ void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 f
     if ((int)p != cur_pipe) {
         glUseProgram(prog[p]);
         glUniformMatrix4fv(u_vp[p], 1, GL_FALSE, cur_vp.m); vp_dirty = false;
-        glUniform3fv(u_fog[p], 1, cur_env.fog_rgb); glUniform3f(u_fogr[p], cur_env.fog_start, cur_env.fog_end, cur_env.colour_scale);
+        glUniform3fv(u_fog[p], 1, cur_env.fog_rgb);
+        if (p == AK_PIPE_HUD) glUniform3f(u_fogr[p], 0.0f, 0.0f, 1.0f); else glUniform3f(u_fogr[p], cur_env.fog_start, cur_env.fog_end, cur_env.colour_scale);
+        if (p == AK_PIPE_HUD) glDisable(GL_DEPTH_TEST); else glEnable(GL_DEPTH_TEST);
         glUniform4fv(u_tint[p], 1, tint); tint_dirty = false;
         if (p == AK_PIPE_OVERLAY || p == AK_PIPE_BLEND) { glEnable(GL_POLYGON_OFFSET_FILL); glPolygonOffset(-1.0f, -2.0f); }
         else glDisable(GL_POLYGON_OFFSET_FILL);

@@ -100,6 +100,8 @@ AK_MUSIC_VOLUME=0.6
 # speech (narrator and AI chatter) plays from the converted voice WAVs (converted/PSP_GAME/USRDIR/SOUNDS/GMSND.AM.d).
 # 1 shows the narrator's line text at the bottom of the screen (the game's own subtitle display is not traced yet)
 AK_SUBTITLES=0
+# ---- HUD (1.10): the game's own, from GRAPHICS/HUD.ASR, FONTS.ASR and the weapon sheets.  0 hides it.
+AK_HUD=1
 # command post hologram light: 0 = unlit .. 1 = full strength
 AK_POST_GLOW=0.75
 #AK_VEHICLE_RESPAWN=10

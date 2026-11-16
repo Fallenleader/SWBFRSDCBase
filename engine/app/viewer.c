@@ -15,6 +15,7 @@
 #include "../game/ak_soldier.h"
 #include "play.h"
 #include "../audio/ak_audio.h"
+#include "hud.h"
 #include "../audio/ak_speech.h"
 #include "../platform/plat.h"
 #include <stdio.h>
@@ -109,6 +110,7 @@ int main(int argc, char **argv)
     /* audio (1.9): the shared sound bank once; each level adds its own and its music */
     ak_arena sndmem, musmem; ak_audio_init();
     if (ak_arena_init(&sndmem, 3u << 20)) { ak_blob sb;
+        ak_hud_load(vfs);
         if (ak_vfs_read(vfs, "PSP_GAME/USRDIR/SOUNDS/GMSND.ASR", &sndmem, &sb)) {
             AK_INFO("audio", "SOUNDS/GMSND.ASR: %u sounds and events", ak_audio_bank_add(&sb, false));
             ak_blob am;                                                   /* speech: GMSND.AM's index (its lines, the bundle's table) */
@@ -448,7 +450,15 @@ int main(int argc, char **argv)
         }
         if (playing && play.ready) {
             ak_play_draw(&play, &mscene, &models, &vp, &ss);
-            ak_gfx_text((f32)w * 0.5f - 4, (f32)h * 0.5f - 8, play.lock >= 0 ? 0xFF4040FF : 0xFFFFFFFF, "+");   /* crosshair */
+            {   ak_hud_state hs; memset(&hs, 0, sizeof hs);                     /* the game's HUD (app/hud.c) */
+                hs.alive = play.alive; hs.reticle = play.in_veh < 0 && play.in_turret < 0;
+                hs.health = play.health; hs.health_max = play.max_health;
+                if (play.armed && play.weapon.def && play.in_veh < 0 && play.in_turret < 0) {
+                    hs.weapon = play.weapon.def->hud_icon; hs.ammo = play.weapon.ammo; hs.spare = play.weapon.spare; }
+                hs.prequel = strstr(levels[cur].path, "PREQUEL") != NULL;
+                ak_hud_draw(&hs, w, h);
+                if (play.lock >= 0) ak_gfx_text((f32)w * 0.5f - 4, (f32)h * 0.5f - 8, 0xFF4040FF, "+");   /* (lock-on: until its marks are in) */
+            }
             if (play.snd.sub && ak_setting_int("AK_SUBTITLES", 0))                 /* the narrator's line (the game's subtitle text) */
                 dbg_text((f32)w * 0.5f - 4.0f * (f32)strlen(play.snd.sub), (f32)h - 64, 0xFFFFFFFF, play.snd.sub);
         }

@@ -18,6 +18,7 @@ bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, con
     }
     d->bp = w; d->name = w->name;
     d->fire_snd = ak_bp_string(w, "Fire Sound", NULL);
+    d->hud_icon = ak_bp_string(w, "HUDIcon", NULL);
     d->model = ak_models_find(models, ak_bp_string(w, "WeaponModel", ""));
     d->rate_of_fire = ak_bp_float(w, "RateOfFire", 0.3f);
     d->reload_time = ak_bp_float(w, "ReloadTime", 2.0f);
