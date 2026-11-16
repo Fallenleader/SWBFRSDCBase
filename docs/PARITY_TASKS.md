@@ -68,10 +68,15 @@ textures and how they are used. Section R lists only what must be in place so th
     (physics rest kept apart from the soldier's footing), and a new body is set down on its lowest corner.
   - [ ] **1.3b** What the body step does with "inside" (088B6510). Aurek treats a box sunk under 2 cm into the face it moves into
     as touching it, and skips the triangle otherwise.
-- [ ] **1.4 How AI soldiers stay on the ground [assumed].**
-  - AI bodies are kinematic, so the physics never moves them; their movement code places them.
-  - Trace that (navigation heights or level queries).
-  - Aurek: bots use their own spheres plus a ray down, with a 0.45 m step that the game does not have.
+- [x] **1.4 How AI soldiers stay on the ground [done 2026-11-16].**
+  - Traced: the soldier update (0899530C) takes the body velocity from the animation's root motion (088166EC) unless the
+    soldier's controller (soldier +88, its +56 block's flags +112 bit 15) supplies one at controller +72 - the AI's case - and
+    hands either to the body (088BAD34).
+  - Measured (harness, Hoth, every AI soldier every 15 frames): an AI soldier's height over the ground under its centre is its
+    0.6 m box resting on the highest ground under its corners (mean difference 1 cm) - the level sweep moves AI bodies like the
+    player's; only body-against-body pushes skip them.
+  - Aurek: bots use the player's swept box (AK_BOT_BODY=0 keeps the spheres with their 0.45 m step).
+  - The AI's speeds are not root motion (they hold 5.0, 7.4, 8.5 or 11.5 m/s and change every ~6 frames): moved to section 4.
 - [ ] **1.5 Jump and air control [partial].**
   - Traced: the jump impulse (089A0308).
   - To trace: how "air control scale" and "max air speed" are applied, and whether landing has a delay or slowdown.
