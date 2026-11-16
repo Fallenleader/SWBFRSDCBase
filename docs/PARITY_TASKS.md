@@ -104,6 +104,13 @@ textures and how they are used. Section R lists only what must be in place so th
   soldier runs on. A one-frame lift over a crest at sprint speed does not interrupt the run. Aurek matches within 0.22 m over
   15 s (play.c: 0.1 s hold, sprint_spent; motion_state falls only after 0.1 s off the ground unless jumping).
 - [ ] **1.9 Falling and level-boundary damage [missing].** Trace fall damage, kill heights, and out-of-bounds timers.
+  - Note (2026-11-16): no "return to the battlefield" text exists in the game's TEXT files; needs a fall test in the harness
+    (the harness can now read health - below).
+- [ ] **1.15 Soldier health [found, not built].** The harness reads soldier health at object +0x25C (maximum +0x34): on the
+  harness's default Instant Action settings the player has 133 and AI soldiers 60; Aurek gives both 100. Traced: 08978170 picks
+  the player's from the options' +460 (0..3 -> 100 / 133 / 166 / 200, table 0x08AEE3B8); 089781D8 (+32) has the same values
+  and 08978240 (+28) a 0.85 / 1.0 / 1.15 / 1.3 multiplier. To do: which option each is, where the AI's 60 comes from, and
+  build them.
 - [ ] **1.10 Respawn [assumed].** AK_RESPAWN_DELAY is 10 s. Trace the delay and the spawn-point choice per mode.
 - [ ] **1.11 Hit reactions and flinch [missing].** Not traced (play.h:28).
 - [ ] **1.12 Hit shapes [assumed].**
