@@ -2244,3 +2244,12 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
     }
     if (n) ak_gfx_draw_immediate(AK_PIPE_BEAM, NULL, bv, n);
 }
+
+/* the point the lock-on holds (the chest, then the head once held "lock on to head time"); false = no lock */
+bool ak_play_lock_point(const ak_play *p, f32 out[3])
+{
+    if (p->lock < 0 || !p->target[p->lock].alive) return false;
+    const ak_target *t = &p->target[p->lock];
+    if (p->lock_t >= p->lock_head_time) memcpy(out, t->head, 12); else { memcpy(out, t->feet, 12); out[1] += 1.1f * S; }
+    return true;
+}

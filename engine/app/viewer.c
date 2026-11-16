@@ -469,6 +469,15 @@ int main(int argc, char **argv)
                 for (u32 i = 0; i < play.nveh && nb < 256; i++) if (play.veh[i].alive && play.veh[i].driver < 0 && (s32)i != play.in_veh) {
                     ak_hud_blip *b = &blips[nb++]; memcpy(b->pos, play.veh[i].pos, 12); b->kind = 2; b->team = 4; }
                 hs.blips = blips; hs.nblips = nb; hs.dt = dt;
+                {   f32 lp[3];                                                 /* the lock-on's point on the 480 x 272 screen */
+                    if (play.in_veh < 0 && play.in_turret < 0 && ak_play_lock_point(&play, lp)) {
+                        const f32 *m = vp.m; f32 cxp = m[0] * lp[0] + m[4] * lp[1] + m[8] * lp[2] + m[12], cyp = m[1] * lp[0] + m[5] * lp[1] + m[9] * lp[2] + m[13];
+                        f32 cw = m[3] * lp[0] + m[7] * lp[1] + m[11] * lp[2] + m[15];
+                        if (cw > 0) { hs.lock = true; hs.lock_x = (cxp / cw * 0.5f + 0.5f) * 480.0f; hs.lock_y = (0.5f - cyp / cw * 0.5f) * 272.0f;
+                                      hs.lock_t = play.lock_t; hs.lock_head = play.wdef.headshots;
+                                      if (ak_setting_int("AK_DEBUG_HUD", 0) > 1) AK_INFO("hud", "lock at %.0f %.0f, %.2f s", hs.lock_x, hs.lock_y, hs.lock_t); }
+                    }
+                }
                 if (play.have_cq) {                                            /* messages: captures and the bleed (func 089EA3D0) */
                     static int prev_owner[AK_MAX_POSTS], prev_bleed = -2; static const void *prev_level;
                     if (prev_level != levels[cur].path) { prev_level = levels[cur].path; ak_hud_messages_clear(); prev_bleed = -2;
@@ -512,7 +521,7 @@ int main(int argc, char **argv)
                     }
                 }
                 ak_hud_draw(&hs, w, h);
-                if (play.lock >= 0) ak_gfx_text((f32)w * 0.5f - 4, (f32)h * 0.5f - 8, 0xFF4040FF, "+");   /* (lock-on: until its marks are in) */
+
             }
             if (play.snd.sub && ak_setting_int("AK_SUBTITLES", 0))                 /* the narrator's line (the game's subtitle text) */
                 dbg_text((f32)w * 0.5f - 4.0f * (f32)strlen(play.snd.sub), (f32)h - 64, 0xFFFFFFFF, play.snd.sub);

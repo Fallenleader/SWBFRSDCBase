@@ -38,7 +38,7 @@ static const char *const table[] = {
     "HUD_PowerUp_Frame", "HUD_Infinity_Symbol", "HUD_Flag_Carrier_Icon", "HUD_Radar_Blip_Flag_Carrier", "HUD_Target_Info_Bracket",
     "HUD_Radar_Blip_CZ", "HUD_Capture_Point_Cross", "HUD_Icon_CTF_Bacta_Tank", "HUD_Icon_CTF_Data_Cube", "HUD_Icon_CTF_Energy_Cell",
 };
-enum { S_RETICLE = 0, S_RADAR_HALF = 1, S_RADAR_BLIP = 2, S_AMMO_UNDERLAY = 3, S_CAPTURE_POINT = 6, S_BLIP_NPC_LEVEL = 0x1B, S_HEALTH_BAR = 7, S_HEALTH_3 = 8, S_HEALTH_4 = 9, S_HEALTH_5 = 10, S_ICON_HEALTH = 0x15,
+enum { S_RETICLE = 0, S_RADAR_HALF = 1, S_RADAR_BLIP = 2, S_AMMO_UNDERLAY = 3, S_CAPTURE_POINT = 6, S_LOCK_QUARTER = 0x17, S_BLIP_NPC_LEVEL = 0x1B, S_HEALTH_BAR = 7, S_HEALTH_3 = 8, S_HEALTH_4 = 9, S_HEALTH_5 = 10, S_ICON_HEALTH = 0x15,
        S_INFINITY = 0x24, S_COUNT = sizeof table / sizeof table[0] };
 static s32 by_index[S_COUNT];
 
@@ -397,6 +397,38 @@ static void messages(f32 dt)
     }
 }
 
+/* ---- the lock-on mark (func 08A51AA0 -> 08A50B5C).  08A50B5C(t, picture, centre, colour): HUD_Lock_On_Quarter four times,
+ * a quarter turn apart and all turned by t x 2 pi (+ pi), each a quad from the centre along (cos a, -sin a) x w k and
+ * (sin a, cos a) x h k with k = |t / 2 - 1| (0x08AF0290 / 0294: full size at 0, half at 1) and the picture mirrored both ways.
+ * 08A51AA0: t = the time held / 1 s while under 1 s (the defaults of three "controls" values the game asks for - 1, 4 and 5 s,
+ * 0x08AF0328 / 0350 / 0354; the keys, hashes 0x4DB0F6A9, 0x15600269, 0x320173F2, are not in the data); then 0 (locked) - and with
+ * headshots from 4 s to 5 s it closes in once more ((t - 4) / 1), then 0 (the head); red 0xFFFF0000 (the game also pulses it
+ * once locked, 08A516BC - not yet) */
+static void lock_mark(f32 t, f32 cx, f32 cy, u32 argb)
+{
+    const sprite *q = idx(S_LOCK_QUARTER); if (!q) return;
+    f32 k = fabsf(t * 0.5f - 1.0f), W = q->w * (q->u1 - q->u0) * k, H = q->h * (q->v1 - q->v0) * k;
+    if (q->tex != vtex || !vset || nv + 24 > MAXV) { flush(); vtex = q->tex; vset = true; }
+    u8 col[4] = { (u8)(argb >> 16), (u8)(argb >> 8), (u8)argb, (u8)(argb >> 24) };
+    for (int i = 0; i < 4; i++) {
+        f32 a = t * 6.2831853f + i * 1.5707963f + 3.1415927f, cs = cosf(a), sn = sinf(a);
+        f32 px[4] = { cx, cx + W * cs, cx + W * cs + H * sn, cx + H * sn }, py[4] = { cy, cy - W * sn, cy - W * sn + H * cs, cy + H * cs };
+        f32 pu[4] = { q->u1, q->u0, q->u0, q->u1 }, pv[4] = { q->v1, q->v1, q->v0, q->v0 };
+        static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
+        for (int k2 = 0; k2 < 6; k2++) {
+            ak_vtx *v = &vb[nv++]; memset(v, 0, sizeof *v); int j = tri[k2];
+            v->pos[0] = px[j]; v->pos[1] = py[j]; v->uv[0] = pu[j]; v->uv[1] = pv[j]; memcpy(v->col, col, 4);
+        }
+    }
+}
+static void lock_on(const ak_hud_state *s)
+{
+    f32 t = s->lock_t, fill = 0;
+    if (t <= 1.0f) fill = t;
+    else if (s->lock_head && t >= 4.0f && t < 5.0f) fill = t - 4.0f;
+    lock_mark(fill, s->lock_x, s->lock_y, 0xFFFF0000u);
+}
+
 /* func 08A514E4: the health colour - full health green (heroes, 200 and more, can reach blue): f = health / max (x 2/3 below 200
  * maximum); up to 1/3 red to yellow, to 2/3 yellow to green, beyond green to blue */
 static u32 health_colour(f32 health, f32 max)
@@ -450,6 +482,7 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     if (s->tickets) { tickets(s->tickets_own, s->faction_own, 167.5f); tickets(s->tickets_enemy, s->faction_enemy, 312.5f); }
     if (s->alive) {
         if (s->reticle) pic(idx(S_RETICLE), 240, 136, true, 0xFFFFFFFFu, 1);                 /* func 08A51AA0 */
+        if (s->lock) lock_on(s);
         /* health (func 08A574BC, positions 08A578DC): the bar for the maximum (08A57854: max / 33 rounded - 3 or less: the
          * 3-section bar, 4, 5, 6 and more: the long one), top-left at (20, 252), grey behind, the fill in the health colour; the
          * health icon centred at (10, 256) */

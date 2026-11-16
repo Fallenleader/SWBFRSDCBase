@@ -163,6 +163,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt);
 void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy);
 /* sound (app/play_sound.c): set up with the level, then once a frame after ak_play_update */
+bool ak_play_lock_point(const ak_play *p, f32 out[3]);
 void ak_play_sound_start(ak_play *p, const ak_level *l, const ak_blueprints *bp);
 void ak_play_sound_update(ak_play *p, f32 dt);
 const char *ak_play_surface_sound(const ak_play *p, u16 material, const char *key);   /* a Material blueprint's event */

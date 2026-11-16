@@ -27,6 +27,7 @@ typedef struct {
     const ak_hud_blip *blips; u32 nblips;
     /* the capture panel: the post the soldier stands at (within 5 units, on foot) */
     f32 dt;                            /* the frame's time (the messages' clocks) */
+    bool lock; f32 lock_x, lock_y, lock_t; bool lock_head;   /* the lock-on: the held point on the 480 x 272 screen, seconds held, headshots */
     bool post; s32 post_name; int post_owner, post_capturer; f32 post_fill; bool post_contested; f32 post_time;
 } ak_hud_state;
 
