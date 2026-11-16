@@ -9,7 +9,7 @@
 #include <stdlib.h>
 
 typedef struct { u32 hash, sound; f32 seconds; char sub[160]; } line_t;          /* hash: h31 of the line's name */
-typedef struct { u32 hash; u32 first, n; } event_t;                              /* lines: ev_lines[first .. first + n) */
+typedef struct { u32 hash; u32 first, n; u8 chance; } event_t;                              /* lines: ev_lines[first .. first + n) */
 typedef struct { u32 hash, offset; } bsound_t;
 
 static line_t *lines; static u32 nlines;
@@ -78,8 +78,8 @@ bool ak_speech_load(const ak_blob *am, const ak_blob *asr)
             /* name (padded to 4); u32 kind; 0; u32 0x16464; 0; 0; 3 x u8 0; u32 n (+23, unaligned);
                n x { u32 line hash; 0; 0; 1; 0; u8 0; line name; 3 x u8 0 } - byte-packed */
             u32 p = 0; const char *nm = cstr(c.body, c.size, &p); if (!nm || p + 27 > c.size) continue;
-            u32 n = ak_rd32(c.body + p + 23); p += 27;
-            event_t *e = &events[nevents++]; e->hash = ak_hash31(nm); e->first = nev_lines; e->n = 0;
+            u32 n = ak_rd32(c.body + p + 23); u8 chance = c.body[p + 8]; p += 27;              /* (the chance: the 0x16464 word's first byte) */
+            event_t *e = &events[nevents++]; e->hash = ak_hash31(nm); e->first = nev_lines; e->n = 0; e->chance = chance;
             for (u32 i = 0; i < n && p + 22 <= c.size && nev_lines < nel; i++) {
                 ev_lines[nev_lines++] = ak_rd32(c.body + p); e->n++;
                 p += 21; p += (u32)strnlen((const char *)c.body + p, c.size - p) + 1 + 3;
@@ -94,6 +94,7 @@ static const event_t *find_event(u32 h) { for (u32 i = 0; i < nevents; i++) if (
 static const line_t *find_line(u32 h)   { for (u32 i = 0; i < nlines; i++) if (lines[i].hash == h) return &lines[i]; return NULL; }
 static s64 find_sound(u32 h)            { for (u32 i = 0; i < nbsounds; i++) if (bsounds[i].hash == h) return bsounds[i].offset; return -1; }
 
+u32 ak_speech_chance(const char *event) { const event_t *e = event && *event ? find_event(ak_hash31(event)) : NULL; return e ? e->chance : 0; }
 bool ak_speech_has(const char *event) { return event && *event && find_event(ak_hash31(event)) != NULL; }
 
 u32 ak_speech_play(const char *event, const f32 *pos, f32 gain, const char **subtitle, f32 *seconds)
@@ -113,7 +114,7 @@ u32 ak_speech_play(const char *event, const f32 *pos, f32 gain, const char **sub
         for (int i = 0; i < nd; i++) {
             char path[512]; snprintf(path, sizeof path, "%s/converted/PSP_GAME/USRDIR/SOUNDS/GMSND.AM.d/%08X.wav", dirs[i], (u32)off);
             /* (narration: flat; chatter: the game's "AI Speech" dialogue list - full to 1 m... gone at 50 m) */
-            u32 h = ak_audio_play_wav(path, pos, gain, 1.0f, 50.0f, 0);
+            u32 h = ak_audio_play_wav(path, pos ? "AI Speech" : "Narration ", pos, gain, 1.0f, 50.0f, 0);   /* (the SDMX groups) */
             if (h && ak_setting_int("AK_DEBUG_SPEECH", 0)) AK_INFO("speech", "%s%s: \"%s\"", event, pos ? "" : " (narrator)", l->sub);
             if (h) { if (subtitle) *subtitle = l->sub[0] ? l->sub : NULL; if (seconds) *seconds = l->seconds; return h; }
         }

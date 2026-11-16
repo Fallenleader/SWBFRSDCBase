@@ -16,5 +16,7 @@ bool ak_speech_load(const ak_blob *am, const ak_blob *asr);
 /* play one of an event's lines: at pos (NULL: flat, a narrator); returns the audio handle (0: nothing), and the line's subtitle
  * (ASCII, may be NULL) and length */
 u32  ak_speech_play(const char *event, const f32 *pos, f32 gain, const char **subtitle, f32 *seconds);
+/* the event's chance of being said, in percent (its DLEV header's first byte after the kind: 100, 75, 70, 60) */
+u32 ak_speech_chance(const char *event);
 bool ak_speech_has(const char *event);
 #endif

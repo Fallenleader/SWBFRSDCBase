@@ -34,7 +34,9 @@ bool ak_audio_level_music_state(const ak_blob *level, u32 list_hash, u32 state, 
 u32  ak_audio_play(const char *event, const f32 *pos, bool loop);
 u32  ak_audio_play2d(const char *event, f32 pan, f32 gain, bool loop);
 /* a converted 16-bit WAV file (speech): flat when pos is NULL, else fading from dmin to dmax; `skip` frames at its start */
-u32  ak_audio_play_wav(const char *path, const f32 *pos, f32 gain, f32 dmin, f32 dmax, u32 skip);
+u32  ak_audio_play_wav(const char *path, const char *group, const f32 *pos, f32 gain, f32 dmin, f32 dmax, u32 skip);  /* group: SDMX */
+/* the mixer: move to a snapshot of the game's SDMX ("default", "Dipping for speech", "UI Dip") over `fade` seconds */
+void ak_audio_snapshot(const char *name, f32 fade);
 void ak_audio_move(u32 handle, const f32 *pos);
 void ak_audio_gain(u32 handle, f32 gain);           /* on top of the event's own volume */
 void ak_audio_stop(u32 handle);

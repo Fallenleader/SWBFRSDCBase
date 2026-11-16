@@ -105,16 +105,32 @@ static void chatter(ak_play *p, u32 unit, const char *key)
 {
     if (unit == 0 || unit > p->nbots || unit >= 129) return;                      /* (AI soldiers only) */
     ak_play_bot *b = &p->bot[unit - 1];
-    if (!b->alive || (p->snd.voice[unit] && ak_audio_playing(p->snd.voice[unit]))) return;
+    /* the game's chatter player (func 08A65690): one AI line at a time in the whole level, none while any speech is playing,
+     * and each event's own chance (its DLEV percent) */
+    if (!b->alive || (p->snd.chat && ak_audio_playing(p->snd.chat)) || (p->snd.narr && ak_audio_playing(p->snd.narr))) return;
     f32 dx = b->ch.pos[0] - p->eye[0], dz = b->ch.pos[2] - p->eye[2]; if (dx * dx + dz * dz > 50.0f * 50.0f) return;
     const char *ev = b->look.bp ? ak_bp_string(b->look.bp, key, NULL) : NULL;
+    if (!ev || !*ev) return;
+    u32 ch = ak_speech_chance(ev);
+    if (ch != 100) { p->snd.rng = p->snd.rng * 1664525u + 1013904223u; if ((p->snd.rng >> 1) % 100 + 1 > ch) return; }
     f32 head[3] = { b->ch.pos[0], b->ch.pos[1] + 1.6f, b->ch.pos[2] };
-    if (ev && *ev) p->snd.voice[unit] = ak_speech_play(ev, head, 0.7f, NULL, NULL);
+    p->snd.chat = p->snd.voice[unit] = ak_speech_play(ev, head, 0.7f, NULL, NULL);
+}
+
+/* the speech dip (func 08A662E8): the mixer goes to "Dipping for speech" while the narrator talks (more than one line, or one
+ * that is not AI chatter) and back to "default" after, 0.3 s each way (0x08AF086C) */
+static void speech_dip(ak_play *p)
+{
+    bool narr = p->snd.narr && ak_audio_playing(p->snd.narr), chat = p->snd.chat && ak_audio_playing(p->snd.chat);
+    u32 n = (u32)narr + (u32)chat;
+    bool dip = n > 1 || (n == 1 && !chat);
+    if (dip != p->snd.dipped) { ak_audio_snapshot(dip ? "Dipping for speech" : "default", 0.3f); p->snd.dipped = dip; }
 }
 
 static void speech_update(ak_play *p, f32 dt)
 {
     if (p->snd.sub_t > 0 && (p->snd.sub_t -= dt) <= 0) p->snd.sub = NULL;
+    speech_dip(p);
     /* the tickets */
     if (p->have_cq && p->match.winner < 0 && !(p->snd.said_reinf && p->snd.said_end)) {
         s32 t0 = p->match.tickets[0], t1 = p->match.tickets[1], me = p->team;

@@ -21,8 +21,15 @@ typedef struct { u32 hash; const char *path; s16 *pcm; u32 len, rate; bool level
 typedef struct {
     u32 hash; bool level; const char *name;
     f32 vol_min, vol_max, pitch_min, pitch_max, dmin, dmax;
-    u32 nsamp; u32 samp[16];                           /* sample hashes */
+    u32 nsamp; u32 samp[16]; bool samp_ev[16];         /* sample hashes (samp_ev: an event's instead) */
+    s32 group;                                         /* the SDMX mixer group, -1 = none (Master) */
 } snd_event;
+/* the mixer (SDMX, in the shared bank): groups under Master, and snapshots of their volumes the game moves between */
+#define MAX_GROUPS 16
+#define MAX_SNAPS 8
+static struct { u32 hash; char name[32]; f32 cur, target, rate; } groups[MAX_GROUPS]; static u32 ngroups;
+static struct { u32 hash; f32 vol[MAX_GROUPS]; } snaps[MAX_SNAPS]; static u32 nsnaps;
+static s32 group_of(u32 h) { for (u32 i = 0; i < ngroups; i++) if (groups[i].hash == h) return (s32)i; return -1; }
 
 #define MAX_SAMPLES 1024
 #define MAX_EVENTS  1024
@@ -78,6 +85,33 @@ u32 ak_audio_bank_add(const ak_blob *f, bool level)
             ak_rscf r; if (ak_rscf_parse(&c, &r) && r.type == AK_RSCF_SOUND && nr < 1024) rs[nr++] = (res){ r.name, r.data, r.size };
         }
     }
+    pos = 8;                                            /* the mixer first: the events name its groups */
+    while (ak_asura_next(f, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('S', 'D', 'M', 'X') || c.size < 8) continue;
+        /* f32 master; u32 n; n x { name, parent name, f32 volume, f32, f32, u32 }; u32 snapshots; each: name, u32 0, u32 n, n x { group
+         * name, u32 hash, f32 volume, f32, f32, u32 } (func 0882D090) */
+        u32 q = 4, n = ak_rd32(c.body + 4); q = 8; ngroups = 0; nsnaps = 0;
+        for (u32 i = 0; i < n && q < c.size; i++) {
+            const char *g = cstr(c.body, c.size, &q); cstr(c.body, c.size, &q); if (!g || q + 16 > c.size) break;
+            if (ngroups < MAX_GROUPS) { u32 k = ngroups++; snprintf(groups[k].name, sizeof groups[k].name, "%s", g); groups[k].hash = ak_hash31(g);
+                                        groups[k].cur = groups[k].target = rdf(c.body + q); groups[k].rate = 0; }
+            q += 16;
+        }
+        u32 ns = q + 4 <= c.size ? ak_rd32(c.body + q) : 0; q += 4;
+        for (u32 s = 0; s < ns && q < c.size; s++) {
+            const char *sn = cstr(c.body, c.size, &q); if (!sn || q + 8 > c.size) break;
+            u32 m = ak_rd32(c.body + q + 4); q += 8;                              /* (u32 0, then the count) */
+            u32 k = nsnaps < MAX_SNAPS ? nsnaps++ : MAX_SNAPS - 1; snaps[k].hash = ak_hash31(sn);
+            if (ak_setting_int("AK_DEBUG_AUDIO", 0)) AK_INFO("audio", "snapshot %s: %u groups", sn, m);
+            for (u32 j = 0; j < MAX_GROUPS; j++) snaps[k].vol[j] = 1.0f;
+            for (u32 j = 0; j < m && q < c.size; j++) {
+                cstr(c.body, c.size, &q); if (q + 20 > c.size) break;
+                s32 gi = group_of(ak_rd32(c.body + q)); if (gi >= 0) snaps[k].vol[gi] = rdf(c.body + q + 4);
+                q += 20;
+            }
+        }
+        AK_INFO("audio", "mixer: %u groups, %u snapshots", ngroups, nsnaps);
+    }
     pos = 8;
     while (ak_asura_next(f, &pos, &c)) {
         u32 tag = ak_chunk_tag(&c), p = 0;
@@ -91,17 +125,22 @@ u32 ak_audio_bank_add(const ak_blob *f, bool level)
                 break;
             }
         } else if (tag == AK_TAG('S', 'D', 'E', 'V') && nevents < MAX_EVENTS) {
-            /* name; volume min, max; pitch min, max; 0; 0; 0.5; 1; 1; u32 (2..4); u32 0x100; 0; distance min, max; n; n x {hash, 0} */
+            /* (the game's loader, func 0882C824, version 4) name; 9 f32: volume min, max, pitch min, max, ...; u32 kind; 4 u8;
+             * u32; f32 distance min, max; u32 n; n x { u32 hash, u32 0 = a sample / else an event }; kind 5: 6 f32; the mixer
+             * group's name ("Master": none); two names more, u8, u8, a name */
             const char *nm = cstr(c.body, c.size, &p);
-            if (!nm || p + 64 > c.size) continue;
+            if (!nm || p + 0x3C > c.size) continue;
             const u8 *b = c.body + p; snd_event *e = &events[nevents]; memset(e, 0, sizeof *e);
-            e->hash = ak_hash31(nm); e->level = level; e->name = nm;
+            e->hash = ak_hash31(nm); e->level = level; e->name = nm; e->group = -1;
             e->vol_min = rdf(b); e->vol_max = rdf(b + 4); e->pitch_min = rdf(b + 8); e->pitch_max = rdf(b + 12);
-            e->dmin = rdf(b + 52); e->dmax = rdf(b + 56);
-            u32 n = ak_rd32(b + 60); if (n > 16) n = 16;
-            for (u32 i = 0; i < n && p + 64 + i * 8 + 4 <= c.size; i++) e->samp[e->nsamp++] = ak_rd32(b + 64 + i * 8);
+            e->dmin = rdf(b + 0x30); e->dmax = rdf(b + 0x34);
+            u32 kind = ak_rd32(b + 0x24), n = ak_rd32(b + 0x38), q = p + 0x3C;
+            for (u32 i = 0; i < n && q + 8 <= c.size; i++, q += 8) if (e->nsamp < 16) { e->samp_ev[e->nsamp] = ak_rd32(c.body + q + 4) != 0; e->samp[e->nsamp++] = ak_rd32(c.body + q); }
+            if (kind == 5) q += 24;
+            if (q < c.size) { const char *g = cstr(c.body, c.size, &q); if (g) e->group = group_of(ak_hash31(g)); }
             if (!(e->dmax > e->dmin)) e->dmax = e->dmin + 30.0f;
             if (e->vol_max < e->vol_min) e->vol_max = e->vol_min;
+            if (ak_setting_int("AK_DEBUG_AUDIO", 0) > 1) AK_INFO("audio", "event %s: dist %.1f..%.1f, %u samples, group %d, first found %d", nm, e->dmin, e->dmax, e->nsamp, e->group, e->nsamp && (e->samp_ev[0] || sample_find(e->samp[0])));
             nevents++; added++;
         }
     }
@@ -113,7 +152,7 @@ u32 ak_audio_bank_add(const ak_blob *f, bool level)
 typedef struct {
     u32 id; const snd_sample *s; u64 pos, step;        /* 32.32 fixed point */
     f32 gain, pan, user_gain, dmin, dmax, gl, gr;
-    f32 p[3]; bool pos3d, loop, live;
+    f32 p[3]; bool pos3d, loop, live; s32 group;
 } voice;
 static voice voices[MAX_VOICES];
 static u32 next_id = 1;
@@ -147,7 +186,11 @@ static u32 start(const char *event, const f32 *pos, f32 pan, f32 gain, bool loop
     snd_event *e = event_find(ak_hash31(event)); if (!e || !e->nsamp) return 0;
     const snd_sample *s = NULL;
     u32 first = e->nsamp > 1 ? (u32)(frand() * e->nsamp) : 0;               /* a random one of the event's samples */
-    for (u32 tries = 0; tries < e->nsamp && !s; tries++) s = sample_find(e->samp[(first + tries) % e->nsamp]);
+    for (u32 tries = 0; tries < e->nsamp && !s; tries++) {
+        u32 k = (first + tries) % e->nsamp;
+        if (!e->samp_ev[k]) s = sample_find(e->samp[k]);
+        else { const snd_event *x = event_find(e->samp[k]); for (u32 j = 0; x && j < x->nsamp && !s; j++) if (!x->samp_ev[j]) s = sample_find(x->samp[j]); }
+    }
     if (!s) return 0;
     if (pos) {                                         /* out of earshot: not worth a voice (unless it loops: it may come near) */
         f32 dx = pos[0] - lis_pos[0], dy = pos[1] - lis_pos[1], dz = pos[2] - lis_pos[2];
@@ -166,7 +209,7 @@ static u32 start(const char *event, const f32 *pos, f32 pan, f32 gain, bool loop
         f32 pitch = e->pitch_min + (e->pitch_max - e->pitch_min) * frand();
         v->s = s; v->step = (u64)((double)s->rate * pitch / AK_AUDIO_RATE * 4294967296.0);
         v->gain = e->vol_min + (e->vol_max - e->vol_min) * frand(); v->user_gain = gain; v->pan = pan;
-        v->dmin = e->dmin; v->dmax = e->dmax; v->loop = loop; v->live = true;
+        v->dmin = e->dmin; v->dmax = e->dmax; v->loop = loop; v->live = true; v->group = e->group;
         if (pos) { memcpy(v->p, pos, 12); v->pos3d = true; }
         v->id = id = next_id++; if (!next_id) next_id = 1;
         voice_gains(v);
@@ -217,7 +260,7 @@ static const snd_sample *file_sample(const char *path)
     return r;
 }
 
-u32 ak_audio_play_wav(const char *path, const f32 *pos, f32 gain, f32 dmin, f32 dmax, u32 skip)
+u32 ak_audio_play_wav(const char *path, const char *group, const f32 *pos, f32 gain, f32 dmin, f32 dmax, u32 skip)
 {
     const snd_sample *s = file_sample(path); if (!s) return 0;
     lock();
@@ -227,6 +270,7 @@ u32 ak_audio_play_wav(const char *path, const f32 *pos, f32 gain, f32 dmin, f32 
         memset(v, 0, sizeof *v);
         v->s = s; v->step = (u64)((double)s->rate / AK_AUDIO_RATE * 4294967296.0); v->pos = (u64)(skip < s->len ? skip : 0) << 32;
         v->gain = 1.0f; v->user_gain = gain; v->dmin = dmin; v->dmax = dmax > dmin ? dmax : dmin + 1; v->live = true;
+        v->group = group ? group_of(ak_hash31(group)) : -1;
         if (pos) { memcpy(v->p, pos, 12); v->pos3d = true; }
         v->id = id = next_id++; if (!next_id) next_id = 1;
         voice_gains(v);
@@ -282,10 +326,15 @@ void ak_audio_mix(s16 *out, u32 frames)
         u32 n = frames > 1024 ? 1024 : frames;
         memset(acc, 0, n * 2 * sizeof(s32));
         lock();
+        for (u32 g = 0; g < ngroups; g++) if (groups[g].cur != groups[g].target) {   /* snapshot fades */
+            f32 d = groups[g].rate * (f32)n / AK_AUDIO_RATE, t = groups[g].target;
+            groups[g].cur = groups[g].cur < t ? (groups[g].cur + d > t ? t : groups[g].cur + d) : (groups[g].cur - d < t ? t : groups[g].cur - d);
+        }
         for (u32 i = 0; i < MAX_VOICES; i++) {
             voice *v = &voices[i]; if (!v->live) continue;
             const s16 *pcm = v->s->pcm; u64 len = (u64)v->s->len << 32;
-            s32 gl = (s32)(v->gl * sfx_volume * 4096), gr = (s32)(v->gr * sfx_volume * 4096);
+            f32 gv = sfx_volume * (v->group >= 0 && (u32)v->group < ngroups ? groups[v->group].cur : 1.0f);
+            s32 gl = (s32)(v->gl * gv * 4096), gr = (s32)(v->gr * gv * 4096);
             for (u32 k = 0; k < n; k++) {
                 if (v->pos >= len) { if (v->loop) v->pos -= len; else { v->live = false; break; } }
                 u32 ip = (u32)(v->pos >> 32), fr = (u32)(v->pos >> 20) & 4095;
@@ -295,11 +344,25 @@ void ak_audio_mix(s16 *out, u32 frames)
                 v->pos += v->step;
             }
         }
+        s32 mg = group_of(0x0636EE25u);                 /* "Music" */
+        f32 mv = music_volume * (mg >= 0 ? groups[mg].cur : 1.0f);
         unlock();
-        ak_music_mix(acc, n, music_volume);
+        ak_music_mix(acc, n, mv);
         for (u32 k = 0; k < 2 * n; k++) { s32 s = acc[k]; out[k] = (s16)(s > 32767 ? 32767 : s < -32768 ? -32768 : s); }
         out += 2 * n; frames -= n;
     }
+}
+
+/* move the mixer to a snapshot ("default", "Dipping for speech", "UI Dip") over `fade` seconds, as the game does (func 088E0790) */
+void ak_audio_snapshot(const char *name, f32 fade)
+{
+    u32 h = ak_hash31(name); lock();
+    for (u32 s = 0; s < nsnaps; s++) if (snaps[s].hash == h)
+        for (u32 g = 0; g < ngroups; g++) {
+            groups[g].target = snaps[s].vol[g];
+            f32 d = fabsf(groups[g].target - groups[g].cur); groups[g].rate = fade > 0 ? d / fade : 1e9f;
+        }
+    unlock();
 }
 
 static void platform_cb(s16 *out, u32 frames, void *u) { (void)u; ak_audio_mix(out, frames); }
