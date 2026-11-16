@@ -1121,7 +1121,7 @@ static bool stamina_pay(ak_play *p, f32 cost)
 static void proj_boom(void *ctx, const f32 *pos, f32 radius) { (void)radius; boom((ak_play *)ctx, pos); }
 
 /* ------------------------------------------------------------------ bots in vehicles */
-#define FLY_RAYS (AK_COL_NOT_BODIES | AK_COL_NOT_FLYERS)
+#define FLY_RAYS AK_COL_FLYER_MASK
 static f32 clampf(f32 x, f32 lo, f32 hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 /* a free vehicle of its side within 40 m that no other bot is walking to: walk there (by chance: AK_BOT_VEHICLES) */

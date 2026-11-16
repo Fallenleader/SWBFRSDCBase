@@ -71,6 +71,14 @@ int main(int argc, char **argv)
     printf("batches    %u (%u objects with geometry, %u object slots), %u overlay triangles\n", g->nbatch, objs, g->nobj, g->overlay_tris);
     ak_model_set ms; u64 t2 = ak_plat_time_us();
     bool mok = ak_models_load(&l, &a, &ms);
+    if (getenv("AK_INSPECT_FLAGS")) {
+        ak_collision cf; if (ak_collision_load(&l, &a, &cf)) for (int bit = 0; bit < 16; bit++) {
+            u32 n = 0, surf[16] = { 0 }; for (u32 i = 0; i < cf.ntri; i++) if (cf.tri[i].flags & (1u << bit)) { n++; u32 mm = cf.tri[i].material; surf[mm < 16 ? mm : 15]++; }
+            if (n && bit == 0) { u32 fl[64] = { 0 }, fc[64] = { 0 }, nf = 0;          /* the flag sets of water (surface 7) */
+                for (u32 i = 0; i < cf.ntri; i++) { if (cf.tri[i].material != 7) continue; u32 k = 0; while (k < nf && fl[k] != cf.tri[i].flags) k++;
+                    if (k == nf && nf < 64) fl[nf++] = cf.tri[i].flags; if (k < 64) fc[k]++; }
+                for (u32 k = 0; k < nf; k++) printf("water flags 0x%04x x%u\n", fl[k], fc[k]); }
+            if (n) { printf("flag 0x%04x %6u tris  materials:", 1u << bit, n); for (int k = 0; k < 16; k++) if (surf[k]) printf(" %d:%u", k, surf[k]); printf("\n"); } } }
     if (getenv("AK_INSPECT_BOXES")) for (u32 i = 0; i < ms.nskels; i++) { const ak_skeleton *k = &ms.skels[i];
         printf("box %-32s %s x %.3f %.3f y %.3f %.3f z %.3f %.3f\n", k->name, k->col_from == 1 ? "own  " : k->col_from == 2 ? "bones" : "deflt",
                k->col_min[0], k->col_max[0], k->col_min[1], k->col_max[1], k->col_min[2], k->col_max[2]); }

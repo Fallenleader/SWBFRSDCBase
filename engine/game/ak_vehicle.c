@@ -7,9 +7,10 @@
 #include "game/ak_vehicle.h"
 #include "core/ak_settings.h"
 
-#define VEH_IGNORE (AK_COL_NOT_BODIES | AK_COL_NOT_SOLDIERS)
+/* the game's masks (ak_collision.h): Walker blueprints the vehicles' 0x0800, Tank blueprints (hover, tracked, speeders, creatures) also 0x2000 */
+#define VEH_IGNORE (d->kind == AK_VEH_WALKER ? AK_COL_WALKER_MASK : AK_COL_TANK_MASK)
 #define DEG (3.14159265f / 180.0f)
-#define FLY_IGNORE (AK_COL_NOT_BODIES | AK_COL_NOT_FLYERS)
+#define FLY_IGNORE AK_COL_FLYER_MASK
 
 static s32 find_clip(const ak_model_set *m, const char *name)
 {
