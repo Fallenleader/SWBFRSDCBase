@@ -222,6 +222,16 @@ void rs_drive_report(FILE *f){
             u32 w = GU32(o + 40), b = gok(w) ? GU32(w + 12) : 0;
             if (gok(b)) { fprintf(f, "pbody %x", b); for (u32 k = 0; k < 0x180; k += 4) fprintf(f, " %08x", GU32(b + k)); fprintf(f, "\n");
                 u32 cp = GU32(b + 0x118); if (gok(cp)) { fprintf(f, "pcorn"); for (u32 k = 0; k < 8 * 16; k += 4) fprintf(f, " %.4f", GF32(cp + k)); fprintf(f, "\n"); } } } } }
+/* tests: put the player's soldier at a point (game axes, feet): its physics body's position (+0xC0) and its box centre now and
+ * before (+0xD0, +0xE0: 0.9 m up), velocity zeroed (+0x70) */
+void rs_drive_teleport(float x, float y, float z){
+    u32 bk = GU32(IMG(0x08C2C200u)), nb = GU32(IMG(0x08C2C204u)), me = rs_input_object(); if (!gok(bk) || !me) return;
+    for (u32 bi = 0; bi < nb; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
+        u32 o = GU32(nd); if (!gok(o) || GU32(o + 92) != me) continue;
+        u32 w = GU32(o + 40), b = gok(w) ? GU32(w + 12) : 0; if (!gok(b)) continue;
+        float v[3] = { x, y, z }, c[3] = { x, y - 0.9f, z }, zero = 0;
+        for (int k = 0; k < 3; k++) { memcpy(GP(b + 0xC0 + 4 * k), &v[k], 4); memcpy(GP(b + 0xD0 + 4 * k), &c[k], 4); memcpy(GP(b + 0xE0 + 4 * k), &c[k], 4); memcpy(GP(b + 0x70 + 4 * k), &zero, 4); }
+        fprintf(stderr, "[DRIVE] teleport %.2f %.2f %.2f\n", x, y, z); return; } }
 /* The AI bridge's view of the bots (ai_bridge.c, AIAgents branch): one record per AI-driven soldier in the game's AI object
  * table, with the fields traced above.  raw (may be 0) gets the first rawn bytes of each AI object, for finding the fields that
  * are not traced yet (health, ammunition, weapon, facing). */
