@@ -235,6 +235,18 @@ void rs_drive_report(FILE *f){
                 if (gok(b)) { fprintf(f, "obody %x flags %08x pos %.3f %.3f %.3f", bid, GU32(b + 0xF8), GF32(b + 0xC0), GF32(b + 0xC4), GF32(b + 0xC8));
                     u32 cp = GU32(b + 0x118); if (gok(cp)) { fprintf(f, " corners"); for (u32 k = 0; k < 8 * 16; k += 16) fprintf(f, " %.3f %.3f %.3f", GF32(cp + k), GF32(cp + k + 4), GF32(cp + k + 8)); }
                     fprintf(f, "\n"); } } }
+        {   /* RS_DRIVE_TGTSCAN=1: fields of a soldier that hold another soldier's object (seen this or last frame) - AI target fields */
+            static u32 objs[256], ids[256], n_obj; static int ts = -1; if (ts < 0) ts = getenv("RS_DRIVE_TGTSCAN") != 0;
+            if (ts && cls == 0x8005) {
+                u32 j; for (j = 0; j < n_obj && objs[j] != o; j++) ;
+                if (j == n_obj && n_obj < 256) { objs[n_obj] = o; ids[n_obj] = GU32(info + 4); n_obj++; }
+                for (u32 k = 0x40; k < 0x800; k += 4) { u32 w = GU32(o + k); if (w == o) continue;
+                    for (j = 0; j < n_obj; j++) if (w == objs[j] || (w == ids[j] && w != GU32(info + 4))) { fprintf(f, "tgt %x +%x -> %x %s\n", GU32(info + 4), k, ids[j], w == objs[j] ? "obj" : "id"); break; } }
+                u32 c = GU32(o + 92);                                          /* its controller (the bot's brain): objects or ids */
+                if (gok(c)) for (u32 k = 0; k < 0x800; k += 4) { u32 w = GU32(c + k); if (w == o) continue;
+                    for (j = 0; j < n_obj; j++) if (w == objs[j] || (w == ids[j] && w > 0x1000)) { fprintf(f, "ctgt %x +%x -> %x %s\n", GU32(info + 4), k, ids[j], w == objs[j] ? "obj" : "id"); break; } }
+            }
+        }
         if (cls == 0x8004 && getenv("RS_DRIVE_VEHIN")) {   /* a flyer's controller (+92) and its axes 0..14 (vfunc +8), the inputs it set */
             u32 c = GU32(o + 92);
             if (gok(c) && gok(GU32(c))) { u32 g = GU32(GU32(c) + 8); fprintf(f, "vin %x ctl %x vt %x get %x idx %u axes", GU32(info + 4), c, GU32(c), g, GU32(c + 12));

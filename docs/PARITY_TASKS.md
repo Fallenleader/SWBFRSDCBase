@@ -193,7 +193,18 @@ textures and how they are used. Section R lists only what must be in place so th
   from where it lay (radius 8, 100 damage): 100, 86.5, 62.0, 26.3 taken - damage x (1 - (d / radius)^2), d to the feet; the
   thrower's own blast hurts it. Aurek: explode() uses that rule and hurts the owner. [ ] 2.5b: vehicles and teammates not
   measured.
-- [ ] **2.6 Bot accuracy [assumed].** How AIWeapon_Accuracy_* and Modifier_Bot_* are applied.
+- [ ] **2.6 Bot accuracy [partly traced 2026-11-17].** How AIWeapon_Accuracy_* and Modifier_Bot_* are applied.
+  - 08A24438 loads a weapon's AI record: +24 AIWeapon_Accuracy_Normal, +28 AIWeapon_Accuracy_Elite (both clamped to
+    0..D_08AEF9CC), +32 Modifier_Bot_RateOfFire, +36 an int.  08A24280 builds the record: +0 a target id (999 = none),
+    +4 the weapon's name hash.  It is called from 08986C0C (game_17) and from game_20.
+  - 08A250F0 returns the accuracy: the elite value when the difficulty (08979DF4) is 2, else the normal one.
+  - Its only reader, 0893F364, is an AI firing step:
+    - A timer (+104) runs down by dt / (0.03·d + 0.1) when d < 30.  d is the first component of the vector to the
+      target; the branch for d ≥ 30 is not read.
+    - When the timer runs out (and byte +109 is set), the AI fires through 0893F65C.
+    - The aim error is the accuracy × π/180, which suggests the accuracy is in degrees.
+    - The timer is reset to 2.5 or 1.75 by difficulty; which value goes with which is not read.
+  - Which AI owns this step (soldier, turret or vehicle) is not settled.  Nothing ported yet.
   - Traced so far: 08A24438 reads each weapon's AIWeapon_Accuracy_Normal (+24), AIWeapon_Accuracy_Elite (+28) and
     Modifier_Bot_RateOfFire (+32) into an AI weapon record, each clamped to 0..5 (0x08AEF9CC). Who reads them (the aim error)
     is not found yet. Bolts are not registry objects, so the harness cannot count AI shots directly; hits on the player can be.
@@ -328,7 +339,9 @@ textures and how they are used. Section R lists only what must be in place so th
 ## 4. AI
 
 - [ ] **4.1 Bot vehicle use [assumed].** All Aurek's, including AK_BOT_VEHICLES 0.6.
-- [ ] **4.2 Target selection [assumed].** Aurek takes the nearest (play.c:1223). Trace the game's choice, memory and reaction time.
+- [ ] **4.2 Target selection [assumed].** Tooling: RS_DRIVE_TGTSCAN=1 lists soldier fields (and their controller's) holding
+  another soldier's object or id.  On Hoth only +5E0 turned up (one bot → another, likely its squad leader), so the target is
+  not a soldier pointer or id field; the AI weapon record (2.6, +0 a target id) is the next lead. Aurek takes the nearest (play.c:1223). Trace the game's choice, memory and reaction time.
 - [ ] **4.3 Turret AI [assumed].** States NEUTRAL / SEARCHING / ORIENTATING (0x08B1B6AC) and who aims.
 - [ ] **4.4 Movement behaviour.** Path following, strafing, cover, objective choice, and retreat. Compare against the original's
   decisions.
