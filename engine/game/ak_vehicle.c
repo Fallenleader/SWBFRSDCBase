@@ -258,8 +258,9 @@ static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bo
      *    less VelDamp; above the cruising speed (not boosting) the throttle is held to AntiBoost; the speed ahead stays within
      *    StallSpeed .. min(TopSpeed, 300) and does not pass the cruising speed from below (nor drop under it from above) unless boosting.
      *    So turning bleeds speed into the skid, and with no throttle it stays lost (down to the stall speed).
-     * Craft that roll (MaxTurnRoll > 0) roll by the rate dynamics and yaw with the bank as before [PARITY(3.3): the roll axis's input
-     * mapping and the roll removal (the 3 s auto-level, flag 0x80, 089B01C0) are not ported].  Hangars (TopSpeedHanger) are not
+     * The stick's X drives both the yaw (control 0) and, on craft that roll (MaxTurnRoll > 0), the roll (control 2), each with its
+     * own rates (089A9728).  Aurek's roll is about the craft's nose but the yaw stays about the world's up [PARITY(3.3): the game
+     * turns about the craft's own axes, and its roll removal is the 3 s auto-level (flag 0x80, 089B01C0), not ported].  Hangars (TopSpeedHanger) are not
      * known to the level loader yet [PARITY(3.7)]. */
     f32 ofw[3], ort[3], oup[3];
     {
@@ -277,8 +278,15 @@ static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bo
     }
     if (v->pitch > 1.4f) v->pitch = 1.4f;
     if (v->pitch < -1.4f) v->pitch = -1.4f;
-    if (d->roll_rate > 0) {
-        v->yaw -= v->steer * d->turn_rate * dt;
+    {   /* yaw (control 0, the stick's X) - every flyer */
+        f32 r = v->yaw_rate, dmp = d->yaw_damp * dt;
+        r = r > 0 ? r - fminf(r, dmp) : r + fminf(-r, dmp);
+        r += -v->steer * d->yaw_in * dt;
+        if (r > d->turn_rate) r = d->turn_rate;
+        if (r < -d->turn_rate) r = -d->turn_rate;
+        v->yaw_rate = r; v->yaw += r * dt;
+    }
+    if (d->roll_rate > 0) {   /* roll (control 2, the stick's X again, 089A9728 -> +488): its own rate, levelled by RollRemoval */
         f32 r = v->roll_vel, dmp = d->roll_damp * dt;
         r = r > 0 ? r - fminf(r, dmp) : r + fminf(-r, dmp);
         r += -v->steer * d->roll_in * dt;
@@ -288,12 +296,6 @@ static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bo
         if (fabsf(v->steer) > 0.05f) { v->roll += r * dt; if (v->roll > d->bank) v->roll = d->bank; if (v->roll < -d->bank) v->roll = -d->bank; }
         else { f32 rr = d->roll_removal * dt; v->roll += v->roll < 0 ? fminf(-v->roll, rr) : -fminf(v->roll, rr); }
     } else {
-        f32 r = v->yaw_rate, dmp = d->yaw_damp * dt;
-        r = r > 0 ? r - fminf(r, dmp) : r + fminf(-r, dmp);
-        r += -v->steer * d->yaw_in * dt;
-        if (r > d->turn_rate) r = d->turn_rate;
-        if (r < -d->turn_rate) r = -d->turn_rate;
-        v->yaw_rate = r; v->yaw += r * dt;
         f32 want_roll = -v->steer * d->bank, rr = (fabsf(v->steer) > 0.05f ? d->turn_rate : d->roll_removal) * dt;   /* (cosmetic) */
         v->roll += want_roll > v->roll ? fminf(want_roll - v->roll, rr) : -fminf(v->roll - want_roll, rr);
     }
