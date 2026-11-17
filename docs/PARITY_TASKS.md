@@ -185,11 +185,18 @@ textures and how they are used. Section R lists only what must be in place so th
     while moving, and the other explosives and items.
 
 - [ ] **2.4 Guided projectiles [assumed].** Aurek turns them at 100°/s; trace the turn rate.
+  - Traced so far: tracking projectiles are Rocket (20 m/s), Proton Torpedo (125), Harpoon (100), HomingMissile and
+    AdvancedHomingMissile (150); no turn-rate key in any blueprint, so it is a code constant. The projectile object (init
+    08A16FD8: WillTrack -> flags +364 bit 0) runs a state machine in 08A186EC (states hashed 0x29893637 -> 08A192CC,
+    0xF4A2AC2B -> 08A189F0); the steering itself is not found yet. Measuring it needs a lock-on rocket in the harness.
 - [x] **2.5 Blast fall-off [measured 2026-11-16].** The player's own thermal detonator, with the player teleported 1 / 3 / 5 / 7 m
   from where it lay (radius 8, 100 damage): 100, 86.5, 62.0, 26.3 taken - damage x (1 - (d / radius)^2), d to the feet; the
   thrower's own blast hurts it. Aurek: explode() uses that rule and hurts the owner. [ ] 2.5b: vehicles and teammates not
   measured.
 - [ ] **2.6 Bot accuracy [assumed].** How AIWeapon_Accuracy_* and Modifier_Bot_* are applied.
+  - Traced so far: 08A24438 reads each weapon's AIWeapon_Accuracy_Normal (+24), AIWeapon_Accuracy_Elite (+28) and
+    Modifier_Bot_RateOfFire (+32) into an AI weapon record, each clamped to 0..5 (0x08AEF9CC). Who reads them (the aim error)
+    is not found yet. Bolts are not registry objects, so the harness cannot count AI shots directly; hits on the player can be.
 - [ ] **2.7 Damage tables [partial].** Check every damage path against DamageToInfantry, DamageToVehicle, armour and friendly fire.
   - Measured (2026-11-16, harness: the player's weapon is soldier +0x68, its clip at +0xA0): the blaster rifle fires 5 frames
     after the trigger, then every 18 frames (RateOfFire 0.3); 15 per body hit, 60 per headshot (1.12); the reload starts with
