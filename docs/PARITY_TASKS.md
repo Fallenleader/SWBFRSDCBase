@@ -289,7 +289,7 @@ textures and how they are used. Section R lists only what must be in place so th
   While building, the target must pass the check within InitialLockOnRange / InitialLockOnAngle (1000 m / 30° in the base
   blueprint) each frame, or the timer resets.  The timer grows by dt, clamped to LockOnTime; at LockOnTime the lock holds
   while the check passes within LoseLockOnRange / LoseLockOnAngle.  Aurek now does this; it used LockAngle (15°) while
-  building.  The candidate's choice (LockAngle, read at 08993F..) is not yet traced.  Was: Verify HardpointW2 and the lock rules against the original. The docs list them as
+  building.  The candidate test (089CA734): the angle to the target (acos of the clamped dot) under LockAngle - as Aurek's choice.  Was: Verify HardpointW2 and the lock rules against the original. The docs list them as
   "not yet" (stale).
 - [ ] **3.7 Space [partial].** Capital ship turrets (ENTI type 30), the pilots' dogfight states, and hangar and shield rules.
   - Harness: Space Hoth is planet row 17 (`--planet 17`); the space team and spawn screens are recognised
