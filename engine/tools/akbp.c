@@ -53,6 +53,7 @@ int main(int argc, char **argv)
     ak_blob file; ak_arena a; ak_blueprints bp;
     if (!read_file(argv[1], &file)) { fprintf(stderr, "cannot read %s\n", argv[1]); return 1; }
     if (!ak_arena_init(&a, 64u << 20) || !ak_blueprints_parse(&file, &a, &bp)) { fprintf(stderr, "cannot parse\n"); return 1; }
+    if (!strcmp(argv[2], "-types")) { for (u32 i = 0; i < bp.ntypes; i++) printf("%s (%u)\n", bp.types[i].name, bp.types[i].nobjects); return 0; }   /* akbp FILE -types */
     const ak_bp_type *t = ak_bp_find_type(&bp, argv[2]);
     if (!t) { fprintf(stderr, "no type %s\n", argv[2]); return 1; }
     const char *obj = argc > 3 ? argv[3] : "*";

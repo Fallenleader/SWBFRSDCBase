@@ -49,7 +49,12 @@ def prog_stand_jump(i, fr): return (0x100 if 60 <= i < 64 else 0, 128, 128)     
 def prog_jump_back(i, fr): return (0x100 if 60 <= i < 64 else 0, 128, 0 if i < 75 else 255)      # run, jump, pull back in the air
 def prog_still_jump_fwd(i, fr): return (0x100 if 60 <= i < 64 else 0, 128, 128 if i < 75 else 0)  # stand, jump, push forward in the air
 def prog_strafe_circle(i, fr): return (0, 128, 0) if (i // 120) % 2 == 0 else (0, 128, 255)   # run forward / back in 2 s turns
-PROGRAMS = {'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
+def prog_custom_menu(i, fr):                                                     # (with --hp 30:-1) the spawn screens, then the customisation menu
+    if 220 <= i < 224: return (CROSS, 128, 128)
+    if 270 <= i < 274: return (SQUARE, 128, 128)
+    if i >= 300 and (i - 300) % 30 < 4 and i < 300 + 30 * 7: return (DOWN, 128, 128)   # then down through the categories
+    return (0, 128, 128)
+PROGRAMS = {'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
 
 def main():
     ap = argparse.ArgumentParser()

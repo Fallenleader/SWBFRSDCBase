@@ -170,7 +170,7 @@ static void droids_update(ak_play *p, f32 dt)
     for (u32 u = 0; u < NS(p); u++) {
         ak_target *t = &p->target[u];
         if (!t->alive || (u == 0 ? p->in_veh >= 0 : p->bot[u - 1].veh >= 0)) continue;
-        f32 maxh = u == 0 ? p->max_health : ak_bp_float(p->bot[u - 1].look.bp, "Health", 100.0f);
+        f32 maxh = u == 0 ? p->max_health : ak_bp_float(p->bot[u - 1].look.bp, "Health", 60.0f);
         for (int t2 = 0; t2 < 2; t2++) if (p->hero[t2].unit == (s32)u) maxh = p->hero[t2].health;
         ak_weapon *w = u == 0 ? (p->armed ? &p->weapon : NULL) : (p->bot[u - 1].weapon.def ? &p->bot[u - 1].weapon : NULL);
         bool gave_h = false, gave_a = false;
@@ -339,7 +339,7 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
     b->goal = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
     b->stuck_t = 0; memcpy(b->stuck_pos, pos, 12); b->veh = b->want_veh = -1; b->rev_t = 0; b->vstucks = 0; b->veh_cool = 0;
     ak_target *t = &p->target[1 + idx];
-    t->health = t->max_health = ak_bp_float(b->look.bp, "Health", 100.0f); t->headshot_mult = ak_bp_float(b->look.bp, "Headshot multiplier", 4.0f);
+    t->health = t->max_health = ak_bp_float(b->look.bp, "Health", 60.0f); t->headshot_mult = ak_bp_float(b->look.bp, "Headshot multiplier", 4.0f);
     t->alive = true; t->team = b->team; t->last_attacker = -1;
     if (p->team_armed[b->team]) { ak_weapon_give(&b->weapon, &p->team_bdef[b->team]); b->weapon.team = b->team; b->weapon.owner = (s32)(1 + idx); }
     if (poseable(m, &b->look)) { pose(m, &b->look, p->idle_clip, b->clip_t, true, b->bones); body_target(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, t); }
@@ -381,7 +381,15 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->team_faction[p->team] = p->look.faction; p->team_faction[1 - p->team] = p->look.faction ^ 1;
     ak_cq_rules_default(&p->rules);
     if (p->have_cq) ak_conquest_start(&p->cq, &p->rules, &p->match);
-    p->max_health = p->health = ak_bp_float(p->look.bp, "Health", 100.0f); p->alive = true; p->near_post = -1;
+    /* the player's customisation (the spawn screen's "Customisation Menu", 200 credits): the default loadout is the blaster rifle
+       (25), the thermal detonator (10), Health Level 1 (10) and Speed Level 1 (10) - read from the original's menu.  Health by level:
+       100 / 133 / 166 / 200 (08978170, table 0x08AEE3B8); speed by level: 0.85 / 1.0 / 1.15 / 1.3 (08978240).  AK_HEALTH_LEVEL,
+       AK_SPEED_LEVEL (0..3) until Aurek has the menu. */
+    {   static const f32 hl[4] = { 100, 133, 166, 200 }, sl[4] = { 0.85f, 1.0f, 1.15f, 1.3f };
+        int h = ak_setting_int("AK_HEALTH_LEVEL", 1), sp = ak_setting_int("AK_SPEED_LEVEL", 1);
+        h = h < 0 ? 0 : h > 3 ? 3 : h; sp = sp < 0 ? 0 : sp > 3 ? 3 : sp;
+        p->max_health = p->health = ak_bp_float(p->look.bp, "Health", hl[h]); p->speed_scale = sl[sp]; }
+    p->alive = true; p->near_post = -1;
     /* where the player starts: the team's spawn at its post nearest the start */
     f32 sp[3] = { start[0], start[1], start[2] }, gy, syaw = 0;
     s32 post = -1;
@@ -1945,7 +1953,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             f32 v[2]; ak_loco_vel(&p->loco, p->roots, v);
             if (intent == PLAY_LEFT || intent == PLAY_RIGHT) {                 /* the strafe clips carry the root forward: take it sideways */
                 f32 sp = sqrtf(v[0] * v[0] + v[1] * v[1]); v[0] = 0; v[1] = intent == PLAY_LEFT ? sp : -sp; }
-            ci.root = true; ci.root_vel[0] = v[0] * S; ci.root_vel[1] = v[1] * S;
+            ci.root = true; ci.root_vel[0] = v[0] * S * p->speed_scale; ci.root_vel[1] = v[1] * S * p->speed_scale;   /* [PARITY(1.15): how Speed scales - rate or distance - is not traced] */
         } }
     ak_char_update(&p->ch, use, &p->col, &ci, dt);
     {   /* tests against the original: AK_TEST_TRACE = a file - the player's position in game axes every 10 frames */
@@ -1986,7 +1994,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (st != PLAY_JUMP && st != PLAY_FALL && (st != PLAY_LAND || intent != PLAY_IDLE)) st = intent;
     if (pcl[st] < 0) st = pcl[PLAY_RUN] >= 0 && hs >= 0.5f ? PLAY_RUN : PLAY_IDLE;
     {   const s32 *cl = (!hero_of(p, 0) && p->alert_t > 0) ? p->aclip : pcl;
-        ak_loco_play(&p->loco, cl[st]); ak_loco_advance(&p->loco, dt, 1.0f); }     /* (playback rate 1: the clips are not sped up) */
+        ak_loco_play(&p->loco, cl[st]); ak_loco_advance(&p->loco, dt, p->speed_scale); }     /* (playback rate 1: the clips are not sped up) */
     if (st != p->state) p->state = st;
     p->clip_t = p->loco.t;
     p->posed = poseable(m, &p->look);

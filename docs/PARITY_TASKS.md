@@ -151,18 +151,23 @@ textures and how they are used. Section R lists only what must be in place so th
   mirrored direction and runs its backward clip (stick down-left: faces 45 degrees right, runs back). Stick straight right: turns 90
   degrees and runs. Aurek ties the camera to the body (ch.yaw), so this needs a separate view yaw (with 9.3). The strafe clips
   (RunForward_left / _Right) carry the root forward: they are a run with the upper body turned, for aiming to the side.
-- [ ] **1.15 Soldier health and the match customisation options [found, not built].** The game's customisation options set
-  player and bot health, stamina, capture rate, weapons and special items (user note, 2026-11-16) - the 133 / 60 seen in the
-  harness are those options' values, not difficulty. The harness reads soldier health at object +0x25C (maximum +0x34).
-  Traced: 08978170 picks a health from the options' +460 (0..3 -> 100 / 133 / 166 / 200, table 0x08AEE3B8); 089781D8 (+32)
-  has the same values and 08978240 (+28) a 0.85 / 1.0 / 1.15 / 1.3 multiplier; 0897782C sets the defaults (60 among them).
-  To do: map every option to its field and effect, and build them as Aurek match settings.
+- [x] **1.15 Soldier health and the customisation [done 2026-11-16 for the defaults].** The 133 is the player's
+  customisation, not difficulty: the spawn screen's Customisation Menu (200 credits) defaults to Blaster Rifle (25), Thermal
+  Detonator (10), Health Level 1 (10) and Speed Level 1 (10) = 55. Health by level 100 / 133 / 166 / 200 (08978170, table
+  0x08AEE3B8); Speed by level 0.85 / 1.0 / 1.15 / 1.3 (08978240) - level 1 is the 1.0 the run was measured at. AI soldiers have
+  60. Aurek: AK_HEALTH_LEVEL / AK_SPEED_LEVEL (default 1) give the player 133 and a speed scale; bots 60.
+  - [ ] **1.15b** How Speed scales (playback rate or distance - Aurek scales both), where the AI's 60 comes from, and the
+    other categories (Weapon 2, Special Item, Power Up, Capture Rate) and match-wide customisation options.
 
 ## 2. Weapons, items and projectiles
 
-- [ ] **2.1 Loadouts [assumed].**
-  - Aurek: every soldier carries a blaster rifle (AK_WEAPON).
-  - Trace classes from the Humanoid blueprints (Loadout_1..5) and the class choice.
+- [ ] **2.1 Loadouts [partly found].**
+  - The player's loadout is the Customisation Menu (credits; each Weapon blueprint has a Cost): categories Weapon 1, Weapon 2,
+    Explosive, Special Item, Power Up, Health, Speed, Capture Rate. Default (read from the original's menu, Empire on Hoth):
+    Blaster Rifle 25, Thermal Detonator 10, Health 1 10, Speed 1 10 = 55 of 200. Weapon 2 offers e.g. a rocket launcher (25)
+    or Blaster Pistol (0); Special Item 20 / 10 options; Power Up two at 10; Capture Rate 35 / 15.
+  - To do: the full lists per faction (the Weapon blueprints with Cost and Faction), the AI's loadouts, and the menu itself.
+  - Aurek: every soldier carries the blaster rifle; the thermal detonator (secondary attack) is task 2.3.
 - [ ] **2.2 Ammo pickups and droids [assumed].** Aurek gives back one clip per pulse (play.c:137). Trace the real refill.
 - [ ] **2.3 Secondary items [missing].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
   incinerator, fusion cutter, shields, jetpack, jump pack, stealth. Trace each one's blueprint use.
