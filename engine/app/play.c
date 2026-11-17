@@ -2095,11 +2095,13 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             vh->throttle = vin->ly; vh->steer = vin->lx; vh->strafe = 0; vh->brake = false;
             bool fly_fast = false;
             if (vh->def->kind == AK_VEH_FLYER) {
-                /* measured (Hoth's snowspeeder): parked, R takes off; flying, R sets the cruising speed and L the stall speed, and
-                   the setting stays when let go (the speed after lift-off: the stall's) */
-                if (!vh->flying) { vh->fast = false; if (vin->pressed & AK_BTN_CROSS) vh->takeoff_req = true; }
-                else if (vh->takeoff <= 0) { if (vin->held & AK_BTN_CROSS) vh->fast = true; if (vin->held & AK_BTN_L) vh->fast = false; }
-                vh->brake = !vh->fast; fly_fast = true;
+                /* measured (Hoth's snowspeeder): parked, R takes off; flying, R speeds up to the cruising speed and L slows to the
+                   stall speed, and the speed stays when let go (the speed after lift-off: the stall's) */
+                /* the throttle (089B20CC): R held +1, L held -1, neither 0 - with no drag the speed then stays */
+                vh->fast = false; vh->brake = false;
+                if (!vh->flying) { if (vin->pressed & AK_BTN_CROSS) vh->takeoff_req = true; }
+                else if (vh->takeoff <= 0) { vh->fast = (vin->held & AK_BTN_CROSS) != 0; vh->brake = (vin->held & AK_BTN_L) != 0 && !vh->fast; }
+                fly_fast = true;
                 if (p->invert_y) vh->throttle = -vh->throttle;
             }
             else if (vin->held & AK_BTN_L) { vh->strafe = vin->lx; vh->steer = 0; }   /* L held: strafe (hover craft) */

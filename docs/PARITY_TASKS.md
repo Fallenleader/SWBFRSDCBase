@@ -239,10 +239,18 @@ textures and how they are used. Section R lists only what must be in place so th
   - [x] Lift-off: R; straight up along AnimTakeoff's root channel (1.016 m in 1 s, key for key), then away level at StallSpeed.
   - [x] Speed: two settings - the stall speed (after lift-off, and L) and the cruising speed (R) - reached at MaxAcc (100 m/s²),
     kept when let go; the speed holds through climbs and dives (no gravity in flight).
-  - [x] Turning: yaw and pitch rates spin up at InputDamp − Damp to MaxTurn (70 and 40 degrees/s) and settle at Damp - the
-    tanks' dynamics on both axes.  Stick forward = nose down.  Aurek turns ~1.5 frames short per stick release (about 1°):
-    [PARITY(3.3a)] the cause (input latency or the game's integration order) is not found.
-  - [ ] The boost to TopSpeed (60): not R held, a double tap, nor R + L.  The input is not found.
+  - [x] Turning, traced (089AA10C → 089AA884 pitch, 089AA9EC yaw, 089AAB54 roll): each rate first decays by Damp·dt, then
+    gains input·InputDamp·dt, clamped to ±MaxTurn (not scaled by the stick).  The craft turns about its own axes and the
+    velocity is turned back (089C884C), so it keeps its world direction; the skid damping (089AB3F8: TimeTillStopSkid·dt of
+    the sideways, vertical and backward velocity) then bleeds it.  Aurek now flies this way: the 1 s pull-up ends at 38.41°
+    (game 38.48°), the 2 s turn covers 135.1° (game 135.3°), and the speed reads 15.07-15.08 m/s in the turn (game 15.07).
+  - [x] Speed, traced (089B20CC input, 089AB3F8 step): the throttle is R +1 / L -1 / neither 0 (an axis × 1.414 clamped to
+    ±1).  It adds MaxAcc·throttle·dt (BoostAcc when boosting), less VelDamp (0 on flyers), so with no input the speed stays.
+    Above the cruising speed (not boosting) the throttle is held to AntiBoost (-0.2).  The speed ahead stays within
+    StallSpeed..min(TopSpeed, 300) and does not cross the cruising speed (unless boosting).  Free flight floors it at
+    StallSpeed; otherwise at 5 m/s.  In a hangar the top is TopSpeedHanger (fighters 10; confirmed by the user).
+  - Boost, traced: flag 4 is set when one control (axis 6) is held within 0.5 s of another's press (axis 5); then the
+    throttle is 1 and BoostAcc applies, and it holds while axis 6 stays held.  Which buttons axes 5 and 6 are is not found.
   - [ ] Roll (craft with MaxTurnRoll > 0): no starfighter flies on a planet map. Measure it in space (3.7).
   - [ ] Crash and skim rules: a ~10° dive into Hoth's snow skimmed once, then crashed (the pilot dies, the wreck stays).
     The rule (angle, speed or surface) is not found.  Landing (AnimLand) is not measured.  Both are still Aurek's.

@@ -84,6 +84,8 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
         d->bank = (d->roll_rate > 0 ? 60.0f : ak_bp_float(o, "CosmeticRoll", 10)) * DEG;   /* the snowspeeder (no roll) only leans */
         /* clip names, or asset paths: "vehicles\...\Awing_rest.ASR" -> "Awing_rest" */
         d->pitch_in = ak_bp_float(o, "PitchInputDamp", 200) * DEG; d->pitch_damp = ak_bp_float(o, "PitchDamp", 115) * DEG;
+        d->roll_in = ak_bp_float(o, "RollInputDamp", 430) * DEG; d->roll_damp = ak_bp_float(o, "RollDamp", 115) * DEG;
+        d->anti_boost = ak_bp_float(o, "AntiBoost", -0.2f);
         s32 clip_takeoff = -1;
         const char *keys[3] = { "AnimFlight", "AnimLanded", "AnimTakeoff" }; s32 *out[3] = { &d->clip_flight, &d->clip_landed, &clip_takeoff };
         for (int k = 0; k < 3; k++) {
@@ -225,6 +227,7 @@ static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bo
             v->flying = true; v->pitch = 0; v->takeoff_y0 = v->pos[1];
             v->takeoff = d->ntakeoff > 1 ? d->takeoff_t[d->ntakeoff - 1] : 1.0f;
             v->speed = d->stall_speed > 0 ? d->stall_speed : 0;
+            v->lvel[0] = v->lvel[1] = 0; v->lvel[2] = v->speed; v->roll_vel = 0;
         }
         v->takeoff_req = false;
         return;
@@ -244,39 +247,86 @@ static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bo
         if (v->takeoff <= 0) v->vel[1] = 0;
         return;
     }
-    /* turning, measured on Hoth's snowspeeder (MaxTurnYaw 70, YawInputDamp 250, YawDamp 145; MaxTurnPitch 40, PitchInputDamp 200,
-       PitchDamp 115): full stick spins the rate up at InputDamp - Damp (105 / 85 degrees/s^2) to MaxTurn degrees/s; let go, it
-       settles at Damp - the tanks' turn (3.1), on both axes.  Craft that roll (MaxTurnRoll > 0) bank and yaw as before
-       [PARITY(3.3): their roll is not measured - no starfighter on a planet map].  The speed holds through any climb or dive. */
+    /* Flight, as the game's flyer step 089AA10C runs it (traced; the snowspeeder's measurements agree):
+     *  - each axis's rate (089AA884 pitch, 089AA9EC yaw, 089AAB54 roll): first it decays toward 0 by Damp * dt, then the input adds
+     *    input * InputDamp * dt, clamped to +-MaxTurn (the cap does not scale with the stick: a stick too small to beat the damping
+     *    turns nothing).  The rotation is about the craft's own axes; the velocity is turned back so it keeps its direction in the
+     *    world (089C884C rotates +540 too).
+     *  - the velocity (089AB3F8), kept in the craft's frame: the skid damping takes TimeTillStopSkid * dt of it, sideways, up and
+     *    backward (never forward); the throttle (R +1, L -1; 089B20CC) adds MaxAcc * throttle * dt ahead (BoostAcc when boosting),
+     *    less VelDamp; above the cruising speed (not boosting) the throttle is held to AntiBoost; the speed ahead stays within
+     *    StallSpeed .. min(TopSpeed, 300) and does not pass the cruising speed from below (nor drop under it from above) unless boosting.
+     *    So turning bleeds speed into the skid, and with no throttle it stays lost (down to the stall speed).
+     * Craft that roll (MaxTurnRoll > 0) roll by the rate dynamics and yaw with the bank as before [PARITY(3.3): the roll axis's input
+     * mapping and the roll removal (the 3 s auto-level, flag 0x80, 089B01C0) are not ported].  Hangars (TopSpeedHanger) are not
+     * known to the level loader yet [PARITY(3.7)]. */
+    f32 ofw[3], ort[3], oup[3];
     {
-        f32 r = v->pitch_rate - v->throttle * d->pitch_in * dt, dmp = d->pitch_damp * dt;
-        r = fabsf(r) <= dmp ? 0 : r - (r > 0 ? dmp : -dmp);
-        f32 cap = d->pitch_rate * (fabsf(v->throttle) > 0.01f ? fabsf(v->throttle) : 1.0f);
-        if (r > cap) r = cap;
-        if (r < -cap) r = -cap;
+        f32 cp = cosf(v->pitch), sy = sinf(v->yaw), cy = cosf(v->yaw), sp = sinf(v->pitch);
+        ofw[0] = -sy * cp; ofw[1] = sp; ofw[2] = -cy * cp; ort[0] = cy; ort[1] = 0; ort[2] = -sy;
+        oup[0] = ort[1] * ofw[2] - ort[2] * ofw[1]; oup[1] = ort[2] * ofw[0] - ort[0] * ofw[2]; oup[2] = ort[0] * ofw[1] - ort[1] * ofw[0];
+    }
+    {
+        f32 r = v->pitch_rate, dmp = d->pitch_damp * dt;
+        r = r > 0 ? r - fminf(r, dmp) : r + fminf(-r, dmp);
+        r += -v->throttle * d->pitch_in * dt;
+        if (r > d->pitch_rate) r = d->pitch_rate;
+        if (r < -d->pitch_rate) r = -d->pitch_rate;
         v->pitch_rate = r; v->pitch += r * dt;
     }
     if (v->pitch > 1.4f) v->pitch = 1.4f;
     if (v->pitch < -1.4f) v->pitch = -1.4f;
-    if (d->roll_rate > 0) v->yaw -= v->steer * d->turn_rate * dt;
-    else {
-        f32 r = v->yaw_rate - v->steer * d->yaw_in * dt, dmp = d->yaw_damp * dt;
-        r = fabsf(r) <= dmp ? 0 : r - (r > 0 ? dmp : -dmp);
-        f32 cap = d->turn_rate * (fabsf(v->steer) > 0.01f ? fabsf(v->steer) : 1.0f);
-        if (r > cap) r = cap;
-        if (r < -cap) r = -cap;
+    if (d->roll_rate > 0) {
+        v->yaw -= v->steer * d->turn_rate * dt;
+        f32 r = v->roll_vel, dmp = d->roll_damp * dt;
+        r = r > 0 ? r - fminf(r, dmp) : r + fminf(-r, dmp);
+        r += -v->steer * d->roll_in * dt;
+        if (r > d->roll_rate) r = d->roll_rate;
+        if (r < -d->roll_rate) r = -d->roll_rate;
+        v->roll_vel = r;
+        if (fabsf(v->steer) > 0.05f) { v->roll += r * dt; if (v->roll > d->bank) v->roll = d->bank; if (v->roll < -d->bank) v->roll = -d->bank; }
+        else { f32 rr = d->roll_removal * dt; v->roll += v->roll < 0 ? fminf(-v->roll, rr) : -fminf(v->roll, rr); }
+    } else {
+        f32 r = v->yaw_rate, dmp = d->yaw_damp * dt;
+        r = r > 0 ? r - fminf(r, dmp) : r + fminf(-r, dmp);
+        r += -v->steer * d->yaw_in * dt;
+        if (r > d->turn_rate) r = d->turn_rate;
+        if (r < -d->turn_rate) r = -d->turn_rate;
         v->yaw_rate = r; v->yaw += r * dt;
+        f32 want_roll = -v->steer * d->bank, rr = (fabsf(v->steer) > 0.05f ? d->turn_rate : d->roll_removal) * dt;   /* (cosmetic) */
+        v->roll += want_roll > v->roll ? fminf(want_roll - v->roll, rr) : -fminf(v->roll - want_roll, rr);
     }
-    f32 want_roll = -v->steer * d->bank, rr = (fabsf(v->steer) > 0.05f ? (d->roll_rate > 0 ? d->roll_rate : d->turn_rate) : d->roll_removal) * dt;
-    v->roll += want_roll > v->roll ? fminf(want_roll - v->roll, rr) : -fminf(v->roll - want_roll, rr);
-    /* speed (measured): two settings, the stall speed (after lift-off, and L) and the cruising speed (R), reached at MaxAcc
-       (100 m/s^2 on the snowspeeder); holding R longer does not go past the cruise.  The boost to TopSpeed is kept for bots
-       [PARITY(3.3): the player's boost input is not found - not R held, a double tap, nor R + L] */
-    f32 want = boost ? d->top_speed : v->brake ? d->stall_speed : d->cruise, acc = (boost ? d->boost_acc : d->max_acc) * dt;
-    if (want < d->stall_speed) want = d->stall_speed;
-    v->speed += want > v->speed ? fminf(want - v->speed, acc) : -fminf(v->speed - want, acc);
-    f32 cp = cosf(v->pitch), fw[3] = { -sinf(v->yaw) * cp, sinf(v->pitch), -cosf(v->yaw) * cp };
-    for (int k = 0; k < 3; k++) v->vel[k] = fw[k] * v->speed;
+    f32 fw[3], rt[3], up[3];
+    {
+        f32 cp = cosf(v->pitch), sy = sinf(v->yaw), cy = cosf(v->yaw), sp = sinf(v->pitch);
+        fw[0] = -sy * cp; fw[1] = sp; fw[2] = -cy * cp; rt[0] = cy; rt[1] = 0; rt[2] = -sy;
+        up[0] = rt[1] * fw[2] - rt[2] * fw[1]; up[1] = rt[2] * fw[0] - rt[0] * fw[2]; up[2] = rt[0] * fw[1] - rt[1] * fw[0];
+    }
+    /* the velocity keeps its world direction through the turn */
+    f32 *lv = v->lvel, w[3];
+    for (int k = 0; k < 3; k++) w[k] = ort[k] * lv[0] + oup[k] * lv[1] + ofw[k] * lv[2];
+    lv[0] = w[0] * rt[0] + w[1] * rt[1] + w[2] * rt[2]; lv[1] = w[0] * up[0] + w[1] * up[1] + w[2] * up[2]; lv[2] = w[0] * fw[0] + w[1] * fw[1] + w[2] * fw[2];
+    {   /* skid damping: sideways, up/down and backward */
+        f32 k = d->skid_damp * dt, dmp[3] = { lv[0] * k, lv[1] * k, lv[2] * k };
+        if (dmp[0] * dmp[0] + dmp[1] * dmp[1] + dmp[2] * dmp[2] >= lv[0] * lv[0] + lv[1] * lv[1] + lv[2] * lv[2]) memcpy(dmp, lv, 12);
+        if (dmp[2] > 0) dmp[2] = 0;
+        for (int i = 0; i < 3; i++) lv[i] -= dmp[i];
+    }
+    {   /* the throttle ahead */
+        f32 thr = v->brake ? -1.0f : (v->fast || v->driver > 0) ? 1.0f : 0.0f, z = lv[2];   /* (bots: ahead unless braking) */
+        if (boost) thr = 1.0f;
+        bool above = !boost && z > d->cruise, below = !boost && z <= d->cruise;
+        if (above && thr > d->anti_boost) thr = d->anti_boost;
+        z += (boost ? d->boost_acc : d->max_acc) * thr * dt - z * d->vel_damp * dt;
+        f32 top = fminf(300.0f, d->top_speed);
+        if (z > top) z = top;
+        if (z < d->stall_speed) z = d->stall_speed;
+        if (above && z < d->cruise) z = d->cruise;
+        if (below && z > d->cruise) z = d->cruise;
+        lv[2] = z;
+    }
+    for (int k = 0; k < 3; k++) v->vel[k] = rt[k] * lv[0] + up[k] * lv[1] + fw[k] * lv[2];
+    v->speed = sqrtf(v->vel[0] * v->vel[0] + v->vel[1] * v->vel[1] + v->vel[2] * v->vel[2]);
     /* the level ahead: touch down slowly and level, or crash */
     f32 step = v->speed * dt, r = d->radius * 0.5f; ak_col_hit h;
     f32 o[3] = { v->pos[0], v->pos[1] + d->height * 0.5f, v->pos[2] }, dir[3] = { fw[0], fw[1], fw[2] };
@@ -296,7 +346,7 @@ static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bo
                 f32 side = -sinf(v->yaw) * 0 + (cosf(v->yaw) * h.normal[0] - sinf(v->yaw) * h.normal[2]);
                 v->yaw -= (side > 0 ? -1.0f : 1.0f) * (-into) * 0.8f;
             }
-            v->speed *= 1.0f - 0.5f * dt;
+            v->speed *= 1.0f - 0.5f * dt; for (int k = 0; k < 3; k++) v->lvel[k] *= 1.0f - 0.5f * dt;
             for (int k = 0; k < 3; k++) v->pos[k] += h.normal[k] * 0.3f;
         } else { v->crashed = true; if (getenv("AK_DEBUG_VEH")) fprintf(stderr, "[veh] crash at %.1f %.1f %.1f normal %.2f %.2f %.2f into %.2f\n", h.pos[0], h.pos[1], h.pos[2], h.normal[0], h.normal[1], h.normal[2], into); return; }
     }
