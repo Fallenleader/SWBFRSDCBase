@@ -1780,7 +1780,7 @@ static ak_input psp_layout(ak_play *p, const ak_input *raw, f32 dt)
     g.pressed |= P & (AK_BTN_LEFT | AK_BTN_RIGHT);
     p->sprint = false;
     if (driving) {
-        if (flyer) { if (H & AK_BTN_L) g.held |= AK_BTN_L; if (H & AK_BTN_R) g.held |= AK_BTN_CROSS; }
+        if (flyer) { if (H & AK_BTN_L) g.held |= AK_BTN_L; if (H & AK_BTN_R) g.held |= AK_BTN_CROSS; if (P & AK_BTN_R) g.pressed |= AK_BTN_CROSS; }
         else if (H & AK_BTN_L) g.held |= AK_BTN_CROSS;
         p->l_was = false; p->l_t = 0;
     } else {
@@ -2090,14 +2090,22 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (vh->driver == 0) {                                                /* the player drives: left stick, cross boosts, right stick aims, R fires */
             bool rails = p->vspawn[v].route && vh->def->kind == AK_VEH_WALKER;   /* a placed walker keeps to its path: the gunner aims and fires */
             vh->throttle = vin->ly; vh->steer = vin->lx; vh->strafe = 0; vh->brake = false;
-            if (vh->def->kind == AK_VEH_FLYER) { vh->brake = (vin->held & AK_BTN_L) != 0; if (p->invert_y) vh->throttle = -vh->throttle; }   /* L held: slow down */
+            bool fly_fast = false;
+            if (vh->def->kind == AK_VEH_FLYER) {
+                /* measured (Hoth's snowspeeder): parked, R takes off; flying, R sets the cruising speed and L the stall speed, and
+                   the setting stays when let go (the speed after lift-off: the stall's) */
+                if (!vh->flying) { vh->fast = false; if (vin->pressed & AK_BTN_CROSS) vh->takeoff_req = true; }
+                else if (vh->takeoff <= 0) { if (vin->held & AK_BTN_CROSS) vh->fast = true; if (vin->held & AK_BTN_L) vh->fast = false; }
+                vh->brake = !vh->fast; fly_fast = true;
+                if (p->invert_y) vh->throttle = -vh->throttle;
+            }
             else if (vin->held & AK_BTN_L) { vh->strafe = vin->lx; vh->steer = 0; }   /* L held: strafe (hover craft) */
             vh->aim_yaw -= vin->rx * 2.0f * dt; vh->aim_pitch += (p->invert_y ? -vin->ry : vin->ry) * 1.5f * dt;
             if (vh->aim_yaw > 1.2f) vh->aim_yaw = 1.2f;
             if (vh->aim_yaw < -1.2f) vh->aim_yaw = -1.2f;
             if (vh->aim_pitch > 0.6f) vh->aim_pitch = 0.6f;
             if (vh->aim_pitch < -0.4f) vh->aim_pitch = -0.4f;
-            if (rails) walker_route_step(p, v, dt); else ak_vehicle_update(vh, &p->col, p->cp.gravity, vehicle_boost(vh, (vin->held & AK_BTN_CROSS) != 0, dt), dt);
+            if (rails) walker_route_step(p, v, dt); else ak_vehicle_update(vh, &p->col, p->cp.gravity, vehicle_boost(vh, !fly_fast && (vin->held & AK_BTN_CROSS) != 0, dt), dt);
             if ((vin->held & AK_BTN_R) && p->aim_ok) vehicle_fire(p, m, v, p->aim_point, dt); else vh->volley_t = 0;
             if (p->aim_ok) vehicle_lock(p, vh, p->eye, p->aim, dt);                /* circle: the secondary (locked: guided) */
             if ((vin->held & AK_BTN_CIRCLE) && p->aim_ok) vehicle_fire2(p, m, v, p->aim_point, vh->locked ? vh->lock : -1);

@@ -43,6 +43,8 @@ typedef struct {
     /* flyers ("Flyer" blueprints: starfighters, bombers, interceptors, transports, the snowspeeder): CruisingSpeed, StallSpeed (the
      * slowest it flies), TopSpeed (boost), MaxTurnPitch / Yaw / Roll and RollRemoval (degrees a second), AnimLanded / AnimFlight */
     f32 cruise, pitch_rate, roll_rate, roll_removal, bank; s32 clip_flight, clip_landed;
+    f32 pitch_in, pitch_damp;          /* PitchInputDamp, PitchDamp (radians/s^2) */
+    u32 ntakeoff; f32 takeoff_t[24], takeoff_y[24];   /* AnimTakeoff's root channel: key times and heights (the lift-off, straight up) */
     int flyer_type;                    /* Flyer_Type (AK_FLY_*: the space AI commander's roles) */
     bool carries_cp; const char *cp_marker;   /* CarriesCommandPost (AT-AT, transports): a command post of its side rides it, at CommandPostMarker */
     ak_secondary sec; const char *sec_muzzle[4]; u32 nsec_muzzles;   /* HardpointW2 (torpedoes, missiles, bombs) from HardpointW2Marker1..4 */
@@ -65,6 +67,7 @@ typedef struct {
     f32 throttle, steer, strafe;           /* the driver's controls, -1..1 */
     f32 anim_t; s32 clip; bool posed; f32 bones[64][12];   /* the pose (walkers walk; the rest hold their bind pose) */
     bool flying, crashed; f32 speed, takeoff; bool brake;  /* flyers */
+    f32 pitch_rate, takeoff_y0; bool takeoff_req, fast;          /* flyers: the pitch rate (its dynamics as the yaw's), lift-off base, R pressed */
 } ak_vehicle;
 
 /* the Tank (or Walker) blueprint of this name with its model in this level; false if there is none */

@@ -233,14 +233,20 @@ textures and how they are used. Section R lists only what must be in place so th
   - [ ] **3.2b** Hover tanks and speeder bikes (hover height, ride over water) and walkers still use Aurek's rays; measure one
     on a level that has them.
 
-- [ ] **3.3 Flyers [partial].** To trace:
-  - the flight model's remaining constants;
-  - landing and crash rules (currently Aurek's);
-  - stunts (Immelmann, barrel roll: the EnergyStunt use).
-  - Harness note: `drive.py --team rebel` now plays the Rebels.  On Hoth the two snowspeeders (class 8004, objects 30d48/30d4f at
-    -168,-2.3,174 and -175,-2.3,175) report health 0 at the match start and stand still; a player teleported beside them
-    gets no "Use" prompt, so they are not yet boardable there (likely parked until their spawn timer).  Next: watch when
-    they become live, then fly them with the stick programs.
+- [ ] **3.3 Flyers [partial].** Measured on Hoth's snowspeeder (harness: `--team rebel`, teleported beside it, d-pad up; the
+  programs fly / fly_tap / fly_rl / fly_stick / fly_climb / fly_pitch / fly_boost):
+  - [x] Boarding: from beside it (it lands parked, its reported health field 0; bots take them about 15 s in).  "R Take off".
+  - [x] Lift-off: R; straight up along AnimTakeoff's root channel (1.016 m in 1 s, key for key), then away level at StallSpeed.
+  - [x] Speed: two settings - the stall speed (after lift-off, and L) and the cruising speed (R) - reached at MaxAcc (100 m/s²),
+    kept when let go; the speed holds through climbs and dives (no gravity in flight).
+  - [x] Turning: yaw and pitch rates spin up at InputDamp − Damp to MaxTurn (70 and 40 degrees/s) and settle at Damp - the
+    tanks' dynamics on both axes.  Stick forward = nose down.  Aurek turns ~1.5 frames short per stick release (about 1°):
+    [PARITY(3.3a)] the cause (input latency or the game's integration order) is not found.
+  - [ ] The boost to TopSpeed (60): not R held, a double tap, nor R + L.  The input is not found.
+  - [ ] Roll (craft with MaxTurnRoll > 0): no starfighter flies on a planet map. Measure it in space (3.7).
+  - [ ] Crash and skim rules: a ~10° dive into Hoth's snow skimmed once, then crashed (the pilot dies, the wreck stays).
+    The rule (angle, speed or surface) is not found.  Landing (AnimLand) is not measured.  Both are still Aurek's.
+  - [ ] Stunts (Immelmann, barrel roll: the EnergyStunt use).
 - [ ] **3.4 Walkers [assumed].** Driving and gunnery code, what happens at a path's end, and the ATBL animation chunks (not read).
   - Harness note: the Empire's AT-ST on Hoth (30d4a, 262,14.8,14) gives no "Use" prompt from beside it either.
 - [ ] **3.5 Vehicle life cycle [assumed].**

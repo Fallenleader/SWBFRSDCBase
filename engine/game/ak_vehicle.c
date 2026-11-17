@@ -57,11 +57,29 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
         d->roll_rate = ak_bp_float(o, "MaxTurnRoll", 115) * DEG; d->roll_removal = ak_bp_float(o, "RollRemoval", 50) * DEG;
         d->bank = (d->roll_rate > 0 ? 60.0f : ak_bp_float(o, "CosmeticRoll", 10)) * DEG;   /* the snowspeeder (no roll) only leans */
         /* clip names, or asset paths: "vehicles\...\Awing_rest.ASR" -> "Awing_rest" */
-        const char *keys[2] = { "AnimFlight", "AnimLanded" }; s32 *out[2] = { &d->clip_flight, &d->clip_landed };
-        for (int k = 0; k < 2; k++) {
+        d->pitch_in = ak_bp_float(o, "PitchInputDamp", 200) * DEG; d->pitch_damp = ak_bp_float(o, "PitchDamp", 115) * DEG;
+        s32 clip_takeoff = -1;
+        const char *keys[3] = { "AnimFlight", "AnimLanded", "AnimTakeoff" }; s32 *out[3] = { &d->clip_flight, &d->clip_landed, &clip_takeoff };
+        for (int k = 0; k < 3; k++) {
             const char *v = ak_bp_string(o, keys[k], ""), *b = strrchr(v, '\\'); char nm[96]; b = b ? b + 1 : v;
             snprintf(nm, sizeof nm, "%s", b); char *dot = strrchr(nm, '.'); if (dot) *dot = 0;
             *out[k] = *nm ? find_clip(m, nm) : -1;
+        }
+        /* the lift-off rides AnimTakeoff's root channel (measured on Hoth's snowspeeder: straight up 1.02 m in 1 s, its speed
+           stepping key by key, then away at StallSpeed) */
+        d->ntakeoff = 0;
+        if (clip_takeoff >= 0) {
+            const ak_anim_clip *c = &m->clips[clip_takeoff];
+            if (c->nchannels > c->nbones && c->duration > 0) {
+                const ak_anim_channel *ch = &c->chan[c->nchannels - 1];
+                u32 n = ch->pos_count < 24 ? ch->pos_count : 24;
+                for (u32 k = 0; k < n; k++) {
+                    d->takeoff_t[k] = ch->pos_count == ch->rot_count ? c->rtime[ch->rot_first + k] / 65535.0f * c->duration : (n > 1 ? (f32)k / (f32)(n - 1) * c->duration : 0);
+                    d->takeoff_y[k] = c->pos[ch->pos_first + k][1] - c->pos[ch->pos_first][1];
+                }
+                d->ntakeoff = n;
+                if (getenv("AK_DEBUG_VEH")) { fprintf(stderr, "[veh] %s takeoff %u keys, %.3f s:", name, n, c->duration); for (u32 k = 0; k < n; k++) fprintf(stderr, " %.3f/%.3f", d->takeoff_t[k], d->takeoff_y[k]); fprintf(stderr, "\n"); }
+            }
         }
     }
     if (walker) {
@@ -154,29 +172,64 @@ void ak_vehicle_spawn(ak_vehicle *v, const ak_vehicle_def *d, const f32 *pos, f3
 static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool boost, f32 dt)
 {
     const ak_vehicle_def *d = v->def;
-    if (!v->flying) {                                                     /* on the ground: settle; any input from a pilot takes off */
+    if (!v->flying) {                                                     /* on the ground: settle; a pilot takes off */
         f32 o[3] = { v->pos[0], v->pos[1] + 2.0f, v->pos[2] }, dn[3] = { 0, -1, 0 }; ak_col_hit h;
         if (ak_col_raycast(col, o, dn, 4.0f, FLY_IGNORE, &h)) { v->pos[1] = h.pos[1]; v->vel[1] = 0; }
         else if (ak_col_raycast(col, o, dn, 1e4f, FLY_IGNORE, &h)) { v->vel[1] -= gravity * dt; v->pos[1] += v->vel[1] * dt; if (v->pos[1] < h.pos[1]) v->pos[1] = h.pos[1]; }
-        v->speed = 0; v->vel[0] = v->vel[2] = 0; v->pitch *= 0.9f; v->roll *= 0.9f;
-        if (v->driver >= 0 && (boost || fabsf(v->throttle) > 0.2f || fabsf(v->steer) > 0.2f)) { v->flying = true; v->takeoff = 1.2f; v->speed = 0; v->pitch = 0; }
+        v->speed = 0; v->vel[0] = v->vel[2] = 0; v->pitch *= 0.9f; v->roll *= 0.9f; v->yaw_rate = v->pitch_rate = 0;
+        /* the player: R ("Take off" on the HUD); bots: any control */
+        bool go = v->driver == 0 ? v->takeoff_req : v->driver > 0 && (boost || fabsf(v->throttle) > 0.2f || fabsf(v->steer) > 0.2f);
+        if (go) {
+            v->flying = true; v->pitch = 0; v->takeoff_y0 = v->pos[1];
+            v->takeoff = d->ntakeoff > 1 ? d->takeoff_t[d->ntakeoff - 1] : 1.0f;
+            v->speed = d->stall_speed > 0 ? d->stall_speed : 0;
+        }
+        v->takeoff_req = false;
         return;
     }
-    if (v->takeoff > 0) {                                                 /* lifting off: straight up, then away level */
-        v->takeoff -= dt; v->pos[1] += 3.0f * dt;
-        v->speed += d->stall_speed * dt / 1.2f; v->vel[1] = 3.0f;
-        f32 fw[3] = { -sinf(v->yaw), 0, -cosf(v->yaw) };
-        v->pos[0] += fw[0] * v->speed * dt; v->pos[2] += fw[2] * v->speed * dt;
+    v->takeoff_req = false;
+    if (v->takeoff > 0) {                                                 /* lifting off: straight up along the clip, then away at the stall speed */
+        f32 end = d->ntakeoff > 1 ? d->takeoff_t[d->ntakeoff - 1] : 1.0f, t = end - v->takeoff + dt, y;
+        v->takeoff -= dt;
+        if (t > end) t = end;
+        if (d->ntakeoff > 1) {
+            u32 k = 0; while (k + 2 < d->ntakeoff && d->takeoff_t[k + 1] <= t) k++;
+            f32 span = d->takeoff_t[k + 1] - d->takeoff_t[k], u = span > 1e-6f ? (t - d->takeoff_t[k]) / span : 1;
+            if (u > 1) u = 1;
+            y = d->takeoff_y[k] + (d->takeoff_y[k + 1] - d->takeoff_y[k]) * u;
+        } else y = t;
+        f32 was = v->pos[1]; v->pos[1] = v->takeoff_y0 + y; v->vel[0] = v->vel[2] = 0; v->vel[1] = (v->pos[1] - was) / (dt > 0 ? dt : 1);
+        if (v->takeoff <= 0) v->vel[1] = 0;
         return;
     }
-    /* turning: the stick pitches, banks and yaws; let go and the roll levels out (RollRemoval) */
-    v->pitch -= v->throttle * d->pitch_rate * dt;
+    /* turning, measured on Hoth's snowspeeder (MaxTurnYaw 70, YawInputDamp 250, YawDamp 145; MaxTurnPitch 40, PitchInputDamp 200,
+       PitchDamp 115): full stick spins the rate up at InputDamp - Damp (105 / 85 degrees/s^2) to MaxTurn degrees/s; let go, it
+       settles at Damp - the tanks' turn (3.1), on both axes.  Craft that roll (MaxTurnRoll > 0) bank and yaw as before
+       [PARITY(3.3): their roll is not measured - no starfighter on a planet map].  The speed holds through any climb or dive. */
+    {
+        f32 r = v->pitch_rate - v->throttle * d->pitch_in * dt, dmp = d->pitch_damp * dt;
+        r = fabsf(r) <= dmp ? 0 : r - (r > 0 ? dmp : -dmp);
+        f32 cap = d->pitch_rate * (fabsf(v->throttle) > 0.01f ? fabsf(v->throttle) : 1.0f);
+        if (r > cap) r = cap;
+        if (r < -cap) r = -cap;
+        v->pitch_rate = r; v->pitch += r * dt;
+    }
     if (v->pitch > 1.4f) v->pitch = 1.4f;
     if (v->pitch < -1.4f) v->pitch = -1.4f;
-    v->yaw -= v->steer * d->turn_rate * dt;
+    if (d->roll_rate > 0) v->yaw -= v->steer * d->turn_rate * dt;
+    else {
+        f32 r = v->yaw_rate - v->steer * d->yaw_in * dt, dmp = d->yaw_damp * dt;
+        r = fabsf(r) <= dmp ? 0 : r - (r > 0 ? dmp : -dmp);
+        f32 cap = d->turn_rate * (fabsf(v->steer) > 0.01f ? fabsf(v->steer) : 1.0f);
+        if (r > cap) r = cap;
+        if (r < -cap) r = -cap;
+        v->yaw_rate = r; v->yaw += r * dt;
+    }
     f32 want_roll = -v->steer * d->bank, rr = (fabsf(v->steer) > 0.05f ? (d->roll_rate > 0 ? d->roll_rate : d->turn_rate) : d->roll_removal) * dt;
     v->roll += want_roll > v->roll ? fminf(want_roll - v->roll, rr) : -fminf(v->roll - want_roll, rr);
-    /* speed: cruising, boost to the top, brake to the stall speed */
+    /* speed (measured): two settings, the stall speed (after lift-off, and L) and the cruising speed (R), reached at MaxAcc
+       (100 m/s^2 on the snowspeeder); holding R longer does not go past the cruise.  The boost to TopSpeed is kept for bots
+       [PARITY(3.3): the player's boost input is not found - not R held, a double tap, nor R + L] */
     f32 want = boost ? d->top_speed : v->brake ? d->stall_speed : d->cruise, acc = (boost ? d->boost_acc : d->max_acc) * dt;
     if (want < d->stall_speed) want = d->stall_speed;
     v->speed += want > v->speed ? fminf(want - v->speed, acc) : -fminf(v->speed - want, acc);

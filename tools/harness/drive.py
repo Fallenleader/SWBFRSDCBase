@@ -60,6 +60,50 @@ def prog_custom_menu(i, fr):                                                    
 def prog_drive_late(i, fr):                                                      # get in 3 s into the match, full forward from 4 s
     if 90 <= i < 94: return (UP, 128, 128)
     return (0, 128, 0) if i >= 120 else (0, 128, 128)
+def prog_board_try(i, fr):                                                       # tap UP every 0.5 s from 1.5 s to 6 s, then full forward
+    if 90 <= i < 360 and (i - 90) % 30 < 4: return (UP, 128, 128)
+    return (0, 128, 0) if i >= 400 else (0, 128, 128)
+def prog_fly(i, fr):                                                             # (--tp beside a parked flyer) get in at 1.5 s, hold R (take off,
+    b = UP if 90 <= i < 94 else 0                                                 #  then accelerate) from 3 s to 8 s, release; stick per --fly
+    if 180 <= i < 480: b |= RTRIG
+    return (b, 128, 128)
+def prog_fly_tap(i, fr):                                                         # get in, tap R to take off, then nothing (the cruise)
+    b = UP if 90 <= i < 94 else 0
+    if 180 <= i < 186: b |= RTRIG
+    return (b, 128, 128)
+def prog_fly_slow(i, fr):                                                        # take off, cruise 5 s, then hold L (slow down) 4 s
+    b = UP if 90 <= i < 94 else 0
+    if 180 <= i < 186: b |= RTRIG
+    if 480 <= i < 720: b |= LTRIG
+    return (b, 128, 128)
+def prog_fly_stick(i, fr):                                                       # take off, cruise 4 s, stick right 2 s, stick forward 2 s, back 2 s
+    b = UP if 90 <= i < 94 else 0
+    if 180 <= i < 186: b |= RTRIG
+    lx, ly = 128, 128
+    if 420 <= i < 540: lx = 255
+    elif 600 <= i < 720: ly = 0
+    elif 780 <= i < 900: ly = 255
+    return (b, lx, ly)
+def prog_fly_rl(i, fr):                                                          # take off, cruise 2 s, R 0.5 s, wait 2 s, L 0.5 s, wait 2 s, L 2 s, R 2 s
+    b = UP if 90 <= i < 94 else 0
+    if 180 <= i < 186 or 420 <= i < 450 or 840 <= i < 960: b |= RTRIG
+    if 570 <= i < 600 or 720 <= i < 840: b |= LTRIG
+    return (b, 128, 128)
+def prog_fly_pitch(i, fr):                                                       # take off, cruise 5 s (out of the hangar), stick forward 1 s, let go
+    b = UP if 90 <= i < 94 else 0                                                 #  2 s, stick back 1 s, let go
+    if 180 <= i < 186: b |= RTRIG
+    ly = 0 if 540 <= i < 600 else 255 if 720 <= i < 780 else 128
+    return (b, 128, ly)
+def prog_fly_boost(i, fr):                                                       # take off, R to cruise, then R tapped twice quickly, later R + L
+    b = UP if 90 <= i < 94 else 0
+    if 180 <= i < 186 or 300 <= i < 306 or 420 <= i < 424 or 430 <= i < 434: b |= RTRIG
+    if 600 <= i < 720: b |= RTRIG | LTRIG
+    return (b, 128, 128)
+def prog_fly_climb(i, fr):                                                       # take off, cruise 4 s, stick back 1 s, let go 3 s, stick forward 0.5 s
+    b = UP if 90 <= i < 94 else 0
+    if 180 <= i < 186: b |= RTRIG
+    ly = 255 if 480 <= i < 540 else 0 if 720 <= i < 750 else 128
+    return (b, 128, ly)
 def prog_drive(i, fr):                                                           # (with --tp next to a vehicle) get in, then full forward
     if 40 <= i < 44: return (UP, 128, 128)
     return (0, 128, 0) if i >= 90 else (0, 128, 128)
@@ -69,7 +113,7 @@ def prog_drive_turn(i, fr):                                                     
     if i < 270: return (0, 128, 0)
     if i < 450: return (0, 255, 0)
     return (0, 128, 0)
-PROGRAMS = {'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
+PROGRAMS = {'fly_climb': prog_fly_climb, 'fly_pitch': prog_fly_pitch, 'fly_boost': prog_fly_boost, 'fly_rl': prog_fly_rl, 'fly': prog_fly, 'fly_tap': prog_fly_tap, 'fly_slow': prog_fly_slow, 'fly_stick': prog_fly_stick, 'board_try': prog_board_try, 'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
 
 def main():
     ap = argparse.ArgumentParser()
