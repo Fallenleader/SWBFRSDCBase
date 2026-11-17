@@ -104,6 +104,12 @@ def prog_fly_climb(i, fr):                                                      
     if 180 <= i < 186: b |= RTRIG
     ly = 255 if 480 <= i < 540 else 0 if 720 <= i < 750 else 128
     return (b, 128, ly)
+def prog_walker(i, fr):                                                          # get in at 1.5 s; forward 4 s from 5 s, let go 2 s, forward + right
+    b = UP if 90 <= i < 94 else 0                                                 #  3 s, right alone 2 s, let go
+    if 300 <= i < 540: return (b, 128, 0)
+    if 660 <= i < 840: return (b, 255, 0)
+    if 840 <= i < 960: return (b, 255, 128)
+    return (b, 128, 128)
 def prog_drive(i, fr):                                                           # (with --tp next to a vehicle) get in, then full forward
     if 40 <= i < 44: return (UP, 128, 128)
     return (0, 128, 0) if i >= 90 else (0, 128, 128)
@@ -113,7 +119,7 @@ def prog_drive_turn(i, fr):                                                     
     if i < 270: return (0, 128, 0)
     if i < 450: return (0, 255, 0)
     return (0, 128, 0)
-PROGRAMS = {'fly_climb': prog_fly_climb, 'fly_pitch': prog_fly_pitch, 'fly_boost': prog_fly_boost, 'fly_rl': prog_fly_rl, 'fly': prog_fly, 'fly_tap': prog_fly_tap, 'fly_slow': prog_fly_slow, 'fly_stick': prog_fly_stick, 'board_try': prog_board_try, 'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
+PROGRAMS = {'walker': prog_walker, 'fly_climb': prog_fly_climb, 'fly_pitch': prog_fly_pitch, 'fly_boost': prog_fly_boost, 'fly_rl': prog_fly_rl, 'fly': prog_fly, 'fly_tap': prog_fly_tap, 'fly_slow': prog_fly_slow, 'fly_stick': prog_fly_stick, 'board_try': prog_board_try, 'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
 
 def main():
     ap = argparse.ArgumentParser()

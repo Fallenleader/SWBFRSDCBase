@@ -37,6 +37,32 @@ static f32 walk_speed_of(const ak_model_set *m, s32 model, s32 clip)
     return time > 0 ? dist / time : 0;
 }
 
+/* a clip's root speed per key segment: |(dx, dz)| / dt of its root channel (the walkers' clips) */
+static void walk_track(const ak_model_set *m, s32 clip, struct ak_walk_track *w)
+{
+    memset(w, 0, sizeof *w);
+    if (clip < 0) return;
+    const ak_anim_clip *c = &m->clips[clip];
+    w->dur = c->duration;
+    if (c->nchannels <= c->nbones || c->duration <= 0) return;
+    const ak_anim_channel *ch = &c->chan[c->nchannels - 1];
+    u32 n = ch->pos_count < 24 ? ch->pos_count : 24;
+    for (u32 k = 0; k < n; k++) w->t[k] = ch->pos_count == ch->rot_count ? c->rtime[ch->rot_first + k] / 65535.0f * c->duration : (n > 1 ? (f32)k / (f32)(n - 1) * c->duration : 0);
+    for (u32 k = 0; k + 1 < n; k++) {
+        const f32 *a = c->pos[ch->pos_first + k], *b = c->pos[ch->pos_first + k + 1]; f32 d = w->t[k + 1] - w->t[k];
+        w->v[k] = d > 1e-6f ? sqrtf((b[0] - a[0]) * (b[0] - a[0]) + (b[2] - a[2]) * (b[2] - a[2])) / d : 0;
+    }
+    if (n) w->v[n - 1] = 0;
+    w->n = n;
+}
+
+static f32 walk_track_speed(const struct ak_walk_track *w, f32 t)
+{
+    if (w->n < 2) return 0;
+    u32 k = 0; while (k + 1 < w->n && w->t[k + 1] <= t) k++;
+    return w->v[k];
+}
+
 bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const char *name, ak_vehicle_def *d)
 {
     memset(d, 0, sizeof *d); d->flyer_type = AK_FLY_OTHER;
@@ -91,6 +117,22 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
         snprintf(nm, sizeof nm, "%s_idle", pre); d->clip_idle = find_clip(m, nm);
         snprintf(nm, sizeof nm, "%s_Death", pre); d->clip_death = find_clip(m, nm);
         d->walk_speed = walk_speed_of(m, d->model, d->clip_walk) * ak_bp_float(o, "WalkingSpeedScale", 1);
+        snprintf(nm, sizeof nm, "%s_idle_to_leftfoot", pre); d->clip_wstart = find_clip(m, nm);
+        snprintf(nm, sizeof nm, "%s_leftfoot_to_idle", pre); d->clip_wstop_l = find_clip(m, nm);
+        snprintf(nm, sizeof nm, "%s_rightfoot_to_idle", pre); d->clip_wstop_r = find_clip(m, nm);
+        walk_track(m, d->clip_wstart, &d->wtrack[0]); walk_track(m, d->clip_walk, &d->wtrack[1]);
+        walk_track(m, d->clip_wstop_l, &d->wtrack[2]); walk_track(m, d->clip_wstop_r, &d->wtrack[3]);
+        if (getenv("AK_DEBUG_VEH")) {
+            for (u32 i = 0; i < m->nclips; i++) if (!strncmp(m->clips[i].name, pre, strlen(pre))) {
+                const ak_anim_clip *c = &m->clips[i];
+                fprintf(stderr, "[veh] %s clip %s %.3f s, %u channels / %u bones", name, c->name, c->duration, c->nchannels, c->nbones);
+                if (c->nchannels > c->nbones) { const ak_anim_channel *ch = &c->chan[c->nchannels - 1];
+                    fprintf(stderr, " root %u keys:", ch->pos_count);
+                    for (u32 k = 0; k < ch->pos_count && k < 40; k++) { f32 tk = ch->pos_count == ch->rot_count ? c->rtime[ch->rot_first + k] / 65535.0f * c->duration : 0; fprintf(stderr, " %.3f(%.2f,%.2f,%.2f)", tk, c->pos[ch->pos_first + k][0], c->pos[ch->pos_first + k][1], c->pos[ch->pos_first + k][2]); } }
+                fprintf(stderr, "\n");
+            }
+            fprintf(stderr, "[veh] %s foot-slide speed %.2f\n", name, d->walk_speed);
+        }
         if (d->walk_speed < 0.5f) d->walk_speed = 4.0f;
         d->sprint_scale = ak_bp_float(o, "SprintingSpeedScale", 1);
     }
@@ -326,6 +368,51 @@ static void box_body_step(ak_vehicle *v, const ak_collision *col, f32 gravity, f
     v->roll += (roll - v->roll) * (1.0f - expf(-6.0f * dt));
 }
 
+/* A walker, measured on Hoth's AT-ST (harness: boarded, stick forward 4 s, let go, forward + right 3 s, right alone 2 s):
+ *  - Its controls act 0.47 s late (28 frames at 60 Hz, turning and walking alike) [PARITY(3.4a): the cause is not found].
+ *  - Walking is root motion: idle_to_leftfoot (3.53 m/s for 0.5 s), then the walk loop (its key slopes 7.1 / 8.8 / 5.1 / 3.9 m/s ...,
+ *    the speed being |root velocity| across the ground, along the walker's facing).  Let go, it walks on to the next foot point of
+ *    the loop - its end (left foot) or its middle (right foot) - and steps down with leftfoot_ / rightfoot_to_idle.
+ *  - The turn starts at 0.083 rad/s, spins up at 1 rad/s^2 to MaxTurnYaw (0.5 rad/s) and stops at 4 rad/s^2, walking or standing.
+ * Without the clips (other walkers' names): the earlier steady walk.  Returns true when the walk's root motion sets the speed. */
+#define WALK_DELAY 0.467f
+static bool walker_step(ak_vehicle *v, f32 dt, bool boost, f32 *fwd)
+{
+    const ak_vehicle_def *d = v->def;
+    /* the delayed controls: the newest sample at least WALK_DELAY old */
+    v->in_clock += dt;
+    u32 h = v->in_head % 64; v->in_hist[h][0] = v->in_clock; v->in_hist[h][1] = v->throttle; v->in_hist[h][2] = v->steer; v->in_head++;
+    f32 thr = 0, st = 0;
+    for (u32 k = 0; k < 64 && k < v->in_head; k++) {
+        const f32 *e = v->in_hist[(v->in_head - 1 - k) % 64];
+        if (v->in_clock - e[0] >= WALK_DELAY - 1e-4f) { thr = e[1]; st = e[2]; break; }
+    }
+    f32 want_r = -st * d->turn_rate, r = v->yaw_rate;
+    bool up = fabsf(want_r) > fabsf(r) && want_r * r >= 0;
+    f32 a = (up ? 1.0f : 4.0f) * dt;
+    if (r == 0 && want_r != 0) a = 1.0f / 12.0f;          /* (measured: the turn's first frame is already 4.8 degrees/s) */
+    r += want_r > r ? fminf(want_r - r, a) : -fminf(r - want_r, a);
+    v->yaw_rate = r; v->yaw += r * dt;
+    if (d->wtrack[0].n < 2 || d->wtrack[1].n < 2 || d->wtrack[2].dur <= 0) { v->throttle = thr; v->steer = st; return false; }
+    bool go = thr > 0.25f;
+    f32 rate = boost ? d->sprint_scale : 1.0f;            /* PARITY(3.4b): the sprint (SprintingSpeedScale) is not measured */
+    f32 t0 = v->walk_t, t1 = t0 + dt * rate, half = d->wtrack[1].dur * 0.5f;
+    switch (v->walk_state) {
+    case 0: if (go) { v->walk_state = 1; v->walk_t = 0; t1 = dt * rate; } else { *fwd = 0; return true; }
+        /* fall through */
+    case 1: if (t1 >= d->wtrack[0].dur) { v->walk_state = 2; t1 -= d->wtrack[0].dur; } break;
+    case 2:
+        if (!go && t0 < half && t1 >= half && d->clip_wstop_r >= 0) { v->walk_state = 4; t1 -= half; }
+        else if (t1 >= d->wtrack[1].dur) { t1 -= d->wtrack[1].dur; if (!go) v->walk_state = 3; }
+        break;
+    case 3: case 4: { const struct ak_walk_track *w = &d->wtrack[v->walk_state == 3 ? 2 : 3]; if (t1 >= w->dur) { v->walk_state = 0; t1 = 0; } } break;
+    }
+    v->walk_t = t1;
+    static const int track_of[5] = { -1, 0, 1, 2, 3 };
+    *fwd = v->walk_state ? walk_track_speed(&d->wtrack[track_of[v->walk_state]], v->walk_t) * rate : 0;
+    return true;
+}
+
 void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool boost, f32 dt)
 {
     const ak_vehicle_def *d = v->def;
@@ -334,7 +421,8 @@ void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool
     /* turning (measured on a Taun-Taun, MaxTurnYaw 86, YawInputDamp 250, YawDamp 150): full stick spins the turn up at 100 degrees/s^2
        (YawInputDamp - YawDamp) to MaxTurnYaw degrees/s; let go, it settles at 150 degrees/s^2 (YawDamp) [PARITY(3.1c): measured,
        a partial stick's limit assumed proportional]; walkers keep the direct turn */
-    if (d->kind == AK_VEH_WALKER) v->yaw += -v->steer * d->turn_rate * dt;
+    f32 walk_fwd = 0; bool walk_root = false;
+    if (d->kind == AK_VEH_WALKER) walk_root = walker_step(v, dt, boost, &walk_fwd);
     else {
         f32 r = v->yaw_rate - v->steer * d->yaw_in * dt, dmp = d->yaw_damp * dt;
         r = fabsf(r) <= dmp ? 0 : r - (r > 0 ? dmp : -dmp);
@@ -359,7 +447,7 @@ void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool
         f32 top = d->top_speed < 300 ? d->top_speed : 300;
         if (fwd > top) fwd = top;
         if (fwd < d->stall_speed) fwd = d->stall_speed;
-    } else {
+    } else if (walk_root) { fwd = walk_fwd; side = 0; } else {
     /* along: toward the speed the throttle asks for (reverse up to the stall speed), at the blueprint's acceleration */
     f32 want = v->throttle >= 0 ? v->throttle * d->top_speed : -v->throttle * d->stall_speed;
     f32 acc = (boost ? d->boost_acc + d->max_acc : d->max_acc) * dt;
@@ -449,6 +537,11 @@ void ak_vehicle_pose(ak_vehicle *v, const ak_model_set *m, f32 dt)
     if (d->kind == AK_VEH_WALKER) {
         f32 sy = sinf(v->yaw), cy = cosf(v->yaw), fwd = -sy * v->vel[0] - cy * v->vel[2], rate = 1;
         if (!v->alive) { clip = d->clip_death; loop = false; }
+        else if (v->walk_state && d->wtrack[1].n >= 2) {                   /* the walk's own clips, at its phase */
+            clip = v->walk_state == 1 ? d->clip_wstart : v->walk_state == 2 ? d->clip_walk : v->walk_state == 3 ? d->clip_wstop_l : d->clip_wstop_r;
+            loop = v->walk_state == 2; v->clip = clip; v->anim_t = v->walk_t; rate = 0;
+            goto sample;
+        }
         else if (fabsf(fwd) > 0.3f) { clip = d->clip_walk; rate = fwd / d->walk_speed; }   /* the feet keep pace with the ground (backwards too) */
         else if (fabsf(v->steer) > 0.1f) { clip = d->clip_walk; rate = 0.6f; }               /* turning on the spot */
         else if (d->clip_idle >= 0) clip = d->clip_idle;
@@ -458,6 +551,7 @@ void ak_vehicle_pose(ak_vehicle *v, const ak_model_set *m, f32 dt)
     }
     if (d->kind == AK_VEH_FLYER) { clip = v->flying ? d->clip_flight : d->clip_landed; loop = false; if (clip != v->clip) v->anim_t = 0; v->anim_t += dt; }
     v->clip = clip;
+sample:;
     static ak_quat q[64]; static f32 t[64][3];
     if (clip >= 0) {
         const ak_anim_clip *c = &m->clips[clip]; f32 tt = v->anim_t;

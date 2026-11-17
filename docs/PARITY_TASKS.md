@@ -247,8 +247,17 @@ textures and how they are used. Section R lists only what must be in place so th
   - [ ] Crash and skim rules: a ~10° dive into Hoth's snow skimmed once, then crashed (the pilot dies, the wreck stays).
     The rule (angle, speed or surface) is not found.  Landing (AnimLand) is not measured.  Both are still Aurek's.
   - [ ] Stunts (Immelmann, barrel roll: the EnergyStunt use).
-- [ ] **3.4 Walkers [assumed].** Driving and gunnery code, what happens at a path's end, and the ATBL animation chunks (not read).
-  - Harness note: the Empire's AT-ST on Hoth (30d4a, 262,14.8,14) gives no "Use" prompt from beside it either.
+- [ ] **3.4 Walkers [partial].** Measured on Hoth's AT-ST (harness: `--team empire --tp 60:264,14.8,14 --program walker`;
+  boarded from its side with d-pad up):
+  - [x] Its controls act 0.47 s (28 frames) late, for turning and walking alike.  [PARITY(3.4a): the cause is not found.]
+  - [x] Walking is root motion: idle_to_leftfoot (0.5 s at 3.53 m/s), then the walk loop at its key slopes.  The speed is
+    |root velocity| across the ground, along the facing.  Let go: it walks on to the loop's next foot point (end = left foot,
+    middle = right foot), then leftfoot_ / rightfoot_to_idle.  Aurek's path is within 1 % over a 15 s run.
+  - [x] Turn: starts at 0.083 rad/s, spins up at 1 rad/s² to MaxTurnYaw (0.5 rad/s), stops at 4 rad/s²; walking or standing.
+    Aurek is within 1° (one frame) over a 140° turn.
+  - [ ] Sprint (SprintingSpeedScale 1.5): the input is not found; Aurek's boost speeds the walk clips up.  Walking backwards
+    is not measured.  Turning in place (turnL_30 / turnR_30) is not read; it is posed as before.
+  - [ ] Gunnery, what a placed walker does at its path's end, and the ATBL animation chunks (not read).  AT-AT not measured.
 - [ ] **3.5 Vehicle life cycle [assumed].**
   - Respawn time (AK_VEHICLE_RESPAWN 10).
   - How long a wreck stays and its effects (play.c:1528).
