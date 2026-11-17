@@ -216,6 +216,15 @@ textures and how they are used. Section R lists only what must be in place so th
       by AK_DIFFICULTY: 0 easy, 1 normal, 2 elite; default 1; AK_BOT_AIM still overrides), and the hit rate in a 60 s Hoth match
       went from 59 to 41 soldier hits of ~370 shots.  Aurek's bursts stay until the fire step (0893F65C) is read.  Vehicle bots
       still aim with the old box error.
+    - 0893F65C picks which weapon to fire, by the target's class and distance d.  The choice goes to a byte at the
+      controller's +204 table.
+      - The node's flags +110..+122 come from 0893FAE0.  Each is func_08985260(soldier, code), which asks whether the soldier
+        carries a weapon whose type (weapon +188) is code 110, 111, 122, 118, 116, 124, 126, 119, 177, 178, 117, 127 or 130.
+      - Against a soldier (0x8005): code 116 if carried and d < 8.5 m; else 118 if d < 12.5 m; else 122, 124, 110, then 111.
+      - Against walkers (0x8014 / 0x8003), tanks (0x801D) or flyers (0x8004 / 0x801E): 126 first, then 119, 122, 110,
+        116 (< 8.5 m) ...
+      - Which weapon each code is (110 is probably the main gun, 111 the pistol) is not mapped yet: dump weapon +188 from
+        the running game.  Not ported.
   - Traced so far: 08A24438 reads each weapon's AIWeapon_Accuracy_Normal (+24), AIWeapon_Accuracy_Elite (+28) and
     Modifier_Bot_RateOfFire (+32) into an AI weapon record, each clamped to 0..5 (0x08AEF9CC). Who reads them (the aim error)
     is not found yet. Bolts are not registry objects, so the harness cannot count AI shots directly; hits on the player can be.
