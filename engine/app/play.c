@@ -2082,7 +2082,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (!vh->alive) {                                                     /* wrecked: back after the respawn delay */
             vh->dead_t += dt;
             if (vh->def->kind == AK_VEH_WALKER && vh->dead_t < 8.0f) ak_vehicle_pose(vh, m, dt);   /* the death clip */
-            if (!p->vspawn[v].fixed && vh->dead_t > p->vspawn[v].respawn) { if (!vehicle_make(p, v)) vh->dead_t = p->vspawn[v].respawn - 5.0f; }
+            /* measured (harness: the debug command "Kills all tanks" on Hoth's Taun-Taun): the wreck stays 4.7-4.8 s, and a new one stands
+               at the spawn 10.9-11.0 s after the kill - the spawn record's 10 s from about a second after it [PARITY(3.5b)] */
+            if (!p->vspawn[v].fixed && vh->dead_t > p->vspawn[v].respawn + 1.0f) { if (!vehicle_make(p, v)) vh->dead_t = p->vspawn[v].respawn - 5.0f; }
             continue;
         }
         if (vh->driver == 0) {                                                /* the player drives: left stick, cross boosts, right stick aims, R fires */
@@ -2356,7 +2358,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
     }
     for (u32 v = 0; v < p->nveh; v++) {                                       /* the vehicles (and their turrets) */
         const ak_vehicle *vh = &p->veh[v];
-        if (!vh->def || !(vh->alive || (vh->def->kind == AK_VEH_WALKER && vh->dead_t < 8.0f))) continue;
+        if (!vh->def || !(vh->alive || (vh->def->kind == AK_VEH_WALKER ? vh->dead_t < 8.0f : vh->dead_t < 4.75f))) continue;   /* (wrecks: 4.75 s, measured) */
         f32 M[12]; ak_vehicle_matrix(vh, M);
         f32 r = m->models[vh->def->model].radius, mn[3] = { M[3] - r, M[7] - r, M[11] - r }, mx[3] = { M[3] + r, M[7] + r, M[11] + r };
         if (!ak_frustum_aabb(&fr, mn, mx)) continue;

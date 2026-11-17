@@ -244,6 +244,11 @@ void rs_drive_report(FILE *f){
 /* tests: set the player's soldier's health (+0x25C) */
 extern rv_t func_08A61BE0(u32, u32, u32, u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
 void rs_drive_health(float h){
+    if (h < -1.5f) {                                                          /* -2 / -3: the debug commands "Kills all tanks" / "flyers" */
+        extern rv_t func_08A61D98(u32, u32, u32, u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
+        extern rv_t func_08A61DDC(u32, u32, u32, u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
+        if (h > -2.5f) func_08A61D98(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); else func_08A61DDC(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        fprintf(stderr, "[DRIVE] kill all %s\n", h > -2.5f ? "tanks" : "flyers"); return; }
     if (h < 0) { func_08A61BE0(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); fprintf(stderr, "[DRIVE] kill (the debug command's message 0x8001)\n"); return; }   /* the game's "Kills yourself" */
     u32 bk = GU32(IMG(0x08C2C200u)), nb = GU32(IMG(0x08C2C204u)), me = rs_input_object(); if (!gok(bk) || !me) return;
     for (u32 bi = 0; bi < nb; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd); nd = GU32(nd + 4)) {

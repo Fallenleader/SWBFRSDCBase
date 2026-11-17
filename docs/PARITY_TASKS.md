@@ -243,6 +243,11 @@ textures and how they are used. Section R lists only what must be in place so th
   - How long a wreck stays and its effects (play.c:1528).
   - Which vehicle a level uses when it has two (play.c:596).
   - Boarding and leaving rules.
+  - Measured 2026-11-16 (harness --hp F:-2 runs the game's "Kills all tanks", 08A61D98 -> 089B4C78): every Taun-Taun's wreck
+    stays 4.7-4.8 s and a new one stands at its spawn 10.9-11.0 s after the kill (spawn records: 10 s). Also seen: a new one can
+    appear at the spawn while the old one, ridden away, still lives. Aurek: wrecks drawn 4.75 s, respawn record + 1 s.
+  - [ ] **3.5b** The extra second's source, the respawn-when-taken-away rule, flyers ("Kills all flyers": --hp F:-3), boarding.
+
 - [ ] **3.6 Secondary weapons and lock-on.** Verify HardpointW2 and the lock rules against the original. The docs list them as
   "not yet" (stale).
 - [ ] **3.7 Space [partial].** Capital ship turrets (ENTI type 30), the pilots' dogfight states, and hangar and shield rules.
