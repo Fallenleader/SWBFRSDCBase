@@ -26,6 +26,7 @@ typedef struct {
     const char *fire_snd;              /* the weapon's "Fire Sound" event (played at the muzzle) */
     const char *hud_icon;              /* "HUDIcon": its picture on the HUD's weapon sheets ("EMP_Blaster_Rifle.tga") */
     f32 heat_shot, heat_decay, heat_recover, burst_time;   /* OverheatPershot / OverheatDecay / OverheatRecoveryTime, BurstTime */
+    f32 ai_acc[2];                     /* AIWeapon_Accuracy_Normal / _Elite (degrees; 08A24438) */
 } ak_weapon_def;
 
 /* A weapon's heat (the game's, weapon loader 08A16FD8: OverheatPershot / Decay / RecoveryTime at w+0x7C / +0x80 / +0x84, the heat

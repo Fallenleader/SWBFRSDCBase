@@ -501,7 +501,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->sight = p->lock_range;
     {   /* the aim error: the weapon's AIWeapon_Accuracy_Normal (degrees; Weapon "Base": 5), unless AK_BOT_AIM says otherwise */
         const ak_bp_object *wb = ak_bp_find(bp, "Weapon", "Base");
-        p->bot_aim = ak_setting_float("AK_BOT_AIM", wb ? ak_bp_float(wb, "AIWeapon_Accuracy_Normal", 5.0f) : 5.0f) * 3.14159265f / 180.0f; }   /* PARITY(2.6) */
+        p->bot_aim = ak_setting_float("AK_BOT_AIM", wb ? ak_bp_float(wb, "AIWeapon_Accuracy_Normal", 5.0f) : 5.0f) * 3.14159265f / 180.0f;
+        p->bot_aim_set = ak_setting_str("AK_BOT_AIM", NULL) != NULL; }   /* (soldier bots: each weapon's own accuracy unless AK_BOT_AIM is set) */
     p->bots_passive = ak_setting_int("AK_BOT_PASSIVE", 0) != 0;
     u32 want = (u32)ak_setting_int("AK_BOTS", 15); if (want > PLAY_MAX_BOTS) want = PLAY_MAX_BOTS;   /* PARITY(4.5) */
     if (!p->have_nav || !p->nav.nnode) want = 0;
@@ -944,8 +945,18 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
             muzzle_of(m, b->weapon.def, gun, muz);
             f32 tgt[3] = { en->feet[0], en->feet[1] + 1.1f * S, en->feet[2] };
             f32 dx = tgt[0] - muz[0], dy = tgt[1] - muz[1], dz = tgt[2] - muz[2], d = sqrtf(dx * dx + dy * dy + dz * dz);
-            f32 err = p->bot_aim * d;                                    /* the aim error: an angle, so it grows with distance */
-            tgt[0] += (rnd(&b->seed) * 2 - 1) * err; tgt[1] += (rnd(&b->seed) * 2 - 1) * err * 0.6f; tgt[2] += (rnd(&b->seed) * 2 - 1) * err;
+            /* the aim (traced: 08934E38 -> 088F79C0): the shot leaves along a direction drawn uniformly over the spherical cap of
+               half-angle = the weapon's AI accuracy (degrees; elite at difficulty 2) around the line to the target */
+            f32 acc = p->bot_aim_set ? p->bot_aim : b->weapon.def->ai_acc[p->difficulty >= 2 ? 1 : 0] * 0.017453293f;
+            if (d > 1e-3f && acc > 0) {
+                f32 u[3] = { dx / d, dy / d, dz / d }, a[3], v1[3], v2[3];
+                if (fabsf(u[1]) < 0.9f) { a[0] = 0; a[1] = 1; a[2] = 0; } else { a[0] = 1; a[1] = 0; a[2] = 0; }
+                v1[0] = u[1] * a[2] - u[2] * a[1]; v1[1] = u[2] * a[0] - u[0] * a[2]; v1[2] = u[0] * a[1] - u[1] * a[0];
+                f32 l = sqrtf(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2]); for (int k = 0; k < 3; k++) v1[k] /= l;
+                v2[0] = u[1] * v1[2] - u[2] * v1[1]; v2[1] = u[2] * v1[0] - u[0] * v1[2]; v2[2] = u[0] * v1[1] - u[1] * v1[0];
+                f32 ct = 1.0f - rnd(&b->seed) * (1.0f - cosf(acc)), st = sqrtf(fmaxf(0, 1 - ct * ct)), ph = rnd(&b->seed) * 6.2831853f;
+                for (int k = 0; k < 3; k++) tgt[k] = muz[k] + (u[k] * ct + (v1[k] * cosf(ph) + v2[k] * sinf(ph)) * st) * d;
+            }
             ak_weapon_fire(&b->weapon, &p->bolts, &p->col, p->target, NT(p), muz, tgt, &b->seed);
             b->shoot_t = 0;
         }

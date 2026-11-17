@@ -21,6 +21,8 @@ bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, con
     d->hud_icon = ak_bp_string(w, "HUDIcon", NULL);
     d->model = ak_models_find(models, ak_bp_string(w, "WeaponModel", ""));
     d->rate_of_fire = ak_bp_float(w, "RateOfFire", 0.3f);
+    d->ai_acc[0] = ak_bp_float(w, "AIWeapon_Accuracy_Normal", 5.0f); d->ai_acc[1] = ak_bp_float(w, "AIWeapon_Accuracy_Elite", 5.0f);
+    for (int k = 0; k < 2; k++) if (d->ai_acc[k] < 0) d->ai_acc[k] = 0;
     d->reload_time = ak_bp_float(w, "ReloadTime", 2.0f);
     d->distance = ak_bp_float(w, "Distance", 750.0f);
     d->clip = ak_bp_int(w, "AmmoPerClip", -1); d->clips = ak_bp_int(w, "MaxClips", 0);

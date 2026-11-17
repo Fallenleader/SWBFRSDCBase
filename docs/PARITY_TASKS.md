@@ -208,9 +208,14 @@ textures and how they are used. Section R lists only what must be in place so th
       accuracy (by difficulty) × π/180, so the accuracy is in degrees.  Then 0893FAE0 runs.
     - +109 is set by 0893FAE0 when any of +110..+122 is set (13 checks of what the soldier can fire, func_08985260).
       Firing does not reset the timer: it is the reaction delay from acquiring a target, and it starts again only when
-      the target is gone.  Not read yet: what 08934E38 does with the aim error.
-    - Ported (soldier bots): the reaction countdown above, AK_DIFFICULTY (0 easy, 1 normal, 2 elite; default 1).  Aurek's
-      bursts and AK_BOT_AIM stay until the fire step (0893F65C) and the aim error are read.
+      the target is gone.
+    - The aim (08934E38 -> 088F79C0): the line to the target point, leading the target by its velocity × the frame time, is
+      turned to a direction drawn uniformly over the spherical cap of half-angle = the accuracy.  The azimuth comes from a
+      rejection-sampled point in the unit disc; cos θ is uniform between cos(accuracy) and 1.
+    - Ported (soldier bots): the reaction countdown, the cap-shaped aim error from each weapon's own accuracy (normal or elite
+      by AK_DIFFICULTY: 0 easy, 1 normal, 2 elite; default 1; AK_BOT_AIM still overrides), and the hit rate in a 60 s Hoth match
+      went from 59 to 41 soldier hits of ~370 shots.  Aurek's bursts stay until the fire step (0893F65C) is read.  Vehicle bots
+      still aim with the old box error.
   - Traced so far: 08A24438 reads each weapon's AIWeapon_Accuracy_Normal (+24), AIWeapon_Accuracy_Elite (+28) and
     Modifier_Bot_RateOfFire (+32) into an AI weapon record, each clamped to 0..5 (0x08AEF9CC). Who reads them (the aim error)
     is not found yet. Bolts are not registry objects, so the harness cannot count AI shots directly; hits on the player can be.
