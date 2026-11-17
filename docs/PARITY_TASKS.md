@@ -334,7 +334,10 @@ textures and how they are used. Section R lists only what must be in place so th
   decisions.
   - Measured (1.4): AI soldiers' speeds come from the AI controller (soldier +88 -> +72), not the clips: 5.0, 7.4, 8.5, 11.5
     m/s seen on Hoth, changing every ~6 frames. Trace where they come from.
-- [ ] **4.5 Bot counts per mode and level [assumed].** AK_BOTS is 15.
+- [ ] **4.5 Bot counts per mode and level [partly measured].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
+  0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
+  foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source
+  of the count (mode or level data) is not traced.
 - [ ] **4.6 Space AI [partial].** Commander roles are traced; dogfight states FOLLOWING / CIRCLING_ROUND / DOING_STUNT are not.
 
 ## 5. Game rules and modes
