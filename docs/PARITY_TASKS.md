@@ -206,9 +206,11 @@ textures and how they are used. Section R lists only what must be in place so th
     - With no target (id 999) the timer is set back to its start value.
     - Once it has run out and byte +109 is set, the node fires (0893F65C).  The aim error passed on (+44) is the weapon's
       accuracy (by difficulty) × π/180, so the accuracy is in degrees.  Then 0893FAE0 runs.
-    - Not read yet: what +109 is, whether firing resets the timer (no +104 store was found in 0893F65C), and what
-      08934E38 does with the error.
-    - Aurek's bots react in 0.35-0.65 s at any range and aim with AK_BOT_AIM; nothing is ported until the rest is read.
+    - +109 is set by 0893FAE0 when any of +110..+122 is set (13 checks of what the soldier can fire, func_08985260).
+      Firing does not reset the timer: it is the reaction delay from acquiring a target, and it starts again only when
+      the target is gone.  Not read yet: what 08934E38 does with the aim error.
+    - Ported (soldier bots): the reaction countdown above, AK_DIFFICULTY (0 easy, 1 normal, 2 elite; default 1).  Aurek's
+      bursts and AK_BOT_AIM stay until the fire step (0893F65C) and the aim error are read.
   - Traced so far: 08A24438 reads each weapon's AIWeapon_Accuracy_Normal (+24), AIWeapon_Accuracy_Elite (+28) and
     Modifier_Bot_RateOfFire (+32) into an AI weapon record, each clamped to 0..5 (0x08AEF9CC). Who reads them (the aim error)
     is not found yet. Bolts are not registry objects, so the harness cannot count AI shots directly; hits on the player can be.

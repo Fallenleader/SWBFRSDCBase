@@ -98,6 +98,8 @@ AK_VEH_MAX_SLOPE_DEG=40
 AK_VEH_BOX=1
 # flyers that roll level out after 3 s without stick input (the game's auto-level option); 0 = they stay banked
 AK_AUTO_LEVEL=1
+# the game's difficulty: 0 easy, 1 normal, 2 elite (bots react faster at elite: 1.75 s instead of 2.5 s, shortened up close)
+AK_DIFFICULTY=1
 # 1 = bots collide as the game's soldier box (0.6 x 1.8 x 0.6 m, as the player); 0 = Aurek's earlier capsule
 AK_BOT_BODY=1
 # ---- sound (1.9): the game's sounds and music.  Effects come from the game's SOUNDS/GMSND.ASR and the levels; music plays from

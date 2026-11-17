@@ -375,6 +375,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     }
     p->seed = 12345;
     p->have_cq = ak_conquest_load(l, &p->cq);
+    p->difficulty = ak_setting_int("AK_DIFFICULTY", 1);                          /* 0 easy, 1 normal, 2 elite (the game's 08979DF4) */
     p->free_flight = ak_space_load(l, &p->space);                               /* (any space map: flyers may boost) */
     p->is_space = p->free_flight && p->space.nobj > p->space.nhangar;   /* space maps: attack runs on capital ships (Hoth has 2 hangar runs only) */
     for (u32 i = 0; i < AK_MAX_OBJECTIVES; i++) p->obj_unit[i] = -1;
@@ -835,7 +836,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     if (b->think_t <= 0) {
         b->think_t = 0.25f + rnd(&b->seed) * 0.1f;
         s32 e = p->bots_passive ? -1 : bot_find_enemy(p, b);
-        if (e != b->enemy) { if (e >= 0 && b->enemy < 0) b->react_t = 0.35f + rnd(&b->seed) * 0.3f; b->enemy = e; }
+        if (e != b->enemy) b->enemy = e;
         bool done = b->goal >= 0 && p->match.post[b->goal].owner == b->team && p->match.post[b->goal].progress >= p->cq.post[b->goal].amount;
         if (b->want_veh < 0 && (b->goal < 0 || (done && b->goal_t <= 0) || (b->holding && b->goal_t <= -20.0f))) bot_choose_goal(p, b);
     }
@@ -926,7 +927,16 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     } else if (b->weapon.def) {
         ak_weapon_update(&b->weapon, dt, b->weapon.ammo == 0);
         if (b->weapon.ammo <= 0 && b->weapon.spare <= 0 && b->weapon.reload_t <= 0) { int tm = b->weapon.team; s32 ow = b->weapon.owner; ak_weapon_give(&b->weapon, b->weapon.def); b->weapon.team = tm; b->weapon.owner = ow; }
-        b->react_t -= dt; b->burst_t -= dt;
+        /* the reaction (traced: the AI fire node 0893F2F8 - 0893EF7C / 0893F364): a countdown from 2.5 s (1.75 s at the elite
+           difficulty) that runs while there is a target, at 1 / (0.03 d + 0.1) under 30 m and 1 beyond (d: the distance), and
+           starts again whenever there is none; when it has run out the bot shoots */
+        {
+            f32 start = p->difficulty >= 2 ? 1.75f : 2.5f;
+            if (!en) b->react_t = start;
+            else { f32 ex = en->feet[0] - b->ch.pos[0], ey = en->feet[1] - b->ch.pos[1], ez = en->feet[2] - b->ch.pos[2], d = sqrtf(ex * ex + ey * ey + ez * ez);
+                   b->react_t -= dt / (d < 30.0f ? 0.03f * d + 0.1f : 1.0f); }
+        }
+        b->burst_t -= dt;
         if (b->burst_t < -(0.5f + rnd(&b->seed) * 0.6f)) b->burst_t = 0.8f + rnd(&b->seed) * 1.2f;
         if (en && b->react_t <= 0 && b->burst_t > 0 && fabsf(dyaw) < 0.3f) {
             f32 gun[12], muz[3];
