@@ -247,6 +247,14 @@ void rs_drive_report(FILE *f){
                     for (j = 0; j < n_obj; j++) if (w == objs[j] || (w == ids[j] && w > 0x1000)) { fprintf(f, "ctgt %x +%x -> %x %s\n", GU32(info + 4), k, ids[j], w == objs[j] ? "obj" : "id"); break; } }
             }
         }
+        if (cls == 0x8005 && getenv("RS_DRIVE_WEAP")) {    /* a soldier's weapons (+236 -> slots +0.. / +48.., counts bytes +122 / +123): type code +188 */
+            u32 inv = GU32(o + 236);
+            if (gok(inv)) { u32 n1 = GU8(inv + 122), n2 = GU8(inv + 123); fprintf(f, "weap %x %u %u:", GU32(info + 4), n1, n2);
+                for (u32 k = 0; k < 12; k++) { u32 w = GU32(inv + (k < 6 ? 4 * k : 48 + 4 * (k - 6))); if (!gok(w)) continue;
+                    fprintf(f, " [%u] code %u", k, GU32(w + 188)); u32 wi = gok(GU32(w)) ? w + GU32(GU32(w) - 16) : 0; if (gok(wi)) fprintf(f, " cls %x", GU16(wi + 8));
+                    for (u32 j = 0; j < 200; j += 4) { u32 x = GU32(w + j); if (x >> 24 == 0 && x > 0x01000000) {} }
+                    fprintf(f, " h %08x %08x", GU32(w + 4), GU32(w + 8)); }
+                fprintf(f, "\n"); } }
         if (cls == 0x8004 && getenv("RS_DRIVE_VEHIN")) {   /* a flyer's controller (+92) and its axes 0..14 (vfunc +8), the inputs it set */
             u32 c = GU32(o + 92);
             if (gok(c) && gok(GU32(c))) { u32 g = GU32(GU32(c) + 8); fprintf(f, "vin %x ctl %x vt %x get %x idx %u axes", GU32(info + 4), c, GU32(c), g, GU32(c + 12));

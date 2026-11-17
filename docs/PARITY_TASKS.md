@@ -223,8 +223,13 @@ textures and how they are used. Section R lists only what must be in place so th
       - Against a soldier (0x8005): code 116 if carried and d < 8.5 m; else 118 if d < 12.5 m; else 122, 124, 110, then 111.
       - Against walkers (0x8014 / 0x8003), tanks (0x801D) or flyers (0x8004 / 0x801E): 126 first, then 119, 122, 110,
         116 (< 8.5 m) ...
-      - Which weapon each code is (110 is probably the main gun, 111 the pistol) is not mapped yet: dump weapon +188 from
-        the running game.  Not ported.
+      - The codes, dumped from the running game on Hoth (RS_DRIVE_WEAP=1 prints each soldier's weapon slots).  Weapon +4 is
+        a hash of the weapon's effect or name:
+        - 110 the blaster rifle, 111 the pistol, 118 the shotgun, 122 the chaingun.
+        - 116 a flamethrower (BFF_FlameThrower_E), whose class also has a slot-6 item coded 130.
+        - 119 an EMP launcher (BFF_Muz_EMP_Gun_Flash_E), 126 the rocket launcher, 127 the slot-6 grenade.
+      - So: within 8.5 m the flamethrower, within 12.5 m the shotgun, then the chaingun, rifle, pistol; against vehicles the
+        rocket launcher, then the EMP launcher.  Not ported: Aurek's bots carry one weapon until 2.1's AI loadouts are done.
   - Traced so far: 08A24438 reads each weapon's AIWeapon_Accuracy_Normal (+24), AIWeapon_Accuracy_Elite (+28) and
     Modifier_Bot_RateOfFire (+32) into an AI weapon record, each clamped to 0..5 (0x08AEF9CC). Who reads them (the aim error)
     is not found yet. Bolts are not registry objects, so the harness cannot count AI shots directly; hits on the player can be.
