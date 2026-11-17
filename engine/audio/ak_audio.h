@@ -12,7 +12,9 @@
 #define AK_AUDIO_H
 #include "../core/ak_core.h"
 
-#define AK_AUDIO_RATE 48000
+#ifndef AK_AUDIO_RATE
+#define AK_AUDIO_RATE 48000        /* (a device may mix at another rate: the Old 3DS uses 32000) */
+#endif
 
 bool ak_audio_init(void);                          /* opens the platform output (false: silent, everything still callable) */
 void ak_audio_shutdown(void);

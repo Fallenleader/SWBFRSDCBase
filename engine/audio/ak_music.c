@@ -9,11 +9,13 @@
  *
  * The file is read on the audio thread in 32 KB pieces (about 0.19 s) as the mixer drains them, and resampled to 48 kHz. */
 #include "ak_music.h"
+#include "ak_adp.h"
+#include "ak_audio.h"
 #include <stdio.h>
 #include <string.h>
 
 static struct {
-    FILE *f; u32 data_off, frames, rate;               /* frames: in the WAV */
+    FILE *f; ak_adp *adp; u32 data_off, frames, rate;               /* frames: in the WAV */
     u32 start, loop_start, loop_end; bool loop, on;
     u32 next;                                          /* the next frame to read */
     s16 buf[2 * 8192]; u32 have, read;                 /* interleaved stereo, not yet mixed */   /* PARITY(7.1) */
@@ -23,7 +25,7 @@ static volatile int mlock;
 static void lock(void)   { while (__atomic_test_and_set(&mlock, __ATOMIC_ACQUIRE)) {} }
 static void unlock(void) { __atomic_clear(&mlock, __ATOMIC_RELEASE); }
 
-void ak_music_stop(void) { lock(); m.on = false; if (m.f) fclose(m.f); m.f = NULL; unlock(); }
+void ak_music_stop(void) { lock(); m.on = false; if (m.f) fclose(m.f); m.f = NULL; if (m.adp) ak_adp_close(m.adp); m.adp = NULL; unlock(); }
 
 bool ak_music_play_wav(const char *path, bool loop, u32 delay, u32 loop_start, u32 loop_end)
 {
@@ -50,6 +52,21 @@ bool ak_music_play_wav(const char *path, bool loop, u32 delay, u32 loop_start, u
     return true;
 }
 
+/* the 3DS's converted copy (DSP-ADPCM, the same sample positions as the WAV) */
+bool ak_music_play_adp(const char *path, bool loop, u32 delay, u32 loop_start, u32 loop_end)
+{
+    ak_music_stop();
+    ak_adp *a = path ? ak_adp_open(path) : NULL; if (!a) return false;
+    lock();
+    m.adp = a; m.frames = ak_adp_samples(a); m.rate = ak_adp_rate(a); m.loop = loop;
+    m.start = delay < m.frames ? delay : 0;
+    m.loop_start = loop_start && loop_start < m.frames ? loop_start : m.start;
+    m.loop_end = loop_end && loop_end <= m.frames && loop_end > m.loop_start ? loop_end : m.frames;
+    m.next = m.start; m.have = m.read = 0; m.frac = 0; m.on = true;
+    unlock();
+    return true;
+}
+
 bool ak_music_active(void) { return m.on; }
 
 static void refill(void)                               /* (called with the lock held) */
@@ -59,10 +76,10 @@ static void refill(void)                               /* (called with the lock 
         u32 end = m.loop ? m.loop_end : m.frames;
         if (m.next >= end) {
             if (!m.loop) { if (m.have < 2) m.on = false; return; }
-            m.next = m.loop_start; fseek(m.f, (long)(m.data_off + m.next * 4u), SEEK_SET);
+            m.next = m.loop_start; if (m.f) fseek(m.f, (long)(m.data_off + m.next * 4u), SEEK_SET);
         }
         u32 want = 8192 - m.have; if (want > end - m.next) want = end - m.next;
-        size_t got = fread(m.buf + 2 * m.have, 4, want, m.f);
+        size_t got = m.adp ? ak_adp_read_stereo(m.adp, m.next, want, m.buf + 2 * m.have) : fread(m.buf + 2 * m.have, 4, want, m.f);
         if (!got) { m.next = end; if (!m.loop) { if (m.have < 2) m.on = false; return; } continue; }
         m.have += (u32)got; m.next += (u32)got;
     }
@@ -72,7 +89,7 @@ void ak_music_mix(s32 *acc, u32 frames, f32 volume)
 {
     lock();
     if (m.on) {
-        double step = (double)m.rate / 48000.0; s32 g = (s32)(volume * 4096);
+        double step = (double)m.rate / AK_AUDIO_RATE; s32 g = (s32)(volume * 4096);
         for (u32 k = 0; k < frames; k++) {
             if (m.read + 2 > m.have) { refill(); if (m.read + 2 > m.have) break; }
             s32 t = (s32)(m.frac * 4096);

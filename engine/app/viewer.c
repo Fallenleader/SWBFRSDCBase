@@ -126,7 +126,7 @@ int main(int argc, char **argv)
             if (ak_vfs_read_part(vfs, "PSP_GAME/USRDIR/SOUNDS/GMSND.AM", 0, 256u << 10, &sndmem, &am)) ak_speech_load(&am, &sb);
         }
         else AK_WARN("audio", "no SOUNDS/GMSND.ASR (copy the game's SOUNDS folder next to ENVS): shared sounds missing"); }
-    bool have_mus = ak_arena_init(&musmem, 4u << 20);
+    bool have_mus = ak_arena_init(&musmem, 64u << 10);                      /* (a track's header only: its delay and loop) */
     FILE *dumpf = NULL; u32 dump_frames = 0; ak_blob b_level_keep = { 0 };
     if (getenv("AK_AUDIO_DUMP")) { dumpf = fopen(getenv("AK_AUDIO_DUMP"), "wb"); if (dumpf) { static const u8 z[44]; fwrite(z, 1, 44, dumpf); } }
     int cur = 0;
@@ -169,7 +169,7 @@ int main(int argc, char **argv)
                 if (ot >= 0) nth = (u32)ot;
                 if (have_mus) AK_INFO("audio", "music: %s, state %u, file %u (%s)", list, st, nth, scripted ? "the level script's pick" : "no script: the code's pick");
                 if (have_mus && ak_audio_level_music(&b, list, nth, mp, sizeof mp)) {
-                    ak_arena_reset(&musmem); bool hb = ak_vfs_read(vfs, mp, &musmem, &mb);   /* (only its header is used: the delay and the loop) */
+                    ak_arena_reset(&musmem); bool hb = ak_vfs_read_part(vfs, mp, 0, 4096, &musmem, &mb);   /* (only its header is used: the delay and the loop) */
                     ak_audio_music_play(mp, hb ? mb.data : NULL, hb ? (u32)(mb.size < 4096 ? mb.size : 4096) : 0, true);
                 } }
             {   /* bind-pose bone matrices of every model, once (placed models are drawn in their bind pose for now) */
@@ -404,8 +404,8 @@ int main(int argc, char **argv)
         if (playing && !play.ready) {
             f32 st[3] = { cam.pos.x, cam.pos.y, cam.pos.z };
             if (!ak_play_init(&play, &level, &models, &bps, &lvl, ak_setting_str("AK_SOLDIER", "Stormtrooper"), st)) { AK_WARN("aurek", "no soldier for this level"); playing = false; }
-            else AK_INFO("aurek", "playing as %s (%s, head %d) at %.1f %.1f %.1f", models.models[play.look.body].name, ak_faction_name(play.look.faction),
-                         play.look.head_index + 1, play.ch.pos[0], play.ch.pos[1], play.ch.pos[2]);
+            else AK_INFO("aurek", "playing as %s (%s, head %d) at %.1f %.1f %.1f; level memory %.1f MB", models.models[play.look.body].name, ak_faction_name(play.look.faction),
+                         play.look.head_index + 1, play.ch.pos[0], play.ch.pos[1], play.ch.pos[2], lvl.used / 1048576.0);
             if (play.ready) ak_play_sound_start(&play, &level, &bps);
         }
         f32 fovy = 1.05f;
@@ -415,7 +415,7 @@ int main(int argc, char **argv)
             ak_play_sound_update(&play, dt);
             if (play.snd.music_req && have_mus) {                          /* the match is over: the level's victory / defeat music */
                 char mp[160]; ak_blob mb;
-                if (ak_audio_level_music(&b_level_keep, play.snd.music_req, 0, mp, sizeof mp)) { ak_arena_reset(&musmem); bool hb = ak_vfs_read(vfs, mp, &musmem, &mb); ak_audio_music_play(mp, hb ? mb.data : NULL, hb ? (u32)(mb.size < 4096 ? mb.size : 4096) : 0, false); }
+                if (ak_audio_level_music(&b_level_keep, play.snd.music_req, 0, mp, sizeof mp)) { ak_arena_reset(&musmem); bool hb = ak_vfs_read_part(vfs, mp, 0, 4096, &musmem, &mb); ak_audio_music_play(mp, hb ? mb.data : NULL, hb ? (u32)(mb.size < 4096 ? mb.size : 4096) : 0, false); }
                 play.snd.music_req = NULL;
             }
         } else {

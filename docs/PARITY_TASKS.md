@@ -145,12 +145,17 @@ textures and how they are used. Section R lists only what must be in place so th
   - Moving bodies: the body step adds a supporting body's motion only for bodies with flag 0x1000 (+0xF8 bit 12, 088C53CC).
     Read from the running original, the player's body flags are 0x035C2148 - no 0x1000 - and no code path sets it, so a
     soldier standing on something that moves is not carried by it. Aurek does the same; nothing to build.
-- [ ] **1.14 The classic scheme's facing [measured, not built].** In the original (no right stick) the camera does not turn with
+- [ ] **1.14 The classic scheme's facing [measured; built 2026-11-17, the view's follow assumed].** In the original (no right stick) the camera does not turn with
   the left stick: the soldier turns to face the stick's direction relative to the camera, closing the angle by 8/s (each frame
   the rest shrinks by 1 - 8 dt: 0.8666 at 60 Hz), and runs its forward clip; with the stick pulled back (back half) it faces the
   mirrored direction and runs its backward clip (stick down-left: faces 45 degrees right, runs back). Stick straight right: turns 90
   degrees and runs. Aurek ties the camera to the body (ch.yaw), so this needs a separate view yaw (with 9.3). The strafe clips
   (RunForward_left / _Right) carry the root forward: they are a run with the upper body turned, for aiming to the side.
+  - Built 2026-11-17 for devices without a right stick (the Old 3DS) and as an option elsewhere (AK_SINGLE_STICK): the stick
+    turns the soldier toward its direction relative to the view at 8/s and runs the forward clip, or (back half) faces the
+    mirrored way and runs the backward clip; locked on, the stick moves relative to the facing; a gunner aims with the stick;
+    shots go along the soldier's facing.  [PARITY(1.14): the view swings in behind at AK_VIEW_FOLLOW (2/s) - how the
+    original's camera follows is not measured yet.]
 - [x] **1.15 Soldier health and the customisation [done 2026-11-16 for the defaults].** The 133 is the player's
   customisation, not difficulty: the spawn screen's Customisation Menu (200 credits) defaults to Blaster Rifle (25), Thermal
   Detonator (10), Health Level 1 (10) and Speed Level 1 (10) = 55. Health by level 100 / 133 / 166 / 200 (08978170, table

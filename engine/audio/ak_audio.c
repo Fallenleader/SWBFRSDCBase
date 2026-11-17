@@ -1,5 +1,6 @@
 /* Audio: banks, VAG decoding, the mixer, music.  See ak_audio.h. */
 #include "ak_audio.h"
+#include "ak_adp.h"
 #include "ak_music.h"
 #include "../assets/asura.h"
 #include "../core/ak_settings.h"
@@ -223,10 +224,18 @@ static u32 start(const char *event, const f32 *pos, f32 pan, f32 gain, bool loop
 #define MAX_FILES 96
 static struct { char path[192]; snd_sample s; u32 used; u32 bytes; } files[MAX_FILES]; static u32 nfiles, file_clock, file_bytes;
 static bool sample_busy(const snd_sample *s) { for (u32 i = 0; i < MAX_VOICES; i++) if (voices[i].live && voices[i].s == s) return true; return false; }
+static const snd_sample *file_add(const char *path, s16 *pcm, u32 frames, u32 rate);
 static const snd_sample *file_sample(const char *path)
 {
     for (u32 i = 0; i < nfiles; i++) if (!strcmp(files[i].path, path)) { files[i].used = ++file_clock; return &files[i].s; }
-    FILE *f = fopen(path, "rb"); if (!f) return NULL;
+    FILE *f = fopen(path, "rb");
+    if (!f) {                                          /* the 3DS's converted copies are DSP-ADPCM (.adp) where the others have .wav */
+        size_t pl = strlen(path); char ap[256];
+        if (pl < 4 || pl >= sizeof ap || strcmp(path + pl - 4, ".wav")) return NULL;
+        memcpy(ap, path, pl - 4); memcpy(ap + pl - 4, ".adp", 5);
+        u32 fr = 0, rt = 0; s16 *pc = ak_adp_load_mono(ap, &fr, &rt);
+        return pc ? file_add(path, pc, fr, rt) : NULL;
+    }
     u8 h[256]; size_t n = fread(h, 1, sizeof h, f);
     u32 rate = 0, ch = 0, bits = 0, doff = 0, dlen = 0;
     if (n >= 44 && !memcmp(h, "RIFF", 4) && !memcmp(h + 8, "WAVE", 4))
@@ -243,9 +252,13 @@ static const snd_sample *file_sample(const char *path)
     if (ch == 1) frames = (u32)fread(pcm, 2, frames, f);
     else { frames = (u32)fread(tmp, 4, frames, f); for (u32 i = 0; i < frames; i++) pcm[i] = (s16)((tmp[2 * i] + tmp[2 * i + 1]) / 2); ak_plat_free(tmp); }
     fclose(f);
+    return file_add(path, pcm, frames, rate);
+}
+static const snd_sample *file_add(const char *path, s16 *pcm, u32 frames, u32 rate)
+{
     u32 bytes = frames * 2;
     lock();
-    while ((nfiles == MAX_FILES || file_bytes + bytes > (8u << 20)) && nfiles) {   /* make room: the least recently used idle one */
+    while ((nfiles == MAX_FILES || file_bytes + bytes > ((u32)ak_setting_int("AK_SPEECH_CACHE_MB", 8) << 20)) && nfiles) {   /* make room: the least recently used idle one */
         s32 old = -1; for (u32 i = 0; i < nfiles; i++) if (!sample_busy(&files[i].s) && (old < 0 || files[i].used < files[(u32)old].used)) old = (s32)i;
         if (old < 0) break;
         ak_plat_free(files[old].s.pcm); file_bytes -= files[old].bytes; files[old] = files[--nfiles];
@@ -398,6 +411,8 @@ bool ak_audio_music_play(const char *game_path, const u8 *head, u32 hsize, bool 
         for (const char *q = game_path; *q && o < (int)sizeof path - 5; q++) path[o++] = (*q >= 'a' && *q <= 'z') ? (char)(*q - 32) : *q;
         snprintf(path + o, sizeof path - (size_t)o, ".wav");
         if (ak_music_play_wav(path, loop, delay, ls, le)) { AK_INFO("audio", "music %s", path); return true; }
+        snprintf(path + o, sizeof path - (size_t)o, ".adp");                          /* (the 3DS's DSP-ADPCM copies) */
+        if (ak_music_play_adp(path, loop, delay, ls, le)) { AK_INFO("audio", "music %s", path); return true; }
     }
     AK_WARN("audio", "no converted copy of %s (run the media conversion: it writes converted/%s.wav)", game_path, game_path);
     return false;

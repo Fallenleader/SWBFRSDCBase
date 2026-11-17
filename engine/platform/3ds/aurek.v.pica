@@ -1,0 +1,54 @@
+; Aurek's one vertex program on the 3DS GPU (PICA200): level geometry, models, effects, the HUD and text (ak_vtx: position,
+; texture coordinate, colour; the normal is skipped by the attribute loader).  gfx_c3d.c folds the engine's clip transform, the
+; eye's stereo shift and the 3DS's quarter-turned screen into `clip`.
+;
+;   v0 position (float x3)   v1 texture coordinate (float x2)   v2 colour (unsigned byte x4, 0..255)
+
+.fvec clip[4]                   ; the full transform to the 3DS's clip space (rows)
+.fvec uvt                       ; texture coordinate: u * x + z, v * y + w (texture padding and the 3DS's bottom-up rows)
+.fvec fogp                      ; x, y: fog = clamp(depth * x + y); z: colour scale / 2 / 255 (the combiner doubles); w: 1 / 255
+.fvec tint                      ; a colour multiplied into every vertex colour (holograms by side)
+
+.constf k0(0.0, 1.0, 0.5, 0.0)
+
+.out opos position
+.out ocol color
+.out otc0 texcoord0
+.out otc1 texcoord1
+
+.alias ipos v0
+.alias itc  v1
+.alias icol v2
+
+.proc main
+	mov r0.xyz, ipos
+	mov r0.w, k0.yyyy
+	dp4 r1.x, clip[0], r0
+	dp4 r1.y, clip[1], r0
+	dp4 r1.z, clip[2], r0
+	dp4 r1.w, clip[3], r0
+	mov opos, r1
+
+	mov r2.xy, itc.xyyy
+	mul r2.xy, uvt.xyyy, r2.xyyy
+	add r2.xy, uvt.zwww, r2.xyyy
+	mov r2.zw, k0.xxxx
+	mov otc0, r2
+
+	mul r3.xyz, fogp.zzzz, icol.xyzz
+	mul r3.w, fogp.wwww, icol.wwww
+	mul r3, tint, r3
+	max r3, k0.xxxx, r3
+	min r3, k0.yyyy, r3
+	mov ocol, r3
+
+	; the fog factor by view depth (clip w), sampled from the fog ramp on texture unit 1
+	mul r4.x, fogp.xxxx, r1.wwww
+	add r4.x, fogp.yyyy, r4.xxxx
+	max r4.x, k0.xxxx, r4.xxxx
+	min r4.x, k0.yyyy, r4.xxxx
+	mov r4.y, k0.zzzz
+	mov r4.zw, k0.xxxx
+	mov otc1, r4
+	end
+.end

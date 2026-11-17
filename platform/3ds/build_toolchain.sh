@@ -11,6 +11,7 @@
 #   - devkitarm-crtls (3dsx.specs, 3dsx.ld, 3dsx_crt0), devkitarm-rules
 #   - libctru, citro3d, 3dstools (3dsxtool, smdhtool), picasso (shader assembler), a bin2s
 set -e
+HERE=$(cd "$(dirname "$0")" && pwd)
 W=$(realpath -m "${1:?work dir}"); D=$W/dkp; S=$W/src; mkdir -p "$S" "$D/devkitARM/bin" "$D/tools/bin" "$D/libctru"
 NEWLIB=4.6.0.20260123; NEWLIB_PATCH=newlib-$NEWLIB-5.patch
 sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib >/dev/null
@@ -42,7 +43,7 @@ cp "$S/devkitarm-crtls/3dsx.ld" "$NL/lib/"; grep -v sync-dmb "$S/devkitarm-crtls
 T=$D/tools/bin
 (cd "$S/3dstools/src" && g++ -O2 -o $T/3dsxtool 3dsxtool.cpp romfs.cpp && g++ -O2 -o $T/smdhtool smdhtool.cpp lodepng/*.cpp)
 (cd "$S/picasso" && g++ -O2 -std=c++17 -DPACKAGE_STRING='"picasso"' -o $T/picasso source/*.cpp)
-cp "$(dirname "$0")/bin2s.py" $T/bin2s; chmod +x $T/bin2s
+cp "$HERE/bin2s.py" $T/bin2s; chmod +x $T/bin2s
 
 cat > "$W/env.sh" <<EOF
 export DEVKITPRO=$D

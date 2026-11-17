@@ -478,6 +478,12 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->cam_dist = p->cam_back;
     {   int ts = ak_setting_int("AK_TWIN_STICK", -1);
         p->twin_stick = ak_plat_has_right_stick() && ts != 0;                 /* -1 (the default) and 1: on where the device can */
+        {   /* no right stick (the Old 3DS) or AK_SINGLE_STICK=1: the PSP's own one-stick scheme */
+            int ss = ak_setting_int("AK_SINGLE_STICK", -1);
+            p->single_stick = ss == 1 || (ss < 0 && !ak_plat_has_right_stick());
+            if (p->single_stick) p->twin_stick = false;
+            p->view_follow = ak_setting_float("AK_VIEW_FOLLOW", 2.0f);       /* PARITY(1.14): how fast the view swings behind (not measured) */
+        }
         p->aim_yaw_speed = ak_setting_float("AK_AIM_SPEED", 3.2f); p->aim_pitch_speed = p->aim_yaw_speed * 0.7f;
         p->aim_curve = ak_setting_float("AK_AIM_CURVE", 2.0f); p->invert_y = ak_setting_int("AK_INVERT_Y", 0) != 0;
     }
@@ -1894,6 +1900,31 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             }
         }
     }
+    /* the PSP's one-stick scheme (measured, 1.14): the soldier turns to face the stick's direction relative to the view, closing
+       the angle by 8/s (each frame the rest shrinks by 1 - 8 dt), and runs its forward clip; with the stick in the back half it
+       faces the mirrored direction and runs its backward clip (stick down-left: faces 45 degrees right, runs back).  While locked
+       on, the stick moves relative to the facing (the lock turns the soldier).  [PARITY(1.14): how the view follows is Aurek's] */
+    static ak_input classic;
+    if (p->single_stick && p->in_veh < 0 && p->alive) {
+        classic = *in;
+        if (p->in_turret >= 0) { classic.rx = in->lx; classic.ry = in->ly; }   /* (a gunner aims with the one stick) */
+        else if (p->lock < 0 && p->roll_i < 0) {
+            f32 sx = in->lx, sy = in->ly, sm = sqrtf(sx * sx + sy * sy);
+            if (sm > 1) sm = 1;
+            if (sm > 0) {
+                bool back = sy < -0.05f; f32 dx = back ? -sx : sx, dy = back ? -sy : sy;
+                f32 want = p->view_yaw - atan2f(dx, dy), d = wrap(want - p->ch.yaw), k = 8.0f * dt;
+                p->ch.yaw += d * (k < 1 ? k : 1);
+                classic.lx = 0; classic.ly = back ? -sm : sm;
+            }
+        }
+        in = &classic;
+    }
+    if (p->single_stick) {
+        f32 k = p->view_follow * dt;
+        if (p->in_veh >= 0 || p->in_turret >= 0 || p->lock >= 0 || p->zoom > 0 || !p->alive) k = 1;
+        p->view_yaw += wrap(p->ch.yaw - p->view_yaw) * (k < 1 ? k : 1);
+    }
     if (p->in_veh >= 0) in = &none;                                           /* the soldier stands still inside */
     static ak_input manned; if (p->in_turret >= 0) { manned = *in; manned.lx = manned.ly = 0; manned.pressed &= ~AK_BTN_CROSS; in = &manned; }   /* a gunner aims only */
     /* the soldier's pitch is positive looking down (the camera uses -pitch): stick up looks up unless AK_INVERT_Y */
@@ -2364,7 +2395,7 @@ static void camera_for(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32
         p->aim[0] = fwd[0]; p->aim[1] = fwd[1]; p->aim[2] = fwd[2];
         return;
     }
-    f32 y = p->ch.yaw + ak_setting_float("AK_DEBUG_CAM_ORBIT", 0);    /* (orbit: tests look from the side) */
+    f32 y = (p->single_stick ? p->view_yaw : p->ch.yaw) + ak_setting_float("AK_DEBUG_CAM_ORBIT", 0);    /* (orbit: tests look from the side) */
     f32 pt = p->classic_cam ? -p->ch.pitch * 0.6f : -p->ch.pitch;
     f32 sy = sinf(y), cy = cosf(y);
     f32 right[3] = { cy, 0, -sy };
@@ -2399,6 +2430,10 @@ static void camera_for(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32
     p->aim_ok = true;
     p->eye[0] = eye->x; p->eye[1] = eye->y; p->eye[2] = eye->z;
     p->aim[0] = -sinf(*yaw) * cosf(*pitch); p->aim[1] = sinf(*pitch); p->aim[2] = -cosf(*yaw) * cosf(*pitch);
+    if (p->single_stick) {                                                   /* the one-stick scheme fires along the soldier's facing */
+        f32 by = p->ch.yaw, bp = -p->ch.pitch;
+        p->aim[0] = -sinf(by) * cosf(bp); p->aim[1] = sinf(bp); p->aim[2] = -cosf(by) * cosf(bp);
+    }
 }
 
 void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const ak_m4 *vp, ak_scene_stats *st)
