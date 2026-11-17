@@ -120,7 +120,11 @@ textures and how they are used. Section R lists only what must be in place so th
     after 5 s (were 8).
   - [ ] **1.10b** A spawn screen (score board, map, spawn point choice with the game's default).
   - [ ] **1.10c** The AI's respawn rule (Aurek still brings bots back with a 10 s wave).
-- [ ] **1.11 Hit reactions and flinch [missing].** Not traced (play.h:28).
+- [ ] **1.11 Hit reactions and flinch [partly measured 2026-11-16].**
+  - Harness (player teleported into the Rebel spawn, running back and forth 40 s, every frame): blaster hits of 4.5 (an AI's
+    rifle: 15 x Modifier_Bot_Damage 0.3) do not change the player's speed at all - no flinch on movement. Aurek: the same.
+  - Heavy hits (20 and 29.7) were followed by stops of a few frames at a time; not yet told apart from bumping into things.
+    To do: trace who plays the hit rows 13-16 / Stunned1 (row 17) and when.
 - [ ] **1.12 Hit shapes [assumed].**
   - Aurek: its own head/body shapes for bolts.
   - Trace how projectiles test soldiers (physics boxes, per-bone shapes, or the HSKN per-bone meshes) and how headshots are decided.

@@ -48,7 +48,8 @@ def prog_run_jump(i, fr): return (0x100 if 60 <= i < 64 else 0, 128, 0)         
 def prog_stand_jump(i, fr): return (0x100 if 60 <= i < 64 else 0, 128, 128)     # stand, tap L at 1 s
 def prog_jump_back(i, fr): return (0x100 if 60 <= i < 64 else 0, 128, 0 if i < 75 else 255)      # run, jump, pull back in the air
 def prog_still_jump_fwd(i, fr): return (0x100 if 60 <= i < 64 else 0, 128, 128 if i < 75 else 0)  # stand, jump, push forward in the air
-PROGRAMS = {'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
+def prog_strafe_circle(i, fr): return (0, 128, 0) if (i // 120) % 2 == 0 else (0, 128, 255)   # run forward / back in 2 s turns
+PROGRAMS = {'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
 
 def main():
     ap = argparse.ArgumentParser()
