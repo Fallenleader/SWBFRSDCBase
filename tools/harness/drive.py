@@ -33,7 +33,10 @@ def menu_actions(screen, planet, state):
         if not state.get('planet_picked'): seq += sum((press(DOWN) for _ in range(planet)), []); state['planet_picked'] = True
         return seq + press(CROSS)
     if screen == 'planet_playlist': return press(RIGHT) + press(DOWN) + press(DOWN) + press(CROSS)   # Launch
-    if screen == 'team_select': return press(CROSS)                                               # Auto
+    if screen == 'team_select':                                                                    # Auto, or --team rebel/empire
+        seq = []
+        if not state.get('team_picked'): seq += sum((press(DOWN) for _ in range(state.get('team', 0))), []); state['team_picked'] = True
+        return seq + press(CROSS)
     if screen == 'spawn_map': state['launched'] = True; return press(CROSS)                      # the default spawn point
     return None
 
@@ -54,6 +57,9 @@ def prog_custom_menu(i, fr):                                                    
     if 270 <= i < 274: return (SQUARE, 128, 128)
     if i >= 300 and (i - 300) % 30 < 4 and i < 300 + 30 * 7: return (DOWN, 128, 128)   # then down through the categories
     return (0, 128, 128)
+def prog_drive_late(i, fr):                                                      # get in 3 s into the match, full forward from 4 s
+    if 90 <= i < 94: return (UP, 128, 128)
+    return (0, 128, 0) if i >= 120 else (0, 128, 128)
 def prog_drive(i, fr):                                                           # (with --tp next to a vehicle) get in, then full forward
     if 40 <= i < 44: return (UP, 128, 128)
     return (0, 128, 0) if i >= 90 else (0, 128, 128)
@@ -63,13 +69,14 @@ def prog_drive_turn(i, fr):                                                     
     if i < 270: return (0, 128, 0)
     if i < 450: return (0, 255, 0)
     return (0, 128, 0)
-PROGRAMS = {'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
+PROGRAMS = {'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--game', default='/home/claude/gd/GAME')
     ap.add_argument('--bin', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../build/linux64/rs_linux64'))
     ap.add_argument('--planet', type=int, default=3)
+    ap.add_argument('--team', choices=['auto', 'rebel', 'empire'], default='auto')
     ap.add_argument('--out', default='/tmp/drive')
     ap.add_argument('--program', default='idle', choices=sorted(PROGRAMS))
     ap.add_argument('--frames', type=int, default=3000, help='frames to run after the match starts')
@@ -90,7 +97,7 @@ def main():
     for kv in a.env: k, v = kv.split('=', 1); env[k] = v
     log = open(os.path.join(a.out, 'game.log'), 'w')
     p = subprocess.Popen(['xvfb-run', '-a', 'setarch', '-R', os.path.abspath(a.bin)], cwd=a.game, env=env, stdout=log, stderr=log)
-    queue, state, last, start, trace = [], {}, -1, None, open(os.path.join(a.out, 'trace.txt'), 'w')
+    queue, state, last, start, trace = [], {'team': ['auto', 'rebel', 'empire'].index(a.team)}, -1, None, open(os.path.join(a.out, 'trace.txt'), 'w')
     states = open(os.path.join(a.out, 'state.log'), 'w')        # every step after the match starts: "frame N" then the units
     try:
         while p.poll() is None:
@@ -102,6 +109,7 @@ def main():
                 if not queue:
                     scr, d = screens.classify(img)
                     trace.write('%d %s %.1f\n' % (fr, scr, d))
+                    if scr and not os.path.exists(os.path.join(a.out, 'menu_%s.ppm' % scr)): shutil.copy(img, os.path.join(a.out, 'menu_%s.ppm' % scr))
                     if state.get('launched') and scr is None:
                         start = fr; trace.write('%d match\n' % fr); shutil.copy(img, os.path.join(a.out, 'match_start.ppm'))
                         if a.hp:

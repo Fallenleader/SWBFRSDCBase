@@ -237,7 +237,12 @@ textures and how they are used. Section R lists only what must be in place so th
   - the flight model's remaining constants;
   - landing and crash rules (currently Aurek's);
   - stunts (Immelmann, barrel roll: the EnergyStunt use).
+  - Harness note: `drive.py --team rebel` now plays the Rebels.  On Hoth the two snowspeeders (class 8004, objects 30d48/30d4f at
+    -168,-2.3,174 and -175,-2.3,175) report health 0 at the match start and stand still; a player teleported beside them
+    gets no "Use" prompt, so they are not yet boardable there (likely parked until their spawn timer).  Next: watch when
+    they become live, then fly them with the stick programs.
 - [ ] **3.4 Walkers [assumed].** Driving and gunnery code, what happens at a path's end, and the ATBL animation chunks (not read).
+  - Harness note: the Empire's AT-ST on Hoth (30d4a, 262,14.8,14) gives no "Use" prompt from beside it either.
 - [ ] **3.5 Vehicle life cycle [assumed].**
   - Respawn time (AK_VEHICLE_RESPAWN 10).
   - How long a wreck stays and its effects (play.c:1528).
