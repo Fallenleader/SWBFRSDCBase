@@ -46,7 +46,33 @@ static u32 scheme_obj;                                    /* the input object (f
 u32 rs_input_object(void){ return scheme_obj; }
 static int enabled(void){ static int on = -1; if (on < 0) on = rs_setting_int("RS_TWIN_STICK", 1); return on; }
 
+/* diagnostics (RS_INPUT_DUMP=1): on each change of the input object's control scheme, print its actions' binding chains (class, scale,
+ * fields +12 / +16 / +20) and, while it lasts, every change of the actions' values */
+static void dump_scheme(void){
+    static int on = -1; static u32 last = 0xffffffffu; static float val[40];
+    if (on < 0) on = getenv("RS_INPUT_DUMP") != 0;
+    if (!on || !scheme_obj) return;
+    u32 o = scheme_obj, idx = R32(o + 12); if (idx > 4 || !R32(o + 8)) return;
+    u32 t = R32(o + 8) + idx * 16, n = R32(t), heads = R32(t + 4), vals = R32(t + 12);
+    if (n == 0 || n > 40 || !heads) return;
+    u32 sig = idx * 2654435761u; for (u32 a = 0; a < n; a++) sig = sig * 31u + R32(heads + 4 * a);
+    if (sig != last) {
+        last = sig; fprintf(stderr, "[INPUT] scheme %u: %u actions\n", idx, n);
+        for (u32 a = 0; a < n; a++) {
+            u32 b = R32(heads + 4 * a); int k = 0;
+            fprintf(stderr, "[INPUT]   action %u:", a);
+            while (b && k++ < 8) {
+                fprintf(stderr, " {vt %08x s %.2f %08x %08x %08x", R32(b), RF(b + 4), R32(b + 12), R32(b + 16), R32(b + 20));
+                if (R32(b) == VT_COMPOSITE) { u32 c = R32(b + 12), x = R32(b + 16); fprintf(stderr, " btn{vt %08x %08x %08x} ax{vt %08x %08x}", c ? R32(c) : 0, c ? R32(c + 12) : 0, c ? R32(c + 16) : 0, x ? R32(x) : 0, x ? R32(x + 12) : 0); }
+                fprintf(stderr, "}"); b = R32(b + 8); }
+            fprintf(stderr, "\n"); }
+        for (u32 a = 0; a < n; a++) val[a] = 0;
+    }
+    if (vals) for (u32 a = 0; a < n; a++) { float v = RF(vals + 4 * a); if (v != val[a]) { fprintf(stderr, "[INPUT] scheme %u action %u = %.3f\n", idx, a, v); val[a] = v; } }
+}
+
 void rs_input_after_pad(void){
+    dump_scheme();
     if (!enabled()) return;
     u32 ax = R32(AXIS_PTR); if (!ax) return;
     u32 rx = rs_right_stick[0], ry = rs_right_stick[1];

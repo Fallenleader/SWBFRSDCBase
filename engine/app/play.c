@@ -375,7 +375,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     }
     p->seed = 12345;
     p->have_cq = ak_conquest_load(l, &p->cq);
-    p->is_space = ak_space_load(l, &p->space) && p->space.nobj > p->space.nhangar;   /* space maps: attack runs on capital ships (Hoth has 2 hangar runs only) */
+    p->free_flight = ak_space_load(l, &p->space);                               /* (any space map: flyers may boost) */
+    p->is_space = p->free_flight && p->space.nobj > p->space.nhangar;   /* space maps: attack runs on capital ships (Hoth has 2 hangar runs only) */
     for (u32 i = 0; i < AK_MAX_OBJECTIVES; i++) p->obj_unit[i] = -1;
     p->team = ak_setting_int("AK_TEAM", ak_faction_team(p->look.faction) + 1) == 2;
     p->team_faction[p->team] = p->look.faction; p->team_faction[1 - p->team] = p->look.faction ^ 1;
@@ -2096,7 +2097,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (vh->driver == 0) {                                                /* the player drives: left stick, cross boosts, right stick aims, R fires */
             bool rails = p->vspawn[v].route && vh->def->kind == AK_VEH_WALKER;   /* a placed walker keeps to its path: the gunner aims and fires */
             vh->throttle = vin->ly; vh->steer = vin->lx; vh->strafe = 0; vh->brake = false;
-            bool fly_fast = false;
+            bool fly_fast = false, fly_boost = false;
             if (vh->def->kind == AK_VEH_FLYER) {
                 /* measured (Hoth's snowspeeder): parked, R takes off; flying, R speeds up to the cruising speed and L slows to the
                    stall speed, and the speed stays when let go (the speed after lift-off: the stall's) */
@@ -2105,6 +2106,16 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 if (!vh->flying) { if (vin->pressed & AK_BTN_CROSS) vh->takeoff_req = true; }
                 else if (vh->takeoff <= 0) { vh->fast = (vin->held & AK_BTN_CROSS) != 0; vh->brake = (vin->held & AK_BTN_L) != 0 && !vh->fast; }
                 fly_fast = true;
+                /* the boost (traced, 089A9728, and seen on Space Hoth's X-wing): R tapped, then R held again within 0.5 s of the tap's
+                   release; it lasts while R stays held and the energy pays (089CABFC); only in free flight (vehicle +852 bit 0 - set
+                   in space once out of the hangar, never on the Hoth snowspeeder) [PARITY(3.3): Aurek takes "free flight" as any
+                   space map; the hangar volumes are not known].  Each boosting frame renews the window. */
+                {
+                    bool r = (vin->held & AK_BTN_CROSS) != 0;
+                    if (vh->r_was && !r) vh->r_tap_t = 0;                    /* a release: the tap's moment */
+                    vh->r_tap_t += dt; vh->r_was = r;
+                    fly_boost = r && vh->flying && vh->takeoff <= 0 && p->free_flight && (vh->r_tap_t < 0.5f || vh->boosting);
+                }
                 if (p->invert_y) vh->throttle = -vh->throttle;
             }
             else if (vin->held & AK_BTN_L) { vh->strafe = vin->lx; vh->steer = 0; }   /* L held: strafe (hover craft) */
@@ -2113,7 +2124,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (vh->aim_yaw < -1.2f) vh->aim_yaw = -1.2f;
             if (vh->aim_pitch > 0.6f) vh->aim_pitch = 0.6f;
             if (vh->aim_pitch < -0.4f) vh->aim_pitch = -0.4f;
-            if (rails) walker_route_step(p, v, dt); else ak_vehicle_update(vh, &p->col, p->cp.gravity, vehicle_boost(vh, !fly_fast && (vin->held & AK_BTN_CROSS) != 0, dt), dt);
+            if (rails) walker_route_step(p, v, dt); else ak_vehicle_update(vh, &p->col, p->cp.gravity, vehicle_boost(vh, fly_fast ? fly_boost : (vin->held & AK_BTN_CROSS) != 0, dt), dt);
             if ((vin->held & AK_BTN_R) && p->aim_ok) vehicle_fire(p, m, v, p->aim_point, dt); else vh->volley_t = 0;
             if (p->aim_ok) vehicle_lock(p, vh, p->eye, p->aim, dt);                /* circle: the secondary (locked: guided) */
             if ((vin->held & AK_BTN_CIRCLE) && p->aim_ok) vehicle_fire2(p, m, v, p->aim_point, vh->locked ? vh->lock : -1);

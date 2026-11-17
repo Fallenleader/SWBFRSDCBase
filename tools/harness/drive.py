@@ -130,6 +130,26 @@ def prog_fly_boost2(i, fr):                                                     
     k, t = divmod(i - 360, 120)
     if i >= 360 and k < len(BOOST_TRY) and (t < 4 or 10 <= t < 40): b |= BOOST_TRY[k]
     return (b, 128, 128)
+def prog_fly_boost3(i, fr):                                                      # take off, R+L together 1 s at 6 s; R tap then L held 1 s at 9 s;
+    b = UP if 90 <= i < 94 else 0                                                 #  L tap then R held 1 s at 12 s
+    if 180 <= i < 186: b |= RTRIG
+    if 360 <= i < 420: b |= RTRIG | LTRIG
+    if 540 <= i < 546: b |= RTRIG
+    if 552 <= i < 612: b |= LTRIG
+    if 720 <= i < 726: b |= LTRIG
+    if 732 <= i < 792: b |= RTRIG
+    return (b, 128, 128)
+def prog_fly_boost4(i, fr):                                                      # take off; R double tap + hold: 6 on / 6 off / 60 held at 6.7 s,
+    b = UP if 90 <= i < 94 else 0                                                 #  10 on / 15 off / 60 held at 10 s
+    if 180 <= i < 186: b |= RTRIG
+    if 400 <= i < 406 or 412 <= i < 472: b |= RTRIG
+    if 600 <= i < 610 or 625 <= i < 685: b |= RTRIG
+    return (b, 128, 128)
+def prog_fly_space_boost(i, fr):                                                 # (space) get in, lift off, R held 1 s (cruise), out of the hangar;
+    b = UP if 90 <= i < 94 else 0                                                 #  R double tap + hold 2 s at 15 s
+    if 180 <= i < 186 or 420 <= i < 480: b |= RTRIG
+    if 900 <= i < 906 or 912 <= i < 1032: b |= RTRIG
+    return (b, 128, 128)
 def prog_drive(i, fr):                                                           # (with --tp next to a vehicle) get in, then full forward
     if 40 <= i < 44: return (UP, 128, 128)
     return (0, 128, 0) if i >= 90 else (0, 128, 128)
@@ -139,7 +159,7 @@ def prog_drive_turn(i, fr):                                                     
     if i < 270: return (0, 128, 0)
     if i < 450: return (0, 255, 0)
     return (0, 128, 0)
-PROGRAMS = {'fly_boost2': prog_fly_boost2, 'fly_space': prog_fly_space, 'veh_fire': prog_veh_fire, 'walker': prog_walker, 'fly_climb': prog_fly_climb, 'fly_pitch': prog_fly_pitch, 'fly_boost': prog_fly_boost, 'fly_rl': prog_fly_rl, 'fly': prog_fly, 'fly_tap': prog_fly_tap, 'fly_slow': prog_fly_slow, 'fly_stick': prog_fly_stick, 'board_try': prog_board_try, 'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
+PROGRAMS = {'fly_space_boost': prog_fly_space_boost, 'fly_boost4': prog_fly_boost4, 'fly_boost3': prog_fly_boost3, 'fly_boost2': prog_fly_boost2, 'fly_space': prog_fly_space, 'veh_fire': prog_veh_fire, 'walker': prog_walker, 'fly_climb': prog_fly_climb, 'fly_pitch': prog_fly_pitch, 'fly_boost': prog_fly_boost, 'fly_rl': prog_fly_rl, 'fly': prog_fly, 'fly_tap': prog_fly_tap, 'fly_slow': prog_fly_slow, 'fly_stick': prog_fly_stick, 'board_try': prog_board_try, 'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
 
 def main():
     ap = argparse.ArgumentParser()

@@ -228,7 +228,7 @@ static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bo
             v->flying = true; v->pitch = 0; v->takeoff_y0 = v->pos[1];
             v->takeoff = d->ntakeoff > 1 ? d->takeoff_t[d->ntakeoff - 1] : 1.0f;
             v->speed = d->stall_speed > 0 ? d->stall_speed : 0;
-            v->lvel[0] = v->lvel[1] = 0; v->lvel[2] = v->speed; v->roll_vel = 0;
+            v->lvel[0] = v->lvel[1] = 0; v->lvel[2] = v->speed; v->roll_vel = 0; v->r_tap_t = 99.0f; v->boosting = false;
         }
         v->takeoff_req = false;
         return;
@@ -313,6 +313,7 @@ static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bo
         if (dmp[2] > 0) dmp[2] = 0;
         for (int i = 0; i < 3; i++) lv[i] -= dmp[i];
     }
+    v->boosting = boost;
     {   /* the throttle ahead */
         f32 thr = v->brake ? -1.0f : (v->fast || v->driver > 0) ? 1.0f : 0.0f, z = lv[2];   /* (bots: ahead unless braking) */
         if (boost) thr = 1.0f;

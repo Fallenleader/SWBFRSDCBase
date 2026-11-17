@@ -235,6 +235,20 @@ void rs_drive_report(FILE *f){
                 if (gok(b)) { fprintf(f, "obody %x flags %08x pos %.3f %.3f %.3f", bid, GU32(b + 0xF8), GF32(b + 0xC0), GF32(b + 0xC4), GF32(b + 0xC8));
                     u32 cp = GU32(b + 0x118); if (gok(cp)) { fprintf(f, " corners"); for (u32 k = 0; k < 8 * 16; k += 16) fprintf(f, " %.3f %.3f %.3f", GF32(cp + k), GF32(cp + k + 4), GF32(cp + k + 8)); }
                     fprintf(f, "\n"); } } }
+        if (cls == 0x8004 && getenv("RS_DRIVE_VEHIN")) {   /* a flyer's controller (+92) and its axes 0..14 (vfunc +8), the inputs it set */
+            u32 c = GU32(o + 92);
+            if (gok(c) && gok(GU32(c))) { u32 g = GU32(GU32(c) + 8); fprintf(f, "vin %x ctl %x vt %x get %x idx %u axes", GU32(info + 4), c, GU32(c), g, GU32(c + 12));
+                if (gok(g)) for (u32 n = 0; n < 15; n++) fprintf(f, " %.2f", ((ifn_t)GFN(g))(c, n, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).f0);
+                fprintf(f, " | thr %.2f yaw %.2f pitch %.2f roll %.2f flags %08x %08x %08x t740 %.3f\n", GF32(o + 492), GF32(o + 484), GF32(o + 480), GF32(o + 488), GU32(o + 844), GU32(o + 848), GU32(o + 852), GF32(o + 740));
+                static u32 dumped; if (dumped != c && gok(GU32(c + 8))) { dumped = c;          /* its control scheme's binding chains, once */
+                    u32 t = GU32(c + 8) + GU32(c + 12) * 16, n = GU32(t), heads = GU32(t + 4);
+                    for (u32 a = 0; a < n && a < 40 && gok(heads); a++) { u32 b = GU32(heads + 4 * a); int k = 0; fprintf(f, "vbind %u:", a);
+                        while (gok(b) && k++ < 8) { fprintf(f, " {vt %08x s %.2f %08x %08x %08x", GU32(b), GF32(b + 4), GU32(b + 12), GU32(b + 16), GU32(b + 20));
+                            u32 c1 = GU32(b + 12), c2 = GU32(b + 16);
+                            if (gok(c1) && gok(GU32(c1))) fprintf(f, " a{vt %08x %08x %08x}", GU32(c1), GU32(c1 + 12), GU32(c1 + 16));
+                            if (gok(c2) && gok(GU32(c2))) fprintf(f, " b{vt %08x %08x %08x}", GU32(c2), GU32(c2 + 12), GU32(c2 + 16));
+                            fprintf(f, "}"); b = GU32(b + 8); }
+                        fprintf(f, "\n"); } } } }
         if (cls == 0x8005 && getenv("RS_DRIVE_OBJ")) {   /* soldier objects, raw (finding fields) */
             fprintf(f, "pobj %x %x", GU32(info + 4), o); for (u32 k = 0; k < 0x600; k += 4) fprintf(f, " %08x", GU32(o + k)); fprintf(f, "\n"); }
         if (me && cls == 0x8005 && GU32(o + 92) == me && getenv("RS_DRIVE_BODY")) {   /* the player's physics body (soldier +40 -> +12), raw */
