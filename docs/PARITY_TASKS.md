@@ -128,6 +128,14 @@ textures and how they are used. Section R lists only what must be in place so th
 - [ ] **1.12 Hit shapes [assumed].**
   - Aurek: its own head/body shapes for bolts.
   - Trace how projectiles test soldiers (physics boxes, per-bone shapes, or the HSKN per-bone meshes) and how headshots are decided.
+  - Traced so far (2026-11-16): the Humanoid damage handler 089A7310 takes a 32-byte hit message (+4 attacker id, +12 damage,
+    +16 hit part's name hash, +20 hit part type). Headshot (089A7508) = part type 6 or part named "head" (hash 0x30CDE0) ->
+    damage x the blueprint's "Headshot multiplier" (Base: 4; code default 2). Then x2 when the attacker's slot 152 says so,
+    x0.5 when the victim's slot 156 does, x a mode/difficulty factor (08A3CC70 / 08A3CCF8), applied by 089E1FDC.
+  - Leads: the soldier's swappable head is its own model (a "head" part); the body has HSBB per-bone boxes (Stormtrooper: 13
+    of 21 bones flagged). Still to trace: what the bolt tests (those boxes, the head model, or the physics box) and slots
+    152 / 156.
+
 - [ ] **1.13 Soldier against soldier and vehicle [partial].**
   - Done: dynamic versus kinematic boxes.
   - Still to do: the player body's response to *moving* kinematic bodies (platforms, vehicles carrying it: flag bit 12 in the body
