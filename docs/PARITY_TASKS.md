@@ -198,13 +198,17 @@ textures and how they are used. Section R lists only what must be in place so th
     0..D_08AEF9CC), +32 Modifier_Bot_RateOfFire, +36 an int.  08A24280 builds the record: +0 a target id (999 = none),
     +4 the weapon's name hash.  It is called from 08986C0C (game_17) and from game_20.
   - 08A250F0 returns the accuracy: the elite value when the difficulty (08979DF4) is 2, else the normal one.
-  - Its only reader, 0893F364, is an AI firing step:
-    - A timer (+104) runs down by dt / (0.03·d + 0.1) when d < 30.  d is the first component of the vector to the
-      target; the branch for d ≥ 30 is not read.
-    - When the timer runs out (and byte +109 is set), the AI fires through 0893F65C.
-    - The aim error is the accuracy × π/180, which suggests the accuracy is in degrees.
-    - The timer is reset to 2.5 or 1.75 by difficulty; which value goes with which is not read.
-  - Which AI owns this step (soldier, turret or vehicle) is not settled.  Nothing ported yet.
+  - Its only reader, 0893F364, is reached from 0893F2F8.  0893F2F8 is one of the four AI behaviour-node types that dominate
+    the object update (HANDOFF.md profile).  Read:
+    - The node's init (0893EF7C) sets a timer (+104) to 2.5 s, or 1.75 s at difficulty 2.
+    - With a target at distance d, each frame the timer drops by dt / (0.03·d + 0.1) under 30 m, and by dt beyond.  So it
+      runs out after 2.5·(0.03·d + 0.1) s: 0.48 s at 3 m, 1.0 s at 10 m, 2.5 s from 30 m (×0.7 elite).
+    - With no target (id 999) the timer is set back to its start value.
+    - Once it has run out and byte +109 is set, the node fires (0893F65C).  The aim error passed on (+44) is the weapon's
+      accuracy (by difficulty) × π/180, so the accuracy is in degrees.  Then 0893FAE0 runs.
+    - Not read yet: what +109 is, whether firing resets the timer (no +104 store was found in 0893F65C), and what
+      08934E38 does with the error.
+    - Aurek's bots react in 0.35-0.65 s at any range and aim with AK_BOT_AIM; nothing is ported until the rest is read.
   - Traced so far: 08A24438 reads each weapon's AIWeapon_Accuracy_Normal (+24), AIWeapon_Accuracy_Elite (+28) and
     Modifier_Bot_RateOfFire (+32) into an AI weapon record, each clamped to 0..5 (0x08AEF9CC). Who reads them (the aim error)
     is not found yet. Bolts are not registry objects, so the harness cannot count AI shots directly; hits on the player can be.
