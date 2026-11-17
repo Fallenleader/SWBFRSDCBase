@@ -14,8 +14,10 @@
 #            CIRCLE roll (the way the left stick points: forward dive, left, right, back), TRIANGLE zoom (steps through the
 #            weapon's zoom levels, then back out).
 #   Ground vehicles: left stick throttle / steer, right stick aims, CROSS fire, SQUARE secondary, L hold boost, UP get out.
-#   Starfighters: left stick pitch (forward = nose down; AK_INVERT_Y flips it) and bank, R accelerate (boost), L slow down,
-#            CROSS fire, SQUARE secondary; any input on the ground takes off, touching down slowly and level lands.  Keeping an
+#            Walkers (AT-ST) answer the stick 0.47 s late, as the game's do, and finish their stride when let go.
+#   Flyers: left stick pitch (forward = nose down; AK_INVERT_Y flips it) and turn / bank; on the ground R takes off; flying, R
+#            sets the cruising speed and L the stall speed (each stays when let go); CROSS fire, SQUARE secondary;
+#            touching down slowly and level lands.  Keeping an
 #            enemy in the sights locks on (locking / LOCKED) and a tracking secondary then guides itself.
 #   Heroes: when your side's hero is offered to you, d-pad UP takes it, DOWN declines (30 s); a lightsaber hero strikes with CROSS.
 #   Free camera: left stick move, right stick look, L / R down / up, hold CROSS to move faster.

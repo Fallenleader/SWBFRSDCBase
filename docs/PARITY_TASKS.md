@@ -289,7 +289,10 @@ textures and how they are used. Section R lists only what must be in place so th
     snowspeeder's was).
   - Code to read next: the vehicle step 089AB3F8 reads CruisingSpeed (+280), AntiBoost (+288), StallSpeed (+304) and, at
     0x089AB82C's neighbour, TopSpeedHanger (func 089C5898).  The blueprint getters are 089C5404..089C5AE8, stored by 089C4A2C
-    at vehicle +236..+340.
+    at vehicle +236..+340.  Read so far (089AB3F8): it damps the local velocity (+540, VelocityDamp at +276), then clamps the
+    forward speed between StallSpeed (+304) and a top (+308, or TopSpeedHanger when a vfunc +204 says the craft is inside a
+    hangar), with CruisingSpeed (+280) / AntiBoost (+288) for its throttle flags (+844 bit 2).  Which class runs it (hover or
+    flyer) is not settled yet.
 
 ## 4. AI
 
