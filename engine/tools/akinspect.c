@@ -92,6 +92,8 @@ int main(int argc, char **argv)
     u32 lod0 = 0, tris_m = 0; for (u32 i = 0; i < ms.nmodels; i++) { lod0 += ms.models[i].lod == 0; tris_m += ms.models[i].nidx / 3; }
     {   ak_conquest_map cq;
         if (ak_conquest_load(&l, &cq)) {
+            if (getenv("AK_INSPECT_DROIDS")) for (u32 i = 0; i < cq.ndroid; i++) { f32 g[3]; ak_from_game(cq.droid[i].pos, g);
+                printf("droid %u %s at game %.2f %.2f %.2f\n", i, cq.droid[i].ammo ? "ammo" : "health", g[0], g[1], g[2]); }
             u32 pts = 0, own = 0, rg = 0, full = 0; f32 far = 0;
             for (u32 i = 0; i < cq.nposts; i++) {
                 const ak_post *po = &cq.post[i]; s32 w = 0; rg += po->has_region;
