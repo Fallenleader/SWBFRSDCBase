@@ -123,6 +123,13 @@ def prog_fly_space(i, fr):                                                      
     lx = 255 if 900 <= i < 1020 else 128
     ly = 0 if 1140 <= i < 1200 else 128
     return (b, lx, ly)
+BOOST_TRY = [RTRIG, LTRIG, TRIANGLE, CIRCLE, SQUARE, DOWN, LEFT, RIGHT]
+def prog_fly_boost2(i, fr):                                                      # take off, then for each candidate button every 2 s from 6 s:
+    b = UP if 90 <= i < 94 else 0                                                 #  tap 4 frames, 6 frames off, hold 30 frames
+    if 180 <= i < 186: b |= RTRIG
+    k, t = divmod(i - 360, 120)
+    if i >= 360 and k < len(BOOST_TRY) and (t < 4 or 10 <= t < 40): b |= BOOST_TRY[k]
+    return (b, 128, 128)
 def prog_drive(i, fr):                                                           # (with --tp next to a vehicle) get in, then full forward
     if 40 <= i < 44: return (UP, 128, 128)
     return (0, 128, 0) if i >= 90 else (0, 128, 128)
@@ -132,7 +139,7 @@ def prog_drive_turn(i, fr):                                                     
     if i < 270: return (0, 128, 0)
     if i < 450: return (0, 255, 0)
     return (0, 128, 0)
-PROGRAMS = {'fly_space': prog_fly_space, 'veh_fire': prog_veh_fire, 'walker': prog_walker, 'fly_climb': prog_fly_climb, 'fly_pitch': prog_fly_pitch, 'fly_boost': prog_fly_boost, 'fly_rl': prog_fly_rl, 'fly': prog_fly, 'fly_tap': prog_fly_tap, 'fly_slow': prog_fly_slow, 'fly_stick': prog_fly_stick, 'board_try': prog_board_try, 'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
+PROGRAMS = {'fly_boost2': prog_fly_boost2, 'fly_space': prog_fly_space, 'veh_fire': prog_veh_fire, 'walker': prog_walker, 'fly_climb': prog_fly_climb, 'fly_pitch': prog_fly_pitch, 'fly_boost': prog_fly_boost, 'fly_rl': prog_fly_rl, 'fly': prog_fly, 'fly_tap': prog_fly_tap, 'fly_slow': prog_fly_slow, 'fly_stick': prog_fly_stick, 'board_try': prog_board_try, 'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
 
 def main():
     ap = argparse.ArgumentParser()

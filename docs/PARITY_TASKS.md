@@ -250,7 +250,9 @@ textures and how they are used. Section R lists only what must be in place so th
     StallSpeed..min(TopSpeed, 300) and does not cross the cruising speed (unless boosting).  Free flight floors it at
     StallSpeed; otherwise at 5 m/s.  In a hangar the top is TopSpeedHanger (fighters 10; confirmed by the user).
   - Boost, traced: flag 4 is set when one control (axis 6) is held within 0.5 s of another's press (axis 5); then the
-    throttle is 1 and BoostAcc applies, and it holds while axis 6 stays held.  Which buttons axes 5 and 6 are is not found.
+    throttle is 1 and BoostAcc applies, and it holds while axis 6 stays held (each boosting frame renews the 0.5 s window).
+    Which buttons axes 5 and 6 are is not found: on the snowspeeder a tap-then-hold of R, L, triangle, circle, square,
+    down, left or right gave no boost (harness program fly_boost2).
   - [ ] Roll (craft with MaxTurnRoll > 0): no starfighter flies on a planet map. Measure it in space (3.7).
   - [ ] Crash and skim rules: a ~10° dive into Hoth's snow skimmed once, then crashed (the pilot dies, the wreck stays).
     The rule (angle, speed or surface) is not found.  Landing (AnimLand) is not measured.  Both are still Aurek's.
