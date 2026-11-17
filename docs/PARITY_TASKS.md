@@ -146,6 +146,12 @@ textures and how they are used. Section R lists only what must be in place so th
   mirrored direction and runs its backward clip (stick down-left: faces 45 degrees right, runs back). Stick straight right: turns 90
   degrees and runs. Aurek ties the camera to the body (ch.yaw), so this needs a separate view yaw (with 9.3). The strafe clips
   (RunForward_left / _Right) carry the root forward: they are a run with the upper body turned, for aiming to the side.
+- [ ] **1.15 Soldier health and the match customisation options [found, not built].** The game's customisation options set
+  player and bot health, stamina, capture rate, weapons and special items (user note, 2026-11-16) - the 133 / 60 seen in the
+  harness are those options' values, not difficulty. The harness reads soldier health at object +0x25C (maximum +0x34).
+  Traced: 08978170 picks a health from the options' +460 (0..3 -> 100 / 133 / 166 / 200, table 0x08AEE3B8); 089781D8 (+32)
+  has the same values and 08978240 (+28) a 0.85 / 1.0 / 1.15 / 1.3 multiplier; 0897782C sets the defaults (60 among them).
+  To do: map every option to its field and effect, and build them as Aurek match settings.
 
 ## 2. Weapons, items and projectiles
 
