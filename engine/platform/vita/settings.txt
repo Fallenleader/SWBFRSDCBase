@@ -96,6 +96,8 @@ AK_VEHICLES=1
 AK_VEH_MAX_SLOPE_DEG=40
 # 1 = creatures (Taun-Taun) and tracked tanks move as the game's swept collision box; 0 = Aurek's earlier ground-following
 AK_VEH_BOX=1
+# flyers that roll level out after 3 s without stick input (the game's auto-level option); 0 = they stay banked
+AK_AUTO_LEVEL=1
 # 1 = bots collide as the game's soldier box (0.6 x 1.8 x 0.6 m, as the player); 0 = Aurek's earlier capsule
 AK_BOT_BODY=1
 # ---- sound (1.9): the game's sounds and music.  Effects come from the game's SOUNDS/GMSND.ASR and the levels; music plays from

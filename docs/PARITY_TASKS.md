@@ -255,7 +255,12 @@ textures and how they are used. Section R lists only what must be in place so th
     That bit is set in space once the craft is out of the hangar, and never on the Hoth snowspeeder, where the attempt only
     raises flag 0x100.  Seen on Space Hoth's X-wing: 10 m/s in the hangar (TopSpeedHanger), StallSpeed 40 outside, cruise 100;
     with the boost it reached TopSpeed 175 in about 0.7 s, then fell back to the cruise at AntiBoost × MaxAcc after release.
-    Aurek: the same input, allowed on any space map (the hangar volumes are not known) [PARITY(3.3)].
+    Aurek: the same input, allowed on any space map (the hangar volumes are not known) [PARITY(3.3)].  +852 seen: 0x20 on
+    the Hoth snowspeeder; 0x20 → 0x21 (bit 0) as the X-wing starts its lift-off on Space Hoth, then 0x23.  No code writes the
+    bit by itself: it arrives with the network state copies (089BB8C4 / 089D0EA8 copy a whole word), so its source is not found.
+  - [x] Auto-level (089B01C0): any stick input sets a 3 s timer (+896); when it has run out, flag 0x80 makes the roll level at
+    RollRemoval.  Only with the game's auto-level option (byte 0x08C293C6) and +195 set.  Aurek: AK_AUTO_LEVEL (default 1).
+    Aurek clamps the roll to the bank angle; the game's roll is a free rotation [PARITY(3.3)].
     Tooling: the original's per-vehicle controls can be dumped with RS_DRIVE_VEHIN=1 (each frame's control values, the flags,
     and once the control scheme's binding chains) and RS_INPUT_DUMP=1 (the soldier's scheme).
   - [ ] Roll (craft with MaxTurnRoll > 0): no starfighter flies on a planet map. Measure it in space (3.7).

@@ -214,6 +214,8 @@ void ak_vehicle_spawn(ak_vehicle *v, const ak_vehicle_def *d, const f32 *pos, f3
     v->sec_ammo = d->sec.clip; v->lock = -1;
 }
 
+static bool auto_level(void){ static int on = -1; if (on < 0) on = ak_setting_int("AK_AUTO_LEVEL", 1); return on != 0; }
+
 static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool boost, f32 dt)
 {
     const ak_vehicle_def *d = v->def;
@@ -293,8 +295,11 @@ static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bo
         if (r > d->roll_rate) r = d->roll_rate;
         if (r < -d->roll_rate) r = -d->roll_rate;
         v->roll_vel = r;
-        if (fabsf(v->steer) > 0.05f) { v->roll += r * dt; if (v->roll > d->bank) v->roll = d->bank; if (v->roll < -d->bank) v->roll = -d->bank; }
-        else { f32 rr = d->roll_removal * dt; v->roll += v->roll < 0 ? fminf(-v->roll, rr) : -fminf(v->roll, rr); }
+        v->roll += r * dt; if (v->roll > d->bank) v->roll = d->bank; if (v->roll < -d->bank) v->roll = -d->bank;
+        /* the auto-level (089B01C0): any stick input resets a 3 s timer (+896); when it runs out (flag 0x80) the roll is taken
+           back at RollRemoval.  The game does this only with its auto-level option on (byte 0x08C293C6) - AK_AUTO_LEVEL */
+        if (fabsf(v->steer) > 0.01f || fabsf(v->throttle) > 0.01f) v->level_t = 3.0f; else if (v->level_t > 0) v->level_t -= dt;
+        if (v->level_t <= 0 && auto_level()) { f32 rr = d->roll_removal * dt; v->roll += v->roll < 0 ? fminf(-v->roll, rr) : -fminf(v->roll, rr); }
     } else {
         f32 want_roll = -v->steer * d->bank, rr = (fabsf(v->steer) > 0.05f ? d->turn_rate : d->roll_removal) * dt;   /* (cosmetic) */
         v->roll += want_roll > v->roll ? fminf(want_roll - v->roll, rr) : -fminf(v->roll - want_roll, rr);

@@ -72,7 +72,7 @@ typedef struct {
     f32 throttle, steer, strafe;           /* the driver's controls, -1..1 */
     f32 anim_t; s32 clip; bool posed; f32 bones[64][12];   /* the pose (walkers walk; the rest hold their bind pose) */
     bool flying, crashed; f32 speed, takeoff; bool brake;  /* flyers */
-    f32 pitch_rate, roll_vel, takeoff_y0, lvel[3]; bool takeoff_req, fast, r_was, boosting; f32 r_tap_t;   /* flyers: lvel = the velocity in the craft's frame (right, up, ahead) */
+    f32 pitch_rate, roll_vel, takeoff_y0, lvel[3]; bool takeoff_req, fast, r_was, boosting; f32 r_tap_t, level_t;   /* flyers: lvel = the velocity in the craft's frame (right, up, ahead) */
     int walk_state; f32 walk_t, in_clock; u32 in_head; f32 in_hist[64][3];   /* walkers: the walk's phase, the delayed controls */          /* flyers: the pitch rate (its dynamics as the yaw's), lift-off base, R pressed */
 } ak_vehicle;
 
