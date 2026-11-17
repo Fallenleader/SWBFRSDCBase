@@ -283,6 +283,13 @@ textures and how they are used. Section R lists only what must be in place so th
   - Measured once (30d50, program fly_stick): R lifts it 2.07 m in about 2 s (another takeoff clip than the snowspeeder's),
     then it flies level at 10.0 m/s inside the hangar; a full turn there slows it to 7.1 m/s while turning.  Not yet known:
     the ship's blueprint, whether the slowing is the hangar's rule (TopSpeedHanger) or every turn's, and roll outside.
+  - Second run (program fly_space): R held after lift-off gives 40.0 m/s.  A 2 s full turn (about 165°, at up to ~80°/s) slows
+    it to 28.5 m/s and it stays there; a 1 s push down slows it to 25.5 m/s; about 1 s later it is back at 40 m/s within a few
+    frames, with no input.  No bank shows in the reported matrix.  So in space the speed is not simply held through turns (the
+    snowspeeder's was).
+  - Code to read next: the vehicle step 089AB3F8 reads CruisingSpeed (+280), AntiBoost (+288), StallSpeed (+304) and, at
+    0x089AB82C's neighbour, TopSpeedHanger (func 089C5898).  The blueprint getters are 089C5404..089C5AE8, stored by 089C4A2C
+    at vehicle +236..+340.
 
 ## 4. AI
 
