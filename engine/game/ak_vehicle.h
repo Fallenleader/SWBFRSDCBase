@@ -48,7 +48,7 @@ typedef struct {
      * slowest it flies), TopSpeed (boost), MaxTurnPitch / Yaw / Roll and RollRemoval (degrees a second), AnimLanded / AnimFlight */
     f32 cruise, pitch_rate, roll_rate, roll_removal, bank; s32 clip_flight, clip_landed;
     f32 pitch_in, pitch_damp;          /* PitchInputDamp, PitchDamp (radians/s^2) */
-    f32 roll_in, roll_damp, anti_boost; /* RollInputDamp, RollDamp (radians/s^2), AntiBoost (the throttle above the cruise) */
+    f32 roll_in, roll_damp, anti_boost, top_hangar; bool snowspeeder;   /* TopSpeedHanger; Flyer_Type "snowspeeder" */ /* RollInputDamp, RollDamp (radians/s^2), AntiBoost (the throttle above the cruise) */
     u32 ntakeoff; f32 takeoff_t[24], takeoff_y[24];   /* AnimTakeoff's root channel: key times and heights (the lift-off, straight up) */
     int flyer_type;                    /* Flyer_Type (AK_FLY_*: the space AI commander's roles) */
     bool carries_cp; const char *cp_marker;   /* CarriesCommandPost (AT-AT, transports): a command post of its side rides it, at CommandPostMarker */
@@ -72,7 +72,7 @@ typedef struct {
     f32 throttle, steer, strafe;           /* the driver's controls, -1..1 */
     f32 anim_t; s32 clip; bool posed; f32 bones[64][12];   /* the pose (walkers walk; the rest hold their bind pose) */
     bool flying, crashed; f32 speed, takeoff; bool brake;  /* flyers */
-    f32 pitch_rate, roll_vel, takeoff_y0, lvel[3]; bool takeoff_req, fast, r_was, boosting; f32 r_tap_t, level_t;   /* flyers: lvel = the velocity in the craft's frame (right, up, ahead) */
+    f32 pitch_rate, roll_vel, takeoff_y0, lvel[3]; bool takeoff_req, fast, r_was, boosting, free_flight; f32 r_tap_t, level_t;   /* flyers: lvel = the velocity in the craft's frame (right, up, ahead) */
     int walk_state; f32 walk_t, in_clock; u32 in_head; f32 in_hist[64][3];   /* walkers: the walk's phase, the delayed controls */          /* flyers: the pitch rate (its dynamics as the yaw's), lift-off base, R pressed */
 } ak_vehicle;
 

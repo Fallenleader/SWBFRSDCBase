@@ -85,7 +85,8 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
         /* clip names, or asset paths: "vehicles\...\Awing_rest.ASR" -> "Awing_rest" */
         d->pitch_in = ak_bp_float(o, "PitchInputDamp", 200) * DEG; d->pitch_damp = ak_bp_float(o, "PitchDamp", 115) * DEG;
         d->roll_in = ak_bp_float(o, "RollInputDamp", 430) * DEG; d->roll_damp = ak_bp_float(o, "RollDamp", 115) * DEG;
-        d->anti_boost = ak_bp_float(o, "AntiBoost", -0.2f);
+        d->anti_boost = ak_bp_float(o, "AntiBoost", -0.2f); d->top_hangar = ak_bp_float(o, "TopSpeedHanger", 35);
+        { const char *ft = ak_bp_string(o, "Flyer_Type", ""); d->snowspeeder = !strcmp(ft, "snowspeeder"); }
         s32 clip_takeoff = -1;
         const char *keys[3] = { "AnimFlight", "AnimLanded", "AnimTakeoff" }; s32 *out[3] = { &d->clip_flight, &d->clip_landed, &clip_takeoff };
         for (int k = 0; k < 3; k++) {
@@ -327,9 +328,11 @@ static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bo
         bool above = !boost && z > d->cruise, below = !boost && z <= d->cruise;
         if (above && thr > d->anti_boost) thr = d->anti_boost;
         z += (boost ? d->boost_acc : d->max_acc) * thr * dt - z * d->vel_damp * dt;
-        f32 top = fminf(300.0f, d->top_speed);
+        /* (089AB3F8) free flight (+852 bit 0): top min(TopSpeed, 300), floor StallSpeed; otherwise (in a hangar, and always on a
+           planet) top TopSpeedHanger, floor StallSpeed for the snowspeeder type (+856 bit 0, 089A9588) else 5 m/s */
+        f32 top = v->free_flight ? fminf(300.0f, d->top_speed) : d->top_hangar, floor = v->free_flight || d->snowspeeder ? d->stall_speed : 5.0f;
         if (z > top) z = top;
-        if (z < d->stall_speed) z = d->stall_speed;
+        if (z < floor) z = floor;
         if (above && z < d->cruise) z = d->cruise;
         if (below && z > d->cruise) z = d->cruise;
         lv[2] = z;

@@ -976,6 +976,7 @@ static bool vehicle_make(ak_play *p, u32 v)
     if (team < 0 || sp->def[team] < 0) return false;
     ak_vehicle *vh = &p->veh[v]; vh->spawn = (s32)v;
     ak_vehicle_spawn(vh, &p->vdef[sp->def[team]], sp->pos, sp->yaw, team);
+    vh->free_flight = p->free_flight;          /* (flyers: +852 bit 0 - Aurek: every space map) */
     ak_target *t = &p->target[VT(p, v)]; memset(t, 0, sizeof *t);
     t->health = t->max_health = vh->def->health; t->alive = true; t->last_attacker = -1;
     vehicle_target(p, v);
