@@ -260,7 +260,7 @@ textures and how they are used. Section R lists only what must be in place so th
     bit by itself: it arrives with the network state copies (089BB8C4 / 089D0EA8 copy a whole word), so its source is not found.
   - [x] Hangar / planet speed limits, traced: when +852 bit 0 (free flight) is clear, 089AB3F8 caps the speed at TopSpeedHanger
     (base 35, fighters / bombers 10).  The floor is StallSpeed when +856 bit 0 is set, else 5 m/s.  +856 bit 0 is set by
-    089A9588 from Flyer_Type: "snowspeeder" always; a type hashing 0xFBE8126 when not in free flight; none of the others.
+    089A9588 from Flyer_Type: "snowspeeder" always; a type hashing 0x3FBE8126 when not in free flight; none of the others.
     Aurek: planet maps are never free flight (snowspeeder cap 35 with its 25 cruise: no change seen); space maps are free from
     the start [PARITY(3.7): in the game the craft is capped at 10 m/s until it leaves the hangar].
   - [x] Auto-level (089B01C0): any stick input sets a 3 s timer (+896); when it has run out, flag 0x80 makes the roll level at
