@@ -181,7 +181,10 @@ textures and how they are used. Section R lists only what must be in place so th
     while moving, and the other explosives and items.
 
 - [ ] **2.4 Guided projectiles [assumed].** Aurek turns them at 100°/s; trace the turn rate.
-- [ ] **2.5 Blast damage fall-off [assumed].**
+- [x] **2.5 Blast fall-off [measured 2026-11-16].** The player's own thermal detonator, with the player teleported 1 / 3 / 5 / 7 m
+  from where it lay (radius 8, 100 damage): 100, 86.5, 62.0, 26.3 taken - damage x (1 - (d / radius)^2), d to the feet; the
+  thrower's own blast hurts it. Aurek: explode() uses that rule and hurts the owner. [ ] 2.5b: vehicles and teammates not
+  measured.
 - [ ] **2.6 Bot accuracy [assumed].** How AIWeapon_Accuracy_* and Modifier_Bot_* are applied.
 - [ ] **2.7 Damage tables [partial].** Check every damage path against DamageToInfantry, DamageToVehicle, armour and friendly fire.
 

@@ -72,11 +72,16 @@ static void explode(ak_projs *ps, ak_proj *p, ak_target *tg, u32 nt, void (*boom
         if (dbg) AK_INFO("proj", "%s explodes at %.2f %.2f %.2f after %.2f s", d->name, p->pos[0], p->pos[1], p->pos[2], p->t); }
     for (u32 i = 0; i < nt; i++) {
         ak_target *t = &tg[i];
-        if (!t->alive || t->team == p->team) continue;
-        f32 c[3] = { t->feet[0], t->feet[1] + t->height * 0.5f, t->feet[2] };
-        f32 dx = c[0] - p->pos[0], dy = c[1] - p->pos[1], dz = c[2] - p->pos[2], dist = sqrtf(dx * dx + dy * dy + dz * dz) - t->radius;
+        if (!t->alive || (t->team == p->team && (s32)i != p->owner)) continue;   /* (the thrower's own blast hurts it: measured) */
+        /* the fall-off (measured with the thermal detonator, radius 8, on the player at 1 / 3 / 5 / 7 m from where it lay: 100, 86.5,
+           62.0, 26.3): the damage times 1 - (distance / radius)^2, the distance to the soldier's feet.  Vehicles: the same rule,
+           not measured [PARITY(2.5b)] */
+        f32 c[3] = { t->feet[0], t->feet[1], t->feet[2] };
+        if (t->vehicle) { c[1] += t->height * 0.5f; }
+        f32 dx = c[0] - p->pos[0], dy = c[1] - p->pos[1], dz = c[2] - p->pos[2], dist = sqrtf(dx * dx + dy * dy + dz * dz) - (t->vehicle ? t->radius : 0);
+        if (dist < 0) dist = 0;
         if (dist > r) continue;
-        f32 k = dist < r * 0.5f ? 1.0f : 1.0f - 1.5f * (dist / r - 0.5f);
+        f32 k = 1.0f - (dist / r) * (dist / r);
         f32 dmg = (t->vehicle ? d->dmg_vehicle : d->dmg_infantry) * k * p->dmg_scale;
         if (dmg <= 0) continue;
         t->health -= dmg; t->hits++; t->last_attacker = p->owner; ps->hits++;
