@@ -276,6 +276,13 @@ textures and how they are used. Section R lists only what must be in place so th
 - [ ] **3.6 Secondary weapons and lock-on.** Verify HardpointW2 and the lock rules against the original. The docs list them as
   "not yet" (stale).
 - [ ] **3.7 Space [partial].** Capital ship turrets (ENTI type 30), the pilots' dogfight states, and hangar and shield rules.
+  - Harness: Space Hoth is planet row 17 (`--planet 17`); the space team and spawn screens are recognised
+    (`team_select_space`, `spawn_map_space`), and `--spawn N` picks the spawn list's entry.  The Rebel player starts on foot
+    in the hangar (1365.5, 18.8, 91.6); the starfighters stand at x 1352 (objects 30d4e..30d51); `--tp 60:1356,18.8,88`
+    then d-pad up boards 30d50.
+  - Measured once (30d50, program fly_stick): R lifts it 2.07 m in about 2 s (another takeoff clip than the snowspeeder's),
+    then it flies level at 10.0 m/s inside the hangar; a full turn there slows it to 7.1 m/s while turning.  Not yet known:
+    the ship's blueprint, whether the slowing is the hangar's rule (TopSpeedHanger) or every turn's, and roll outside.
 
 ## 4. AI
 
