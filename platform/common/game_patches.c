@@ -215,6 +215,7 @@ void rs_drive_report(FILE *f){
         if (gok(fm)) { u32 mp = ((ifn_t)GFN(fm))(plc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).v0; if (gok(mp)) m = (const float *)GP(mp); }
         fprintf(f, "obj %x %x %.4f %.4f %.4f %.2f %d", GU32(info + 4), cls, p[0], p[1], p[2], (cls == 0x8005 ? GF32(o + 0x25C) : GF32(plc + 0x28)), me && cls == 0x8005 && GU32(o + 92) == me);
         if (m) fprintf(f, " m %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
+        if (cls == 0x8005) fprintf(f, " team %d", (int)GU32(o + 12));
         fprintf(f, "\n");
         if (cls == 0x8005 && getenv("RS_DRIVE_OBJ")) {   /* soldier objects, raw (finding fields) */
             fprintf(f, "pobj %x %x", GU32(info + 4), o); for (u32 k = 0; k < 0x600; k += 4) fprintf(f, " %08x", GU32(o + k)); fprintf(f, "\n"); }
@@ -222,6 +223,14 @@ void rs_drive_report(FILE *f){
             u32 w = GU32(o + 40), b = gok(w) ? GU32(w + 12) : 0;
             if (gok(b)) { fprintf(f, "pbody %x", b); for (u32 k = 0; k < 0x180; k += 4) fprintf(f, " %08x", GU32(b + k)); fprintf(f, "\n");
                 u32 cp = GU32(b + 0x118); if (gok(cp)) { fprintf(f, "pcorn"); for (u32 k = 0; k < 8 * 16; k += 4) fprintf(f, " %.4f", GF32(cp + k)); fprintf(f, "\n"); } } } } }
+/* tests: set the player's soldier's health (+0x25C) */
+extern rv_t func_08A61BE0(u32, u32, u32, u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
+void rs_drive_health(float h){
+    if (h < 0) { func_08A61BE0(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); fprintf(stderr, "[DRIVE] kill (the debug command's message 0x8001)\n"); return; }   /* the game's "Kills yourself" */
+    u32 bk = GU32(IMG(0x08C2C200u)), nb = GU32(IMG(0x08C2C204u)), me = rs_input_object(); if (!gok(bk) || !me) return;
+    for (u32 bi = 0; bi < nb; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
+        u32 o = GU32(nd); if (!gok(o) || GU32(o + 92) != me) continue;
+        memcpy(GP(o + 0x25C), &h, 4); fprintf(stderr, "[DRIVE] health %.1f\n", h); return; } }
 /* tests: put the player's soldier at a point (game axes, feet): its physics body's position (+0xC0) and its box centre now and
  * before (+0xD0, +0xE0: 0.9 m up), velocity zeroed (+0x70) */
 void rs_drive_teleport(float x, float y, float z){

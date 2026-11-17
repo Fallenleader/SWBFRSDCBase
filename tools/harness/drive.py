@@ -66,6 +66,7 @@ def main():
     ap.add_argument('--until', type=int, default=100000, help="the 'hold' program's buttons are let go after this many frames")
     ap.add_argument('--hold', default='128,0', help="the 'hold' program's stick: LX,LY (0..255, 128 centred)")
     ap.add_argument('--tp', default='', help='F:X,Y,Z - move the player to X Y Z (game axes) F frames into the match')
+    ap.add_argument('--hp', default='', help="F:H - set the player's health to H F frames into the match")
     ap.add_argument('--fine', type=int, default=0, help='after the match starts, step every frame for this many frames')
     a = ap.parse_args()
     shutil.rmtree(a.out, ignore_errors=True); os.makedirs(a.out)
@@ -88,6 +89,8 @@ def main():
                     trace.write('%d %s %.1f\n' % (fr, scr, d))
                     if state.get('launched') and scr is None:
                         start = fr; trace.write('%d match\n' % fr); shutil.copy(img, os.path.join(a.out, 'match_start.ppm'))
+                        if a.hp:
+                            f_, h_ = a.hp.split(':'); open(os.path.join(drv, 'hp.txt'), 'w').write('%d %s\n' % (fr + int(f_), h_))
                         if a.tp:
                             f_, xyz = a.tp.split(':'); open(os.path.join(drv, 'tp.txt'), 'w').write('%d %s\n' % (fr + int(f_), xyz.replace(',', ' ')))
                     else:

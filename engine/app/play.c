@@ -1792,6 +1792,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
 {
     if (!p->ready) return;
     p->clock += dt;
+    p->respawn_req = (in->pressed & (AK_BTN_CROSS | AK_BTN_R)) != 0;           /* (the raw press: the respawn screen's confirm) */
     static ak_input mapped; mapped = psp_layout(p, in, dt); in = &mapped;
     if (ak_setting_int("AK_TEST_TAKEOVER", 0) && p->in_veh < 0 && p->alive)   /* tests: stand beside a vehicle a teammate bot drives */
         for (u32 v = 0; v < p->nveh; v++) { const ak_vehicle *vh = &p->veh[v];
@@ -2159,8 +2160,13 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     heroes_update(p, m, dt);
     droids_update(p, dt);
     bool playing = !p->have_cq || p->match.winner < 0;
-    if (wave && playing) {
-        if (!p->alive && p->dead_t > 1.0f) {                                  /* back with the wave */
+    /* the player's respawn (measured in the original): no wave - three seconds of the death camera, then the score board and
+       the spawn map, and the soldier is back as soon as the player confirms [PARITY(1.10b): Aurek has no spawn screen yet - the
+       confirm (cross) respawns at the spawn point chosen as before; AK_RESPAWN_AUTO=1 respawns without it] */
+    static int autorsp = -1; if (autorsp < 0) autorsp = ak_setting_int("AK_RESPAWN_AUTO", 0);
+    bool player_back = !p->alive && p->dead_t >= 3.0f && (p->respawn_req || autorsp);
+    if (playing && (wave || player_back)) {
+        if (player_back) {
             f32 sp[3], syaw = p->ch.yaw;
             bool ok = p->have_cq ? (p->match.tickets[p->team] > 0 && spawn_spot(p, p->team, p->ch.pos, &p->seed, sp, &syaw)) : false;
             if (!p->have_cq) { memcpy(sp, p->ch.pos, 12); ok = true; }
@@ -2172,7 +2178,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 p->stamina = p->stamina_max; p->stamina_spent = false;   /* a new soldier */
             }
         }
-        for (u32 i = 0; i < p->nbots; i++) {
+        for (u32 i = 0; i < p->nbots && wave; i++) {                          /* the bots: with the wave [PARITY(1.10c)] */
             ak_play_bot *b = &p->bot[i];
             if (b->alive || b->dead_t < 1.0f || (p->have_cq && p->match.tickets[b->team] <= 0)) continue;
             bot_spawn(p, m, b, i);
@@ -2340,7 +2346,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
     }
     for (u32 i = 0; i < p->nbots; i++) {
         const ak_play_bot *b = &p->bot[i];
-        if ((!b->alive && b->dead_t > 8.0f) || b->veh >= 0) continue;            /* the fallen fade from the field; drivers are inside */
+        if ((!b->alive && b->dead_t > 5.0f) || b->veh >= 0) continue;            /* the fallen leave the field 5 s after dying (measured: 4.8-5.0 s); drivers are inside */
         f32 mn[3] = { b->ch.pos[0] - 1, b->ch.pos[1] - 0.2f, b->ch.pos[2] - 1 }, mx[3] = { b->ch.pos[0] + 1, b->ch.pos[1] + 2.2f, b->ch.pos[2] + 1 };
         if (!ak_frustum_aabb(&fr, mn, mx)) continue;
         draw_soldier(ms, m, &b->look, b->ch.pos, b->ch.yaw, (const f32 (*)[12])b->bones, vp, st);

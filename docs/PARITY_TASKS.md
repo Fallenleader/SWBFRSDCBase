@@ -108,7 +108,18 @@ textures and how they are used. Section R lists only what must be in place so th
   and lands with its health untouched (133 of 133) - no fall damage. Aurek has none either. No "return to the battlefield"
   text exists in the game's TEXT files.
   - [ ] **1.9b** Water and bottomless drops (kill volumes?) are not tested yet.
-- [ ] **1.10 Respawn [assumed].** AK_RESPAWN_DELAY is 10 s. Trace the delay and the spawn-point choice per mode.
+- [x] **1.10 Respawn [measured 2026-11-16].**
+  - The harness can kill the player (drive.py --hp F:-1 calls the game's "Kills yourself" command, 08A61BE0: message 0x8001)
+    and set its health (--hp F:H).
+  - The player: three seconds of the death camera, then the score board with "Respawn", then the spawn map ("Select Spawn
+    Point"); the soldier is back the moment the player confirms - no wave, no countdown. The default spawn point was the one
+    the player first spawned at. The body leaves 5.0 s after death (or on respawn).
+  - AI soldiers: their bodies leave 4.8-5.0 s after death; new AI soldiers appear at irregular times (5-15 s after a death),
+    not on a fixed wave.
+  - Aurek: the player respawns on confirm (cross / fire) after 3 s (AK_RESPAWN_AUTO=1 without a press); fallen bots leave
+    after 5 s (were 8).
+  - [ ] **1.10b** A spawn screen (score board, map, spawn point choice with the game's default).
+  - [ ] **1.10c** The AI's respawn rule (Aurek still brings bots back with a 10 s wave).
 - [ ] **1.11 Hit reactions and flinch [missing].** Not traced (play.h:28).
 - [ ] **1.12 Hit shapes [assumed].**
   - Aurek: its own head/body shapes for bolts.

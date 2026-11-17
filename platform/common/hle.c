@@ -269,6 +269,9 @@ static void drive_step(int frame){
     static u32 buf[480 * 272]; if (rs_display_read(buf)) { snprintf(a, sizeof a, "%s/frame.tmp", dir); FILE *f = fopen(a, "wb");
         if (f) { fprintf(f, "P6\n480 272\n255\n"); for (int i = 0; i < 480 * 272; i++) { u8 rgb[3] = {buf[i] & 255, (buf[i] >> 8) & 255, (buf[i] >> 16) & 255}; fwrite(rgb, 1, 3, f); } fclose(f);
             snprintf(b, sizeof b, "%s/frame.ppm", dir); rename(a, b); } }
+    { extern void rs_drive_health(float) __attribute__((weak));        /* tests: hp.txt "<frame> health" sets the player's health */
+      snprintf(a, sizeof a, "%s/hp.txt", dir); FILE *hf = fopen(a, "r");
+      if (hf) { int fr; float h; if (fscanf(hf, "%d %f", &fr, &h) == 2 && fr == frame && rs_drive_health) rs_drive_health(h); fclose(hf); } }
     { extern void rs_drive_teleport(float, float, float) __attribute__((weak));   /* tests: tp.txt "<frame> x y z" moves the player there */
       snprintf(a, sizeof a, "%s/tp.txt", dir); FILE *tf = fopen(a, "r");
       if (tf) { int fr; float x, y, z; if (fscanf(tf, "%d %f %f %f", &fr, &x, &y, &z) == 4 && fr == frame && rs_drive_teleport) rs_drive_teleport(x, y, z); fclose(tf); } }
