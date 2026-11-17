@@ -187,6 +187,10 @@ textures and how they are used. Section R lists only what must be in place so th
   measured.
 - [ ] **2.6 Bot accuracy [assumed].** How AIWeapon_Accuracy_* and Modifier_Bot_* are applied.
 - [ ] **2.7 Damage tables [partial].** Check every damage path against DamageToInfantry, DamageToVehicle, armour and friendly fire.
+  - Measured (2026-11-16, harness: the player's weapon is soldier +0x68, its clip at +0xA0): the blaster rifle fires 5 frames
+    after the trigger, then every 18 frames (RateOfFire 0.3); 15 per body hit, 60 per headshot (1.12); the reload starts with
+    the shot that empties the clip and takes ReloadTime (2.25 s). Aurek now starts the reload on that shot (was the next pull).
+  - The thrower is hurt by its own explosive (2.5).
 
 ## 3. Vehicles
 

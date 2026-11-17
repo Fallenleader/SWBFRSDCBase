@@ -158,6 +158,9 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
     b->fired++;
     w->cooldown = d->rate_of_fire;
     if (d->clip > 0) w->ammo--;
+    /* the reload starts with the shot that empties the clip (measured: the blaster rifle's last round at frame 497, a full clip
+       at 631 - its ReloadTime 2.25 s from that shot) */
+    if (d->clip > 0 && w->ammo <= 0 && w->spare > 0) w->reload_t = d->reload_time;
     if (w->heats) ak_heat_shot(&w->heat, d);
     if (d->fire_snd) ak_audio_play(d->fire_snd, muzzle, false);       /* the weapon's "Fire Sound" */
     return 1;
