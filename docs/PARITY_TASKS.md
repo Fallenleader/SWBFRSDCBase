@@ -266,7 +266,12 @@ textures and how they are used. Section R lists only what must be in place so th
   - Measured 2026-11-16 (harness --hp F:-2 runs the game's "Kills all tanks", 08A61D98 -> 089B4C78): every Taun-Taun's wreck
     stays 4.7-4.8 s and a new one stands at its spawn 10.9-11.0 s after the kill (spawn records: 10 s). Also seen: a new one can
     appear at the spawn while the old one, ridden away, still lives. Aurek: wrecks drawn 4.75 s, respawn record + 1 s.
-  - [ ] **3.5b** The extra second's source, the respawn-when-taken-away rule, flyers ("Kills all flyers": --hp F:-3), boarding.
+  - Flyers, measured 2026-11-17 ("Kills all flyers", --hp F:-3, on Hoth's two parked snowspeeders, three runs): the wrecks go
+    4.98 s after the kill (299 frames, every run); new ones stand 12.0, 13.0 and 13.0 s after it (spawn records: 10 s).
+    Aurek: flyer wrecks 4.98 s, respawn record + 2.5 s.
+  - Boarding, measured: the player boards from beside a vehicle with d-pad up (the snowspeeder from 2.6 m behind its centre,
+    the AT-ST from 2 m to its side); up again leaves.
+  - [ ] **3.5b** The extra time's source and the flyers' spread, the respawn-when-taken-away rule, the boarding range.
 
 - [ ] **3.6 Secondary weapons and lock-on.** Verify HardpointW2 and the lock rules against the original. The docs list them as
   "not yet" (stale).

@@ -553,8 +553,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     }
     for (u32 v = 0; v < p->nveh; v++) if (!vehicle_make(p, v)) { p->veh[v].alive = false; p->veh[v].def = &p->vdef[p->vspawn[v].def[0] >= 0 ? p->vspawn[v].def[0] : p->vspawn[v].def[1]]; p->veh[v].dead_t = p->vspawn[v].respawn - 5.0f; p->target[VT(p, v)].alive = false; }
     if (ak_setting_int("AK_DEBUG_VEH", 0))
-        for (u32 v = 0; v < p->nveh; v++) AK_INFO("veh", "vehicle %u: %s / %s, post %d, %s%s", v + 1, p->vspawn[v].def[0] >= 0 ? p->vdef[p->vspawn[v].def[0]].name : "-",
-                                                p->vspawn[v].def[1] >= 0 ? p->vdef[p->vspawn[v].def[1]].name : "-", p->vspawn[v].post, p->veh[v].alive ? "up" : "waiting", p->vspawn[v].fixed ? ", placed" : "");
+        for (u32 v = 0; v < p->nveh; v++) AK_INFO("veh", "vehicle %u: %s / %s, post %d, respawn %.1f s, %s%s", v + 1, p->vspawn[v].def[0] >= 0 ? p->vdef[p->vspawn[v].def[0]].name : "-",
+                                                p->vspawn[v].def[1] >= 0 ? p->vdef[p->vspawn[v].def[1]].name : "-", p->vspawn[v].post, p->vspawn[v].respawn, p->veh[v].alive ? "up" : "waiting", p->vspawn[v].fixed ? ", placed" : "");
     {   int tv = ak_setting_int("AK_TEST_VEHICLE", 0);                      /* tests: start in vehicle N */
         if (tv > 0 && (u32)tv <= p->nveh && p->veh[tv - 1].alive) {
             ak_vehicle *vh = &p->veh[tv - 1]; vh->driver = 0; vh->team = p->team; p->target[VT(p, tv - 1)].team = p->team;
@@ -2084,7 +2084,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (vh->def->kind == AK_VEH_WALKER && vh->dead_t < 8.0f) ak_vehicle_pose(vh, m, dt);   /* the death clip */
             /* measured (harness: the debug command "Kills all tanks" on Hoth's Taun-Taun): the wreck stays 4.7-4.8 s, and a new one stands
                at the spawn 10.9-11.0 s after the kill - the spawn record's 10 s from about a second after it [PARITY(3.5b)] */
-            if (!p->vspawn[v].fixed && vh->dead_t > p->vspawn[v].respawn + 1.0f) { if (!vehicle_make(p, v)) vh->dead_t = p->vspawn[v].respawn - 5.0f; }
+            /* flyers (measured: "Kills all flyers" on Hoth's parked snowspeeders, three runs): the wreck goes after 4.98 s and a new one
+               stands 12.0-13.0 s after the kill [PARITY(3.5b): the spread and the extra time's source are not found; 2.5 s taken] */
+            f32 extra = vh->def->kind == AK_VEH_FLYER ? 2.5f : 1.0f;
+            if (!p->vspawn[v].fixed && vh->dead_t > p->vspawn[v].respawn + extra) { if (!vehicle_make(p, v)) vh->dead_t = p->vspawn[v].respawn - 5.0f; }
             continue;
         }
         if (vh->driver == 0) {                                                /* the player drives: left stick, cross boosts, right stick aims, R fires */
@@ -2366,7 +2369,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
     }
     for (u32 v = 0; v < p->nveh; v++) {                                       /* the vehicles (and their turrets) */
         const ak_vehicle *vh = &p->veh[v];
-        if (!vh->def || !(vh->alive || (vh->def->kind == AK_VEH_WALKER ? vh->dead_t < 8.0f : vh->dead_t < 4.75f))) continue;   /* (wrecks: 4.75 s, measured) */
+        if (!vh->def || !(vh->alive || (vh->def->kind == AK_VEH_WALKER ? vh->dead_t < 8.0f : vh->dead_t < (vh->def->kind == AK_VEH_FLYER ? 4.98f : 4.75f)))) continue;   /* (wrecks: 4.75 s, flyers 4.98 s, measured) */
         f32 M[12]; ak_vehicle_matrix(vh, M);
         f32 r = m->models[vh->def->model].radius, mn[3] = { M[3] - r, M[7] - r, M[11] - r }, mx[3] = { M[3] + r, M[7] + r, M[11] + r };
         if (!ak_frustum_aabb(&fr, mn, mx)) continue;
