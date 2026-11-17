@@ -207,7 +207,8 @@ void rs_drive_report(FILE *f){
     for (u32 bi = 0; bi < nb; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
         if (GU8(nd + 8)) continue; u32 o = GU32(nd); if (!gok(o) || !gok(GU32(o))) continue;
         u32 vt = GU32(o), info = o + GU32(vt - 16), plc = o + GU32(vt - 12); if (!gok(info) || !gok(plc) || !gok(GU32(plc))) continue;
-        u32 cls = GU16(info + 8); if (cls != 0x8005 && cls != 0x8004 && (cls < 0x8008 || cls > 0x801F)) continue;
+        u32 cls = GU16(info + 8); static int all = -1; if (all < 0) all = getenv("RS_DRIVE_ALL") != 0;
+        if (!all && cls != 0x8005 && cls != 0x8004 && (cls < 0x8008 || cls > 0x801F)) continue;
         u32 fn = GU32(GU32(plc) + 12); if (!gok(fn)) continue;
         u32 pp = ((ifn_t)GFN(fn))(plc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).v0; if (!gok(pp)) continue;
         const float *p = (const float *)GP(pp);

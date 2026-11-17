@@ -2,6 +2,7 @@
 #include <math.h>
 #include <string.h>
 #include "game/ak_projectile.h"
+#include "core/ak_settings.h"
 
 static bool proj_def(const ak_blueprints *bp, const char *name, ak_proj_def *d)
 {
@@ -20,6 +21,8 @@ static bool proj_def(const ak_blueprints *bp, const char *name, ak_proj_def *d)
     d->colour = strstr(n, "Bomb") ? 0xFFFFB060u : strstr(n, "Torpedo") ? 0xFFFFE0C0u : 0xFF40A0FFu;   /* (ABGR) */
     return true;
 }
+
+bool ak_proj_def_load(const ak_blueprints *bp, const char *name, ak_proj_def *out) { return proj_def(bp, name, out); }
 
 bool ak_secondary_load(const ak_blueprints *bp, const char *hp, ak_secondary *s)
 {
@@ -51,9 +54,22 @@ void ak_proj_launch(ak_projs *ps, const ak_proj_def *d, const f32 *pos, const f3
     ps->fired++;
 }
 
+void ak_proj_throw(ak_projs *ps, const ak_proj_def *d, const f32 *pos, const f32 *vel, int team, s32 owner, f32 age)
+{
+    ak_proj *p = NULL;
+    for (u32 i = 0; i < AK_MAX_PROJ && !p; i++) if (!ps->p[i].alive) p = &ps->p[i];
+    if (!p) return;
+    memset(p, 0, sizeof *p);
+    p->d = d; memcpy(p->pos, pos, 12); memcpy(p->vel, vel, 12); p->alive = true; p->team = team; p->owner = owner; p->target = -1; p->dmg_scale = 1; p->t = age; p->drag = 0.063f;   /* (measured: a thrown thermal detonator keeps 99.37 % of its speed each 0.1 s) */
+    f32 l = sqrtf(vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2]) + 1e-6f; for (int k = 0; k < 3; k++) p->dir[k] = vel[k] / l;
+    ps->fired++;
+}
+
 static void explode(ak_projs *ps, ak_proj *p, ak_target *tg, u32 nt, void (*boom)(void *, const f32 *, f32), void *ctx)
 {
     const ak_proj_def *d = p->d; f32 r = d->radius > 0.5f ? d->radius : 0.5f;
+    {   static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_PROJ", 0);
+        if (dbg) AK_INFO("proj", "%s explodes at %.2f %.2f %.2f after %.2f s", d->name, p->pos[0], p->pos[1], p->pos[2], p->t); }
     for (u32 i = 0; i < nt; i++) {
         ak_target *t = &tg[i];
         if (!t->alive || t->team == p->team) continue;
@@ -95,7 +111,9 @@ void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *tg, u32 n
                 for (int k = 0; k < 3; k++) p->vel[k] = cur[k] / cl * sp;
             }
         }
+        if (p->stuck) continue;                                               /* (resting where it landed, waiting for its timer) */
         if (d->gravity) p->vel[1] -= gravity * dt;
+        if (p->drag > 0) { f32 f = 1.0f - p->drag * dt; for (int k = 0; k < 3; k++) p->vel[k] *= f; }
         f32 step[3] = { p->vel[0] * dt, p->vel[1] * dt, p->vel[2] * dt }, len = sqrtf(step[0] * step[0] + step[1] * step[1] + step[2] * step[2]);
         /* hits: the level, then any enemy body along the step */
         bool hit = false; f32 hit_t = len;
@@ -109,6 +127,11 @@ void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *tg, u32 n
                 f32 along = oc[0] * dir[0] + oc[1] * dir[1] + oc[2] * dir[2]; if (along < 0 || along > hit_t + t->radius) continue;
                 f32 px = oc[0] - dir[0] * along, py = oc[1] - dir[1] * along, pz = oc[2] - dir[2] * along, rr = t->radius + t->height * 0.5f;
                 if (px * px + py * py + pz * pz < rr * rr) { hit = true; hit_t = along < hit_t ? along : hit_t; }
+            }
+            if (hit && !d->on_impact && d->on_timer) {                       /* a timed one (grenades): it stops where it lands - measured:
+                                                                                  the thermal detonator neither bounces nor rolls */
+                for (int k = 0; k < 3; k++) p->pos[k] += dir[k] * (hit_t > 0.02f ? hit_t - 0.02f : 0);
+                p->stuck = true; continue;
             }
             if (hit) { for (int k = 0; k < 3; k++) p->pos[k] += dir[k] * hit_t; explode(ps, p, tg, nt, boom, ctx); continue; }
         }

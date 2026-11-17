@@ -354,6 +354,7 @@ int main(int argc, char **argv)
                         if (frame == at && strchr(bt, 'g')) in.pressed |= AK_BTN_UP;
                         if (frame == at && strchr(bt, 'o')) in.pressed |= AK_BTN_CIRCLE;   /* o: roll */
                         if (frame == at && strchr(bt, 'z')) in.pressed |= AK_BTN_TRIANGLE; /* z: zoom */
+                        if (frame == at && strchr(bt, 'c')) in.pressed |= AK_BTN_SQUARE;   /* c: the secondary (pressed on its first frame) */
                     }
                     at += n; q += used; while (*q == ';' || *q == ' ') q++;
                 }

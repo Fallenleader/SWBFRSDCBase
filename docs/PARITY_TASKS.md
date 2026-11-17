@@ -171,6 +171,15 @@ textures and how they are used. Section R lists only what must be in place so th
 - [ ] **2.2 Ammo pickups and droids [assumed].** Aurek gives back one clip per pulse (play.c:137). Trace the real refill.
 - [ ] **2.3 Secondary items [missing].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
   incinerator, fusion cutter, shields, jetpack, jump pack, stealth. Trace each one's blueprint use.
+  - Thermal detonator [measured and built 2026-11-16]: Weapon REP_Grenade (4, no spare clips, 2 s between throws), Projectile
+    "Grenade" (Timer 3, 100 / 150 damage, radius 8). Measured (harness tracks the grenade object, class 0x8011): it appears in
+    the hand 29 frames after square, leaves it 8 frames later 1.0 m ahead and 2.1 m up, at 20.4 m/s along the facing and 1.2
+    up, falls at 10 m/s^2 losing 0.63 % of its speed each 0.1 s (the original steps it at 10 Hz), stops dead where it lands
+    and explodes 3 s after it appeared. Aurek: play.c throws it (square on the PSP layout), ak_proj_throw / stuck / drag; it
+    lands 0.85 m from the original's spot over 21 m.
+  - [ ] **2.3b** Where 20.4 and 1.2 come from (ProjectileSpeed 10, VerticalThrowSpeed 2.5: pitch? a factor?), throws
+    while moving, and the other explosives and items.
+
 - [ ] **2.4 Guided projectiles [assumed].** Aurek turns them at 100°/s; trace the turn rate.
 - [ ] **2.5 Blast damage fall-off [assumed].**
 - [ ] **2.6 Bot accuracy [assumed].** How AIWeapon_Accuracy_* and Modifier_Bot_* are applied.

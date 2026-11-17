@@ -29,16 +29,20 @@ typedef struct {
 } ak_secondary;
 
 typedef struct {
-    const ak_proj_def *d; f32 pos[3], vel[3], dir[3], t, dmg_scale; int team; s32 owner, target; bool alive, dropped;
+    const ak_proj_def *d; f32 pos[3], vel[3], dir[3], t, dmg_scale; int team; s32 owner, target; bool alive, dropped, stuck; f32 drag;
 } ak_proj;
 
 #define AK_MAX_PROJ 64
 typedef struct { ak_proj p[AK_MAX_PROJ]; u32 fired, hits; } ak_projs;
 
+/* a Projectile blueprint by name */
+bool ak_proj_def_load(const ak_blueprints *bp, const char *name, ak_proj_def *out);
 bool ak_secondary_load(const ak_blueprints *bp, const char *hardpoint, ak_secondary *out);
 /* launch from `pos` along `dir` (unit), adding the firer's velocity where the projectile says so; target -1 = unguided */
 void ak_proj_launch(ak_projs *ps, const ak_proj_def *d, const f32 *pos, const f32 *dir, const f32 *firer_vel,
                     int team, s32 owner, s32 target, f32 dmg_scale);
+/* a thrown one (grenades): its own velocity, `age` seconds of its timer already gone */
+void ak_proj_throw(ak_projs *ps, const ak_proj_def *d, const f32 *pos, const f32 *vel, int team, s32 owner, f32 age);
 /* move, steer, collide and explode them; an explosion hurts every target within the radius (not the firer's team); `boom` gets each
  * explosion's position (effects) */
 void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *targets, u32 ntargets, f32 gravity, f32 dt,

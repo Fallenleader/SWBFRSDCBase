@@ -484,6 +484,11 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->sprint_cost = ak_bp_float(ctl, "sprint cost", 20.0f); p->roll_cost = ak_bp_float(ctl, "roll stamina cost", 0.0f);
     p->lock = -1; p->lock_range = ak_bp_float(ctl, "targeting range", 50.0f); p->lock_turn = ak_bp_float(ctl, "aim yaw speed", 3.5f);
     p->lock_head_time = ak_bp_float(ctl, "lock on to head time", 5.0f);
+    {   /* the explosive slot (default: the thermal detonator, Weapon REP_Grenade: AmmoPerClip 4, MaxClips 0, RateOfFire 2) */
+        const ak_bp_object *gw = ak_bp_find(bp, "Weapon", ak_setting_str("AK_EXPLOSIVE", "REP_Grenade"));
+        p->gren_ok = gw && ak_proj_def_load(bp, ak_bp_string(gw, "Projectile", "Grenade"), &p->gren_def);
+        p->gren_left = gw ? ak_bp_int(gw, "AmmoPerClip", 4) : 0; p->gren_t = -1; p->gren_cool = 0;
+        p->gren_rate = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f; }
     const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
     p->armed = ak_weapon_def_load(bp, m, wname, p->look.faction, &p->wdef);
     if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
@@ -1907,6 +1912,23 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         }
     }
     p->roll_req = false;
+    /* the explosive (measured, thermal detonator, standing): square starts the throw; the grenade appears in the hand 29 frames
+       later and leaves it 8 frames after that (0.62 s from the press), 1.0 m ahead of the feet along the facing and 2.1 m up, at
+       20.4 m/s along the facing and 1.2 up, then falls at 10 m/s^2 with a little drag, stops where it lands and
+       explodes 3 s (its Timer) after it appeared.  [PARITY(2.3b): the 20.4 m/s (ProjectileSpeed is 10) and the timings are measured] */
+    p->gren_cool -= dt;
+    if (p->gren_t < 0 && p->gren_ok && p->gren_left > 0 && p->gren_cool <= 0 && (in->pressed & AK_BTN_CIRCLE) && p->alive && p->in_veh < 0 &&
+        p->in_turret < 0 && p->roll_i < 0 && !hero_of(p, 0)) { p->gren_t = 0; p->gren_left--; p->gren_cool = p->gren_rate; }
+    if (p->gren_t >= 0) {
+        p->gren_t += dt;
+        if (p->gren_t >= 37.0f / 60.0f) {
+            f32 fx = -sinf(p->ch.yaw), fz = -cosf(p->ch.yaw);
+            f32 at[3] = { p->ch.pos[0] + fx * 1.0f * S, p->ch.pos[1] + 2.1f * S, p->ch.pos[2] + fz * 1.0f * S };
+            f32 v[3] = { fx * 20.4f, 1.19f, fz * 20.4f };   /* [PARITY(2.3b): measured; VerticalThrowSpeed is 2.5, ProjectileSpeed 10] */
+            ak_proj_throw(&p->projs, &p->gren_def, at, v, p->team, 0, 8.0f / 60.0f);
+            p->gren_t = -1;
+        }
+    }
     /* zoom, traced (0x08997000): triangle enters the zoom view at the first level's magnification, each press steps to the next level,
        and a press on the last level leaves it; NumberOfZoomLevels and WZoomMagnification1..4 are the weapon's (blasters: 1 level at
        1.0 - the zoom view itself; the sniper rifle: 2 and 4) */
