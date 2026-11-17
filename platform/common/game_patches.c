@@ -229,6 +229,12 @@ void rs_drive_report(FILE *f){
             for (u32 k = 0; k < 0x600; k += 4) { u32 w = GU32(o + k); if (!gok(w) || !gok(w + 0x400)) continue;
                 for (u32 j = 0; j < 0x400; j += 4) { u32 x = GU32(w + j); float fx; memcpy(&fx, &x, 4);
                     if (x == want || fx == (float)want) fprintf(f, "ptr +%x -> +%x = %s %u\n", k, j, x == want ? "int" : "float", want); } } }
+        {   static u32 bid = 1; if (bid == 1) { const char *e = getenv("RS_DRIVE_BODYID"); bid = e ? (u32)strtoul(e, 0, 16) : 0; }
+            if (bid && GU32(info + 4) == bid) {                                /* an object's physics body (object +40 -> +12) */
+                u32 w = GU32(o + 40), b = gok(w) ? GU32(w + 12) : 0;
+                if (gok(b)) { fprintf(f, "obody %x flags %08x pos %.3f %.3f %.3f", bid, GU32(b + 0xF8), GF32(b + 0xC0), GF32(b + 0xC4), GF32(b + 0xC8));
+                    u32 cp = GU32(b + 0x118); if (gok(cp)) { fprintf(f, " corners"); for (u32 k = 0; k < 8 * 16; k += 16) fprintf(f, " %.3f %.3f %.3f", GF32(cp + k), GF32(cp + k + 4), GF32(cp + k + 8)); }
+                    fprintf(f, "\n"); } } }
         if (cls == 0x8005 && getenv("RS_DRIVE_OBJ")) {   /* soldier objects, raw (finding fields) */
             fprintf(f, "pobj %x %x", GU32(info + 4), o); for (u32 k = 0; k < 0x600; k += 4) fprintf(f, " %08x", GU32(o + k)); fprintf(f, "\n"); }
         if (me && cls == 0x8005 && GU32(o + 92) == me && getenv("RS_DRIVE_BODY")) {   /* the player's physics body (soldier +40 -> +12), raw */

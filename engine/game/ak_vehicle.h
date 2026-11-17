@@ -31,6 +31,8 @@ typedef struct {
     f32 energy_max, energy_boost, energy_stunt, energy_recharge; bool boardable;
     f32 health, cam_z, cam_y, target_range;
     f32 hover, radius, height;             /* hover height above the ground; collision circle; body height */
+    f32 box_min[3], box_max[3];         /* the physics box (model space, engine axes: the skeleton's collision box) */
+    bool box_body;                      /* moved as the game's swept box (creatures, tracked tanks) */
     ak_weapon_def gun; bool armed;          /* HardpointW1: the bolt */
     ak_weapon_def gun_bot; f32 volley_bot;  /* the same in a bot's hands: the hardpoint's Weapon blueprint's Modifier_Bot_Damage (damage x) and
                                              * Modifier_Bot_RateOfFire (time between volleys x) - Weapon "Base": 0.3 and 3 */
@@ -51,6 +53,7 @@ typedef struct {
     const ak_vehicle_def *def;
     f32 pos[3], yaw, vel[3], pitch, roll;
     f32 yaw_rate;                       /* ground vehicles: the turn's rate (radians/s, positive = left) */
+    bool on_ground, settled; f32 ground_n[3];   /* box-body vehicles: footing; set down on the ground once */
     f32 health; bool alive; int team;
     s32 driver;                            /* -1 empty, 0 the player, 1 + i bot i */
     bool open;                             /* left empty after use: neutral (the game's team 4), anyone may board it */

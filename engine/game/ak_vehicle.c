@@ -90,6 +90,11 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     f32 wx = md->bmax[0] - md->bmin[0], wz = md->bmax[2] - md->bmin[2];
     d->radius = 0.5f * (wx < wz ? wx : wz); if (d->radius < 0.5f) d->radius = 0.5f;
     d->height = md->bmax[1] - md->bmin[1]; if (d->height < 1) d->height = 1;
+    /* the physics box (PARITY_TASKS 3.2: read from the running original, a Taun-Taun's body is its model's box, 2.0 x 2.6 x 1.0 m, standing
+       on the ground and turning with it): the skeleton's collision box, else the mesh bounds */
+    if (md->skeleton >= 0) { memcpy(d->box_min, m->skels[md->skeleton].col_min, 12); memcpy(d->box_max, m->skels[md->skeleton].col_max, 12); }
+    else { memcpy(d->box_min, md->bmin, 12); memcpy(d->box_max, md->bmax, 12); }
+    d->box_body = (d->kind == AK_VEH_CREATURE || d->kind == AK_VEH_TRACK) && ak_setting_int("AK_VEH_BOX", 1);
     d->hover = d->kind == AK_VEH_HOVER ? 1.0f : d->kind == AK_VEH_SPEEDER ? 0.8f : 0.0f;
     if (flyer) d->hover = 0;                                             /* (flyers rest on their landing gear: the model origin) */
     if (walker) {                                                        /* walkers: the speed from the legs, sharp turns */
@@ -212,6 +217,62 @@ static bool ground_at(const ak_collision *col, const f32 *pos, f32 hover, u16 ma
     *gy = h.pos[1]; *ny = h.normal[1]; return true;
 }
 
+/* A ground vehicle moved as the game moves its physics body (the same swept box and slide as the soldier's, ak_character.c, with the
+ * vehicle's box turned by its yaw and the Tank mask): gravity always, the move laid along the ground it stands on (keeping the
+ * horizontal speed), up to 10 slide passes stopping 0.005 m short.  The body leans with its footing. */
+static void box_place(const ak_vehicle *v, f32 ctr[3], f32 ax[3][3], f32 h[3])
+{
+    const ak_vehicle_def *d = v->def;
+    f32 yw = v->yaw + (d->kind == AK_VEH_CREATURE ? 0.0f : 3.14159265f), cy = cosf(yw), sy = sinf(yw);   /* (as ak_vehicle_matrix) */
+    f32 c[3]; for (int k = 0; k < 3; k++) { c[k] = (d->box_min[k] + d->box_max[k]) * 0.5f; h[k] = (d->box_max[k] - d->box_min[k]) * 0.5f; }
+    ax[0][0] = cy; ax[0][1] = 0; ax[0][2] = -sy; ax[1][0] = 0; ax[1][1] = 1; ax[1][2] = 0; ax[2][0] = sy; ax[2][1] = 0; ax[2][2] = cy;
+    for (int k = 0; k < 3; k++) ctr[k] = v->pos[k] + ax[0][k] * c[0] + ax[1][k] * c[1] + ax[2][k] * c[2];
+}
+
+static void box_body_step(ak_vehicle *v, const ak_collision *col, f32 gravity, f32 dt, f32 fx, f32 fz, f32 rx, f32 rz, f32 fwd)
+{
+    const ak_vehicle_def *d = v->def;
+    if (!v->settled) {                                                       /* a new body: set down from 1 m up onto its lowest corner */
+        v->settled = true; f32 ctr[3], ax[3][3], h[3], t, n[3], drop[3] = { 0, -3.0f, 0 }; u16 fl;
+        v->pos[1] += 1.0f; box_place(v, ctr, ax, h);
+        if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, drop, VEH_IGNORE, &t, n, &fl, NULL) && t >= 0) v->pos[1] += -3.0f * t + 0.005f;
+        else v->pos[1] -= 1.0f;
+    }
+    if (v->on_ground && v->vel[1] <= 0) {
+        const f32 *n = v->ground_n; f32 dd = v->vel[0] * n[0] + v->vel[2] * n[2];
+        v->vel[1] = n[1] > 0.1f ? -dd / n[1] : 0;
+    }
+    v->vel[1] -= gravity * dt;
+    f32 move[3] = { v->vel[0] * dt, v->vel[1] * dt, v->vel[2] * dt };
+    bool ground = false; f32 gn[3] = { 0, 1, 0 };
+    for (int pass = 0; pass < 10; pass++) {
+        f32 L = sqrtf(move[0] * move[0] + move[1] * move[1] + move[2] * move[2]);
+        if (L < 1e-4f) break;
+        f32 ctr[3], ax[3][3], h[3], t, n[3]; u16 fl;
+        box_place(v, ctr, ax, h);
+        if (!ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, move, VEH_IGNORE, &t, n, &fl, NULL)) { for (int k = 0; k < 3; k++) v->pos[k] += move[k]; break; }
+        f32 adv = t * L - 0.005f; if (adv < 0) adv = 0;
+        if (t <= 0) for (int k = 0; k < 3; k++) v->pos[k] += n[k] * 0.005f;
+        for (int k = 0; k < 3; k++) { v->pos[k] += move[k] / L * adv; move[k] *= 1.0f - adv / L; }
+        if (n[1] >= 0.70710678f) { ground = true; memcpy(gn, n, 12); }
+        f32 dm = move[0] * n[0] + move[1] * n[1] + move[2] * n[2], dv = v->vel[0] * n[0] + v->vel[1] * n[1] + v->vel[2] * n[2];
+        if (dm < 0) for (int k = 0; k < 3; k++) move[k] -= n[k] * dm;
+        if (dv < 0) for (int k = 0; k < 3; k++) v->vel[k] -= n[k] * dv;
+    }
+    if (!ground && v->vel[1] <= 0.01f) {                                     /* resting just above it: a short probe keeps the footing */
+        f32 ctr[3], ax[3][3], h[3], t, n[3], probe[3] = { 0, -0.04f, 0 }; u16 fl;
+        box_place(v, ctr, ax, h);
+        if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, probe, VEH_IGNORE, &t, n, &fl, NULL) && n[1] >= 0.70710678f) { ground = true; memcpy(gn, n, 12); }
+    }
+    v->on_ground = ground;
+    if (ground) { memcpy(v->ground_n, gn, 12); if (v->vel[1] < 0) v->vel[1] = 0; }
+    f32 nf = gn[0] * fx + gn[2] * fz, nr = gn[0] * rx + gn[2] * rz;            /* lean with the footing */
+    f32 pitch = ground ? atan2f(-nf, gn[1]) : v->pitch, roll = ground ? -atan2f(nr, gn[1]) : v->roll;
+    roll -= v->steer * d->roll_deg * DEG * (fwd > 0 ? 1.0f : -1.0f) * (fabsf(fwd) / (d->top_speed > 1 ? d->top_speed : 1));
+    v->pitch += (pitch - v->pitch) * (1.0f - expf(-6.0f * dt));
+    v->roll += (roll - v->roll) * (1.0f - expf(-6.0f * dt));
+}
+
 void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool boost, f32 dt)
 {
     const ak_vehicle_def *d = v->def;
@@ -259,6 +320,7 @@ void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool
     if (side > d->top_speed * 0.5f) side = d->top_speed * 0.5f;
     if (side < -d->top_speed * 0.5f) side = -d->top_speed * 0.5f;
     v->vel[0] = fx * fwd + rx * side; v->vel[2] = fz * fwd + rz * side;
+    if (d->box_body) { box_body_step(v, col, gravity, dt, fx, fz, rx, rz, fwd); return; }
     /* move, then out of the walls (a circle at the body's middle height) */
     f32 step = sqrtf(v->vel[0] * v->vel[0] + v->vel[2] * v->vel[2]) * dt;
     int n = (int)(step / (d->radius * 0.5f)) + 1; if (n > 8) n = 8;
@@ -311,7 +373,8 @@ void ak_vehicle_matrix(const ak_vehicle *v, f32 out[12])
     /* yaw, then pitch about the vehicle's right axis, then roll about its forward axis (rows) */
     f32 cp = cosf(v->pitch), sp = sinf(v->pitch), cr = cosf(v->roll), sr = sinf(v->roll);
     /* tanks' models face +z: a half turn so the nose leads (walkers and flyers face -z, like the soldiers) */
-    bool half = v->def->kind != AK_VEH_WALKER && v->def->kind != AK_VEH_FLYER; f32 k = half ? 1.0f : -1.0f, yw = v->yaw + (half ? 3.14159265f : 0.0f);
+    bool half = v->def->kind != AK_VEH_WALKER && v->def->kind != AK_VEH_FLYER && v->def->kind != AK_VEH_CREATURE;   /* (creatures face -z: seen from behind in the original) */
+    f32 k = half ? 1.0f : -1.0f, yw = v->yaw + (half ? 3.14159265f : 0.0f);
     f32 cy = cosf(yw), sy = sinf(yw);
     f32 R[3][3] = { { cr, k * sr, 0 }, { -k * sr, cr, 0 }, { 0, 0, 1 } };        /* roll about z (mirrored by the half turn) */
     f32 P[3][3] = { { 1, 0, 0 }, { 0, cp, k * sp }, { 0, -k * sp, cp } };         /* pitch about x (likewise) */

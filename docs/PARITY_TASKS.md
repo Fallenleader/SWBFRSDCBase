@@ -225,6 +225,14 @@ textures and how they are used. Section R lists only what must be in place so th
   - AI vehicles are kinematic.
   - Replace Aurek's ground rays and circles. Trace AI vehicles' ground-following.
   - The hover craft's ride over water is still Aurek's own rule.
+  - Done 2026-11-16 for creatures and tracked tanks: the harness reads any object's physics body (RS_DRIVE_BODYID=<id>): a
+    Taun-Taun's body is its model's own box (0.97 x 2.61 x 2.04 m, HSKN), standing on the ground (no hover) and turned with the
+    creature. Aurek: those kinds move as that box with the soldier's sweep and slide (ak_vehicle.c box_body_step, Tank mask),
+    set down on their lowest corner when made; AK_VEH_BOX=0 keeps the old rays. Also fixed: creatures' models face -z (they
+    were drawn facing the camera).
+  - [ ] **3.2b** Hover tanks and speeder bikes (hover height, ride over water) and walkers still use Aurek's rays; measure one
+    on a level that has them.
+
 - [ ] **3.3 Flyers [partial].** To trace:
   - the flight model's remaining constants;
   - landing and crash rules (currently Aurek's);
