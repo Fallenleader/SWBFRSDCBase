@@ -135,6 +135,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - Leads: the soldier's swappable head is its own model (a "head" part); the body has HSBB per-bone boxes (Stormtrooper: 13
     of 21 bones flagged). Still to trace: what the bolt tests (those boxes, the head model, or the physics box) and slots
     152 / 156.
+  - Measured (harness: player locked on (R) and firing (cross) from inside the Rebel spawn, 40 s): the blaster rifle takes 15
+    off an AI soldier per body hit, and some hits take 60 at once (a headshot: 15 x 4 - an instant kill against the AI's 60);
+    two hits took 18 (not explained yet). The soldier object has one physics body (the 0.6 x 1.8 m box, soldier +0x28), so
+    the head is not a second body; headshots need the hit part from somewhere else (bone boxes or the head model).
 
 - [ ] **1.13 Soldier against soldier and vehicle [partial].**
   - Done: dynamic versus kinematic boxes.

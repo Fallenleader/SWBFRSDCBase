@@ -216,6 +216,12 @@ void rs_drive_report(FILE *f){
         fprintf(f, "obj %x %x %.4f %.4f %.4f %.2f %d", GU32(info + 4), cls, p[0], p[1], p[2], (cls == 0x8005 ? GF32(o + 0x25C) : GF32(plc + 0x28)), me && cls == 0x8005 && GU32(o + 92) == me);
         if (m) fprintf(f, " m %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
         fprintf(f, "\n");
+        if (me && cls == 0x8005 && GU32(o + 92) == me && getenv("RS_DRIVE_BODYSCAN")) {   /* finding the soldier's other bodies */
+            for (u32 k = 0; k < 0x600; k += 4) { u32 w = GU32(o + k); if (!gok(w)) continue; u32 b = GU32(w + 12); if (!gok(b)) continue;
+                u32 cp = GU32(b + 0x118); if (!gok(cp)) continue;
+                float x0 = GF32(cp), y0 = GF32(cp + 4), z0 = GF32(cp + 8), x1 = GF32(cp + 112), y1 = GF32(cp + 116), z1 = GF32(cp + 120);
+                if (x0 != x0 || fabsf(x1 - x0) > 50 || fabsf(x1 - x0) < 1e-4f) continue;
+                fprintf(f, "body at +%x: corner0 %.3f %.3f %.3f corner7 %.3f %.3f %.3f\n", k, x0, y0, z0, x1, y1, z1); } }
         if (cls == 0x8005 && getenv("RS_DRIVE_OBJ")) {   /* soldier objects, raw (finding fields) */
             fprintf(f, "pobj %x %x", GU32(info + 4), o); for (u32 k = 0; k < 0x600; k += 4) fprintf(f, " %08x", GU32(o + k)); fprintf(f, "\n"); }
         if (me && cls == 0x8005 && GU32(o + 92) == me && getenv("RS_DRIVE_BODY")) {   /* the player's physics body (soldier +40 -> +12), raw */
