@@ -140,10 +140,11 @@ textures and how they are used. Section R lists only what must be in place so th
     two hits took 18 (not explained yet). The soldier object has one physics body (the 0.6 x 1.8 m box, soldier +0x28), so
     the head is not a second body; headshots need the hit part from somewhere else (bone boxes or the head model).
 
-- [ ] **1.13 Soldier against soldier and vehicle [partial].**
-  - Done: dynamic versus kinematic boxes.
-  - Still to do: the player body's response to *moving* kinematic bodies (platforms, vehicles carrying it: flag bit 12 in the body
-    step).
+- [x] **1.13 Soldier against soldier and vehicle [done 2026-11-16].**
+  - Done earlier: dynamic versus kinematic boxes.
+  - Moving bodies: the body step adds a supporting body's motion only for bodies with flag 0x1000 (+0xF8 bit 12, 088C53CC).
+    Read from the running original, the player's body flags are 0x035C2148 - no 0x1000 - and no code path sets it, so a
+    soldier standing on something that moves is not carried by it. Aurek does the same; nothing to build.
 - [ ] **1.14 The classic scheme's facing [measured, not built].** In the original (no right stick) the camera does not turn with
   the left stick: the soldier turns to face the stick's direction relative to the camera, closing the angle by 8/s (each frame
   the rest shrinks by 1 - 8 dt: 0.8666 at 60 Hz), and runs its forward clip; with the stick pulled back (back half) it faces the
