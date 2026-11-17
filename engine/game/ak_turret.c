@@ -59,6 +59,7 @@ bool ak_turret_def_load(const ak_blueprints *bp, const ak_model_set *m, const ch
     const ak_bp_object *w = hw ? hw : ak_bp_find(bp, "Weapon", "Base");
     f32 md = w ? ak_bp_float(w, "Modifier_Bot_Damage", 1) : 1, mr = w ? ak_bp_float(w, "Modifier_Bot_RateOfFire", 1) : 1;
     d->gun_bot = d->gun; d->gun_bot.dmg_infantry *= md; d->gun_bot.dmg_vehicle *= md; d->volley_bot = d->volley * mr;
+        d->gun_bot.ai_acc[0] = w ? ak_bp_float(w, "AIWeapon_Accuracy_Normal", 5) : 5; d->gun_bot.ai_acc[1] = w ? ak_bp_float(w, "AIWeapon_Accuracy_Elite", 4) : 4;
     return d->base >= 0;
 }
 

@@ -568,6 +568,21 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
 }
 
 /* ------------------------------------------------------------------ bots */
+/* a bot's aim (traced: 08934E38 -> 088F79C0): the line from `from` to `tgt` turned to a direction drawn uniformly over the spherical cap
+ * of half-angle `acc` (radians), the distance kept */
+static void aim_cap(u32 *seed, const f32 *from, f32 *tgt, f32 acc)
+{
+    f32 dx = tgt[0] - from[0], dy = tgt[1] - from[1], dz = tgt[2] - from[2], d = sqrtf(dx * dx + dy * dy + dz * dz);
+    if (d < 1e-3f || acc <= 0) return;
+    f32 u[3] = { dx / d, dy / d, dz / d }, a[3], v1[3], v2[3];
+    if (fabsf(u[1]) < 0.9f) { a[0] = 0; a[1] = 1; a[2] = 0; } else { a[0] = 1; a[1] = 0; a[2] = 0; }
+    v1[0] = u[1] * a[2] - u[2] * a[1]; v1[1] = u[2] * a[0] - u[0] * a[2]; v1[2] = u[0] * a[1] - u[1] * a[0];
+    f32 l = sqrtf(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2]); for (int k = 0; k < 3; k++) v1[k] /= l;
+    v2[0] = u[1] * v1[2] - u[2] * v1[1]; v2[1] = u[2] * v1[0] - u[0] * v1[2]; v2[2] = u[0] * v1[1] - u[1] * v1[0];
+    f32 ct = 1.0f - rnd(seed) * (1.0f - cosf(acc)), st = sqrtf(fmaxf(0, 1 - ct * ct)), ph = rnd(seed) * 6.2831853f;
+    for (int k = 0; k < 3; k++) tgt[k] = from[k] + (u[k] * ct + (v1[k] * cosf(ph) + v2[k] * sinf(ph)) * st) * d;
+}
+
 static void bot_route(ak_play *p, ak_play_bot *b, const f32 *to)
 {
     s32 s = ak_nav_nearest(&p->nav, b->ch.pos, 40.0f), g = ak_nav_nearest(&p->nav, to, 40.0f); f32 cost;
@@ -944,19 +959,10 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
             weapon_world(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, gun);
             muzzle_of(m, b->weapon.def, gun, muz);
             f32 tgt[3] = { en->feet[0], en->feet[1] + 1.1f * S, en->feet[2] };
-            f32 dx = tgt[0] - muz[0], dy = tgt[1] - muz[1], dz = tgt[2] - muz[2], d = sqrtf(dx * dx + dy * dy + dz * dz);
             /* the aim (traced: 08934E38 -> 088F79C0): the shot leaves along a direction drawn uniformly over the spherical cap of
                half-angle = the weapon's AI accuracy (degrees; elite at difficulty 2) around the line to the target */
             f32 acc = p->bot_aim_set ? p->bot_aim : b->weapon.def->ai_acc[p->difficulty >= 2 ? 1 : 0] * 0.017453293f;
-            if (d > 1e-3f && acc > 0) {
-                f32 u[3] = { dx / d, dy / d, dz / d }, a[3], v1[3], v2[3];
-                if (fabsf(u[1]) < 0.9f) { a[0] = 0; a[1] = 1; a[2] = 0; } else { a[0] = 1; a[1] = 0; a[2] = 0; }
-                v1[0] = u[1] * a[2] - u[2] * a[1]; v1[1] = u[2] * a[0] - u[0] * a[2]; v1[2] = u[0] * a[1] - u[1] * a[0];
-                f32 l = sqrtf(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2]); for (int k = 0; k < 3; k++) v1[k] /= l;
-                v2[0] = u[1] * v1[2] - u[2] * v1[1]; v2[1] = u[2] * v1[0] - u[0] * v1[2]; v2[2] = u[0] * v1[1] - u[1] * v1[0];
-                f32 ct = 1.0f - rnd(&b->seed) * (1.0f - cosf(acc)), st = sqrtf(fmaxf(0, 1 - ct * ct)), ph = rnd(&b->seed) * 6.2831853f;
-                for (int k = 0; k < 3; k++) tgt[k] = muz[k] + (u[k] * ct + (v1[k] * cosf(ph) + v2[k] * sinf(ph)) * st) * d;
-            }
+            aim_cap(&b->seed, muz, tgt, acc);
             ak_weapon_fire(&b->weapon, &p->bolts, &p->col, p->target, NT(p), muz, tgt, &b->seed);
             b->shoot_t = 0;
         }
@@ -1290,7 +1296,6 @@ static void bot_vehicle_gun(ak_play *p, const ak_model_set *m, ak_play_bot *b, u
         f32 cp = cosf(vh->pitch), fw[3] = { -sinf(vh->yaw) * cp, sinf(vh->pitch), -cosf(vh->yaw) * cp };
         if ((fw[0] * dx + fw[1] * dy2 + fw[2] * dz) < cosf(0.3f) * dist) { vh->volley_t = 0; return; }   /* (the guns converge on it within ~17 degrees) */
     } else if (fabsf(want_yaw - vh->aim_yaw) > 0.25f) { vh->volley_t = 0; return; }
-    f32 err = p->bot_aim * dist;
     /* the secondary: the game's AI fires it at most every 15 s, with the target within 5 degrees (func 08948A9C: 0x08B1B754, 0x08AEDAE8) */
     if (d->sec.armed && vh->bot_sec_t <= 0 && dist < (d->lose_lock_range > 0 ? d->lose_lock_range : 300.0f)) {
         f32 cp = cosf(vh->pitch), fx = nose_only ? -sinf(vh->yaw) * cp : -sinf(vh->yaw + vh->aim_yaw), fy = nose_only ? sinf(vh->pitch) : 0, fz = nose_only ? -cosf(vh->yaw) * cp : -cosf(vh->yaw + vh->aim_yaw);
@@ -1300,7 +1305,7 @@ static void bot_vehicle_gun(ak_play *p, const ak_model_set *m, ak_play_bot *b, u
             if (vehicle_fire2(p, m, v, c, b->enemy)) vh->bot_sec_t = 15.0f;
         }
     }
-    tgt[0] += (rnd(&b->seed) * 2 - 1) * err; tgt[1] += (rnd(&b->seed) * 2 - 1) * err * 0.6f; tgt[2] += (rnd(&b->seed) * 2 - 1) * err;
+    aim_cap(&b->seed, eye, tgt, p->bot_aim_set ? p->bot_aim : d->gun_bot.ai_acc[p->difficulty >= 2 ? 1 : 0] * 0.017453293f);   /* (as the soldiers) */
     vehicle_fire(p, m, v, tgt, dt);
 }
 
@@ -1751,8 +1756,8 @@ static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
         t->aim_t -= dt;
         if (fabsf(dy) > 0.06f || fabsf(dp) > 0.06f || t->aim_t > 0) { t->volley_t = 0; continue; }
         /* fire: the volley over its muzzles, with the bot aim error */
-        f32 dist; { f32 dx = c[0] - eye[0], dy2 = c[1] - eye[1], dz = c[2] - eye[2]; dist = sqrtf(dx * dx + dy2 * dy2 + dz * dz); }
-        f32 err = p->bot_aim * dist, tgt[3] = { c[0] + (rnd(&p->seed) * 2 - 1) * err, c[1] + (rnd(&p->seed) * 2 - 1) * err * 0.6f, c[2] + (rnd(&p->seed) * 2 - 1) * err };
+        f32 tgt[3] = { c[0], c[1], c[2] };
+        aim_cap(&p->seed, eye, tgt, p->bot_aim_set ? p->bot_aim : d->gun_bot.ai_acc[p->difficulty >= 2 ? 1 : 0] * 0.017453293f);   /* (as the soldiers) */
         f32 prev = t->volley_t; t->volley_t += dt;
         ak_weapon w; ak_weapon_give(&w, &d->gun_bot); w.team = t->team; w.owner = -1;
         for (u32 k = 0; k < d->nmuzzles; k++) {

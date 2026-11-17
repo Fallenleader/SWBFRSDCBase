@@ -167,6 +167,12 @@ textures and how they are used. Section R lists only what must be in place so th
     Blaster Rifle 25, Thermal Detonator 10, Health 1 10, Speed 1 10 = 55 of 200. Weapon 2 offers e.g. a rocket launcher (25)
     or Blaster Pistol (0); Special Item 20 / 10 options; Power Up two at 10; Capture Rate 35 / 15.
   - To do: the full lists per faction (the Weapon blueprints with Cost and Faction), the AI's loadouts, and the menu itself.
+  - AI loadouts, measured on Hoth (RS_DRIVE_WEAP=1, 4000 frames; each spawn's weapons, by weapon serial):
+    - Rebels: rifle + pistol + grenade ~52 spawns, rocket launcher + pistol + grenade ~9, chaingun + pistol ~6,
+      shotgun + pistol ~4, flamethrower + pistol + item 130 ~1.
+    - Empire: rifle + pistol + grenade ~22, rifle + EMP launcher + grenade ~5.
+    - Which class carries which, and how the game picks a bot's class, are not traced: the Humanoid blueprints name no
+      weapons.  Not ported.
   - Aurek: every soldier carries the blaster rifle; the thermal detonator (secondary attack) is task 2.3.
 - [x] **2.2 Ammo droids [measured 2026-11-16: Aurek matches].** Firing non-stop 6.8 m from Hoth's first ammo droid (the harness
   reads the weapon: clip +0xA0, spare clips +0xA4, explosives +0xA8): each emptied clip's spare came back on the next whole-second
@@ -214,8 +220,8 @@ textures and how they are used. Section R lists only what must be in place so th
       rejection-sampled point in the unit disc; cos θ is uniform between cos(accuracy) and 1.
     - Ported (soldier bots): the reaction countdown, the cap-shaped aim error from each weapon's own accuracy (normal or elite
       by AK_DIFFICULTY: 0 easy, 1 normal, 2 elite; default 1; AK_BOT_AIM still overrides), and the hit rate in a 60 s Hoth match
-      went from 59 to 41 soldier hits of ~370 shots.  Aurek's bursts stay until the fire step (0893F65C) is read.  Vehicle bots
-      still aim with the old box error.
+      went from 59 to 41 soldier hits of ~370 shots.  Bots driving vehicles and AI turrets now aim the same way, with their
+      hardpoint Weapon's accuracy (else Weapon "Base": 5 / 4).  Aurek's bursts stay: the firing rhythm is elsewhere.
     - 0893F65C picks which weapon to fire, by the target's class and distance d.  The choice goes to a byte at the
       controller's +204 table.
       - The node's flags +110..+122 come from 0893FAE0.  Each is func_08985260(soldier, code), which asks whether the soldier
