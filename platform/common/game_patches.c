@@ -215,7 +215,6 @@ void rs_drive_report(FILE *f){
         if (gok(fm)) { u32 mp = ((ifn_t)GFN(fm))(plc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).v0; if (gok(mp)) m = (const float *)GP(mp); }
         fprintf(f, "obj %x %x %.4f %.4f %.4f %.2f %d", GU32(info + 4), cls, p[0], p[1], p[2], (cls == 0x8005 ? GF32(o + 0x25C) : GF32(plc + 0x28)), me && cls == 0x8005 && GU32(o + 92) == me);
         if (m) fprintf(f, " m %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
-        if (cls == 0x8005) fprintf(f, " team %d", (int)GU32(o + 12));
         fprintf(f, "\n");
         if (cls == 0x8005 && getenv("RS_DRIVE_OBJ")) {   /* soldier objects, raw (finding fields) */
             fprintf(f, "pobj %x %x", GU32(info + 4), o); for (u32 k = 0; k < 0x600; k += 4) fprintf(f, " %08x", GU32(o + k)); fprintf(f, "\n"); }
