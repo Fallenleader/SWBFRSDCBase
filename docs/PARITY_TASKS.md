@@ -212,6 +212,14 @@ textures and how they are used. Section R lists only what must be in place so th
   - how the barrel aims;
   - volley period;
   - the speeder rider's pose.
+  - Done 2026-11-16 (Tank blueprints: hover, tracked, speeder bikes, creatures): read the tank step 089B2A04 (fields from
+    089BCDFC: CruisingSpeed +280, VelDamp +284, MaxAcc +292, MaxStrafeAcc +296, BoostAcc +300, StallSpeed +304, TopSpeed +308,
+    TimeTillStopSkid +276) and measured a Taun-Taun with the harness (teleport beside it, d-pad up, full stick): the forward
+    speed settles at MaxAcc x throttle / VelDamp (80 / 4 = 20 m/s, time constant 1 / VelDamp - Aurek now matches frame for
+    frame), the skid damping works across and backward only, the speed is held to StallSpeed..TopSpeed; turning spins up at
+    YawInputDamp - YawDamp (100 degrees/s^2) to MaxTurnYaw and settles at YawDamp - Aurek matches.
+  - [ ] **3.1b** The throttle cap over CruisingSpeed (vehicle +288), hover height, slopes, barrel aim, volleys, rider pose.
+
 - [ ] **3.2 Vehicle bodies against the level [assumed].**
   - The vehicle the player drives is a dynamic body (box move-and-slide, mask 0x2804 / 0x0804 / 0x4804).
   - AI vehicles are kinematic.

@@ -54,7 +54,16 @@ def prog_custom_menu(i, fr):                                                    
     if 270 <= i < 274: return (SQUARE, 128, 128)
     if i >= 300 and (i - 300) % 30 < 4 and i < 300 + 30 * 7: return (DOWN, 128, 128)   # then down through the categories
     return (0, 128, 128)
-PROGRAMS = {'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
+def prog_drive(i, fr):                                                           # (with --tp next to a vehicle) get in, then full forward
+    if 40 <= i < 44: return (UP, 128, 128)
+    return (0, 128, 0) if i >= 90 else (0, 128, 128)
+def prog_drive_turn(i, fr):                                                      # get in, forward 3 s, then forward + full right 3 s, then release
+    if 40 <= i < 44: return (UP, 128, 128)
+    if i < 90: return (0, 128, 128)
+    if i < 270: return (0, 128, 0)
+    if i < 450: return (0, 255, 0)
+    return (0, 128, 0)
+PROGRAMS = {'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
 
 def main():
     ap = argparse.ArgumentParser()

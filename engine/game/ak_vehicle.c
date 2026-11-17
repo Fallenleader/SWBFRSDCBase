@@ -81,7 +81,8 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     d->energy_stunt = ak_bp_float(o, "EnergyStunt", 0); d->energy_recharge = ak_bp_float(o, "EnergyRecharge", 10);
     d->boardable = ak_bp_bool(o, "Boardable", true);
     d->max_acc = ak_bp_float(o, "MaxAcc", 15); d->boost_acc = ak_bp_float(o, "BoostAcc", 30); d->strafe_acc = ak_bp_float(o, "MaxStrafeAcc", 0);
-    d->vel_damp = ak_bp_float(o, "VelDamp", 1.5f); d->turn_rate = ak_bp_float(o, "MaxTurnYaw", 85) * DEG;
+    d->vel_damp = ak_bp_float(o, "VelDamp", 1.5f); d->skid_damp = ak_bp_float(o, "TimeTillStopSkid", 2.0f);
+    d->yaw_in = ak_bp_float(o, "YawInputDamp", 280) * DEG; d->yaw_damp = ak_bp_float(o, "YawDamp", 230) * DEG; d->turn_rate = ak_bp_float(o, "MaxTurnYaw", 85) * DEG;
     d->roll_deg = ak_bp_float(o, "CosmeticRoll", 0);
     d->health = ak_bp_float(o, "Health", 800); d->cam_z = ak_bp_float(o, "CameraBestZ", 20); d->cam_y = ak_bp_float(o, "CameraBestY", 5);   /* (defaults: the game's, 0x08AEEE24 / 0x08AEEE2C) */
     d->target_range = ak_bp_float(o, "TargetRange", 100);
@@ -216,10 +217,35 @@ void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool
     const ak_vehicle_def *d = v->def;
     if (!v->alive) return;
     if (d->kind == AK_VEH_FLYER) { flyer_update(v, col, gravity, boost, dt); return; }
-    /* turning */
-    v->yaw += -v->steer * d->turn_rate * dt;
+    /* turning (measured on a Taun-Taun, MaxTurnYaw 86, YawInputDamp 250, YawDamp 150): full stick spins the turn up at 100 degrees/s^2
+       (YawInputDamp - YawDamp) to MaxTurnYaw degrees/s; let go, it settles at 150 degrees/s^2 (YawDamp) [PARITY(3.1c): measured,
+       a partial stick's limit assumed proportional]; walkers keep the direct turn */
+    if (d->kind == AK_VEH_WALKER) v->yaw += -v->steer * d->turn_rate * dt;
+    else {
+        f32 r = v->yaw_rate - v->steer * d->yaw_in * dt, dmp = d->yaw_damp * dt;
+        r = fabsf(r) <= dmp ? 0 : r - (r > 0 ? dmp : -dmp);
+        f32 cap = d->turn_rate * (fabsf(v->steer) > 0.01f ? fabsf(v->steer) : 1.0f);
+        if (r > cap) r = cap;
+        if (r < -cap) r = -cap;
+        v->yaw_rate = r; v->yaw += r * dt;
+    }
     f32 sy = sinf(v->yaw), cy = cosf(v->yaw), fx = -sy, fz = -cy, rx = cy, rz = -sy;
     f32 fwd = v->vel[0] * fx + v->vel[2] * fz, side = v->vel[0] * rx + v->vel[2] * rz;
+    if (d->kind != AK_VEH_WALKER) {
+        /* the game's tank step (089B2A04, read from the code; measured on a Taun-Taun: 20 m/s at full stick reached with a 0.25 s
+           time constant = MaxAcc 80 / VelDamp 4): the velocity loses "TimeTillStopSkid" x itself x dt across (and backward, never
+           forward), then the throttle pushes MaxAcc x throttle (BoostAcc when boosting) while VelDamp x velocity drags every
+           component; the forward speed is held between StallSpeed and TopSpeed (and 300) [PARITY(3.1b): when over CruisingSpeed
+           unboosted the game caps the throttle at a value (vehicle +288) not yet identified] */
+        f32 k = d->skid_damp * dt, sk = side * k, fk = fwd < 0 ? fwd * k : 0;
+        side = fabsf(sk) > fabsf(side) ? 0 : side - sk; fwd -= fabsf(fk) > fabsf(fwd) ? fwd : fk;
+        f32 acc = (boost ? d->boost_acc : d->max_acc) * v->throttle * dt;
+        fwd += acc - fwd * d->vel_damp * dt;
+        side += v->strafe * d->strafe_acc * dt - side * d->vel_damp * dt;
+        f32 top = d->top_speed < 300 ? d->top_speed : 300;
+        if (fwd > top) fwd = top;
+        if (fwd < d->stall_speed) fwd = d->stall_speed;
+    } else {
     /* along: toward the speed the throttle asks for (reverse up to the stall speed), at the blueprint's acceleration */
     f32 want = v->throttle >= 0 ? v->throttle * d->top_speed : -v->throttle * d->stall_speed;
     f32 acc = (boost ? d->boost_acc + d->max_acc : d->max_acc) * dt;
@@ -229,6 +255,7 @@ void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool
     /* across: strafing (hover craft), else the skid dies away */
     side += v->strafe * d->strafe_acc * dt;
     side *= expf(-(d->kind == AK_VEH_TRACK || d->kind == AK_VEH_WALKER ? 8.0f : d->vel_damp * 2.0f) * dt);
+    }
     if (side > d->top_speed * 0.5f) side = d->top_speed * 0.5f;
     if (side < -d->top_speed * 0.5f) side = -d->top_speed * 0.5f;
     v->vel[0] = fx * fwd + rx * side; v->vel[2] = fz * fwd + rz * side;

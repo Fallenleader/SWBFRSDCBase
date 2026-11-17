@@ -23,6 +23,8 @@ typedef struct {
     const ak_bp_object *bp; const char *name; s32 model, turret_model; const char *turret_marker;
     int kind;
     f32 top_speed, stall_speed, max_acc, boost_acc, strafe_acc, vel_damp, turn_rate, roll_deg;
+    f32 skid_damp;                      /* "TimeTillStopSkid": the extra damping across (and backward) - 089B2A04 */
+    f32 yaw_in, yaw_damp;               /* "YawInputDamp", "YawDamp" (radians/s^2): the turn's spin-up and settle */
     /* energy (vehicle loader 089C4A2C): EnergyMax (089C6478, default 100) both the store and its top; EnergyBoost a second while
      * boosting (089C644C, default 10), EnergyStunt a stunt (089C66C4), EnergyRecharge a second (089C64A4, default 10); Boardable
      * (089C6AE8, default true): the HUD's bar shows the energy, else the health (08AC4BAC) */
@@ -48,6 +50,7 @@ typedef struct {
 typedef struct {
     const ak_vehicle_def *def;
     f32 pos[3], yaw, vel[3], pitch, roll;
+    f32 yaw_rate;                       /* ground vehicles: the turn's rate (radians/s, positive = left) */
     f32 health; bool alive; int team;
     s32 driver;                            /* -1 empty, 0 the player, 1 + i bot i */
     bool open;                             /* left empty after use: neutral (the game's team 4), anyone may board it */

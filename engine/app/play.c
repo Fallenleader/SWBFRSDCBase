@@ -1983,7 +1983,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (!tinit) { tinit = 1; const char *tp = ak_setting_str("AK_TEST_TRACE", NULL); if (tp) tf = fopen(tp, "w"); }
         static int every = 0; if (!every) { every = ak_setting_int("AK_TEST_TRACE_EVERY", 10); if (every < 1) every = 1; }
         if (tf && (tfr++ % (u32)every) == 0) { f32 g[3]; ak_from_game(p->ch.pos, g);   /* (the flip is its own inverse) */
-            fprintf(tf, "%u %.4f %.4f %.4f %d\n", tfr - 1, g[0], g[1], g[2], p->ch.on_ground); fflush(tf); } }
+            fprintf(tf, "%u %.4f %.4f %.4f %d %.3f\n", tfr - 1, g[0], g[1], g[2], p->ch.on_ground, (p->in_veh >= 0 ? p->veh[p->in_veh].yaw : p->ch.yaw) * 57.29578f); fflush(tf); } }
     {   static u32 fr; static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
         if (dbg >= 3 && (fr++ % 30) == 0)
             AK_INFO("body", "player at %.2f %.2f %.2f vel %.2f %.2f %.2f %s", p->ch.pos[0], p->ch.pos[1], p->ch.pos[2], p->ch.vel[0], p->ch.vel[1], p->ch.vel[2], p->ch.on_ground ? "ground" : "air"); }

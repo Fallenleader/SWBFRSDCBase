@@ -43,7 +43,7 @@ def aurek(a, start):
                    stdout=open(os.path.join(a.out, 'aurek.log'), 'w'), stderr=subprocess.STDOUT, timeout=900)
     path = []
     for line in open(trace):
-        f, x, y, z, g = line.split(); path.append((int(f), float(x), float(y), float(z)))
+        f, x, y, z, g = line.split()[:5]; path.append((int(f), float(x), float(y), float(z)))
     f0 = path[0][0] - a.lag
     return [(f - f0, x, y, z) for f, x, y, z in path]
 
