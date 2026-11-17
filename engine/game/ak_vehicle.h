@@ -53,7 +53,7 @@ typedef struct {
     int flyer_type;                    /* Flyer_Type (AK_FLY_*: the space AI commander's roles) */
     bool carries_cp; const char *cp_marker;   /* CarriesCommandPost (AT-AT, transports): a command post of its side rides it, at CommandPostMarker */
     ak_secondary sec; const char *sec_muzzle[4]; u32 nsec_muzzles;   /* HardpointW2 (torpedoes, missiles, bombs) from HardpointW2Marker1..4 */
-    f32 lock_angle, lock_time, lose_lock_angle, lose_lock_range;   /* LockAngle / LockOnTime / LoseLockOnAngle (radians) / LoseLockOnRange */
+    f32 lock_angle, lock_time, lose_lock_angle, lose_lock_range, init_lock_angle, init_lock_range;   /* LockAngle / LockOnTime / LoseLockOnAngle (radians) / LoseLockOnRange */
 } ak_vehicle_def;
 
 typedef struct {

@@ -1131,8 +1131,10 @@ static bool vehicle_fire2(ak_play *p, const ak_model_set *m, u32 v, const f32 *a
     return true;
 }
 
-/* the lock-on of a vehicle's tracking secondary: the enemy nearest the line of `fwd` within LockAngle and reach, held for LockOnTime;
- * lost past LoseLockOnAngle or LoseLockOnRange (ground vehicles: 300 m) */
+/* the lock-on of a vehicle's tracking secondary (traced: 089CC77C / 089CC878): the candidate is the enemy nearest the line of `fwd`
+ * within LockAngle and reach; while it builds, each frame it must stay within InitialLockOnAngle / InitialLockOnRange, or the timer
+ * starts again; after LockOnTime it is locked, and stays locked while within LoseLockOnAngle / LoseLockOnRange (ground vehicles
+ * without the ranges: 300 m) */
 static void vehicle_lock(ak_play *p, ak_vehicle *vh, const f32 *eye, const f32 *fwd, f32 dt)
 {
     const ak_vehicle_def *d = vh->def;
@@ -1142,8 +1144,9 @@ static void vehicle_lock(ak_play *p, ak_vehicle *vh, const f32 *eye, const f32 *
         const ak_target *t = &p->target[vh->lock];
         f32 c[3] = { t->feet[0] - eye[0], t->feet[1] + t->height * 0.5f - eye[1], t->feet[2] - eye[2] }, dl = sqrtf(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
         f32 ang = dl > 0.01f ? acosf(fmaxf(-1, fminf(1, (c[0] * fwd[0] + c[1] * fwd[1] + c[2] * fwd[2]) / dl))) : 0;
-        if (!t->alive || dl > reach || ang > (vh->locked ? d->lose_lock_angle : d->lock_angle)) { vh->lock = -1; vh->locked = false; vh->lock_t = 0; }
-        else { vh->lock_t += dt; if (vh->lock_t >= d->lock_time) vh->locked = true; return; }
+        f32 lim_r = vh->locked ? reach : (d->init_lock_range > 0 ? d->init_lock_range : reach), lim_a = vh->locked ? d->lose_lock_angle : d->init_lock_angle;
+        if (!t->alive || dl > lim_r || ang > lim_a) { vh->lock = -1; vh->locked = false; vh->lock_t = 0; }
+        else { vh->lock_t = fminf(vh->lock_t + dt, d->lock_time); if (vh->lock_t >= d->lock_time) vh->locked = true; return; }
     }
     s32 best = -1; f32 bc = cosf(d->lock_angle);
     for (u32 i = 0; i < NT(p); i++) {

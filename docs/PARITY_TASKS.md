@@ -283,7 +283,13 @@ textures and how they are used. Section R lists only what must be in place so th
     the AT-ST from 2 m to its side); up again leaves.
   - [ ] **3.5b** The extra time's source and the flyers' spread, the respawn-when-taken-away rule, the boarding range.
 
-- [ ] **3.6 Secondary weapons and lock-on.** Verify HardpointW2 and the lock rules against the original. The docs list them as
+- [ ] **3.6 Secondary weapons and lock-on.** Lock-on traced 2026-11-17 (089CC77C per frame, 089CC878 the check; blueprint
+  fields from 089C4A2C: LockAngle +400, LockOnTime +408, LoseLockOnAngle +412, LoseLockOnRange +416, InitialLockOnAngle +420,
+  InitialLockOnRange +424; target +448 (999 none), last target +452, timer +464, locked +468).  A new target resets the timer.
+  While building, the target must pass the check within InitialLockOnRange / InitialLockOnAngle (1000 m / 30° in the base
+  blueprint) each frame, or the timer resets.  The timer grows by dt, clamped to LockOnTime; at LockOnTime the lock holds
+  while the check passes within LoseLockOnRange / LoseLockOnAngle.  Aurek now does this; it used LockAngle (15°) while
+  building.  The candidate's choice (LockAngle, read at 08993F..) is not yet traced.  Was: Verify HardpointW2 and the lock rules against the original. The docs list them as
   "not yet" (stale).
 - [ ] **3.7 Space [partial].** Capital ship turrets (ENTI type 30), the pilots' dogfight states, and hangar and shield rules.
   - Harness: Space Hoth is planet row 17 (`--planet 17`); the space team and spawn screens are recognised

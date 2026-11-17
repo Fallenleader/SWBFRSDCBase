@@ -193,6 +193,7 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     d->carries_cp = ak_bp_int(o, "CarriesCommandPost", 0) != 0; d->cp_marker = ak_bp_string(o, "CommandPostMarker", "cp");
     d->lock_angle = ak_bp_float(o, "LockAngle", 15) * 0.017453293f; d->lock_time = ak_bp_float(o, "LockOnTime", 2);
     d->lose_lock_angle = ak_bp_float(o, "LoseLockOnAngle", 45) * 0.017453293f; d->lose_lock_range = ak_bp_float(o, "LoseLockOnRange", 0);
+    d->init_lock_angle = ak_bp_float(o, "InitialLockOnAngle", 30) * 0.017453293f; d->init_lock_range = ak_bp_float(o, "InitialLockOnRange", 0);
     if (d->sec.lock_time > 0) d->lock_time = d->sec.lock_time;                /* (the weapon's LockonTime, where it has one) */
     d->volley = hw ? ak_bp_float(hw, "RateOfFire", last + 0.5f) : last + 0.5f;
     if (d->volley < last + 0.05f) d->volley = last + 0.05f;
