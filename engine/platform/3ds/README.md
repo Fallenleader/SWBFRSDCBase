@@ -44,7 +44,10 @@ in behind (PARITY_TASKS 1.14).  Twin-stick aiming is off: there is no right stic
 
 ## Not yet
 
-- Not run on hardware or an emulator before this build was handed over unless the progress log says so.
+- Not run on hardware yet.  Tested in Azahar's libretro core (Old 3DS mode, software renderer) through tools/lrhost: boots,
+  loads Hoth, plays a match with bots, the HUD and debug text draw, textures and colours match the desktop build, the one-stick
+  turning and firing work.  The emulator's software renderer shows one eye only, so the stereo pass ran but was not seen, and
+  the emulator's timing says nothing about the Old 3DS's real frame rate.
 - Tank barrels have no stick to aim them (the game's own tank aim on the PSP is not traced).
 - Screenshots (`ak_gfx_screenshot`) are not supported here.
 

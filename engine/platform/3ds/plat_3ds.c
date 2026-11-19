@@ -17,7 +17,8 @@
 #include <malloc.h>
 #include <sys/stat.h>
 
-u32 __ctru_linear_heap_size = 30u << 20;     /* (the rest of the application's memory is the normal heap) */
+u32 __ctru_linear_heap_size = 30u << 20;
+u32 __stacksize__ = 1u << 20;               /* (the main thread's stack: libctru's default is 32 KB) */     /* (the rest of the application's memory is the normal heap) */
 
 #define USER_DIR "sdmc:/3ds/Aurek"
 static const char *dirs[] = { USER_DIR, "sdmc:/3ds/SWBFRS" };

@@ -163,7 +163,10 @@ static volatile int lock_flag;
 static bool opened;
 static u32 rng = 0x1234567u;
 
-static void lock(void)   { while (__atomic_test_and_set(&lock_flag, __ATOMIC_ACQUIRE)) {} }
+static void lock(void)                          /* (yields after a while: on one core a spinning thread would starve the holder) */
+{
+    for (u32 n = 0; __atomic_test_and_set(&lock_flag, __ATOMIC_ACQUIRE); n++) if (n > 64) ak_plat_sleep_us(50);
+}
 static void unlock(void) { __atomic_clear(&lock_flag, __ATOMIC_RELEASE); }
 static f32 frand(void)   { rng = rng * 1664525u + 1013904223u; return (rng >> 8) / 16777216.0f; }
 
