@@ -411,8 +411,10 @@ u32 ak_level_tex_anims(const ak_level *l, ak_arena *a, ak_tex_anim **out)
         /* (the first word is the number of states, each {f32 period, u32 interpolation, u32 n, n x {u, v, t, flags, 0}}: kind 1 is one
            scroll; two states are a material with a switch - Yavin's / the Ion Cannon's visible_console_* (state 0 shown, 1 hidden by
            flag 0x80000) and destroyed_console_* (the reverse), Tatooine's lasergate, Sullust's lighting_strike_*, Endor's at_at_*;
-           level entities of type 43 name them (their switch is not traced).  Aurek keeps state 0 [assumed: the state a level starts
-           in]; its keys' flag 0x80000 hides the material.) */
+           level entities of type 43 drive them (class 08850E80: +28 the animation's hash, +32 its state, +36 its speed, read from the
+           record - state 0 on every level; message 26 (0885110C) sets the state (payload flag 1) and the speed (flag 2); 08851184
+           passes them on as message 125).  Aurek keeps state 0, the records' state; its keys' flag 0x80000 hides the material.
+           [not built: the script messages 26 that switch them] */
         u32 kind = ak_rd32(c.body + p), nk = ak_rd32(c.body + p + 12); f32 period = ak_rdf32(c.body + p + 4);
         if (kind < 1 || kind > 8 || nk < 1 || nk > 16 || p + 16 + nk * 20 > c.size || period <= 0) continue;
         u32 h = 0; for (u32 k = 0; k < e; k++) { u8 ch = c.body[k]; if (ch >= 'A' && ch <= 'Z') ch = (u8)(ch + 32); h = h * 31u + ch; }

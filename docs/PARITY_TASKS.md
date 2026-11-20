@@ -906,7 +906,8 @@ groundwork below is needed before the parity work starts. The tiers come later.
     keys {u, v, t, 0, 0}. Kind 1 scrolls the texture coordinates (capture zone streams 21.1 s, lake 20 s, lava 75 s, Kashyyyk
     water 60 s by (-2, 1), Endor's swamp a 7-key wobble); kind 2 swaps frames (laser gates, consoles; Yavin's console
     destroyed / visible pairs) - not built. 2026-11-20: the first word is the number of states, not a kind (see NATIVE_ENGINE
-    row: state 0 kept, flag 0x80000 hides; the switch - ENTI type 43, TTRP / NTIX chunks name the animations - not traced). Engine: asura.c reads kind 1 (ak_level_tex_anims), the scene offsets the UVs of
+    row: state 0 kept, flag 0x80000 hides; ENTI type 43 holds the state (0 in every record) and message 26 switches it - the script's
+    message 26 senders not built). Engine: asura.c reads kind 1 (ak_level_tex_anims), the scene offsets the UVs of
     those materials' draws, level and models (ak_gfx_set_uv_offset; GL; Vita / 3DS keep them still for now).
 - [ ] **R.5 LOD distances.** AK_LOD_SCALE 12 is Aurek's own; trace the real ones.
   - 2026-11-19, looked for and not found: no blueprint key, level chunk or string names a LOD distance (the lower details are

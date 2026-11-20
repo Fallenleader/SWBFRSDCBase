@@ -247,7 +247,7 @@ Vita: `cmake -S engine/platform/vita -B build/aurek_vita && cmake --build build/
 - Sullust's lighting_strike_working / _destroyed.
 - Endor's at_at_0 / at-at_1.
 
-Level entities of type 43 name them (e.g. `43 1 0 0 <hash> 0 1.0`); what switches them is not traced. Before this, Aurek drew both versions of each console on top of each other. It now keeps each such material in state 0 and hides it when that state carries flag 0x80000 (level batches and model parts). [assumed]: state 0 is the state a level starts in; for Tatooine's laser gate that means hidden until the switch is found. `AK_DEBUG_TXAN=1` lists them, marking the hidden ones. |
+Level entities of type 43 drive them. Their class (08850E80, vtable 0x08AF1BE8) keeps the animation's hash (+28), its state (+32) and its speed (+36), all read from the record; the state is 0 on every level. Message 26 (0885110C) sets the state (payload flag 1) and the speed (flag 2), and 08851184 passes them on as message 125. The script messages 26 that switch them are not built yet. Before this, Aurek drew both versions of each console on top of each other. It now keeps each such material in state 0 and hides it when that state carries flag 0x80000 (level batches and model parts). So state 0 is the starting state; Tatooine's laser gate stays hidden until its script switches it. `AK_DEBUG_TXAN=1` lists them, marking the hidden ones. |
 
 ## Known issues (cleanup pass once gameplay reaches parity)
 
