@@ -907,7 +907,11 @@ groundwork below is needed before the parity work starts. The tiers come later.
     water 60 s by (-2, 1), Endor's swamp a 7-key wobble); kind 2 swaps frames (laser gates, consoles; Yavin's console
     destroyed / visible pairs) - not built. 2026-11-20: the first word is the number of states, not a kind (see NATIVE_ENGINE
     row: state 0 kept, flag 0x80000 hides; ENTI type 43 holds the state (0 in every record) and message 26 switches it - the script's
-    message 26 senders not built). Engine: asura.c reads kind 1 (ak_level_tex_anims), the scene offsets the UVs of
+    message 26 senders not built). The senders (SMSG side 0, payload {1, state, 1.0}; tools: /tmp-style scan of SMSG for
+    messages to type-43 ids): Tatooine's lasergate - group 13 sets state 0, group 28 state 1; Yavin's consoles - groups 52-54
+    state 1 in pairs; Sullust - group 14; the Ion Cannon - groups 6-8 state 1, group 36 state 0. None fires at the start, so
+    every level starts in state 0. What fires those groups (entity events: a post taken, an object destroyed) needs the level
+    script's event side, which Aurek does not have (only start timers - ak_audio.c / ak_conquest.c). Engine: asura.c reads kind 1 (ak_level_tex_anims), the scene offsets the UVs of
     those materials' draws, level and models (ak_gfx_set_uv_offset; GL; Vita / 3DS keep them still for now).
 - [ ] **R.5 LOD distances.** AK_LOD_SCALE 12 is Aurek's own; trace the real ones.
   - 2026-11-19, looked for and not found: no blueprint key, level chunk or string names a LOD distance (the lower details are
