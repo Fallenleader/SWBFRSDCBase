@@ -786,6 +786,14 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
         pic(idx(S_ICON_HEALTH), 10, 256, true, s->dark ? 0xFF000000u : 0xFFFFFFFFu, 1);   /* (08A57518: the level's colour) */
         /* the lower weapon (08A52FF4): reloading, the PowerUp bar and its frame (both 0xFF404040) top-left at (427, 237) instead of the counts */
         /* (a single weapon is the upper one's, 08A52DF8, moved down: no bar) */
+        /* the weapon names (08A5318C): each weapon's Weapon_Name while its timer is under 5 s (0x08AF03C0), scale 1, fading
+         * (08A512A0) - measured on the original's spawn: centred at x 385, the upper 29 above its icon, the lower 22 below */
+        if (s->weapon_name_t >= 0 && s->weapon_name_t < 5.0f) {
+            f32 a = s->weapon_name_t > 4.0f ? 5.0f - s->weapon_name_t : 1.0f; u32 col = (u32)(a * 255.0f) << 24 | 0xFFFFFF;
+            u32 n; const u16 *w;
+            if (s->weapon_name >= 0 && (w = stdtext_get((u32)s->weapon_name, &n))) text16_box(300, (s->weapon2 ? 210.0f : 240.0f) - 29.0f - font.line * 0.5f, 470, 1.0f, col, w, n, true, true);
+            if (s->weapon2 && s->weapon2_name >= 0 && (w = stdtext_get((u32)s->weapon2_name, &n))) text16_box(300, 262.0f - font.line * 0.5f, 470, 1.0f, col, w, n, true, true);
+        }
         if (s->weapon2) {
             weapon_panel(s->weapon, s->ammo, s->spare, s->prequel, 210, true);
             weapon_panel(s->weapon2, s->ammo2, s->spare2, s->prequel, 240, s->weapon2_bar < 0);

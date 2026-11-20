@@ -151,7 +151,7 @@ typedef struct {
     f32 bot_drive;                     /* the chance a bot near a free vehicle of its side takes it (AK_BOT_VEHICLES) */
     ak_space_map space; bool is_space, free_flight, bot_aim_set; int difficulty; s32 obj_unit[AK_MAX_OBJECTIVES];   /* space maps: AI objectives, the bot on each */
     ak_projs projs;                    /* torpedoes, missiles, bombs in flight */
-    ak_proj_def gren_def; const char *gren_icon; bool gren_ok; s32 gren_left; f32 gren_t, gren_cool, gren_rate;   /* the player's explosive (customisation: the thermal
+    ak_proj_def gren_def; const char *gren_icon; s32 gren_name; bool gren_ok; s32 gren_left; f32 gren_t, gren_cool, gren_rate;   /* the player's explosive (customisation: the thermal
                                           detonator): grenades left, time since the throw began (-1: none), time to the next */
     ak_turret_def tdef[8]; u32 ntdef; ak_turret turret[PLAY_MAX_TURRETS]; u32 nturret;   /* level turrets (ENTI type 30) */
     ak_play_boom boom[PLAY_MAX_BOOMS]; u32 nboom;

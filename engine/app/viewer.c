@@ -501,12 +501,16 @@ int main(int argc, char **argv)
             ak_play_draw(&play, &mscene, &models, &vp, &ss);
             {   ak_hud_state hs; memset(&hs, 0, sizeof hs);                     /* the game's HUD (app/hud.c) */
                 hs.alive = play.alive; hs.reticle = play.in_veh < 0 && play.in_turret < 0;
-                hs.health = play.health; hs.health_max = play.max_health;
+                hs.health = play.health; hs.health_max = play.max_health; hs.weapon_name_t = -1; hs.weapon_name = hs.weapon2_name = -1;
                 if (play.armed && play.weapon.def && play.in_veh < 0 && play.in_turret < 0) {
                     hs.weapon = play.weapon.def->hud_icon; hs.ammo = play.weapon.ammo;
                     /* the rest as whole clips (the original: Blaster Rifle 25 a clip, MaxClips 5 -> "25  4") */
                     hs.spare = play.weapon.def->clip > 0 && play.weapon.spare >= 0 ? (play.weapon.spare + play.weapon.def->clip - 1) / play.weapon.def->clip : play.weapon.spare;
-                    if (play.gren_ok && play.gren_icon) { hs.weapon2 = play.gren_icon; hs.ammo2 = play.gren_left; hs.spare2 = -1; } }   /* the explosive slot below it */
+                    if (play.gren_ok && play.gren_icon) { hs.weapon2 = play.gren_icon; hs.ammo2 = play.gren_left; hs.spare2 = -1; }   /* the explosive slot below it */
+                    static bool was_alive; static f32 name_t = -1;
+                    if (play.alive && !was_alive) name_t = 0; else if (name_t >= 0) name_t += dt;   /* (the names show for 5 s after a spawn) */
+                    was_alive = play.alive;
+                    hs.weapon_name = play.wdef.bp ? ak_bp_int(play.wdef.bp, "Weapon_Name", -1) : -1; hs.weapon2_name = play.gren_name; hs.weapon_name_t = name_t; }
                 hs.prequel = strstr(levels[cur].path, "PREQUEL") != NULL;
                 if (play.have_cq) { hs.tickets = true; hs.tickets_own = play.match.tickets[play.team]; hs.tickets_enemy = play.match.tickets[1 - play.team];
                                     hs.faction_own = play.team_faction[play.team]; hs.faction_enemy = play.team_faction[1 - play.team]; }

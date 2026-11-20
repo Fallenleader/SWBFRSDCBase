@@ -19,6 +19,7 @@ typedef struct {
     const char *weapon;                /* the weapon's picture (its blueprint's HUDIcon, "EMP_Blaster_Rifle.tga"), NULL = none */
     s32 ammo, spare;                   /* the clip and the rest; ammo < 0 = unlimited (the infinity mark) */
     const char *weapon2; s32 ammo2, spare2;   /* the second weapon (grenades): shown above when there is one */
+    s32 weapon_name, weapon2_name; f32 weapon_name_t;   /* STDTEXT ids (the Weapon's Weapon_Name, -1 none) and seconds since they showed (08A5318C: 5 s) */
     bool prequel;                      /* the prequel era's weapon icons */
     bool tickets; s32 tickets_own, tickets_enemy;   /* conquest: each side's tickets (< 0 = unlimited) */
     int faction_own, faction_enemy;    /* 0 Republic, 1 CIS, 2 Alliance, 3 Empire */
