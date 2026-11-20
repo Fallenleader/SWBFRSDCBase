@@ -361,9 +361,11 @@ static f32 text16_box(f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s,
 /* the capture panel (func 08A53964 / 08A53B94 / 08A53DBC; the box 08A53FB0; in range 08A535AC): on foot within 5 units of a post
  * (0x08AF0410 = 25, squared, across the ground) - its name at 0.75 in white, centred in the box 385..475 from y 112, for its
  * first 5 seconds there; under it (y = 112 + the name's height + 5) HUD_Capture_Point, top-left at x 430 - 22.5: split across -
- * the top `f` in grey 0xFF808080, the rest in the colour (f = 1 - the post's amount / its full amount: an owned post in its
- * owner's colour, grey coming down as it drains; a neutral one grey, the capturer's colour coming up); contested: half blue
- * 0xFF0000FF over half red 0xFFFF0000 */
+ * the top `f` in grey 0xFF808080, the rest in the colour - an owned post: f = 1 - amount / full, ours blue 0xFF0000FF, theirs
+ * red 0xFFFF0000 (grey coming down as it drains); a neutral post: f = amount / full (at most 1; it drains as it is taken), blue
+ * when the side taking it (post +0x58) is ours, else red; contested: half blue over half red.  A post that cannot be taken (its
+ * flags +0x74 bit 0) shows the cross, picture 0x2A, top-left at (x + 0.5, y + 0.5), white pulsing (08A516BC). */
+static u32 pulse(f32 t, u32 argb); static f32 elem_clock;
 static void capture_panel(const ak_hud_state *s)
 {
     const u16 *nm = s->post_name >= 0 && (u32)s->post_name < ncp ? cpname[s->post_name] : NULL; u32 nn = nm ? cplen[s->post_name] : 0;
@@ -372,15 +374,14 @@ static void capture_panel(const ak_hud_state *s)
     const sprite *cp = idx(S_CAPTURE_POINT); if (!cp) return;
     f32 f = s->post_fill; u32 back = 0xFF808080u, front;
     if (s->post_contested) { f = 0.5f; back = 0xFF0000FFu; front = 0xFFFF0000u; }
-    else {
-        int t = s->post_owner == 4 ? s->post_capturer : s->post_owner;
-        front = s->post_owner == 4 && s->post_capturer == 4 ? 0xFF808080u : team_colour(t, s->team);
-    }
+    else if (s->post_owner == 4) front = s->post_capturer == s->team ? 0xFF0000FFu : 0xFFFF0000u;
+    else front = s->post_owner == s->team ? 0xFF0000FFu : 0xFFFF0000u;
     if (f < 0) f = 0;
     if (f > 1) f = 1;
     f32 w = cp->w * (cp->u1 - cp->u0), h = cp->h * (cp->v1 - cp->v0), vm = cp->v0 + (cp->v1 - cp->v0) * f;
     if (f > 0) quad(cp->tex, x, y, x + w, y + h * f, cp->u0, cp->v0, cp->u1, vm, back);
     if (f < 1) quad(cp->tex, x, y + h * f, x + w, y + h, cp->u0, vm, cp->u1, cp->v1, front);
+    if (s->post_cross && !s->post_contested) pic(idx(0x2A), x + 0.5f, y + 0.5f, false, pulse(elem_clock, 0xFFFFFFFFu), 1);
 }
 
 /* ---- messages (traced: queue 08A4EE08 / 08A4EED4, a slot 08A4E1E8, its clock 08A4E51C, drawn 08A4E64C -> 08A50E40; boxes

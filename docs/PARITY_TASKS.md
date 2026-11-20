@@ -499,8 +499,14 @@ textures and how they are used. Section R lists only what must be in place so th
     strips' object index only groups them).  So the floating meshes are not entity placements on Hoth; they need a level and a
     spot (or a screenshot) to find.  Tooling: AK_TEST_START="x,y,z,yaw" (game axes) starts the player there to compare views
     with the harness's (--tp).
-- [ ] **5.5 Command posts [partial].** The capture cross (post flag 0x74 bit 0), the colour pulse (08A516BC), and capture speed per
+- [x] **5.5 Command posts [partial].** The capture cross (post flag 0x74 bit 0), the colour pulse (08A516BC), and capture speed per
   soldier count.
+  - Done 2026-11-19 (08A53B94, 089EC970, 089782A8): the capture panel's colours are the game's - an owned post blue (ours) or red
+    with grey for what has drained; a neutral post fills by amount / full in blue when our side is taking it, else red (Aurek had
+    the neutral bar inverted and grey); a post that cannot be taken (flags bit 0) shows the cross (picture 0x2A) pulsing white
+    (08A516BC, already used for the lock).  Capture speed: the sum of the soldiers' capture rates (unit +0x138) on the post, at
+    most 5 a second; the player's rate is the customisation's third attribute (0.5 / 1.0 / 1.5 / 2.0, 089782A8), 1.0 measured
+    at the menu default (harness, Hoth) - AK_CAPTURE_LEVEL.  Bots' rates read 1.0 where the harness could read them.
 
 ## 6. Animation
 

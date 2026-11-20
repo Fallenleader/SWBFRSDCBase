@@ -641,8 +641,9 @@ int main(int argc, char **argv)
                     if (near >= 0) {
                         const ak_post_state *ps = &play.match.post[near]; f32 full = play.cq.post[near].amount > 0 ? play.cq.post[near].amount : 1;
                         hs.post = true; hs.post_name = play.cq.post[near].name; hs.post_owner = ps->owner;
-                        hs.post_capturer = ps->owner == AK_CQ_NEUTRAL && ps->progress > 0 ? play.team : AK_CQ_NEUTRAL;
-                        hs.post_fill = 1.0f - ps->progress / full; hs.post_contested = ps->contest > 0; hs.post_time = at_t;
+                        hs.post_capturer = ps->capturing;
+                        hs.post_fill = ps->owner == AK_CQ_NEUTRAL ? ps->progress / full : 1.0f - ps->progress / full;   /* 08A53B94 */
+                        hs.post_contested = ps->contest > 0; hs.post_time = at_t; hs.post_cross = play.cq.post[near].disabled;
                     }
                 }
                 ak_hud_draw(&hs, w, h);

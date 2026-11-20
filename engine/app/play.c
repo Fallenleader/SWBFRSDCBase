@@ -408,11 +408,13 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     /* the player's customisation (the spawn screen's "Customisation Menu", 200 credits): the default loadout is the blaster rifle
        (25), the thermal detonator (10), Health Level 1 (10) and Speed Level 1 (10) - read from the original's menu.  Health by level:
        100 / 133 / 166 / 200 (08978170, table 0x08AEE3B8); speed by level: 0.85 / 1.0 / 1.15 / 1.3 (08978240).  AK_HEALTH_LEVEL,
-       AK_SPEED_LEVEL (0..3) until Aurek has the menu. */
-    {   static const f32 hl[4] = { 100, 133, 166, 200 }, sl[4] = { 0.85f, 1.0f, 1.15f, 1.3f };
-        int h = ak_setting_int("AK_HEALTH_LEVEL", 1), sp = ak_setting_int("AK_SPEED_LEVEL", 1);
-        h = h < 0 ? 0 : h > 3 ? 3 : h; sp = sp < 0 ? 0 : sp > 3 ? 3 : sp;
-        p->max_health = p->health = ak_bp_float(p->look.bp, "Health", hl[h]); p->speed_scale = sl[sp]; }
+       AK_SPEED_LEVEL (0..3) until Aurek has the menu.  The capture rate (PARITY 5.5): a post's capture speed is the sum of the
+       soldiers' rates on it (unit +0x138, 089EC970), at most 5 a second; the player's comes from the third attribute's level
+       (+0x1D4, 089782A8: 0.5 / 1.0 / 1.5 / 2.0), measured 1.0 with the menu's default (harness, Hoth) - AK_CAPTURE_LEVEL. */
+    {   static const f32 hl[4] = { 100, 133, 166, 200 }, sl[4] = { 0.85f, 1.0f, 1.15f, 1.3f }, cl[4] = { 0.5f, 1.0f, 1.5f, 2.0f };
+        int h = ak_setting_int("AK_HEALTH_LEVEL", 1), sp = ak_setting_int("AK_SPEED_LEVEL", 1), cr = ak_setting_int("AK_CAPTURE_LEVEL", 1);
+        h = h < 0 ? 0 : h > 3 ? 3 : h; sp = sp < 0 ? 0 : sp > 3 ? 3 : sp; cr = cr < 0 ? 0 : cr > 3 ? 3 : cr;
+        p->max_health = p->health = ak_bp_float(p->look.bp, "Health", hl[h]); p->speed_scale = sl[sp]; p->capture_rate = cl[cr]; }
     p->alive = true; p->near_post = -1;
     /* where the player starts: the team's spawn at its post nearest the start */
     f32 sp[3] = { start[0], start[1], start[2] }, gy, syaw = 0;
@@ -2380,7 +2382,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             sol[i].team = p->target[i].team; sol[i].alive = p->target[i].alive; sol[i].weight = 1.0f; memcpy(sol[i].pos, c->pos, 12);
             if (i && p->bot[i - 1].veh >= 0) { sol[i].alive = p->bot[i - 1].alive; sol[i].weight = 0; }   /* drivers do not capture */
         }
-        sol[0].alive = p->alive; if (p->in_veh >= 0) { memcpy(sol[0].pos, p->veh[p->in_veh].pos, 12); sol[0].weight = 0; }   /* drivers do not capture */
+        sol[0].alive = p->alive; sol[0].weight = p->capture_rate; if (p->in_veh >= 0) { memcpy(sol[0].pos, p->veh[p->in_veh].pos, 12); sol[0].weight = 0; }   /* drivers do not capture */
         wave = ak_conquest_update(&p->cq, &p->rules, &p->match, sol, NS(p), dt);
         p->near_post = -1;
         for (u32 i = 0; i < p->cq.nposts && p->alive; i++) {

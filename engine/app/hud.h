@@ -31,7 +31,7 @@ typedef struct {
     /* in a vehicle or a turret (the game's vehicle HUDs, funcs 08A5DAD0 / 08A5DDF8): no soldier's reticle, no capture panel; the
      * reticle at the projected aim point (aim, aim_x / aim_y); the lock (lock, lock_x / lock_y) filled by lock_fill, held once locked */
     bool vehicle, aim; f32 aim_x, aim_y, lock_fill; bool locked;
-    bool post; s32 post_name; int post_owner, post_capturer; f32 post_fill; bool post_contested; f32 post_time;
+    bool post; s32 post_name; int post_owner, post_capturer; f32 post_fill; bool post_contested, post_cross; f32 post_time;
     bool dark;                         /* HOTH and HOTH_ION_CANNON (HUD +0x1C, 08A5D0A0): the level-coloured text and icons black, else white */
     bool zoomed;                       /* the zoom view (089DD9AC): the weapon ring's radius 19, else 16 */
     /* the weapon ring (element 08A5C0C4: update 08A5C110, draw 08A5C3F0) about (ring_x, ring_y): type 1 reloading (1 - the reload left /
