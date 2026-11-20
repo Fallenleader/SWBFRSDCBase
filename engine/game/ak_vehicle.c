@@ -215,6 +215,7 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     if (getenv("AK_DUMP_VEH_MARKERS") && d->model >= 0) {   /* (tests: the model's markers, model space, game axes) */
         const ak_model *mm = &m->models[d->model];
         for (u32 i = 0; i < mm->nmarkers; i++) fprintf(stderr, "[veh] %s marker %s bone %u at %.2f %.2f %.2f\n", name, mm->markers[i].name, mm->markers[i].bone, mm->markers[i].m[3], -mm->markers[i].m[7], -mm->markers[i].m[11]);
+        fprintf(stderr, "[veh] %s box %.2f %.2f %.2f .. %.2f %.2f %.2f\n", name, d->box_min[0], d->box_min[1], d->box_min[2], d->box_max[0], d->box_max[1], d->box_max[2]);
         fprintf(stderr, "[veh] %s radius %.2f bounds x %.2f..%.2f y %.2f..%.2f z %.2f..%.2f\n", name, d->radius, mm->bmin[0], mm->bmax[0], mm->bmin[1], mm->bmax[1], mm->bmin[2], mm->bmax[2]); }
     return true;
 }

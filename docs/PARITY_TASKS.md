@@ -424,8 +424,8 @@ textures and how they are used. Section R lists only what must be in place so th
     - A Taun-Taun did not board from 1.9 m behind.
     So getting in is tied to a spot behind the vehicle (within about 2.0-2.4 m of the AT-ST's exit spot) rather than a radius
     around it, and the spot differs per vehicle (no marker or blueprint value found: the AT-ST's markers are dam, muz, muz01,
-    tur, target, rocket, dam01). Aurek still boards within its radius + 3 m and puts the soldier out on the left (radius +
-    soldier + 0.5 m) [assumed] - not changed until the spot's rule is found. Debug: AK_DUMP_VEH_MARKERS=1 lists each vehicle
+    tur, target, rocket, dam01). The spot's rule is traced (089D2DBC: 0..9 m in 1 m steps, behind / front / left / right, the
+    first free) and built - see the NATIVE_ENGINE row; open: 089D5A60's free test, the boarding test's own code, creatures. Debug: AK_DUMP_VEH_MARKERS=1 lists each vehicle
     model's markers and bounds; AK_DEBUG_VEH logs where the player gets out.
 
 - [ ] **3.6 Secondary weapons and lock-on.** Lock-on traced 2026-11-17 (089CC77C per frame, 089CC878 the check; blueprint

@@ -248,6 +248,11 @@ Vita: `cmake -S engine/platform/vita -B build/aurek_vita && cmake --build build/
 - Endor's at_at_0 / at-at_1.
 
 Level entities of type 43 drive them. Their class (08850E80, vtable 0x08AF1BE8) keeps the animation's hash (+28), its state (+32) and its speed (+36), all read from the record; the state is 0 on every level. Message 26 (0885110C) sets the state (payload flag 1) and the speed (flag 2), and 08851184 passes them on as message 125. The script messages 26 that switch them are not built yet. Before this, Aurek drew both versions of each console on top of each other. It now keeps each such material in state 0 and hides it when that state carries flag 0x80000 (level batches and model parts). So state 0 is the starting state; Tatooine's laser gate stays hidden until its script switches it. `AK_DEBUG_TXAN=1` lists them, marking the hidden ones. |
+| 2026-11-20 | 3.5b | **getting in and out of vehicles.** Measured with the harness (program board_try, the player teleported around Hoth's AT-ST and snowspeeder) and traced:
+- **Getting out:** 089D2DBC tries spots 0..9 m out (1 m steps) from the vehicle's position. At each distance it tries behind, in front, left and right in the vehicle's frame and takes the first free spot. The AT-ST puts you 3.06 m behind, the snowspeeder 4.09 m behind.
+- **Getting in:** you must be within about 2 m of that spot. The AT-ST lets you in from 5.0 m behind but not 5.5 m, and not from 3.5 m to its side. The snowspeeder lets you in from 2.6 m behind but not from 2.6 m in front.
+
+Aurek now does both. Its free test checks clear of the vehicle's box grown by 0.75 m, a clear line from the vehicle and ground below; the measured spots fit 0.64–0.9 m. You can get in within 2.2 m of the spot. Aurek's results: AT-ST out at 2.99 m behind; in from 2.4 and 4.9 m behind, not from 5.5 m behind or 3.5 m to the side. Snowspeeder out at 4.0 m behind; in from behind, not from in front. [assumed]: 089D5A60's free test, the 2.2 m, and creatures, which keep radius + 3 m (a Taun-Taun did not take a soldier from 1.9 m behind). If no spot is free, Aurek puts you out on the left as before. |
 
 ## Known issues (cleanup pass once gameplay reaches parity)
 

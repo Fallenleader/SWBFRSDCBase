@@ -2321,6 +2321,30 @@ static ak_input psp_layout(ak_play *p, const ak_input *raw, f32 dt)
     return g;
 }
 
+/* where a soldier leaving a vehicle is put (traced, 089D2DBC): from the vehicle's position, out 0, 1, 2 .. 9 m (step 1.0, D_08AEF00C;
+ * limit 10, D_08AEF004), at each distance trying behind (model -z in the game's axes), in front, left and right (D_08AEF008 / 0C:
+ * -1 / +1), turned by the vehicle's frame; the first spot 089D5A60 finds free is taken.  Measured (harness board_try): the AT-ST
+ * 3.06 m behind, the snowspeeder 4.09 m behind.  [assumed: the free test - here clear of the vehicle's box grown by 0.75 m (the
+ * measured spots fit 0.64..0.9), the level between the vehicle and the spot (a ray 1 m up) and ground within 6 m below] */
+static bool vehicle_exit_spot(const ak_play *p, const ak_vehicle *vh, f32 out[3])
+{
+    static const f32 dir[4][3] = { { 0, 0, 1 }, { 0, 0, -1 }, { -1, 0, 0 }, { 1, 0, 0 } };   /* (engine model axes: behind is +z) */
+    const ak_vehicle_def *d = vh->def; f32 M[12]; ak_vehicle_matrix(vh, M);
+    const f32 g = 0.75f * S;
+    for (int k = 1; k < 10; k++)
+        for (int j = 0; j < 4; j++) {
+            f32 l[3] = { dir[j][0] * k * S, 0, dir[j][2] * k * S };
+            if (l[0] > d->box_min[0] - g && l[0] < d->box_max[0] + g && l[2] > d->box_min[2] - g && l[2] < d->box_max[2] + g) continue;
+            f32 w[3]; for (int r = 0; r < 3; r++) w[r] = M[r * 4] * l[0] + M[r * 4 + 2] * l[2] + (r == 1 ? vh->pos[1] : M[r * 4 + 3]);
+            f32 from[3] = { vh->pos[0], vh->pos[1] + 1.0f * S, vh->pos[2] }, to[3] = { w[0] - from[0], 0, w[2] - from[2] }, len = sqrtf(to[0] * to[0] + to[2] * to[2]);
+            ak_col_hit h; if (len > 0 && ak_col_raycast(&p->col, from, (f32[3]){ to[0] / len, 0, to[2] / len }, len, 0xFFFF, &h)) continue;
+            f32 up[3] = { w[0], vh->pos[1] + 1.0f * S, w[2] }, gy;
+            if (!ak_char_ground_below(&p->col, up, 6.0f * S, &gy)) continue;
+            out[0] = w[0]; out[1] = gy; out[2] = w[2]; return true;
+        }
+    return false;
+}
+
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt)
 {
     if (!p->ready) return;
@@ -2364,9 +2388,11 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (tri) {                                                                /* triangle: get in / out of a vehicle */
         if (p->in_veh >= 0) {
             ak_vehicle *vh = &p->veh[p->in_veh]; f32 out[3], gy;
-            f32 rx = cosf(vh->yaw), rz = -sinf(vh->yaw), dd = vh->def->radius + p->cp.radius + 0.5f;
-            out[0] = vh->pos[0] - rx * dd; out[1] = vh->pos[1] + 1.0f; out[2] = vh->pos[2] - rz * dd;   /* out on the left */
-            if (ak_char_ground_below(&p->col, out, 6.0f, &gy)) out[1] = gy; else memcpy(out, vh->pos, 12);
+            if (!vehicle_exit_spot(p, vh, out)) {                              /* (none free: out on the left, as before) */
+                f32 rx = cosf(vh->yaw), rz = -sinf(vh->yaw), dd = vh->def->radius + p->cp.radius + 0.5f;
+                out[0] = vh->pos[0] - rx * dd; out[1] = vh->pos[1] + 1.0f; out[2] = vh->pos[2] - rz * dd;
+                if (ak_char_ground_below(&p->col, out, 6.0f, &gy)) out[1] = gy; else memcpy(out, vh->pos, 12);
+            }
             ak_char_spawn(&p->ch, out, vh->yaw); vh->driver = -1; vh->open = true; vh->throttle = vh->steer = vh->strafe = 0;
             if (ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "get out at %.2f %.2f %.2f (vehicle at %.2f %.2f %.2f, yaw %.2f)", out[0], out[1], out[2], vh->pos[0], vh->pos[1], vh->pos[2], vh->yaw);
             p->in_veh = -1; p->target[0].alive = true; p->cam_dist = p->cam_back;
@@ -2381,8 +2407,14 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 bool mate = vh->driver > 0 && p->bot[vh->driver - 1].team == p->team;
                 bool free_ok = vh->driver < 0 && (vh->team == p->team || vh->open);
                 if (!vh->alive || !(free_ok || mate) || (!vh->def->drivable && !p->vspawn[v].route) || (p->vspawn[v].route && vh->team != p->team)) continue;   /* (a placed walker: its gunner's seat) */
-                f32 dx = vh->pos[0] - p->ch.pos[0], dz = vh->pos[2] - p->ch.pos[2], d2 = dx * dx + dz * dz, r = vh->def->radius + 3.0f;
-                if (d2 < r * r && d2 < bd && fabsf(vh->pos[1] - p->ch.pos[1]) < 4) { bd = d2; best = (s32)v; }
+                /* in reach (measured, harness board_try): within 2 m of the spot where leaving puts a soldier (Hoth's AT-ST: from 5.0 m
+                   behind - 1.96 m from it - yes, 5.5 m - 2.42 m - no, 3.5 m to its side no; the snowspeeder from 2.6 m behind yes, in
+                   front no) [assumed: the spot is the exit spot of 089D2DBC, 2.2 m]; creatures keep Aurek's radius + 3 m (a Taun-Taun did
+                   not board from 1.9 m behind: their rule is not found) */
+                f32 at[3]; bool spot = vh->def->kind != AK_VEH_CREATURE && vehicle_exit_spot(p, vh, at);
+                if (!spot) memcpy(at, vh->pos, 12);
+                f32 dx = at[0] - p->ch.pos[0], dz = at[2] - p->ch.pos[2], d2 = dx * dx + dz * dz, r = spot ? 2.2f * S : vh->def->radius + 3.0f;
+                if (d2 < r * r && d2 < bd && fabsf(at[1] - p->ch.pos[1]) < 4) { bd = d2; best = (s32)v; }
             }
             if (ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "get in: nearest %d (soldier at %.1f %.1f %.1f)", best, p->ch.pos[0], p->ch.pos[1], p->ch.pos[2]);
             if (best >= 0) {
