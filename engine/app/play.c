@@ -1563,7 +1563,8 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
         {   s32 dd = sp->def[0] >= 0 ? sp->def[0] : sp->def[1];
             if (dd >= 0 && (p->vdef[dd].kind == AK_VEH_WALKER || p->vdef[dd].kind == AK_VEH_FLYER)) sp->yaw += 3.14159265f; }   /* walkers and flyers face -z */
         if (sp->fixed && sp->def[0] >= 0) {                                  /* a placed walker (Hoth's AT-AT): its own faction's side */
-            ak_vehicle_def *d = &p->vdef[sp->def[0]]; d->drivable = false;
+            ak_vehicle_def *d = &p->vdef[sp->def[0]];   /* (not boardable: the spawn's fixed flag, not the def - the def is shared with
+                                                            the hangars' craft of the same kind, which bots and the player take) */
             int team = ak_faction_team(ak_bp_int(d->bp, "Faction", 3));
             if (team == 1) { sp->def[1] = sp->def[0]; sp->def[0] = -1; }
         }
@@ -1755,7 +1756,7 @@ static bool bot_take_vehicle(ak_play *p, ak_play_bot *b)
     s32 best = -1; f32 bd = p->is_space ? 90.0f * 90.0f : 40.0f * 40.0f;   /* (a capital ship's hangar is wide) */
     for (u32 v = 0; v < p->nveh; v++) {
         const ak_vehicle *vh = &p->veh[v];
-        if (!vh->def || !vh->alive || vh->driver >= 0 || !vh->def->drivable || (vh->team != b->team && !vh->open)) continue;
+        if (!vh->def || !vh->alive || vh->driver >= 0 || !vh->def->drivable || p->vspawn[v].fixed || (vh->team != b->team && !vh->open)) continue;
         f32 dx = vh->pos[0] - b->ch.pos[0], dz = vh->pos[2] - b->ch.pos[2], d2 = dx * dx + dz * dz;
         if (d2 >= bd || fabsf(vh->pos[1] - b->ch.pos[1]) > 8.0f) continue;
         bool taken = false;
@@ -2454,7 +2455,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                    (089D1D24); never one an enemy or another player holds */
                 bool mate = vh->driver > 0 && p->bot[vh->driver - 1].team == p->team;
                 bool free_ok = vh->driver < 0 && (vh->team == p->team || vh->open);
-                if (!vh->alive || !(free_ok || mate) || (!vh->def->drivable && !p->vspawn[v].route) || (p->vspawn[v].route && vh->team != p->team)) continue;   /* (a placed walker: its gunner's seat) */
+                if (!vh->alive || !(free_ok || mate) || ((!vh->def->drivable || p->vspawn[v].fixed) && !p->vspawn[v].route) || (p->vspawn[v].route && vh->team != p->team)) continue;   /* (a placed walker: its gunner's seat) */
                 /* in reach (measured, harness board_try): within 2 m of the spot where leaving puts a soldier (Hoth's AT-ST: from 5.0 m
                    behind - 1.96 m from it - yes, 5.5 m - 2.42 m - no, 3.5 m to its side no; the snowspeeder from 2.6 m behind yes, in
                    front no) [assumed: the spot is the exit spot of 089D2DBC, 2.2 m]; creatures keep Aurek's radius + 3 m (a Taun-Taun did

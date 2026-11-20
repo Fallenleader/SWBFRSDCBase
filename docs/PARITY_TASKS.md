@@ -574,8 +574,12 @@ textures and how they are used. Section R lists only what must be in place so th
     0x08ADA314.. (UNSET / FOLLOWING / CIRCLING_ROUND / FINISHED; UNSET / FOLLOWING / CIRCLING_ROUND / DOING_STUNT / FINISHED,
     the latter's machine 0894A3A4 -> 0894A51C). Space Hoth, 110 s: the original's flyers hit flyers 160 times, Aurek's 13. In
     Aurek only 6-7 bots fly at once and they fight across 500-1700 m (their nose is within the trigger's 5 degrees and 600 m
-    2 % of the time; letting them pitch past 0.7 rad in space changed nothing). [ ] Measure the original's flyer count and
-    engagement distances (harness state.log, class 0x8004 positions) before changing the pursuit.
+    2 % of the time; letting them pitch past 0.7 rad in space changed nothing).
+  - Measured (harness state.log, Space Hoth, class 0x8004): 13-19 flyers, 14-15 of them moving, nearest other flyer 22-365 m at
+    75 s and 167-965 m at 115 s. Found why Aurek had 6-7: a placed (type 13) craft made its whole vehicle kind undrivable - Space
+    Hoth's X-wings, A-wings and TIE fighters, the hangars' too (the flag sat on the shared def). Now the spawn's own flag: bots
+    board 20 craft in 110 s (13 before) and the flyers hit flyers 37 times (13). [ ] What the placed craft do in the original
+    (they may be AI ships in flight), and the pursuit's engagement distances.
 
 ## 5. Game rules and modes
 
