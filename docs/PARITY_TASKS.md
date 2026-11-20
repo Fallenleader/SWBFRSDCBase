@@ -971,7 +971,8 @@ groundwork below is needed before the parity work starts. The tiers come later.
       blueprints). [assumed]: held effects restart their emitters; the 66% / 33% thresholds (from the effects' names); engine
       markers eng, eng01..; particles of FXPT flags 0x100000 kept in the effect's frame. Left: the effects' lights (the FXET
       colour and radius curves), cell animation, the oriented / stretched draws (FXPT 0x200, 0x1000-0x4000), the emitter scale
-      of flags 0x40000 (thrust size), the boost / space-dust / hero effects, and the exact noise (088EF134).
+      of flags 0x40000 (thrust size), the space-dust / hero effects, and the exact noise (088EF134). Boost trails: traced
+      2026-11-20 (089AF4B0: BoostPFX at BoostMarkers markers trail01..06) and built; what shows them is [assumed] (boosting).
     - 2026-11-20, measured (harness RS_PFX_LOG; NATIVE_ENGINE row): c1 is the half-width; c2 is in turns from a random start;
       unturned types mirror at random; the blends, depth (test, no write), no fog and x1 colour; types drawn in the level's
       order; muzzle flashes take the bolt's colour. [assumed] left in the draw: flags 0x400's flip on half the particles (seen,

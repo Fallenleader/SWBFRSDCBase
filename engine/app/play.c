@@ -2791,6 +2791,16 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 f32 at[3] = { T[3], T[7], T[11] }, fw[3] = { -T[2], -T[6], -T[10] };   /* (the marker's own +Z in the game's axes) */
                 ride_fx(p, &p->eng_fx[v][k], want, ef, at, fw, vh->vel);
             }
+            /* boost trails (traced, 089AF4B0 when a flyer is made): BoostPFX at BoostMarkers (at most 6) markers "trail01".."trail06"
+               (hashes 0xC0638E87 + i), each held on the model [assumed: shown while it boosts - what switches them is not found] */
+            const char *bf = ok ? ak_bp_string(vh->def->bp, "BoostPFX", NULL) : NULL;
+            s32 nb = ok ? ak_bp_int(vh->def->bp, "BoostMarkers", 0) : 0; if (nb > 6) nb = 6;
+            for (s32 k = 0; k < 6; k++) {
+                char nm[8]; snprintf(nm, sizeof nm, "trail%02d", (int)k + 1);
+                f32 T[12] = { 0 }; bool want = ok && bf && *bf && k < nb && vh->driver >= 0 && vh->boosting && ak_vehicle_marker(vh, m, nm, T);
+                f32 at[3] = { T[3], T[7], T[11] }, fw[3] = { -T[2], -T[6], -T[10] };
+                ride_fx(p, &p->boost_fx[v][k], want, bf, at, fw, vh->vel);
+            }
         }
         {   static int pt = -1; if (pt < 0) pt = ak_setting_int("AK_PICKUP_TEST", 0);   /* tests: a soldier's drop 4 m ahead at 1 s */
             if (pt && p->frame_no == 60) { f32 f[3] = { p->aim[0], 0, p->aim[2] }, fl = sqrtf(f[0] * f[0] + f[2] * f[2]) + 1e-6f;
