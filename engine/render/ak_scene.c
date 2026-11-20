@@ -12,7 +12,7 @@ bool ak_scene_level_init(ak_scene_level *s, const ak_level *l, ak_arena *a)
     bool ok = scene_level_init(s, l, a);
     if (ok) {
         s->nanim = ak_level_tex_anims(l, a, &s->anim);
-        if (ak_setting_int("AK_DEBUG_TXAN", 0)) for (u32 k = 0; k < s->nanim; k++) AK_INFO("scene", "animation %08x scrolls over %.1f s (%u keys)", s->anim[k].hash, s->anim[k].period, s->anim[k].nkeys);
+        if (ak_setting_int("AK_DEBUG_TXAN", 0)) for (u32 k = 0; k < s->nanim; k++) AK_INFO("scene", "animation %08x scrolls over %.1f s (%u keys)%s", s->anim[k].hash, s->anim[k].period, s->anim[k].nkeys, s->anim[k].hidden ? ", hidden" : "");
     }
     return ok;
 }
@@ -102,6 +102,13 @@ static int item_cmp(const void *x, const void *y)
 static f32 g_time;
 void ak_scene_set_time(f32 seconds) { g_time = seconds; }
 /* the material's scroll, if it has one (AK_MAT_ANIMATED + TXAN), for the draws that follow */
+/* a material its animation's first state hides (TXAN key flag 0x80000: the destroyed consoles, the switched-off laser gate) */
+static bool tex_hidden(const ak_scene_level *s, s32 flags, u32 extra)
+{
+    if (!s || !(flags & AK_MAT_ANIMATED)) return false;
+    for (u32 k = 0; k < s->nanim; k++) if (s->anim[k].hash == extra) return s->anim[k].hidden;
+    return false;
+}
 static void tex_scroll(const ak_scene_level *s, s32 flags, u32 extra)
 {
     if (s && (flags & AK_MAT_ANIMATED))
@@ -127,6 +134,7 @@ void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *vp, ak_scene_stats *st)
             static int lay = -2; if (lay == -2) lay = ak_setting_int("AK_DEBUG_LAYER", -1);   /* (tests: one layer only) */
             if (lay >= 0 && bt->layer != (u32)lay) continue; }
         const ak_material *m = bt->material < l->nmat ? &l->mat[bt->material] : NULL;
+        if (m && tex_hidden(s, m->flags, (u32)m->extra)) continue;
         s32 ti = m ? (bt->layer && m->texture2 >= 0 ? m->texture2 : m->texture) : -1;
         u32 pipe = bt->layer ? AK_PIPE_LAYER
                  : bt->overlay && !(m && (m->flags & (AK_MAT_ADDITIVE | AK_MAT_BLENDED))) ? AK_PIPE_OVERLAY
@@ -291,7 +299,7 @@ static void draw_skinned(ak_scene_models *s, const ak_model *m, const ak_m4 *vw,
     for (int pass = 0; pass < 2; pass++)
         for (u32 p = 0; p < m->nparts; p++) {
             const ak_model_part *pt = &m->parts[p];
-            if (!pt->count) continue;
+            if (!pt->count || tex_hidden(s->level, pt->flags, (u32)pt->extra)) continue;
             ak_pipe pipe = g_force_pipe >= 0 ? (ak_pipe)g_force_pipe : (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
                          : ((pt->flags & AK_MAT_ALPHA_TEST)) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
             if ((pipe >= AK_PIPE_LAYER) != (pass == 1)) continue;
@@ -316,7 +324,7 @@ void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_
     for (int pass = 0; pass < 2; pass++)                      /* opaque and cutout parts first, blended after */
         for (u32 p = 0; p < m->nparts; p++) {
             const ak_model_part *pt = &m->parts[p];
-            if (!pt->count) continue;
+            if (!pt->count || tex_hidden(s->level, pt->flags, (u32)pt->extra)) continue;
             ak_pipe pipe = g_force_pipe >= 0 ? (ak_pipe)g_force_pipe : (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
                          : ((pt->flags & AK_MAT_ALPHA_TEST)) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
             if ((pipe >= AK_PIPE_LAYER) != (pass == 1)) continue;

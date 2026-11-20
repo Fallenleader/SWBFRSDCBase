@@ -408,12 +408,18 @@ u32 ak_level_tex_anims(const ak_level *l, ak_arena *a, ak_tex_anim **out)
         if (ak_chunk_tag(&c) != AK_TAG('T', 'X', 'A', 'N') || c.version != 2 || c.size < 8) continue;
         u32 e = (u32)strnlen((const char *)c.body, c.size), p = (e + 4) & ~3u;
         if (p + 16 > c.size) continue;
+        /* (the first word is the number of states, each {f32 period, u32 interpolation, u32 n, n x {u, v, t, flags, 0}}: kind 1 is one
+           scroll; two states are a material with a switch - Yavin's / the Ion Cannon's visible_console_* (state 0 shown, 1 hidden by
+           flag 0x80000) and destroyed_console_* (the reverse), Tatooine's lasergate, Sullust's lighting_strike_*, Endor's at_at_*;
+           level entities of type 43 name them (their switch is not traced).  Aurek keeps state 0 [assumed: the state a level starts
+           in]; its keys' flag 0x80000 hides the material.) */
         u32 kind = ak_rd32(c.body + p), nk = ak_rd32(c.body + p + 12); f32 period = ak_rdf32(c.body + p + 4);
-        if (kind != 1 || nk < 1 || nk > 16 || p + 16 + nk * 20 > c.size || period <= 0) continue;
+        if (kind < 1 || kind > 8 || nk < 1 || nk > 16 || p + 16 + nk * 20 > c.size || period <= 0) continue;
         u32 h = 0; for (u32 k = 0; k < e; k++) { u8 ch = c.body[k]; if (ch >= 'A' && ch <= 'Z') ch = (u8)(ch + 32); h = h * 31u + ch; }
         if (n == cap) { u32 nc = cap ? cap * 2 : 8; ak_tex_anim *nv = (ak_tex_anim *)ak_arena_alloc(a, sizeof *nv * nc, 8); if (!nv) break; if (v) memcpy(nv, v, sizeof *v * n); v = nv; cap = nc; }
         ak_tex_anim *t = &v[n++]; t->hash = h; t->period = period; t->nkeys = nk;
         for (u32 k = 0; k < nk; k++) for (int j = 0; j < 3; j++) t->key[k][j] = ak_rdf32(c.body + p + 16 + k * 20 + j * 4);
+        t->hidden = false; for (u32 k = 0; k < nk; k++) if (ak_rd32(c.body + p + 16 + k * 20 + 12) & 0x80000u) t->hidden = true;
     }
     *out = v; return n;
 }
