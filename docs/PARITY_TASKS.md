@@ -248,6 +248,11 @@ textures and how they are used. Section R lists only what must be in place so th
     lands 0.85 m from the original's spot over 21 m.
   - [ ] **2.3b** Where 20.4 and 1.2 come from (ProjectileSpeed 10, VerticalThrowSpeed 2.5: pitch? a factor?), throws
     while moving, and the other explosives and items.
+    - 2026-11-20, the throw (08A1A77C, the Weapon loader 08A16FD8 keeps ProjectileSpeed at +60 and VerticalThrowSpeed at +64):
+      the grenade starts at the hand's point 2.0 m higher (D_08AEF89C) and its velocity is a 3x3 frame (the thrower's, vfunc
+      +240 / +92 of an aim object - not identified) times (0, VerticalThrowSpeed up, ProjectileSpeed forward), sent as message
+      0x805E. That gives |v| = 10.3 for REP_Grenade, not the measured 20.4 - so either the frame is scaled or the thrown
+      Weapon is another one; open.
   - 2026-11-20, the other explosives: the Projectile loader 08A01590 reads WillDetonateAT +0x94, Detonation_Height +0xB0,
     ChildProjectiles +0xB4, ChildSpeed +0xB8, AmmountOfSplay +0xBC, DispersionDistance +0xC0, NumberOfChildren +0xC4,
     ProximityExplodeDelay +0xF0. The cluster burst is traced (08A02464; NATIVE_ENGINE row). The mine's trigger is traced
