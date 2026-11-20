@@ -2673,15 +2673,12 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         for (u32 i = 0; i < p->cq.nposts; i++) {
             if (p->cq.post[i].disabled) continue;
             const ak_post_state *ps = &p->match.post[i];
-            static const f32 tc[3][4] = { { 0.45f, 0.75f, 1.5f, 1 }, { 1.5f, 0.4f, 0.3f, 1 }, { 1.0f, 1.0f, 1.0f, 1 } };   /* ours, theirs, neutral */
-            /* the colour follows the capture: an owned post fades to white as it is drained, a neutral one from white to its
-               capturer's colour as the capture fills */
-            f32 full = p->cq.post[i].amount > 0 ? p->cq.post[i].amount : 1, k = 0; int side = 2;
-            if (ps->owner < 2) { side = ps->owner == p->team ? 0 : 1; k = ps->progress / full; }
-            else if (ps->capturing < 2) { side = ps->capturing == p->team ? 0 : 1; k = 1 - ps->progress / full; }
-            k = k < 0 ? 0 : k > 1 ? 1 : k;
+            /* the colour (089E9A24, PARITY 6.4): the owner's - ours 0.314 0.424 0.702, theirs 0.702 0.184 0.184, nobody's white
+               (DAT_08C2B860 / 870 / 880, read in the running original) - on the cone and the logo alike */
+            static const f32 tc[3][4] = { { 0.314f, 0.424f, 0.702f, 1 }, { 0.702f, 0.184f, 0.184f, 1 }, { 1.0f, 1.0f, 1.0f, 1 } };   /* ours, theirs, neutral */
+            int side = ps->owner < 2 ? (ps->owner == p->team ? 0 : 1) : 2;
             static f32 glow = -1; if (glow < 0) glow = ak_setting_float("AK_POST_GLOW", 0.75f);   /* the light's strength: 0 unlit .. 1 full */   /* PARITY(R.6) */
-            f32 col[4]; for (int c = 0; c < 4; c++) col[c] = (tc[2][c] + (tc[side][c] - tc[2][c]) * k) * (c < 3 ? glow : 1.0f);
+            f32 col[4]; for (int c = 0; c < 4; c++) col[c] = tc[side][c] * (c < 3 ? glow : 1.0f);
             const f32 *pp = p->cq.post[i].pos;
             ak_gfx_set_tint(col);
             ak_scene_force_pipe(AK_PIPE_ADD);                                  /* the hologram is light: additive, unlit */

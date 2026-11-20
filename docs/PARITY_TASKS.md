@@ -530,6 +530,14 @@ textures and how they are used. Section R lists only what must be in place so th
     to the ground.  The death clips now come from the animation table (rows 21-23, 6.1).  Open: which death row the game picks
     (rows 20-23: front / back / left / right - by the hit's direction, not found yet; Aurek gives each bot one by index).
 - [ ] **6.4 Command post cone [assumed].** Its capture animation and the logo height (1.25 m is an estimate).
+  - 2026-11-19 (089E9A24, the post's draw update): the cone (model 0xB9F3824A) and the owner's logo (table 0x08ADE9DC: republic /
+    cis / alliance / empire _logo_blue, clip logo_spin_move 0x8417BC1A) are tinted by the owner - ours (0.314, 0.424, 0.702),
+    theirs (0.702, 0.184, 0.184), nobody's white (read in the running original) - now ported (Aurek's colours were estimates and
+    faded with the capture).  The cone plays cone_of_light_animCap forward while the post's amount is under a value of the clip's
+    record, otherwise backwards and then cone_of_light_Rest; the logo's clip is driven by the cone's (08809AB8 with the capture
+    clip's time, reversed when it runs backwards); a capture sound (0x6E926355) loops while the amount is under full, its pitch
+    0.6 + 0.6 x amount / full (owner neutral: 1 - that), fading at 1.5 a second after.  Open: which record value the amount is
+    compared with, what 08809AB8 sets (time or rate), and the logo's height.
 - [ ] **6.5 Heroes [missing].** Saber combos, blocking, force powers, saber throw. Blaster heroes' own tables.
 
 ## 7. Audio
