@@ -477,6 +477,8 @@ int main(int argc, char **argv)
             }
             ak_fe_set_match(&fm);
             if (!ak_fe_page() && !play.alive && play.dead_t >= 3.0f) ak_fe_open_ingame("MP_Spawn_Location");   /* (the original: three seconds of the death camera) */
+            if (frame == ak_setting_int("AK_FE_START_AT", -1)) in.pressed |= AK_BTN_START;   /* (tests) */
+            if (!ak_fe_page() && play.alive && (in.pressed & AK_BTN_START)) ak_fe_open_ingame("MP_InGame_Menu");   /* START: the pause menu */
             if (ak_fe_page()) {
                 fe_menu = true;
                 { const char *keys = ak_setting_str("AK_FE_KEYS2", NULL);   /* tests: the in-match pages' buttons, as AK_FE_KEYS */
@@ -497,6 +499,12 @@ int main(int argc, char **argv)
                             play.ready = false; fe_after_team = true;
                         }
                     }
+                } else if (ev == AK_FE_QUIT) {                              /* back to the main menu */
+                    playing = false; fe_ingame = false; fe_on = ak_fe_open("MP_MainMenu"); play.ready = false;
+                } else if (ev == AK_FE_RESTART) {
+                    play.ready = false;
+                } else if (ev == AK_FE_KILL) {
+                    ak_play_damage(&play, 1e9f);                              /* (the soldier dies: the spawn map follows) */
                 } else if (ev == AK_FE_SPAWN) {
                     int k = ak_fe_spawn_post(), idx = -1, seen = 0;           /* (the page's index among the shown posts -> the conquest post) */
                     for (u32 i = 0; i < play.cq.nposts; i++) { if (play.cq.post[i].absent || play.cq.post[i].disabled) continue; if (seen++ == k) idx = (int)i; }
@@ -506,8 +514,9 @@ int main(int argc, char **argv)
             }
         }
         f32 fovy = 1.05f;
+        bool fe_paused = fe_menu && ak_fe_page() && strcmp(ak_fe_page(), "MP_Team_Selection") && strcmp(ak_fe_page(), "MP_Spawn_Location");
         if (playing && play.ready) {
-            ak_play_update(&play, &models, &in, dt);
+            if (!fe_paused) ak_play_update(&play, &models, &in, dt);
             ak_play_camera(&play, dt, &cam.pos, &cam.yaw, &cam.pitch, &fovy); if (getenv("AK_DEBUG_CAMPOS")) fprintf(stderr, "[campos] %.3f %.3f %.3f yaw %.4f pitch %.4f\n", cam.pos.x, cam.pos.y, cam.pos.z, cam.yaw, cam.pitch);
             ak_play_sound_update(&play, dt);
             if (play.snd.music_req && have_mus) {                          /* the match is over: the level's victory / defeat music */

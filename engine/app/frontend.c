@@ -10,6 +10,7 @@
 #include <stdlib.h>
 
 static void fill_all(const struct ak_widget *w);
+static const struct ak_widget *find_id(const struct ak_widget *w, u32 id);
 static u32 id_of(const char *name);
 
 static const char *const files[] = { "BFF_MAINMENU", "BFF_SINGLEPLAYER", "BFF_SERVERSETUP", "BFF_OPTIONS", "BFF_PROFILE", "BFF_MULTIPLAYER",
@@ -23,7 +24,7 @@ static int cur_file = -1; static ak_gui_file gf; static ak_gfx_tex **gtex; stati
  * per name - SINGLEPLAYER.GUI's own menu_logos.tga carries the Italian logo, and the original shows the main menu's) */
 static ak_arena basemem; static ak_gui_file base; static ak_gfx_tex **btex;
 static const ak_gui_page *page; static u32 focus; static f32 clock;
-static u32 stack[16]; static int nstack;
+static u32 stack[16]; static int nstack; static bool focus_fix_pending;
 
 /* ---- script values ("BFF.FE_MapSelectionStatus", "GUIMenu.ActiveWidget", ...), as the pages' conditions read them */
 #define MAXVARS 64
@@ -156,11 +157,22 @@ static bool open_hash(u32 h, bool push)
         const ak_gui_page *pg = ak_gui_find_page(&gf, h); if (!pg) return false;
         if (push && page && nstack < 16) stack[nstack++] = page->root.id;
         page = pg; focus = pg->focus; clock = 0;
+        focus_fix_pending = true;
         if (have_match && h == ak_gui_hash("MP_Spawn_Location"))     /* the first post the player's side holds */
             for (u32 k = 0; k < match.nposts; k++) if (match.post_owner[k] == match.team) { char nm[32]; snprintf(nm, sizeof nm, "W_BU_SpawnPoint%u", k); if (id_of(nm)) focus = id_of(nm); break; }
         nlists = 0; ak_arena_reset(&rowmem); fill_all(&pg->root);
         if (pg->on_open.fn && pg->on_open.fn[0]) AK_INFO("fe", "%s: %s(%s)", idx[i].name, pg->on_open.fn, pg->on_open.arg);
         else AK_INFO("fe", "%s", idx[i].name);
+        return true;
+    }
+    /* a widget's id instead of a page's (W_BU_Options -> its own page; "Quit to Main Menu" -> W_BU_No_QuitInGame on the yes / no
+       page): open the page that holds it, focused on it */
+    for (u32 i = 0; i < gf.npages; i++) {
+        if (!find_id(&gf.pages[i].root, h)) continue;
+        if (push && page && nstack < 16) stack[nstack++] = page->root.id;
+        page = &gf.pages[i]; focus = h; clock = 0; focus_fix_pending = false;
+        nlists = 0; ak_arena_reset(&rowmem); fill_all(&page->root);
+        AK_INFO("fe", "%s (at %08x)", page->root.name, h);
         return true;
     }
     AK_WARN("fe", "no page %08x", h); return false;
@@ -385,6 +397,11 @@ static int run(const ak_gui_action *a, int row)
         }
         rotation_changed();
     }
+    else if (!strcmp(fn, "FE_RequestMenuMode")) var_set("BFF.FE_MenuMode", atoi(a->arg));   /* (which of a dialogue's answers show) */
+    else if (!strcmp(fn, "FE_ResumePlay")) { ak_fe_close(); return AK_FE_RESUME; }
+    else if (!strcmp(fn, "FE_QuitGame") || !strcmp(fn, "FE_ForfeitBattle")) { ak_fe_close(); return AK_FE_QUIT; }
+    else if (!strcmp(fn, "FE_RestartMap")) { ak_fe_close(); return AK_FE_RESTART; }
+    else if (!strcmp(fn, "FE_RespawnKillPlayer")) { ak_fe_close(); return AK_FE_KILL; }
     else if (!strcmp(fn, "FE_TeamSelection")) { team_choice = atoi(a->arg); open_hash(ak_gui_hash("MP_Spawn_Location"), true); return AK_FE_TEAM; }
     else if (!strcmp(fn, "FE_RequestRespawn")) {                       /* the focused spawn point (W_BU_SpawnPoint<k>) */
         const ak_widget *f = focus ? find_id(&page->root, focus) : NULL; spawn_choice = -1;
@@ -406,12 +423,19 @@ const char *ak_fe_launch(int *mode) { if (mode) *mode = launch_mode; return laun
 static int activate(const ak_widget *b)
 {
     int r = AK_FE_NONE;
-    for (u32 i = 0; i < b->nactions; i++) if (b->actions[i].key == 16 || !b->actions[i].key) { int k = run(&b->actions[i], -1); if (k) r = k; }
+    for (u32 i = 0; i < b->nactions; i++) if (b->actions[i].key == 16 || !b->actions[i].key) { int k = run(&b->actions[i], -1); if (k) r = k; if (!page) return r; }
     if (r) return r;
     if (b->target) open_hash(b->target, true);
     return AK_FE_NONE;
 }
 
+static const ak_widget *first_control(const ak_widget *w)
+{
+    if (w->type != AK_GUI_PAGE && !cond_holds(w)) return NULL;
+    if (w->type == AK_GUI_BUTTON && (w->nactions || w->target)) return w;
+    for (u32 i = 0; i < w->nchild; i++) { const ak_widget *r = first_control(&w->child[i]); if (r) return r; }
+    return NULL;
+}
 static const ak_widget *find_visible(const ak_widget *w, u32 id)
 {
     if (w->type != AK_GUI_PAGE && !cond_holds(w)) return NULL;
@@ -423,6 +447,11 @@ int ak_fe_update(const ak_input *in, f32 dt)
 {
     if (!page) return AK_FE_NONE;
     clock += dt;
+    if (focus_fix_pending) {                                           /* the page's focus hidden or a title: its first shown control */
+        focus_fix_pending = false;
+        const ak_widget *f0 = focus ? find_visible(&page->root, focus) : NULL;
+        if (!f0 || (f0->type == AK_GUI_BUTTON && !f0->nactions && !f0->target)) { const ak_widget *c = first_control(&page->root); if (c) focus = c->id; }
+    }
     var_set("GUIMenu.ActiveWidget", (s32)focus);
     const ak_widget *f = focus ? find_id(&page->root, focus) : NULL;
     if (f && f->type == AK_GUI_TEXTLIST) {                            /* a text list: up / down through its rows, its keys */

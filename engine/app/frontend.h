@@ -7,7 +7,7 @@
 #include "../core/ak_vfs.h"
 #include "../platform/plat.h"
 
-enum { AK_FE_NONE = 0, AK_FE_START = 1, AK_FE_QUIT = 2, AK_FE_TEAM = 3, AK_FE_SPAWN = 4 };
+enum { AK_FE_NONE = 0, AK_FE_START = 1, AK_FE_QUIT = 2, AK_FE_TEAM = 3, AK_FE_SPAWN = 4, AK_FE_RESUME = 5, AK_FE_RESTART = 6, AK_FE_KILL = 7 };
 
 /* what the in-match pages show (team selection, the spawn map): the match as it is */
 #define AK_FE_MAX_POSTS 8

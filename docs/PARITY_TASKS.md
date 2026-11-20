@@ -650,7 +650,12 @@ textures and how they are used. Section R lists only what must be in place so th
     that post. Dead, the spawn map comes back after three seconds. Widget ids are not always their names' hashes
     (W_BU_SpawnPoint0 is 0x55F10F71): the code finds those by name. A neighbour link to a hidden widget is followed on in
     the same direction. Open: the spawn map's zoom (the original fits the playable area; Aurek shows the whole map picture),
-    the team lists' insignia and the faction logos, the respawn timer, the pause menu, the score boards.
+    the team lists' insignia and the faction logos, the respawn timer, the score boards.
+  - 2026-11-20, the pause menu: START opens MP_InGame_Menu (the match stops while it is up); FE_ResumePlay, FE_RequestMenuMode(n)
+    (BFF.FE_MenuMode: which of the yes / no page's answers show), FE_QuitGame / FE_ForfeitBattle (back to the main menu),
+    FE_RestartMap, FE_RespawnKillPlayer. A button's target may be a widget's id rather than a page's ("Quit to Main Menu" ->
+    W_BU_No_QuitInGame on MP_YesNo_Dialogue): the page holding it opens, focused on it. A page whose focus is hidden or a
+    title focuses its first shown control.
 
 ## 9. Camera and input
 
