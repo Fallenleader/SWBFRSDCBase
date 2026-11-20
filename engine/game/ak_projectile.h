@@ -36,6 +36,7 @@ typedef struct {
 typedef struct {
     const ak_proj_def *d; f32 pos[3], vel[3], dir[3], t, dmg_scale; int team; s32 owner, target; bool alive, dropped, stuck; f32 drag;
     f32 prox_t;                         /* a mine: time since an enemy came in range (-1 none yet) */
+    f32 tlast[3]; bool thave;           /* a guided one: its target's point last frame (for the target's velocity) */
 } ak_proj;
 
 #define AK_MAX_PROJ 64

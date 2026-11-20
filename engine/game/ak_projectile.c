@@ -164,21 +164,19 @@ void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *tg, u32 n
         p->t += dt;
         if (p->t >= d->life) { if (d->on_timer) explode(ps, p, tg, nt, boom, ctx, col); else p->alive = false; continue; }
         if (d->drop_time > 0 && !p->dropped && p->t >= d->drop_time) { p->dropped = true; for (int k = 0; k < 3; k++) p->vel[k] += p->dir[k] * d->speed; }
-        /* guidance: turn the velocity toward the target (after any drop) */
-        if (p->target >= 0 && (u32)p->target < nt && tg[p->target].alive && p->t >= d->drop_time) {
+        /* guidance (traced, the projectile update 08A005B0: with WillTrack (+168) and a living target (+140, health > 0) the velocity
+           is set every frame straight at the target's point (its vfunc +44) plus the target's velocity (vfunc +40) times the frame
+           time, at the projectile's current speed - no turn-rate limit).  [assumed: the point is the body's middle; the target's
+           velocity is taken from its movement since the last frame] */
+        if (p->target >= 0 && (u32)p->target < nt && tg[p->target].alive && tg[p->target].health > 0 && p->t >= d->drop_time) {
             const ak_target *t = &tg[p->target];
-            f32 c[3] = { t->feet[0], t->feet[1] + t->height * 0.5f, t->feet[2] };
-            f32 sp = sqrtf(p->vel[0] * p->vel[0] + p->vel[1] * p->vel[1] + p->vel[2] * p->vel[2]); if (sp < 1) sp = 1;
-            f32 want[3] = { c[0] - p->pos[0], c[1] - p->pos[1], c[2] - p->pos[2] }, wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]);
-            if (wl > 0.01f) {
-                f32 cur[3] = { p->vel[0] / sp, p->vel[1] / sp, p->vel[2] / sp }, turn = 1.75f * dt;   /* (100 degrees a second: not traced) */   /* PARITY(2.4) */
-                for (int k = 0; k < 3; k++) want[k] /= wl;
-                f32 dot = cur[0] * want[0] + cur[1] * want[1] + cur[2] * want[2], ang = acosf(dot > 1 ? 1 : dot < -1 ? -1 : dot);
-                f32 s = ang > turn ? turn / ang : 1.0f;
-                for (int k = 0; k < 3; k++) cur[k] += (want[k] - cur[k]) * s;
-                f32 cl = sqrtf(cur[0] * cur[0] + cur[1] * cur[1] + cur[2] * cur[2]);
-                for (int k = 0; k < 3; k++) p->vel[k] = cur[k] / cl * sp;
-            }
+            f32 c[3] = { t->feet[0], t->feet[1] + t->height * 0.5f, t->feet[2] }, tv[3] = { 0, 0, 0 };
+            if (p->thave && dt > 0) for (int k = 0; k < 3; k++) tv[k] = (c[k] - p->tlast[k]) / dt;
+            memcpy(p->tlast, c, 12); p->thave = true;
+            f32 sp = sqrtf(p->vel[0] * p->vel[0] + p->vel[1] * p->vel[1] + p->vel[2] * p->vel[2]);
+            f32 want[3] = { c[0] + tv[0] * dt - p->pos[0], c[1] + tv[1] * dt - p->pos[1], c[2] + tv[2] * dt - p->pos[2] };
+            f32 wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]);
+            if (wl > 0) for (int k = 0; k < 3; k++) p->vel[k] = want[k] / wl * sp;
         }
         if (d->prox > 0) {
             /* a mine (traced: each living unit's update 089E1890 walks the mines; one within WillDetonateAT of the unit's position

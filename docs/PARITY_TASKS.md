@@ -270,7 +270,11 @@ textures and how they are used. Section R lists only what must be in place so th
     200 s): 2 throws at normal (20 and 43 m), 4 at elite (5-34 m) - fewer than the original's 5 in 100 s (its sensed list
     may hold more units, or its difficulty in the harness run is elite: open).
 
-- [ ] **2.4 Guided projectiles [assumed].** Aurek turns them at 100°/s; trace the turn rate.
+- [x] **2.4 Guided projectiles [traced 2026-11-20, built].** There is no turn rate. The projectile update 08A005B0, with WillTrack
+  (+168, from the Projectile loader 08A01590) and a living target (+140, health +40 > 0), sets the velocity every frame straight at
+  the target's point (its vfunc +44) plus the target's velocity (vfunc +40) times the frame time, at the projectile's own speed.
+  Aurek does the same: the 100 degrees a second limit is gone. [assumed: the point is the body's middle (vfunc +44 not read);
+  the target's velocity comes from its movement over the last frame]. Space Hoth 3 min: 45 fired, 23 hits.
   - Traced so far: tracking projectiles are Rocket (20 m/s), Proton Torpedo (125), Harpoon (100), HomingMissile and
     AdvancedHomingMissile (150); no turn-rate key in any blueprint, so it is a code constant. The projectile object (init
     08A16FD8: WillTrack -> flags +364 bit 0) runs a state machine in 08A186EC (states hashed 0x29893637 -> 08A192CC,
