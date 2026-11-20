@@ -598,6 +598,8 @@ textures and how they are used. Section R lists only what must be in place so th
     (thermal detonator, its HUDIcon and count) in the second slot - done 2026-11-20. The weapon names after a spawn too
     (08A5318C: the Weapon's Weapon_Name from STDTEXT - 110 "Blaster Rifle", 127 "Thermal Detonator" - for 5 s, scale 1, fading;
     placed as on the original's screen: 29 above the upper icon, 22 below the lower) - matches the original's spawn frame.
+  - Radar: empty vehicles' blips green (the original's frame on Hoth's spawn: the two vehicle squares are green, Aurek's were
+    grey) - done 2026-11-20 from the picture; the colour's source (each class's radar function, vfunc +12) not traced.
   - Ticket logos: tinted by side (08A5B80C: ours ABGR 0xFFFF0000 blue, theirs 0xFF0000FF red) - done 2026-11-20.
   - Jetpack and shield bars.
   - The unmanned turret's hit source.

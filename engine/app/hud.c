@@ -352,7 +352,7 @@ static void radar(const ak_hud_state *st)
         f32 dx = b->pos[0] - px, dz = pz - (-b->pos[2]);
         f32 x = (dx * c + dz * s) * zoom, y = (dz * c - dx * s) * zoom, dist = sqrtf(x * x + y * y);
         bool rim = b->kind == 1;
-        u32 col = team_colour(b->team, st->team);
+        u32 col = b->kind == 2 ? 0xFF00FF00u : team_colour(b->team, st->team);   /* (an empty vehicle: green, as the original's radar on Hoth's spawn) */
         if (!rim) {
             if (dist >= R) continue;
             f32 a = 1.0f; if (dist > 38) a = 0; else if (dist > 32) a = (38 - dist) / 6.0f;
