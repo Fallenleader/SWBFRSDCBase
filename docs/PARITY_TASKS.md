@@ -570,6 +570,12 @@ textures and how they are used. Section R lists only what must be in place so th
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source
   of the count (mode or level data) is not traced.
 - [ ] **4.6 Space AI [partial].** Commander roles are traced; dogfight states FOLLOWING / CIRCLING_ROUND / DOING_STUNT are not.
+  - 2026-11-20: FOLLOWING / CIRCLING_ROUND were already built from 08948A9C (play.c bot_fly). The state-name tables sit at
+    0x08ADA314.. (UNSET / FOLLOWING / CIRCLING_ROUND / FINISHED; UNSET / FOLLOWING / CIRCLING_ROUND / DOING_STUNT / FINISHED,
+    the latter's machine 0894A3A4 -> 0894A51C). Space Hoth, 110 s: the original's flyers hit flyers 160 times, Aurek's 13. In
+    Aurek only 6-7 bots fly at once and they fight across 500-1700 m (their nose is within the trigger's 5 degrees and 600 m
+    2 % of the time; letting them pitch past 0.7 rad in space changed nothing). [ ] Measure the original's flyer count and
+    engagement distances (harness state.log, class 0x8004 positions) before changing the pursuit.
 
 ## 5. Game rules and modes
 
