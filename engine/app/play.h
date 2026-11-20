@@ -158,6 +158,10 @@ typedef struct {
                                           detonator): grenades left, time since the throw began (-1: none), time to the next */
     ak_turret_def tdef[8]; u32 ntdef; ak_turret turret[PLAY_MAX_TURRETS]; u32 nturret;   /* level turrets (ENTI type 30) */
     ak_play_boom boom[PLAY_MAX_BOOMS]; u32 nboom;
+    struct {                           /* pickups dropped by fallen soldiers (Humanoid SpawnPickupA / B; Projectile Health, Ammo, Stamina) */
+        bool alive; u8 kind; f32 pos[3], t, spin; s32 fx;   /* kind: 0 Health, 1 Ammo, 2 Stamina, 3 HealthAmmo */
+    } pickup[32]; bool pickup_alt; u32 pickups_made, pickups_taken;
+    struct { const ak_bp_object *bp; f32 cap, cap2, radius, delay, timer, fade; const char *pfx, *sfx; s32 model; } pickup_def[4];
     ak_pfx_lib pfx_lib; ak_pfx_world *pfx;   /* the level's particle effects and the ones running (R.6) */
     u32 pfx_shots, pfx_impacts; s32 pfx_tex_index; struct ak_gfx_tex *pfx_tex;   /* the shots / impacts already played; the sheet (set by the viewer) */
     bool pfx_on;                       /* AK_PFX (1): the game's effects in place of Aurek's flashes */

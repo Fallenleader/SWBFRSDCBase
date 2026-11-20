@@ -499,6 +499,21 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         if (p->pfx_on && ak_pfx_lib_load((const ak_blob *)&l->file, a, &p->pfx_lib)) { p->pfx = AK_NEW(a, ak_pfx_world, 1); if (p->pfx) { ak_pfx_world_init(p->pfx, &p->pfx_lib); f32 cs = ak_setting_float("AK_COLOUR_SCALE", 2.0f); p->pfx->colour_k = 255.0f / (cs > 0.1f ? cs : 1.0f); } }
         AK_INFO("play", "pfx: %u effects, %u systems, %u particle types, sheet %d", p->pfx_lib.nfx, p->pfx_lib.nsys, p->pfx_lib.ntype, p->pfx_tex_index);
     }
+    {   /* the pickups (Projectile Health / Ammo / Stamina / HealthAmmo <- Pickup; the ids 1000..1003 of 089F8FAC) */
+        static const char *pk[4] = { "Health", "Ammo", "Stamina", "HealthAmmo" };
+        for (int k = 0; k < 4; k++) {
+            __typeof__(p->pickup_def[0]) *d = &p->pickup_def[k];
+            d->bp = ak_bp_find(bp, "Projectile", pk[k]); if (!d->bp) continue;
+            d->cap = ak_bp_float(d->bp, "Capacity", 50); d->cap2 = ak_bp_float(d->bp, "SecondaryCapacity", 0);
+            d->radius = ak_bp_float(d->bp, "EffectiveRadius", 2); d->delay = ak_bp_float(d->bp, "InitialDelay", 0.1f);
+            d->timer = ak_bp_float(d->bp, "Timer", 10); d->fade = ak_bp_float(d->bp, "FadeTime", 0.75f);
+            d->pfx = ak_bp_string(d->bp, "PFXEffect", NULL); if (d->pfx && !*d->pfx) d->pfx = NULL;
+            d->sfx = ak_bp_string(d->bp, "SFXEffect", NULL);
+            const char *sk = ak_bp_string(d->bp, "Skin", ""), *sl = strrchr(sk, '\\'); char nm[64]; snprintf(nm, sizeof nm, "%s", sl ? sl + 1 : sk);
+            char *dot = strrchr(nm, '.'); if (dot) *dot = 0;
+            d->model = nm[0] ? ak_models_find(m, nm) : -1;
+        }
+    }
     {   /* the mode (PARITY 5.4): AK_MODE = 0..5 or its code (CQST, CTF1, CTF2, HCTF, GTAG, CMPN; table 0x08B1B900) */
         static const char *codes[6] = { "CQST", "CTF1", "CTF2", "HCTF", "GTAG", "CMPN" };
         const char *ms = ak_setting_str("AK_MODE", "CQST"); ak_game_mode = 0;
@@ -1317,6 +1332,27 @@ static bool vehicle_make(ak_play *p, u32 v)
     t->health = t->max_health = vh->def->health; t->alive = true; t->last_attacker = -1;
     vehicle_target(p, v);
     return true;
+}
+
+/* a fallen soldier's pickups (the Humanoid death 089A70FC): SpawnPickupA, then B, each made by 089F96C4 when a random 0..1 is
+   at most SpawnPickupProbability - 75 in every Humanoid, so always; "Random" (1004) is Health, Ammo or Stamina at 1/3 each
+   (089F97D4), "None" (1005) nothing; placed 0.1 m up and 1 m along the world z, the other way each time (DAT_08C2C008) */
+static void drop_pickups(ak_play *p, const ak_bp_object *body, const f32 *at)
+{
+    if (!body) return;
+    f32 prob = ak_bp_float(body, "SpawnPickupProbability", 75);
+    for (int k = 0; k < 2; k++) {
+        s32 id = ak_bp_int(body, k ? "SpawnPickupB" : "SpawnPickupA", 1005);
+        if (rnd(&p->seed) > prob) continue;
+        if (id == 1004) { id = 1000 + (s32)(rnd(&p->seed) * 3.0f); if (id > 1002) id = 1002; }
+        if (id < 1000 || id > 1003 || !p->pickup_def[id - 1000].bp) continue;
+        s32 slot = -1; for (int j = 0; j < 32; j++) if (!p->pickup[j].alive) { slot = j; break; }
+        if (slot < 0) continue;
+        __typeof__(p->pickup[0]) *q = &p->pickup[slot]; memset(q, 0, sizeof *q);
+        q->alive = true; q->kind = (u8)(id - 1000); q->t = 0;
+        q->pos[0] = at[0]; q->pos[1] = at[1] + 0.1f; q->pos[2] = at[2] + (p->pickup_alt ? 1.0f : -1.0f);   /* (game z +1 / -1 = engine -1 / +1) */
+        p->pickup_alt = !p->pickup_alt; p->pickups_made++;
+    }
 }
 
 /* an effect by name at pos along fwd (NULL: the effect's own frame) - R.6 */
@@ -2668,6 +2704,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 ride_fx(p, &p->eng_fx[v][k], want, ef, at, fw, vh->vel);
             }
         }
+        {   static int pt = -1; if (pt < 0) pt = ak_setting_int("AK_PICKUP_TEST", 0);   /* tests: a soldier's drop 4 m ahead at 1 s */
+            if (pt && p->frame_no == 60) { f32 f[3] = { p->aim[0], 0, p->aim[2] }, fl = sqrtf(f[0] * f[0] + f[2] * f[2]) + 1e-6f;
+                f32 q[3] = { p->ch.pos[0] + f[0] / fl * 4, p->ch.pos[1], p->ch.pos[2] + f[2] / fl * 4 }; drop_pickups(p, p->look.bp, q); drop_pickups(p, p->look.bp, q); } }
         ak_pfx_update(p->pfx, dt);
         {   static int dump = -2; if (dump == -2) dump = ak_setting_int("AK_PFX_DUMP", -1);   /* tests: the live particles by type, every 6 frames from that frame */
             if (dump >= 0 && (s32)p->frame_no >= dump && (s32)p->frame_no < dump + 60 && (p->frame_no - (u32)dump) % 6 == 0)
@@ -2696,6 +2735,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         {   s32 a = p->target[i].last_attacker; ak_play_hero *h = hero_of(p, a);      /* a hero's kill heals it (HeroHealthAddPerKill) */
             if (h && ak_game_mode != 3 && p->target[a].alive && p->target[a].team != p->target[i].team) {   /* (08982634: not in hero CTF) */
                 ak_target *ht = &p->target[a]; ht->health += h->per_kill * h->health; if (ht->health > h->health) ht->health = h->health; } }
+        drop_pickups(p, i == 0 ? p->look.bp : p->bot[i - 1].look.bp, p->target[i].feet);
         if (i == 0) player_down(p);
         else {
             ak_play_bot *b = &p->bot[i - 1]; b->alive = false; b->dead_t = 0; b->state = PLAY_IDLE;
@@ -2703,6 +2743,35 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         }
     }
     p->health = p->target[0].health;
+    for (int j = 0; j < 32; j++) {                                            /* pickups: collected, or gone after their Timer */
+        __typeof__(p->pickup[0]) *q = &p->pickup[j]; if (!q->alive) continue;
+        const __typeof__(p->pickup_def[0]) *d = &p->pickup_def[q->kind];
+        q->t += dt; q->spin += dt * 3.0f;                                     /* [assumed] a slow turn */
+        if (q->t >= d->timer) { q->alive = false; ride_fx(p, &q->fx, false, NULL, NULL, NULL, NULL); continue; }
+        ride_fx(p, &q->fx, true, d->pfx, q->pos, NULL, NULL);
+        if (q->t < d->delay) continue;
+        /* who takes it: the first soldier (any side) within EffectiveRadius who needs it [assumed: only what it lacks]; Health adds
+           Capacity health, Ammo Capacity per cent of the weapon's full ammunition (HealthAmmo: SecondaryCapacity), Stamina
+           Capacity stamina (the player's) [assumed units] */
+        bool used = false;
+        for (u32 u = 0; u < NS(p) && !used; u++) {
+            ak_target *t = &p->target[u];
+            if (!t->alive || (u == 0 ? (p->in_veh >= 0 || p->in_turret >= 0) : p->bot[u - 1].veh >= 0)) continue;
+            f32 dx = t->feet[0] - q->pos[0], dy = t->feet[1] - q->pos[1], dz = t->feet[2] - q->pos[2];
+            if (dx * dx + dy * dy + dz * dz > d->radius * d->radius) continue;
+            f32 maxh = u == 0 ? p->max_health : ak_bp_float(p->bot[u - 1].look.bp, "Health", 60.0f);
+            for (int t2 = 0; t2 < 2; t2++) if (p->hero[t2].unit == (s32)u) maxh = p->hero[t2].health;
+            ak_weapon *w = u == 0 ? (p->armed ? &p->weapon : NULL) : (p->bot[u - 1].weapon.def ? &p->bot[u - 1].weapon : NULL);
+            if ((q->kind == 0 || q->kind == 3) && t->health < maxh) { t->health += d->cap; if (t->health > maxh) t->health = maxh; if (u == 0) p->health = t->health; used = true; }
+            if ((q->kind == 1 || q->kind == 3) && w && w->def && w->def->clip > 0) {
+                s32 full = w->def->clip * (w->def->clips > 0 ? w->def->clips : 1), have = w->ammo + w->spare;
+                if (have < full) { s32 add = (s32)((q->kind == 3 ? d->cap2 : d->cap) * 0.01f * (f32)full + 0.5f); if (add < 1) add = 1;
+                    w->spare += add; if (w->ammo + w->spare > full) w->spare = full - w->ammo; used = true; }
+            }
+            if (q->kind == 2 && u == 0 && p->stamina < p->stamina_max) { p->stamina += d->cap; if (p->stamina > p->stamina_max) p->stamina = p->stamina_max; used = true; }
+        }
+        if (used) { p->pickups_taken++; q->alive = false; ride_fx(p, &q->fx, false, NULL, NULL, NULL, NULL); if (d->sfx) ak_audio_play(d->sfx, q->pos, false); }
+    }
     /* falling out of the world */
     if (p->alive && p->ch.pos[1] < -400.0f) ak_play_damage(p, 1e6f);
     for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0 && p->bot[i].ch.pos[1] < -400.0f) {
@@ -3043,6 +3112,10 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
             ak_scene_force_pipe(-1);
         }
         ak_gfx_set_tint(NULL);
+    }
+    for (int j = 0; j < 32; j++) {                                            /* dropped pickups: their Skin, turning [assumed] */
+        const __typeof__(p->pickup[0]) *q = &p->pickup[j]; if (!q->alive || p->pickup_def[q->kind].model < 0) continue;
+        ak_m4 w; world_of(q->pos, q->spin, &w); ak_scene_models_draw(ms, (u32)p->pickup_def[q->kind].model, vp, &w, NULL, NULL, st);
     }
     for (u32 u = 0; u < NS(p); u++) {                                          /* saber heroes: the blade, up the hilt's axis */
         const ak_play_hero *h = NULL; for (int t = 0; t < 2; t++) if (p->hero[t].unit == (s32)u && p->hero[t].saber) h = &p->hero[t];

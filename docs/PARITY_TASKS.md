@@ -209,6 +209,15 @@ textures and how they are used. Section R lists only what must be in place so th
   pulse (refills at frames 541, 1081, 1681, 2221 - all on the same 60-frame beat), one clip per pulse, within the droid's
   EffectiveRadius (8). Aurek's droids already pulse that way (UtilityDroid PulseLength 1 s, one clip, radius 8). Health droids
   and explosive refills not measured yet.
+- [ ] **2.2b Dropped pickups [partly traced 2026-11-20].** A fallen soldier drops pickups (the Humanoid death 089A70FC): its
+  SpawnPickupA then SpawnPickupB (Humanoid +300 / +302, read by 089A69E4), each made by 089F96C4 when a random 0..1 is at most
+  SpawnPickupProbability (+304) - 75 in every Humanoid, so always; ids by 089F8FAC: 1000 Health, 1001 Ammo, 1002 Stamina, 1003
+  HealthAmmo, 1004 "Random" (Health, Ammo or Stamina at 1/3 each, 089F97D4), 1005 "None" (every Humanoid: A Random, B None);
+  placed 0.1 m up and 1 m along the world z, the other way each time. The pickups are Projectile blueprints <- Pickup
+  (EffectiveRadius 2, InitialDelay 0.1, Timer 10, FadeTime 0.75; Health / Ammo Capacity 50, Stamina 100, HealthAmmo 100 + 50;
+  their PFXEffect rings, Skin and SFXEffect "Generic_Pick_Up"); the pickup class's loader is 089F5F60. Aurek (NATIVE_ENGINE row)
+  drops and draws them; [ ] who may take one and the units of Capacity are not traced (Aurek: any soldier who needs it; health
+  points, per cent of the full ammunition, stamina), nor the model's motion and the fade.
 - [ ] **2.3 Secondary items [partial].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
   incinerator, fusion cutter, shields, jetpack, jump pack, stealth. Trace each one's blueprint use.
   - Thermal detonator [measured and built 2026-11-16]: Weapon REP_Grenade (4, no spare clips, 2 s between throws), Projectile

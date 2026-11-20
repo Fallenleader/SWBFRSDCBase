@@ -475,6 +475,7 @@ int main(int argc, char **argv)
                     AK_INFO("test", "vehicle %u %s at %.2f,%.2f,%.2f", v, play.veh[v].def ? play.veh[v].def->name : "-", g[0], g[1], g[2]); }
                 AK_INFO("test", "vehicles:%s", vl);
                 AK_INFO("test", "projectiles: %u fired, %u hits", play.projs.fired, play.projs.hits);
+                AK_INFO("test", "pickups: %u dropped, %u taken", play.pickups_made, play.pickups_taken);
                 if (play.pfx) AK_INFO("test", "pfx: %u played, %u dropped (%u particles), %u particles live", play.pfx->played, play.pfx->dropped, play.pfx->dropped_particles, ak_pfx_live(play.pfx));
                 if (play.nturret) { k = 0;
                     for (u32 v = 0; v < play.nturret && k < 480; v++)
