@@ -974,6 +974,11 @@ groundwork below is needed before the parity work starts. The tiers come later.
       colour and radius curves), cell animation, the oriented / stretched draws (FXPT 0x200, 0x1000-0x4000), the emitter scale
       of flags 0x40000 (thrust size), the space-dust / hero effects, and the exact noise (088EF134). Boost trails: traced
       2026-11-20 (089AF4B0: BoostPFX at BoostMarkers markers trail01..06) and built; what shows them is [assumed] (boosting).
+    - 2026-11-20, cell animation (not built): on Hoth three types have more than one cell, all fires (BFF_Vehicle_33%_health:S,
+      BFF_SmokeyFire_E:S, BFF_FlameThrower:rw_pspfire1_source_S: 4 cells each, a cell = u0 v0 u1 v1 and a fifth float, 0 for the
+      first and 1 for the others). The cell is the emitter's, not the particle's: 088E6CD4 hands the batch the uv at emitter
+      +124 + 4, a 44-byte object made by 088E643C (0889C644 sets up an animator at its +20); what advances it is not read.
+      SpaceDustPFX's hash (0xF31E1D8A) appears nowhere in the code.
     - 2026-11-20, measured (harness RS_PFX_LOG; NATIVE_ENGINE row): c1 is the half-width; c2 is in turns from a random start;
       unturned types mirror at random; the blends, depth (test, no write), no fog and x1 colour; types drawn in the level's
       order; muzzle flashes take the bolt's colour. [assumed] left in the draw: flags 0x400's flip on half the particles (seen,
