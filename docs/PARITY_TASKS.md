@@ -87,6 +87,10 @@ textures and how they are used. Section R lists only what must be in place so th
     motion). Harness: run-jump, jump-back and stand-jump-forward within 0.25 m.
   - [ ] **1.5b** Find the 0.5 s and the per-frame rate in the code; "jump max hold time" / "max jump impulse" (holding the
     button for a higher jump?) are not tested.
+    - 2026-11-20: no higher jump for a longer press. "jump max hold time" (0.3, Controls "Humanoid") is read only by the control
+      scheme builder 08A5F1A4 (a binding's hold window), and "max jump impulse" (12) only by the jump-pack states (089A066C,
+      089A5AE4, with "jumppack impulse" 10); the soldier's jump is "jump impulse" 6 alone. "roll no lock on time" (2) is read by
+      089A3C44 (the roll), not built.
 - [x] **1.6 Crouch [checked 2026-11-16: not on the player's controls].** Held in the original (harness, Hoth): d-pad down,
   circle, triangle, square and R - none crouches, and the body box stays 1.8 m. The crouched animation sets serve the rolls
   (Crouch_Roll_*) and possibly the AI; nothing to build for the player.
