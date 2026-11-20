@@ -553,6 +553,10 @@ textures and how they are used. Section R lists only what must be in place so th
     volumes default to 1.0 (08977808).  AK_MUSIC_VOLUME defaults to 0.5625 (settings.txt files updated).  Open: the two-stream
     cross-fade (Aurek plays one stream).
 - [ ] **7.2 Missing effects.** Vehicle collisions ("Collision sound"), Doppler, any reverb or occlusion the game uses.
+  - 2026-11-19, traced not ported: a vehicle's collision (089CE510, with the impact speed) does nothing below the class's
+    threshold (vfunc +0x1F0); above it the vehicle takes damage (message 0x8001: +0x34 x speed x dt x vfunc +500) and plays its
+    blueprint's "Collision sound" event at its position, volume 1.0, stopping the previous one first (089CD7C4; also on message
+    0x805C).  Aurek's ground vehicles have no collision damage yet, so the sound waits for that.
 - [ ] **7.3 Speech [partial].** Trigger rules for every line category.
 
 ## 8. HUD and front end
@@ -562,7 +566,7 @@ textures and how they are used. Section R lists only what must be in place so th
   - Jetpack and shield bars.
   - The unmanned turret's hit source.
   - World markers (08A55238).
-  - The capture cross.
+  - The capture cross (done with 5.5).
   - The missile-warning check against a screenshot of the original.
 - [ ] **8.2 Front end (1.10) [missing].** Menus, loadouts, colour picker, map selection, galactic conquest, campaign, subtitles.
 
