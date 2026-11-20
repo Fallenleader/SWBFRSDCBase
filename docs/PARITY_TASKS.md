@@ -573,6 +573,11 @@ textures and how they are used. Section R lists only what must be in place so th
 ## 9. Camera and input
 
 - [ ] **9.1 Soldier camera [assumed].** FOV (AK_FOV 55) and near/far planes. Trace per mode, including zoom.
+  - 2026-11-19, measured (RS_PROJ_LOG in the port's GU layer, Hoth on foot): the projection is 1.73209 across, 3.05663 up, an
+    infinite far plane, near 0.25 m - the blueprint's "fov" 60 is the horizontal angle on the 480 x 272 screen (36.2 degrees
+    high).  Aurek's classic camera took 60 as the vertical angle; it now uses 36.2 vertical (wider screens see more at the
+    sides).  The modern camera's AK_FOV 55 is the owner's choice and stays.  A second projection (1.496 up: 67.5 degrees high)
+    appears on the spawn screen.  Open: zoom, vehicles.
 - [ ] **9.2 Vehicle cameras [partial].** CameraVelocityWeight and the "Min" values.
 - [ ] **9.3 Controls.** The PSP layout is traced. Twin-stick aiming (AK_AIM_*) is a modern option and stays as one, kept apart from
   the classic controls.

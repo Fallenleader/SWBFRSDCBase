@@ -493,7 +493,9 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->psp_buttons = ak_setting_str("AK_BUTTONS", "psp")[0] != 'l';            /* psp (default) or legacy */
     p->pull_out_rate = ak_bp_float(cam, "pull out rate", 1.0f); p->pull_in_rate = ak_bp_float(cam, "pull in rate", 15.0f);
     if (p->classic_cam) {
-        p->fov = (f32)ak_bp_int(cam, "fov", 60) * 3.14159265f / 180.0f;
+        /* "fov" is across the PSP's 480 x 272 screen (measured: the game's projection in the harness is 1.732 across, 3.057 up -
+           60 degrees wide, 36.2 high; near 0.25 m, no far plane) - Aurek keeps that height on any screen */
+        p->fov = 2.0f * atanf(tanf((f32)ak_bp_int(cam, "fov", 60) * 3.14159265f / 360.0f) * 272.0f / 480.0f);   /* PARITY(9.1) */
         p->pivot_h = ak_bp_float(cam, "pivot height stand", 1.5f); p->pivot_x = ak_bp_float(cam, "pivot x offset", 0.3f);
         p->cam_back = -ak_bp_float(cam, "desired z offset", -7.0f); p->cam_up = -ak_bp_float(cam, "desired y offset", -0.5f);   /* game y points down */
         p->cam_side = ak_bp_float(cam, "desired x offset", -0.2f);
