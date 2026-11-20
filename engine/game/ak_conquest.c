@@ -176,6 +176,7 @@ void ak_cq_rules_default(ak_cq_rules *r)
     s32 t = ak_setting_int("AK_TICKETS", 100);                              /* the option's range is 25..200 */   /* PARITY(5.1) */
     r->tickets = t < 25 ? 25 : t > 200 ? 200 : t;
     r->capture_radius = 5.0f; r->max_rate = 5.0f; r->contest_time = 30.0f;
+    r->ticket_mode = ak_game_mode == 0 || ak_game_mode == 5;              /* 08973660; elsewhere the tickets are unlimited (08987414: -1) */   /* PARITY(5.4) */
     r->bleed_time = 4.0f; r->drain_time = 0.1f;
     r->loss_time = ak_setting_float("AK_TOTAL_LOSS_TIME", 60.0f); r->respawn_delay = ak_setting_float("AK_RESPAWN_DELAY", 10.0f);   /* PARITY(1.10 5.1) */
 }
@@ -205,9 +206,9 @@ void ak_conquest_start(const ak_conquest_map *m, const ak_cq_rules *r, ak_conque
         ak_post_state *p = &s->post[i];
         p->owner = m->post[i].start_owner; p->capturing = AK_CQ_NEUTRAL; p->progress = m->post[i].amount;
     }
-    s->tickets[0] = s->tickets[1] = r->tickets;
+    s->tickets[0] = s->tickets[1] = r->ticket_mode ? r->tickets : -1;
     for (u32 i = 0; i < m->ntmod; i++) {                                     /* the level script's changes (Hoth: the Empire +25 %) */
-        const ak_ticket_mod *t = &m->tmod[i]; if (t->team < 0 || t->team > 1) continue;
+        const ak_ticket_mod *t = &m->tmod[i]; if (t->team < 0 || t->team > 1 || !r->ticket_mode) continue;
         if (t->set) { if (t->value > 0) s->tickets[t->team] = (s32)t->value; }
         else s->tickets[t->team] += (s32)lroundf((f32)r->tickets * t->value * 0.01f);
     }
@@ -284,7 +285,7 @@ bool ak_conquest_update(const ak_conquest_map *m, const ak_cq_rules *r, ak_conqu
     int all = AK_CQ_NEUTRAL;
     for (int t = 0; t < 2; t++) if (s->present && s->held[t] == s->present) all = t;
     if (all != s->all_team) { s->all_team = all; s->loss_t = r->loss_time; }
-    if (all != AK_CQ_NEUTRAL && s->winner < 0) {
+    if (all != AK_CQ_NEUTRAL && s->winner < 0 && r->ticket_mode) {     /* [PARITY(5.4) assumed: no total loss without tickets] */
         s->loss_t -= dt * (s->living[1 - all] ? 1.0f : 11.0f);
         if (s->loss_t <= 0) { s->loss_t = 0; s->winner = all; }
     }

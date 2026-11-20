@@ -465,7 +465,15 @@ textures and how they are used. Section R lists only what must be in place so th
     droids - a fifth post and a droid pair are CTF-only (mask 0x0C), which Aurek used to place.  Aurek now reads the mask
     (assets/entity.c ak_enti_modes) and skips other modes' posts, droids, turrets, vehicle spawns, objectives and props; AK_MODE
     picks the mode (code or 0..5, default CQST).
-  - CTF traced so far (not yet ported): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
+  - Part 2, 2026-11-19 - **CTF rules ported** (game/ak_ctf.c; AK_MODE=CTF1 / CTF2 / HCTF): flags, pickup, carrying, drop and
+    30 s return, captures at bases, score limit 5 (AK_CTF_CAPTURES, 3..20), time limit 60 min (AK_TIME_LIMIT; more captures
+    wins, else a draw), unlimited tickets outside conquest / campaign (no bleed, no ticket loss; total loss also off -
+    [assumed]), the HUD showing captures where the tickets go (08A5B80C), flag models by faction and friend / foe (089F84D4).
+    Checked on Endor: CTF2 2 flags / 2 bases / 2 posts, a capture by the carrier's own base only; CTF1 one neutral flag scored at
+    the carrier's own base, not the other.  Open: bots have no CTF orders yet (the squad AI 08929120 / 0892A9D0: own and enemy
+    base and flag positions, an attack share of 0.7 - 0.4 in HCTF - per side), kill boxes (5 s return), the carried flag's bone
+    (0x7E779B80; drawn 1 m above the carrier), flags carried in vehicles (089D0A8C), the flag messages, HCTF's hero flag bases.
+  - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
     only if the flag allows), one flag a carrier (089F708C / 089F7D9C); it follows the carrier; dropped at the carrier's feet on

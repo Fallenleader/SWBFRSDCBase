@@ -391,6 +391,20 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->team_faction[p->team] = p->look.faction; p->team_faction[1 - p->team] = p->look.faction ^ 1;
     ak_cq_rules_default(&p->rules);
     if (p->have_cq) ak_conquest_start(&p->cq, &p->rules, &p->match);
+    p->have_ctf = ak_ctf_load(l, ak_game_mode, &p->ctf_map);                  /* PARITY(5.4) */
+    if (p->have_ctf) {
+        ak_ctf_start(&p->ctf_map, &p->ctf);
+        /* each flag's model (089F84D4): its side's faction, blue when it is the player's side, red otherwise; neutral_flag */
+        static const u32 own[4] = { 0x3D7C732Au, 0x95314C5Bu, 0x9EA8D745u, 0x5F017962u }, foe[4] = { 0xF177DBC1u, 0x2E1A9870u, 0x4F710846u, 0x349D2E89u };
+        for (u32 f = 0; f < p->ctf_map.nflags; f++) {
+            int sd = p->ctf_map.flag[f].side, fac = sd <= 1 ? p->team_faction[sd] : -1;
+            u32 h = fac >= 0 && fac < 4 ? (sd == p->team ? own[fac] : foe[fac]) : 0xEC5B1EE4u;
+            p->flag_model[f] = -1;
+            for (u32 k = 0; k < m->nmodels; k++) if (m->models[k].lod == 0 && m->models[k].hash == h) { p->flag_model[f] = (s32)k; break; }
+            if (p->flag_model[f] >= 0) { const ak_model *fm = &m->models[p->flag_model[f]]; p->ctf_map.drop_raise = fm->bmax[1] - fm->bmin[1] + 0.1f; }
+        }
+        AK_INFO("ctf", "mode %d: %u flags, %u bases, captures to win %d", ak_game_mode, p->ctf_map.nflags, p->ctf_map.nbases, p->ctf.limit);
+    }
     /* the player's customisation (the spawn screen's "Customisation Menu", 200 credits): the default loadout is the blaster rifle
        (25), the thermal detonator (10), Health Level 1 (10) and Speed Level 1 (10) - read from the original's menu.  Health by level:
        100 / 133 / 166 / 200 (08978170, table 0x08AEE3B8); speed by level: 0.85 / 1.0 / 1.15 / 1.3 (08978240).  AK_HEALTH_LEVEL,
@@ -1905,6 +1919,14 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
 {
     if (!p->ready) return;
     p->clock += dt; p->frame_no++;
+    {   /* tests: AK_TEST_TP = "frame:x,y,z;frame:x,y,z..." - put the player there (game axes) on those frames */
+        static const char *tp = (const char *)1; if (tp == (const char *)1) tp = ak_setting_str("AK_TEST_TP", NULL);
+        for (const char *s = tp; s && *s; ) {
+            u32 fr; f32 g[3]; if (sscanf(s, "%u:%f,%f,%f", &fr, &g[0], &g[1], &g[2]) != 4) break;
+            if (fr == p->frame_no && p->alive) { f32 q[3]; ak_from_game(g, q); ak_char_spawn(&p->ch, q, p->ch.yaw); }
+            s = strchr(s, ';'); if (s) s++;
+        }
+    }
     p->respawn_req = (in->pressed & (AK_BTN_CROSS | AK_BTN_R)) != 0;           /* (the raw press: the respawn screen's confirm) */
     static ak_input mapped; mapped = psp_layout(p, in, dt); in = &mapped;
     if (ak_setting_int("AK_TEST_TAKEOVER", 0) && p->in_veh < 0 && p->alive)   /* tests: stand beside a vehicle a teammate bot drives */
@@ -2337,6 +2359,17 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     } else {                                                                  /* no posts: a wave every respawn delay */
         static f32 w; w += dt; if (w >= p->rules.respawn_delay) { w = 0; wave = true; }
     }
+    if (p->have_ctf && (!p->have_cq || p->match.winner < 0)) {                /* capture the flag (game/ak_ctf.h) */
+        ak_ctf_soldier cs[1 + PLAY_MAX_BOTS];
+        for (u32 i = 0; i < NS(p); i++) {
+            const ak_character *c = i ? &p->bot[i - 1].ch : &p->ch;
+            memcpy(cs[i].pos, c->pos, 12); cs[i].side = p->target[i].team; cs[i].bot = i != 0;
+            cs[i].alive = i ? p->bot[i - 1].alive : p->alive; cs[i].on_foot = i ? p->bot[i - 1].veh < 0 : p->in_veh < 0 && p->in_turret < 0;
+        }
+        ak_ctf_update(&p->ctf_map, &p->ctf, ak_game_mode, p->is_space, cs, NS(p), dt);
+        if (p->ctf.events & AK_CTF_EV_CAPTURE) AK_INFO("ctf", "side %d captures (%d / %d)", p->ctf.last_side, p->ctf.score[0], p->ctf.score[1]);
+        if (p->ctf.winner >= 0 && p->have_cq && p->match.winner < 0) p->match.winner = p->ctf.winner <= 1 ? p->ctf.winner : AK_CQ_NEUTRAL;
+    }
     heroes_update(p, m, dt);
     droids_update(p, dt);
     bool playing = !p->have_cq || p->match.winner < 0;
@@ -2535,6 +2568,12 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         if (!ak_frustum_aabb(&fr, mn, mx)) continue;
         draw_soldier(ms, m, &b->look, b->ch.pos, b->ch.yaw, (const f32 (*)[12])b->bones, vp, st);
         if (b->alive && b->weapon.def && weapon_world(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, gun)) draw_weapon(ms, m, b->weapon.def, gun, vp, st);
+    }
+    for (u32 f = 0; p->have_ctf && f < p->ctf_map.nflags; f++) {           /* the flags */
+        const ak_ctf_flag *fl = &p->ctf.flag[f]; if (!fl->present || p->flag_model[f] < 0) continue;
+        f32 M[12] = { 1, 0, 0, fl->pos[0],  0, 1, 0, fl->pos[1],  0, 0, 1, fl->pos[2] };
+        if (fl->carrier >= 0) M[7] += 1.0f;   /* [PARITY(5.4) assumed: the game hangs it on the carrier's bone 0x7E779B80, not mapped yet] */
+        draw_part(ms, p->flag_model[f], M, vp, st);
     }
     static ak_vtx bv[(AK_MAX_BOLTS + AK_MAX_IMPACTS + AK_MAX_POSTS + PLAY_MAX_BOOMS + 4) * AK_BEAM_VERTS];
     ak_gfx_set_transform(NULL);

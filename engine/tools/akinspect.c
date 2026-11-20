@@ -380,8 +380,8 @@ int main(int argc, char **argv)
             for (u32 k = 0; k < ms.nmodels; k++) {
                 const ak_model *m = &ms.models[k];
                 if (!strcmp(argv[i + 1], "all") || !strcmp(argv[i + 1], m->name))
-                    printf("  %-44s lod %u parts %2u bones %2u verts %5u tris %5u radius %7.2f\n", m->name, m->lod, m->nparts,
-                           m->skeleton >= 0 ? ms.skels[m->skeleton].nbones : 0, m->nvtx, m->nidx / 3, m->radius);
+                    printf("  %-44s lod %u parts %2u bones %2u verts %5u tris %5u radius %7.2f hash %08x\n", m->name, m->lod, m->nparts,
+                           m->skeleton >= 0 ? ms.skels[m->skeleton].nbones : 0, m->nvtx, m->nidx / 3, m->radius, m->hash);
             }
         if (!strcmp(argv[i], "--clip"))
             for (u32 k = 0; k < ms.nclips; k++) if (!strcmp(ms.clips[k].name, argv[i + 1])) {

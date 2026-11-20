@@ -400,6 +400,7 @@ int main(int argc, char **argv)
                 AK_INFO("test", "conquest: tickets %d / %d, posts %s, captures %u, winner %d, player %s (health %.0f, deaths %u) at %.1f %.1f %.1f", play.match.tickets[0],
                         play.match.tickets[1], ow, play.match.captures, play.match.winner, play.alive ? "up" : "down", play.health, play.deaths,
                         play.ch.pos[0], play.ch.pos[1], play.ch.pos[2]);
+                if (play.have_ctf) AK_INFO("test", "ctf: captures %d / %d, winner %d, flags %d %d %d (carriers %d %d %d)", play.ctf.score[0], play.ctf.score[1], play.ctf.winner, play.ctf.flag[0].present, play.ctf.flag[1].present, play.ctf.flag[2].present, play.ctf.flag[0].carrier, play.ctf.flag[1].carrier, play.ctf.flag[2].carrier);
             }
             if (playing && play.ready && shot && frame == shot_frame - 1 && (play.hero[0].enabled || play.hero[1].enabled))
                 for (int t = 0; t < 2; t++) { const ak_play_hero *hh = &play.hero[t]; if (!hh->enabled) continue;
@@ -493,6 +494,7 @@ int main(int argc, char **argv)
                 hs.prequel = strstr(levels[cur].path, "PREQUEL") != NULL;
                 if (play.have_cq) { hs.tickets = true; hs.tickets_own = play.match.tickets[play.team]; hs.tickets_enemy = play.match.tickets[1 - play.team];
                                     hs.faction_own = play.team_faction[play.team]; hs.faction_enemy = play.team_faction[1 - play.team]; }
+                if (play.have_ctf) { hs.tickets_own = play.ctf.score[play.team]; hs.tickets_enemy = play.ctf.score[1 - play.team]; }   /* CTF: the captures in their place (08A5B80C) */
                 static ak_hud_blip blips[256]; u32 nb = 0;                   /* the radar's blips */
                 hs.radar = true; hs.space = play.is_space; hs.team = play.team; memcpy(hs.fwd, play.aim, 12);
                 if (play.in_veh >= 0) memcpy(hs.pos, play.veh[play.in_veh].pos, 12); else memcpy(hs.pos, play.ch.pos, 12);

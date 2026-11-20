@@ -69,7 +69,7 @@ typedef struct {
     u32 captures;                      /* owner changes (tests) */
 } ak_conquest;
 
-typedef struct { s32 tickets; f32 capture_radius, max_rate, contest_time, bleed_time, drain_time, loss_time, respawn_delay; } ak_cq_rules;
+typedef struct { s32 tickets; bool ticket_mode; f32 capture_radius, max_rate, contest_time, bleed_time, drain_time, loss_time, respawn_delay; } ak_cq_rules;
 void ak_cq_rules_default(ak_cq_rules *r);   /* the game's numbers; AK_TICKETS sets the option */
 int ak_faction_team(int faction);
 void ak_conquest_start(const ak_conquest_map *m, const ak_cq_rules *r, ak_conquest *s);
