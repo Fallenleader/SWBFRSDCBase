@@ -1,5 +1,7 @@
 #include "entity.h"
 #include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 static f32 wf(u32 w) { f32 f; memcpy(&f, &w, 4); return f; }
 static bool finite_small(f32 v, f32 lim) { return v == v && fabsf(v) < lim; }
@@ -47,6 +49,10 @@ bool ak_entities_load(const ak_level *l, const ak_model_set *ms, ak_arena *a, ak
         #define W(i) ((u32)(i) < nw ? ak_rd32(b + 4 * (u32)(i)) : 0u)
         #define F(i) wf(W(i))
         ak_entity *e = &out->e[out->n++]; memset(e, 0, sizeof *e);
+        {   static int dt = -2; if (dt == -2) { const char *v = getenv("AK_DUMP_ENTI_TYPE"); dt = v ? atoi(v) : -1; }
+            if (dt >= 0 && (int)(W(1) & 0x7FFF) == dt) { char ln[2048]; int o = snprintf(ln, sizeof ln, "enti %x type %u words %u:", W(0), W(1) & 0x7FFF, nw);
+                for (u32 k = 0; k < nw && k < 160 && o < (int)sizeof ln - 12; k++) o += snprintf(ln + o, sizeof ln - (size_t)o, " %08x", W(k));
+                AK_INFO("ent", "%s", ln); } }
         e->id = W(0); e->type = W(1) & 0x7FFF; e->flagged = (W(1) >> 15) & 1; e->model[0] = e->model[1] = -1; e->rot.w = 1;
         f32 gp[3] = { 0, 0, 0 }; ak_quat gq = { 0, 0, 0, 1 }; bool have = false;
         if (e->flagged && e->type == 27 && nw >= 18) {

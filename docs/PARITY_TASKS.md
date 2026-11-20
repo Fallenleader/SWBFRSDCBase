@@ -427,7 +427,17 @@ textures and how they are used. Section R lists only what must be in place so th
 
 ## 5. Game rules and modes
 
-- [ ] **5.1 Tickets [assumed].** Per mode and level (AK_TICKETS 100), ticket bleed, and AK_TOTAL_LOSS_TIME 60.
+- [ ] **5.1 Tickets [traced for conquest 2026-11-19].** Per mode and level (AK_TICKETS 100), ticket bleed, and AK_TOTAL_LOSS_TIME 60.
+  - Found by a gdb watchpoint on the counts (harness RS_DRIVE_MEMSCAN found them at the conquest manager, class 0x8002,
+    +0x48 / +0x4C, Rebels / Empire; RS_DRIVE_PEEK reads them): the starting count is the option BFF.InitialTickets (options
+    +424, default 100).  The level script then sends the ticket entity (ENTI type 9, class 0x8009, handler 089875C8) its
+    changes: 0x8022 {u32, team, f32 percent} adds round(count x percent x 0.01); 0x8002 {u32, team, count} sets a non-zero count
+    (0898810C).  Hoth's start group adds 25 % for the Empire: 100 / 125, as the original's HUD.  The match settings block
+    (089883F8) copies the counts to the manager (0898858C -> 089870F8, which also raises the low-tickets event under 11).
+  - Bleed measured (Hoth, Empire holding 2 of 6 posts): one ticket every 240 frames = 4.0 s, as Aurek's.
+  - Ported: the start-group 0x8022 / 0x8002 messages (ak_conquest.c ticket_mods).  Other levels' start groups change nothing;
+    Tatooine's script sets 10 on an event (group 17) - script events are not run yet.  0x8003 (Tatooine: +5 / +10 / +20 on events)
+    and 0x8006 / 0x8010 are other ticket-entity messages, not read.
 - [ ] **5.2 Heroes [partial].** Unlock threshold (AK_HERO_UNLOCK 3), and how HeroDeathRate and HeroHealthAddPerKill are applied.
 - [ ] **5.3 Remaining entity types [partial].** Regions, soldier spawns, other ENTI types (doc 1.4 "still open").
 - [ ] **5.4 Modes.** CTF, hunt and space completeness. Galactic conquest and campaign rules (credits, map moves, unlocks).

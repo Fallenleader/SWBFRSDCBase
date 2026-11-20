@@ -53,6 +53,44 @@ static f32 yaw_of(const f32 *gq)
     return atan2f(-fx, -fz);
 }
 
+/* The level script's ticket changes (traced 2026-11-19, harness watch on the ticket counts): the ticket entity (ENTI type 9,
+ * class 0x8009, handler 089875C8) takes message 0x8002 (extra: u32, u32 team, u32 count; non-zero sets the side's count,
+ * 0898810C) and 0x8022 (extra: u32, u32 team, f32 percent: adds round(starting count x percent x 0.01), the starting count being
+ * the option BFF.InitialTickets).  Hoth's script adds 25 % for the Empire: 100 / 125.  The match settings block then copies the
+ * counts to the conquest manager (089883F8 -> 0898858C -> 089870F8).  Read here from the SMSG chunk (side 0) as messages to that
+ * entity, in the groups a timer fires at 0 s (the start); the rest are events of the level's script (Tatooine sets 10 on one). */
+static void ticket_mods(const ak_level *l, ak_conquest_map *out)
+{
+    u32 pos = 8, tid = 0; ak_chunk c; bool have = false;
+    while (ak_asura_next(&l->file, &pos, &c))
+        if (ak_chunk_tag(&c) == AK_TAG('E', 'N', 'T', 'I') && c.size >= 8 && (ak_rd32(c.body + 4) & 0x7FFF) == 9) { tid = ak_rd32(c.body); have = true; break; }
+    if (!have) return;
+    /* the groups fired at the start: a timer (ENTI type 1, version >= 4) with time 0 fires its group [2] (as the music, ak_audio.c) */
+    s32 start[32]; u32 nstart = 0; pos = 8;
+    while (ak_asura_next(&l->file, &pos, &c))
+        if (ak_chunk_tag(&c) == AK_TAG('E', 'N', 'T', 'I') && c.size >= 0x34 && ak_rd32(c.body + 4) == 1 && ak_rd32(c.body + 0x1C) >= 4 &&
+            ak_rdf32(c.body + 0x30) == 0.0f && nstart < 32) start[nstart++] = (s16)ak_rd16(c.body + 0x24);
+    pos = 8;
+    while (ak_asura_next(&l->file, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('S', 'M', 'S', 'G') || c.size < 8) continue;
+        u32 ver = c.version & 0xFFFF, ng = ak_rd32(c.body), p = 4, side = 0;
+        if (ver >= 2) { side = ak_rd32(c.body + 4); p = 8; }
+        if (side != 0 || ng > 4096 || p + ng > c.size) continue;
+        u32 msz = 8 + (ver >= 3 ? 4 : 0) + (ver > 4 ? 4 : 0) + (ver > 5 ? 4 : 0); const u8 *cnt = c.body + p; p += ng;
+        for (u32 g = 0; g < ng; g++) for (u32 m = 0; m < cnt[g]; m++) {
+            if (p + msz > c.size) return;
+            u16 ty = ak_rd16(c.body + p), ex = ak_rd16(c.body + p + 2); u32 tg = ak_rd32(c.body + p + 4);
+            u32 eb = !(c.flags & 1) ? ((ex + 3u) & ~3u) : 0; const u8 *x = c.body + p + msz;
+            bool at_start = false; for (u32 k = 0; k < nstart; k++) at_start |= start[k] == (s32)g;
+            if (at_start && tg == tid && ex >= 12 && p + msz + 12 <= c.size && (ty == 0x8002 || ty == 0x8022) && out->ntmod < 8) {
+                ak_ticket_mod *t = &out->tmod[out->ntmod++]; t->team = (int)ak_rd32(x + 4); t->set = ty == 0x8002;
+                t->value = t->set ? (f32)ak_rd32(x + 8) : ak_rdf32(x + 8);
+            }
+            p += msz + eb;
+        }
+    }
+}
+
 bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
 {
     memset(out, 0, sizeof *out);
@@ -127,6 +165,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
             f32 dx = rg[i][0] - out->post[k].pos[0], dz = rg[i][2] - out->post[k].pos[2];
             if (dx * dx + dz * dz < 25.0f && !out->post[k].has_region) { memcpy(out->post[k].region, rg[i], 12); out->post[k].has_region = true; }
         }
+    ticket_mods(l, out);
     return out->nposts > 0;
 }
 
@@ -166,6 +205,11 @@ void ak_conquest_start(const ak_conquest_map *m, const ak_cq_rules *r, ak_conque
         p->owner = m->post[i].start_owner; p->capturing = AK_CQ_NEUTRAL; p->progress = m->post[i].amount;
     }
     s->tickets[0] = s->tickets[1] = r->tickets;
+    for (u32 i = 0; i < m->ntmod; i++) {                                     /* the level script's changes (Hoth: the Empire +25 %) */
+        const ak_ticket_mod *t = &m->tmod[i]; if (t->team < 0 || t->team > 1) continue;
+        if (t->set) { if (t->value > 0) s->tickets[t->team] = (s32)t->value; }
+        else s->tickets[t->team] += (s32)lroundf((f32)r->tickets * t->value * 0.01f);
+    }
     s->all_team = AK_CQ_NEUTRAL; s->winner = -1; s->respawn_t = r->respawn_delay;
     recount(m, s);
 }

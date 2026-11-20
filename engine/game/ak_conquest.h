@@ -48,7 +48,10 @@ typedef struct {
 typedef struct { u32 id; s32 post; f32 respawn; } ak_vspawn_link;
 #define AK_MAX_DROIDS 32
 typedef struct { f32 pos[3]; bool ammo; } ak_droid;   /* a health (class 0x800F) or ammo (0x8010) droid where the level places it */
-typedef struct { ak_post post[AK_MAX_POSTS]; u32 nposts; u32 nregions; u32 post_id[AK_MAX_POSTS];
+/* a ticket change the level script makes at the start (SMSG messages to the ticket entity, ENTI type 9): set = the count,
+ * else a percentage of the starting count added */
+typedef struct { int team; bool set; f32 value; } ak_ticket_mod;
+typedef struct { ak_post post[AK_MAX_POSTS]; u32 nposts; u32 nregions; u32 post_id[AK_MAX_POSTS]; ak_ticket_mod tmod[8]; u32 ntmod;
                  ak_vspawn_link vlink[AK_MAX_VSPAWN_LINKS]; u32 nvlink; ak_droid droid[AK_MAX_DROIDS]; u32 ndroid; } ak_conquest_map;
 
 bool ak_conquest_load(const ak_level *l, ak_conquest_map *out);

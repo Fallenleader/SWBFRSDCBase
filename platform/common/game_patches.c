@@ -203,6 +203,20 @@ void rs_ai_bots(unsigned fr){
  * player = 1 for the soldier the pad drives (+92 = the input object).  (health: +0x28 reads 0 for these objects - not the field.) */
 u32 rs_input_object(void);
 void rs_drive_report(FILE *f){
+    {   /* RS_DRIVE_PEEK=a,b,...: words (hex addresses) as int and float */
+        const char *pk = getenv("RS_DRIVE_PEEK");
+        if (pk) { char buf[512]; snprintf(buf, sizeof buf, "%s", pk); fprintf(f, "peek");
+            for (char *t = strtok(buf, ","); t; t = strtok(NULL, ",")) { u32 x = (u32)strtoul(t, 0, 16); if (!gok(x)) continue; u32 w = GU32(x); float fw; memcpy(&fw, &w, 4); fprintf(f, " %08x:%d/%.3f", x, (int)w, fw); }
+            fprintf(f, "\n"); } }
+    {   /* RS_DRIVE_MEMSCAN=v1,v2: once per report, the user-memory words holding v1 and v2 (as int or float) within 64 bytes */
+        const char *ms = getenv("RS_DRIVE_MEMSCAN"); int a = 0, b = 0;
+        if (ms && sscanf(ms, "%d,%d", &a, &b) == 2) {
+            float fa = (float)a, fb = (float)b; int n = 0;
+            for (u32 x = 0x08B00000u; x < 0x0BFFF000u && n < 60; x += 4) {
+                if (!gok(x)) continue; u32 w = GU32(x); float fw; memcpy(&fw, &w, 4);
+                if (w != (u32)a && fw != fa) continue;
+                for (u32 y = x - 64; y <= x + 64; y += 4) { if (y == x || !gok(y)) continue; u32 v = GU32(y); float fv; memcpy(&fv, &v, 4);
+                    if (v == (u32)b || fv == fb) { fprintf(f, "memscan %08x=%s %08x=%s\n", x, w == (u32)a ? "int" : "float", y, v == (u32)b ? "int" : "float"); n++; } } } } }
     u32 bk = GU32(IMG(0x08C2C200u)), nb = GU32(IMG(0x08C2C204u)), me = rs_input_object(); if (!gok(bk) || nb == 0 || nb > 65536) return;
     for (u32 bi = 0; bi < nb; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
         if (GU8(nd + 8)) continue; u32 o = GU32(nd); if (!gok(o) || !gok(GU32(o))) continue;

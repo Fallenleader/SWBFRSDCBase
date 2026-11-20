@@ -159,6 +159,21 @@ int main(int argc, char **argv)
             }
             if (!ak_models_load(&level, &lvl, &models) || !ak_scene_models_init(&mscene, &models, &scene, &lvl)) AK_WARN("aurek", "models did not load");
             ak_entities_load(&level, &models, &lvl, &ents);
+            if (ak_setting_int("AK_DUMP_SMSG", 0)) {   /* tests: the level script's messages (SMSG: groups of u16 type, u16 extra, u32 target, ...) */
+                u32 pos = 8; ak_chunk c;
+                while (ak_asura_next(&level.file, &pos, &c)) {
+                    if (ak_chunk_tag(&c) != AK_TAG('S', 'M', 'S', 'G') || c.size < 8) continue;
+                    u32 ver = c.version & 0xFFFF, ng = ak_rd32(c.body), p = 4, side = 0;
+                    if (ver >= 2) { side = ak_rd32(c.body + 4); p = 8; }
+                    u32 msz = 8 + (ver >= 3 ? 4 : 0) + (ver > 4 ? 4 : 0) + (ver > 5 ? 4 : 0); const u8 *cnt = c.body + p; p += ng;
+                    AK_INFO("smsg", "chunk ver %u flags %x side %u groups %u", ver, c.flags, side, ng);
+                    for (u32 g = 0; g < ng && p < c.size; g++) for (u32 m = 0; m < cnt[g] && p + msz <= c.size; m++) {
+                        u16 ty = ak_rd16(c.body + p), ex = ak_rd16(c.body + p + 2); char ln[512]; int o = snprintf(ln, sizeof ln, "g%u type %x extra %u target %x w", g, ty, ex, ak_rd32(c.body + p + 4));
+                        for (u32 k = 8; k < msz; k += 4) o += snprintf(ln + o, sizeof ln - (size_t)o, " %08x", ak_rd32(c.body + p + k));
+                        u32 eb = !(c.flags & 1) ? ((ex + 3u) & ~3u) : 0;
+                        if (eb) { o += snprintf(ln + o, sizeof ln - (size_t)o, " |"); for (u32 k = 0; k < eb && o < 480; k += 4) o += snprintf(ln + o, sizeof ln - (size_t)o, " %08x", ak_rd32(c.body + p + msz + k)); }
+                        AK_INFO("smsg", "%s", ln); p += msz + eb; }
+                } }
             if (ak_setting_int("AK_DUMP_ENTS", 0)) for (u32 i = 0; i < ents.n; i++) {   /* tests: the entities, game axes */
                 const ak_entity *e = &ents.e[i]; f32 g[3] = { e->pos[0], -e->pos[1], -e->pos[2] };
                 AK_INFO("ent", "%x type %u flagged %d placed %d model %s pos %.3f %.3f %.3f", e->id, e->type, e->flagged, e->placed,
