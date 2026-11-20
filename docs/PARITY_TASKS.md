@@ -368,6 +368,10 @@ textures and how they are used. Section R lists only what must be in place so th
     frame), the skid damping works across and backward only, the speed is held to StallSpeed..TopSpeed; turning spins up at
     YawInputDamp - YawDamp (100 degrees/s^2) to MaxTurnYaw and settles at YawDamp - Aurek matches.
   - [ ] **3.1b** The throttle cap over CruisingSpeed (vehicle +288), hover height, slopes, barrel aim, volleys, rider pose.
+    - 2026-11-20, hover height measured parked (harness state.log object height, Aurek's ground under it): speeder bikes
+      0.09-0.11 m (Endor 30d46 / 30d47, Kashyyyk two), Kashyyyk's IFT-T 1.01 m (the other on a slope 0.35). Aurek's speeder
+      bikes rode 0.8 m up; now 0.1 (hover tanks stay 1.0). [ ] Driving (the harness's teleport holds the player on Endor).
+      Harness planet rows: 0 Boz Pity, 1 Endor, 2 Geonosis, 3 Hoth, 4 Echo Base, 5 Kashyyyk, 6 Korriban, 7 Mustafar, ...
 
 - [ ] **3.2 Vehicle bodies against the level [assumed].**
   - The vehicle the player drives is a dynamic body (box move-and-slide, mask 0x2804 / 0x0804 / 0x4804).

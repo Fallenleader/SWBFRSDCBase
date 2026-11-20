@@ -166,7 +166,9 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     if (md->skeleton >= 0) { memcpy(d->box_min, m->skels[md->skeleton].col_min, 12); memcpy(d->box_max, m->skels[md->skeleton].col_max, 12); }
     else { memcpy(d->box_min, md->bmin, 12); memcpy(d->box_max, md->bmax, 12); }
     d->box_body = (d->kind == AK_VEH_CREATURE || d->kind == AK_VEH_TRACK) && ak_setting_int("AK_VEH_BOX", 1);
-    d->hover = d->kind == AK_VEH_HOVER ? 1.0f : d->kind == AK_VEH_SPEEDER ? 0.8f : 0.0f;
+    /* the hover height (measured 2026-11-20, parked: the harness's object height over Aurek's ground there - speeder bikes 0.09-0.11 m
+       (Endor x2, Kashyyyk x2), Kashyyyk's IFT-T 1.01 m (another, on a slope, 0.35); driving not measured) */
+    d->hover = d->kind == AK_VEH_HOVER ? 1.0f : d->kind == AK_VEH_SPEEDER ? 0.1f : 0.0f;
     if (flyer) d->hover = 0;                                             /* (flyers rest on their landing gear: the model origin) */
     if (walker) {                                                        /* walkers: the speed from the legs, sharp turns */
         d->top_speed = d->walk_speed; d->stall_speed = -d->walk_speed * 0.5f; d->max_acc = d->walk_speed * 2; d->boost_acc = d->walk_speed * 2;
