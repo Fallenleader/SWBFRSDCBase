@@ -183,12 +183,12 @@ static const range *range_of(ak_gfx_buf *ib, u32 first, u32 count)
 }
 
 /* ------------------------------------------------------------------ the frame's draw list (played once per eye) */
-typedef struct { u8 pipe, cull, arrays; u16 mtx, tint; ak_gfx_tex *tex; const u8 *vb; const range *r; u32 count; } drec;
+typedef struct { u8 pipe, cull, arrays, nofog; u16 mtx, tint; ak_gfx_tex *tex; const u8 *vb; const range *r; u32 count; } drec;
 static drec *dl; static u32 ndl, dl_cap;
 static f32 (*mtx)[16]; static u32 nmtx, mtx_cap;     /* rows */
 static f32 (*tints)[4]; static u32 ntint, tint_cap;
 static u16 cur_mtx, cur_tint, mtx_frame; static bool cull_on = true;
-static ak_gfx_env env_; static ak_gfx_stats st; static u64 t_begin; static u32 clear_rgba;
+static ak_gfx_env env_; static bool nofog_; static ak_gfx_stats st; static u64 t_begin; static u32 clear_rgba;
 static int in_frame;
 
 static u16 push_mtx(const f32 *rows)
@@ -201,6 +201,7 @@ static u16 push_mtx(const f32 *rows)
  * each channel's directional part (an upward-facing average), against the models' vertex colour of 128 */
 static f32 user_tint_[4] = { 1, 1, 1, 1 }, light_f_[3] = { 1, 1, 1 };
 static void apply_tint_(void);
+void ak_gfx_set_fog_range(const f32 *se) { nofog_ = se && se[1] <= se[0]; }   /* (here only on / off: a partial sky fog stays full) */
 void ak_gfx_set_uv_offset(const f32 *uv) { (void)uv; }   /* (not yet: the textures stay still here) */
 void ak_gfx_set_light(const f32 *sh)
 {
@@ -305,11 +306,11 @@ static void play(C3D_RenderTarget *rt, f32 d)
     C3D_RenderTargetClear(rt, C3D_CLEAR_ALL, clear_rgba, 0);
     C3D_FrameDrawOn(rt);
     C3D_TexBind(1, &fog_tex);
-    int pipe = -1, cull = -1; u32 m = 0xFFFFFFFFu, tn = 0xFFFFFFFFu; ak_gfx_tex *tex = (ak_gfx_tex *)1;
+    int pipe = -1, cull = -1, fogoff = 0; u32 m = 0xFFFFFFFFu, tn = 0xFFFFFFFFu; ak_gfx_tex *tex = (ak_gfx_tex *)1;
     for (u32 i = 0; i < ndl; i++) {
         const drec *r = &dl[i];
         if (C3D_GetCmdBufUsage() > 0.8f) { C3D_FrameSplit(0); }
-        if (r->pipe != pipe) { pipe = r->pipe; state_pipe(pipe); tex = (ak_gfx_tex *)1; m = 0xFFFFFFFFu; }
+        if (r->pipe != pipe || r->nofog != fogoff) { pipe = r->pipe; fogoff = r->nofog; state_pipe(pipe); if (fogoff) C3D_FVUnifSet(GPU_VERTEX_SHADER, u_fogp, 0, 0, (pipe == AK_PIPE_HUD ? 1.0f : env_.colour_scale) * 0.5f / 255.0f, 1.0f / 255.0f); tex = (ak_gfx_tex *)1; m = 0xFFFFFFFFu; }
         if (r->mtx != m) { m = r->mtx; set_clip(mtx[m], pipe == AK_PIPE_HUD ? 0.0f : d); }
         if (r->tint != tn) { tn = r->tint; C3D_FVUnifSet(GPU_VERTEX_SHADER, u_tint, tints[tn][0], tints[tn][1], tints[tn][2], tints[tn][3]); }
         if (r->tex != tex) { tex = r->tex; bind_tex(pipe, tex); }
@@ -444,7 +445,7 @@ void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW); in_frame = 1;
     ring_i ^= 1; ring_off = 0; ndl = 0; nmtx = 0; ntint = 0;
     clear_rgba = (clear & 0xFF) << 24 | ((clear >> 8) & 0xFF) << 16 | ((clear >> 16) & 0xFF) << 8 | 0xFF;
-    env_ = *env; fog_ramp(env->fog_rgb);
+    env_ = *env; fog_ramp(env->fog_rgb); nofog_ = false;
     ak_gfx_set_transform(vp); mtx_frame = cur_mtx;
     f32 w[4] = { 1, 1, 1, 1 }; cur_tint = push_tint(w); cull_on = true; memcpy(user_tint_, w, sizeof w); light_f_[0] = light_f_[1] = light_f_[2] = 1;
 }
@@ -467,7 +468,7 @@ void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 f
     if (!vb || !ib || !count) return;
     const range *r = range_of(ib, first, count); if (!r) return;
     drec *d = rec(); if (!d) return;
-    *d = (drec){ (u8)p, cull_on, 0, cur_mtx, cur_tint, t, (const u8 *)vb->mem, r, count };
+    *d = (drec){ (u8)p, cull_on, 0, (u8)nofog_, cur_mtx, cur_tint, t, (const u8 *)vb->mem, r, count };
     st.draws++; st.tris += count / 3;
 }
 void ak_gfx_draw_immediate(ak_pipe p, ak_gfx_tex *t, const ak_vtx *v, u32 count)
@@ -476,7 +477,7 @@ void ak_gfx_draw_immediate(ak_pipe p, ak_gfx_tex *t, const ak_vtx *v, u32 count)
     ak_vtx *dv = (ak_vtx *)ring_alloc(sizeof *v * count); if (!dv) return;
     memcpy(dv, v, sizeof *v * count);
     drec *d = rec(); if (!d) return;
-    *d = (drec){ (u8)p, cull_on, 1, cur_mtx, cur_tint, t, (const u8 *)dv, NULL, count };
+    *d = (drec){ (u8)p, cull_on, 1, (u8)nofog_, cur_mtx, cur_tint, t, (const u8 *)dv, NULL, count };
     st.draws++; st.tris += count / 3;
 }
 

@@ -64,6 +64,8 @@ void ak_scene_level_free(ak_scene_level *s)
     memset(s, 0, sizeof *s);
 }
 
+static f32 g_sky_fog = -1;
+void ak_scene_set_sky_fog(f32 k) { g_sky_fog = k; }
 void ak_scene_sky_draw(ak_scene_level *s, const ak_m4 *proj, const ak_m4 *view, f32 radius)
 {
     if (!s->sky_vb) return;
@@ -74,9 +76,10 @@ void ak_scene_sky_draw(ak_scene_level *s, const ak_m4 *proj, const ak_m4 *view, 
     w.m[0] = c * radius; w.m[2] = -sn * radius; w.m[5] = radius; w.m[8] = sn * radius; w.m[10] = c * radius; w.m[15] = 1;
     ak_m4 pv = ak_m4_mul(proj, &rv), mvp = ak_m4_mul(&pv, &w);
     ak_gfx_set_transform(&mvp);
+    if (g_sky_fog >= 0) { f32 se[2] = { 0, g_sky_fog > 0.001f ? radius / g_sky_fog : 0 }; ak_gfx_set_fog_range(se); }   /* (k: the fog at the sky's distance) */
     for (int f = 0; f < 5; f++)
         if (l->sky_tex[f] >= 0) ak_gfx_draw(AK_PIPE_OPAQUE, s->tex[l->sky_tex[f]], s->sky_vb, s->sky_ib, (u32)f * 6, 6);
-    ak_gfx_set_transform(NULL);
+    ak_gfx_set_transform(NULL); ak_gfx_set_fog_range(NULL);
     ak_gfx_set_cull(true);
 }
 

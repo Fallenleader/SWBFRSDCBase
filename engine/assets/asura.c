@@ -462,7 +462,7 @@ bool ak_level_fog_read(const ak_level *l, ak_level_fog *out)
         if (ak_chunk_tag(&c) != AK_TAG('F', 'O', 'G', ' ') || c.version != 1 || c.size < 24) continue;
         out->on = (c.flags & 1) != 0;
         for (int k = 0; k < 3; k++) out->rgb[k] = ak_rdf32(c.body + 4 * k);
-        out->start = ak_rdf32(c.body + 16); out->end = ak_rdf32(c.body + 20);
+        out->start = ak_rdf32(c.body + 16); out->end = ak_rdf32(c.body + 20); out->sky = c.size >= 32 ? ak_rdf32(c.body + 28) : 1.0f;
         return true;
     }
     return false;

@@ -23,6 +23,8 @@ void ak_scene_set_time(f32 seconds);
 void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *view_proj, ak_scene_stats *st);
 /* the sky box, before the level: proj and the camera's view (only its rotation is used); radius in metres (inside the far plane) */
 void ak_scene_sky_draw(ak_scene_level *s, const ak_m4 *proj, const ak_m4 *view, f32 radius);
+/* the sky's fog strength (the FOG chunk's; 0 = drawn clear, as on most levels; < 0: fogged as the level) */
+void ak_scene_set_sky_fog(f32 k);
 
 /* ---- models: every model of the level in one vertex and one index buffer (uploaded once), drawn part by part with the
  * part's bone transform.  Textures are the level scene's. */

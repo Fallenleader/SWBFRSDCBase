@@ -461,7 +461,7 @@ int main(int argc, char **argv)
                percentage of it as in the PSP port's RS_FOG (distances x (2 - AK_FOG / 100), at least 0.05): 100 the game's, the
                default 25 the port's farther fog; AK_FOG_START / AK_FOG_END override it */
             static ak_level_fog lf; static const void *lf_of = NULL;
-            if (lf_of != (const void *)level.file.data) { lf_of = level.file.data; ak_level_fog_read(&level, &lf); }
+            if (lf_of != (const void *)level.file.data) { lf_of = level.file.data; ak_level_fog_read(&level, &lf); ak_scene_set_sky_fog(lf.on ? lf.sky : -1); }
             if (lf.on && env.fog_end <= env.fog_start) {
                 f32 k = 2.0f - ak_setting_float("AK_FOG", ak_setting_int("AK_CLASSIC", 0) ? 100.0f : 25.0f) / 100.0f; if (k < 0.05f) k = 0.05f;
                 memcpy(env.fog_rgb, lf.rgb, 12); env.fog_start = 0; env.fog_end = lf.end * k;

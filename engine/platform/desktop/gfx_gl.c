@@ -19,6 +19,7 @@ static int W, H; static char name[160];
 static GLuint prog[AK_PIPE_COUNT], ui_prog, vao, ui_vao, ui_vbo, font_tex, white_tex;
 static GLint u_vp[AK_PIPE_COUNT], u_fog[AK_PIPE_COUNT], u_fogr[AK_PIPE_COUNT], u_tint[AK_PIPE_COUNT], ui_scale;
 static f32 tint[4] = { 1, 1, 1, 1 }; static bool tint_dirty;
+static ak_gfx_env frame_env_;
 static GLint u_uvo[AK_PIPE_COUNT]; static f32 uvo[2]; static bool uvo_dirty;
 static GLint u_sh[AK_PIPE_COUNT], u_lit[AK_PIPE_COUNT]; static f32 light_sh[12]; static f32 light_on; static bool light_dirty;
 static int cur_pipe = -1; static GLuint cur_vb, cur_ib, cur_tex;
@@ -165,7 +166,7 @@ void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
     glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LEQUAL);
     {   static int cull = -1; if (cull < 0) cull = ak_setting_int("AK_CULL", 0);
         cull_mode = cull; glCullFace(cull == 2 ? GL_FRONT : GL_BACK); glFrontFace(GL_CCW); cull_on = true; cull_state = -1; }
-    cur_vp = frame_vp = *vp; cur_env = *env; cur_pipe = -1; vp_dirty = false; cur_vb = cur_ib = cur_tex = 0;
+    cur_vp = frame_vp = *vp; cur_env = *env; frame_env_ = *env; cur_pipe = -1; vp_dirty = false; cur_vb = cur_ib = cur_tex = 0;
     tint[0] = tint[1] = tint[2] = tint[3] = 1; tint_dirty = false; light_on = 0; light_dirty = true; uvo[0] = uvo[1] = 0; uvo_dirty = true;
     glBindVertexArray(vao);
 }
@@ -180,6 +181,11 @@ void ak_gfx_set_light(const f32 *sh)
 {
     f32 on = sh ? 1.0f : 0.0f;
     if (on != light_on || (sh && memcmp(sh, light_sh, sizeof light_sh))) { light_on = on; if (sh) memcpy(light_sh, sh, sizeof light_sh); light_dirty = true; }
+}
+void ak_gfx_set_fog_range(const f32 *se)
+{
+    f32 a = se ? se[0] : frame_env_.fog_start, b = se ? se[1] : frame_env_.fog_end;
+    if (a != cur_env.fog_start || b != cur_env.fog_end) { cur_env.fog_start = a; cur_env.fog_end = b; cur_pipe = -1; }   /* (re-sent with the pipeline) */
 }
 void ak_gfx_set_uv_offset(const f32 *uv)
 {

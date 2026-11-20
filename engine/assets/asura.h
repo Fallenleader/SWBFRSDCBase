@@ -97,7 +97,7 @@ typedef struct {
 bool ak_level_load(const char *path, ak_arena *a, ak_level *out);       /* a file on disk (tools) */
 /* The level's fog (FOG chunk, version 1, loader 08825C9C): flags bit 0 on; f32 r, g, b, -, start, end, strength, sky strength,
  * 2 more.  The game draws it from 0 to `end` (08903470: the GU fog from near 0 to far `end` in its colour); `start` is not used there. */
-typedef struct { bool on; f32 rgb[3], start, end; } ak_level_fog;
+typedef struct { bool on; f32 rgb[3], start, end, sky; } ak_level_fog;   /* sky: the sky's fog strength (0: the sky is not fogged) */
 bool ak_level_fog_read(const ak_level *l, ak_level_fog *out);
 /* The level's light samples (GISN, version 3; loader 08826244, kept packed in the game's light manager 0x08B2A7A4): u32 count,
  * f32 base[12], f32 scale[12], one more word, then count x { f32 pos[3]; u32 r, g, b }.  Each channel word's bytes, high to low, are

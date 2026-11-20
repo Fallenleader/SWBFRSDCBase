@@ -62,6 +62,9 @@ void ak_gfx_set_light(const f32 *sh);
 /* a texture-coordinate offset for the draws that follow (the game's scrolling textures, TXAN); NULL = none.  Reset each frame.
  * Back ends without it draw the texture still. */
 void ak_gfx_set_uv_offset(const f32 *uv);
+/* the fog for the draws that follow: { start, end } (end <= start: none), NULL = the frame's (ak_gfx_begin).  The sky uses it: the
+ * game fogs its sky by the FOG chunk's sky strength, 0 on most levels. */
+void ak_gfx_set_fog_range(const f32 *se);
 void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 first, u32 count);
 /* this frame only: a triangle list copied into the back end's per-frame memory (laser bolts, effects, debug shapes) */
 void ak_gfx_draw_immediate(ak_pipe p, ak_gfx_tex *t, const ak_vtx *v, u32 count);

@@ -339,12 +339,17 @@ void ak_gfx_free_tex(ak_gfx_tex *t) { if (t) { pool_release(); free(t); } }
 void ak_gfx_wait_idle(void) { sceGxmFinish(ctx); }
 
 static bool cull_on = true; static int cull_state = -1;
-static ak_m4 vp_t, frame_vp_t; static ak_gfx_env env_; static bool vp_dirty; static f32 tint_[4] = { 1, 1, 1, 1 }; static int cur_pipe; static ak_gfx_tex *cur_tex; static ak_gfx_buf *cur_vb;
+static ak_m4 vp_t, frame_vp_t; static ak_gfx_env env_, frame_env_; static bool vp_dirty; static f32 tint_[4] = { 1, 1, 1, 1 }; static int cur_pipe; static ak_gfx_tex *cur_tex; static ak_gfx_buf *cur_vb;
 
 /* object lighting (ak_gfx.h): this back end has no per-vertex lighting yet, so the light becomes a tint: the ambient plus half of
  * each channel's directional part (an upward-facing average), against the models' vertex colour of 128 */
 static f32 user_tint_[4] = { 1, 1, 1, 1 }, light_f_[3] = { 1, 1, 1 };
 static void apply_tint_(void);
+void ak_gfx_set_fog_range(const f32 *se)
+{
+    f32 a = se ? se[0] : frame_env_.fog_start, b = se ? se[1] : frame_env_.fog_end;
+    if (a != env_.fog_start || b != env_.fog_end) { env_.fog_start = a; env_.fog_end = b; vp_dirty = true; }
+}
 void ak_gfx_set_uv_offset(const f32 *uv) { (void)uv; }   /* (not yet: the textures stay still here) */
 void ak_gfx_set_light(const f32 *sh)
 {
@@ -395,7 +400,7 @@ void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
     /* the shader takes the matrix as four rows (explicit dot products: no dependence on Cg's matrix layout) */
     for (int r = 0; r < 4; r++) for (int c2 = 0; c2 < 4; c2++) vp_t.m[r * 4 + c2] = vp->m[c2 * 4 + r];
     frame_vp_t = vp_t; vp_dirty = false;
-    env_ = *env; cur_pipe = -1; cur_tex = NULL; cur_vb = NULL;
+    env_ = *env; frame_env_ = *env; cur_pipe = -1; cur_tex = NULL; cur_vb = NULL;
     tint_[0] = tint_[1] = tint_[2] = tint_[3] = 1; user_tint_[0] = user_tint_[1] = user_tint_[2] = user_tint_[3] = 1; light_f_[0] = light_f_[1] = light_f_[2] = 1;
 }
 

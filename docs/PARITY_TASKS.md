@@ -690,6 +690,11 @@ groundwork below is needed before the parity work starts. The tiers come later.
     with far from 10 % (not ported).  Aurek now fogs every level whose flag is on, linear 0..end in its colour; AK_FOG scales
     it like the PSP port's RS_FOG (default 25 = farther, 100 = the game's); settings.txt files updated.
 - [ ] **R.3 Sky.** The sky set-up.
+  - 2026-11-20 (compared with the original from the same spot, AK_TEST_START at the harness's spawn): the FOG chunk's "sky
+    strength" (its 8th value) is 0 on Hoth, Tatooine, Endor, Naboo, Boz Pity (Kashyyyk 0.3): the sky box is not fogged. Aurek
+    fogged it fully, so Hoth's sky (blue, clouds, the capital ship) read as a white haze. Now the sky draws with fog only by
+    that strength (ak_gfx_set_fog_range; the 3DS only on / off). Open: the sky box's turn (SKYB angle) and scale against the
+    original - the ship sits higher and smaller than in the game's frame.
 - [ ] **R.4 Material modes.** All 6 texture slots of a material, its mode, its "extra" field and animated materials (water,
   screens, lightning). Aurek handles diffuse plus flags only.
   - 2026-11-20, animated materials (part): a material flagged 0x40000 names its animation in "extra", the h31 hash of a TXAN
