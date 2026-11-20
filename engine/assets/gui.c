@@ -137,7 +137,11 @@ static void widget(rd *s, ak_widget *w, int depth)
     case AK_GUI_MODEL:                                                /* 0887F958 */
         image_base(s, w);
         if (v == 0) { if (r32(s)) { r32(s); r32(s); } } else { r32(s); r32(s); r32(s); }
-        skip(s, 8 + 24); if (v >= 2) skip(s, 12); if (v >= 3) r8(s);
+        w->cam_fov = rf(s); w->cam_aspect = rf(s);                    /* (0887F504: the field of view is +176 / +180) */
+        for (int k = 0; k < 3; k++) w->cam_off[k] = rf(s);
+        for (int k = 0; k < 3; k++) w->cam_rot[k] = rf(s);
+        if (v >= 2) for (int k = 0; k < 3; k++) w->cam_spin[k] = rf(s);
+        if (v >= 3) r8(s);
         children(s, w, depth);
         break;
     case AK_GUI_SPRITES: {                                            /* 0888271C */

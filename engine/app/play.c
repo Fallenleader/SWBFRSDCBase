@@ -2584,6 +2584,25 @@ void ak_play_counts(const ak_play *p, u32 alive[2], u32 total[2])
     }
 }
 
+/* the soldier as the customisation menu shows him (its E_Anim_AppDisplay): his look in the idle clip at t, his weapon in his hands,
+   placed by `world` (feet at its origin) */
+void ak_play_draw_figure(ak_play *p, const ak_model_set *m, ak_scene_models *ms, const ak_m4 *vp, const ak_m4 *world, f32 t)
+{
+    static f32 fb[64][12], head[1][12];
+    const ak_soldier_look *lk = &p->look; const ak_model *body = &m->models[lk->body];
+    if (body->skeleton < 0 || m->skels[body->skeleton].nbones > 64) return;
+    pose(m, lk, p->idle_clip, t, true, fb);
+    ak_model_colours col = { lk->rgb1, lk->rgb2 };
+    ak_scene_models_draw(ms, (u32)lk->body, vp, world, (const f32 (*)[12])fb, &col, NULL);
+    if (lk->head >= 0) { ak_soldier_head_matrix(body, &m->skels[body->skeleton], lk->head_bone, (const f32 (*)[12])fb, head[0]);
+                         ak_scene_models_draw(ms, (u32)lk->head, vp, world, (const f32 (*)[12])head, &col, NULL); }
+    f32 G[12], o[3] = { 0, 0, 0 };
+    if (p->armed && p->wdef.model >= 0 && weapon_world(m, lk, (const f32 (*)[12])fb, o, 0, G)) {
+        ak_m4 gw = { { G[0], G[4], G[8], 0,  G[1], G[5], G[9], 0,  G[2], G[6], G[10], 0,  G[3], G[7], G[11], 1 } };
+        ak_m4 w2 = ak_m4_mul(world, &gw);
+        ak_scene_models_draw(ms, (u32)p->wdef.model, vp, &w2, NULL, NULL, NULL);
+    }
+}
 bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12])
 {
     if (!p->armed || !p->posed) return false;

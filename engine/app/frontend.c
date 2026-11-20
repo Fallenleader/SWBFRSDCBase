@@ -341,7 +341,8 @@ static const u32 cust_level_key[3][4] = { { 0xA40C5954u, 0xA354D5E1u, 0xA354D5E2
 static const int cust_level_cost[3][4] = { { 0, 10, 20, 30 }, { 0, 10, 20, 30 }, { 0, 15, 25, 35 } };
 #define CUST_CREDITS 200
 static int cust_sel[NCAT] = { 1, 0, 1, 0, 0, 1, 1, 0 }, cust_saved[NCAT], cust_cat; static u32 cust_return;
-static const ak_blueprints *fe_bp;
+static const ak_blueprints *fe_bp; static ak_fe_model_fn model_fn; static f32 clock_total;
+void ak_fe_set_model_drawer(ak_fe_model_fn fn) { model_fn = fn; }
 void ak_fe_set_blueprints(const void *bp) { fe_bp = (const ak_blueprints *)bp; }
 static const ak_bp_object *cust_item(int cat, int i)          /* the faction's version of a Weapon (08A23598) */
 {
@@ -481,6 +482,20 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
     f32 a = 1;
     for (u32 i = 0; i < w->nanims; i++)                               /* "pulse_highlight": the highlight breathes [assumed rate] */
         if (!strncmp(w->anims[i], "pulse_highlight", 15)) a = 0.65f + 0.35f * cosf(clock * 6.2831853f);
+    if (w->type == AK_GUI_MODEL && model_fn) {                        /* a 3D model: the item, the second weapon, the soldier */
+        const ak_bp_object *wo = NULL; bool soldier = false, any = false;
+        if (in_row && w->fill.fn && !strcmp(w->fill.fn, "FE_Customisation_ListCarouselAnims")) {
+            /* [assumed: on the chosen row the Hilight model stands in for the Default one] */
+            if (!(lb_selected && w->name && strstr(w->name, "_Default"))) { wo = cust_item(cust_cat, lb_row); any = cust_cat <= 3; }
+        } else if (w->name && !strcmp(w->name, "E_Anim_SecondaryWeapon")) { wo = cust_item(1, cust_sel[1]); any = true; }
+        else if (w->name && !strcmp(w->name, "E_Anim_AppDisplay")) { wo = cust_item(0, cust_sel[0]); soldier = true; any = true; }
+        if (any && (wo || soldier)) {
+            f32 rect[4] = { x, y, w->size[0], w->size[1] }, rot[3];
+            for (int k = 0; k < 3; k++) rot[k] = w->cam_rot[k] + w->cam_spin[k] * clock_total;
+            f32 fov = w->cam_aspect != 0 ? w->cam_fov / w->cam_aspect : w->cam_fov;
+            ak_hud_2d_end(); model_fn(wo, soldier, rect, fov, w->cam_off, rot); ak_hud_2d_begin();
+        }
+    }
     f32 uvo[4]; const f32 *uv = w->uv;
     if (have_match && w->type == AK_GUI_IMAGE && w->name && picture_override(w, uvo)) { if (uvo[2] <= uvo[0]) return; uv = uvo; }
     if (in_row && w->fill.fn && w->fill.fn[0] && w->type == AK_GUI_IMAGE && lb_picture(w->fill.fn, lb_row, uvo)) { if (uvo[2] == uvo[0]) return; uv = uvo; }
@@ -782,7 +797,7 @@ static int cust_event(const ak_input *in)
 int ak_fe_update(const ak_input *in, f32 dt)
 {
     if (!page) return AK_FE_NONE;
-    clock += dt;
+    clock += dt; clock_total += dt;
     if (focus_fix_pending) {                                           /* the page's focus hidden or a title: its first shown control */
         focus_fix_pending = false;
         const ak_widget *f0 = focus ? find_visible(&page->root, focus) : NULL;

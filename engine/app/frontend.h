@@ -35,5 +35,9 @@ int ak_fe_team(void);                          /* after AK_FE_TEAM: 0 auto, 1 th
    or the lowest), the Weapon blueprints of the first five (NULL none); returns the credits spent */
 void ak_fe_set_blueprints(const void *bp);     /* (COMMON.ASR's, for the items' names, costs and descriptions) */
 int ak_fe_loadout(int sel[8], const char *names[5]);
+/* the menus' 3D models (1004 widgets): the viewer draws `weapon` (a Weapon blueprint object, NULL none) - in the soldier's hands when
+   `soldier` - in the rectangle (480 x 272 units) with the widget's camera */
+typedef void (*ak_fe_model_fn)(const void *weapon, bool soldier, const f32 rect[4], f32 fov, const f32 cam_off[3], const f32 rot[3]);
+void ak_fe_set_model_drawer(ak_fe_model_fn fn);
 int ak_fe_spawn_post(void);                    /* after AK_FE_SPAWN: the post chosen (index), -1 none */           /* after AK_FE_START: the level ("CLASSIC TATOOINE") and the mode (0 CQST .. 3 HCTF) */
 #endif

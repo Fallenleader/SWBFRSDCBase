@@ -43,6 +43,9 @@ typedef struct ak_widget {
        function that fills it (FE_ListAllMaps; a list box's row parts each have their own, the column's) */
     u32 rows_max, rows_shown, rows_align; f32 sel_rgba[4]; ak_gui_action fill;   /* (align: the text flags' 2 left, 4 centred, 8 right) */
     f32 step;                          /* spinners / sliders (2003): the step of the value they set (0.1 for the volumes) */
+    /* 3D models (1004): the field of view (radians) over its divisor, the camera's offset from the model (game axes), the
+       model's turn (x, y, z radians) and its spin (radians a second) */
+    f32 cam_fov, cam_aspect, cam_off[3], cam_rot[3], cam_spin[3];
     bool is_template;                  /* a list box's row (its last child): drawn once per row, not on its own */
     struct ak_widget *child; u32 nchild;
 } ak_widget;

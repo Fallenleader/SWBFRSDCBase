@@ -89,6 +89,36 @@ static void dbg_text(f32 x, f32 y, u32 col, const char *s)
     ak_gfx_text(x, y, 0xFF000000u | (b << 16) | (g << 8) | r, s);
 }
 
+/* the menus' 3D models (frontend.c: 1004 widgets), drawn over the frame into the widget's rectangle: the model turned by `rot`
+ * (game axes x, y, z; [assumed: y, then x, then z]) and placed at -cam_off from a camera looking along the game's +z, the field
+ * of view `fov` across the rectangle's height [assumed], depth pressed into the nearest thousandth so it draws over the scene */
+static const ak_model_set *fe_models; static ak_scene_models *fe_mscene; static const ak_blueprints *fe_bps; static ak_play *fe_play; static f32 fe_t;
+static void fe_model_draw(const void *weapon, bool soldier, const f32 rect[4], f32 fov, const f32 off[3], const f32 rot[3])
+{
+    if (!fe_models || !fe_mscene || (!weapon && !soldier)) return;
+    const ak_bp_object *w = (const ak_bp_object *)weapon;   /* (weapons whose models the level lacks are not drawn) */
+    s32 mi = soldier ? -1 : ak_models_find(fe_models, ak_bp_string(w, "WeaponModel", "")); if (mi < 0 && !soldier) return;
+    if (soldier && (!fe_play || !fe_play->ready)) return;
+    f32 aspect = rect[3] > 0 ? rect[2] / rect[3] : 1;
+    f32 fx = fov > 0.05f ? fov : 0.65f, fovy = 2.0f * atanf(tanf(fx * 0.5f) / aspect);   /* (0881D084: the angle across, as the game camera's) */
+    ak_m4 P = ak_m4_perspective(fovy, aspect, 0.05f, 50.0f);
+    ak_m4 N; memset(&N, 0, sizeof N);                                  /* clip space -> the rectangle on the 480 x 272 screen */
+    f32 sx = rect[2] / 480.0f, sy = rect[3] / 272.0f, tx = (rect[0] + rect[2] * 0.5f) / 240.0f - 1.0f, ty = 1.0f - (rect[1] + rect[3] * 0.5f) / 136.0f;
+    N.m[0] = sx; N.m[5] = sy; N.m[10] = 0.001f; N.m[12] = tx; N.m[13] = ty; N.m[14] = -0.998f; N.m[15] = 1;
+    ak_m4 vp = ak_m4_mul(&N, &P);
+    /* the turn in engine axes (y and z negated: about y and z the angles change sign) */
+    /* [assumed: the y turn as stored, the x turn as stored - the closest of the four sign choices to the original's carousel frame] */
+    f32 ax = rot[0], ay = rot[1], az = -rot[2];
+    f32 cx = cosf(ax), sxx = sinf(ax), cy = cosf(ay), syy = sinf(ay), cz = cosf(az), szz = sinf(az);
+    f32 Ry[9] = { cy, 0, -syy,  0, 1, 0,  syy, 0, cy }, Rx[9] = { 1, 0, 0,  0, cx, sxx,  0, -sxx, cx }, Rz[9] = { cz, szz, 0,  -szz, cz, 0,  0, 0, 1 };
+    f32 A[9], R[9];                                                    /* (column major 3x3: R = Ry Rx Rz) */
+    for (int c = 0; c < 3; c++) for (int r = 0; r < 3; r++) { A[c * 3 + r] = 0; for (int k = 0; k < 3; k++) A[c * 3 + r] += Ry[k * 3 + r] * Rx[c * 3 + k]; }
+    for (int c = 0; c < 3; c++) for (int r = 0; r < 3; r++) { R[c * 3 + r] = 0; for (int k = 0; k < 3; k++) R[c * 3 + r] += A[k * 3 + r] * Rz[c * 3 + k]; }
+    ak_m4 W = { { R[0], R[1], R[2], 0,  R[3], R[4], R[5], 0,  R[6], R[7], R[8], 0,  -off[0], off[1], off[2], 1 } };
+    if (soldier) { fe_t += 1.0f / 60.0f; ak_play_draw_figure(fe_play, fe_models, fe_mscene, &vp, &W, fe_t); }   /* [assumed: his idle clip] */
+    else ak_scene_models_draw(fe_mscene, (u32)mi, &vp, &W, NULL, NULL, NULL);
+}
+
 int main(int argc, char **argv)
 {
     if (!ak_plat_init()) return 1;
@@ -152,7 +182,8 @@ int main(int argc, char **argv)
     ak_gfx_stats gs; memset(&gs, 0, sizeof gs);
     /* the front end (PARITY 8.2): the game's menus first (AK_FRONTEND=1; AK_FE_PAGE the first page), the level once launched */
     bool fe_on = ak_setting_int("AK_FRONTEND", 0) && ak_fe_init(vfs) && ak_fe_open(ak_setting_str("AK_FE_PAGE", "MP_MainMenu"));
-    ak_fe_set_blueprints(&bps);                                         /* (the customisation menu: items, costs, descriptions) */
+    ak_fe_set_blueprints(&bps);
+    fe_bps = &bps; ak_fe_set_model_drawer(fe_model_draw);                                         /* (the customisation menu: items, costs, descriptions) */
     bool fe_ingame = false, fe_after_team = false;                      /* the match's own pages (team selection, the spawn map) */
     for (;;) {
         if (fe_on) {
@@ -185,6 +216,7 @@ int main(int argc, char **argv)
                 AK_ERROR("aurek", "%s did not load", levels[cur].path); cur = (cur + 1) % nlevels; continue;
             }
             if (!ak_models_load(&level, &lvl, &models) || !ak_scene_models_init(&mscene, &models, &scene, &lvl)) AK_WARN("aurek", "models did not load");
+            fe_models = &models; fe_mscene = &mscene; fe_play = &play;
             ak_entities_load(&level, &models, &lvl, &ents);
             if (ak_setting_int("AK_DUMP_SMSG", 0)) {   /* tests: the level script's messages (SMSG: groups of u16 type, u16 extra, u32 target, ...) */
                 u32 pos = 8; ak_chunk c;

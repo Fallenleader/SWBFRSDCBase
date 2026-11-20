@@ -690,8 +690,9 @@ textures and how they are used. Section R lists only what must be in place so th
     customisation, triangle personalisation). Engine: frontend.c (layers, list boxes, the FE functions), the loadout goes to
     AK_WEAPON / AK_EXPLOSIVE / AK_*_LEVEL and ak_play_loadout for the next soldier. [assumed]: list-box row parts with flags bit
     5 show on the chosen row only; Capture Speed Level n uses the rate table's n and None the 1.0 measured at the default; the
-    level / power-up carousel pictures are the background's own. Open: the 3D models (1004 widgets: items, the soldier),
-    Weapon 2 and the special items / power-ups in play (2.3), the main menu's customisation, the personalisation menu.
+    level / power-up carousel pictures are the background's own. The 3D models (1004 widgets) now draw (fe_model_draw / ak_play_draw_figure) -
+    open there: ~1.35x small against the original's frame, the turn's order and signs [assumed], models of weapons the level does
+    not load, the preview's pose and held weapon. Also open: Weapon 2 and the special items / power-ups in play (2.3), the main menu's customisation, the personalisation menu.
   - 2026-11-20, the score board: dead three seconds, the player gets MP_RespawnScoreboard (then "Respawn" -> the spawn map):
     each side's soldiers (the player first [assumed: AK_PLAYER_NAME]) with their status, score, kills and deaths columns
     (FE_ListFriendly* / FE_ListEnemy*; per-soldier tallies kept by play.c; score = kills [assumed]).
