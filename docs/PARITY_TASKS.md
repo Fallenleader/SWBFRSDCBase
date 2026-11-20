@@ -192,6 +192,17 @@ textures and how they are used. Section R lists only what must be in place so th
     - Empire: rifle + pistol + grenade ~22, rifle + EMP launcher + grenade ~5.
     - Which class carries which, and how the game picks a bot's class, are not traced: the Humanoid blueprints name no
       weapons.  Not ported.
+    - 2026-11-20, found and ported: the AI's weapons are a table per faction (0x08ADDB94, 13 words: Alliance, Empire, Republic,
+      CIS - 0 none, 1 auto turret droid, 2 rifle, 3 pistol, 4 REP_Chaingun, 5 ALL_Incinerator, 6 shotgun, 7 rocket launcher,
+      8 Emp_Launcher, 9 REP_Grenade, 10 Personal_Shield, 11 0x5EF92370, 12 Cluster_Grenades; the faction's own names, e.g.
+      EMP_Shotgun, FED_Rocket_Launcher) and eight loadouts of four slots (0x08ADDC64): rifle+pistol+grenade, the same +shield,
+      chaingun+pistol+11, incinerator+pistol+cluster, shotgun+pistol, rocket+pistol+grenade, rifle+EMP+grenade,
+      incinerator+pistol+cluster. 0897FA38 draws one per spawn: weights 0.5 / 0.05 / 0.05 / 0.15 / 0.2 / 0 / 0 / 0 (elite:
+      0.3 / 0.2 / 0.1 / 0 / 0.2 / 0 / 0 / 0.15), the EMP loadout 0.25 when a count (0x08C2AC24 + 0x08C2AFC4) is above 0 and it
+      and the rocket loadout 0.3 from 3 [assumed: the enemy's vehicles]. The measured Hoth mixes fit only roughly (fewer
+      shotguns and incinerators than the weights give) - the count's meaning and the difficulty in the harness run are open.
+      Aurek (AK_BOT_LOADOUTS=1): each bot draws its loadout per life and carries its weapons; 0893F65C's choice (2.6) picks the
+      one in hand per target. Grenades, shields and items are not carried (2.3).
   - Aurek: every soldier carries the blaster rifle; the thermal detonator (secondary attack) is task 2.3.
 - [x] **2.2 Ammo droids [measured 2026-11-16: Aurek matches].** Firing non-stop 6.8 m from Hoth's first ammo droid (the harness
   reads the weapon: clip +0xA0, spare clips +0xA4, explosives +0xA8): each emptied clip's spare came back on the next whole-second
@@ -254,7 +265,7 @@ textures and how they are used. Section R lists only what must be in place so th
         - 116 a flamethrower (BFF_FlameThrower_E), whose class also has a slot-6 item coded 130.
         - 119 an EMP launcher (BFF_Muz_EMP_Gun_Flash_E), 126 the rocket launcher, 127 the slot-6 grenade.
       - So: within 8.5 m the flamethrower, within 12.5 m the shotgun, then the chaingun, rifle, pistol; against vehicles the
-        rocket launcher, then the EMP launcher.  Not ported: Aurek's bots carry one weapon until 2.1's AI loadouts are done.
+        rocket launcher, then the EMP launcher.  Ported 2026-11-20 with 2.1's AI loadouts (play.c ai_weapon_choice).
   - Traced so far: 08A24438 reads each weapon's AIWeapon_Accuracy_Normal (+24), AIWeapon_Accuracy_Elite (+28) and
     Modifier_Bot_RateOfFire (+32) into an AI weapon record, each clamped to 0..5 (0x08AEF9CC). Who reads them (the aim error)
     is not found yet. Bolts are not registry objects, so the harness cannot count AI shots directly; hits on the player can be.

@@ -336,6 +336,74 @@ static bool spawn_spot_at(ak_play *p, int team, const f32 *near, bool exact, u32
     return true;
 }
 
+/* ---- the AI soldiers' loadouts (PARITY 2.1 / 2.6)
+ * The game's weapons for its AI, by faction (0x08ADDB94, 13 words each: Alliance, Empire, Republic, CIS): 0 none, 1 the auto turret
+ * droid, 2 the blaster rifle, 3 the pistol, 4 the chaingun (REP_Chaingun), 5 the incinerator, 6 the shotgun, 7 the rocket
+ * launcher, 8 the EMP launcher, 9 the grenade, 10 the personal shield, 11 (0x5EF92370), 12 cluster grenades.  The loadouts
+ * (0x08ADDC64, 8 x 4 slots): rifle + pistol + grenade; the same + shield; chaingun + pistol + 11; incinerator + pistol + cluster;
+ * shotgun + pistol; rocket + pistol + grenade; rifle + EMP + grenade; incinerator + pistol + cluster.  0897FA38 draws one per
+ * spawn by weight - 0.5, 0.05, 0.05, 0.15, 0.2, 0, 0, 0 (elite, 08979DF4 = 2: 0.3, 0.2, 0.1, 0, 0.2, 0, 0, 0.15); the rocket
+ * and EMP loadouts get 0.25 (EMP) when the count at 0x08C2AC24 + 0x08C2AFC4 is above 0, 0.3 each from 3 [assumed: the enemy's
+ * vehicles].  Only the weapons are carried here (grenades, shields and items: 2.3). */
+static const char *const ai_weapon_name[4][13] = {
+    { NULL, NULL, "ALL_Blaster_Rifle", "ALL_Blaster_Pistol", "REP_Chaingun", "ALL_Incinerator", "ALL_Shotgun", "ALL_Rocket_Launcher", "Emp_Launcher" },
+    { NULL, NULL, "EMP_Blaster_Rifle", "EMP_Blaster_Pistol", "REP_Chaingun", "ALL_Incinerator", "EMP_Shotgun", "EMP_Rocket_Launcher", "Emp_Launcher" },
+    { NULL, NULL, "REP_Blaster_Rifle", "REP_Blaster_Pistol", "REP_Chaingun", "ALL_Incinerator", "REP_shotgun", "REP_Rocket_launcher", "Emp_Launcher" },
+    { NULL, NULL, "FED_Blaster_Rifle", "FED_Blaster_Pistol", "REP_Chaingun", "ALL_Incinerator", "FED_Shotgun", "FED_Rocket_Launcher", "Emp_Launcher" } };
+static const s8 ai_loadouts[8][4] = { { 2, 3, 9, 0 }, { 2, 3, 9, 10 }, { 4, 3, 11, 0 }, { 5, 3, 12, 0 }, { 6, 3, 0, 0 }, { 7, 3, 9, 0 }, { 2, 8, 9, 0 }, { 5, 3, 12, 0 } };
+static void ai_weapons_load(ak_play *p, const ak_blueprints *bp, const ak_model_set *m, int t)
+{
+    static const int row_of_faction[4] = { 2, 3, 0, 1 };              /* (factions 0 Republic, 1 CIS, 2 Alliance, 3 Empire -> the table's rows) */
+    int f = p->team_faction[t]; const char *const *names = ai_weapon_name[f >= 0 && f < 4 ? row_of_faction[f] : 0];
+    for (int k = 0; k < 13; k++) {
+        p->ai_armed[t][k] = k < 9 && names[k] && ak_weapon_def_load(bp, m, names[k], -99, &p->ai_wdef[t][k]);   /* (already the faction's own: no child taken) */
+        if (!p->ai_armed[t][k]) continue;
+        ak_weapon_def *d = &p->ai_wdef[t][k];                        /* in a bot's hands: the game's bot modifiers */
+        f32 md = ak_bp_float(d->bp, "Modifier_Bot_Damage", 1), mr = ak_bp_float(d->bp, "Modifier_Bot_RateOfFire", 1);
+        if (!ak_setting_int("AK_BOT_GAME_MODIFIERS", 1)) md = mr = 1;
+        d->dmg_infantry *= md; d->dmg_vehicle *= md; d->rate_of_fire *= mr;
+    }
+    {   char line[160] = ""; for (int k = 2; k < 9; k++) if (p->ai_armed[t][k]) { strncat(line, " ", sizeof line - strlen(line) - 1); strncat(line, p->ai_wdef[t][k].name, sizeof line - strlen(line) - 1); }
+        AK_INFO("play", "side %d AI weapons:%s", t, line); }
+}
+static int ai_loadout_pick(ak_play *p, int team, u32 *seed)
+{
+    f32 w[8] = { 0.5f, 0.05f, 0.05f, 0.15f, 0.2f, 0, 0, 0 };
+    if (p->difficulty >= 2) { f32 e[8] = { 0.3f, 0.2f, 0.1f, 0, 0.2f, 0, 0, 0.15f }; memcpy(w, e, sizeof w); }
+    u32 nveh = 0; for (u32 i = 0; i < p->nveh; i++) if (p->veh[i].alive && p->veh[i].team == 1 - team) nveh++;
+    if (nveh > 0) w[6] = 0.25f;
+    if (nveh >= 3) w[5] = w[6] = 0.3f;
+    f32 sum = 0; for (int k = 0; k < 8; k++) sum += w[k];
+    f32 r = rnd(seed) * sum, acc = 0;
+    for (int k = 0; k < 8; k++) { acc += w[k]; if (r < acc && w[k] > 0) return k; }
+    return 0;
+}
+/* the weapon to fire at a target (0893F65C): at a soldier the incinerator within 8.5 m, the shotgun within 12.5 m, then the
+ * chaingun, the rifle, the pistol; at a vehicle the rocket launcher, the EMP launcher, then the chaingun, the rifle, the
+ * incinerator within 8.5 m, the pistol */
+static int ai_weapon_choice(const ak_play *p, const ak_play_bot *b, bool vehicle, f32 d)
+{
+    const s8 *lo = ai_loadouts[b->loadout & 7]; bool has[13] = { false };
+    for (int k = 0; k < 4; k++) if (lo[k] > 0 && lo[k] < 13 && p->ai_armed[b->team][lo[k]]) has[lo[k]] = true;
+    static const s8 vs_soldier[] = { 4, 2, 3 }, vs_vehicle[] = { 7, 8, 4, 2 };
+    if (!vehicle) {
+        if (has[5] && d < 8.5f) return 5;
+        if (has[6] && d < 12.5f) return 6;
+        for (u32 k = 0; k < sizeof vs_soldier; k++) if (has[vs_soldier[k]]) return vs_soldier[k];
+    } else {
+        for (u32 k = 0; k < sizeof vs_vehicle; k++) if (has[vs_vehicle[k]]) return vs_vehicle[k];
+        if (has[5] && d < 8.5f) return 5;
+        if (has[3]) return 3;
+    }
+    for (int k = 0; k < 4; k++) if (lo[k] > 1 && lo[k] < 9 && has[lo[k]]) return lo[k];
+    return -1;
+}
+static void ai_hold(ak_play *p, ak_play_bot *b, u32 idx, int slot)
+{
+    if (slot < 0 || slot == b->held || !p->ai_armed[b->team][slot]) return;
+    ak_weapon_give(&b->weapon, &p->ai_wdef[b->team][slot]); b->weapon.team = b->team; b->weapon.owner = (s32)(1 + idx); b->held = (s8)slot;
+}
+
 static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx)
 {
     f32 pos[3], yaw = 0;
@@ -353,7 +421,12 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
     ak_target *t = &p->target[1 + idx];
     t->health = t->max_health = ak_bp_float(b->look.bp, "Health", 60.0f); t->headshot_mult = ak_bp_float(b->look.bp, "Headshot multiplier", 4.0f);
     t->alive = true; t->team = b->team; t->last_attacker = -1;
-    if (p->team_armed[b->team]) { ak_weapon_give(&b->weapon, &p->team_bdef[b->team]); b->weapon.team = b->team; b->weapon.owner = (s32)(1 + idx); }
+    b->held = -1;
+    if (ak_setting_int("AK_BOT_LOADOUTS", 1) && p->ai_armed[b->team][2]) {   /* the game's AI loadouts: its first weapon in hand */
+        b->loadout = (s8)ai_loadout_pick(p, b->team, &b->seed);
+        int first = ai_weapon_choice(p, b, false, 50.0f); ai_hold(p, b, idx, first);
+    }
+    if (b->held < 0 && p->team_armed[b->team]) { ak_weapon_give(&b->weapon, &p->team_bdef[b->team]); b->weapon.team = b->team; b->weapon.owner = (s32)(1 + idx); }
     if (poseable(m, &b->look)) { pose(m, &b->look, p->idle_clip, b->clip_t, true, b->bones); body_target(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, t); }
 }
 
@@ -585,6 +658,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             p->team_armed[t] = ak_weapon_def_load(bp, m, ak_setting_str("AK_BOT_WEAPON", "BlasterRifle"), p->team_faction[t], &p->team_wdef[t]);   /* PARITY(2.1): the bots' classes' weapons */
             /* in a bot's hands (the game's Weapon blueprint): Modifier_Bot_Damage scales the damage, Modifier_Bot_RateOfFire the time
              * between shots (RateOfFire is a time) - the rifles inherit Weapon "Base": 0.3 and 3 */
+            ai_weapons_load(p, bp, m, t);
             p->team_bdef[t] = p->team_wdef[t];
             if (p->team_armed[t] && p->team_wdef[t].bp) {
                 f32 md = ak_bp_float(p->team_wdef[t].bp, "Modifier_Bot_Damage", 1), mr = ak_bp_float(p->team_wdef[t].bp, "Modifier_Bot_RateOfFire", 1);
@@ -1164,6 +1238,10 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         if (en) { f32 ex = en->feet[0] - b->ch.pos[0], ez = en->feet[2] - b->ch.pos[2]; reach = ex * ex + ez * ez < 3.0f * 3.0f && fabsf(dyaw) < 0.6f; }
         hero_attack(p, m, hero_of(p, (s32)(1 + idx)), reach, &b->weapon, b->ch.pos, b->ch.yaw, dt);
     } else if (b->weapon.def) {
+        if (en && b->held >= 0) {                                        /* the weapon for this target (0893F65C) */
+            f32 ex = en->feet[0] - b->ch.pos[0], ez = en->feet[2] - b->ch.pos[2];
+            ai_hold(p, b, idx, ai_weapon_choice(p, b, b->enemy >= (s32)VT(p, 0), sqrtf(ex * ex + ez * ez)));
+        }
         ak_weapon_update(&b->weapon, dt, b->weapon.ammo == 0);
         if (b->weapon.ammo <= 0 && b->weapon.spare <= 0 && b->weapon.reload_t <= 0) { int tm = b->weapon.team; s32 ow = b->weapon.owner; ak_weapon_give(&b->weapon, b->weapon.def); b->weapon.team = tm; b->weapon.owner = ow; }
         /* the reaction (traced: the AI fire node 0893F2F8 - 0893EF7C / 0893F364): a countdown from 2.5 s (1.75 s at the elite
