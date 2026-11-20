@@ -136,6 +136,10 @@ AK_POST_GLOW=0.75
 # the game's particle effects (muzzle flashes, impacts, explosions; the level's PFX): 1 on, 0 Aurek's simple flashes
 AK_PFX=1
 #AK_VEHICLE_RESPAWN=10
+# Vehicle spawns keep up to 4 vehicles each (the game's spawner): a new one comes when none stands within 25 m. 0 = one each
+AK_VEHICLE_SLOTS=1
+# Bots throw their thermal detonators / cluster grenades (the game's AI rule). 0 = off
+AK_BOT_GRENADES=1
 # gravity (m/s^2): the game's is 10
 AK_GRAVITY=10
 # soldier camera: modern (over the right shoulder, the DICE Battlefront framing; the default) / classic (the game's own 7 m camera).

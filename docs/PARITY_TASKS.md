@@ -413,7 +413,8 @@ textures and how they are used. Section R lists only what must be in place so th
     Aurek: flyer wrecks 4.98 s, respawn record + 2.5 s.
   - Boarding, measured: the player boards from beside a vehicle with d-pad up (the snowspeeder from 2.6 m behind its centre,
     the AT-ST from 2 m to its side); up again leaves.
-  - [ ] **3.5b** The extra time's source and the flyers' spread, the respawn-when-taken-away rule, the boarding range.
+  - [ ] **3.5b** The extra time's source and the flyers' spread; the respawn-when-taken-away rule (traced 2026-11-20: up to 4
+    vehicles a spawn, a new one when none stands within 25 m - built, NATIVE_ENGINE row); the boarding range (measured, below).
   - 2026-11-20, boarding and leaving measured (harness program board_try: d-pad up every 0.5 s from 1.5 s, the player
     teleported around the vehicle; physics boxes from RS_DRIVE_BODYID):
     - Hoth's AT-ST (centre 261.98, 13.97; box x 259.54..264.08, z 12.28..15.66; it faces -x): boards from 3.0, 4.0, 4.5 and

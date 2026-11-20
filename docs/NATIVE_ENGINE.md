@@ -253,6 +253,14 @@ Level entities of type 43 drive them. Their class (08850E80, vtable 0x08AF1BE8) 
 - **Getting in:** you must be within about 2 m of that spot. The AT-ST lets you in from 5.0 m behind but not 5.5 m, and not from 3.5 m to its side. The snowspeeder lets you in from 2.6 m behind but not from 2.6 m in front.
 
 Aurek now does both. Its free test checks clear of the vehicle's box grown by 0.75 m, a clear line from the vehicle and ground below; the measured spots fit 0.64–0.9 m. You can get in within 2.2 m of the spot. Aurek's results: AT-ST out at 2.99 m behind; in from 2.4 and 4.9 m behind, not from 5.5 m behind or 3.5 m to the side. Snowspeeder out at 4.0 m behind; in from behind, not from in front. [assumed]: 089D5A60's free test, the 2.2 m, and creatures, which keep radius + 3 m (a Taun-Taun did not take a soldier from 1.9 m behind). If no spot is free, Aurek puts you out on the left as before. |
+| 2026-11-20 | 3.5b | **vehicle spawns keep up to four vehicles (traced).** The vehicle spawner is ENTI type 27, class 0x801B (constructor 08A15B8C, vtable 0x08B15308). The update 08A166A0 and its helpers 08A15E64 / 08A16034:
+- **Slots:** up to 4 vehicles (+32, ids at +96).
+- **The clear-area check:** a vehicle counts only while it is alive and within 25 m (d² against 625, D_08AEF7F0) of the spawn point (+72).
+- **When a new one appears:** while any counted vehicle is there, the clock (+116) is reset; otherwise it runs. A new vehicle is made when there is a free slot and either flag +29 is set or the clock has passed the respawn time (+36, 10 s).
+
+So a vehicle driven away is replaced while it still lives, as the harness showed. The record's flags (body +20, always 3) set +28 and +29.
+
+Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is now 32). Each spawn has its own clock, reset while one of its live vehicles is within 25 m. A waiting slot is made once its wreck has gone and the clock has passed the respawn time + the measured extra (1 s; flyers 2.5 s). Hoth, 100 s with bots: 10 vehicles made as bots drove others away; 7 captures. `AK_VEHICLE_SLOTS=0` keeps one vehicle per spawn (settings.txt updated, with AK_BOT_GRENADES). Contradiction left open: with +29 set (every record), the game's update would spawn without waiting, but the measured respawn is ~11 s after a kill; 08A16320 (the spawn itself) is not read. |
 
 ## Known issues (cleanup pass once gameplay reaches parity)
 

@@ -760,7 +760,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         p->droids.ammo_radius = ad ? ak_bp_float(ad, "EffectiveRadius", 8) : 8; p->droids.ammo_pulse = ad ? ak_bp_float(ad, "PulseLength", 1) : 1;
         p->droids.t = p->droids.pulse; p->droids.ammo_t = p->droids.ammo_pulse;
     }
-    for (u32 v = 0; v < p->nveh; v++) if (!vehicle_make(p, v)) { p->veh[v].alive = false; p->veh[v].def = &p->vdef[p->vspawn[v].def[0] >= 0 ? p->vspawn[v].def[0] : p->vspawn[v].def[1]]; p->veh[v].dead_t = p->vspawn[v].respawn - 5.0f; p->target[VT(p, v)].alive = false; }
+    for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].first != (s32)v || !vehicle_make(p, v)) {   /* (a spawn's further slots wait) */ p->veh[v].alive = false; p->veh[v].def = &p->vdef[p->vspawn[v].def[0] >= 0 ? p->vspawn[v].def[0] : p->vspawn[v].def[1]]; p->veh[v].dead_t = p->vspawn[v].respawn - 5.0f; p->target[VT(p, v)].alive = false; }
     if (ak_setting_int("AK_DEBUG_VEH", 0))
         for (u32 v = 0; v < p->nveh; v++) AK_INFO("veh", "vehicle %u: %s / %s, post %d, respawn %.1f s, %s%s", v + 1, p->vspawn[v].def[0] >= 0 ? p->vdef[p->vspawn[v].def[0]].name : "-",
                                                 p->vspawn[v].def[1] >= 0 ? p->vdef[p->vspawn[v].def[1]].name : "-", p->vspawn[v].post, p->vspawn[v].respawn, p->veh[v].alive ? "up" : "waiting", p->vspawn[v].fixed ? ", placed" : "");
@@ -1442,6 +1442,7 @@ static bool vehicle_make(ak_play *p, u32 v)
     ak_target *t = &p->target[VT(p, v)]; memset(t, 0, sizeof *t);
     t->health = t->max_health = vh->def->health; t->alive = true; t->last_attacker = -1;
     vehicle_target(p, v);
+    if (ak_setting_int("AK_DEBUG_VEH", 0) && p->ready) AK_INFO("veh", "vehicle %u (spawn %d) made: %s", v + 1, sp->first + 1, vh->def->name);
     return true;
 }
 
@@ -1560,7 +1561,21 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
                 sp->mpost = (s32)k;
             }
         }
-        if (any) p->nveh++;
+        sp->first = (s32)p->nveh; sp->clear_t = 0;
+        if (any) {
+            p->nveh++;
+        }
+    }
+    /* the spawner (class 0x801B, 08A15B8C / update 08A166A0) keeps up to 4 vehicles (+32, ids at +96): a new one is made when none of
+       its own living ones stands within 25 m of the spawn point (08A15E64: d^2 against 625, D_08AEF7F0) - so one taken away is
+       replaced while it still lives (seen in the harness) - and a slot is free (08A16034).  Each spawn gets its 3 further slots,
+       round by round while there is room (PLAY_MAX_VEH) */
+    {   u32 base = p->nveh;
+        for (int x = 0; x < 3 && ak_setting_int("AK_VEHICLE_SLOTS", 1); x++)
+            for (u32 v = 0; v < base && p->nveh < PLAY_MAX_VEH; v++) {
+                const ak_play_vspawn *sp = &p->vspawn[v]; if (sp->fixed || sp->route || sp->mpost >= 0) continue;
+                p->vspawn[p->nveh] = *sp; p->vspawn[p->nveh].first = (s32)v; p->nveh++;
+            }
     }
     a->used = mark;                                                           /* the entity list was only needed here */
 }
@@ -2697,6 +2712,14 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     /* the bots */
     for (u32 i = 0; i < p->nbots; i++) bot_update(p, m, &p->bot[i], i, dt, NULL);
     /* the vehicles */
+    for (u32 v = 0; v < p->nveh; v++) {                                      /* each spawn's clock: reset while one of its vehicles stands near */
+        ak_play_vspawn *sv = &p->vspawn[v]; if (sv->first != (s32)v) continue;
+        bool near = false;
+        for (u32 u = v; u < p->nveh && !near; u++) if (p->vspawn[u].first == (s32)v && p->veh[u].alive) {
+            f32 dx = p->veh[u].pos[0] - sv->pos[0], dy = p->veh[u].pos[1] - sv->pos[1], dz = p->veh[u].pos[2] - sv->pos[2];
+            near = dx * dx + dy * dy + dz * dz < 25.0f * S * 25.0f * S; }
+        sv->clear_t = near ? 0 : sv->clear_t + dt;
+    }
     for (u32 v = 0; v < p->nveh; v++) {
         ak_vehicle *vh = &p->veh[v];
         if (!vh->def) continue;
@@ -2716,7 +2739,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             /* flyers (measured: "Kills all flyers" on Hoth's parked snowspeeders, three runs): the wreck goes after 4.98 s and a new one
                stands 12.0-13.0 s after the kill [PARITY(3.5b): the spread and the extra time's source are not found; 2.5 s taken] */
             f32 extra = vh->def->kind == AK_VEH_FLYER ? 2.5f : 1.0f;
-            if (!p->vspawn[v].fixed && vh->dead_t > p->vspawn[v].respawn + extra) { if (!vehicle_make(p, v)) vh->dead_t = p->vspawn[v].respawn - 5.0f; }
+            const ak_play_vspawn *sv = &p->vspawn[v]; const ak_play_vspawn *fs = &p->vspawn[sv->first];
+            /* (the spawn's clock: how long its area has been clear - see the spawner above; a slot comes back once its wreck has gone) */
+            if (!sv->fixed && vh->dead_t > 5.0f && fs->clear_t > sv->respawn + extra) {
+                bool other = false; for (u32 u = 0; u < v; u++) if (p->vspawn[u].first == sv->first && !p->veh[u].alive && p->veh[u].dead_t > 5.0f) other = true;
+                if (!other) { if (vehicle_make(p, v)) p->vspawn[sv->first].clear_t = 0; else vh->dead_t = 5.0f; }   /* (one slot at a time) */
+            }
             continue;
         }
         if (vh->driver == 0) {                                                /* the player drives: left stick, cross boosts, right stick aims, R fires */
