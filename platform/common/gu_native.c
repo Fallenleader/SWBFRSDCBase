@@ -602,7 +602,8 @@ static void exec_draw(const u32 *payload){
       if (lg > 0 && !through && ptype >= 3 && ptype <= 5 && (X.en[10] || all) && (g_frames % lg) == 0) {
         float w[3] = { X.world[9], X.world[10], X.world[11] }, v[3];
         for (int c = 0; c < 3; c++) v[c] = w[0] * X.view[c] + w[1] * X.view[3 + c] + w[2] * X.view[6 + c] + X.view[9 + c];
-        fprintf(stderr, "[DRAW] %d vt=%06x n=%d nv=%d tex=%08x d=%.2f w=%.1f,%.1f,%.1f\n", g_frames, vt, count, (int)d->nvert, X.lv[0].addr, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]), w[0], w[1], w[2]); } }
+        int o1[5]; vt_layout(vt, o1); rawv_t r0; decode_vertex(vt, vb, o1, &r0);
+        fprintf(stderr, "[DRAW] %d vt=%06x n=%d nv=%d tex=%08x d=%.2f w=%.1f,%.1f,%.1f v0=%.2f,%.2f,%.2f blend=%d/%d,%d\n", g_frames, vt, count, (int)d->nvert, X.lv[0].addr, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]), w[0], w[1], w[2], r0.px, r0.py, r0.pz, X.en[4], X.bsrc, X.bdst); } }
 #endif
 #ifndef __vita__
     { static int fr = -2; if (fr == -2) fr = getenv("RS_SKY_LOG") ? atoi(getenv("RS_SKY_LOG")) : -1;   /* RS_SKY_LOG=frame: that frame's draws under a rotation-only view (the sky), vertices */

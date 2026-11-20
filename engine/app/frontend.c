@@ -73,7 +73,9 @@ void ak_fe_set_match(const ak_fe_match *m)
     var_set("BFF.FE_GameType", m->mode); var_set("BFF.FE_GameEra", m->era == 0 ? 1 : 0);   /* (FE_GameEra: 1 classic, 0 prequel - the team buttons) */
     var_set("BFF.FE_PlayerFaction", m->faction[m->team]); var_set("BFF.FE_ChangeTeamAllowed", 1);
     var_set("BFF.FE_SpawnPointCount", (f32)m->nposts); var_set("BFF.FE_IsPlayerVictorious", m->winner == m->team);
-    for (u32 i = 0; i < AK_FE_MAX_POSTS; i++) { char k[40]; snprintf(k, sizeof k, "BFF.FE_SpawnPointActive%u", i); var_set(k, i < m->nposts && m->post_owner[i] == m->team); }
+    /* every post on the map is shown (08A2DD50: Active<k> = the post exists and is on the map, +4 / +68), coloured by its owner;
+       only the side's own go into the list the focus moves through */
+    for (u32 i = 0; i < AK_FE_MAX_POSTS; i++) { char k[40]; snprintf(k, sizeof k, "BFF.FE_SpawnPointActive%u", i); var_set(k, i < m->nposts); }
     if (page) fill_all(&page->root);                                  /* (the team lists follow the match) */
 }
 int ak_fe_team(void) { return team_choice; }
@@ -94,6 +96,13 @@ static void row_add16(const u16 *t, u32 n, int val)
 }
 static void row_std(u32 id, int val) { u32 n; const u16 *t = ak_hud_stdtext(id, &n); if (t) row_add16(t, n, val); }
 
+static int spawn_owner = -1;             /* drawing a spawn point: 0 ours, 1 theirs, 2 nobody's (-1 none) */
+/* a spawn point's two pictures (E_IM_SpawnPointD<k> shown unfocused, ..H<k> focused) take the owner's colours, the game's constants
+ * 0x08AEFB28.. (0.3, 1.0, 0.6, 0.2, 0.1): ours (0.3, 0.3, 1, 0.6) / (0.2, 0.2, 1, 1), theirs (1, 0.3, 0.3, 0.6) / (1, 0.2, 0.2, 1),
+ * nobody's (0.1, 0.1, 0.1, 0.6) / (0.1, 0.1, 0.1, 1) [assumed: the first set is the D picture's, the second the H's; the vfunc
+ * +120 that takes them is not read] */
+static const f32 spawn_rgba[3][2][4] = { { { 0.3f, 0.3f, 1, 0.6f }, { 0.2f, 0.2f, 1, 1 } }, { { 1, 0.3f, 0.3f, 0.6f }, { 1, 0.2f, 0.2f, 1 } },
+                                         { { 0.1f, 0.1f, 0.1f, 0.6f }, { 0.1f, 0.1f, 0.1f, 1 } } };
 static u32 child_tint = 0xFFFFFFFFu;   /* the colour the widgets drawn now are multiplied by (a spawn point's owner) */
 static void path_of(int f, char *out, size_t n) { snprintf(out, n, "PSP_GAME/USRDIR/GUIMENU/%s.GUI", files[f]); }
 
@@ -218,7 +227,8 @@ static bool shows(const ak_widget *w, bool focused)
         if ((w->name[l - 1] == 'C') != on) return false;
         u32 f = w->flags & 6; return !f ? true : focused ? (f & 4) != 0 : (f & 2) != 0;
     }
-    if (w->type < 2000 && w->flags && !(w->flags & 0x400)) return false;   /* (pictures and texts: bit 10 shown) [assumed] */
+    if (w->type < 2000 && w->flags && !(w->flags & 0x400)              /* (pictures and texts: bit 10 shown) [assumed] - */
+        && !(spawn_owner >= 0 && w->name && !strncmp(w->name, "E_IM_SpawnPointD", 16))) return false;   /* (but the spawn map's unfocused posts show) */
     u32 f = w->flags & 6;
     if (!f) return true;
     return focused ? (f & 4) != 0 : (f & 2) != 0;
@@ -286,7 +296,9 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
     for (u32 i = 0; i < w->nanims; i++)                               /* "pulse_highlight": the highlight breathes [assumed rate] */
         if (!strncmp(w->anims[i], "pulse_highlight", 15)) a = 0.65f + 0.35f * cosf(clock * 6.2831853f);
     if (w->type == AK_GUI_IMAGE && w->tex >= 0 && (u32)w->tex < gf.ntex && gtex[w->tex]) {
-        ak_hud_2d_quad(gtex[w->tex], x, y, x + w->size[0], y + w->size[1], w->uv[0], w->uv[1], w->uv[2], w->uv[3], argb_of(w->rgba, a));
+        const f32 *c = w->rgba;
+        if (spawn_owner >= 0 && w->name && !strncmp(w->name, "E_IM_SpawnPoint", 15)) c = spawn_rgba[spawn_owner][w->name[15] == 'H'];
+        ak_hud_2d_quad(gtex[w->tex], x, y, x + w->size[0], y + w->size[1], w->uv[0], w->uv[1], w->uv[2], w->uv[3], argb_of(c, a));
     } else if (w->type == AK_GUI_IMAGE && w->rgba[3] > 0) {          /* no picture: a plain quad in its colour (panels, scroll bars) */
         f32 h = w->size[1], yy = y;
         if (scroll && w->name && !strcmp(w->name, "W_IM_Bar")) {      /* the bar: the shown share of the rows, at the first shown row */
@@ -316,12 +328,12 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
         }
     }
     bool f2 = is_button(w->type) ? (w->id == focus) : focused;
-    const list_rows *keep = scroll; int keep_shown = scroll_shown; const char *keep_parent = parent_name; u32 keep_tint = child_tint; const char *keep_check = check_var;
+    const list_rows *keep = scroll; int keep_shown = scroll_shown; const char *keep_parent = parent_name; u32 keep_tint = child_tint; const char *keep_check = check_var; int keep_owner = spawn_owner;
     if (w->type == AK_GUI_BUTTON2 && w->binding && w->binding[0]) check_var = w->binding;
     if (w->type >= 2000) parent_name = w->name;
-    if (have_match && w->name && !strncmp(w->name, "W_BU_SpawnPoint", 15)) {   /* the post's owner: ours blue, theirs red, nobody's grey (as the HUD's) */
+    if (have_match && w->name && !strncmp(w->name, "W_BU_SpawnPoint", 15)) {   /* the post's owner (08A2DD50 -> the button's vfunc +120) */
         u32 k = (u32)atoi(w->name + 15); int o = k < match.nposts ? match.post_owner[k] : -1;
-        child_tint = o == match.team ? 0xFF4060FFu : (o == 0 || o == 1) ? 0xFFFF4040u : 0xFFC0C0C0u;
+        spawn_owner = o == match.team ? 0 : (o == 0 || o == 1) ? 1 : 2;
     }
     if (w->type == AK_GUI_GROUP && w->name && !strncmp(w->name, "W_GP_", 5) && strstr(w->name, "Scroll")) {   /* "W_GP_PlanetScroll" scrolls "W_LB_PlanetList" [assumed: by name] */
         char want[64]; size_t l = strstr(w->name, "Scroll") - (w->name + 5); snprintf(want, sizeof want, "W_LB_%.*s", (int)l, w->name + 5);
@@ -330,7 +342,7 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
         if (!scroll || scroll->n <= scroll_shown) { scroll = keep; return; }   /* (nothing to scroll: no bar) */
     }
     for (u32 i = 0; i < w->nchild; i++) draw_widget(&w->child[i], x, y, f2);
-    scroll = keep; scroll_shown = keep_shown; parent_name = keep_parent; child_tint = keep_tint; check_var = keep_check;
+    scroll = keep; scroll_shown = keep_shown; parent_name = keep_parent; child_tint = keep_tint; check_var = keep_check; spawn_owner = keep_owner;
 }
 
 void ak_fe_draw(void)

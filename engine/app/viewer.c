@@ -466,8 +466,8 @@ int main(int argc, char **argv)
             fm.mode = ak_game_mode; fm.era = strncmp(levels[cur].label, "PREQUEL", 7) == 0; fm.team = play.team; fm.winner = play.have_cq ? play.match.winner : -1;
             if (ak_setting_int("AK_FE_TEST_OVER_AT", -1) >= 0 && frame >= ak_setting_int("AK_FE_TEST_OVER_AT", -1)) fm.winner = play.team;   /* (tests: a won match) */
             fm.faction[0] = play.team_faction[0]; fm.faction[1] = play.team_faction[1];
-            for (u32 i = 0; i < play.cq.nposts && fm.nposts < AK_FE_MAX_POSTS; i++) {
-                if (play.cq.post[i].absent || play.cq.post[i].disabled) continue;
+            for (u32 i = 0; i < play.cq.nposts && fm.nposts < AK_FE_MAX_POSTS; i++) {   /* (posts that cannot be taken are on the map too) */
+                if (play.cq.post[i].absent) continue;
                 memcpy(fm.post_pos[fm.nposts], play.cq.post[i].pos, 12); fm.post_owner[fm.nposts] = play.match.post[i].owner; fm.post_name[fm.nposts] = play.cq.post[i].name;
                 fm.nposts++;
             }
@@ -518,7 +518,7 @@ int main(int argc, char **argv)
                     ak_play_damage(&play, 1e9f);                              /* (the soldier dies: the spawn map follows) */
                 } else if (ev == AK_FE_SPAWN) {
                     int k = ak_fe_spawn_post(), idx = -1, seen = 0;           /* (the page's index among the shown posts -> the conquest post) */
-                    for (u32 i = 0; i < play.cq.nposts; i++) { if (play.cq.post[i].absent || play.cq.post[i].disabled) continue; if (seen++ == k) idx = (int)i; }
+                    for (u32 i = 0; i < play.cq.nposts; i++) { if (play.cq.post[i].absent) continue; if (seen++ == k) idx = (int)i; }
                     play.spawn_post = idx; play.menu_spawn = true; ak_fe_close();
                 }
                 memset(&in, 0, sizeof in);                                     /* (the menu has the pad) */

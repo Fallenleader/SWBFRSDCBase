@@ -651,6 +651,16 @@ textures and how they are used. Section R lists only what must be in place so th
     (W_BU_SpawnPoint0 is 0x55F10F71): the code finds those by name. A neighbour link to a hidden widget is followed on in
     the same direction. Open: the spawn map's zoom (the original fits the playable area; Aurek shows the whole map picture),
     the team lists' insignia and the faction logos, the respawn timer.
+  - 2026-11-20, the spawn map's posts: 08A2DD50 sets BFF.FE_SpawnPointActive<k> for every post on the map (the post's +4 and +68
+    bytes), not only the side's, and gives each button's pictures the owner's colours (0x08AEFB28..: ours (0.3, 0.3, 1, 0.6) /
+    (0.2, 0.2, 1, 1), theirs (1, 0.3, 0.3, 0.6) / (1, 0.2, 0.2, 1), nobody's (0.1, 0.1, 0.1, 0.6) / (.., 1)) through the button's
+    vfunc +120 [assumed: the first set for the unfocused picture D, the second for H]; the side's own posts go into the list the
+    focus moves through (0x08C2D0EC). Aurek now shows every post, uncapturable ones included (it dropped them), and matches the
+    original's Hoth frame mark for mark; the map picture's fit already matched (the frames overlaid). The respawn timer
+    (E_TLB_SpawnTimer, FE_ListRespawnTimer 08A294D4: "Respawn Wave in " + max(0, trunc(t + 1)), t from 08973998 = the time to the
+    next wave) is -1 in single player (08973960 while 0x08B2BB9C is 0) and the original's frame shows nothing there; the
+    countdown page (MP_Spawn_Countdown, cancel allowed above 3 s - FE_RespawnCancel 08A2FE48) goes with the waved respawn,
+    which single player does not use. Closed for single player.
   - 2026-11-20, the score board: dead three seconds, the player gets MP_RespawnScoreboard (then "Respawn" -> the spawn map):
     each side's soldiers (the player first [assumed: AK_PLAYER_NAME]) with their status, score, kills and deaths columns
     (FE_ListFriendly* / FE_ListEnemy*; per-soldier tallies kept by play.c; score = kills [assumed]).

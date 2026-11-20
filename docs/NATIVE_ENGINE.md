@@ -217,6 +217,7 @@ Vita: `cmake -S engine/platform/vita -B build/aurek_vita && cmake --build build/
 | 2026-11-20 | 8.2 | **options pages' controls.** Script values as numbers; sliders step their bound values, check boxes toggle and show their tick by it; pictures and texts show by flags bit 10. The Audio Options page works (values not yet applied to the mixer). |
 | 2026-11-20 | 8.2 | **the respawn score board.** MP_RespawnScoreboard after a death: both sides' soldiers with status, score, kills and deaths (per-soldier tallies), then Respawn -> the spawn map. |
 | 2026-11-20 | 8.2 | **game over.** The game's MP_GameoverDialogue at the match's end: Victory / Defeat, Continue (the play list's next map or the main menu), Retry, Quit. |
+| 2026-11-20 | 8.2 / 1.10b | **the spawn map's posts, as the game's.** 08A2DD50 (the spawn map's fill) marks every post on the map active and colours its two pictures by owner (constants 0x08AEFB28..: ours (0.3, 0.3, 1, 0.6) / (0.2, 0.2, 1, 1), theirs red, nobody's dark grey); only the side's own go into the focus list. Aurek showed only its own posts and dropped those that cannot be taken; now every post shows, matching the original's Hoth frame mark for mark. The map's fit already matched (overlay of the two frames). The respawn timer (E_TLB_SpawnTimer, FE_ListRespawnTimer: "Respawn Wave in" + the time to the next wave, 08973998) reads -1 in single player (08973960) and the original's frame shows none: nothing to draw. |
 
 ## Known issues (cleanup pass once gameplay reaches parity)
 
