@@ -446,7 +446,17 @@ textures and how they are used. Section R lists only what must be in place so th
       max health x HeroHealthAddPerKill, capped at the max.
     - The unlock time is the option at +420 (default 3 minutes, 0897782C), as Aurek's AK_HERO_UNLOCK.
     - Aurek's heroes_drain and per-kill gain already do exactly this (play.c), so nothing changed.  Open: what mode 3 is.
-- [ ] **5.3 Remaining entity types [partial].** Regions, soldier spawns, other ENTI types (doc 1.4 "still open").
+- [x] **5.3 Remaining entity types [partial].** Regions, soldier spawns, other ENTI types (doc 1.4 "still open").
+  - Done 2026-11-19: the loader's full type -> class map, both families (docs/enti_types.md, "The factory").  Regions (0x8025)
+    and soldier spawns (locators 0x8027 linked from posts) were already ported.  What the rest are, and where they belong:
+    - 0x8016 (type 22): post-to-post links (posts A / B, weight, 4 route points); the ground AI builds its post graph from them
+      (08925B78 -> 08927018) - goes with 4.x (bot objectives).
+    - 0x8023 / 0x8024 (35 / 36): team spawn places used when no post is chosen and game kind 08C28F60 is 5 (0898383C) - 5.4.
+    - Unflagged 52-64: the AI hint family (base 08856288; 55 path nodes, 56 view-cone points, 5110 records) - 4.x.
+    - Unflagged script nodes (base 08872328; 1 timer, 13, 28, 35, 36): the level script (SMSG groups) - 5.4 campaign.
+    - Boxes 0x801A / 0x8021 / 0x8028 / 0x8029, 0x8012 AI volumes, 0x802A zones: space / Sullust, not yet read.
+    - Mode codes (table 0x08B1B900, 089735B4 / 089735E0): 0 CQST, 1 CTF1, 2 CTF2, 3 HCTF, 4 GTAG, 5 CMPN (the mode is 08C29328).
+  - Tooling: tools/re (BOOT.BIN relocation, Ghidra headless scripts, compare-tree walker).
 - [ ] **5.4 Modes.** CTF, hunt and space completeness. Galactic conquest and campaign rules (credits, map moves, unlocks).
 - [ ] **5.6 Entity placement [assumed].** From the Known-issues table: many meshes float or sit in the wrong place (likely
   parent-relative transforms), and command post models are not in place (only the cone and logo). Trace the game's placement.

@@ -116,3 +116,66 @@
 - 32807 (39 | 0x8000): every level, 64 bytes. Position, then a rotation matrix. Possibly **AI hint points or turrets**.
 - 56 / 55 / 60 (flag 8193): position, scale, 999 links. Likely **props or level objects** placed in the world.
 - 3: holds a name string (cut-scene and script names).
+
+## The factory: which class each type makes (PARITY 5.3, traced 2026-11-19)
+
+The level loader (func 08824770) reads each ENTI record's type (u16 at +20 of the reader) in two families.
+
+**Flagged types (0x8000 set)** go to func 0896F170 (with 0896F854 for 0x801F / 0x8020 / 0x802A): a compare tree, walked
+for every type by `tools/dispatch.py` (work tree).  Loader / class constructor and object size where it allocates:
+
+| type | class | constructor | meaning (what is known) |
+|---|---|---|---|
+| 4 | 0x8004 | 089B0B60 | space only (capital ship / station) |
+| 5 | 0x8005 | 089A7750 | soldier |
+| 6 | 0x8006 | 0899314C | |
+| 8 | 0x8008 | 089EC670 (300) | command post (ported) |
+| 9 | 0x8009 | 08988278 | ticket entity (ported, 5.1) |
+| 13 | 0x800D | 089812C0 | placed walker (ported) |
+| 14 | 0x800E | 089F0FB0 (212) | |
+| 15 / 16 | 0x800F / 0x8010 | 089E812C / 089E7A40 (200) | health / ammo droid (ported) |
+| 18 | 0x8012 | 0898A0F0 (48) | AI volume (radius + oriented boxes; space ships) |
+| 19 | 0x8013 | 089F0424 (100) | |
+| 20 | 0x8014 | 089C1E70 | |
+| 22 | 0x8016 | 0898DF28 -> 0898DD08 (172) | **post-to-post link** for the ground AI: post A (+0x50), post B (+0x54), weight (+0xA4, 9.0), four route points (+0x58); 08925B78 builds the post graph from them (08927018 per link) |
+| 23 / 25 | 0x8017 / 0x8019 | 089EEFBC (196) / 089EFC08 (216) | placed objects with health 100 (Endor) |
+| 26 / 33 / 40 / 41 | 0x801A / 0x8021 / 0x8028 / 0x8029 | 08A14DF4 / 08A143B0 / 08A151F0 / 08A14A18 | axis boxes (min / max x, y, z; space and Hoth) |
+| 27 | 0x801B | 08A15DA4 | vehicle spawn (ported) |
+| 28 | 0x801C | 08A0FFE0 | |
+| 30 | 0x801E | 089BC0AC | turret (ported) |
+| 31 | 0x801F | 08A12620 / 08A0E5A0 (136) | |
+| 32 | 0x8020 | 08A12B38 (76) / 08A0E8EC (72) | |
+| 34 | 0x8022 | 089890F4 (96) | space AI objective (ported, 1.8) |
+| 35 | 0x8023 | 08989C70 -> 089899A0 (92) | spawn place by team (+0x54); used when no post is chosen and game kind 08C28F60 is 5 (0898383C), up to 3 a team collected by 0892C1E0 |
+| 36 | 0x8024 | 0898C160 -> 0898BE6C (152) | the same with a list of points (+0x58 count, +0x60 points); one a team |
+| 37 | 0x8025 | 0898C784 | region near a post (ported as the post's region) |
+| 39 | 0x8027 | 089EE678 (80) | spawn locator (ported) |
+| 42 | 0x802A | 08A13740 / 08A0EEC8 (96) | colours, 10 / 160 (Sullust: fog or light zone) |
+| 43 | 0x802B | 08A665F0 (72) | space |
+
+**Unflagged types** are table-dispatched (0x08AD3A18, 73 entries; entries pointing at 0x08824D34 make nothing here):
+
+| type | constructor (size) | base / family |
+|---|---|---|
+| 1 | 08871DD0 (52) | script node (base 08872328: message groups at +0x1E): timer |
+| 3 | 08851738 (52) | named object (text) |
+| 11 | 08870630 (60) | base 08869BD4 |
+| 13 | 0886C52C (52) | script node |
+| 14 | 08870068 (36) | base 08869BD4 |
+| 24 | 0886F670 (48) | base 08869BD4 |
+| 28 | 0886DB4C (56) | script node |
+| 31 | 0886F34C (40) | base 08869BD4 |
+| 33 | 08859DE0 (152) | placed (08873E94) |
+| 34 | 088524AC (48) | placed |
+| 35 | 0886E77C (144) | script node |
+| 36 | 0886B36C (112) | script node |
+| 38 | 0886E220 | |
+| 40 | 0886B1DC (60) | 0886A840 |
+| 41 | 08867604 | |
+| 42 | 0887123C (52) | base 08869BD4 |
+| 43 | 08850E80 (40) | placed |
+| 52-60, 63, 64 | 0886FB18, 08858A6C, 08856340, 0885599C, 08854354, 08853BE0, 08854F28, 08857B74, 0885680C, 08856008, 088575C0 | AI hint family (base 08856288; 55 = path node). 56 (5110 records, the commonest): a point with a view cone (+0x40 angle, default 90 deg; +0x44; +0x48 range, default 40) and up to 3 linked points |
+| 62 | 0886D8C4 | |
+| 68 / 69 / 72 | 088736E4 / 08867C30 / 08872934 | looked up, then configured |
+
+Types 7, 19, 20 and 22 (unflagged) make nothing in this loader.
