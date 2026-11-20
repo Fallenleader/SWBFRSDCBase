@@ -473,6 +473,11 @@ textures and how they are used. Section R lists only what must be in place so th
     the carrier's own base, not the other.  Open: bots have no CTF orders yet (the squad AI 08929120 / 0892A9D0: own and enemy
     base and flag positions, an attack share of 0.7 - 0.4 in HCTF - per side), kill boxes (5 s return), the carried flag's bone
     (0x7E779B80; drawn 1 m above the carrier), flags carried in vehicles (089D0A8C), the flag messages, HCTF's hero flag bases.
+  - Part 3, 2026-11-19 - **bots play CTF** with the roles of the side's flag AI (0892A9D0 / 08929EBC, read through Ghidra):
+    carrier -> our base (states 8 / 9, order 0x3F4); our flag carried -> after its carrier (7 / 11); else attack the enemy flag
+    with the flag's share (0.7, HCTF 0.4; state 2, order 0x3F3) or guard our own (3).  [assumed]: the game hands these to squads
+    (groups 0898BC68) and switches them by its counts; Aurek's bots take a role each per life.  Endor CTF2, 12 bots, 5 min: the
+    flags change hands and captures are scored.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -336,7 +336,7 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
     if (b->hero) { b->look = b->base_look; b->hero = false; }               /* a fallen hero comes back as its soldier */
     ak_char_spawn(&b->ch, pos, yaw);
     b->alive = true; b->dead_t = 0; b->state = PLAY_IDLE; b->clip_t = rnd(&b->seed); b->land_t = 0; b->was_ground = true;
-    b->goal = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
+    b->goal = -1; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
     b->stuck_t = 0; memcpy(b->stuck_pos, pos, 12); b->veh = b->want_veh = -1; b->rev_t = 0; b->vstucks = 0; b->veh_cool = 0;
     ak_target *t = &p->target[1 + idx];
     t->health = t->max_health = ak_bp_float(b->look.bp, "Health", 60.0f); t->headshot_mult = ak_bp_float(b->look.bp, "Headshot multiplier", 4.0f);
@@ -630,8 +630,39 @@ static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v);
 
 /* a post its side does not hold (the nearest, with some randomness); every post held: defend one.  On foot it may take a free vehicle
  * of its side first. */
+/* capture the flag: the side's AI (0892A9D0 / 08929EBC) keeps its own and the enemy's base and flag (spawner) positions, the
+ * share of its squads sent to attack (the flag's +0x68, 0.7; HCTF +0x6C, 0.4) and which soldiers carry the flags (+0xCC ours,
+ * +0xD0 theirs), and gives each squad a state: attack the enemy flag (2: order 0x3F3 to it), guard our own (3), take a carried
+ * flag home (8 / 9: 0x3F4 to our base) or go after the carrier of ours (7 / 11).  Aurek has no squads yet, so each bot takes the
+ * role for itself in that order of priority [PARITY(5.4 4.x) assumed: per bot, not per squad; the state switches not ported]. */
+static bool bot_ctf_goal(ak_play *p, ak_play_bot *b, u32 idx)
+{
+    const ak_ctf_map *m = &p->ctf_map; const ak_ctf *s = &p->ctf; int me = b->team;
+    const f32 *to = NULL; s32 mine = -1, theirs = -1, carried = -1;
+    for (u32 f = 0; f < m->nflags; f++) {
+        if (s->flag[f].carrier == (s32)(1 + idx)) carried = (s32)f;
+        if (m->flag[f].side == me) mine = (s32)f; else theirs = (s32)f;      /* (CTF1: the neutral flag is theirs to take) */
+    }
+    if (carried >= 0) {                                                       /* take it home: our base (any we may score at) */
+        for (u32 k = 0; k < m->nbases && !to; k++) if (m->base[k].side == me) to = m->base[k].pos;
+    } else if (mine >= 0 && s->flag[mine].carrier >= 0) {                    /* after the carrier of our flag */
+        s32 c = s->flag[mine].carrier; to = c == 0 ? p->ch.pos : p->bot[c - 1].ch.pos;
+    } else if (theirs >= 0 && (mine < 0 || (b->ctf_role < 0 ? (b->ctf_role = rnd(&b->seed) < (ak_game_mode == 3 ? 0.4f : 0.7f)) : b->ctf_role))) {
+        to = s->flag[theirs].carrier >= 0 ? NULL : s->flag[theirs].pos;      /* (taken by one of ours: escort it home) */
+        if (!to) for (u32 k = 0; k < m->nbases && !to; k++) if (m->base[k].side == me) to = m->base[k].pos;
+    } else if (mine >= 0) to = s->flag[mine].pos;
+    if (!to) return false;
+    if (b->ctf_role < 0) b->ctf_role = 0;
+    b->goal = -2; b->holding = false; b->goal_t = carried >= 0 ? 2.0f : 4.0f + rnd(&b->seed) * 3.0f;
+    f32 a = rnd(&b->seed) * 6.2831853f, r = carried >= 0 ? 0.5f : rnd(&b->seed) * 2.0f;
+    b->hold[0] = to[0] + cosf(a) * r; b->hold[1] = to[1]; b->hold[2] = to[2] + sinf(a) * r;
+    bot_route(p, b, b->hold);
+    return true;
+}
+
 static void bot_choose_goal(ak_play *p, ak_play_bot *b)
 {
+    if (p->have_ctf && b->veh < 0 && bot_ctf_goal(p, b, (u32)(b - p->bot))) return;
     if (b->veh < 0 && b->want_veh < 0 && bot_take_vehicle(p, b)) return;
     s32 best = -1; f32 bs = 1e30f;
     for (u32 i = 0; p->have_cq && i < p->cq.nposts; i++) {
@@ -937,7 +968,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     if (b->think_t <= 0) {
         b->think_t = 0.25f + rnd(&b->seed) * 0.1f;
         bool done = b->goal >= 0 && p->match.post[b->goal].owner == b->team && p->match.post[b->goal].progress >= p->cq.post[b->goal].amount;
-        if (b->want_veh < 0 && (b->goal < 0 || (done && b->goal_t <= 0) || (b->holding && b->goal_t <= -20.0f))) bot_choose_goal(p, b);
+        if (b->want_veh < 0 && (b->goal == -1 || (b->goal == -2 && b->goal_t <= 0) || (done && b->goal_t <= 0) || (b->holding && b->goal_t <= -20.0f))) bot_choose_goal(p, b);
     }
     if (b->enemy >= 0 && (!p->target[b->enemy].alive)) b->enemy = -1;
     /* where to go: along the route, then onto the post */
