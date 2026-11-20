@@ -897,6 +897,7 @@ static void hero_make(ak_play *p, const ak_model_set *m, int t, s32 unit)
         p->look = h->look; p->wdef = h->wdef; p->armed = h->armed; p->max_health = h->health;
         if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
         p->state = PLAY_IDLE; p->clip_t = 0; p->lock = -1;
+        anim_sets(p, m);                                                 /* a blaster hero: the set by its own weapon's AnimPose (PARITY 6.5) */
     } else {
         ak_play_bot *b = &p->bot[unit - 1];
         b->look = h->look; b->hero = true; b->state = PLAY_IDLE; b->clip_t = 0;
@@ -919,7 +920,7 @@ static void heroes_drain(ak_play *p, f32 dt)
 }
 
 /* a unit back to its soldier (at its next spawn) */
-static void hero_unmake_player(ak_play *p) { p->look = p->base_look; p->wdef = p->base_wdef; p->armed = p->base_armed; p->max_health = p->base_max_health; }
+static void hero_unmake_player(ak_play *p, const ak_model_set *m) { p->look = p->base_look; p->wdef = p->base_wdef; p->armed = p->base_armed; p->max_health = p->base_max_health; anim_sets(p, m); }
 
 static void heroes_update(ak_play *p, const ak_model_set *m, f32 dt)
 {
@@ -2464,7 +2465,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             bool ok = p->have_cq ? (p->match.tickets[p->team] > 0 && spawn_spot(p, p->team, p->ch.pos, &p->seed, sp, &syaw)) : false;
             if (!p->have_cq) { memcpy(sp, p->ch.pos, 12); ok = true; }
             if (ok) {
-                hero_unmake_player(p);
+                hero_unmake_player(p, m);
                 ak_char_spawn(&p->ch, sp, syaw); p->alive = true; p->health = p->max_health; p->dead_t = 0; p->state = PLAY_IDLE; p->clip_t = 0;
                 p->target[0].alive = true; p->target[0].health = p->max_health; p->target[0].last_attacker = -1;
                 if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }

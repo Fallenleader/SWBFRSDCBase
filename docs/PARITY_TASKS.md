@@ -539,6 +539,9 @@ textures and how they are used. Section R lists only what must be in place so th
     0.6 + 0.6 x amount / full (owner neutral: 1 - that), fading at 1.5 a second after.  Open: which record value the amount is
     compared with, what 08809AB8 sets (time or rate), and the logo's height.
 - [ ] **6.5 Heroes [missing].** Saber combos, blocking, force powers, saber throw. Blaster heroes' own tables.
+  - 2026-11-19: a blaster hero played by the player now takes generic_male's set by its own weapon's AnimPose (the 6.1 rule),
+    and the soldier's set comes back when the hero ends.  Open: everything else listed (saber combo timing, blocking, force
+    powers, saber throw), bot heroes' sets (bots share one clip set).
 
 ## 7. Audio
 
