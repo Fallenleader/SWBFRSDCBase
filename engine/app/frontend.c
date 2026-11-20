@@ -83,7 +83,7 @@ void ak_fe_close(void) { page = NULL; nstack = 0; }
 /* ---- text lists (2005): their rows, filled by their FE_List* function */
 #define MAXROWS 48
 typedef struct { u32 id; u16 *row[MAXROWS]; u32 len[MAXROWS]; int n, sel, top, val[MAXROWS]; } list_rows;
-static list_rows lists[8]; static int nlists; static ak_arena rowmem;
+static list_rows lists[24]; static int nlists; static ak_arena rowmem;
 static list_rows *rows_of(u32 id) { for (int i = 0; i < nlists; i++) if (lists[i].id == id) return &lists[i]; return NULL; }
 static list_rows *fill_target;
 static void row_add16(const u16 *t, u32 n, int val)
@@ -348,7 +348,7 @@ static void open_widget(u32 id) { if (find_id(&page->root, id)) focus = id; }
 static void fill(const ak_widget *w)
 {
     list_rows *L = rows_of(w->id);
-    if (!L) { if (nlists >= 8) return; L = &lists[nlists++]; memset(L, 0, sizeof *L); L->id = w->id; }
+    if (!L) { if (nlists >= 24) return; L = &lists[nlists++]; memset(L, 0, sizeof *L); L->id = w->id; }
     int keep = L->sel; L->n = 0; fill_target = L;
     const char *fn = w->fill.fn;
     if (!fn || !fn[0]) return;
@@ -359,9 +359,21 @@ static void fill(const ak_widget *w)
     } else if (!strcmp(fn, "FE_ListValidEras") && sel_map >= 0) {    /* 08A319F4: Galactic Civil War, Clone Wars */
         if (maps[sel_map].gcw) row_std(348, 0);
         if (maps[sel_map].cw) row_std(349, 1);
-    } else if ((!strcmp(fn, "FE_ListFriendlyEntities") || !strcmp(fn, "FE_ListEnemyEntities")) && have_match) {   /* the sides' soldiers */
-        int side = !strcmp(fn, "FE_ListFriendlyEntities") ? match.team : 1 - match.team;
-        for (u32 i = 0; i < match.nnames[side] && i < 32; i++) if (match.name[side][i]) row_add16(match.name[side][i], match.name_len[side][i], (int)i);
+    } else if (!strncmp(fn, "FE_ListFriendly", 15) || !strncmp(fn, "FE_ListEnemy", 12)) {   /* the sides' soldiers and their columns */
+        if (!have_match) return;
+        bool fr = !strncmp(fn, "FE_ListFriendly", 15); int side = fr ? match.team : 1 - match.team;
+        const char *col = fn + (fr ? 15 : 12);
+        for (u32 i = 0; i < match.nnames[side] && i < 32; i++) {
+            u16 b[16]; u32 n = 0; char t[16] = "";
+            if (!strcmp(col, "Entities")) { if (match.name[side][i]) row_add16(match.name[side][i], match.name_len[side][i], (int)i); continue; }
+            if (!strcmp(col, "NumKills")) snprintf(t, sizeof t, "%u", match.kills[side][i]);
+            else if (!strcmp(col, "Deaths")) snprintf(t, sizeof t, "%u", match.deaths[side][i]);
+            else if (!strcmp(col, "Score")) snprintf(t, sizeof t, "%u", match.kills[side][i]);   /* [assumed: a kill a point] */
+            else if (!strcmp(col, "Status")) snprintf(t, sizeof t, "%s", match.alive[side][i] ? "" : "-");
+            for (const char *c = t; *c && n < 15; c++) b[n++] = (u16)(u8)*c;
+            row_add16(b, n, (int)i);
+        }
+    } else if (0) {
     } else if (!strcmp(fn, "FE_ListMapsInRotation")) {               /* 08A31CA4: "Tatooine - CQST - GCW" */
         for (int i = 0; i < nrot; i++) {
             u16 b[96]; u32 n = 0, k; const u16 *t;
@@ -410,6 +422,7 @@ static int run(const ak_gui_action *a, int row)
         }
         rotation_changed();
     }
+    else if (!strcmp(fn, "FE_RespawnOrTeamSelect")) {}                 /* (the button's page follows: the spawn map) */
     else if (!strcmp(fn, "FE_RequestMenuMode")) var_set("BFF.FE_MenuMode", atoi(a->arg));   /* (which of a dialogue's answers show) */
     else if (!strcmp(fn, "FE_ResumePlay")) { ak_fe_close(); return AK_FE_RESUME; }
     else if (!strcmp(fn, "FE_QuitGame") || !strcmp(fn, "FE_ForfeitBattle")) { ak_fe_close(); return AK_FE_QUIT; }

@@ -157,6 +157,7 @@ typedef struct {
     ak_turret_def tdef[8]; u32 ntdef; ak_turret turret[PLAY_MAX_TURRETS]; u32 nturret;   /* level turrets (ENTI type 30) */
     ak_play_boom boom[PLAY_MAX_BOOMS]; u32 nboom;
     u32 kills, deaths;
+    u16 tally_kills[64], tally_deaths[64];   /* per soldier (0 the player, 1.. the bots): the score boards' columns */
     s32 idle_clip, death_clips[3];
     ak_weapon_def team_wdef[2], team_bdef[2]; bool team_armed[2];   /* bdef: the bots' copy (the game's bot modifiers) */
     const char *klass[2][PLAY_MAX_CLASSES]; u32 nklass[2];

@@ -470,13 +470,17 @@ int main(int argc, char **argv)
                 memcpy(fm.post_pos[fm.nposts], play.cq.post[i].pos, 12); fm.post_owner[fm.nposts] = play.match.post[i].owner; fm.post_name[fm.nposts] = play.cq.post[i].name;
                 fm.nposts++;
             }
+            {   static u16 me[16]; static u32 mel; if (!mel) { const char *pn = ak_setting_str("AK_PLAYER_NAME", "Player"); while (pn[mel] && mel < 15) { me[mel] = (u8)pn[mel]; mel++; } }
+                int t = play.team & 1; u32 k = fm.nnames[t]++;                   /* the player first on its side [assumed: the profile's name] */
+                fm.name[t][k] = me; fm.name_len[t][k] = mel; fm.kills[t][k] = play.tally_kills[0]; fm.deaths[t][k] = play.tally_deaths[0]; fm.alive[t][k] = play.alive; }
             for (u32 i = 0; i < play.nbots; i++) {
                 int t = play.bot[i].team & 1; if (fm.nnames[t] >= 32) continue;
                 u32 n; const u16 *nm = ak_hud_bot_name(play.team_faction[t], play.bot[i].name, &n);
-                if (nm) { fm.name[t][fm.nnames[t]] = nm; fm.name_len[t][fm.nnames[t]] = n; fm.bot[t][fm.nnames[t]] = true; fm.nnames[t]++; }
+                if (nm) { u32 k = fm.nnames[t]; fm.name[t][k] = nm; fm.name_len[t][k] = n; fm.bot[t][k] = true; fm.alive[t][k] = play.bot[i].alive;
+                          if (i + 1 < 64) { fm.kills[t][k] = play.tally_kills[i + 1]; fm.deaths[t][k] = play.tally_deaths[i + 1]; } fm.nnames[t]++; }
             }
             ak_fe_set_match(&fm);
-            if (!ak_fe_page() && !play.alive && play.dead_t >= 3.0f) ak_fe_open_ingame("MP_Spawn_Location");   /* (the original: three seconds of the death camera) */
+            if (!ak_fe_page() && !play.alive && play.dead_t >= 3.0f) ak_fe_open_ingame(play.deaths ? "MP_RespawnScoreboard" : "MP_Spawn_Location");   /* (the original: three seconds of the death camera, the score board, then the spawn map) */
             if (frame == ak_setting_int("AK_FE_START_AT", -1)) in.pressed |= AK_BTN_START;   /* (tests) */
             if (!ak_fe_page() && play.alive && (in.pressed & AK_BTN_START)) ak_fe_open_ingame("MP_InGame_Menu");   /* START: the pause menu */
             if (ak_fe_page()) {

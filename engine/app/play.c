@@ -1984,7 +1984,7 @@ void ak_play_damage(ak_play *p, f32 amount)
 {
     if (!p->ready || !p->alive || amount <= 0) return;
     p->target[0].health -= amount; p->health = p->target[0].health;
-    if (p->target[0].health <= 0) player_down(p);
+    if (p->target[0].health <= 0) { p->tally_deaths[0]++; player_down(p); }
 }
 
 /* The PSP game's button layout (its default "Infantry / Vehicle / Starfighter controls"), with the sticks kept as they are (left
@@ -2469,6 +2469,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (i >= NV(p)) { turret_destroyed(p, i - NV(p)); continue; }
         if (i >= NS(p)) { vehicle_destroyed(p, m, i - NS(p)); continue; }
         if (p->target[i].last_attacker == 0 && i != 0) p->kills++;
+        if (i < 64) p->tally_deaths[i]++;
+        {   s32 a = p->target[i].last_attacker; if (a >= 0 && a < 64 && (u32)a < NS(p) && p->target[a].team != p->target[i].team) p->tally_kills[a]++; }
         {   s32 a = p->target[i].last_attacker; ak_play_hero *h = hero_of(p, a);      /* a hero's kill heals it (HeroHealthAddPerKill) */
             if (h && ak_game_mode != 3 && p->target[a].alive && p->target[a].team != p->target[i].team) {   /* (08982634: not in hero CTF) */
                 ak_target *ht = &p->target[a]; ht->health += h->per_kill * h->health; if (ht->health > h->health) ht->health = h->health; } }
