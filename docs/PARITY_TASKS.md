@@ -1104,6 +1104,13 @@ groundwork below is needed before the parity work starts. The tiers come later.
     1500-1680, Empire spawn) has no such batch: every 0x183 draw is a sky face, so nothing in that scene casts a blob - Aurek's
     lack of soldier shadows matches it there. Who fills the list (and on which levels or objects) is not found.
 - [ ] **R.8 Screen effects.** Damage, zoom overlay, hyperspace.
+  - 2026-11-20, the zoom overlay (measured on the original's screen, harness program `zoom`, Hoth, the blaster rifle's one
+    zoom level): GRAPHICS/SNIPER.ASR holds one picture, CHUD_Zoom_Scope (128 x 128): the scope's top-left quarter - the frame,
+    a light blue haze (alpha 222) outside it, clear glass inside. It is mirrored about the screen's centre, each quarter 160 x
+    128 (the frame meets the centre row at x 86 and the centre column at y 21), the rest of the screen in the haze, under the
+    rest of the HUD and with no reticle. Built (hud.c, the HUD's `scope` flag while the weapon is zoomed). [ ] The code that
+    draws it (not found: no h31 of the picture's name in the data); damage and hyperspace effects. Tool: AK_HUD_DUMP_TEX=part
+    of a HUD file's path writes its texture (colour | alpha) to /tmp/hud_tex.ppm.
 
 ### Groundwork before any PBR code
 

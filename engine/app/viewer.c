@@ -723,7 +723,7 @@ int main(int argc, char **argv)
                 {   /* the level's colour (HUD +0x1C, 08A5D0A0: HOTH and HOTH_ION_CANNON black); the zoom view; the ring, bars and target */
                     const char *ln = strrchr(levels[cur].path, '/'); ln = ln ? ln + 1 : levels[cur].path;
                     hs.dark = !strcasecmp(ln, "HOTH.PSP") || !strcasecmp(ln, "HOTH_ION_CANNON.PSP");
-                    hs.zoomed = false; hs.weapon2_bar = -1;   /* (the camera mode 089DD9AC tests never comes up: its overlay picture, table
+                    hs.zoomed = false; hs.weapon2_bar = -1; hs.scope = play.zoom > 0 && play.in_veh < 0 && play.in_turret < 0;   /* (the camera mode 089DD9AC tests never comes up: its overlay picture, table
                                                                                 index 0x26, is on no disc file, and the game would read through a null picture
                                                                                 (08A51AA0 -> 08A5D6D0) - the sniper zoom is not that mode) */
                     static f32 bar_full_t; f32 bar_fill = -1; s32 tgt = -1;

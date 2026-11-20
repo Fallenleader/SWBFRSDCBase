@@ -36,6 +36,7 @@ typedef struct {
     bool post; s32 post_name; int post_owner, post_capturer; f32 post_fill; bool post_contested, post_cross; f32 post_time;
     bool dark;                         /* HOTH and HOTH_ION_CANNON (HUD +0x1C, 08A5D0A0): the level-coloured text and icons black, else white */
     bool zoomed;                       /* the zoom view (089DD9AC): the weapon ring's radius 19, else 16 */
+    bool scope;                        /* the weapon's zoom (triangle): GRAPHICS/SNIPER.ASR's scope over the screen */
     /* the weapon ring (element 08A5C0C4: update 08A5C110, draw 08A5C3F0) about (ring_x, ring_y): type 1 reloading (1 - the reload left /
      * ReloadTime), 2 charging, 3 the heat x 0.01, 4 a tool's target's health; 0 = none */
     int ring_type; f32 ring_value, ring_x, ring_y;

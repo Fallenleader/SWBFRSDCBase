@@ -5,6 +5,7 @@
  * moved up and left by half its size; the size is the TTXT rectangle in texels.  A bar (func 08A512F8) is drawn whole in its back
  * colour (when not 0), then cut to the fill fraction (its right edge: u1 = u0 + (u1 - u0) x f) in the fill colour.
  * Text (func 088CBBF4 -> 088CC808): flags 0x1000 printf, 4 centred across, 8 right-aligned, 0x20 the bottom at y, 0x40 centred down. */
+#include <stdlib.h>
 #include "hud.h"
 #include "../assets/asura.h"
 #include "../render/ak_gfx.h"
@@ -54,13 +55,23 @@ static const sprite *find(u32 h, u32 first, u32 n) { for (u32 i = first; i < fir
 
 /* a TTXT sheet: u32 n; the sheet's name; n x { f32 u0, v0, u1, v1, w, h; the picture's name }, names padded to 4; its texture
  * is the RSCF type 2 in the same file */
+static u32 scope_first, scope_n;
 static u32 load_sheet(ak_vfs *vfs, const char *path)
 {
     ak_blob b; if (!ak_vfs_read(vfs, path, &mem, &b) || !ak_asura_check(&b)) { AK_WARN("hud", "%s missing", path); return 0; }
     u32 pos = 8, first = nspr; ak_chunk c; ak_gfx_tex *tex = NULL;
     while (ak_asura_next(&b, &pos, &c)) {
         ak_rscf r; ak_texture t;
-        if (ak_chunk_tag(&c) == AK_TAG('R', 'S', 'C', 'F') && ak_rscf_parse(&c, &r) && r.type == AK_RSCF_TEXTURE && ak_texture_parse(&r, &mem, &t)) tex = ak_gfx_texture(&t);
+        if (ak_chunk_tag(&c) == AK_TAG('R', 'S', 'C', 'F') && ak_rscf_parse(&c, &r) && r.type == AK_RSCF_TEXTURE && ak_texture_parse(&r, &mem, &t)) {
+            tex = ak_gfx_texture(&t);
+            {   const char *dn = getenv("AK_HUD_DUMP_TEX");                 /* (tools: AK_HUD_DUMP_TEX=part of a path -> /tmp/hud_tex.ppm, alpha as grey) */
+                if (dn && strstr(path, dn) && t.pixels[0]) { FILE *o = fopen("/tmp/hud_tex.ppm", "wb");
+                    if (o) { fprintf(o, "P6 %u %u 255\n", t.width * 2, t.height);
+                        for (u32 y = 0; y < t.height; y++) { for (u32 x = 0; x < t.width; x++) { u32 k = y * t.width + x, ix = t.bpp == 8 ? t.pixels[0][k] : (t.pixels[0][k >> 1] >> ((k & 1) * 4)) & 15, cc = t.palette[ix];
+                                u8 px[3] = { (u8)(cc & 255), (u8)(cc >> 8 & 255), (u8)(cc >> 16 & 255) }; fwrite(px, 1, 3, o); }
+                            for (u32 x = 0; x < t.width; x++) { u32 k = y * t.width + x, ix = t.bpp == 8 ? t.pixels[0][k] : (t.pixels[0][k >> 1] >> ((k & 1) * 4)) & 15; u8 a = (u8)(t.palette[ix] >> 24), px[3] = { a, a, a }; fwrite(px, 1, 3, o); } }
+                        fclose(o); } } }
+        }
     }
     pos = 8;
     while (ak_asura_next(&b, &pos, &c)) {
@@ -191,6 +202,7 @@ bool ak_hud_load(ak_vfs *vfs)
     wpn_first[0] = nspr; wpn_n[0] = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD_WEAPONS_CLASSIC.ASR");
     wpn_first[1] = nspr; wpn_n[1] = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD_WEAPONS_PREQUEL.ASR");
     btn_first = nspr; btn_n = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/PSPBUTTONS.ASR");
+    scope_first = nspr; scope_n = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/SNIPER.ASR");   /* the zoom view's scope (CHUD_Zoom_Scope, 128 x 128) */
     fontp = &fonts[1]; load_font(vfs, "Cond_13"); fontp = &fonts[0];
     bool f = load_font(vfs, "Cond_9");
     load_cpnames(vfs); load_stdtext(vfs); load_botnames(vfs);
@@ -777,6 +789,21 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     (void)sw; (void)sh;
     if (!ready || !s || !ak_setting_int("AK_HUD", 1)) return;
     ak_m4 o = ak_m4_ortho2d(480.0f, 272.0f); ak_gfx_set_transform(&o); ak_gfx_set_tint(NULL);
+    if (s->scope && s->alive && !s->vehicle && scope_n) {
+        /* the zoom view's scope (measured on the original's screen, harness program `zoom`, Hoth): GRAPHICS/SNIPER.ASR's one picture,
+         * CHUD_Zoom_Scope (128 x 128, the scope's top-left quarter: the frame, a light blue haze outside it and clear glass inside),
+         * mirrored about the centre, each quarter 160 x 128 (the frame's edge meets the centre row at x 86 and the centre column at
+         * y 21 in the original, at texel 5.5 and 15), the rest of the screen in the haze; under the rest of the HUD, with no reticle */
+        const sprite *q = &spr[scope_first]; const u32 W = 0xFFFFFFFFu;
+        quad(q->tex, 80, 8, 240, 136, q->u0, q->v0, q->u1, q->v1, W);
+        quad(q->tex, 400, 8, 240, 136, q->u0, q->v0, q->u1, q->v1, W);
+        quad(q->tex, 80, 264, 240, 136, q->u0, q->v0, q->u1, q->v1, W);
+        quad(q->tex, 400, 264, 240, 136, q->u0, q->v0, q->u1, q->v1, W);
+        f32 hu = q->u0 + (q->u1 - q->u0) * 0.01f, hv = q->v0 + (q->v1 - q->v0) * 0.01f;   /* (the haze: the picture's corner texel) */
+        quad(q->tex, 0, 0, 80, 272, hu, hv, hu, hv, W); quad(q->tex, 400, 0, 480, 272, hu, hv, hu, hv, W);
+        quad(q->tex, 80, 0, 400, 8, hu, hv, hu, hv, W); quad(q->tex, 80, 264, 400, 272, hu, hv, hu, hv, W);
+        flush();
+    }
     if (s->radar && s->alive) radar(s);
     if (elem_clock <= 2.0f) elem_clock += s->dt;
     if (elem_clock > 2.0f) elem_clock = 0;
@@ -790,7 +817,7 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
             if (s->aim) pic(idx(S_RETICLE), s->aim_x, s->aim_y, true, 0xFFFFFFFFu, 1);
             if (s->lock) vehicle_lock(s);
         } else {
-            if (s->reticle) pic(idx(S_RETICLE), 240, 136, true, 0xFFFFFFFFu, 1);             /* func 08A51AA0 */
+            if (s->reticle && !(s->scope && scope_n)) pic(idx(S_RETICLE), 240, 136, true, 0xFFFFFFFFu, 1);             /* func 08A51AA0 */
             if (s->lock) lock_on(s);
         }
         /* health (func 08A574BC, positions 08A578DC): the bar for the maximum (08A57854: max / 33 rounded - 3 or less: the
