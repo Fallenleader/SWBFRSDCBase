@@ -691,12 +691,21 @@ groundwork below is needed before the parity work starts. The tiers come later.
     near 0, far 75, colour (88, 78, 43) = the chunk's); `start` is not used there.  A level start fades the fog in from black
     with far from 10 % (not ported).  Aurek now fogs every level whose flag is on, linear 0..end in its colour; AK_FOG scales
     it like the PSP port's RS_FOG (default 25 = farther, 100 = the game's); settings.txt files updated.
-- [ ] **R.3 Sky.** The sky set-up.
+- [x] **R.3 Sky.** The sky set-up.
   - 2026-11-20 (compared with the original from the same spot, AK_TEST_START at the harness's spawn): the FOG chunk's "sky
     strength" (its 8th value) is 0 on Hoth, Tatooine, Endor, Naboo, Boz Pity (Kashyyyk 0.3): the sky box is not fogged. Aurek
     fogged it fully, so Hoth's sky (blue, clouds, the capital ship) read as a white haze. Now the sky draws with fog only by
     that strength (ak_gfx_set_fog_range; the 3DS only on / off). Open: the sky box's turn (SKYB angle) and scale against the
     original - the ship sits higher and smaller than in the game's frame.
+  - 2026-11-20, turn and layout (done for ground levels): the GE's sky draws logged (RS_SKY_LOG=frame in the harness: every
+    draw under a rotation-only view, with world, view, projection, texture and vertices). The game draws the box with an
+    identity world matrix and the camera's own view and projection (60 degrees across, the same as the world), each face a
+    4 x 4 grid of strips over +-1 with the SKYB turn baked into the vertices; faces matched to SKYB's five names by their
+    texels in VRAM against HOTH.PSP. The game's frame is Aurek's with y and z negated (Aurek's camera at the harness spawn:
+    (269.9, -14.8, 12.9) against the game's (269.9, 14.7, -12.9)), so the turn is pi - angle here. Corner for corner and UV
+    for UV the faces now agree with the game's to 1e-4 (Hoth, angle 3.107); the capital ship sits where it does in the
+    original. Scale needs nothing: a unit box drawn without depth looks the same at any size. Space levels' placed sky
+    panels are not read (1.3).
 - [ ] **R.4 Material modes.** All 6 texture slots of a material, its mode, its "extra" field and animated materials (water,
   screens, lightning). Aurek handles diffuse plus flags only.
   - 2026-11-20, animated materials (part): a material flagged 0x40000 names its animation in "extra", the h31 hash of a TXAN

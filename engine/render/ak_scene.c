@@ -71,7 +71,9 @@ void ak_scene_sky_draw(ak_scene_level *s, const ak_m4 *proj, const ak_m4 *view, 
     if (!s->sky_vb) return;
     const ak_level *l = s->level;
     ak_m4 rv = *view; rv.m[12] = rv.m[13] = rv.m[14] = 0;                 /* rotation only: the sky stays around the camera */
-    f32 c = cosf(l->sky_angle), sn = sinf(l->sky_angle);
+    /* PARITY(R.3): the game turns the box by the SKYB angle in its own (y-down, z-mirrored) frame, which is a turn by
+     * pi - angle here; checked corner for corner and UV for UV against the GE's sky draws on Hoth (RS_SKY_LOG) */
+    f32 c = cosf(3.14159265f - l->sky_angle), sn = sinf(3.14159265f - l->sky_angle);
     ak_m4 w; memset(&w, 0, sizeof w);
     w.m[0] = c * radius; w.m[2] = -sn * radius; w.m[5] = radius; w.m[8] = sn * radius; w.m[10] = c * radius; w.m[15] = 1;
     ak_m4 pv = ak_m4_mul(proj, &rv), mvp = ak_m4_mul(&pv, &w);

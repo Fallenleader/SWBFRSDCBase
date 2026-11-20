@@ -603,6 +603,17 @@ static void exec_draw(const u32 *payload){
         for (int c = 0; c < 3; c++) v[c] = w[0] * X.view[c] + w[1] * X.view[3 + c] + w[2] * X.view[6 + c] + X.view[9 + c];
         fprintf(stderr, "[DRAW] %d vt=%06x n=%d nv=%d d=%.2f w=%.1f,%.1f,%.1f\n", g_frames, vt, count, (int)d->nvert, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]), w[0], w[1], w[2]); } }
 #endif
+#ifndef __vita__
+    { static int fr = -2; if (fr == -2) fr = getenv("RS_SKY_LOG") ? atoi(getenv("RS_SKY_LOG")) : -1;   /* RS_SKY_LOG=frame: that frame's draws under a rotation-only view (the sky), vertices */
+      extern volatile int g_frames;
+      if (fr == g_frames && !through && X.view[9] == 0 && X.view[10] == 0 && X.view[11] == 0) {
+        int o0[5]; vt_layout(vt, o0); fprintf(stderr, "[SKY] vt=%06x n=%d prim=%d tex=%08x w=%d h=%d fmt=%d", vt, count, ptype, X.lv[0].addr, 1 << X.lv[0].lw, 1 << X.lv[0].lh, X.tpsm); { const u8 *tb = (const u8 *)GP(X.lv[0].addr + 0x2000); for (int q = 0; q < 12; q++) fprintf(stderr, " %02x", tb[q]); } fprintf(stderr, "\n");
+        fprintf(stderr, "[SKYW] %.3f %.3f %.3f | %.3f %.3f %.3f | %.3f %.3f %.3f | %.2f %.2f %.2f\n", X.world[0], X.world[1], X.world[2], X.world[3], X.world[4], X.world[5], X.world[6], X.world[7], X.world[8], X.world[9], X.world[10], X.world[11]);
+        fprintf(stderr, "[SKYP] %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f | %.3f %.3f %.3f %.3f\n", X.proj[0], X.proj[1], X.proj[2], X.proj[3], X.proj[4], X.proj[5], X.proj[6], X.proj[7], X.proj[8], X.proj[9], X.proj[10], X.proj[11], X.proj[12], X.proj[13], X.proj[14], X.proj[15]);
+        fprintf(stderr, "[SKYV] %.3f %.3f %.3f | %.3f %.3f %.3f | %.3f %.3f %.3f\n", X.view[0], X.view[1], X.view[2], X.view[3], X.view[4], X.view[5], X.view[6], X.view[7], X.view[8]);
+        for (int i = 0; i < (int)d->nvert && i < 64; i++) { rawv_t r; decode_vertex(vt, vb + (size_t)i * d->vsz, o0, &r);
+          fprintf(stderr, "[SKY]   %.4f %.4f %.4f uv %.3f %.3f\n", r.px, r.py, r.pz, r.u, r.v); } } }
+#endif
     float defc[4] = {(float)(X.mat_amb & 255), (float)((X.mat_amb >> 8) & 255), (float)((X.mat_amb >> 16) & 255), (float)(X.mat_a & 255)};
     /* the renderer reads the PSP vertex format itself (triangles, strips, fans): native draw */
     if (ptype >= 3 && ptype <= 5 && !through && cull_draw(d, vb, ix, vt, off)) { st_culled++; return; }
