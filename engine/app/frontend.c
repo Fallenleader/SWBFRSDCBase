@@ -4,6 +4,7 @@
 #include "../assets/gui.h"
 #include "../render/ak_gfx.h"
 #include "../core/ak_settings.h"
+#include "../audio/ak_audio.h"
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
@@ -495,10 +496,14 @@ int ak_fe_update(const ak_input *in, f32 dt)
     }
     if (f && f->type == AK_GUI_SPINNER && f->binding && f->binding[0] && (in->pressed & (AK_BTN_LEFT | AK_BTN_RIGHT))) {   /* a slider: its value by its step, 0..1 [assumed range] */
         f32 st = f->step > 0 ? f->step : 0.1f, v = var_get(f->binding) + ((in->pressed & AK_BTN_RIGHT) ? st : -st);
-        var_set(f->binding, v < 0 ? 0 : v > 1 ? 1 : v); return AK_FE_NONE;
+        var_set(f->binding, v < 0 ? 0 : v > 1 ? 1 : v);
+        ak_audio_set_volumes(var_get("BFF.VolumeMaster"), var_get("BFF.VolumeMusic"), var_get("BFF.VolumeSFX"));   /* (applied at once) */
+        return AK_FE_NONE;
     }
     if (f && f->type == AK_GUI_BUTTON2 && f->binding && f->binding[0] && (in->pressed & AK_BTN_CROSS)) {   /* a check box */
-        var_set(f->binding, var_get(f->binding) != 0 ? 0 : 1); return AK_FE_NONE;
+        var_set(f->binding, var_get(f->binding) != 0 ? 0 : 1);
+        if (!strcmp(f->binding, "BFF.Subtitles")) ak_setting_set("AK_SUBTITLES", var_get(f->binding) != 0 ? "1" : "0");   /* (the narrator's subtitles) */
+        return AK_FE_NONE;
     }
     static const u32 dirs[4] = { AK_BTN_LEFT, AK_BTN_RIGHT, AK_BTN_UP, AK_BTN_DOWN };
     for (int k = 0; k < 4; k++)                                        /* the neighbour links: left, right, up, down */

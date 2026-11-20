@@ -660,7 +660,8 @@ textures and how they are used. Section R lists only what must be in place so th
     .. 1 (op 3). A slider (2003) steps its bound value by its step (0.1; read in the spinner's load) between 0 and 1 [assumed
     range]; a check box (2002) toggles its value and shows its ..U or ..C pictures by it. Pictures and texts need flags bit 10
     (0x400) to show (the sliders' end marks 0x400; the check box's tick pictures 0x002 are the class's to show) [assumed]. The
-    profile's volumes start at 1.0 (as audio's 08977808). Open: applying the volumes to the mixer, the controls pages, the
+    profile's volumes start at 1.0 (as audio's 08977808) and go to the mixer at once (ak_audio_set_volumes); "Show Subtitles" sets
+    AK_SUBTITLES. Open: the controls pages, the
     profile pages, saving.
 
 ## 9. Camera and input

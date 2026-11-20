@@ -40,7 +40,8 @@ u32  ak_audio_play_wav(const char *path, const char *group, const f32 *pos, f32 
 /* the mixer: move to a snapshot of the game's SDMX ("default", "Dipping for speech", "UI Dip") over `fade` seconds */
 void ak_audio_snapshot(const char *name, f32 fade);
 void ak_audio_move(u32 handle, const f32 *pos);
-void ak_audio_gain(u32 handle, f32 gain);           /* on top of the event's own volume */
+void ak_audio_gain(u32 handle, f32 gain);
+void ak_audio_set_volumes(f32 master, f32 music, f32 sfx);   /* the profile's volumes (0..1; the options menu), on top of the mix */           /* on top of the event's own volume */
 void ak_audio_stop(u32 handle);
 bool ak_audio_playing(u32 handle);
 void ak_audio_listener(const f32 *pos, f32 yaw);   /* the camera: yaw 0 looks down -z */

@@ -160,7 +160,8 @@ typedef struct {
 static voice voices[MAX_VOICES];
 static u32 next_id = 1;
 static f32 lis_pos[3], lis_yaw;
-static f32 sfx_volume = 1.0f, music_volume = 0.5625f;
+static f32 sfx_volume = 1.0f, music_volume = 0.5625f, user_master = 1.0f, user_music = 1.0f, user_sfx = 1.0f;   /* user_*: the profile's volumes (options menu) */
+void ak_audio_set_volumes(f32 master, f32 music, f32 sfx) { user_master = master; user_music = music; user_sfx = sfx; }
 static volatile int lock_flag;
 static bool opened;
 static u32 rng = 0x1234567u;
@@ -351,7 +352,7 @@ void ak_audio_mix(s16 *out, u32 frames)
         for (u32 i = 0; i < MAX_VOICES; i++) {
             voice *v = &voices[i]; if (!v->live) continue;
             const s16 *pcm = v->s->pcm; u64 len = (u64)v->s->len << 32;
-            f32 gv = sfx_volume * (v->group >= 0 && (u32)v->group < ngroups ? groups[v->group].cur : 1.0f);
+            f32 gv = user_master * user_sfx * sfx_volume * (v->group >= 0 && (u32)v->group < ngroups ? groups[v->group].cur : 1.0f);
             s32 gl = (s32)(v->gl * gv * 4096), gr = (s32)(v->gr * gv * 4096);
             for (u32 k = 0; k < n; k++) {
                 if (v->pos >= len) { if (v->loop) v->pos -= len; else { v->live = false; break; } }
@@ -363,7 +364,7 @@ void ak_audio_mix(s16 *out, u32 frames)
             }
         }
         s32 mg = group_of(0x0636EE25u);                 /* "Music" */
-        f32 mv = music_volume * (mg >= 0 ? groups[mg].cur : 1.0f);
+        f32 mv = user_master * user_music * music_volume * (mg >= 0 ? groups[mg].cur : 1.0f);
         unlock();
         ak_music_mix(acc, n, mv);
         for (u32 k = 0; k < 2 * n; k++) { s32 s = acc[k]; out[k] = (s16)(s > 32767 ? 32767 : s < -32768 ? -32768 : s); }
