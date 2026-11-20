@@ -36,9 +36,8 @@
  * it and gets in; ground vehicles and walkers drive along the navigation graph to the goal post, turn the turret on enemies in range and
  * fire; at a post its side does not hold the driver gets out to capture it.  Stuck: back up and turn, then skip a node, then get out.
  * Flyers take off, keep above the ground (rays below and ahead), attack the nearest enemy vehicle (else soldiers near an enemy post) in
- * runs and fire when the nose is on it.  Bots' weapons carry the game's bot modifiers (Weapon "Modifier_Bot_Damage" x0.3,
- * "Modifier_Bot_RateOfFire" x3 the time between shots) and aim error ("AIWeapon_Accuracy_Normal", 5 degrees).  The game's own AI is not
- * traced: when and how bots use vehicles is this engine's.
+ * runs and fire through the AI's trigger (ak_ai_fire).  An AI's hit on the local player takes the weapon's Modifier_Bot_Damage (x0.3;
+ * 089E1FDC); bots aim with the weapon's error ("AIWeapon_Accuracy_Normal", 5 degrees).  When and how bots use vehicles is this engine's.
  *
  * Heroes (AK_HEROES): each side's hero comes when its countdown (AK_HERO_UNLOCK minutes, the game's 3) runs out, offered to the
  * player (d-pad up takes it, down declines) or given to a bot - the game's rules (func 08974318); see heroes_init in play.c. */
