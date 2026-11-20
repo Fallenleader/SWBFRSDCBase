@@ -667,9 +667,10 @@ textures and how they are used. Section R lists only what must be in place so th
     0x08AE28DC, 12 none) [assumed: the player's is cell 0, AK_PLAYER_INSIGNIA, until the customisation is ported]; the header
     logos E_IM_StyleButtonH_Logo_CIS / ..._CIS 1 take the player's faction's cell and the opponent's (0x08AE1B1C by faction, the
     opponent by 08A26F88: 0 <-> 1, 2 <-> 3). The text list's word after its font is the rows' alignment (2 left, 8 right: the
-    enemy list is right-aligned). Row for row as the original's frame. Open: before the side is chosen the original lists the
-    good side as friendly and the player in neither list (Aurek has already put the player on a side), and the player's own row
-    marker (the list's vfunc +32 at x 10 / 250, y 77 + 14 x row).
+    enemy list is right-aligned). Row for row as the original's frame. Before the side is chosen the original lists the good
+    side as friendly and the player in neither list - Aurek now does the same on the team page. Open: the original shows 8 + 8
+    AI soldiers there (Aurek 8 + 7: the player's place is empty), and the player's own row marker (the list's vfunc +32 at
+    x 10 / 250, y 77 + 14 x row).
   - 2026-11-20, the score board: dead three seconds, the player gets MP_RespawnScoreboard (then "Respawn" -> the spawn map):
     each side's soldiers (the player first [assumed: AK_PLAYER_NAME]) with their status, score, kills and deaths columns
     (FE_ListFriendly* / FE_ListEnemy*; per-soldier tallies kept by play.c; score = kills [assumed]).

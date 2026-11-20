@@ -472,8 +472,13 @@ int main(int argc, char **argv)
                 fm.nposts++;
             }
             {   static u16 me[16]; static u32 mel; if (!mel) { const char *pn = ak_setting_str("AK_PLAYER_NAME", "Player"); while (pn[mel] && mel < 15) { me[mel] = (u8)pn[mel]; mel++; } }
-                int t = play.team & 1; u32 k = fm.nnames[t]++;                   /* the player first on its side [assumed: the profile's name] */
-                fm.name[t][k] = me; fm.name_len[t][k] = mel; fm.kills[t][k] = play.tally_kills[0]; fm.deaths[t][k] = play.tally_deaths[0]; fm.alive[t][k] = play.alive; }
+                /* on the team page, before the side is chosen, the original lists the good side as friendly and the player in
+                   neither list (its frame: the Alliance on the left, 8 + 8 AI soldiers) */
+                bool choosing = ak_fe_page() && !strcmp(ak_fe_page(), "MP_Team_Selection");
+                if (choosing) fm.team = (play.team_faction[0] & 1) ? 1 : 0;
+                int t = play.team & 1;
+                if (!choosing) { u32 k = fm.nnames[t]++;                       /* the player first on its side [assumed: the profile's name] */
+                    fm.name[t][k] = me; fm.name_len[t][k] = mel; fm.kills[t][k] = play.tally_kills[0]; fm.deaths[t][k] = play.tally_deaths[0]; fm.alive[t][k] = play.alive; } }
             for (u32 i = 0; i < play.nbots; i++) {
                 int t = play.bot[i].team & 1; if (fm.nnames[t] >= 32) continue;
                 u32 n; const u16 *nm = ak_hud_bot_name(play.team_faction[t], play.bot[i].name, &n);
