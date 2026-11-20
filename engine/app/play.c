@@ -619,7 +619,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         }
         p->roll_i = -1; p->roll_req = false; p->zoom = 0; p->zoom_req = false;
     }
-    p->idle_clip = p->clip[PLAY_IDLE]; p->death_clips[0] = find_clip(m, d1); p->death_clips[1] = find_clip(m, d2); p->death_clips[2] = find_clip(m, d3);
+    p->idle_clip = p->clip[PLAY_IDLE]; p->death_clips[0] = find_clip(m, d1); p->death_clips[1] = find_clip(m, d2); p->death_clips[2] = find_clip(m, d3); p->death_clips[3] = p->death_clips[0]; p->death_pick = 0;
     /* the alert set (the game's generic_male table, set 5: rifle raised - when shooting or locked on) and its shoot layer; the
        relaxed body clips stay the ones above (set 4 is the same family) */
     memcpy(p->aclip, p->clip, sizeof p->aclip); p->shoot_clip = -1; p->reload_clip = -1;
@@ -721,7 +721,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         b->seed = 0x9E3779B9u * (i + 7);
         const char *k = p->klass[team][(u32)(rnd(&b->seed) * p->nklass[team]) % p->nklass[team]];
         if (!ak_soldier_look_make(bp, m, k, (int)(rnd(&b->seed) * 3) % 3, -1, -1, &b->look) || !poseable(m, &b->look)) continue;
-        b->team = team; b->death_clip = p->death_clips[i % 3]; b->base_look = b->look;
+        b->team = team; b->death_clip = p->death_clips[i % 4]; b->base_look = b->look;
         {   /* a name: a random entry of the side's BOTNAMES list not yet taken (the original, read from a running match) */
             u32 nn = ak_hud_bot_names(p->team_faction[team]); b->name = -1;
             if (nn) { u32 at = (u32)(rnd(&p->seed) * nn) % nn;
@@ -800,8 +800,10 @@ static void anim_sets(ak_play *p, const ak_model_set *m)
     }
     p->idle_clip = p->clip[PLAY_IDLE];
     p->shoot_clip = AK_ATAB(gt, base + 1, 0, 1); p->reload_clip = AK_ATAB(gt, base, 0, 2);
-    static const int drow[3] = { 21, 22, 23 }, rrow[4] = { 26, 24, 25, 27 };   /* (Aurek's death picks: back, left, right; rolls: dive, left, right, back) */
-    for (int k = 0; k < 3; k++) if (AK_ATAB(gt, base, drow[k], 0) >= 0) p->death_clips[k] = AK_ATAB(gt, base, drow[k], 0);
+    /* the deaths: rows 20-23, one at random each time (traced, 0899FF38: 20 + (the game's random >> 1 & 3), unless the soldier's
+       +196 is set - then row 32 for a 089DE500 body, else none; neither seen in play) */
+    static const int drow[4] = { 20, 21, 22, 23 }, rrow[4] = { 26, 24, 25, 27 };   /* (rolls: dive, left, right, back) */
+    for (int k = 0; k < 4; k++) if (AK_ATAB(gt, base, drow[k], 0) >= 0) p->death_clips[k] = AK_ATAB(gt, base, drow[k], 0);
     for (int k = 0; k < 4; k++) {
         s32 ci = AK_ATAB(gt, base, rrow[k], 0); if (ci < 0) continue;
         const ak_anim_clip *cl = &m->clips[ci]; p->roll_clip[k] = ci; p->roll_dur[k] = cl->duration > 0.1f ? cl->duration : 0.6f;
@@ -2314,7 +2316,7 @@ static void draw_part(ak_scene_models *ms, s32 model, const f32 *M, const ak_m4 
 /* ------------------------------------------------------------------ the frame */
 static void player_down(ak_play *p)
 {
-    p->alive = false; p->dead_t = 0; p->deaths++; p->lock = -1; p->health = 0;
+    p->alive = false; p->dead_t = 0; p->deaths++; p->lock = -1; p->health = 0; p->death_pick = (s32)(rnd(&p->seed) * 4.0f) & 3;
     p->target[0].alive = false; p->target[0].health = 0;
     if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, p->team);
 }
@@ -2698,7 +2700,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (st != p->state) p->state = st;
     p->clip_t = p->loco.t;
     p->posed = poseable(m, &p->look);
-    if (!p->alive) { p->dead_t += dt; if (p->posed) pose(m, &p->look, p->death_clips[0], p->dead_t, false, p->bones); }
+    if (!p->alive) { p->dead_t += dt; if (p->posed) pose(m, &p->look, p->death_clips[p->death_pick & 3], p->dead_t, false, p->bones); }
     else if (p->posed) {
         const ak_play_hero *ph = hero_of(p, 0);
         if (ph && ph->atk_i >= 0) pose(m, &p->look, ph->atk[ph->atk_i], ph->atk_t, false, p->bones);
@@ -2965,7 +2967,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         drop_pickups(p, i == 0 ? p->look.bp : p->bot[i - 1].look.bp, p->target[i].feet, (s32)i);
         if (i == 0) player_down(p);
         else {
-            ak_play_bot *b = &p->bot[i - 1]; b->alive = false; b->dead_t = 0; b->state = PLAY_IDLE;
+            ak_play_bot *b = &p->bot[i - 1]; b->alive = false; b->dead_t = 0; b->state = PLAY_IDLE; b->death_clip = p->death_clips[(s32)(rnd(&b->seed) * 4.0f) & 3];
             if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, b->team);
         }
     }

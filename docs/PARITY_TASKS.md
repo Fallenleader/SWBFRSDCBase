@@ -674,8 +674,9 @@ textures and how they are used. Section R lists only what must be in place so th
 - [ ] **6.3 Death animations and ragdoll.** The death clips. After death the body has gravity on (08993D38): trace what it does next.
   - 2026-11-19: measured in the harness (Hoth, killed while running): the body stops where it falls - no slide - and stays
     there; gravity stays on.  Aurek: the player's body no longer slides on, and bots' bodies (frozen in the air until now) fall
-    to the ground.  The death clips now come from the animation table (rows 21-23, 6.1).  Open: which death row the game picks
-    (rows 20-23: front / back / left / right - by the hit's direction, not found yet; Aurek gives each bot one by index).
+    to the ground.  The death clips now come from the animation table (rows 20-23, 6.1).  2026-11-20, the pick traced (0899FF38):
+    20 + (the game's random >> 1 & 3) - one of the four at random each death, not by the hit's direction (unless the soldier's
+    +196 is set: row 32 for a 089DE500 body; not seen in play). Aurek picks the same way for the player and the bots.
 - [ ] **6.4 Command post cone [assumed].** Its capture animation and the logo height (1.25 m is an estimate).
   - 2026-11-19 (089E9A24, the post's draw update): the cone (model 0xB9F3824A) and the owner's logo (table 0x08ADE9DC: republic /
     cis / alliance / empire _logo_blue, clip logo_spin_move 0x8417BC1A) are tinted by the owner - ours (0.314, 0.424, 0.702),

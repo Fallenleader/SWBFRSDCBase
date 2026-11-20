@@ -172,7 +172,7 @@ typedef struct {
     s32 proj_fx[AK_MAX_PROJ], veh_fx[PLAY_MAX_VEH][2], eng_fx[PLAY_MAX_VEH][4], boost_fx[PLAY_MAX_VEH][6];   /* effects riding objects: projectile trails (PFXEffect), vehicle smoke / fire (0 none) */
     u32 kills, deaths;
     u16 tally_kills[64], tally_deaths[64];   /* per soldier (0 the player, 1.. the bots): the score boards' columns */
-    s32 idle_clip, death_clips[3];
+    s32 idle_clip, death_clips[4], death_pick;   /* death_pick: the player's, of the four */
     ak_weapon_def team_wdef[2], team_bdef[2]; bool team_armed[2];
     ak_weapon_def ai_wdef[2][13]; bool ai_armed[2][13];   /* the AI's weapons by the game's slot (0x08ADDB94: 2 rifle .. 8 EMP launcher), bot copies */   /* bdef: the bots' copy (the game's bot modifiers) */
     const char *klass[2][PLAY_MAX_CLASSES]; u32 nklass[2];
