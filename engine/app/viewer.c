@@ -185,6 +185,7 @@ int main(int argc, char **argv)
     ak_fe_set_blueprints(&bps);
     fe_bps = &bps; ak_fe_set_model_drawer(fe_model_draw);                                         /* (the customisation menu: items, costs, descriptions) */
     bool fe_ingame = false, fe_after_team = false;                      /* the match's own pages (team selection, the spawn map) */
+    if (!fe_on && playing && ak_setting_int("AK_PLAY_MENUS", 0) && ak_fe_init(vfs)) fe_ingame = true;   /* (tests: a match straight in, with its own pages) */
     for (;;) {
         if (fe_on) {
             if (!ak_plat_poll(&in)) break;
@@ -527,6 +528,16 @@ int main(int argc, char **argv)
             {   static f32 over_t = 0; over_t = fm.winner >= 0 ? over_t + dt : 0;   /* the match over: the game-over page [assumed: after 5 s of its end] */
                 if (over_t > 5.0f && (!ak_fe_page() || strcmp(ak_fe_page(), "MP_GameoverDialogue")) && over_t < 5.0f + dt * 1.5f) ak_fe_open_ingame("MP_GameoverDialogue"); }
             if (!ak_fe_page() && play.alive && (in.pressed & AK_BTN_START)) ak_fe_open_ingame("MP_InGame_Menu");   /* START: the pause menu */
+            {   /* at an own command post (seen in the original): the top message box keeps "Press [d-pad up] to change equipment"
+                   (STDTEXT 328; its \ue813 drawn as the d-pad up mark the original shows) and d-pad up there, with no vehicle to
+                   board, opens EQUIPMENT AND ATTRIBUTES while play goes on; leaving it takes the loadout at once [assumed] */
+                static f32 tip_t = 0;
+                bool at_own = play.alive && play.in_veh < 0 && play.in_turret < 0 && play.near_post >= 0 && play.have_cq && play.match.post[play.near_post].owner == play.team;
+                if (at_own && !ak_fe_page()) { tip_t -= dt; if (tip_t <= 0) { ak_hud_message(3, 328, NULL, 0); tip_t = 3.0f; } } else tip_t = 0;
+                if (frame == ak_setting_int("AK_TEST_EQUIP_AT", -1)) { play.want_equipment = true; at_own = true; }   /* (tests) */
+                if (frame == ak_setting_int("AK_TEST_TIP_AT", -1)) ak_hud_message(3, 328, NULL, 0);
+                if (play.want_equipment) { play.want_equipment = false; if (at_own && !ak_fe_page()) ak_fe_open_customisation(); }
+            }
             if (ak_fe_page()) {
                 fe_menu = true;
                 { const char *keys = ak_setting_str("AK_FE_KEYS2", NULL);   /* tests: the in-match pages' buttons, as AK_FE_KEYS */

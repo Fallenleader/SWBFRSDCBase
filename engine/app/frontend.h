@@ -28,6 +28,7 @@ const char *ak_fe_page(void);                  /* the page shown (its name), NUL
 const char *ak_fe_launch(int *mode);
 /* the in-match pages (GUIMENU/BFF_GUIMENU_INGAMESP.GUI): open one over the match, the match's state each frame, close */
 bool ak_fe_open_ingame(const char *page);
+bool ak_fe_open_customisation(void);            /* the customisation menu alone (an own post's d-pad up); closing it gives AK_FE_LOADOUT */
 void ak_fe_set_match(const ak_fe_match *m);
 void ak_fe_close(void);
 int ak_fe_team(void);                          /* after AK_FE_TEAM: 0 auto, 1 the good side, 2 the evil side */

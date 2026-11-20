@@ -499,6 +499,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         if (p->pfx_on && ak_pfx_lib_load((const ak_blob *)&l->file, a, &p->pfx_lib)) { p->pfx = AK_NEW(a, ak_pfx_world, 1); if (p->pfx) { ak_pfx_world_init(p->pfx, &p->pfx_lib); f32 cs = ak_setting_float("AK_COLOUR_SCALE", 2.0f); p->pfx->colour_k = 255.0f / (cs > 0.1f ? cs : 1.0f); } }
         AK_INFO("play", "pfx: %u effects, %u systems, %u particle types, sheet %d", p->pfx_lib.nfx, p->pfx_lib.nsys, p->pfx_lib.ntype, p->pfx_tex_index);
     }
+    if (ak_setting_int("AK_LOG_POSTS", 0)) for (u32 k = 0; k < p->cq.nposts; k++) AK_INFO("play", "post %u at %.2f %.2f %.2f (game %.2f %.2f %.2f)", k, p->cq.post[k].pos[0], p->cq.post[k].pos[1], p->cq.post[k].pos[2], p->cq.post[k].pos[0], -p->cq.post[k].pos[1], -p->cq.post[k].pos[2]);
     {   /* the pickups (Projectile Health / Ammo / Stamina / HealthAmmo <- Pickup; the ids 1000..1003 of 089F8FAC) */
         static const char *pk[4] = { "Health", "Ammo", "Stamina", "HealthAmmo" };
         for (int k = 0; k < 4; k++) {
@@ -2273,7 +2274,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 if (p->veh[best].driver > 0) { u32 bi = (u32)(p->veh[best].driver - 1); bot_exit(p, &p->bot[bi], bi); }
                 ak_vehicle *vh = &p->veh[best]; vh->driver = 0; vh->team = p->team; vh->open = false; vh->aim_yaw = vh->aim_pitch = 0;
                 p->target[VT(p, best)].team = p->team; p->in_veh = best; p->target[0].alive = false; p->lock = -1; p->cam_dist = vh->def->cam_z;
-            }
+            } else if (p->have_cq && p->near_post >= 0 && p->match.post[p->near_post].owner == p->team)
+                p->want_equipment = true;                                     /* at an own post: the customisation menu (the viewer opens it) */
         }
     }
     /* the PSP's one-stick scheme (measured, 1.14): the soldier turns to face the stick's direction relative to the view, closing

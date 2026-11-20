@@ -182,6 +182,7 @@ typedef struct {
     f32 scale;                         /* soldiers' size relative to the world (AK_SOLDIER_SCALE) */
     f32 clock;                         /* seconds of play (spinning logos) */
     s32 near_post;                     /* the post the soldier stands at (the HUD's capture bar), or -1 */
+    bool want_equipment;               /* d-pad up at an own post with no vehicle to board: open the customisation menu */
     struct {                           /* sound (app/play_sound.c) */
         const ak_level *lvl; const ak_bp_object *surf[10];   /* the Material blueprints by surface number (MTRL mode) */
         u32 amb[3], eng[PLAY_MAX_VEH], hum[AK_MAX_POSTS];

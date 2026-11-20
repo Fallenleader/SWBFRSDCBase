@@ -221,6 +221,7 @@ static bool open_hash(u32 h, bool push)
 }
 bool ak_fe_open(const char *name) { return ready && open_hash(ak_gui_hash(name), false); }
 bool ak_fe_open_ingame(const char *name) { return ak_fe_open(name); }
+
 const char *ak_fe_page(void) { return page ? page->root.name : NULL; }
 
 /* ---- the widgets */
@@ -341,6 +342,7 @@ static const u32 cust_level_key[3][4] = { { 0xA40C5954u, 0xA354D5E1u, 0xA354D5E2
 static const int cust_level_cost[3][4] = { { 0, 10, 20, 30 }, { 0, 10, 20, 30 }, { 0, 15, 25, 35 } };
 #define CUST_CREDITS 200
 static int cust_sel[NCAT] = { 1, 0, 1, 0, 0, 1, 1, 0 }, cust_saved[NCAT], cust_cat; static u32 cust_return;
+static void cust_open(void);
 static const ak_blueprints *fe_bp; static ak_fe_model_fn model_fn; static f32 clock_total;
 void ak_fe_set_model_drawer(ak_fe_model_fn fn) { model_fn = fn; }
 void ak_fe_set_blueprints(const void *bp) { fe_bp = (const ak_blueprints *)bp; }
@@ -702,11 +704,7 @@ static int run(const ak_gui_action *a, int row)
         rotation_changed();
     }
     else if (!strcmp(fn, "FE_OpenCustomisationMenu")) {               /* 08A2F540: the menu over its background; back to this page after */
-        cust_return = page ? page->root.id : 0;
-        if (open_hash(ak_gui_hash("MP_CustomBackground"), false)) {   /* (08A276F0: the background and the carousel open without the focus) */
-            open_layer(ak_gui_hash("MP_Customisation")); focus_new = false; open_layer(ak_gui_hash("MP_CustomCarousel")); cust_carousel_sync(); }
-        memcpy(cust_saved, cust_sel, sizeof cust_sel); cust_cat = 0; cust_vars();   /* (08A276F0: OnInitMenu keeps the loadout to go back to) */
-        refill(); return AK_FE_NONE;
+        u32 ret = page ? page->root.id : 0; cust_open(); cust_return = ret; return AK_FE_NONE;
     }
     else if (!strcmp(fn, "FE_Customisation_AcceptCategoryItem")) {   /* 08A27EC4: the category's items, over the menu */
         if (row >= 0 && row < NCAT) { cust_cat = row; cust_carousel_sync(); int k = layer_of("MP_CustomCarousel"); if (k >= 0) { use_layer(k); focus = find_named(&page->root, "W_LB_Carousel") ? find_named(&page->root, "W_LB_Carousel")->id : focus; } }
@@ -782,6 +780,15 @@ static const ak_widget *find_visible(const ak_widget *w, u32 id)
     for (u32 i = 0; i < w->nchild; i++) { const ak_widget *r = find_visible(&w->child[i], id); if (r) return r; }
     return NULL;
 }
+static void cust_open(void)
+{
+    if (open_hash(ak_gui_hash("MP_CustomBackground"), false)) {       /* (08A276F0: the background and the carousel open without the focus) */
+        open_layer(ak_gui_hash("MP_Customisation")); focus_new = false; open_layer(ak_gui_hash("MP_CustomCarousel")); cust_carousel_sync(); }
+    memcpy(cust_saved, cust_sel, sizeof cust_sel); cust_cat = 0; cust_vars();   /* (08A276F0: OnInitMenu keeps the loadout to go back to) */
+    refill();
+}
+/* the customisation menu on its own, from the match (d-pad up at an own command post); closed, play goes on */
+bool ak_fe_open_customisation(void) { nlayer = 0; page = NULL; cust_open(); cust_return = 0; return page != NULL; }
 /* the customisation menu's circle: off the carousel or a dialogue back to the menu; off the menu itself out of it - over the credits
  * the OVERSPENT page instead (W_BU_Back_OverSpent, shown while BFF.FE_Customisation_Credits < 0); -1 = not handled here */
 static int cust_event(const ak_input *in)

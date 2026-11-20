@@ -256,6 +256,9 @@ static const sprite *button_mark(u16 c)
     static const char *const first4[] = { "button_x.tga", "button_square.tga", "button_circle.tga", "button_triangle.tga" };
     if (c < 0xE800 || !btn_n || c >= 0xE800 + btn_n) return NULL;
     if (c < 0xE804) return find(h31(first4[c - 0xE800]), btn_first, btn_n);
+    /* \ue813 (button_x) marks the "use" action, which the PSP controls put on the d-pad's up: the original draws its "Press \ue813
+       to change equipment" with d_pad_up_Small (place 23) */
+    if (c == 0xE813 && btn_n > 23) c = 0xE817;
     return &spr[btn_first + (c - 0xE800)];
 }
 static const glyph *glyph_of(u16 c) { for (u32 i = 0; i < font.n; i++) if (font.g[i].ch == c) return &font.g[i]; return NULL; }

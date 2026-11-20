@@ -666,6 +666,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - World markers (08A55238).
   - The capture cross (done with 5.5).
   - The missile-warning check against a screenshot of the original.
+  - "Press [up] to change equipment" at an own post, and the customisation menu from there - done 2026-11-20 from the original's
+    frames (NATIVE_ENGINE row). Open: the exact radius (seen at 3.5 m from Hoth's Empire post; Aurek uses the capture radius), how
+    the message is refreshed, and whether the new loadout applies at once or at the next spawn.
 - [ ] **8.2 Front end (1.10) [started 2026-11-20].** Menus, loadouts, colour picker, map selection, galactic conquest, campaign, subtitles.
   - 2026-11-20, the menu pages: GUIMENU/*.GUI hold one UIMP chunk per page - a widget tree written by each widget class's load
     method (vtable slot 21; widget header {u32 class version, u32 type}; the factory 08888B48 by type: 1 page, 1001 image, 1002
