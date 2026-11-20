@@ -103,6 +103,13 @@ bool ak_level_fog_read(const ak_level *l, ak_level_fog *out);
  * f32 base[12], f32 scale[12], one more word, then count x { f32 pos[3]; u32 r, g, b }.  Each channel word's bytes, high to low, are
  * that channel's ambient and its direction x, y, z: value = base[c*4+k] + byte * scale[c*4+k].  The direction points toward the light
  * and its length is the light's strength (Hoth: ambient ~0.3, up ~0.15).  Read here in engine axes. */
+/* Texture animations (TXAN, version 2): the texture's name, u32 kind, f32 period (seconds), u32 interpolation (3 linear; 10 seen on
+ * Endor's swamp), u32 key count, keys of 5 floats {u, v, t, 0, 0} (t 0..1 over the period).  Kind 1 scrolls the texture by (u, v)
+ * (Hoth's capture zones, Naboo's lake, Mustafar's lava, Yavin's waterfall); kind 2 swaps frames (laser gates, consoles; not read).
+ * A material with AK_MAT_ANIMATED names its animation in 'extra' (the h31 hash of the TXAN name: Naboo's water 0x0032918F = "lake"). */
+typedef struct { u32 hash; f32 period; u32 nkeys; f32 key[16][3]; } ak_tex_anim;   /* hash: h31 of the name = the material's 'extra' */
+u32 ak_level_tex_anims(const ak_level *l, ak_arena *a, ak_tex_anim **out);
+void ak_tex_anim_uv(const ak_tex_anim *t, f32 time, f32 uv[2]);
 typedef struct { f32 pos[3]; f32 amb[3]; f32 dir[3][3]; } ak_light_sample;
 u32 ak_level_light_samples(const ak_level *l, ak_arena *a, ak_light_sample **out);
 bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *out);  /* a file already read (ak_vfs) */

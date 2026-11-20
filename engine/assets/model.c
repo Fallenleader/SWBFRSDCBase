@@ -266,9 +266,9 @@ static bool mesh_parse(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_leve
         u32 mat = ak_rd32(pr), nt = ak_rd32(pr + 4), v0 = ak_rd32(pr + 8), i0 = ak_rd32(pr + 12);
         u32 v1 = pi + 1 < np ? ak_rd32(pr + 16 + 8) : nv;
         ak_model_part *pt = &m->parts[pi];
-        pt->bone = (u16)(sk && pi < sk->nbones ? pi : 0); pt->texture = -1; pt->flags = 0;
+        pt->bone = (u16)(sk && pi < sk->nbones ? pi : 0); pt->texture = -1; pt->flags = 0; pt->extra = 0;
         if (mat != 0xFFFFFFFFu && mat < nmats) {
-            pt->flags = mats[mat].flags;
+            pt->flags = mats[mat].flags; pt->extra = (u32)mats[mat].extra;
             s32 ti = mats[mat].tex[0];
             if (ti >= 0 && tex_names && (u32)ti < tex_names->count) {
                 char nm[512]; snprintf(nm, sizeof nm, "\\graphics%s", tex_names->names[ti]);
@@ -348,9 +348,9 @@ static bool mesh_parse_v2(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_l
         const u8 *g = b + go + 16 * gi;
         u32 mat = ak_rd32(g), cnt = ak_rd32(g + 4), first = ak_rd32(g + 8);
         ak_model_part *pt = &m->parts[gi];
-        pt->bone = 0; pt->texture = -1; pt->flags = 0; pt->first = m->nidx;
+        pt->bone = 0; pt->texture = -1; pt->flags = 0; pt->extra = 0; pt->first = m->nidx;
         if (mat < nmats) {
-            pt->flags = mats[mat].flags;
+            pt->flags = mats[mat].flags; pt->extra = (u32)mats[mat].extra;
             s32 ti = mats[mat].tex[0];
             if (ti >= 0 && tex_names && (u32)ti < tex_names->count) {
                 char nm[512]; snprintf(nm, sizeof nm, "\\graphics%s", tex_names->names[ti]);

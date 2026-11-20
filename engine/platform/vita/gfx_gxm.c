@@ -345,6 +345,7 @@ static ak_m4 vp_t, frame_vp_t; static ak_gfx_env env_; static bool vp_dirty; sta
  * each channel's directional part (an upward-facing average), against the models' vertex colour of 128 */
 static f32 user_tint_[4] = { 1, 1, 1, 1 }, light_f_[3] = { 1, 1, 1 };
 static void apply_tint_(void);
+void ak_gfx_set_uv_offset(const f32 *uv) { (void)uv; }   /* (not yet: the textures stay still here) */
 void ak_gfx_set_light(const f32 *sh)
 {
     for (int c = 0; c < 3; c++) {

@@ -469,6 +469,7 @@ int main(int argc, char **argv)
         }
         ak_gfx_begin(0x6B5A4Cu | 0xFF000000u, &vp, &env);
         if (ak_setting_int("AK_SKY", 1)) ak_scene_sky_draw(&scene, &proj, &view, ak_setting_float("AK_FAR", 8000.0f) * 0.45f);
+        {   static f32 clock_; clock_ += dt; ak_scene_set_time(clock_); }   /* (the scrolling textures' clock) */
         ak_scene_stats ss; ak_scene_level_draw(&scene, &vp, &ss);
         u32 ents_drawn = 0;
         if (show_ents && bindm) {

@@ -674,6 +674,12 @@ groundwork below is needed before the parity work starts. The tiers come later.
 - [ ] **R.3 Sky.** The sky set-up.
 - [ ] **R.4 Material modes.** All 6 texture slots of a material, its mode, its "extra" field and animated materials (water,
   screens, lightning). Aurek handles diffuse plus flags only.
+  - 2026-11-20, animated materials (part): a material flagged 0x40000 names its animation in "extra", the h31 hash of a TXAN
+    chunk's name (Naboo's water: 0x0032918F = "lake"). TXAN (version 2): name, kind, period (s), interpolation, key count,
+    keys {u, v, t, 0, 0}. Kind 1 scrolls the texture coordinates (capture zone streams 21.1 s, lake 20 s, lava 75 s, Kashyyyk
+    water 60 s by (-2, 1), Endor's swamp a 7-key wobble); kind 2 swaps frames (laser gates, consoles; Yavin's console
+    destroyed / visible pairs) - not built. Engine: asura.c reads kind 1 (ak_level_tex_anims), the scene offsets the UVs of
+    those materials' draws, level and models (ak_gfx_set_uv_offset; GL; Vita / 3DS keep them still for now).
 - [ ] **R.5 LOD distances.** AK_LOD_SCALE 12 is Aurek's own; trace the real ones.
   - 2026-11-19, looked for and not found: no blueprint key, level chunk or string names a LOD distance (the lower details are
     the "L1#" / "L2#" meshes); the switch is somewhere in the model draw.  Next: watch the GE vertex counts of one prop in

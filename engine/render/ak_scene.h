@@ -13,10 +13,13 @@ typedef struct {
     u8 *obj_visible;
     f32 bounds_min[3], bounds_max[3];
     ak_gfx_buf *sky_vb, *sky_ib;          /* sky box: five faces, drawn first around the camera */
+    ak_tex_anim *anim; u32 nanim;          /* scrolling textures (TXAN), found by a material's 'extra' */
 } ak_scene_level;
 
 bool ak_scene_level_init(ak_scene_level *s, const ak_level *l, ak_arena *a);
 void ak_scene_level_free(ak_scene_level *s);
+/* the clock the scene's texture animations run on (seconds) */
+void ak_scene_set_time(f32 seconds);
 void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *view_proj, ak_scene_stats *st);
 /* the sky box, before the level: proj and the camera's view (only its rotation is used); radius in metres (inside the far plane) */
 void ak_scene_sky_draw(ak_scene_level *s, const ak_m4 *proj, const ak_m4 *view, f32 radius);

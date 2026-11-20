@@ -59,6 +59,9 @@ void ak_gfx_set_cull(bool on);
  * draw's model space scaled by that channel's strength; colour = ambient + max(0, n . dir) per channel, in place of the vertex colour
  * (then x the frame's colour_scale, the game's colour doubling).  NULL = off.  Reset each frame. */
 void ak_gfx_set_light(const f32 *sh);
+/* a texture-coordinate offset for the draws that follow (the game's scrolling textures, TXAN); NULL = none.  Reset each frame.
+ * Back ends without it draw the texture still. */
+void ak_gfx_set_uv_offset(const f32 *uv);
 void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 first, u32 count);
 /* this frame only: a triangle list copied into the back end's per-frame memory (laser bolts, effects, debug shapes) */
 void ak_gfx_draw_immediate(ak_pipe p, ak_gfx_tex *t, const ak_vtx *v, u32 count);

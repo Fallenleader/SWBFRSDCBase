@@ -400,6 +400,34 @@ bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *l)
     return have_env && have_env_mtrl;
 }
 
+u32 ak_level_tex_anims(const ak_level *l, ak_arena *a, ak_tex_anim **out)
+{
+    *out = NULL; u32 n = 0, cap = 0; ak_tex_anim *v = NULL;
+    ak_chunk c; u32 pos = 8;
+    while (ak_asura_next(&l->file, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('T', 'X', 'A', 'N') || c.version != 2 || c.size < 8) continue;
+        u32 e = (u32)strnlen((const char *)c.body, c.size), p = (e + 4) & ~3u;
+        if (p + 16 > c.size) continue;
+        u32 kind = ak_rd32(c.body + p), nk = ak_rd32(c.body + p + 12); f32 period = ak_rdf32(c.body + p + 4);
+        if (kind != 1 || nk < 1 || nk > 16 || p + 16 + nk * 20 > c.size || period <= 0) continue;
+        u32 h = 0; for (u32 k = 0; k < e; k++) { u8 ch = c.body[k]; if (ch >= 'A' && ch <= 'Z') ch = (u8)(ch + 32); h = h * 31u + ch; }
+        if (n == cap) { u32 nc = cap ? cap * 2 : 8; ak_tex_anim *nv = (ak_tex_anim *)ak_arena_alloc(a, sizeof *nv * nc, 8); if (!nv) break; if (v) memcpy(nv, v, sizeof *v * n); v = nv; cap = nc; }
+        ak_tex_anim *t = &v[n++]; t->hash = h; t->period = period; t->nkeys = nk;
+        for (u32 k = 0; k < nk; k++) for (int j = 0; j < 3; j++) t->key[k][j] = ak_rdf32(c.body + p + 16 + k * 20 + j * 4);
+    }
+    *out = v; return n;
+}
+void ak_tex_anim_uv(const ak_tex_anim *t, f32 time, f32 uv[2])
+{
+    f32 f = fmodf(time / t->period, 1.0f); if (f < 0) f += 1.0f;
+    uv[0] = t->key[0][0]; uv[1] = t->key[0][1];
+    for (u32 k = 1; k < t->nkeys; k++) {
+        f32 t0 = t->key[k - 1][2], t1 = t->key[k][2];
+        if (f <= t1 || k == t->nkeys - 1) { f32 w = t1 > t0 ? (f - t0) / (t1 - t0) : 1; if (w < 0) w = 0; if (w > 1) w = 1;
+            uv[0] = t->key[k - 1][0] + (t->key[k][0] - t->key[k - 1][0]) * w; uv[1] = t->key[k - 1][1] + (t->key[k][1] - t->key[k - 1][1]) * w; return; }
+    }
+}
+
 u32 ak_level_light_samples(const ak_level *l, ak_arena *a, ak_light_sample **out)
 {
     *out = NULL;

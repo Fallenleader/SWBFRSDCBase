@@ -6,7 +6,17 @@
 
 typedef struct ak_draw_item { u32 key; u32 batch; } ak_draw_item;
 
+static bool scene_level_init(ak_scene_level *s, const ak_level *l, ak_arena *a);
 bool ak_scene_level_init(ak_scene_level *s, const ak_level *l, ak_arena *a)
+{
+    bool ok = scene_level_init(s, l, a);
+    if (ok) {
+        s->nanim = ak_level_tex_anims(l, a, &s->anim);
+        if (ak_setting_int("AK_DEBUG_TXAN", 0)) for (u32 k = 0; k < s->nanim; k++) AK_INFO("scene", "animation %08x scrolls over %.1f s (%u keys)", s->anim[k].hash, s->anim[k].period, s->anim[k].nkeys);
+    }
+    return ok;
+}
+static bool scene_level_init(ak_scene_level *s, const ak_level *l, ak_arena *a)
 {
     memset(s, 0, sizeof *s); s->level = l;
     const ak_level_geom *g = &l->geom;
@@ -84,6 +94,15 @@ static int item_cmp(const void *x, const void *y)
     return a->batch < b->batch ? -1 : a->batch > b->batch ? 1 : 0;
 }
 
+static f32 g_time;
+void ak_scene_set_time(f32 seconds) { g_time = seconds; }
+/* the material's scroll, if it has one (AK_MAT_ANIMATED + TXAN), for the draws that follow */
+static void tex_scroll(const ak_scene_level *s, s32 flags, u32 extra)
+{
+    if (s && (flags & AK_MAT_ANIMATED))
+        for (u32 k = 0; k < s->nanim; k++) if (s->anim[k].hash == extra) { f32 uv[2]; ak_tex_anim_uv(&s->anim[k], g_time, uv); ak_gfx_set_uv_offset(uv); { static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_TXAN", 0); if (dbg > 1) AK_INFO("scene", "scroll %08x %.3f %.3f", extra, uv[0], uv[1]); } return; }
+    ak_gfx_set_uv_offset(NULL);
+}
 void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *vp, ak_scene_stats *st)
 {
     const ak_level *l = s->level; const ak_level_geom *g = &l->geom;
@@ -122,11 +141,16 @@ void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *vp, ak_scene_stats *st)
             const ak_batch *nb = &g->batch[s->items[k].batch];
             s32 nt = batch_texture(l, nb);
             if (nb->first != first + count || nt != ti) break;
+            {   const ak_material *ma = bt->material < l->nmat ? &l->mat[bt->material] : NULL, *mb = nb->material < l->nmat ? &l->mat[nb->material] : NULL;
+                u32 xa = ma && (ma->flags & AK_MAT_ANIMATED) ? (u32)ma->extra : 0, xb = mb && (mb->flags & AK_MAT_ANIMATED) ? (u32)mb->extra : 0;
+                if (xa != xb) break; }   /* (a scrolling material is its own draw) */
             count += nb->count;
         }
+        {   const ak_material *mm = bt->material < l->nmat ? &l->mat[bt->material] : NULL; tex_scroll(s, mm ? mm->flags : 0, mm ? (u32)mm->extra : 0); }
         ak_gfx_draw((ak_pipe)(key >> 29), ti >= 0 ? s->tex[ti] : NULL, s->vb, s->ib, first, count);
         st->tris += count / 3; st->draws++;
     }
+    ak_gfx_set_uv_offset(NULL);
 }
 
 /* ------------------------------------------------------------------ models */
@@ -182,6 +206,7 @@ static ak_gfx_tex *coloured(ak_scene_models *s, s32 ti, const ak_model_colours *
 /* a weighted (v2) mesh: each vertex moved by its bones' pose x inverse bind, blended by weight, on the CPU into this frame's memory
    (heroes and creatures are few; the soldiers stay rigid parts on the GPU) */
 static int g_force_pipe = -1;
+
 void ak_scene_force_pipe(int pipe) { g_force_pipe = pipe; }
 
 
@@ -267,10 +292,11 @@ static void draw_skinned(ak_scene_models *s, const ak_model *m, const ak_m4 *vw,
             if ((pipe >= AK_PIPE_LAYER) != (pass == 1)) continue;
             for (u32 k = 0; k < pt->count; k++) tri[k] = sv[m->idx[pt->first + k]];
             ak_gfx_tex *gt = pt->texture < 0 ? NULL : colours && s->masked[pt->texture] ? coloured(s, pt->texture, colours) : s->level->tex[pt->texture];
+            tex_scroll(s->level, pt->flags, pt->extra);
             ak_gfx_draw_immediate(pipe, gt, tri, pt->count);
             if (st) { st->draws++; st->tris += pt->count / 3; }
         }
-    ak_gfx_set_transform(NULL);
+    ak_gfx_set_transform(NULL); ak_gfx_set_uv_offset(NULL);
     ak_gfx_set_cull(true);
 }
 
@@ -299,9 +325,10 @@ void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_
             ak_gfx_set_transform(&mvp); if (g_force_pipe >= 0 || pipe == AK_PIPE_ADD) ak_gfx_set_light(NULL);
             if (lit && g_force_pipe < 0 && pipe != AK_PIPE_ADD) { ak_m4 wm = ak_m4_mul(world, &bm); f32 ll[12]; light_local(L, &wm, ll); ak_gfx_set_light(ll); }
             ak_gfx_tex *gt = pt->texture < 0 ? NULL : colours && s->masked[pt->texture] ? coloured(s, pt->texture, colours) : s->level->tex[pt->texture];
+            tex_scroll(s->level, pt->flags, pt->extra);
             ak_gfx_draw(pipe, gt, s->vb, s->ib, s->index_base[mi] + pt->first, pt->count);
             if (st) { st->draws++; st->tris += pt->count / 3; }
         }
-    ak_gfx_set_transform(NULL); ak_gfx_set_light(NULL);
+    ak_gfx_set_transform(NULL); ak_gfx_set_light(NULL); ak_gfx_set_uv_offset(NULL);
     ak_gfx_set_cull(true);
 }

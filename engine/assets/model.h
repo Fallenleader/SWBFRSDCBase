@@ -30,6 +30,7 @@ typedef struct {
     u16 bone;                          /* the bone this part rides */
     s16 texture;                       /* index into the level's textures; -1 = none / invisible */
     s32 flags;                         /* the part's material flags (asura.h AK_MAT_*) */
+    u32 extra;                         /* the material's 'extra' (animated materials: the TXAN name's h31 hash) */
     u32 first, count;                  /* index range */
 } ak_model_part;
 
