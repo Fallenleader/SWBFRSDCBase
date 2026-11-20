@@ -212,6 +212,10 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
         d->gun_bot = d->gun; d->gun_bot.dmg_infantry *= md; d->gun_bot.dmg_vehicle *= md; d->volley_bot = d->volley * mr;
         d->gun_bot.ai_acc[0] = w ? ak_bp_float(w, "AIWeapon_Accuracy_Normal", 5) : 5; d->gun_bot.ai_acc[1] = w ? ak_bp_float(w, "AIWeapon_Accuracy_Elite", 4) : 4;
     }
+    if (getenv("AK_DUMP_VEH_MARKERS") && d->model >= 0) {   /* (tests: the model's markers, model space, game axes) */
+        const ak_model *mm = &m->models[d->model];
+        for (u32 i = 0; i < mm->nmarkers; i++) fprintf(stderr, "[veh] %s marker %s bone %u at %.2f %.2f %.2f\n", name, mm->markers[i].name, mm->markers[i].bone, mm->markers[i].m[3], -mm->markers[i].m[7], -mm->markers[i].m[11]);
+        fprintf(stderr, "[veh] %s radius %.2f bounds x %.2f..%.2f y %.2f..%.2f z %.2f..%.2f\n", name, d->radius, mm->bmin[0], mm->bmax[0], mm->bmin[1], mm->bmax[1], mm->bmin[2], mm->bmax[2]); }
     return true;
 }
 

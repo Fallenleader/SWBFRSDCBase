@@ -414,6 +414,19 @@ textures and how they are used. Section R lists only what must be in place so th
   - Boarding, measured: the player boards from beside a vehicle with d-pad up (the snowspeeder from 2.6 m behind its centre,
     the AT-ST from 2 m to its side); up again leaves.
   - [ ] **3.5b** The extra time's source and the flyers' spread, the respawn-when-taken-away rule, the boarding range.
+  - 2026-11-20, boarding and leaving measured (harness program board_try: d-pad up every 0.5 s from 1.5 s, the player
+    teleported around the vehicle; physics boxes from RS_DRIVE_BODYID):
+    - Hoth's AT-ST (centre 261.98, 13.97; box x 259.54..264.08, z 12.28..15.66; it faces -x): boards from 3.0, 4.0, 4.5 and
+      5.0 m behind it (+x), not from 5.5 m behind nor from 3.5 m to its side (+z). Leaving puts the soldier 3.06 m straight
+      behind the centre (0.96 m past the box's back face).
+    - Hoth's snowspeeder (centre z 173.88, box z 171.30..176.46, facing -z): boards from 2.6 m behind (+z), not from 2.6 m in
+      front; leaving puts the soldier 4.09 m behind (1.51 m past the box), dropped from 0.5 m up.
+    - A Taun-Taun did not board from 1.9 m behind.
+    So getting in is tied to a spot behind the vehicle (within about 2.0-2.4 m of the AT-ST's exit spot) rather than a radius
+    around it, and the spot differs per vehicle (no marker or blueprint value found: the AT-ST's markers are dam, muz, muz01,
+    tur, target, rocket, dam01). Aurek still boards within its radius + 3 m and puts the soldier out on the left (radius +
+    soldier + 0.5 m) [assumed] - not changed until the spot's rule is found. Debug: AK_DUMP_VEH_MARKERS=1 lists each vehicle
+    model's markers and bounds; AK_DEBUG_VEH logs where the player gets out.
 
 - [ ] **3.6 Secondary weapons and lock-on.** Lock-on traced 2026-11-17 (089CC77C per frame, 089CC878 the check; blueprint
   fields from 089C4A2C: LockAngle +400, LockOnTime +408, LoseLockOnAngle +412, LoseLockOnRange +416, InitialLockOnAngle +420,

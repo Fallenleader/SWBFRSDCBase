@@ -2368,6 +2368,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             out[0] = vh->pos[0] - rx * dd; out[1] = vh->pos[1] + 1.0f; out[2] = vh->pos[2] - rz * dd;   /* out on the left */
             if (ak_char_ground_below(&p->col, out, 6.0f, &gy)) out[1] = gy; else memcpy(out, vh->pos, 12);
             ak_char_spawn(&p->ch, out, vh->yaw); vh->driver = -1; vh->open = true; vh->throttle = vh->steer = vh->strafe = 0;
+            if (ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "get out at %.2f %.2f %.2f (vehicle at %.2f %.2f %.2f, yaw %.2f)", out[0], out[1], out[2], vh->pos[0], vh->pos[1], vh->pos[2], vh->yaw);
             p->in_veh = -1; p->target[0].alive = true; p->cam_dist = p->cam_back;
         } else {
             s32 best = -1; f32 bd = 1e30f;
