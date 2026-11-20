@@ -500,19 +500,19 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     const ak_bp_object *cam = ak_bp_find(bp, "Camera", "humanoid 3rd person");
     p->classic_cam = ak_setting_str("AK_CAM_STYLE", "modern")[0] == 'c';
     p->psp_buttons = ak_setting_str("AK_BUTTONS", "psp")[0] != 'l';            /* psp (default) or legacy */
-    p->pull_out_rate = ak_bp_float(cam, "pull out rate", 1.0f); p->pull_in_rate = ak_bp_float(cam, "pull in rate", 15.0f);
+    p->pull_out_rate = ak_bp_float(cam, "pull out rate", 1.0f); p->pull_in_rate = ak_bp_float(cam, "pull in rate", 15.0f); p->pull_close = ak_bp_float(cam, "pull in close dist", 3.0f); p->cl_dist = 0;
     if (p->classic_cam) {
         /* "fov" is across the PSP's 480 x 272 screen (measured: the game's projection in the harness is 1.732 across, 3.057 up -
            60 degrees wide, 36.2 high; near 0.25 m, no far plane) - Aurek keeps that height on any screen */
         p->fov = 2.0f * atanf(tanf((f32)ak_bp_int(cam, "fov", 60) * 3.14159265f / 360.0f) * 272.0f / 480.0f);   /* PARITY(9.1) */
-        p->pivot_h = ak_bp_float(cam, "pivot height stand", 1.5f); p->pivot_x = ak_bp_float(cam, "pivot x offset", 0.3f);
+        p->pivot_h = ak_bp_float(cam, "pivot height stand", 1.5f) - ak_bp_float(cam, "pivot y offset", 0.0f); p->pivot_x = ak_bp_float(cam, "pivot x offset", 0.3f);   /* (game y down: -0.1 is 0.1 up) */
         p->cam_back = -ak_bp_float(cam, "desired z offset", -7.0f); p->cam_up = -ak_bp_float(cam, "desired y offset", -0.5f);   /* game y points down */
         p->cam_side = ak_bp_float(cam, "desired x offset", -0.2f);
     } else {
         p->fov = ak_setting_float("AK_FOV", 55.0f) * 3.14159265f / 180.0f;   /* PARITY(9.1) */
         p->pivot_h = 1.55f; p->pivot_x = 0.0f; p->cam_back = 1.8f; p->cam_up = 0.05f; p->cam_side = 0.6f;
     }
-    p->pivot_h *= S; p->pivot_x *= S; p->cam_back *= S; p->cam_up *= S; p->cam_side *= S;
+    p->pivot_h *= S; p->pivot_x *= S; p->cam_back *= S; p->cam_up *= S; p->cam_side *= S; p->pull_close *= S;
     p->cam_dist = p->cam_back;
     {   int ts = ak_setting_int("AK_TWIN_STICK", -1);
         p->twin_stick = ak_plat_has_right_stick() && ts != 0;                 /* -1 (the default) and 1: on where the device can */
@@ -2665,7 +2665,18 @@ static void camera_for(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32
     f32 want[3] = { -fwd[0] * back + right[0] * p->cam_side, -fwd[1] * back + p->cam_up, -fwd[2] * back + right[2] * p->cam_side };
     f32 wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]), dir[3] = { want[0] / wl, want[1] / wl, want[2] / wl };
     f32 limit = wl; ak_col_hit h;
-    if (ak_col_raycast(&p->col, piv, dir, wl, AK_COL_NOT_BODIES, &h)) limit = h.t - 0.3f;
+    if (p->classic_cam) {
+        /* the game's distance (measured, harness RS_VIEW_LOG, original controls): standing, 3 m from the pivot ("pull in close
+         * dist"); running, it draws out at about "pull out rate" (1 m/s: +0.7 m in a 1 s run) toward the desired offset, and
+         * once stopped it comes back in with a 0.75 s time constant (3.42 -> 3.25 m over 0.3 s, ending at 2.94) */
+        f32 sp = sqrtf(p->ch.vel[0] * p->ch.vel[0] + p->ch.vel[2] * p->ch.vel[2]);
+        if (p->cl_dist <= 0) p->cl_dist = p->pull_close;
+        if (sp > 0.5f) p->cl_dist += p->pull_out_rate * dt; else p->cl_dist += (p->pull_close - p->cl_dist) * (1.0f - expf(-dt / 0.75f));
+        if (p->cl_dist > wl) p->cl_dist = wl;
+        if (p->cl_dist < p->pull_close) p->cl_dist = p->pull_close;
+        limit = p->cl_dist;
+    }
+    if (ak_col_raycast(&p->col, piv, dir, limit, AK_COL_NOT_BODIES, &h)) limit = h.t - 0.3f;
     if (limit < 0.3f) limit = 0.3f;
     /* in at once (pull in rate), out slowly (pull out rate) */
     if (limit < p->cam_dist) p->cam_dist += (limit - p->cam_dist) * fminf(1.0f, p->pull_in_rate * dt);

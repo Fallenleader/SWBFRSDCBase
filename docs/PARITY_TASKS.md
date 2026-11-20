@@ -145,7 +145,7 @@ textures and how they are used. Section R lists only what must be in place so th
   - Moving bodies: the body step adds a supporting body's motion only for bodies with flag 0x1000 (+0xF8 bit 12, 088C53CC).
     Read from the running original, the player's body flags are 0x035C2148 - no 0x1000 - and no code path sets it, so a
     soldier standing on something that moves is not carried by it. Aurek does the same; nothing to build.
-- [ ] **1.14 The classic scheme's facing [measured; built 2026-11-17, the view's follow assumed].** In the original (no right stick) the camera does not turn with
+- [x] **1.14 The classic scheme's facing [re-measured 2026-11-20, see 9.3].** The original's one-stick controls turn the view with stick X (9.3); what follows was measured with the port's twin-stick patch on and is the game's strafe. Kept as `AK_SINGLE_STICK_TURN=0`. In the original (no right stick) the camera does not turn with
   the left stick: the soldier turns to face the stick's direction relative to the camera, closing the angle by 8/s (each frame
   the rest shrinks by 1 - 8 dt: 0.8666 at 60 Hz), and runs its forward clip; with the stick pulled back (back half) it faces the
   mirrored direction and runs its backward clip (stick down-left: faces 45 degrees right, runs back). Stick straight right: turns 90
@@ -593,6 +593,7 @@ textures and how they are used. Section R lists only what must be in place so th
     its name at +22 (0897DD80). Read from the running original's memory: each side's bots hold distinct random entries
     (eight rebels: 42, 18, 28, 22, 26, 34, 15, 20). Aurek gives each bot a random unused entry of its side's list and the
     target panel shows it ("Waynar Ardam"). Open: the small grey icon the original draws before a bot's name.
+  - Ticket logos: tinted by side (08A5B80C: ours ABGR 0xFFFF0000 blue, theirs 0xFF0000FF red) - done 2026-11-20.
   - Jetpack and shield bars.
   - The unmanned turret's hit source.
   - World markers (08A55238).
@@ -608,6 +609,11 @@ textures and how they are used. Section R lists only what must be in place so th
     high).  Aurek's classic camera took 60 as the vertical angle; it now uses 36.2 vertical (wider screens see more at the
     sides).  The modern camera's AK_FOV 55 is the owner's choice and stays.  A second projection (1.496 up: 67.5 degrees high)
     appears on the spawn screen.  Open: zoom, vehicles.
+  - 2026-11-20, the classic camera's distance (RS_VIEW_LOG, original controls, walk 1 s then stop): standing, the eye is 2.98 m
+    behind, 1.9 m up and 0.22 m across from the soldier - 3 m from the pivot (1.6 m up, 0.3 across) toward the desired offset
+    (-0.2, 0.5, 7): the blueprint's "pull in close dist" 3. Running it draws out at ~1 m/s ("pull out rate"; +0.7 m in a 1 s
+    run) and comes back in after a stop with a 0.75 s time constant. Aurek's classic camera (AK_CAM_STYLE=classic) does this
+    (it sat at the 7 m desired offset before).
 - [ ] **9.2 Vehicle cameras [partial].** CameraVelocityWeight and the "Min" values.
   - 2026-11-19: measured in the AT-ST (harness, RS_PROJ_LOG): the same projection as on foot (60 degrees across at 480 x 272,
     near 0.25, no far plane), so vehicles share the soldier's field of view.

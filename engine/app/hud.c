@@ -579,13 +579,14 @@ static void weapon_panel(const char *name, s32 ammo, s32 spare, bool prequel, f3
 /* the ticket counters (func 08A5B80C / 08A5B968, positions 08A5BC40): ours centred at x 167.5, theirs at 312.5; each side's
  * logo (faction 0 Republic, 1 CIS, 2 Alliance, 3 Empire) centred at y 25, the count in white centred above it, its bottom at
  * y 25 - 9; unlimited: the infinity mark centred at y 25 - 18 */
-static void tickets(s32 n, int faction, f32 x, u32 col)   /* col: the number's and the infinity mark's, the level's (08A5B9A4) */
+/* logo: the side's colour (08A5B80C passes ABGR 0xFFFF0000 for ours - blue - and 0xFF0000FF for theirs - red) */
+static void tickets(s32 n, int faction, f32 x, u32 col, u32 logo_col)   /* col: the number's and the infinity mark's, the level's (08A5B9A4) */
 {
     static const int logo[4] = { 14, 13, 11, 12 };
     char t[16];
     if (n < 0) pic(idx(S_INFINITY), x, 25 - 18, true, col, 1);
     else { snprintf(t, sizeof t, "%d", n); text(x, 25 - 9, col, 0x24, t); }
-    if (faction >= 0 && faction < 4) pic(idx(logo[faction]), x, 25, true, 0xFFFFFFFFu, 1);
+    if (faction >= 0 && faction < 4) pic(idx(logo[faction]), x, 25, true, logo_col, 1);
 }
 
 /* the message controller (func 08A4F1FC): dead - only the left queue; on a space level (DAT_08C29324: the level's name holds
@@ -765,7 +766,7 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     if (!missile_warning(s)) messages(s->dt, s->alive);
     if (s->alive) hit_marks(s); else nhits = 0;
     if (s->alive) { target_panel(s); stamina_bar(s); if (!s->vehicle) jet_bar(s); timer(s); ring(s); }
-    if (s->tickets) { u32 tc = s->dark ? 0xFF000000u : 0xFFFFFFFFu; tickets(s->tickets_own, s->faction_own, 167.5f, tc); tickets(s->tickets_enemy, s->faction_enemy, 312.5f, tc); }
+    if (s->tickets) { u32 tc = s->dark ? 0xFF000000u : 0xFFFFFFFFu; tickets(s->tickets_own, s->faction_own, 167.5f, tc, 0xFF0000FFu); tickets(s->tickets_enemy, s->faction_enemy, 312.5f, tc, 0xFFFF0000u); }
     if (s->alive) {
         if (s->vehicle) {
             if (s->aim) pic(idx(S_RETICLE), s->aim_x, s->aim_y, true, 0xFFFFFFFFu, 1);
