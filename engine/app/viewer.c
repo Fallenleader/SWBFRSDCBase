@@ -412,6 +412,8 @@ int main(int argc, char **argv)
                     const ak_vehicle *vh = &play.veh[v]; const ak_target *t = &play.target[1 + play.nbots + v];
                     k += snprintf(vl + k, sizeof vl - (size_t)k, " %s:%s%.0f/%.0f", vh->def ? vh->def->name : "-", vh->alive ? (vh->driver > 0 ? "bot " : vh->driver == 0 ? "you " : "") : "wreck ", t->health, vh->def ? vh->def->health : 0);
                 }
+                if (ak_setting_int("AK_TEST_VEH_POS", 0)) for (u32 v = 0; v < play.nveh; v++) { f32 g[3]; ak_from_game(play.veh[v].pos, g);   /* tests: where each vehicle stands, game axes */
+                    AK_INFO("test", "vehicle %u %s at %.2f,%.2f,%.2f", v, play.veh[v].def ? play.veh[v].def->name : "-", g[0], g[1], g[2]); }
                 AK_INFO("test", "vehicles:%s", vl);
                 AK_INFO("test", "projectiles: %u fired, %u hits", play.projs.fired, play.projs.hits);
                 if (play.nturret) { k = 0;

@@ -2527,22 +2527,38 @@ void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *f
             p->aim[0] = -sinf(*yaw) * cosf(*pitch); p->aim[1] = sinf(*pitch); p->aim[2] = -cosf(*yaw) * cosf(*pitch);
             return;
         }
-        f32 piv[3] = { vh->pos[0], vh->pos[1] + vh->def->hover + vh->def->height * 0.7f, vh->pos[2] };
-        f32 want[3] = { sinf(y) * back, up - vh->def->height * 0.7f, cosf(y) * back }, wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]);
+        /* the game's ground vehicle camera (measured: harness RS_VIEW_LOG on Hoth's AT-ST and Boz Pity's T4B): the eye sits at
+         * (0, CameraBestY, CameraBestZ) in the vehicle's own frame - its slope pitch and roll included - less CameraVelocityWeight x
+         * the velocity (the T4B: 0.2 s of travel back at speed); walkers look at the ground CameraDistanceZ ahead (the AT-ST: 23.4
+         * degrees down), tanks look along the hull */
+        f32 cy = cosf(y), sy = sinf(y), cp = cosf(vh->pitch), sp = sinf(vh->pitch), cr = cosf(vh->roll), sr = sinf(vh->roll);
+        f32 fw[3] = { -sy * cp, sp, -cy * cp }, r0[3] = { cy, 0, -sy }, u0[3] = { r0[1] * fw[2] - r0[2] * fw[1], r0[2] * fw[0] - r0[0] * fw[2], r0[0] * fw[1] - r0[1] * fw[0] };
+        f32 up3[3]; for (int k = 0; k < 3; k++) up3[k] = u0[k] * cr - r0[k] * sr;
+        f32 best[3], mn[3], vw = vh->def->cam_vel_w;
+        for (int k = 0; k < 3; k++) { best[k] = up3[k] * up - fw[k] * back - vh->vel[k] * vw; mn[k] = up3[k] * vh->def->cam_min_y * dsc - fw[k] * vh->def->cam_min_z * dsc; }
+        /* blocked: drawn in toward (0, CameraMinY, CameraMinZ) [assumed: the Min pair's use is not traced] */
+        f32 piv[3] = { vh->pos[0] + mn[0], vh->pos[1] + mn[1], vh->pos[2] + mn[2] }, want[3] = { best[0] - mn[0], best[1] - mn[1], best[2] - mn[2] };
+        f32 wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]) + 1e-6f;
         f32 dir[3] = { want[0] / wl, want[1] / wl, want[2] / wl }, lim = wl; ak_col_hit h;
         if (ak_col_raycast(&p->col, piv, dir, wl, AK_COL_NOT_BODIES, &h)) lim = h.t - 0.4f;
-        if (lim < 1.0f) lim = 1.0f;
+        if (lim < 0.0f) lim = 0.0f;
+        if (p->cam_dist > wl) p->cam_dist = wl;
         if (lim < p->cam_dist) p->cam_dist += (lim - p->cam_dist) * fminf(1.0f, p->pull_in_rate * dt); else p->cam_dist += (lim - p->cam_dist) * fminf(1.0f, 2.0f * dt);
         if (p->cam_dist > lim) p->cam_dist = lim;
         f32 sc = p->cam_dist / wl;
         *eye = ak_v3_make(piv[0] + want[0] * sc, piv[1] + want[1] * sc, piv[2] + want[2] * sc);
-        /* look over the vehicle at a point ahead of it, so tall walkers (camera 13 m up on an AT-ST) still frame their body */
-        f32 fwd[3] = { -sinf(y), 0, -cosf(y) }, look[3] = { piv[0] + fwd[0] * 3.0f, piv[1] + 1.0f, piv[2] + fwd[2] * 3.0f };
-        f32 lx = look[0] - eye->x, ly = look[1] - eye->y, lz = look[2] - eye->z;
-        pt = atan2f(ly, sqrtf(lx * lx + lz * lz));
-        *yaw = y; *pitch = pt + vh->aim_pitch; *fovy = p->fov;
+        if (vh->def->kind == AK_VEH_WALKER) {
+            f32 look[3] = { vh->pos[0] + fw[0] * vh->def->cam_dz, vh->pos[1] + fw[1] * vh->def->cam_dz, vh->pos[2] + fw[2] * vh->def->cam_dz };
+            f32 lx = look[0] - eye->x, ly = look[1] - eye->y, lz = look[2] - eye->z;
+            *yaw = atan2f(-lx, -lz); pt = atan2f(ly, sqrtf(lx * lx + lz * lz));
+        } else { *yaw = y; pt = vh->pitch; }
+        *pitch = pt + vh->aim_pitch; *fovy = p->fov;
         p->aim_ok = true; p->eye[0] = eye->x; p->eye[1] = eye->y; p->eye[2] = eye->z;
         p->aim[0] = -sinf(*yaw) * cosf(*pitch); p->aim[1] = sinf(*pitch); p->aim[2] = -cosf(*yaw) * cosf(*pitch);
+        {   static u32 fr; if (ak_setting_int("AK_DEBUG_VEH_CAM", 0) && (fr++ % 30) == 0) {   /* tests: the eye against the vehicle */
+                f32 d[3] = { eye->x - vh->pos[0], eye->y - vh->pos[1], eye->z - vh->pos[2] };
+                AK_INFO("vcam", "%s: back %.2f up %.2f side %.2f, pitch %.2f deg, speed %.2f", vh->def->name, -(d[0] * fw[0] + d[1] * fw[1] + d[2] * fw[2]),
+                        d[0] * up3[0] + d[1] * up3[1] + d[2] * up3[2], d[0] * r0[0] + d[2] * r0[2], *pitch * 57.29578f, sqrtf(vh->vel[0] * vh->vel[0] + vh->vel[2] * vh->vel[2])); } }
         return;
     }
     int fb = ak_setting_int("AK_DEBUG_FOLLOW_BOT", 0);                       /* tests: watch bot N over its shoulder */

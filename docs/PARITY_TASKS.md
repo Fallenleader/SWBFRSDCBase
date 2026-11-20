@@ -579,6 +579,17 @@ textures and how they are used. Section R lists only what must be in place so th
     sides).  The modern camera's AK_FOV 55 is the owner's choice and stays.  A second projection (1.496 up: 67.5 degrees high)
     appears on the spawn screen.  Open: zoom, vehicles.
 - [ ] **9.2 Vehicle cameras [partial].** CameraVelocityWeight and the "Min" values.
+  - 2026-11-19: measured in the AT-ST (harness, RS_PROJ_LOG): the same projection as on foot (60 degrees across at 480 x 272,
+    near 0.25, no far plane), so vehicles share the soldier's field of view.
+  - 2026-11-20: the ground vehicle camera measured (harness RS_VIEW_LOG: each view matrix with its frame; Hoth's AT-ST, Boz Pity's
+    T4B; the game's world is y-down, so the view's "up" row reads negative). The eye is exactly (0, CameraBestY, CameraBestZ) in
+    the vehicle's frame, slope pitch and roll included (AT-ST 13 up / 10 back, T4B 6 / 16, to 0.01 m), less CameraVelocityWeight
+    x the velocity (T4B 0.2: 2.6 m further back at 13 m/s, 0.6 m nearer reversing at 3 m/s; walkers 0). The harness's object
+    state is one frame older than the view. The AT-ST looks at the ground CameraDistanceZ (20 m) ahead of the vehicle (23.4
+    degrees down in its frame); the T4B looks level along its hull. Yaw locked to the hull (within 1 degree).
+    Engine: play.c builds the eye this way (AK_DEBUG_VEH_CAM logs it). Still open: while turning the T4B's eye sits 1.5 m to
+    the side (0.115 x the speed, and it fades with the speed after the turn), CameraMinY / MinZ (Aurek pulls in toward them
+    when blocked [assumed]), the speeder bikes' CameraMaxYaw, and whether the tank's view follows its turret.
 - [ ] **9.3 Controls.** The PSP layout is traced. Twin-stick aiming (AK_AIM_*) is a modern option and stays as one, kept apart from
   the classic controls.
 

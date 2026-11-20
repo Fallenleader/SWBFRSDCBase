@@ -166,7 +166,11 @@ void rgu_set_matrix(u32 type, u32 m){                                 /* 0 proje
     if ((type & 3) == 0) for (int i = 0; i < 16; i++) o[i] = f24f(src[i]);
     if ((type & 3) == 0) { static int lg = -1; if (lg < 0) lg = getenv("RS_PROJ_LOG") != 0; static float last[16];   /* RS_PROJ_LOG: each new projection */
         if (lg && memcmp(last, src, 64)) { memcpy(last, src, 64); fprintf(stderr, "[PROJ]"); for (int i = 0; i < 16; i++) fprintf(stderr, " %.5f", src[i]); fprintf(stderr, "\n"); } }
-    else for (int r = 0; r < 4; r++) for (int c = 0; c < 3; c++) o[r * 3 + c] = f24f(src[r * 4 + c]); }
+    else for (int r = 0; r < 4; r++) for (int c = 0; c < 3; c++) o[r * 3 + c] = f24f(src[r * 4 + c]);
+    if ((type & 3) == 2) { static int fr = -2; if (fr == -2) fr = getenv("RS_MODEL_LOG") ? atoi(getenv("RS_MODEL_LOG")) : -1; extern volatile int g_frames;   /* RS_MODEL_LOG=frame: that frame's model matrices */
+        if (fr == g_frames) { fprintf(stderr, "[MODEL]"); for (int i = 0; i < 16; i++) fprintf(stderr, " %.4f", src[i]); fprintf(stderr, "\n"); } }
+    if ((type & 3) == 1) { static int lg = -1; if (lg < 0) lg = getenv("RS_VIEW_LOG") != 0; static float last[16];   /* RS_VIEW_LOG: each new view matrix */
+        if (lg && memcmp(last, src, 64)) { memcpy(last, src, 64); { extern volatile int g_frames; fprintf(stderr, "[VIEW] %d", g_frames); } for (int i = 0; i < 16; i++) fprintf(stderr, " %.4f", src[i]); fprintf(stderr, "\n"); } } }
 void rgu_bone_matrix(u32 index, u32 m){
     u32 *p = emit(OP_BONE, 12); opp(p)->a[0] = index & 7; float *o = (float *)(p + HDR_WORDS); const float *src = (const float *)GP(m);
     for (int r = 0; r < 4; r++) for (int c = 0; c < 3; c++) o[r * 3 + c] = f24f(src[r * 4 + c]); }
