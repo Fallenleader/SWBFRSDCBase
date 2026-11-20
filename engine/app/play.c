@@ -587,6 +587,19 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     if (ak_setting_int("AK_BOT_SENSE_EVERY", 0) <= 0 && p->nbots > 16) p->sense_every = (p->nbots + 15) / 16;   /* (performance) */
     vehicles_init(p, l, m, bp, a);
     p->nturret = 0; p->ntdef = 0; turrets_init(p, l, m, bp);
+    {   /* the battlefront's bounds: ENTI class 0x8021 records {1, 0, 0, x min, x max, y min, y max, z min, z max (game axes), flags};
+         * flags byte 1 = 0 is the box soldiers and their vehicles are held to (089D4BDC asks 08A145E4(0)); 1 is the AI pilots' (089477A8) */
+        ak_chunk c; u32 pos = 8; p->have_oob = false;
+        while (!p->have_oob && ak_asura_next(&l->file, &pos, &c)) {
+            if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 48) continue;
+            const u8 *b = c.body; if ((ak_rd32(b + 4) & 0xFFFF) != 0x8021 || b[45] != 0) continue;
+            f32 v[6]; for (int k = 0; k < 6; k++) v[k] = ak_rdf32(b + 20 + 4 * k);
+            if (!(v[1] > v[0] && v[3] > v[2] && v[5] > v[4])) continue;
+            p->oob_min[0] = v[0]; p->oob_max[0] = v[1]; p->oob_min[1] = -v[3]; p->oob_max[1] = -v[2]; p->oob_min[2] = -v[5]; p->oob_max[2] = -v[4];
+            p->have_oob = true;
+        }
+        p->oob_out = false; p->oob_msg_t = 0;
+    }
     {   const char *tp = ak_setting_str("AK_TEST_START", NULL); f32 g[4];   /* tests: "x,y,z,yaw" in game axes (the harness's) */
         if (tp && sscanf(tp, "%f,%f,%f,%f", &g[0], &g[1], &g[2], &g[3]) == 4) { f32 q[3]; ak_from_game(g, q); ak_char_spawn(&p->ch, q, g[3]); } }
     {   int tt = ak_setting_int("AK_TEST_AT_TURRET", 0);                    /* tests: start beside turret N */
@@ -2224,6 +2237,23 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         } }
     if (!p->alive) { p->ch.vel[0] = p->ch.vel[2] = 0; ci.root = false; }    /* PARITY(6.3): a body stops where it falls (measured: no slide), gravity stays on (08993D38) */
     ak_char_update(&p->ch, use, &p->col, &ci, dt);
+    if (p->have_oob && p->alive) {
+        /* leaving the battlefront (089D4BDC, every frame): inside the box - nothing; outside it but within it grown by 500 m across
+         * and 340 m up and down (and within +-3940 / +-940 of the origin) - the local player gets message 0x804A: STDTEXT 72 "You
+         * are leaving the battlefront!" in the centre box (style 3) while it lasts, and the narrator's Speech_BN_Return once a
+         * spell (08A09928); beyond that - a damage message of 1.0 every frame. */
+        const f32 *q = p->in_veh >= 0 ? p->veh[p->in_veh].pos : p->ch.pos;
+        bool in = true, near = true;
+        for (int k = 0; k < 3; k++) {
+            f32 grow = k == 1 ? 340.0f : 500.0f, lim = k == 1 ? 940.0f : 3940.0f;
+            if (q[k] < p->oob_min[k] || q[k] > p->oob_max[k]) in = false;
+            if (q[k] < p->oob_min[k] - grow || q[k] > p->oob_max[k] + grow || q[k] < -lim || q[k] > lim) near = false;
+        }
+        p->oob_out = !in;
+        if (!in && near) { if ((p->oob_msg_t -= dt) <= 0) { ak_hud_message(3, 72, NULL, 0); p->oob_msg_t = 3.0f; } }
+        else p->oob_msg_t = 0;
+        if (!in && !near) { if (p->in_veh >= 0) p->target[VT(p, p->in_veh)].health -= 60.0f * dt; else ak_play_damage(p, 60.0f * dt); }   /* [PARITY(1.x): 1.0 a frame at 60 Hz] */
+    }
     {   /* tests against the original: AK_TEST_TRACE = a file - the player's position in game axes every 10 frames */
         static FILE *tf; static int tinit; static u32 tfr;
         if (!tinit) { tinit = 1; const char *tp = ak_setting_str("AK_TEST_TRACE", NULL); if (tp) tf = fopen(tp, "w"); }

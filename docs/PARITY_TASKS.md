@@ -557,6 +557,13 @@ textures and how they are used. Section R lists only what must be in place so th
     threshold (vfunc +0x1F0); above it the vehicle takes damage (message 0x8001: +0x34 x speed x dt x vfunc +500) and plays its
     blueprint's "Collision sound" event at its position, volume 1.0, stopping the previous one first (089CD7C4; also on message
     0x805C).  Aurek's ground vehicles have no collision damage yet, so the sound waits for that.
+- [x] **1.16 Leaving the battlefront [traced 2026-11-20].** 089D4BDC, every frame, against the bounds object 08A145E4(0): ENTI
+  class 0x8021 records {1, 0, 0, x min, x max, y min, y max, z min, z max, flags} (Hoth: x -217..249, y -20.9..19.5, z
+  -64.7..181.1, game axes); flags byte 1 picks the box (0: soldiers and what they drive; 1: the AI pilots', 089477A8 /
+  0894B7D8). Inside - nothing. Outside but within the box grown by 500 m (x, z) and 340 m (y), and within +-3940 / +-940 of
+  the origin - message 0x804A to the local player: STDTEXT 72 "You are leaving the battlefront!" in the centre box (style 3)
+  while it lasts and Speech_BN_Return once a spell (08A09928). Beyond - a damage message of 1.0 each frame. Engine: play.c
+  reads the box and does the same (the damage as 60 a second [assumed: 1.0 a frame at 60 Hz]).
 - [ ] **7.3 Speech [partial].** Trigger rules for every line category.
   - 2026-11-20: every Speech_* key's trigger found by its h31 hash in the code (the message 0x807F sender 089E3D2C, the
     narrator's 08A66150 / 08A6606C):

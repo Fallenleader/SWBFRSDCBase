@@ -186,6 +186,9 @@ static void speech_update(ak_play *p, f32 dt)
         else if (p->ctf.events & AK_CTF_EV_PICKUP) narrate(p, ours ? "Speech_CTF_Gain_Flag" : "Speech_CTF_Enemy_Flag");
         else if ((p->ctf.events & AK_CTF_EV_DROP) && ours) narrate(p, "Speech_CTF_Dropped_Flag");
     }
+    /* leaving the battlefront: Speech_BN_Return once a spell (08A09928, flag +40) */
+    if (p->oob_out && !p->snd.said_return) { narrate(p, "Speech_BN_Return"); p->snd.said_return = true; }
+    if (!p->oob_out) p->snd.said_return = false;
     /* kills: an AI killer of an enemy speaks */
     for (u32 u = 0; u < n; u++) {
         const ak_target *t = &p->target[u];

@@ -162,6 +162,7 @@ typedef struct {
     f32 sense_mult; u32 sense_every, frame_no;   /* the bots' sight: range multiplier, run every n frames (1: every frame) */
     ak_conquest_map cq; bool have_cq; int team;   /* command posts; the soldier's team (0 = team 1) */
     ak_cq_rules rules; ak_conquest match; int team_faction[2];
+    f32 oob_min[3], oob_max[3]; bool have_oob, oob_out; f32 oob_msg_t;   /* the battlefront's bounds (ENTI 0x8021, 089D4BDC): outside - the warning */
     ak_ctf_map ctf_map; ak_ctf ctf; bool have_ctf; s32 flag_model[AK_CTF_MAX], flag_clip[2];   /* flag_clip: flag_Flapping, flag_Flapping_Backattch */   /* capture the flag (AK_MODE CTF1 / CTF2 / HCTF) */
     f32 health, max_health, dead_t; bool alive;
     f32 scale;                         /* soldiers' size relative to the world (AK_SOLDIER_SCALE) */
@@ -174,7 +175,7 @@ typedef struct {
         u32 impacts; int post_owner[AK_MAX_POSTS]; int winner; bool hero;
         const char *music_req;                               /* a MMUS list the viewer should start ("VICTORY" / "FAIL") */
         f32 hp[129], hit_t[129]; s32 enemy[129]; u32 voice[129];   /* speech: last health, the hit line's 3 s wait, last enemy, the line playing */
-        u32 narr, chat; bool dipped; const char *sub; f32 sub_t; bool said_reinf, said_end;   /* narration: the line playing, its subtitle and time left */
+        u32 narr, chat; bool dipped; const char *sub; f32 sub_t; bool said_return, said_reinf, said_end;   /* narration: the line playing, its subtitle and time left */
         u32 rng;
     } snd;
 } ak_play;
