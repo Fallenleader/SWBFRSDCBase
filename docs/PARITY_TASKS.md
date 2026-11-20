@@ -698,7 +698,10 @@ groundwork below is needed before the parity work starts. The tiers come later.
 
 ### Groundwork before any PBR code
 
-- [ ] **R.9 A "Classic" mode.** It reproduces the PSP output: unlit texture × vertex colour, the game's fog, the game's blending. It
+- [ ] **R.9 A "Classic" mode [partial].** 2026-11-20: `AK_CLASSIC=1` takes the game's fog distances (AK_FOG 100) and drops Aurek's
+  command post glow; with R.1 the level is texture x vertex colour x 2 and models are lit from GISN as the GE does, and the
+  game's blending is kept. Still Aurek's: the LOD distances (R.5), effects (R.6).
+  Original text: It reproduces the PSP output: unlit texture × vertex colour, the game's fog, the game's blending. It
   is the reference for parity screenshots, and each PBR tier can be compared against it.
 - [ ] **R.10 Back-end interface rework.**
   - Today: fixed pipes with one MVP matrix.

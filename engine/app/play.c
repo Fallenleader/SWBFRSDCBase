@@ -2744,7 +2744,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
                (DAT_08C2B860 / 870 / 880, read in the running original) - on the cone and the logo alike */
             static const f32 tc[3][4] = { { 0.314f, 0.424f, 0.702f, 1 }, { 0.702f, 0.184f, 0.184f, 1 }, { 1.0f, 1.0f, 1.0f, 1 } };   /* ours, theirs, neutral */
             int side = ps->owner < 2 ? (ps->owner == p->team ? 0 : 1) : 2;
-            static f32 glow = -1; if (glow < 0) glow = ak_setting_float("AK_POST_GLOW", 0.75f);   /* the light's strength: 0 unlit .. 1 full */   /* PARITY(R.6) */
+            static f32 glow = -1; if (glow < 0) glow = ak_setting_float("AK_POST_GLOW", ak_setting_int("AK_CLASSIC", 0) ? 0.0f : 0.75f);   /* the light's strength: 0 unlit .. 1 full */   /* PARITY(R.6) */
             f32 col[4]; for (int c = 0; c < 4; c++) col[c] = tc[side][c] * (c < 3 ? glow : 1.0f);
             const f32 *pp = p->cq.post[i].pos;
             ak_gfx_set_tint(col);

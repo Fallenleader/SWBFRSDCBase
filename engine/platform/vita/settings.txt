@@ -45,6 +45,11 @@ AK_FAR=8000
 # vertex colour scale: the game's baked vertex colours use 128 = full brightness, so 2 is the game's look
 AK_COLOUR_SCALE=2.0
 # distance fog in metres (end <= start: none)
+# the PSP game's own picture (1): its fog distances, no command post glow, models lit only by the level's light samples
+#   (AK_FOG / AK_POST_GLOW still override); 0 = Aurek's defaults
+AK_CLASSIC=0
+# object lighting from the level's light samples (the game's, GISN): 1 on, 0 flat
+AK_LIGHT=1
 # the level's own fog, percent (as the PSP port's RS_FOG): 100 the game's distances, 25 farther; AK_FOG_START / AK_FOG_END override
 AK_FOG=25
 AK_FOG_START=0
