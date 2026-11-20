@@ -36,6 +36,7 @@ typedef struct {
 typedef struct { ak_proj p[AK_MAX_PROJ]; u32 fired, hits; } ak_projs;
 
 /* a Projectile blueprint by name */
+bool ak_proj_quiet_kind(const char *name);   /* see ak_projectile.c */
 bool ak_proj_def_load(const ak_blueprints *bp, const char *name, ak_proj_def *out);
 bool ak_secondary_load(const ak_blueprints *bp, const char *hardpoint, ak_secondary *out);
 /* launch from `pos` along `dir` (unit), adding the firer's velocity where the projectile says so; target -1 = unguided */

@@ -58,6 +58,7 @@ typedef struct {
     bool alive, vehicle;
     int team;                          /* shots of the same team pass through (friendly fire off, the game's default) */
     s32 last_attacker;                 /* the owner of the last shot that hurt it (-1 none) */
+    bool last_quiet;                   /* that hurt came from a kind the soldiers' Sniper / Friendly calls ignore (func 089E22BC's list) */
     u32 hits, headshots;
     f32 last_hit_dir[3];
 } ak_target;

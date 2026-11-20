@@ -4,6 +4,18 @@
 #include "game/ak_projectile.h"
 #include "core/ak_settings.h"
 
+/* the damage kinds a soldier's Sniper and Friendly calls ignore (func 089E22BC compares the damage's kind hash with these):
+ * guided and remote missiles, launched grenades, det packs, mines, proton bombs and torpedoes, self-destructing rockets, the
+ * thrown saber, the force powers and a few others that are not projectiles */
+bool ak_proj_quiet_kind(const char *name)
+{
+    static const char *k[] = { "Guided_Missile", "Launched_Grenade_OnImpact", "Det_Pack", "Proton_Bomb", "Proximity_Mine",
+                               "Remote_Rocket", "SelfDestruct_Rocket", "Proton Torpedo", "Fusion Cutter", "Lightsaber_Thrown", "Attachment" };
+    if (!name) return false;
+    for (u32 i = 0; i < sizeof k / sizeof k[0]; i++) { const char *a = k[i], *b = name; while (*a && *b && (*a | 32) == (*b | 32)) { a++; b++; } if (!*a && !*b) return true; }
+    return false;
+}
+
 static bool proj_def(const ak_blueprints *bp, const char *name, ak_proj_def *d)
 {
     memset(d, 0, sizeof *d);
@@ -84,7 +96,7 @@ static void explode(ak_projs *ps, ak_proj *p, ak_target *tg, u32 nt, void (*boom
         f32 k = 1.0f - (dist / r) * (dist / r);
         f32 dmg = (t->vehicle ? d->dmg_vehicle : d->dmg_infantry) * k * p->dmg_scale;
         if (dmg <= 0) continue;
-        t->health -= dmg; t->hits++; t->last_attacker = p->owner; ps->hits++;
+        t->health -= dmg; t->hits++; t->last_attacker = p->owner; t->last_quiet = ak_proj_quiet_kind(d->name); ps->hits++;
         if (t->health <= 0) { t->health = 0; t->alive = false; }
     }
     if (boom) boom(ctx, p->pos, d->radius);

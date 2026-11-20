@@ -968,7 +968,7 @@ static void saber_strike(ak_play *p, s32 unit, ak_weapon *w, const f32 *pos, f32
         if (!t->alive || (s32)i == unit || t->team == p->target[unit].team) continue;
         f32 dx = t->feet[0] - pos[0], dz = t->feet[2] - pos[2], d = sqrtf(dx * dx + dz * dz), r = reach + (t->vehicle ? t->radius : 0.3f);
         if (d > r || fabsf(t->feet[1] - pos[1]) > 2.0f || (d > 0.3f && (dx * fx + dz * fz) / d < 0.25f)) continue;
-        t->health -= t->vehicle ? w->def->dmg_vehicle : w->def->dmg_infantry; t->last_attacker = unit; t->hits++;   /* (falls in the frame's count) */
+        t->health -= t->vehicle ? w->def->dmg_vehicle : w->def->dmg_infantry; t->last_attacker = unit; t->last_quiet = false; t->hits++;   /* (falls in the frame's count) */
     }
 }
 

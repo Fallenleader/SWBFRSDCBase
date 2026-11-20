@@ -558,6 +558,25 @@ textures and how they are used. Section R lists only what must be in place so th
     blueprint's "Collision sound" event at its position, volume 1.0, stopping the previous one first (089CD7C4; also on message
     0x805C).  Aurek's ground vehicles have no collision damage yet, so the sound waits for that.
 - [ ] **7.3 Speech [partial].** Trigger rules for every line category.
+  - 2026-11-20: every Speech_* key's trigger found by its h31 hash in the code (the message 0x807F sender 089E3D2C, the
+    narrator's 08A66150 / 08A6606C):
+    - Hit handler 089E22BC, nothing unless the attacker still exists: an enemy shot from over sqrt(2000) = 44.7 m (constant
+      0x08AEF20C) - BC_Sniper; hurt by its own side - BC_Friendly; both only while alive and not for the kinds in its list
+      (Guided_Missile, Launched_Grenade_OnImpact, Det_Pack, Proton_Bomb, Proximity_Mine, Remote_Rocket, SelfDestruct_Rocket,
+      Proton Torpedo, Fusion Cutter, Lightsaber_Thrown, Attachment, Force_Push / Pull, Rage, Stamina, PersonalShield);
+      otherwise BC_Hit's rule. Each sets the 3 s quiet.
+    - BC_Grenade / BC_Rocket (089395E4, the AI's firing): when an AI fires a weapon whose kind is "Grenade" / "Rocket", once
+      until it stops firing.
+    - BC_OnTarget (hero blueprints, read by 089E3E38: "IMP_BC_Hero_Chewbacca"...): an AI picking a new target (0894854C)
+      says the target's line.
+    - CTF (089F79A0, 089F7B4C, 089EF7C8): pickup - the carrier's side Gain_Flag, the other Enemy_Flag; capture - Score /
+      Enemy_Score; drop - the carrier's side alone Dropped_Flag.
+    - BN_Return (08A09928, message 0x804A): with STDTEXT's "You are leaving the battlefront! / Return to the battle now!",
+      once per warning - the out-of-bounds warning, which Aurek does not have yet.
+    - A line 0x529BB384 (0893254C, to a random squad member) has no blueprint key, so it never plays. BC_Withdraw, Flanking
+      and Defence are not referenced by code.
+    Engine: Sniper, Friendly, OnTarget and the CTF lines are built (ak_target.last_quiet marks the listed kinds). Not built:
+    Grenade / Rocket (Aurek's AI fires only its blaster) and Return (no out-of-bounds yet).
 
 ## 8. HUD and front end
 

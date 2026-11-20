@@ -108,7 +108,7 @@ static s32 ray_targets(ak_target *tg, u32 n, const f32 *o, const f32 *d, f32 max
 
 static void hurt(ak_target *T, f32 dmg_inf, f32 dmg_veh, bool head, bool allow_head, const f32 *dir, s32 owner)
 {
-    T->last_attacker = owner;
+    T->last_attacker = owner; T->last_quiet = false;
     f32 d = T->vehicle ? dmg_veh : dmg_inf;
     if (head && allow_head && !T->vehicle) { d *= T->headshot_mult; T->headshots++; }
     T->health -= d; T->hits++;

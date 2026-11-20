@@ -22,7 +22,8 @@
  *   chatter, AI soldiers only, positional (message 0x807F to the speaker): Speech_BC_Hit when hurt (func 089E22BC: a hit taking
  *     over 40% of its health always, a smaller one only below half health and then one time in two; then 3 s quiet),
  *     Speech_BC_Killed when it kills an enemy (func 089E28B4, one time in two), Speech_BC_Attack when it takes on an enemy
- *     (func 0893254C, one time in two). */
+ *     (func 0893254C, one time in two); Speech_BC_Sniper / _Friendly instead of Hit for an enemy beyond 44.7 m / its own side
+ *     (089E22BC); the new target's Speech_BC_OnTarget (0894854C); the CTF lines (see speech_update). */
 #include "play.h"
 #include "audio/ak_audio.h"
 #include "audio/ak_speech.h"
@@ -101,15 +102,21 @@ static void narrate(ak_play *p, const char *key)
     if (p->snd.narr || sub) { p->snd.sub = sub; p->snd.sub_t = secs > 0 ? secs + 0.5f : 3.0f; }
 }
 
+static void chatter_event(ak_play *p, u32 unit, const char *ev);
 static void chatter(ak_play *p, u32 unit, const char *key)
 {
     if (unit == 0 || unit > p->nbots || unit >= 129) return;                      /* (AI soldiers only) */
+    ak_play_bot *b = &p->bot[unit - 1];
+    chatter_event(p, unit, b->look.bp ? ak_bp_string(b->look.bp, key, NULL) : NULL);
+}
+static void chatter_event(ak_play *p, u32 unit, const char *ev)
+{
+    if (unit == 0 || unit > p->nbots || unit >= 129) return;
     ak_play_bot *b = &p->bot[unit - 1];
     /* the game's chatter player (func 08A65690): one AI line at a time in the whole level, none while any speech is playing,
      * and each event's own chance (its DLEV percent) */
     if (!b->alive || (p->snd.chat && ak_audio_playing(p->snd.chat)) || (p->snd.narr && ak_audio_playing(p->snd.narr))) return;
     f32 dx = b->ch.pos[0] - p->eye[0], dz = b->ch.pos[2] - p->eye[2]; if (dx * dx + dz * dz > 50.0f * 50.0f) return;
-    const char *ev = b->look.bp ? ak_bp_string(b->look.bp, key, NULL) : NULL;
     if (!ev || !*ev) return;
     u32 ch = ak_speech_chance(ev);
     if (ch != 100) { p->snd.rng = p->snd.rng * 1664525u + 1013904223u; if ((p->snd.rng >> 1) % 100 + 1 > ch) return; }
@@ -148,13 +155,36 @@ static void speech_update(ak_play *p, f32 dt)
         if (p->snd.hit_t[u] > 0) p->snd.hit_t[u] -= dt;
         f32 maxh = b->look.bp ? ak_bp_float(b->look.bp, "Health", 100.0f) : 100.0f;
         f32 dmg = p->snd.hp[u] - t->health;
-        if (p->snd.hp[u] < 1e8f && t->alive && dmg > 0.01f && p->snd.hit_t[u] <= 0 && maxh > 0) {
-            bool say = dmg / maxh > 0.4f || (t->health / maxh < 0.5f && coin(p));
-            if (say) { chatter(p, u, "Speech_BC_Hit"); p->snd.hit_t[u] = 3.0f; }
+        if (p->snd.hp[u] < 1e8f && t->alive && dmg > 0.01f && p->snd.hit_t[u] <= 0 && maxh > 0 && t->last_attacker >= 0 && (u32)t->last_attacker < 1 + p->nbots + p->nveh + p->nturret) {
+            /* func 089E22BC (the attacker must still exist): shot from over sqrt(2000) = 44.7 m away by an enemy - Sniper; hurt
+             * by its own side - Friendly (both alive, and not by the kinds in ak_proj_quiet_kind); otherwise Hit's rule */
+            const ak_target *a = &p->target[t->last_attacker];
+            f32 dx = a->feet[0] - t->feet[0], dy = a->feet[1] - t->feet[1], dz = a->feet[2] - t->feet[2];
+            bool friendly = a->team == t->team, counts = !t->last_quiet;
+            const char *say = NULL;
+            if (counts && !friendly && dx * dx + dy * dy + dz * dz > 2000.0f) say = "Speech_BC_Sniper";
+            else if (counts && friendly) say = "Speech_BC_Friendly";
+            else if (dmg / maxh > 0.4f || (t->health / maxh < 0.5f && coin(p))) say = "Speech_BC_Hit";
+            if (say) { chatter(p, u, say); p->snd.hit_t[u] = 3.0f; }
         }
         if (b->alive && b->enemy >= 0 && p->snd.enemy[u] < 0 && coin(p)) chatter(p, u, "Speech_BC_Attack");
+        /* a new target with its own call (func 0894854C: the target's Speech_BC_OnTarget - heroes: "IMP_BC_Hero_Chewbacca"...) */
+        if (b->alive && b->enemy >= 0 && b->enemy != p->snd.enemy[u] && (u32)b->enemy < 1 + p->nbots) {
+            const ak_bp_object *tb = b->enemy == 0 ? p->look.bp : p->bot[b->enemy - 1].look.bp;
+            const char *ev = tb ? ak_bp_string(tb, "Speech_BC_OnTarget", NULL) : NULL;
+            if (ev && *ev) chatter_event(p, u, ev);
+        }
         p->snd.enemy[u] = b->alive ? b->enemy : -1;
         p->snd.hp[u] = t->health;
+    }
+    /* capture the flag (funcs 089F79A0, 089F7B4C, 089EF7C8 -> 08A66150, one line per side): a pickup - the carrier's side hears
+     * Speech_CTF_Gain_Flag, the other Speech_CTF_Enemy_Flag; a capture - Speech_CTF_Score / Speech_CTF_Enemy_Score; a drop - the
+     * carrier's side alone hears Speech_CTF_Dropped_Flag */
+    if (p->have_ctf && p->ctf.events) {
+        bool ours = p->ctf.last_side == p->team;
+        if (p->ctf.events & AK_CTF_EV_CAPTURE) narrate(p, ours ? "Speech_CTF_Score" : "Speech_CTF_Enemy_Score");
+        else if (p->ctf.events & AK_CTF_EV_PICKUP) narrate(p, ours ? "Speech_CTF_Gain_Flag" : "Speech_CTF_Enemy_Flag");
+        else if ((p->ctf.events & AK_CTF_EV_DROP) && ours) narrate(p, "Speech_CTF_Dropped_Flag");
     }
     /* kills: an AI killer of an enemy speaks */
     for (u32 u = 0; u < n; u++) {
