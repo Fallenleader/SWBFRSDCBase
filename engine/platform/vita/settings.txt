@@ -93,8 +93,8 @@ AK_SPEED_LEVEL=1
 AK_BOTS=63
 # bot aim error in degrees (bigger = worse shots); unset = the game's own (Weapon "AIWeapon_Accuracy_Normal": 5)
 #AK_BOT_AIM=5.0
-# 1 = bots' weapons carry the game's bot modifiers (Weapon "Modifier_Bot_Damage": 0.3 x the damage, "Modifier_Bot_RateOfFire":
-# 3 x the time between shots; vehicle guns their own hardpoint's); 0 = bots shoot like the player
+# 1 = the game's bot damage modifier (Weapon "Modifier_Bot_Damage": 0.3 x the damage of a bot's hit on you - bots hit each other
+# for the full damage; vehicle guns their own hardpoint's); 0 = bots hit you as hard as each other
 AK_BOT_GAME_MODIFIERS=1
 # heroes (1 = on): minutes before a side's hero is offered (the game's BFF.HeroUnlockTime, default 3; again after each hero falls)
 AK_HEROES=1

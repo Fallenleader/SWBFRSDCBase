@@ -360,9 +360,9 @@ static void ai_weapons_load(ak_play *p, const ak_blueprints *bp, const ak_model_
         p->ai_armed[t][k] = k < 9 && names[k] && ak_weapon_def_load(bp, m, names[k], -99, &p->ai_wdef[t][k]);   /* (already the faction's own: no child taken) */
         if (!p->ai_armed[t][k]) continue;
         ak_weapon_def *d = &p->ai_wdef[t][k];                        /* in a bot's hands: the game's bot modifiers */
-        f32 md = ak_bp_float(d->bp, "Modifier_Bot_Damage", 1), mr = ak_bp_float(d->bp, "Modifier_Bot_RateOfFire", 1);
-        if (!ak_setting_int("AK_BOT_GAME_MODIFIERS", 1)) md = mr = 1;
-        d->dmg_infantry *= md; d->dmg_vehicle *= md; d->rate_of_fire *= mr;
+        f32 md = ak_bp_float(d->bp, "Modifier_Bot_Damage", 1);
+        if (!ak_setting_int("AK_BOT_GAME_MODIFIERS", 1)) md = 1;
+        d->bot_dmg = md;
     }
     {   char line[160] = ""; for (int k = 2; k < 9; k++) if (p->ai_armed[t][k]) { strncat(line, " ", sizeof line - strlen(line) - 1); strncat(line, p->ai_wdef[t][k].name, sizeof line - strlen(line) - 1); }
         AK_INFO("play", "side %d AI weapons:%s", t, line); }
@@ -699,14 +699,15 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         for (int t = 0; t < 2; t++) {
             team_classes(p, bp, m, t);
             p->team_armed[t] = ak_weapon_def_load(bp, m, ak_setting_str("AK_BOT_WEAPON", "BlasterRifle"), p->team_faction[t], &p->team_wdef[t]);   /* PARITY(2.1): the bots' classes' weapons */
-            /* in a bot's hands (the game's Weapon blueprint): Modifier_Bot_Damage scales the damage, Modifier_Bot_RateOfFire the time
-             * between shots (RateOfFire is a time) - the rifles inherit Weapon "Base": 0.3 and 3 */
+            /* in a bot's hands (traced, 089E1FDC): Modifier_Bot_Damage (the rifles inherit Weapon "Base": 0.3) scales an AI's damage to
+             * the local player only - bots hit each other for the full damage (harness: 15 a rifle bolt between soldiers) - and
+             * Modifier_Bot_RateOfFire does not slow them (harness: an AI rifle's hits 18 frames apart, its RateOfFire 0.3 s) */
             ai_weapons_load(p, bp, m, t);
             p->team_bdef[t] = p->team_wdef[t];
             if (p->team_armed[t] && p->team_wdef[t].bp) {
-                f32 md = ak_bp_float(p->team_wdef[t].bp, "Modifier_Bot_Damage", 1), mr = ak_bp_float(p->team_wdef[t].bp, "Modifier_Bot_RateOfFire", 1);
-                if (!ak_setting_int("AK_BOT_GAME_MODIFIERS", 1)) md = mr = 1;
-                p->team_bdef[t].dmg_infantry *= md; p->team_bdef[t].dmg_vehicle *= md; p->team_bdef[t].rate_of_fire *= mr;
+                f32 md = ak_bp_float(p->team_wdef[t].bp, "Modifier_Bot_Damage", 1);
+                if (!ak_setting_int("AK_BOT_GAME_MODIFIERS", 1)) md = 1;
+                p->team_bdef[t].bot_dmg = md;
             }
         }
         p->bot = AK_NEW(a, ak_play_bot, want);
@@ -1058,8 +1059,8 @@ static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set 
         }
         h->bdef = h->wdef;
         if (h->armed && h->wdef.bp && ak_setting_int("AK_BOT_GAME_MODIFIERS", 1)) {
-            f32 md = ak_bp_float(h->wdef.bp, "Modifier_Bot_Damage", 1), mr = ak_bp_float(h->wdef.bp, "Modifier_Bot_RateOfFire", 1);
-            h->bdef.dmg_infantry *= md; h->bdef.dmg_vehicle *= md; if (!h->saber) h->bdef.rate_of_fire *= mr;
+            f32 md = ak_bp_float(h->wdef.bp, "Modifier_Bot_Damage", 1);
+            h->bdef.bot_dmg = md;
         }
         /* its animation table (traced data: the level's ATEX for the blueprint's Animtable): rows 0 idle, 3 run, 4 run back, 5 / 6
            strafe, 8 jump, 13 land, 16 fall; 17-19 the attack combo */
@@ -2899,6 +2900,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     for (u32 i = 0; i < nt; i++) alive_before[i] = p->target[i].alive;
     heroes_drain(p, dt);
     for (u32 i = 0; i < nt; i++) if (p->target[i].alive && p->target[i].health <= 0 && alive_before[i]) { p->target[i].health = 0; p->target[i].alive = false; }   /* saber strokes */
+    for (u32 k = 0; k < NT(p); k++)                                           /* the local player's targets (089E3BD4) */
+        p->target[k].local = k == 0 || (k >= NS(p) && k < NV(p) && p->veh[k - NS(p)].driver == 0) || (k >= NV(p) && p->in_turret == (s32)(k - NV(p)));
     ak_bolts_update(&p->bolts, &p->col, p->target, nt, dt);
     if (p->pfx) {                                                             /* the shots' muzzle flashes and the impacts' effects (R.6) */
         u32 ns = p->bolts.shots - p->pfx_shots; if (ns > AK_MAX_SHOT_FX) ns = AK_MAX_SHOT_FX;

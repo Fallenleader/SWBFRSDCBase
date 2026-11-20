@@ -334,6 +334,15 @@ textures and how they are used. Section R lists only what must be in place so th
         - 119 an EMP launcher (BFF_Muz_EMP_Gun_Flash_E), 126 the rocket launcher, 127 the slot-6 grenade.
       - So: within 8.5 m the flamethrower, within 12.5 m the shotgun, then the chaingun, rifle, pistol; against vehicles the
         rocket launcher, then the EMP launcher.  Ported 2026-11-20 with 2.1's AI loadouts (play.c ai_weapon_choice).
+  - 2026-11-20, **the bot modifiers, traced** (089E1FDC, the damage applier): when the attacker is an AI (+194 / +195 clear)
+    the damage is multiplied by the victim's +128, and - only when the victim is the local player (089E3BD4) - by the
+    weapon's Modifier_Bot_Damage (a map built by 08A24EA0, read by 08A24E1C) and at the elite difficulty by a global from a
+    blueprint (hash 0x311D4DBF, default 1.0; D_08B1BDE8). Checked in the harness (Hoth, ~110 s): bot rifles hit bots for 15
+    (the full damage) and an AI rifle's hits came 18 frames apart (its RateOfFire 0.3 s - no x3 from
+    Modifier_Bot_RateOfFire). Aurek applied both to every bot shot; now Modifier_Bot_Damage only on hits on the local player
+    (its soldier, vehicle or turret: ak_target.local), and Modifier_Bot_RateOfFire not at all. Hoth 120 s: 16 tickets lost
+    (6 before; the original: 13 soldier deaths in ~110 s). [ ] The victim's +128, the elite global's key, where
+    Modifier_Bot_RateOfFire (the AI record +32) is read.
   - Traced so far: 08A24438 reads each weapon's AIWeapon_Accuracy_Normal (+24), AIWeapon_Accuracy_Elite (+28) and
     Modifier_Bot_RateOfFire (+32) into an AI weapon record, each clamped to 0..5 (0x08AEF9CC). Who reads them (the aim error)
     is not found yet. Bolts are not registry objects, so the harness cannot count AI shots directly; hits on the player can be.
