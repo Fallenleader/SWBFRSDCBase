@@ -254,6 +254,15 @@ static void spawn(ak_pfx_world *w, ak_pfx_emitter *m, u32 ei)
     f32 cr[3] = { u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0] };
     f32 lv[3]; for (int k = 0; k < 3; k++) lv[k] = 2 * uv * u[k] + (ww * ww - uu) * v[k] + 2 * ww * cr[k];
     for (int r = 0; r < 3; r++) p->vel[r] = R[r * 3] * lv[0] + R[r * 3 + 1] * lv[1] + R[r * 3 + 2] * lv[2];
+    if (y->flags & 0x200) {                                           /* the spawn's turn kept for the draw: its x and y axes in the world */
+        for (int ax = 0; ax < 2; ax++) {
+            f32 bv[3] = { ax == 0, ax == 1, 0 }, ub = u[0] * bv[0] + u[1] * bv[1] + u[2] * bv[2];
+            f32 cb[3] = { u[1] * bv[2] - u[2] * bv[1], u[2] * bv[0] - u[0] * bv[2], u[0] * bv[1] - u[1] * bv[0] }, lb[3];
+            for (int k = 0; k < 3; k++) lb[k] = 2 * ub * u[k] + (ww * ww - uu) * bv[k] + 2 * ww * cb[k];
+            f32 *o = ax ? p->oy : p->ox;
+            for (int r = 0; r < 3; r++) o[r] = R[r * 3] * lb[0] + R[r * 3 + 1] * lb[1] + R[r * 3 + 2] * lb[2];
+        }
+    }
     if (s->flags & 0x1000) for (int k = 0; k < 3; k++) p->vel[k] += in->vel[k] * s->inherit;
     p->rnd = rnd(w); p->turn0 = rnd(w);
     p->life = y->life; if ((y->flags & 0x20000) && y->life_spread > 0) p->life += p->rnd * y->life_spread;
@@ -330,8 +339,21 @@ static u32 particle_quad(const ak_pfx_world *w, const ak_pfx_particle *p, const 
         ang = (p->turn0 + sp) * 6.2831853f;
     }
     f32 ca = cosf(ang) * hw, sa = sinf(ang) * hw;
-    f32 ax[3], ay[3];
-    for (int k = 0; k < 3; k++) { ax[k] = right[k] * ca + up[k] * sa; ay[k] = -right[k] * sa + up[k] * ca; }
+    f32 ax[3], ay[3], rr[3], uu[3];
+    memcpy(rr, right, 12); memcpy(uu, up, 12);
+    if ((y->flags & 0x200) && !(y->flags & 0x7000)) {
+        /* flags 0x200: a fixed quad turned as the particle was launched, not facing the camera (measured: Explosion_medium's
+           particles keep one random 3-D orientation for life) - [assumed] the spawn's turn of the x and y axes */
+        for (int k = 0; k < 3; k++) { f32 s = k ? -1.0f : 1.0f; rr[k] = p->ox[k] * s; uu[k] = p->oy[k] * s; }
+    } else if (y->flags & 0x7000) {
+        /* flags 0x1000 / 0x2000 / 0x4000 (0891589C takes another path for each when the emitter has a frame): drawn in a plane of
+           the emitter's frame instead of facing the camera - [assumed] the plane across its x, y or z axis (0x2000: the explosions'
+           rings, flat on the ground; 0x4000: the shield impacts, facing the hit) */
+        f32 R[9], o[3]; emitter_frame(&w->fx[w->em[p->em].effect], w->em[p->em].def, R, o);
+        int a = (y->flags & 0x1000) ? 1 : 0, b = (y->flags & 0x4000) ? 1 : 2;   /* 0x1000: y, z; 0x2000: x, z; 0x4000: x, y */
+        for (int k = 0; k < 3; k++) { f32 s = k ? -1.0f : 1.0f; rr[k] = R[k * 3 + a] * s; uu[k] = R[k * 3 + b] * s; }
+    }
+    for (int k = 0; k < 3; k++) { ax[k] = rr[k] * ca + uu[k] * sa; ay[k] = -rr[k] * sa + uu[k] * ca; }
     f32 g[3] = { p->pos[0], p->pos[1], p->pos[2] };
     if (y->flags & 0x100000) {                                        /* in the effect's frame: to the world */
         const f32 *M = w->fx[w->em[p->em].effect].M;
@@ -343,8 +365,10 @@ static u32 particle_quad(const ak_pfx_world *w, const ak_pfx_particle *p, const 
     u8 col[4];
     for (int k = 0; k < 3; k++) { f32 v = c[k] * w->colour_k; col[k] = (u8)(v > 255 ? 255 : v < 0 ? 0 : v); }   /* (the original: TFX modulate, no doubling) */
     { f32 v = c[3] * 255.0f; col[3] = (u8)(v > 255 ? 255 : v); }
-    /* unturned types are mirrored at random (the original's streak quads: u and v swapped ends per particle) [assumed rule] */
-    u32 mir = (y->flags & 0x202) == 2 ? ((u32)(p->rnd * 4096.0f)) & 3 : 0;
+    /* types that do not turn are mirrored at random (the original's streaks and Explosion_medium particles: u and v swapped ends
+       per particle) [assumed rule] */
+    bool turns = !(y->flags & 0x8000) && (y->flags & 0x202) != 2;
+    u32 mir = (!turns || (y->flags & 0x200)) ? ((u32)(p->rnd * 4096.0f)) & 3 : 0;
     for (int t = 0; t < 6; t++) {
         const f32 *q = qs[tri[t]]; ak_vtx *o = &out[t];
         for (int k = 0; k < 3; k++) o->pos[k] = e[k] + ax[k] * q[0] + ay[k] * q[1];

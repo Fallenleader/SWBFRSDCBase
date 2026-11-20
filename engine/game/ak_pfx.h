@@ -52,7 +52,7 @@ s32  ak_pfx_find(const ak_pfx_lib *l, const char *name);       /* -1 = none; cas
 
 /* ---- the running effects */
 enum { AK_PFX_MAX_EFFECTS = 256, AK_PFX_MAX_EMITTERS = 1024, AK_PFX_MAX_PARTICLES = 2048 };
-typedef struct { f32 pos[3], vel[3], age, life, rnd, turn0; u16 em; u16 alive; } ak_pfx_particle;   /* turn0: the starting turn (0..1) */
+typedef struct { f32 pos[3], vel[3], age, life, rnd, turn0; f32 ox[3], oy[3]; u16 em; u16 alive; } ak_pfx_particle;   /* turn0: the starting turn (0..1); ox / oy: the spawn's turned x and y axes (FXPT flags 0x200) */
 typedef struct {
     s16 effect; u16 nlive;                        /* effect index in the pool (-1 free) */
     f32 t, acc; bool burst_done;

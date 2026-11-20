@@ -606,9 +606,10 @@ static void exec_draw(const u32 *payload){
         fprintf(stderr, "[DRAW] %d vt=%06x n=%d nv=%d tex=%08x d=%.2f w=%.1f,%.1f,%.1f v0=%.2f,%.2f,%.2f blend=%d/%d,%d\n", g_frames, vt, count, (int)d->nvert, X.lv[0].addr, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]), w[0], w[1], w[2], r0.px, r0.py, r0.pz, X.en[4], X.bsrc, X.bdst); } }
 #endif
 #ifndef __vita__
-    { static int pf = -2; if (pf == -2) pf = getenv("RS_PFX_LOG") ? atoi(getenv("RS_PFX_LOG")) : -1;   /* RS_PFX_LOG=frame: that frame's particle draws (vertex type 0x19F), vertices in the world */
+    { static int pf = -2, pl = 60, ps = 6; if (pf == -2) { pf = getenv("RS_PFX_LOG") ? atoi(getenv("RS_PFX_LOG")) : -1; if (getenv("RS_PFX_LOG_LEN")) pl = atoi(getenv("RS_PFX_LOG_LEN")); if (getenv("RS_PFX_LOG_STEP")) ps = atoi(getenv("RS_PFX_LOG_STEP")); if (ps < 1) ps = 1; }
+      /* RS_PFX_LOG=frame: the particle draws (vertex type 0x19F) from that frame for RS_PFX_LOG_LEN frames (60), every RS_PFX_LOG_STEP (6), vertices in the world */
       extern volatile int g_frames;
-      if (pf >= 0 && g_frames >= pf && g_frames < pf + 60 && (g_frames - pf) % 6 == 0 && !through && (vt & 0x7FFFFF) == 0x19F) {
+      if (pf >= 0 && g_frames >= pf && g_frames < pf + pl && (g_frames - pf) % ps == 0 && !through && (vt & 0x7FFFFF) == 0x19F) {
         int o0[5]; vt_layout(vt, o0);
         fprintf(stderr, "[PFX] %d n=%d prim=%d tex=%08x blend=%d/%d,%d fix=%06x,%06x op=%d ztest=%d zfunc=%d zmask=%d fog=%d atest=%d tfx=%d dbl=%d world=%.2f,%.2f,%.2f view=%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f t=%.2f,%.2f,%.2f\n", g_frames, count, ptype, X.lv[0].addr, X.en[4], X.bsrc, X.bdst, X.bfixa, X.bfixb, X.bop, X.en[1], X.zfunc, X.zmask, X.en[7], X.en[0], X.tfx, X.frag2x, X.world[9], X.world[10], X.world[11], X.view[0], X.view[1], X.view[2], X.view[3], X.view[4], X.view[5], X.view[6], X.view[7], X.view[8], X.view[9], X.view[10], X.view[11]);
         for (int i = 0; i < count && i < 600; i++) { rawv_t r; decode_vertex(vt, vb + (size_t)i * d->vsz, o0, &r);
