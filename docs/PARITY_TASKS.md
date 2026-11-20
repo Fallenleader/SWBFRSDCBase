@@ -691,6 +691,10 @@ groundwork below is needed before the parity work starts. The tiers come later.
   - 2026-11-19, looked for and not found: no blueprint key, level chunk or string names a LOD distance (the lower details are
     the "L1#" / "L2#" meshes); the switch is somewhere in the model draw.  Next: watch the GE vertex counts of one prop in
     the harness while the camera backs away (--tp), to measure the distances per model radius.
+  - 2026-11-20, soldiers measured (harness RS_DRAW_LOG=N: every N frames each lit 3D draw's distance from the camera; the
+    game draws models with an identity view, so the model matrix's translation is the distance): Hoth's soldiers drew 782
+    strip indices up to 39.2 m and 442 from 40.2 m, none lower out to 220 m - one step at 40 m. Aurek's soldiers now take their
+    L1 meshes beyond 40 m (`AK_SOLDIER_LOD`). Props: their draws are split per part, not identified yet.
 - [ ] **R.6 Particles and effects (PFX).** Explosions, muzzle flashes, impacts, streaks, and the command post glow (AK_POST_GLOW
   is Aurek's own).
 - [ ] **R.7 Shadows and decals.** Shadow blobs and scorch marks as the game places them.

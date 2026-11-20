@@ -595,6 +595,14 @@ static void exec_draw(const u32 *payload){
             nc ? cs[0] / nc : -1, nc ? cs[1] / nc : -1, nc ? cs[2] / nc : -1, nc ? cs[3] / nc : -1, nc);
           if (X.en[10]) for (int l = 0; l < 4; l++) if (X.en[11 + l]) fprintf(stderr, "[STATE]   L%d type %d pos %.3f %.3f %.3f amb %06x dif %06x spe %06x\n", l, X.L[l].type, X.L[l].pos[0], X.L[l].pos[1], X.L[l].pos[2], X.L[l].ca, X.L[l].cd, X.L[l].cs); } } }
 #endif
+#ifndef __vita__
+    { static int lg = -1; if (lg < 0) lg = getenv("RS_DRAW_LOG") ? atoi(getenv("RS_DRAW_LOG")) : 0;   /* RS_DRAW_LOG=N: every N frames, each lit 3D draw's distance (LOD study) */
+      extern volatile int g_frames;
+      if (lg > 0 && !through && ptype >= 3 && ptype <= 5 && X.en[10] && (g_frames % lg) == 0) {
+        float w[3] = { X.world[9], X.world[10], X.world[11] }, v[3];
+        for (int c = 0; c < 3; c++) v[c] = w[0] * X.view[c] + w[1] * X.view[3 + c] + w[2] * X.view[6 + c] + X.view[9 + c];
+        fprintf(stderr, "[DRAW] %d vt=%06x n=%d nv=%d d=%.2f w=%.1f,%.1f,%.1f\n", g_frames, vt, count, (int)d->nvert, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]), w[0], w[1], w[2]); } }
+#endif
     float defc[4] = {(float)(X.mat_amb & 255), (float)((X.mat_amb >> 8) & 255), (float)((X.mat_amb >> 16) & 255), (float)(X.mat_a & 255)};
     /* the renderer reads the PSP vertex format itself (triangles, strips, fans): native draw */
     if (ptype >= 3 && ptype <= 5 && !through && cull_draw(d, vb, ix, vt, off)) { st_culled++; return; }

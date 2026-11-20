@@ -233,6 +233,7 @@ static const s32 *unit_clips(const ak_play *p, s32 unit)
     return p->clip;
 }
 
+static f32 g_eye[3];   /* the camera, for the soldiers' detail (set by ak_play_draw) */
 static void draw_soldier(ak_scene_models *ms, const ak_model_set *m, const ak_soldier_look *lk, const f32 *pos, f32 yaw, const f32 (*bones)[12],
                          const ak_m4 *vp, ak_scene_stats *st)
 {
@@ -241,10 +242,17 @@ static void draw_soldier(ak_scene_models *ms, const ak_model_set *m, const ak_so
     if (body->skeleton < 0) return;
     ak_m4 w; world_of_scaled(pos, yaw, S, &w);
     ak_model_colours col = { lk->rgb1, lk->rgb2 };
-    ak_scene_models_draw(ms, (u32)lk->body, vp, &w, bones, &col, st);
-    if (lk->head >= 0) {
+    /* the lower detail beyond 40 m (measured: harness RS_DRAW_LOG, Hoth's soldiers drew 782 strip indices up to 39.2 m from the
+     * camera and 442 from 40.2 m on, none lower out to 220 m); the L1 mesh only if it rides the same skeleton */
+    f32 dx = pos[0] - g_eye[0], dy = pos[1] - g_eye[1], dz = pos[2] - g_eye[2];
+    bool far_ = dx * dx + dy * dy + dz * dz > 40.0f * 40.0f && ak_setting_int("AK_SOLDIER_LOD", 1);
+    s32 bi = lk->body, hi = lk->head;
+    if (far_ && body->lod_next >= 0 && m->models[body->lod_next].nidx && m->models[body->lod_next].skeleton == body->skeleton) bi = body->lod_next;
+    if (far_ && hi >= 0 && m->models[hi].lod_next >= 0 && m->models[m->models[hi].lod_next].nidx) hi = m->models[hi].lod_next;
+    ak_scene_models_draw(ms, (u32)bi, vp, &w, bones, &col, st);
+    if (hi >= 0) {
         ak_soldier_head_matrix(body, &m->skels[body->skeleton], lk->head_bone, bones, head[0]);
-        ak_scene_models_draw(ms, (u32)lk->head, vp, &w, (const f32 (*)[12])head, &col, st);
+        ak_scene_models_draw(ms, (u32)hi, vp, &w, (const f32 (*)[12])head, &col, st);
     }
 }
 
@@ -2682,6 +2690,7 @@ static void camera_for(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32
 void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const ak_m4 *vp, ak_scene_stats *st)
 {
     if (!p->ready || !p->posed) return;
+    memcpy(g_eye, p->eye, sizeof g_eye);
     static f32 gun[12];
     ak_frustum fr = ak_frustum_from(vp);
     if (p->in_veh < 0 && p->in_turret < 0 && p->zoom == 0) {                  /* (zoomed: the view is the soldier's own) */
