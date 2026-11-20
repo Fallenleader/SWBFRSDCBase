@@ -500,7 +500,22 @@ textures and how they are used. Section R lists only what must be in place so th
   - Earlier tooling: RS_DRIVE_TGTSCAN=1 lists soldier fields (and their controller's) holding
   another soldier's object or id.  On Hoth only +5E0 turned up (one bot → another, likely its squad leader), so the target is
   not a soldier pointer or id field; the AI weapon record (2.6, +0 a target id) was the lead. Aurek took the nearest (play.c:1223).
-- [ ] **4.3 Turret AI [assumed].** States NEUTRAL / SEARCHING / ORIENTATING (0x08B1B6AC) and who aims.
+- [ ] **4.3 Turret AI [partly traced].** States NEUTRAL / SEARCHING / ORIENTATING (0x08B1B6AC) and who aims.
+  - 2026-11-20, **the AI's trigger, traced and built** (every AI shooter: class 0x08AF97A8, built by 08965E64 over 08965930,
+    updated by 08965A70 with the shooter's forward axis, the line to the target and whether it wants to fire): state 1 waits out
+    its timer; then, wanting to fire with the target inside the range and the cone (08965B68 / 08965C58 / 08965C9C, the cone
+    across the ground when the record's +24 is set), it holds the trigger (state 2, message 0x805F to the shooter: each of its
+    hardpoint weapons gets the burst's shot count at +296; 089C7A00) for the burst time, and letting go (0x8061 clears +296)
+    starts the pause. Burst = WindupTime + 75 / (max(OverheatPershot, 1) / max(RateOfFire, 0.05) - OverheatDecay) (08A24648),
+    pause = 75 / OverheatDecay (0 without decay; 08A24740) x 0.9..1.1 (08965EF8), shots = burst / RateOfFire (08A24588). The
+    records: soldiers 40 m / 7.5 degrees across the ground (089428DC, 089514C8), ground vehicles 250 m / 10 across the ground
+    (0894677C), flyers 600 m / 5 (0894878C, 08949B28), turrets the record's range (+560) / 7.5 (0894FFF8, wanting to fire when
+    the aim has its solution, 0895076C +34). So rifles (0.3 s, no heat) fire 22.5 s bursts with no pause; pistols 3.4 s bursts
+    and 4.2 s pauses; X-wing lasers (heat never builds: a negative burst) one press, every barrel once, then 6.25 s.
+    Aurek: game/ak_weapon ak_ai_fire for bots on foot, bot vehicles and turrets (Aurek's own 0.8-2 s bursts, 17-degree cones and
+    unlimited reach are gone). Checked against the harness (Hoth, idle player, about 110 s): soldiers took 41 hits in the
+    original, 67 in Aurek now (230 before). Space Hoth: flyers hit flyers 160 times in the original, Aurek 13 - before and after
+    this change alike; Aurek's pilots keep their nose within 5 degrees of a target 2 % of the time (their pursuit is 4.6).
   - Traced 2026-11-19 (the turret AI update 089502F0; its state at +28, names at 0x08B1B6AC: 0 UNSET, 1 NEUTRAL,
     2 SEARCHING_FOR_THREAT, 3 ORIENTATING_TO_THREAT; skipped while flag +8 bit 4 is set):
     - UNSET: a turret of a side (turret +48 -> +12 not 4, the neutral team) goes to SEARCHING; SEARCHING goes to NEUTRAL the

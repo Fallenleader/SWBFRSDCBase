@@ -1399,9 +1399,14 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
             else { f32 ex = en->feet[0] - b->ch.pos[0], ey = en->feet[1] - b->ch.pos[1], ez = en->feet[2] - b->ch.pos[2], d = sqrtf(ex * ex + ey * ey + ez * ez);
                    b->react_t -= dt / (d < 30.0f ? 0.03f * d + 0.1f : 1.0f); }
         }
-        b->burst_t -= dt;
-        if (b->burst_t < -(0.5f + rnd(&b->seed) * 0.6f)) b->burst_t = 0.8f + rnd(&b->seed) * 1.2f;
-        if (en && b->react_t <= 0 && b->burst_t > 0 && fabsf(dyaw) < 0.3f) {
+        /* the trigger (traced, 08942AA4 -> 08965A70, ak_ai_fire): wanting to fire once the reaction has run out, in bursts by
+           the weapon's heat values, with the target within 40 m and 7.5 degrees of the facing across the ground */
+        bool held = false;
+        {   f32 fwd[3] = { -sinf(b->ch.yaw), 0, -cosf(b->ch.yaw) }, to[3] = { 0, 0, 0 };
+            if (en) { to[0] = en->feet[0] - b->ch.pos[0]; to[1] = en->feet[1] - b->ch.pos[1]; to[2] = en->feet[2] - b->ch.pos[2]; }
+            held = ak_ai_fire_update(&b->fire_ai, b->weapon.def, en && b->react_t <= 0, en && ak_ai_fire_ok(fwd, to, 40.0f * S, 7.5f * 0.017453293f, true), rnd(&b->seed), dt);
+        }
+        if (en && held) {
             f32 gun[12], muz[3];
             weapon_world(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, gun);
             muzzle_of(m, b->weapon.def, gun, muz);
@@ -1637,11 +1642,12 @@ static void walker_route_step(ak_play *p, u32 v, f32 dt)
         if (best > sp->route_d) sp->route_d = best; }
 }
 
-static void vehicle_fire(ak_play *p, const ak_model_set *m, u32 v, const f32 *target, f32 dt)
+static void vehicle_fire(ak_play *p, const ak_model_set *m, u32 v, const f32 *target, f32 dt, bool all)
 {
     ak_vehicle *vh = &p->veh[v]; const ak_vehicle_def *d = vh->def; bool bot = vh->driver > 0;
     if (!d->armed || !d->nmuzzles) return;
     f32 prev = vh->volley_t; vh->volley_t += dt;
+    if (all) prev = -1, vh->volley_t = 1e9f;   /* (every barrel once: a press the AI lets go of at once - each hardpoint's weapon gets its one shot, 089C7A00) */
     ak_weapon w; ak_weapon_give(&w, bot ? &d->gun_bot : &d->gun); w.team = vh->team; w.owner = (s32)(vh->driver >= 0 ? vh->driver : -1);
     for (u32 i = 0; i < d->nmuzzles; i++) {
         if (!(prev <= d->muzzle_time[i] && vh->volley_t > d->muzzle_time[i]) && !(prev == 0 && d->muzzle_time[i] == 0)) continue;
@@ -1809,12 +1815,14 @@ static void bot_vehicle_gun(ak_play *p, const ak_model_set *m, ak_play_bot *b, u
     f32 tgt[3] = { en->feet[0], en->feet[1] + en->height * 0.5f, en->feet[2] };
     f32 eye[3] = { vh->pos[0], vh->pos[1] + d->hover + d->height * 0.8f, vh->pos[2] };
     f32 dx = tgt[0] - eye[0], dy2 = tgt[1] - eye[1], dz = tgt[2] - eye[2], dist = sqrtf(dx * dx + dy2 * dy2 + dz * dz);
-    f32 reach = fminf(d->target_range > 0 ? d->target_range : 100.0f, d->gun.range > 0 ? d->gun.range : 100.0f);
-    if (dist > reach) { vh->volley_t = 0; return; }
-    if (nose_only) {                                                          /* fixed guns: only with the nose on it */
-        f32 cp = cosf(vh->pitch), fw[3] = { -sinf(vh->yaw) * cp, sinf(vh->pitch), -cosf(vh->yaw) * cp };
-        if ((fw[0] * dx + fw[1] * dy2 + fw[2] * dz) < cosf(0.3f) * dist) { vh->volley_t = 0; return; }   /* (the guns converge on it within ~17 degrees) */
-    } else if (fabsf(want_yaw - vh->aim_yaw) > 0.25f) { vh->volley_t = 0; return; }
+    bool held;
+    /* the trigger (traced, 08946910 / 08948998 / 08949D5C -> 08965A70, ak_ai_fire): flyers 600 m and 5 degrees around the nose
+       (0894878C, 08949B28), ground vehicles 250 m and 10 degrees across the ground (0894677C), in bursts by the gun's heat values */
+    {   bool fly = d->kind == AK_VEH_FLYER; f32 cp = cosf(vh->pitch), to[3] = { dx, dy2, dz };
+        f32 fw[3] = { nose_only ? -sinf(vh->yaw) * cp : -sinf(vh->yaw + vh->aim_yaw), nose_only ? sinf(vh->pitch) : 0, nose_only ? -cosf(vh->yaw) * cp : -cosf(vh->yaw + vh->aim_yaw) };
+        bool ok = ak_ai_fire_ok(fw, to, (fly ? 600.0f : 250.0f) * S, (fly ? 5.0f : 10.0f) * 0.017453293f, !fly);
+        held = ak_ai_fire_update(&vh->fire_ai, &d->gun_bot, true, ok, rnd(&b->seed), dt);
+    }
     /* the secondary: the game's AI fires it at most every 15 s, with the target within 5 degrees (func 08948A9C: 0x08B1B754, 0x08AEDAE8) */
     if (d->sec.armed && vh->bot_sec_t <= 0 && dist < (d->lose_lock_range > 0 ? d->lose_lock_range : 300.0f)) {
         f32 cp = cosf(vh->pitch), fx = nose_only ? -sinf(vh->yaw) * cp : -sinf(vh->yaw + vh->aim_yaw), fy = nose_only ? sinf(vh->pitch) : 0, fz = nose_only ? -cosf(vh->yaw) * cp : -cosf(vh->yaw + vh->aim_yaw);
@@ -1824,8 +1832,9 @@ static void bot_vehicle_gun(ak_play *p, const ak_model_set *m, ak_play_bot *b, u
             if (vehicle_fire2(p, m, v, c, b->enemy)) vh->bot_sec_t = 15.0f;
         }
     }
+    if (!held) { vh->volley_t = 0; return; }
     aim_cap(&b->seed, eye, tgt, p->bot_aim_set ? p->bot_aim : d->gun_bot.ai_acc[p->difficulty >= 2 ? 1 : 0] * 0.017453293f);   /* (as the soldiers) */
-    vehicle_fire(p, m, v, tgt, dt);
+    vehicle_fire(p, m, v, tgt, dt, vh->fire_ai.began && ak_ai_burst(&d->gun_bot) <= 0);
 }
 
 /* ---- space: the team AI commander (traced: funcs 0898EDBC..089919F4, the pilots' goals 089424AC / 08950BE8)
@@ -2073,7 +2082,9 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
         bool on = (fw2[0] * ax + fw2[1] * ay + fw2[2] * az) > cosf(0.3f) * ad;
         if (ak_setting_int("AK_DEBUG_BOTVEH", 0) > 2 && fmodf(p->clock, 0.5f) < dt)
             AK_INFO("botveh", "%.1f s: bot %u run end: dist %.0f, aim %.0f m, nose on %d, turret %s", p->clock, idx, dist, ad, on, bt < 200.0f * 200.0f ? "yes" : "no");
-        if (on) vehicle_fire(p, m, v, aimp, dt); else vh->volley_t = 0;
+        {   f32 to[3] = { ax, ay, az };   /* the trigger as any flyer's (ak_ai_fire: 600 m, 5 degrees around the nose) */
+            bool held = ak_ai_fire_update(&vh->fire_ai, &d->gun_bot, true, ak_ai_fire_ok(fw2, to, 600.0f * S, 5.0f * 0.017453293f, false), rnd(&b->seed), dt);
+            if (held) vehicle_fire(p, m, v, aimp, dt, vh->fire_ai.began && ak_ai_burst(&d->gun_bot) <= 0); else vh->volley_t = 0; }
         if (on && d->sec.armed && vh->bot_sec_t <= 0 && ad < 400.0f) {          /* (the same 15 s rule for the secondary: bombs, torpedoes) */
             s32 tt = -1; for (u32 k = 0; k < p->nturret; k++) if (p->turret[k].alive && p->turret[k].pos[0] == aimp[0] && p->turret[k].pos[2] == aimp[2]) tt = (s32)TT(p, k);
             if (vehicle_fire2(p, m, v, aimp, tt)) vh->bot_sec_t = 15.0f;
@@ -2137,8 +2148,8 @@ static void bot_drive(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
  * A turret belongs to the side holding its command post (the record's link; none: the nearest post).  On the space levels and
  * when not Boardable (the automatic ones), it aims and fires on its own (the game's turret AI states: NEUTRAL,
  * SEARCHING_FOR_THREAT, ORIENTATING_TO_THREAT at 0x08B1B6AC): the nearest enemy in its reach (the record's range: 500 m in space,
- * 100 m on the ground) that it can point at and see, leading moving vehicles, with the bot modifiers and aim error (who aims for the
- * game's turret AI is not traced yet).  It repairs itself at the blueprint's Auto_Repair_Rate (5 a second); a destroyed one leaves its [PARITY(4.3)]
+ * 100 m on the ground) that it can point at and see, leading moving vehicles, with the bot modifiers and aim error; it fires through
+ * the AI's trigger (ak_ai_fire: the record's range, 7.5 degrees around the barrel, bursts by the gun's heat values).  It repairs itself at the blueprint's Auto_Repair_Rate (5 a second); a destroyed one leaves its [PARITY(4.3)]
  * DestroyedTurret model (no rebuilding: not traced). */
 static void turret_target(ak_play *p, u32 i)
 {
@@ -2274,7 +2285,11 @@ static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
         f32 step = d->turn_rate * dt, dy = wrap(wy - t->yaw), dp = wp - t->pitch;
         t->yaw = wrap(t->yaw + clampf(dy, -step, step)); t->pitch += clampf(dp, -step, step);
         t->aim_t -= dt;
-        if (fabsf(dy) > 0.06f || fabsf(dp) > 0.06f || t->aim_t > 0) { t->volley_t = 0; continue; }
+        /* the trigger (traced, 0894FFF8 -> 08965A70, ak_ai_fire): the record's range and 7.5 degrees around the gun's line, wanting
+           to fire once the aim has a solution (0895076C sets +34 when it has aimed) - here: after the aim time */
+        {   f32 B[12], fwd[3] = { -sinf(t->yaw), 0, -cosf(t->yaw) }, to[3] = { c[0] - eye[0], c[1] - eye[1], c[2] - eye[2] };
+            if (ak_turret_barrel(t, m, B)) { f32 F = t->def->face; fwd[0] = F * B[2]; fwd[1] = F * B[6]; fwd[2] = F * B[10]; }
+            if (!ak_ai_fire_update(&t->fire_ai, &d->gun_bot, t->aim_t <= 0, ak_ai_fire_ok(fwd, to, t->range, 7.5f * 0.017453293f, false), rnd(&p->seed), dt)) { t->volley_t = 0; continue; } }
         /* fire: the volley over its muzzles, with the bot aim error */
         f32 tgt[3] = { c[0], c[1], c[2] };
         aim_cap(&p->seed, eye, tgt, p->bot_aim_set ? p->bot_aim : d->gun_bot.ai_acc[p->difficulty >= 2 ? 1 : 0] * 0.017453293f);   /* (as the soldiers) */
@@ -2799,7 +2814,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (vh->aim_pitch > 0.6f) vh->aim_pitch = 0.6f;
             if (vh->aim_pitch < -0.4f) vh->aim_pitch = -0.4f;
             if (rails) walker_route_step(p, v, dt); else ak_vehicle_update(vh, &p->col, p->cp.gravity, vehicle_boost(vh, fly_fast ? fly_boost : (vin->held & AK_BTN_CROSS) != 0, dt), dt);
-            if ((vin->held & AK_BTN_R) && p->aim_ok) vehicle_fire(p, m, v, p->aim_point, dt); else vh->volley_t = 0;
+            if ((vin->held & AK_BTN_R) && p->aim_ok) vehicle_fire(p, m, v, p->aim_point, dt, false); else vh->volley_t = 0;
             if (p->aim_ok) vehicle_lock(p, vh, p->eye, p->aim, dt);                /* circle: the secondary (locked: guided) */
             if ((vin->held & AK_BTN_CIRCLE) && p->aim_ok) vehicle_fire2(p, m, v, p->aim_point, vh->locked ? vh->lock : -1);
             memcpy(p->ch.pos, vh->pos, 12); p->ch.yaw = vh->yaw + vh->aim_yaw; p->ch.vel[0] = p->ch.vel[1] = p->ch.vel[2] = 0;
@@ -2816,7 +2831,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                     const ak_target *en = &p->target[e];
                     f32 ex = en->feet[0] - vh->pos[0], ez = en->feet[2] - vh->pos[2], want = wrap(atan2f(-ex, -ez) - vh->yaw);
                     vh->aim_yaw += clampf(clampf(want, -1.2f, 1.2f) - vh->aim_yaw, -1.0f * dt, 1.0f * dt);
-                    if (fabsf(want - vh->aim_yaw) < 0.25f) { f32 tg[3] = { en->feet[0], en->feet[1] + en->height * 0.5f, en->feet[2] }; vehicle_fire(p, m, v, tg, dt); }
+                    if (fabsf(want - vh->aim_yaw) < 0.25f) { f32 tg[3] = { en->feet[0], en->feet[1] + en->height * 0.5f, en->feet[2] }; vehicle_fire(p, m, v, tg, dt, false); }
                     else vh->volley_t = 0;
                 } else vh->volley_t = 0;
             }

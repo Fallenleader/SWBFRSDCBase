@@ -26,6 +26,7 @@ typedef struct {
     const char *fire_snd;              /* the weapon's "Fire Sound" event (played at the muzzle) */
     const char *hud_icon;              /* "HUDIcon": its picture on the HUD's weapon sheets ("EMP_Blaster_Rifle.tga") */
     f32 heat_shot, heat_decay, heat_recover, burst_time;   /* OverheatPershot / OverheatDecay / OverheatRecoveryTime, BurstTime */
+    f32 windup;                        /* WindupTime */
     f32 ai_acc[2];                     /* AIWeapon_Accuracy_Normal / _Elite (degrees; 08A24438) */
     const char *muzzle_pfx;            /* the weapon's "PFXMuzzleFlash" effect (played at the muzzle, along the shot) */
     const char *impact_pfx, *shield_pfx;   /* the bolt's "impact pfx" (on the level) and "shield impact pfx" (on vehicles) */
@@ -42,6 +43,23 @@ typedef struct { f32 heat, recover_t; bool fired; } ak_heat;
 static inline bool ak_heat_ready(const ak_heat *h) { return h->recover_t <= 0; }
 void ak_heat_shot(ak_heat *h, const ak_weapon_def *d);
 void ak_heat_update(ak_heat *h, const ak_weapon_def *d, f32 dt);
+
+/* The AI's trigger (traced, class 0x08AF97A8: built by 08965E64 over 08965930, updated by 08965A70 with the shooter's forward axis,
+ * the line to the target and whether it wants to fire; every AI shooter has one - soldiers 40 m / 7.5 degrees (089428DC, 089514C8),
+ * ground vehicles 250 m / 10 (0894677C), flyers 600 m / 5 (0894878C, 08949B28), turrets their record's range / 7.5 (0894FFF8)).
+ * State 1 waits out its timer; then, wanting to fire with the target in range and within the cone, it goes to 2 (the trigger held,
+ * message 0x805F) for the burst time; leaving 2 (time up, or no longer wanting or able) releases it (0x8061) and waits the pause.
+ * The burst is WindupTime + 75 / (max(OverheatPershot, 1) / max(RateOfFire, 0.05) - OverheatDecay) (08A24648) - the time the
+ * player's heat would take to reach 75 - and the pause 75 / OverheatDecay (08A24740; 0 with no decay) times 0.9..1.1 (08965EF8).
+ * A weapon whose heat never builds gets a negative burst: one frame held, then the pause. */
+typedef struct { int state; f32 t; bool began; } ak_ai_fire;   /* began: the trigger was pressed this frame */
+f32  ak_ai_burst(const ak_weapon_def *d);
+f32  ak_ai_pause(const ak_weapon_def *d);
+/* one frame: `ok` = in range and within the cone; r a random number in 0..1; true while the trigger is held */
+bool ak_ai_fire_update(ak_ai_fire *c, const ak_weapon_def *d, bool want, bool ok, f32 r, f32 dt);
+/* the range and cone test (08965B68 / 08965C58 / 08965C9C): |to| below range, the angle between `fwd` and `to` within cone
+ * (radians); flat: the angle across the ground only (the record's +24: soldiers and ground vehicles) */
+bool ak_ai_fire_ok(const f32 *fwd, const f32 *to, f32 range, f32 cone, bool flat);
 
 typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; ak_heat heat; bool heats; } ak_weapon;   /* team/owner: set after ak_weapon_give; heats: a player's (ak_heat) */
 

@@ -47,7 +47,7 @@ bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, con
 void ak_weapon_def_heat(const ak_bp_object *w, ak_weapon_def *d)
 {
     d->heat_shot = ak_bp_float(w, "OverheatPershot", 0); d->heat_decay = ak_bp_float(w, "OverheatDecay", 0);
-    d->heat_recover = ak_bp_float(w, "OverheatRecoveryTime", 0); d->burst_time = ak_bp_float(w, "BurstTime", 0);
+    d->heat_recover = ak_bp_float(w, "OverheatRecoveryTime", 0); d->burst_time = ak_bp_float(w, "BurstTime", 0); d->windup = ak_bp_float(w, "WindupTime", 0);
     if (!d->per_shot) d->per_shot = 1;
 }
 
@@ -320,4 +320,38 @@ u32 ak_bolts_vertices(const ak_bolts *b, const f32 *eye, ak_vtx *out, u32 max)
         n += ak_flash(out + n, p, 0.25f + im->age * 3.0f, eye, im->colour, (u8)(255 * (1.0f - im->age / 0.15f)));
     }
     return n;
+}
+
+f32 ak_ai_burst(const ak_weapon_def *d)
+{
+    f32 ops = d->heat_shot < 1.0f ? 1.0f : d->heat_shot, rof = d->rate_of_fire < 0.05f ? 0.05f : d->rate_of_fire;
+    return d->windup + 75.0f / (ops / rof - d->heat_decay);
+}
+f32 ak_ai_pause(const ak_weapon_def *d) { return d->heat_decay == 0 ? 0.0f : 75.0f / d->heat_decay; }
+static void ai_fire_set(ak_ai_fire *c, const ak_weapon_def *d, int st, f32 r)
+{
+    c->state = st;
+    c->t = st == 2 ? ak_ai_burst(d) : st == 1 ? ak_ai_pause(d) * (0.9f + 0.2f * r) : 0.0f;
+}
+bool ak_ai_fire_update(ak_ai_fire *c, const ak_weapon_def *d, bool want, bool ok, f32 r, f32 dt)
+{
+    c->began = false;
+    if (!d) return false;
+    if (c->state == 0) ai_fire_set(c, d, 1, r);
+    c->t -= dt;
+    if (c->state == 1) {
+        if (c->t > 0 || !want || !ok) return false;
+        ai_fire_set(c, d, 2, r); c->began = true; return true;
+    }
+    if (c->t <= 0 || !want || !ok) { ai_fire_set(c, d, 1, r); return false; }
+    return true;
+}
+bool ak_ai_fire_ok(const f32 *fwd, const f32 *to, f32 range, f32 cone, bool flat)
+{
+    f32 d2 = to[0] * to[0] + to[1] * to[1] + to[2] * to[2];
+    if (!(d2 < range * range)) return false;
+    f32 a[3] = { fwd[0], flat ? 0 : fwd[1], fwd[2] }, b[3] = { to[0], flat ? 0 : to[1], to[2] };
+    f32 fl = sqrtf(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]), dl = sqrtf(b[0] * b[0] + b[1] * b[1] + b[2] * b[2]);
+    if (fl <= 0 || dl <= 0) return true;
+    return (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (fl * dl) > cosf(cone);
 }

@@ -67,7 +67,7 @@ typedef struct {
     s32 driver;                            /* -1 empty, 0 the player, 1 + i bot i */
     bool open;                             /* left empty after use: neutral (the game's team 4), anyone may board it */
     s32 spawn; f32 respawn_t, dead_t;
-    f32 volley_t; u32 fired_mask; f32 aim_yaw, aim_pitch;
+    f32 volley_t; u32 fired_mask; f32 aim_yaw, aim_pitch; ak_ai_fire fire_ai;   /* fire_ai: a bot driver's trigger (ak_weapon.h) */
     f32 energy; bool energy_spent, boost_held;      /* the game's +0xA0, and its "spent this frame" mark (+0xC1) */
     ak_heat heat[4];                   /* each HardpointW1 marker is a Weapon of its own in the game (089C4A2C), with its own heat */
     s32 sec_ammo; f32 sec_t, sec_reload; u32 sec_next; s32 lock; f32 lock_t; bool locked; f32 bot_sec_t;   /* the secondary: clip, cool-down, reload, which muzzle; the lock-on */
