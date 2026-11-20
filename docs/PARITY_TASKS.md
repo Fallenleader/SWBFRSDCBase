@@ -252,7 +252,8 @@ textures and how they are used. Section R lists only what must be in place so th
     ChildProjectiles +0xB4, ChildSpeed +0xB8, AmmountOfSplay +0xBC, DispersionDistance +0xC0, NumberOfChildren +0xC4,
     ProximityExplodeDelay +0xF0. The cluster burst is traced (08A02464; NATIVE_ENGINE row). The mine's trigger is traced
     (2026-11-20: the unit update 089E1890 -> 08A02228: within +0x94 of a living unit that did not lay it, once its age +216 is
-    past +0xF0 - an arming delay, no team test; built). [ ] 2.3c: the det pack's detonation input, Detonation_Height's
+    past +0xF0 - an arming delay, no team test; built). The det pack's input is measured (2026-11-20, harness `detpack`: the second press sets it off 29
+    frames later, no new throw; built). [ ] 2.3c: Detonation_Height's
     use, how mines and det packs are placed (the "place" animations), and the items row (dispenser, auto turret, recon droid,
     stealth, jetpack, jump pack, shield).
   - [ ] **2.3d** Bots' explosives [traced 2026-11-20, built]: 0893F1A8 -> 08940C7C -> 0893679C. Chance 1 - (1 - k)^dt a frame,

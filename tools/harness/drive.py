@@ -65,6 +65,12 @@ def prog_cluster(i, fr):                                                        
         if at <= i < at + 4: return (b, 128, 128)
     if 800 <= i < 804: return (SQUARE, 128, 128)
     return (0, 128, 128)
+def prog_detpack(i, fr):                                                         # (with --hp 30:-1) customisation: explosive -> det packs (the second), spawn, square at 800 and 920 frames
+    t = [(220, CROSS), (270, SQUARE), (300, DOWN), (330, DOWN), (360, CROSS), (390, DOWN), (480, CROSS), (520, CIRCLE), (560, CROSS), (600, CROSS), (640, CROSS)]
+    for at, b in t:
+        if at <= i < at + 4: return (b, 128, 128)
+    if 800 <= i < 804 or 920 <= i < 924: return (SQUARE, 128, 128)
+    return (0, 128, 128)
 def prog_respawn(i, fr):                                                         # (with --hp 30:-1) back in at the next wave, standing still
     for at in (220, 260, 300, 340, 380, 420, 460, 500, 540):
         if at <= i < at + 4: return (CROSS, 128, 128)
@@ -180,7 +186,7 @@ def prog_drive_cam(i, fr):                                                      
     if 360 <= i < 540: return (0, 255, 0)
     if 660 <= i < 780: return (0, 128, 255)
     return (0, 128, 128)
-PROGRAMS = {'respawn_up': prog_respawn_up, 'respawn': prog_respawn, 'cluster': prog_cluster, 'zoom': prog_zoom, 'drive_cam': prog_drive_cam, 'fly_space_boost': prog_fly_space_boost, 'fly_boost4': prog_fly_boost4, 'fly_boost3': prog_fly_boost3, 'fly_boost2': prog_fly_boost2, 'fly_space': prog_fly_space, 'veh_fire': prog_veh_fire, 'walker': prog_walker, 'fly_climb': prog_fly_climb, 'fly_pitch': prog_fly_pitch, 'fly_boost': prog_fly_boost, 'fly_rl': prog_fly_rl, 'fly': prog_fly, 'fly_tap': prog_fly_tap, 'fly_slow': prog_fly_slow, 'fly_stick': prog_fly_stick, 'board_try': prog_board_try, 'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
+PROGRAMS = {'detpack': prog_detpack, 'respawn_up': prog_respawn_up, 'respawn': prog_respawn, 'cluster': prog_cluster, 'zoom': prog_zoom, 'drive_cam': prog_drive_cam, 'fly_space_boost': prog_fly_space_boost, 'fly_boost4': prog_fly_boost4, 'fly_boost3': prog_fly_boost3, 'fly_boost2': prog_fly_boost2, 'fly_space': prog_fly_space, 'veh_fire': prog_veh_fire, 'walker': prog_walker, 'fly_climb': prog_fly_climb, 'fly_pitch': prog_fly_pitch, 'fly_boost': prog_fly_boost, 'fly_rl': prog_fly_rl, 'fly': prog_fly, 'fly_tap': prog_fly_tap, 'fly_slow': prog_fly_slow, 'fly_stick': prog_fly_stick, 'board_try': prog_board_try, 'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
 
 def main():
     ap = argparse.ArgumentParser()
