@@ -861,6 +861,21 @@ groundwork below is needed before the parity work starts. The tiers come later.
     L1 meshes beyond 40 m (`AK_SOLDIER_LOD`). Props: their draws are split per part, not identified yet.
 - [ ] **R.6 Particles and effects (PFX).** Explosions, muzzle flashes, impacts, streaks, and the command post glow (AK_POST_GLOW
   is Aurek's own).
+  - 2026-11-20, the data read (tools/asura/pfx.py; every FX chunk of Hoth parses to its last byte but FXET's 48-byte tail):
+    three chunk kinds per level, each {u32 hash, name}: FXET effects (69 on Hoth; loader 0882A3C0 -> 0882ACE0), FXST particle
+    systems (205; 0882A350 -> 0882A890) and FXPT particle types (205; 0882A2E0 -> 0882A430) - a system and its particle type
+    share a name ("BFF_BigExplosion_E:fire_S") and hash. Curves (08AA5868 vec4, 08AA5A98 float, 08AA5CD4 vec3) are
+    {u32 version 10003, u32, u32 n, n evenly spaced samples}.
+    - FXET: a colour curve and a float curve (the effect's light: BigExplosion's radius 14.6 -> 0), [v13] a word, then n
+      emitters of {system hash, position, 3x3 matrix, a vec3, a word, the emission shape (088EA38C: kind, word, then 1 a box
+      (6 floats), 2 a sphere (radius), 3 three floats), a word}, then the tail (a word, an optional light-list block, flags).
+    - FXST: curves a (float), b (vec3), c (float), d (vec3), e, f, g, h (floats; BigExplosion:streaks g = 9.81), a vec3, 13
+      words, [v5] a word, a word.
+    - FXPT: a colour curve (RGBA over life), three float curves (size over life, then two more), n texture cells {u0, v0, u1,
+      v1, a float}, 9 words (+0x14 .. +0x1D) and the flags (+0x23), [v10] 2 floats, [v11] 1, [v12] the texture
+      (\specialfx\partclfx.tga), [v13] a word.
+    Next: the runtime (spawning, the curves' meanings, drawing) and which effect each event plays (weapons' PFXMuzzleFlash,
+    impact pfx, projectiles' PFXExplosion name them).
 - [ ] **R.7 Shadows and decals.** Shadow blobs and scorch marks as the game places them.
   - 2026-11-20: the blob shadows are one batch (08918144): a vertex list at 0x08C19240 (20-byte vertices, room for 2024; count
     0x08C23244), drawn as one triangle strip (prim 4, vertex type 0x183: float UV and position) with \specialfx\blobshadow.tga,
