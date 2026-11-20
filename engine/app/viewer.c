@@ -503,7 +503,10 @@ int main(int argc, char **argv)
                 hs.alive = play.alive; hs.reticle = play.in_veh < 0 && play.in_turret < 0;
                 hs.health = play.health; hs.health_max = play.max_health;
                 if (play.armed && play.weapon.def && play.in_veh < 0 && play.in_turret < 0) {
-                    hs.weapon = play.weapon.def->hud_icon; hs.ammo = play.weapon.ammo; hs.spare = play.weapon.spare; }
+                    hs.weapon = play.weapon.def->hud_icon; hs.ammo = play.weapon.ammo;
+                    /* the rest as whole clips (the original: Blaster Rifle 25 a clip, MaxClips 5 -> "25  4") */
+                    hs.spare = play.weapon.def->clip > 0 && play.weapon.spare >= 0 ? (play.weapon.spare + play.weapon.def->clip - 1) / play.weapon.def->clip : play.weapon.spare;
+                    if (play.gren_ok && play.gren_icon) { hs.weapon2 = play.gren_icon; hs.ammo2 = play.gren_left; hs.spare2 = -1; } }   /* the explosive slot below it */
                 hs.prequel = strstr(levels[cur].path, "PREQUEL") != NULL;
                 if (play.have_cq) { hs.tickets = true; hs.tickets_own = play.match.tickets[play.team]; hs.tickets_enemy = play.match.tickets[1 - play.team];
                                     hs.faction_own = play.team_faction[play.team]; hs.faction_enemy = play.team_faction[1 - play.team]; }

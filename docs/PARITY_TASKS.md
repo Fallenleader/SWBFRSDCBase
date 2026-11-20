@@ -593,6 +593,9 @@ textures and how they are used. Section R lists only what must be in place so th
     its name at +22 (0897DD80). Read from the running original's memory: each side's bots hold distinct random entries
     (eight rebels: 42, 18, 28, 22, 26, 34, 15, 20). Aurek gives each bot a random unused entry of its side's list and the
     target panel shows it ("Waynar Ardam"). Open: the small grey icon the original draws before a bot's name.
+  - Weapon panel: the rest counted in clips (the original's Blaster Rifle "25  4": 25 a clip, MaxClips 5), and the explosive
+    (thermal detonator, its HUDIcon and count) in the second slot - done 2026-11-20. Open: the weapon names the original shows
+    beside the panel after spawning ("Blaster Rifle", "Thermal Detonator").
   - Ticket logos: tinted by side (08A5B80C: ours ABGR 0xFFFF0000 blue, theirs 0xFF0000FF red) - done 2026-11-20.
   - Jetpack and shield bars.
   - The unmanned turret's hit source.

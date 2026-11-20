@@ -535,7 +535,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         const ak_bp_object *gw = ak_bp_find(bp, "Weapon", ak_setting_str("AK_EXPLOSIVE", "REP_Grenade"));
         p->gren_ok = gw && ak_proj_def_load(bp, ak_bp_string(gw, "Projectile", "Grenade"), &p->gren_def);
         p->gren_left = gw ? ak_bp_int(gw, "AmmoPerClip", 4) : 0; p->gren_t = -1; p->gren_cool = 0;
-        p->gren_rate = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f; }
+        p->gren_rate = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f; p->gren_icon = gw ? ak_bp_string(gw, "HUDIcon", NULL) : NULL; }
     const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
     p->armed = ak_weapon_def_load(bp, m, wname, p->look.faction, &p->wdef);
     if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
