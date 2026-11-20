@@ -209,7 +209,7 @@ textures and how they are used. Section R lists only what must be in place so th
   pulse (refills at frames 541, 1081, 1681, 2221 - all on the same 60-frame beat), one clip per pulse, within the droid's
   EffectiveRadius (8). Aurek's droids already pulse that way (UtilityDroid PulseLength 1 s, one clip, radius 8). Health droids
   and explosive refills not measured yet.
-- [ ] **2.3 Secondary items [missing].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
+- [ ] **2.3 Secondary items [partial].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
   incinerator, fusion cutter, shields, jetpack, jump pack, stealth. Trace each one's blueprint use.
   - Thermal detonator [measured and built 2026-11-16]: Weapon REP_Grenade (4, no spare clips, 2 s between throws), Projectile
     "Grenade" (Timer 3, 100 / 150 damage, radius 8). Measured (harness tracks the grenade object, class 0x8011): it appears in
@@ -219,6 +219,12 @@ textures and how they are used. Section R lists only what must be in place so th
     lands 0.85 m from the original's spot over 21 m.
   - [ ] **2.3b** Where 20.4 and 1.2 come from (ProjectileSpeed 10, VerticalThrowSpeed 2.5: pitch? a factor?), throws
     while moving, and the other explosives and items.
+  - 2026-11-20, the other explosives: the Projectile loader 08A01590 reads WillDetonateAT +0x94, Detonation_Height +0xB0,
+    ChildProjectiles +0xB4, ChildSpeed +0xB8, AmmountOfSplay +0xBC, DispersionDistance +0xC0, NumberOfChildren +0xC4,
+    ProximityExplodeDelay +0xF0. The cluster burst is traced (08A02464; NATIVE_ENGINE row). [ ] 2.3c: the mine's trigger
+    (which code reads +0x94 / +0xF0: not found from 08A189F0 / 08A1A77C), the det pack's detonation input, Detonation_Height's
+    use, how mines and det packs are placed (the "place" animations), and the items row (dispenser, auto turret, recon droid,
+    stealth, jetpack, jump pack, shield).
 
 - [ ] **2.4 Guided projectiles [assumed].** Aurek turns them at 100°/s; trace the turn rate.
   - Traced so far: tracking projectiles are Rocket (20 m/s), Proton Torpedo (125), Harpoon (100), HomingMissile and

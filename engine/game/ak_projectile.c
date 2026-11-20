@@ -16,7 +16,7 @@ bool ak_proj_quiet_kind(const char *name)
     return false;
 }
 
-static bool proj_def(const ak_blueprints *bp, const char *name, ak_proj_def *d)
+static bool proj_def_depth(const ak_blueprints *bp, const char *name, ak_proj_def *d, int depth)
 {
     memset(d, 0, sizeof *d);
     const ak_bp_object *o = ak_bp_find(bp, "Projectile", name);
@@ -31,11 +31,25 @@ static bool proj_def(const ak_blueprints *bp, const char *name, ak_proj_def *d)
     d->add_vel = ak_bp_int(o, "AddFirerVelocity", 0) != 0;
     d->explosion_pfx = ak_bp_string(o, "PFXExplosion", NULL); if (d->explosion_pfx && !*d->explosion_pfx) d->explosion_pfx = NULL;
     d->trail_pfx = ak_bp_string(o, "PFXEffect", NULL); if (d->trail_pfx && !*d->trail_pfx) d->trail_pfx = NULL;
+    d->prox = ak_bp_float(o, "WillDetonateAT", 0); d->prox_delay = ak_bp_float(o, "ProximityExplodeDelay", 0);
+    d->remote = !d->on_impact && !d->on_timer && d->prox <= 0;
+    d->nchildren = (u32)ak_bp_int(o, "NumberOfChildren", 0); d->child_speed = ak_bp_float(o, "ChildSpeed", 0);
+    d->splay = ak_bp_float(o, "AmmountOfSplay", 0); d->dispersion = ak_bp_float(o, "DispersionDistance", 0);
+    d->child = NULL;
+    if (d->nchildren && depth < 2) {                                     /* the children's own def, kept for the level (a few kinds) */
+        static ak_proj_def kids[8]; static u32 nkids;
+        const char *cn = ak_bp_string(o, "ChildProjectiles", NULL);
+        const ak_proj_def *found = NULL;
+        for (u32 i = 0; i < nkids && i < 8 && cn; i++) if (kids[i].bp && !strcmp(kids[i].name, cn) && kids[i].bp == ak_bp_find(bp, "Projectile", cn)) found = &kids[i];
+        if (!found && cn && proj_def_depth(bp, cn, &kids[nkids % 8], depth + 1)) found = &kids[nkids++ % 8];   /* (oldest reused across levels) */
+        d->child = found;
+    }
     const char *n = o->name;
     d->colour = strstr(n, "Bomb") ? 0xFFFFB060u : strstr(n, "Torpedo") ? 0xFFFFE0C0u : 0xFF40A0FFu;   /* (ABGR) */
     return true;
 }
 
+static bool proj_def(const ak_blueprints *bp, const char *name, ak_proj_def *d) { return proj_def_depth(bp, name, d, 0); }
 bool ak_proj_def_load(const ak_blueprints *bp, const char *name, ak_proj_def *out) { return proj_def(bp, name, out); }
 
 bool ak_secondary_load(const ak_blueprints *bp, const char *hp, ak_secondary *s)
@@ -60,7 +74,7 @@ void ak_proj_launch(ak_projs *ps, const ak_proj_def *d, const f32 *pos, const f3
     ak_proj *p = NULL;
     for (u32 i = 0; i < AK_MAX_PROJ && !p; i++) if (!ps->p[i].alive) p = &ps->p[i];
     if (!p) return;
-    memset(p, 0, sizeof *p);
+    memset(p, 0, sizeof *p); p->prox_t = -1;
     p->d = d; memcpy(p->pos, pos, 12); p->alive = true; p->team = team; p->owner = owner; p->target = target; p->dmg_scale = dmg_scale;
     memcpy(p->dir, dir, 12);
     for (int k = 0; k < 3; k++) p->vel[k] = (d->drop_time > 0 ? 0 : dir[k] * d->speed) + (d->add_vel && fv ? fv[k] : 0);
@@ -74,12 +88,12 @@ void ak_proj_throw(ak_projs *ps, const ak_proj_def *d, const f32 *pos, const f32
     for (u32 i = 0; i < AK_MAX_PROJ && !p; i++) if (!ps->p[i].alive) p = &ps->p[i];
     if (!p) return;
     memset(p, 0, sizeof *p);
-    p->d = d; memcpy(p->pos, pos, 12); memcpy(p->vel, vel, 12); p->alive = true; p->team = team; p->owner = owner; p->target = -1; p->dmg_scale = 1; p->t = age; p->drag = 0.063f;   /* (measured: a thrown thermal detonator keeps 99.37 % of its speed each 0.1 s) */
+    p->d = d; memcpy(p->pos, pos, 12); memcpy(p->vel, vel, 12); p->alive = true; p->team = team; p->owner = owner; p->target = -1; p->dmg_scale = 1; p->t = age; p->drag = 0.063f; p->prox_t = -1;   /* (measured: a thrown thermal detonator keeps 99.37 % of its speed each 0.1 s) */
     f32 l = sqrtf(vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2]) + 1e-6f; for (int k = 0; k < 3; k++) p->dir[k] = vel[k] / l;
     ps->fired++;
 }
 
-static void explode(ak_projs *ps, ak_proj *p, ak_target *tg, u32 nt, void (*boom)(void *, const f32 *, f32, const ak_proj_def *), void *ctx)
+static void explode(ak_projs *ps, ak_proj *p, ak_target *tg, u32 nt, void (*boom)(void *, const f32 *, f32, const ak_proj_def *), void *ctx, const ak_collision *col)
 {
     const ak_proj_def *d = p->d; f32 r = d->radius > 0.5f ? d->radius : 0.5f;
     {   static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_PROJ", 0);
@@ -103,6 +117,42 @@ static void explode(ak_projs *ps, ak_proj *p, ak_target *tg, u32 nt, void (*boom
     }
     if (boom) boom(ctx, p->pos, d->radius, d);
     p->alive = false;
+    if (d->child && d->nchildren) {
+        /* cluster grenades (08A02464): child i starts DispersionDistance out along the angle i x 2 pi / n (about the vertical) and
+           moves at ChildSpeed along that direction x AmmountOfSplay plus 10 down (game axes), normalised */
+        f32 cpos[3]; memcpy(cpos, p->pos, 12); int team = p->team; s32 owner = p->owner; f32 sc = p->dmg_scale;
+        for (u32 i = 0; i < d->nchildren; i++) {
+            f32 a = (f32)i * 6.2831853f / (f32)d->nchildren, cx = cosf(a), cz = sinf(a);
+            f32 v[3] = { cx * d->splay, -10.0f, -cz * d->splay }, vl = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+            f32 at[3] = { cpos[0] + cx * d->dispersion, cpos[1], cpos[2] - cz * d->dispersion };
+            if (col) {                                                        /* [assumed] kept out of the ground: not through a wall, not under a slope */
+                f32 hd[3] = { cx, 0, -cz }; ak_col_hit h;
+                if (ak_col_raycast(col, cpos, hd, d->dispersion, AK_COL_NOT_BODIES, &h)) for (int k = 0; k < 3; k++) at[k] = cpos[k] + hd[k] * (h.t > 0.1f ? h.t - 0.1f : 0);
+                f32 top[3] = { at[0], at[1] + 2.0f, at[2] }, dn[3] = { 0, -1, 0 };
+                if (ak_col_raycast(col, top, dn, 2.0f, AK_COL_NOT_BODIES, &h)) at[1] = h.pos[1] + 0.05f;
+            }
+            for (int k = 0; k < 3; k++) v[k] = v[k] / vl * d->child_speed;
+            ak_proj *c = NULL; for (u32 j = 0; j < AK_MAX_PROJ && !c; j++) if (!ps->p[j].alive) c = &ps->p[j];
+            if (!c) break;
+            memset(c, 0, sizeof *c); c->d = d->child; memcpy(c->pos, at, 12); memcpy(c->vel, v, 12); c->alive = true; c->team = team; c->owner = owner;
+            c->target = -1; c->dmg_scale = sc; c->prox_t = -1;
+            f32 l = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) + 1e-6f; for (int k = 0; k < 3; k++) c->dir[k] = v[k] / l;
+        }
+    }
+}
+
+u32 ak_projs_detonate(ak_projs *ps, s32 owner, ak_target *tg, u32 nt, void (*boom)(void *, const f32 *, f32, const ak_proj_def *), void *ctx)
+{
+    u32 n = 0;
+    for (u32 i = 0; i < AK_MAX_PROJ; i++) { ak_proj *p = &ps->p[i]; if (p->alive && p->d->remote && p->owner == owner) { explode(ps, p, tg, nt, boom, ctx, NULL); n++; } }
+    return n;
+}
+
+u32 ak_projs_count(const ak_projs *ps, const ak_proj_def *d, s32 owner)
+{
+    u32 n = 0;
+    for (u32 i = 0; i < AK_MAX_PROJ; i++) if (ps->p[i].alive && ps->p[i].d == d && ps->p[i].owner == owner) n++;
+    return n;
 }
 
 void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *tg, u32 nt, f32 gravity, f32 dt,
@@ -112,7 +162,7 @@ void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *tg, u32 n
         ak_proj *p = &ps->p[i]; if (!p->alive) continue;
         const ak_proj_def *d = p->d;
         p->t += dt;
-        if (p->t >= d->life) { if (d->on_timer) explode(ps, p, tg, nt, boom, ctx); else p->alive = false; continue; }
+        if (p->t >= d->life) { if (d->on_timer) explode(ps, p, tg, nt, boom, ctx, col); else p->alive = false; continue; }
         if (d->drop_time > 0 && !p->dropped && p->t >= d->drop_time) { p->dropped = true; for (int k = 0; k < 3; k++) p->vel[k] += p->dir[k] * d->speed; }
         /* guidance: turn the velocity toward the target (after any drop) */
         if (p->target >= 0 && (u32)p->target < nt && tg[p->target].alive && p->t >= d->drop_time) {
@@ -129,6 +179,16 @@ void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *tg, u32 n
                 f32 cl = sqrtf(cur[0] * cur[0] + cur[1] * cur[1] + cur[2] * cur[2]);
                 for (int k = 0; k < 3; k++) p->vel[k] = cur[k] / cl * sp;
             }
+        }
+        if (p->stuck && d->prox > 0) {                                        /* a mine: an enemy within WillDetonateAT starts ProximityExplodeDelay [assumed reading] */
+            if (p->prox_t < 0)
+                for (u32 k = 0; k < nt; k++) {
+                    const ak_target *t = &tg[k]; if (!t->alive || t->team == p->team) continue;
+                    f32 dx = t->feet[0] - p->pos[0], dy = t->feet[1] + t->height * 0.5f - p->pos[1], dz = t->feet[2] - p->pos[2];
+                    f32 rr = d->prox + (t->vehicle ? t->radius : 0);
+                    if (dx * dx + dy * dy + dz * dz < rr * rr) { p->prox_t = 0; break; }
+                }
+            else if ((p->prox_t += dt) >= d->prox_delay) { explode(ps, p, tg, nt, boom, ctx, col); continue; }
         }
         if (p->stuck) continue;                                               /* (resting where it landed, waiting for its timer) */
         if (d->gravity) p->vel[1] -= gravity * dt;
@@ -147,12 +207,12 @@ void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *tg, u32 n
                 f32 px = oc[0] - dir[0] * along, py = oc[1] - dir[1] * along, pz = oc[2] - dir[2] * along, rr = t->radius + t->height * 0.5f;
                 if (px * px + py * py + pz * pz < rr * rr) { hit = true; hit_t = along < hit_t ? along : hit_t; }
             }
-            if (hit && !d->on_impact && d->on_timer) {                       /* a timed one (grenades): it stops where it lands - measured:
-                                                                                  the thermal detonator neither bounces nor rolls */
+            if (hit && !d->on_impact) {                                       /* a timed one (grenades), a mine or a det pack: it stops where
+                                                                                  it lands - measured: the thermal detonator neither bounces nor rolls */
                 for (int k = 0; k < 3; k++) p->pos[k] += dir[k] * (hit_t > 0.02f ? hit_t - 0.02f : 0);
                 p->stuck = true; continue;
             }
-            if (hit) { for (int k = 0; k < 3; k++) p->pos[k] += dir[k] * hit_t; explode(ps, p, tg, nt, boom, ctx); continue; }
+            if (hit) { for (int k = 0; k < 3; k++) p->pos[k] += dir[k] * hit_t; explode(ps, p, tg, nt, boom, ctx, col); continue; }
         }
         for (int k = 0; k < 3; k++) p->pos[k] += step[k];
     }

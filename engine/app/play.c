@@ -459,7 +459,8 @@ static void loadout_items(ak_play *p, const ak_model_set *m, const ak_blueprints
         const ak_bp_object *gw = en[0] ? ak_bp_find(bp, "Weapon", en) : NULL;
         p->gren_ok = gw && ak_proj_def_load(bp, ak_bp_string(gw, "Projectile", "Grenade"), &p->gren_def);
         p->gren_left = gw ? ak_bp_int(gw, "AmmoPerClip", 4) : 0; p->gren_t = -1; p->gren_cool = 0;
-        p->gren_rate = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f; p->gren_icon = gw ? ak_bp_string(gw, "HUDIcon", NULL) : NULL; p->gren_name = gw ? ak_bp_int(gw, "Weapon_Name", -1) : -1; }
+        p->gren_rate = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f; p->gren_icon = gw ? ak_bp_string(gw, "HUDIcon", NULL) : NULL; p->gren_name = gw ? ak_bp_int(gw, "Weapon_Name", -1) : -1;
+        p->gren_limit = gw ? ak_bp_int(gw, "GlobalAmmoLimit", 0) : 0; }
     const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
     p->armed = wname[0] && ak_weapon_def_load(bp, m, wname, p->look.faction, &p->wdef);
     if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
@@ -2328,8 +2329,13 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
        20.4 m/s along the facing and 1.2 up, then falls at 10 m/s^2 with a little drag, stops where it lands and
        explodes 3 s (its Timer) after it appeared.  [PARITY(2.3b): the 20.4 m/s (ProjectileSpeed is 10) and the timings are measured] */
     p->gren_cool -= dt;
-    if (p->gren_t < 0 && p->gren_ok && p->gren_left > 0 && p->gren_cool <= 0 && (in->pressed & AK_BTN_CIRCLE) && p->alive && p->in_veh < 0 &&
-        p->in_turret < 0 && p->roll_i < 0 && !hero_of(p, 0)) { p->gren_t = 0; p->gren_left--; p->gren_cool = p->gren_rate; }
+    bool gren_press = (in->pressed & AK_BTN_CIRCLE) && p->alive && p->in_veh < 0 && p->in_turret < 0 && p->roll_i < 0 && !hero_of(p, 0);
+    if (gren_press && p->gren_ok && p->gren_def.remote && ak_projs_count(&p->projs, &p->gren_def, 0) > 0) {
+        /* det packs out: the button sets them off [assumed: the PSP has one button for the slot] */
+        ak_projs_detonate(&p->projs, 0, p->target, NT(p), proj_boom, p); gren_press = false;
+    }
+    if (gren_press && p->gren_limit > 0 && p->gren_ok && ak_projs_count(&p->projs, &p->gren_def, 0) >= (u32)p->gren_limit) gren_press = false;   /* GlobalAmmoLimit (mines: 4 out) */
+    if (p->gren_t < 0 && p->gren_ok && p->gren_left > 0 && p->gren_cool <= 0 && gren_press) { p->gren_t = 0; p->gren_left--; p->gren_cool = p->gren_rate; }
     if (p->gren_t >= 0) {
         p->gren_t += dt;
         if (p->gren_t >= 37.0f / 60.0f) {

@@ -13,12 +13,16 @@
 #include "world/ak_collision.h"
 #include "game/ak_weapon.h"
 
-typedef struct {
+typedef struct ak_proj_def_s {
     const ak_bp_object *bp; const char *name;
     f32 speed, life, radius, dmg_vehicle, dmg_infantry, drop_time;
     bool track, gravity, on_impact, on_timer, add_vel;
     u32 colour;                         /* the streak's colour (by kind: torpedo blue-white, missile orange, bomb blue) */
     const char *explosion_pfx, *trail_pfx;   /* "PFXExplosion" (where it blows up) and "PFXEffect" (its trail) */
+    f32 prox, prox_delay;               /* "WillDetonateAT" (m) / "ProximityExplodeDelay" (s): a mine (def +0x94 / +0xF0) */
+    bool remote;                        /* neither timed nor on impact, not a mine: set off by its owner (the det pack) [assumed] */
+    const struct ak_proj_def_s *child;  /* "ChildProjectiles" (def +0xB4): what it bursts into (cluster grenades) */
+    u32 nchildren; f32 child_speed, splay, dispersion;   /* "NumberOfChildren" +0xC4, "ChildSpeed" +0xB8, "AmmountOfSplay" +0xBC, "DispersionDistance" +0xC0 */
 } ak_proj_def;
 
 /* a secondary weapon (HardpointW2), resolved through its Weapon blueprint */
@@ -31,6 +35,7 @@ typedef struct {
 
 typedef struct {
     const ak_proj_def *d; f32 pos[3], vel[3], dir[3], t, dmg_scale; int team; s32 owner, target; bool alive, dropped, stuck; f32 drag;
+    f32 prox_t;                         /* a mine: time since an enemy came in range (-1 none yet) */
 } ak_proj;
 
 #define AK_MAX_PROJ 64
@@ -43,6 +48,10 @@ bool ak_secondary_load(const ak_blueprints *bp, const char *hardpoint, ak_second
 /* launch from `pos` along `dir` (unit), adding the firer's velocity where the projectile says so; target -1 = unguided */
 void ak_proj_launch(ak_projs *ps, const ak_proj_def *d, const f32 *pos, const f32 *dir, const f32 *firer_vel,
                     int team, s32 owner, s32 target, f32 dmg_scale);
+/* set off every remote one (det packs) of `owner`; the number set off */
+u32  ak_projs_detonate(ak_projs *ps, s32 owner, ak_target *tg, u32 nt, void (*boom)(void *ctx, const f32 *pos, f32 radius, const struct ak_proj_def_s *d), void *ctx);
+/* how many of `d` `owner` has out (placed mines, det packs) */
+u32  ak_projs_count(const ak_projs *ps, const ak_proj_def *d, s32 owner);
 /* a thrown one (grenades): its own velocity, `age` seconds of its timer already gone */
 void ak_proj_throw(ak_projs *ps, const ak_proj_def *d, const f32 *pos, const f32 *vel, int team, s32 owner, f32 age);
 /* move, steer, collide and explode them; an explosion hurts every target within the radius (not the firer's team); `boom` gets each
