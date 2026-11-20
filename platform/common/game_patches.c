@@ -288,7 +288,11 @@ void rs_drive_report(FILE *f){
             u32 c = GU32(o + 88);
             if (!gok(c)) fprintf(f, "aictl %x raw %08x\n", GU32(info + 4), c);
             if (gok(c) && gok(GU32(c))) { u32 blk = GU32(c + 56); fprintf(f, "aictl %x ctl %x vt %x svt %x s240 %x flags %08x vel %.3f %.3f %.3f w", GU32(info + 4), c, GU32(c), GU32(o), GU32(GU32(o) + 240), gok(blk) ? GU32(blk + 112) : 0, GF32(c + 72), GF32(c + 76), GF32(c + 80));
-                for (u32 k = 0; k < 0x80; k += 4) fprintf(f, " %08x", GU32(c + k)); fprintf(f, "\n"); } }
+                for (u32 k = 0; k < 0x80; k += 4) fprintf(f, " %08x", GU32(c + k));
+                {   u32 in = GU32(o + 92), g = gok(in) && gok(GU32(in)) ? GU32(GU32(in) + 8) : 0;   /* the sprint flag (+520 bit 5) and its control, 21 */
+                    fprintf(f, " | f520 %08x in %x", GU32(o + 520), in);
+                    if (gok(g)) fprintf(f, " c20 %.2f c21 %.2f", ((ifn_t)GFN(g))(in, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).f0, ((ifn_t)GFN(g))(in, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).f0); }
+                fprintf(f, "\n"); } }
         if (cls == 0x8005 && getenv("RS_DRIVE_OBJ")) {   /* soldier objects, raw (finding fields) */
             fprintf(f, "pobj %x %x", GU32(info + 4), o); for (u32 k = 0; k < 0x600; k += 4) fprintf(f, " %08x", GU32(o + k)); fprintf(f, "\n"); }
         if (me && cls == 0x8005 && GU32(o + 92) == me && getenv("RS_DRIVE_BODY")) {   /* the player's physics body (soldier +40 -> +12), raw */
