@@ -458,6 +458,21 @@ textures and how they are used. Section R lists only what must be in place so th
     - Mode codes (table 0x08B1B900, 089735B4 / 089735E0): 0 CQST, 1 CTF1, 2 CTF2, 3 HCTF, 4 GTAG, 5 CMPN (the mode is 08C29328).
   - Tooling: tools/re (BOOT.BIN relocation, Ghidra headless scripts, compare-tree walker).
 - [ ] **5.4 Modes.** CTF, hunt and space completeness. Galactic conquest and campaign rules (credits, map moves, unlocks).
+  - Part 1, 2026-11-19 - **the mode mask**: placed objects carry the modes they exist in (bit m = mode m; modes 0 CQST, 1 CTF1,
+    2 CTF2, 3 HCTF, 4 GTAG, 5 CMPN - code table 0x08B1B900, the mode at 08C28F60 / 08C29328).  The word follows a 0 after the
+    shared { link 999, u32, u32, f32 health } (08A073E0 -> 08A26CF0); at the match start 08A269DC enables objects whose mask holds
+    1 << mode (08A26670) and disables the rest.  Checked on Saleucami (harness): the original's conquest has 4 posts and 5 + 5
+    droids - a fifth post and a droid pair are CTF-only (mask 0x0C), which Aurek used to place.  Aurek now reads the mask
+    (assets/entity.c ak_enti_modes) and skips other modes' posts, droids, turrets, vehicle spawns, objectives and props; AK_MODE
+    picks the mode (code or 0..5, default CQST).
+  - CTF traced so far (not yet ported): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
+    neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
+    radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
+    only if the flag allows), one flag a carrier (089F708C / 089F7D9C); it follows the carrier; dropped at the carrier's feet on
+    death (089F7B4C) with a 30 s return timer (none in campaign), 5 s when it rests in a kill box; a returned flag is removed and
+    its spawner makes a new one at home (089EFF44 -> 089F0064).  Base update 089EF220: a carried flag within the base radius scores
+    (089EF760 / 089EF7C8 -> 08973830: +1, win at the score limit 08C28F54) when the flag is not the base's team (or is neutral),
+    the carrier is not the flag's team, and in CTF1 the base is the carrier's; HCTF returns its own flag at its own base.
 - [ ] **5.6 Entity placement [assumed].** From the Known-issues table: many meshes float or sit in the wrong place (likely
   parent-relative transforms), and command post models are not in place (only the cone and logo). Trace the game's placement.
   - Checked 2026-11-19 (harness RS_DRIVE_ALL=1 on Hoth against AK_DUMP_ENTS=1): every game object the original makes from the

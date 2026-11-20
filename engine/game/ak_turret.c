@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include "assets/entity.h"
 #include "game/ak_turret.h"
 
 #define DEG 0.017453293f
@@ -69,7 +70,7 @@ u32 ak_turrets_read(const ak_level *l, ak_turret_rec *out, u32 max)
     while (ak_asura_next(&l->file, &pos, &c) && n < max) {
         if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 30 * 4) continue;
         const u8 *b = c.body; u32 nw = c.size / 4;
-        if ((ak_rd32(b + 4) & 0xFFFF) != 0x801E) continue;
+        if ((ak_rd32(b + 4) & 0xFFFF) != 0x801E || !ak_enti_active(b, c.size)) continue;   /* PARITY(5.4) */
         for (u32 j = 7; j + 10 < nw; j++) {                                    /* position + unit quaternion, then health, 0, model */
             f32 p[3] = { wf(b + 4 * j), wf(b + 4 * j + 4), wf(b + 4 * j + 8) }, q[4] = { wf(b + 4 * j + 12), wf(b + 4 * j + 16), wf(b + 4 * j + 20), wf(b + 4 * j + 24) };
             bool ok = true;

@@ -1,6 +1,7 @@
 /* Aurek - command posts, team spawns and capture regions (see ak_conquest.h) */
 #include <math.h>
 #include <string.h>
+#include "assets/entity.h"
 #include "game/ak_conquest.h"
 #include "core/ak_settings.h"
 
@@ -103,7 +104,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
     while (ak_asura_next(&l->file, &pos, &c)) {
         if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 12) continue;
         u32 type = ak_rd32(c.body + 4);
-        if (!(type & 0x8000)) continue;
+        if (!(type & 0x8000) || !ak_enti_active(c.body, c.size)) continue;   /* PARITY(5.4): the mode mask */
         type &= 0x7FFF;
         f32 gp[3], gq[4];
         if (type == 8 && out->nposts < AK_MAX_POSTS && find_pos_quat(&c, gp, gq)) {

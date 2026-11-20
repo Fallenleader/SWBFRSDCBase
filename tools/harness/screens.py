@@ -21,10 +21,16 @@ def launch_shown(path):
 def classify(path, limit=10.0):
     t = signature(path); best, bd = None, 1e9
     for k, r in _REF.items():
+        if k.startswith('_'): continue
         d = sum(abs(x - y) for x, y in zip(t, r)) / len(t)
         if d < bd: best, bd = k, d
     if best in ('planet', 'planet_playlist'):
         best = 'planet_playlist' if launch_shown(path) else 'planet'; bd = min(bd, limit)
+    if bd > limit:                                           # team select / spawn map over another level's backdrop: their white text
+        im = Image.open(path).convert('L'); px = im.load()
+        for k in ('team_select', 'spawn_map'):
+            m = _REF.get('_text_' + k, [])
+            if m and sum(1 for x, y in m if px[x, y] >= 200) / len(m) > 0.8: return k, 0.0
     return (best if bd <= limit else None), bd
 
 def make(refs):

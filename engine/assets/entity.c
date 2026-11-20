@@ -32,6 +32,27 @@ static ak_quat quat_from_euler(f32 x, f32 y, f32 z)  /* game axes, yaw (y) then 
     return q;
 }
 
+/* The mode mask (PARITY 5.4).  Placed objects end their shared part with { u32 link (999 none), u32, u32, f32 health, u32 0,
+ * u32 modes } (089F01A8 -> 08A073E0 -> 08A26C18 / 08A26CF0: the modes word follows a 0); at the match start 08A269DC enables
+ * each object whose mask has the mode's bit (08A26670: mask & 1 << mode) and disables the rest.  Vehicle spawns (type 27) keep
+ * the pair at [18], [19].  Records without the block are in every mode. */
+int ak_game_mode = 0;
+
+u32 ak_enti_modes(const u8 *b, u32 size)
+{
+    u32 nw = size / 4;
+    if (nw < 2) return 0x3Fu;
+    u32 type = ak_rd32(b + 4);
+    if (type == 0x801Bu) return nw > 19 && ak_rd32(b + 72) == 0 && ak_rd32(b + 76) && ak_rd32(b + 76) <= 0x3Fu ? ak_rd32(b + 76) : 0x3Fu;
+    for (u32 i = 8; i + 5 < nw; i++) {
+        if (ak_rd32(b + 4 * i) != 999) continue;
+        f32 hp; u32 hw = ak_rd32(b + 4 * (i + 3)); memcpy(&hp, &hw, 4);
+        u32 m = ak_rd32(b + 4 * (i + 5));
+        if (ak_rd32(b + 4 * (i + 4)) == 0 && hp > 0 && hp < 1e6f && m && m <= 0x3Fu) return m;
+    }
+    return 0x3Fu;
+}
+
 bool ak_entities_load(const ak_level *l, const ak_model_set *ms, ak_arena *a, ak_entity_set *out)
 {
     memset(out, 0, sizeof *out);
@@ -53,7 +74,9 @@ bool ak_entities_load(const ak_level *l, const ak_model_set *ms, ak_arena *a, ak
             if (dt >= 0 && (int)(W(1) & 0x7FFF) == dt) { char ln[2048]; int o = snprintf(ln, sizeof ln, "enti %x type %u words %u:", W(0), W(1) & 0x7FFF, nw);
                 for (u32 k = 0; k < nw && k < 160 && o < (int)sizeof ln - 12; k++) o += snprintf(ln + o, sizeof ln - (size_t)o, " %08x", W(k));
                 AK_INFO("ent", "%s", ln); } }
-        e->id = W(0); e->type = W(1) & 0x7FFF; e->flagged = (W(1) >> 15) & 1; e->model[0] = e->model[1] = -1; e->rot.w = 1;
+        e->id = W(0); e->type = W(1) & 0x7FFF; e->flagged = (W(1) >> 15) & 1; e->modes = ak_enti_modes(b, c.size);
+        {   static int dm = -1; if (dm < 0) dm = getenv("AK_DUMP_MODES") != NULL;
+            if (dm && e->flagged) AK_INFO("ent", "modes %x type %u: %02x", e->id, e->type, e->modes); } e->model[0] = e->model[1] = -1; e->rot.w = 1;
         f32 gp[3] = { 0, 0, 0 }; ak_quat gq = { 0, 0, 0, 1 }; bool have = false;
         if (e->flagged && e->type == 27 && nw >= 18) {
             e->model[0] = model_by_hash(ms, l, W(9), mesh_hash); e->model[1] = model_by_hash(ms, l, W(10), mesh_hash);

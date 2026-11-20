@@ -1,4 +1,5 @@
 #include "ak_space.h"
+#include "assets/entity.h"
 #include <string.h>
 
 static f32 wf(const u8 *p) { u32 w = ak_rd32(p); f32 f; memcpy(&f, &w, 4); return f; }
@@ -10,7 +11,7 @@ bool ak_space_load(const ak_level *l, ak_space_map *out)
     while (ak_asura_next(&l->file, &pos, &c)) {
         if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 22 * 4) continue;
         const u8 *b = c.body;
-        if ((ak_rd32(b + 4) & 0xFFFF) != 0x8022 || ak_rd32(b + 8) != 2 || out->nobj >= AK_MAX_OBJECTIVES) continue;
+        if ((ak_rd32(b + 4) & 0xFFFF) != 0x8022 || ak_rd32(b + 8) != 2 || out->nobj >= AK_MAX_OBJECTIVES || !ak_enti_active(b, c.size)) continue;
         ak_space_obj *o = &out->obj[out->nobj];
         o->id = ak_rd32(b); o->team = (int)ak_rd32(b + 24); o->kind = (int)ak_rd32(b + 28);
         if (o->kind < 0 || o->kind > 2) continue;

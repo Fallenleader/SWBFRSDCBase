@@ -15,8 +15,12 @@ typedef struct {
     s32 model[2];                      /* index into the level's models (full detail), -1 = none; [1] the other team's (spawns) */
     f32 pos[3]; ak_quat rot;
     bool placed;                       /* has a model and a transform */
+    u32 modes;                         /* the game modes it is in: bit m = mode m (0 CQST, 1 CTF1, 2 CTF2, 3 HCTF, 4 GTAG, 5 CMPN) */
 } ak_entity;
 
 typedef struct { ak_entity *e; u32 n, placed; } ak_entity_set;
+u32 ak_enti_modes(const u8 *body, u32 size);   /* a record's mode mask (0x3F when it has none) */
+extern int ak_game_mode;                        /* the match's mode, 0..5 (CQST CTF1 CTF2 HCTF GTAG CMPN); AK_MODE */
+static inline bool ak_enti_active(const u8 *body, u32 size) { return (ak_enti_modes(body, size) >> ak_game_mode) & 1u; }
 bool ak_entities_load(const ak_level *l, const ak_model_set *ms, ak_arena *a, ak_entity_set *out);
 #endif

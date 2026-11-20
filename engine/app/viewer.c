@@ -463,6 +463,7 @@ int main(int argc, char **argv)
             for (u32 i = 0; i < ents.n; i++) {
                 const ak_entity *e = &ents.e[i];
                 if (!e->placed) continue;
+                if (playing && !((e->modes >> ak_game_mode) & 1)) continue;   /* PARITY(5.4): not in this mode (08A269DC disables it) */
                 if (playing && play.ready && play.nveh && e->flagged && (e->type == 27 || e->type == 13)) continue;   /* playing: the vehicles themselves stand there */
                 if (playing && play.ready && play.nturret && e->type == 30) continue;   /* playing: the turrets are drawn with their moving parts */
                 s32 mi = e->model[0] >= 0 ? e->model[0] : e->model[1];

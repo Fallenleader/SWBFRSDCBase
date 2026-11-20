@@ -374,6 +374,14 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         if (!ok) return false;
     }
     p->seed = 12345;
+    {   /* the mode (PARITY 5.4): AK_MODE = 0..5 or its code (CQST, CTF1, CTF2, HCTF, GTAG, CMPN; table 0x08B1B900) */
+        static const char *codes[6] = { "CQST", "CTF1", "CTF2", "HCTF", "GTAG", "CMPN" };
+        const char *ms = ak_setting_str("AK_MODE", "CQST"); ak_game_mode = 0;
+        for (int k = 0; k < 6; k++) {
+            bool eq = true; for (int j = 0; j < 5 && eq; j++) eq = (ms[j] & ~0x20) == (codes[k][j] & ~0x20) || (!ms[j] && !codes[k][j]);
+            if (eq || (ms[0] == '0' + k && !ms[1])) ak_game_mode = k;
+        }
+    }
     p->have_cq = ak_conquest_load(l, &p->cq);
     p->difficulty = ak_setting_int("AK_DIFFICULTY", 1);                          /* 0 easy, 1 normal, 2 elite (the game's 08979DF4) */
     p->free_flight = ak_space_load(l, &p->space);                               /* (any space map: flyers may boost) */
@@ -1102,7 +1110,7 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
     if (!ak_entities_load(l, m, a, &es)) { a->used = mark; return; }
     for (u32 i = 0; i < es.n && p->nveh < PLAY_MAX_VEH; i++) {
         const ak_entity *e = &es.e[i];
-        if (!e->flagged || (e->type != 27 && e->type != 13) || !e->placed) continue;
+        if (!e->flagged || (e->type != 27 && e->type != 13) || !e->placed || !((e->modes >> ak_game_mode) & 1)) continue;
         ak_play_vspawn *sp = &p->vspawn[p->nveh]; bool any = false;
         memcpy(sp->pos, e->pos, 12); sp->yaw = quat_yaw(e->rot); sp->post = -1; sp->respawn = p->veh_respawn; sp->fixed = e->type == 13;
         for (u32 k = 0; p->have_cq && k < p->cq.nvlink; k++)
