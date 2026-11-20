@@ -620,7 +620,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         }
         p->roll_i = -1; p->roll_req = false; p->zoom = 0; p->zoom_req = false;
     }
-    p->idle_clip = p->clip[PLAY_IDLE]; p->death_clips[0] = find_clip(m, d1); p->death_clips[1] = find_clip(m, d2); p->death_clips[2] = find_clip(m, d3); p->death_clips[3] = p->death_clips[0]; p->death_pick = 0; p->idle_vars[0] = p->idle_vars[1] = -1;
+    p->idle_clip = p->clip[PLAY_IDLE]; p->death_clips[0] = find_clip(m, d1); p->death_clips[1] = find_clip(m, d2); p->death_clips[2] = find_clip(m, d3); p->death_clips[3] = p->death_clips[0]; p->death_pick = 0; p->idle_vars[0] = p->idle_vars[1] = -1; p->pidle_vars[0] = p->pidle_vars[1] = -1; p->idle_var = -1; p->idle_t = 2.5f;
     /* the alert set (the game's generic_male table, set 5: rifle raised - when shooting or locked on) and its shoot layer; the
        relaxed body clips stay the ones above (set 4 is the same family) */
     memcpy(p->aclip, p->clip, sizeof p->aclip); p->shoot_clip = -1; p->reload_clip = -1;
@@ -818,7 +818,8 @@ static void anim_sets(ak_play *p, const ak_model_set *m)
     }
     p->idle_clip = p->clip[PLAY_IDLE];
     p->shoot_clip = AK_ATAB(gt, base + 1, 0, 1); p->reload_clip = AK_ATAB(gt, base, 0, 2);
-    p->idle_vars[0] = AK_ATAB(gt, 4, 18, 0); p->idle_vars[1] = AK_ATAB(gt, 4, 19, 0);   /* (the rifle set's: the bots' idle variations) */
+    p->idle_vars[0] = AK_ATAB(gt, 4, 18, 0); p->idle_vars[1] = AK_ATAB(gt, 4, 19, 0);
+    p->pidle_vars[0] = AK_ATAB(gt, base, 18, 0); p->pidle_vars[1] = AK_ATAB(gt, base, 19, 0); p->idle_var = -1;   /* (the rifle set's: the bots' idle variations) */
     /* the deaths: rows 20-23, one at random each time (traced, 0899FF38: 20 + (the game's random >> 1 & 3), unless the soldier's
        +196 is set - then row 32 for a 089DE500 body, else none; neither seen in play) */
     static const int drow[4] = { 20, 21, 22, 23 }, rrow[4] = { 26, 24, 25, 27 };   /* (rolls: dive, left, right, back) */
@@ -2730,11 +2731,17 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (st != p->state) p->state = st;
     p->clip_t = p->loco.t;
     p->posed = poseable(m, &p->look);
+    /* idle variations (08998828, as the bots'): idle, not alert, on foot - after 1.25-3.75 s, row 18 or 19 once */
+    if (p->alive && p->state == PLAY_IDLE && p->alert_t <= 0 && p->in_veh < 0 && p->in_turret < 0 && p->roll_i < 0 && !hero_of(p, 0) && p->pidle_vars[0] >= 0) {
+        if (p->idle_var < 0) { if ((p->idle_t -= dt) <= 0) { p->idle_var = p->pidle_vars[rnd(&p->seed) < 0.5f || p->pidle_vars[1] < 0 ? 0 : 1]; p->idle_vt = 0; } }
+        else if ((p->idle_vt += dt) >= m->clips[p->idle_var].duration) { p->idle_var = -1; p->idle_t = (rnd(&p->seed) + 0.5f) * 2.5f; }
+    } else { p->idle_var = -1; if (p->idle_t <= 0) p->idle_t = (rnd(&p->seed) + 0.5f) * 2.5f; }
     if (!p->alive) { p->dead_t += dt; if (p->posed) pose(m, &p->look, p->death_clips[p->death_pick & 3], p->dead_t, false, p->bones); }
     else if (p->posed) {
         const ak_play_hero *ph = hero_of(p, 0);
         if (ph && ph->atk_i >= 0) pose(m, &p->look, ph->atk[ph->atk_i], ph->atk_t, false, p->bones);
         else if (p->roll_i >= 0) pose(m, &p->look, p->roll_clip[p->roll_i], p->roll_t, false, p->bones);
+        else if (p->idle_var >= 0) pose(m, &p->look, p->idle_var, p->idle_vt, false, p->bones);
         else                                                                   /* the body clips crossfading; alert: the shoot layer while firing */
         {   bool rl = !ph && p->armed && p->weapon.reload_t > 0 && p->reload_clip >= 0;   /* reloading: the set's reload layer (column 2) */
             pose_mix(m, &p->look, p->loco.prev, p->loco.prev_t, p->loco.cur, p->loco.t, p->loco.w, p->state != PLAY_JUMP && p->state != PLAY_LAND,

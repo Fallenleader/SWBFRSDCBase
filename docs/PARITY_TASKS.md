@@ -685,7 +685,7 @@ textures and how they are used. Section R lists only what must be in place so th
   tables (sets, rows, columns) and the game's layer and blend rules.
   - 2026-11-20, the idle variations traced (08998828): standing idle and not alert, a wait of (random + 0.5) x 2.5 s
     (1.25-3.75, +396), then row 18 or 19 at random (+488) once, then a new wait. Built for the bots (the rifle set's rows for
-    every bot [assumed]); [ ] the player (its clips go through ak_loco).
+    every bot [assumed]) and the player (its own set's rows).
   - Done 2026-11-19: the set is the game's (08998D74): the weapon's AnimPose ("Pistol" 0, "Bazooka" 8, else 4) + 2 crouched +
     1 alert; alert comes from the controller (08994C30), measured in the original as firing or holding the lock-on and 3 s after
     letting go (Aurek's 3 s alert matched).  Aurek now takes the body rows (idle 0, walk 1 / 2, run 3 / 4, strafe 5 / 6, sprint 7,

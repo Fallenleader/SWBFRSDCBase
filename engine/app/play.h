@@ -120,6 +120,7 @@ typedef struct {
     s32 sclip[PLAY_NCLIPS];            /* the saber heroes' (generic_male LightSabre clips) */
     s32 aclip[PLAY_NCLIPS], shoot_clip, reload_clip;   /* reload_clip: the set's column 2 (reloading) */   /* the alert set (rifle raised: generic_male set 5) and its shoot layer (column 1) */
     f32 alert_t, shoot_t;              /* the player: seconds of alert pose left; seconds since the trigger was last held */
+    s32 pidle_vars[2], idle_var; f32 idle_t, idle_vt;   /* the player's idle variations (its set's rows 18 / 19) and the one playing (-1) */
     bool psp_buttons, l_was, sprint;   /* the PSP button layout (AK_BUTTONS=psp): L tap jumps, L held sprints */
     /* stamina (the game's: object +0xA0, maximum +0xA4, regeneration +0xA8 - 100 / 100 / 10 a second by default, 089D9EE0, and no
      * Humanoid sets "Stamina"): sprinting pays Controls "sprint cost" a second (the soldier update 08993D38; Humanoid: 15) and a
