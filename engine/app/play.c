@@ -1319,13 +1319,25 @@ static bool vehicle_make(ak_play *p, u32 v)
 }
 
 /* an effect by name at pos along fwd (NULL: the effect's own frame) - R.6 */
-static void play_fx(ak_play *p, const char *name, const f32 *pos, const f32 *fwd)
+static s32 play_fx_within(ak_play *p, const char *name, const f32 *pos, const f32 *fwd, f32 max_d)
 {
-    if (!p->pfx || !name) return;
+    if (!p->pfx || !name) return 0;
     f32 dx = pos[0] - p->eye[0], dy = pos[1] - p->eye[1], dz = pos[2] - p->eye[2];
-    if (dx * dx + dy * dy + dz * dz > 100.0f * 100.0f) return;          /* [assumed] every effect as the impacts' "impact pfx max dist" */
+    if (max_d > 0 && dx * dx + dy * dy + dz * dz > max_d * max_d) return 0;
     s32 fx = ak_pfx_find(&p->pfx_lib, name);
-    if (fx >= 0) ak_pfx_play(p->pfx, fx, pos, fwd);
+    s32 h = fx >= 0 ? ak_pfx_play(p->pfx, fx, pos, fwd) : -1;
+    return h < 0 ? 0 : h;
+}
+static s32 play_fx(ak_play *p, const char *name, const f32 *pos, const f32 *fwd) { return play_fx_within(p, name, pos, fwd, 0); }
+
+/* an effect riding an object: started when wanted and missing, moved, let go when no longer wanted */
+static void ride_fx(ak_play *p, s32 *h, bool want, const char *name, const f32 *pos, const f32 *fwd, const f32 *vel)
+{
+    if (!p->pfx) return;
+    if (!want || !name) { if (*h) ak_pfx_follow(p->pfx, *h, NULL, NULL, NULL, false); *h = 0; return; }
+    if (*h && ak_pfx_follow(p->pfx, *h, pos, fwd, vel, true)) return;
+    *h = play_fx(p, name, pos, fwd);
+    if (*h) ak_pfx_follow(p->pfx, *h, pos, fwd, vel, true);
 }
 
 static void boom_fx(ak_play *p, const f32 *pos, const char *pfx)
@@ -1334,15 +1346,19 @@ static void boom_fx(ak_play *p, const f32 *pos, const char *pfx)
     ak_play_boom *b = &p->boom[p->nboom < PLAY_MAX_BOOMS ? p->nboom++ : 0];   /* Aurek's own fireball (no effect to play) */
     memcpy(b->pos, pos, 12); b->pos[1] += 1.5f; b->t = 0;
 }
-/* a wreck: the game's vehicle explosion [assumed BFF_BigExplosion_E: no blueprint names one] */
-static void boom(ak_play *p, const f32 *pos) { f32 q[3] = { pos[0], pos[1] + 1.5f, pos[2] }; boom_fx(p, q, "BFF_BigExplosion_E"); }
+/* a wreck: its blueprint's "PFX On Destruction" (Aurek's fireball when it has none) */
+static void boom(ak_play *p, const f32 *pos, const ak_bp_object *bp)
+{
+    const char *fx = bp ? ak_bp_string(bp, "PFX On Destruction", NULL) : NULL; if (fx && !*fx) fx = NULL;
+    f32 q[3] = { pos[0], pos[1] + 1.5f, pos[2] }; boom_fx(p, q, fx);
+}
 
 static void player_down(ak_play *p);
 static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
 {
     ak_vehicle *vh = &p->veh[v]; (void)m;
     if (p->target[VT(p, v)].last_attacker == 0 && vh->driver != 0) p->kills++;
-    vh->alive = false; vh->dead_t = 0; boom(p, vh->pos);
+    vh->alive = false; vh->dead_t = 0; boom(p, vh->pos, vh->def->bp);
     if (vh->driver == 0) { p->in_veh = -1; vh->driver = -1; if (p->alive) { p->target[0].alive = true; p->target[0].health = 0; player_down(p); } }
     else if (vh->driver > 0) {                                                /* a bot's: it dies with it (no body left) */
         u32 i = (u32)vh->driver - 1; ak_play_bot *b = &p->bot[i]; vh->driver = -1;
@@ -2001,7 +2017,7 @@ static void turrets_init(ak_play *p, const ak_level *l, const ak_model_set *m, c
 static void turret_destroyed(ak_play *p, u32 i)
 {
     ak_turret *t = &p->turret[i]; if (!t->alive) return;
-    t->alive = false; t->health = 0; boom(p, t->pos);
+    t->alive = false; t->health = 0; boom(p, t->pos, t->def->bp);
     if (p->target[TT(p, i)].last_attacker == 0) p->kills++;
     if (p->in_turret == (s32)i) { p->in_turret = -1; if (p->alive) { p->target[0].alive = true; p->target[0].health = 0; player_down(p); } }   /* the gunner goes with it */
 }
@@ -2604,12 +2620,11 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     ak_bolts_update(&p->bolts, &p->col, p->target, nt, dt);
     if (p->pfx) {                                                             /* the shots' muzzle flashes and the impacts' effects (R.6) */
         u32 ns = p->bolts.shots - p->pfx_shots; if (ns > AK_MAX_SHOT_FX) ns = AK_MAX_SHOT_FX;
-        for (u32 j = 0; j < ns; j++) { const ak_shot_fx *f = &p->bolts.shot[(p->bolts.shots - ns + j) % AK_MAX_SHOT_FX]; play_fx(p, f->pfx, f->pos, f->dir); }
+        for (u32 j = 0; j < ns; j++) { const ak_shot_fx *f = &p->bolts.shot[(p->bolts.shots - ns + j) % AK_MAX_SHOT_FX]; play_fx_within(p, f->pfx, f->pos, f->dir, 100.0f); }   /* [assumed] muzzle flashes as far as impacts */
         u32 ni = p->bolts.impacts - p->pfx_impacts; if (ni > AK_MAX_IMPACTS) ni = AK_MAX_IMPACTS;
         for (u32 j = 0; j < ni; j++) {
             const ak_impact *im = &p->bolts.imp[(p->bolts.next_imp + AK_MAX_IMPACTS - ni + j) % AK_MAX_IMPACTS];
-            f32 dx = im->pos[0] - p->eye[0], dy = im->pos[1] - p->eye[1], dz = im->pos[2] - p->eye[2];
-            if (dx * dx + dy * dy + dz * dz < 100.0f * 100.0f) play_fx(p, im->pfx, im->pos, im->normal);   /* "impact pfx max dist" 100 */
+            play_fx_within(p, im->pfx, im->pos, im->normal, 100.0f);         /* the weapon's "impact pfx max dist" (100 on every weapon) */
         }
         {   static const char *test; static bool tset; static f32 tt; if (!tset) { tset = true; test = ak_setting_str("AK_PFX_TEST", NULL); }
             if (test && (tt -= dt) <= 0) {                                    /* tests: an effect 8 m ahead of the eye every 2 s */
@@ -2618,6 +2633,32 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 f32 q[3] = { p->eye[0] + f[0] * 8, p->eye[1] - 1.0f, p->eye[2] + f[2] * 8 };
                 play_fx(p, test, q, ak_setting_int("AK_PFX_TEST_FWD", 0) ? f : NULL);
             } }
+        for (u32 i = 0; i < AK_MAX_PROJ; i++) {                                /* projectile trails ("PFXEffect") */
+            const ak_proj *q = &p->projs.p[i];
+            ride_fx(p, &p->proj_fx[i], q->alive && q->d && q->d->trail_pfx, q->alive && q->d ? q->d->trail_pfx : NULL, q->pos, q->dir, q->vel);
+        }
+        for (u32 v = 0; v < p->nveh; v++) {                                   /* damaged vehicles: SmokePFX under 66% health, FirePFX under 33%, at SmokeMarker / FireMarker */
+            ak_vehicle *vh = &p->veh[v]; const ak_target *t = &p->target[VT(p, v)];
+            f32 hf = t->max_health > 0 ? t->health / t->max_health : 1; bool ok = vh->alive && vh->def && vh->def->bp;
+            for (int k = 0; k < 2; k++) {
+                const char *fx = ok ? ak_bp_string(vh->def->bp, k ? "FirePFX" : "SmokePFX", NULL) : NULL;
+                const char *mk = ok ? ak_bp_string(vh->def->bp, k ? "FireMarker" : "SmokeMarker", NULL) : NULL;
+                bool want = ok && fx && *fx && hf < (k ? 0.33f : 0.66f);   /* [assumed] the thresholds are the effects' names */
+                f32 T[12], at[3] = { vh->pos[0], vh->pos[1], vh->pos[2] };
+                if (want && mk && *mk && ak_vehicle_marker(vh, m, mk, T)) { at[0] = T[3]; at[1] = T[7]; at[2] = T[11]; }
+                ride_fx(p, &p->veh_fx[v][k], want, fx, at, NULL, vh->vel);
+            }
+            /* engines: EnginePFX at EngineCount markers "eng", "eng01", ... (the muzzles' naming [assumed]) along each marker's +Z,
+               while someone drives [assumed] */
+            const char *ef = ok ? ak_bp_string(vh->def->bp, "EnginePFX", NULL) : NULL;
+            s32 ne = ok ? ak_bp_int(vh->def->bp, "EngineCount", 1) : 0; if (ne > 4) ne = 4;
+            for (s32 k = 0; k < 4; k++) {
+                char nm[8]; if (k) snprintf(nm, sizeof nm, "eng%02d", (int)k); else memcpy(nm, "eng", 4);
+                f32 T[12] = { 0 }; bool want = ok && ef && *ef && k < ne && vh->driver >= 0 && ak_vehicle_marker(vh, m, nm, T);
+                f32 at[3] = { T[3], T[7], T[11] }, fw[3] = { -T[2], -T[6], -T[10] };   /* (the marker's own +Z in the game's axes) */
+                ride_fx(p, &p->eng_fx[v][k], want, ef, at, fw, vh->vel);
+            }
+        }
         ak_pfx_update(p->pfx, dt);
     }
     p->pfx_shots = p->bolts.shots; p->pfx_impacts = p->bolts.impacts; p->bolts.pfx_impacts = p->pfx != NULL;

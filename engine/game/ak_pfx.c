@@ -134,19 +134,9 @@ void ak_pfx_world_init(ak_pfx_world *w, const ak_pfx_lib *lib)
     for (u32 i = 0; i < AK_PFX_MAX_EMITTERS; i++) w->em[i].effect = -1;
 }
 
-s32 ak_pfx_play(ak_pfx_world *w, s32 fx, const f32 *pos, const f32 *fwd)
+/* the frame in game axes: column 2 (+Z, the way emitters fire) = fwd; identity when none */
+static void set_frame(ak_pfx_instance *in, const f32 *pos, const f32 *fwd)
 {
-    if (!w->lib || fx < 0 || (u32)fx >= w->lib->nfx) return -1;
-    const ak_pfx_effect *e = &w->lib->fx[fx];
-    s32 slot = -1;
-    for (u32 i = 0; i < AK_PFX_MAX_EFFECTS; i++) if (!w->fx[i].alive) { slot = (s32)i; break; }
-    if (slot < 0) { w->dropped++; return -1; }
-    u32 first = 0, run = 0;                                           /* nem free emitter slots in a row */
-    for (u32 i = 0; i < AK_PFX_MAX_EMITTERS && run < e->nem; i++) { if (w->em[i].effect < 0) { if (!run) first = i; run++; } else run = 0; }
-    if (run < e->nem) { w->dropped++; return -1; }
-    ak_pfx_instance *in = &w->fx[slot];
-    memset(in, 0, sizeof *in); in->fx = e; in->alive = true; in->scale = 1; in->first_em = (u16)first; in->nem = (u16)e->nem;
-    /* the frame in game axes: column 2 (+Z, the way emitters fire) = fwd; identity when none */
     f32 z[3] = { 0, 0, 1 }, x[3] = { 1, 0, 0 }, y[3] = { 0, 1, 0 };
     if (fwd) {
         f32 g[3] = { fwd[0], -fwd[1], -fwd[2] }, l = sqrtf(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]);
@@ -160,12 +150,40 @@ s32 ak_pfx_play(ak_pfx_world *w, s32 fx, const f32 *pos, const f32 *fwd)
     }
     for (int r = 0; r < 3; r++) { in->M[r * 4] = x[r]; in->M[r * 4 + 1] = y[r]; in->M[r * 4 + 2] = z[r]; }
     in->M[3] = pos[0]; in->M[7] = -pos[1]; in->M[11] = -pos[2];
+}
+
+s32 ak_pfx_play(ak_pfx_world *w, s32 fx, const f32 *pos, const f32 *fwd)
+{
+    if (!w->lib || fx < 0 || (u32)fx >= w->lib->nfx) return -1;
+    const ak_pfx_effect *e = &w->lib->fx[fx];
+    s32 slot = -1;
+    for (u32 i = 0; i < AK_PFX_MAX_EFFECTS; i++) if (!w->fx[i].alive) { slot = (s32)i; break; }
+    if (slot < 0) { w->dropped++; return -1; }
+    u32 first = 0, run = 0;                                           /* nem free emitter slots in a row */
+    for (u32 i = 0; i < AK_PFX_MAX_EMITTERS && run < e->nem; i++) { if (w->em[i].effect < 0) { if (!run) first = i; run++; } else run = 0; }
+    if (run < e->nem) { w->dropped++; return -1; }
+    ak_pfx_instance *in = &w->fx[slot];
+    u16 gen = (u16)(in->gen + 1);
+    memset(in, 0, sizeof *in); in->gen = gen; in->fx = e; in->alive = true; in->scale = 1; in->first_em = (u16)first; in->nem = (u16)e->nem;
+    set_frame(in, pos, fwd);
     for (u32 i = 0; i < e->nem; i++) {
         ak_pfx_emitter *m = &w->em[first + i]; memset(m, 0, sizeof *m);
         m->effect = (s16)slot; m->def = &e->em[i];
     }
     w->played++;
-    return slot;
+    return slot | ((s32)(gen & 0x7FFF) << 16);
+}
+
+bool ak_pfx_follow(ak_pfx_world *w, s32 h, const f32 *pos, const f32 *fwd, const f32 *vel, bool held)
+{
+    if (h < 0) return false;
+    u32 slot = (u32)h & 0xFFFF; if (slot >= AK_PFX_MAX_EFFECTS) return false;
+    ak_pfx_instance *in = &w->fx[slot];
+    if (!in->alive || (in->gen & 0x7FFF) != ((u32)h >> 16)) return false;
+    if (pos) set_frame(in, pos, fwd);
+    if (vel) { in->vel[0] = vel[0]; in->vel[1] = -vel[1]; in->vel[2] = -vel[2]; }
+    in->held = held;
+    return true;
 }
 
 /* the emitter's frame in the world: effect M x (emitter m, pos) */
@@ -204,7 +222,9 @@ static void spawn(ak_pfx_world *w, ak_pfx_emitter *m, u32 ei)
 {
     if (w->np >= AK_PFX_MAX_PARTICLES) { w->dropped_particles++; return; }
     const ak_pfx_instance *in = &w->fx[m->effect]; const ak_pfx_system *s = m->def->sys; const ak_pfx_type *y = s->type;
-    f32 R[9], o[3], sp[3]; emitter_frame(in, m->def, R, o);
+    f32 R[9], o[3], sp[3];
+    if (y->flags & 0x100000) { memcpy(R, m->def->m, sizeof R); memcpy(o, m->def->pos, 12); }   /* [assumed] carried in the effect's frame (engine glows) */
+    else emitter_frame(in, m->def, R, o);
     ak_pfx_particle *p = &w->p[w->np++]; memset(p, 0, sizeof *p);
     shape_point(w, m->def, sp);
     for (int r = 0; r < 3; r++) p->pos[r] = o[r] + R[r * 3] * sp[0] + R[r * 3 + 1] * sp[1] + R[r * 3 + 2] * sp[2];
@@ -255,6 +275,7 @@ void ak_pfx_update(ak_pfx_world *w, f32 dt)
                 while (m->acc >= 1) { m->acc -= 1; if (m->nlive < s->limit && rnd(w) <= sample1(&s->f, m->t)) spawn(w, m, i); }
             }
             m->t += dt * ((s->flags & 8) ? s->time_scale : 1.0f) / s->duration;
+            if (m->t >= 1 && w->fx[m->effect].held) { m->t -= 1; m->burst_done = false; }   /* [assumed] a held effect starts over */
         }
     }
     /* particles: age 0..1 at dt / life; motion (088E2DDC) */
@@ -277,7 +298,7 @@ void ak_pfx_update(ak_pfx_world *w, f32 dt)
     for (u32 f = 0; f < AK_PFX_MAX_EFFECTS; f++) {
         ak_pfx_instance *in = &w->fx[f]; if (!in->alive) continue;
         bool done = true;
-        for (u32 k = 0; k < in->nem; k++) { const ak_pfx_emitter *m = &w->em[in->first_em + k]; if (m->t < 1 || m->nlive) { done = false; break; } }
+        for (u32 k = 0; k < in->nem; k++) { const ak_pfx_emitter *m = &w->em[in->first_em + k]; if (m->t < 1 || m->nlive || in->held) { done = false; break; } }
         if (done) { for (u32 k = 0; k < in->nem; k++) w->em[in->first_em + k].effect = -1; in->alive = false; }
     }
 }
@@ -303,7 +324,12 @@ u32 ak_pfx_vertices(const ak_pfx_world *w, bool additive, const f32 *right, cons
         f32 ca = cosf(ang) * hw, sa = sinf(ang) * hw;
         f32 ax[3], ay[3];
         for (int k = 0; k < 3; k++) { ax[k] = right[k] * ca + up[k] * sa; ay[k] = -right[k] * sa + up[k] * ca; }
-        f32 e[3] = { p->pos[0], -p->pos[1], -p->pos[2] };               /* to engine axes */
+        f32 g[3] = { p->pos[0], p->pos[1], p->pos[2] };
+        if (y->flags & 0x100000) {                                    /* in the effect's frame: to the world */
+            const f32 *M = w->fx[w->em[p->em].effect].M;
+            for (int r = 0; r < 3; r++) g[r] = M[r * 4] * p->pos[0] + M[r * 4 + 1] * p->pos[1] + M[r * 4 + 2] * p->pos[2] + M[r * 4 + 3];
+        }
+        f32 e[3] = { g[0], -g[1], -g[2] };                            /* to engine axes */
         static const f32 qs[4][2] = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } };
         static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
         u8 col[4];

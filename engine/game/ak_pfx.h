@@ -63,6 +63,7 @@ typedef struct {
     f32 M[12];                                    /* the effect's frame, game axes: 3x3 rows + position (column 3) */
     f32 vel[3]; f32 scale;
     u16 first_em, nem;
+    u16 gen; bool held;                           /* held: its emitters start over instead of ending (an effect on a moving object) */
 } ak_pfx_instance;
 typedef struct {
     const ak_pfx_lib *lib;
@@ -74,10 +75,13 @@ typedef struct {
 } ak_pfx_world;
 
 void ak_pfx_world_init(ak_pfx_world *w, const ak_pfx_lib *lib);
-/* play effect `fx` at pos (engine axes) facing along `fwd` (engine axes, NULL = the effect's own +Z up the world, as an explosion
- * on the ground); returns the instance or -1 */
+/* play effect `fx` at pos (engine axes) facing along `fwd` (engine axes, NULL = the effect's own frame, as an explosion on the
+ * ground); returns a handle or -1 */
 s32  ak_pfx_play(ak_pfx_world *w, s32 fx, const f32 *pos, const f32 *fwd);
 void ak_pfx_update(ak_pfx_world *w, f32 dt);
+/* an effect that rides an object: play it with ak_pfx_play, then every frame ak_pfx_follow (the handle's frame and velocity, engine
+ * axes; held = keep emitting); ak_pfx_follow(.., false) lets it finish.  Returns false once the handle is gone. */
+bool ak_pfx_follow(ak_pfx_world *w, s32 handle, const f32 *pos, const f32 *fwd, const f32 *vel, bool held);
 /* the particles of one blending kind as triangles (6 vertices each, engine axes), facing the camera (right / up vectors) */
 u32  ak_pfx_vertices(const ak_pfx_world *w, bool additive, const f32 *right, const f32 *up, ak_vtx *out, u32 cap);
 u32  ak_pfx_live(const ak_pfx_world *w);

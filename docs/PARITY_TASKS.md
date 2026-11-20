@@ -919,9 +919,12 @@ groundwork below is needed before the parity work starts. The tiers come later.
       pfx" (BFF_ShieldImpact_E), Weapon "impact pfx max dist" 100, Projectile "PFXExplosion" (BFF_BigExplosion_2_E for grenades
       and rockets, BFF_Space_Plasma_Explosion_E for torpedoes and bombs) and "PFXEffect" (trails), Flyer EnginePFX / SmokePFX
       (66% health) / FirePFX (33%) / BoostPFX / SpaceDustPFX, UtilityDroid PFXDeath, Humanoid PFXExplosion (droids).
-    - 2026-11-20, Aurek runs them (`game/ak_pfx`, NATIVE_ENGINE row): muzzle flashes, impacts, projectile explosions and wrecks
-      (BFF_BigExplosion_E [assumed]). Left: trails and vehicle effects (they follow a moving object), the effects' lights (the
-      FXET colour and radius curves), cell animation, the oriented / stretched draws, and the exact noise (088EF134).
+    - 2026-11-20, Aurek runs them (`game/ak_pfx`, NATIVE_ENGINE rows): muzzle flashes, impacts, projectile explosions and
+      trails, vehicle smoke / fire / engines, and wrecks by their "PFX On Destruction" (Flyer / Tank / Walker / Turret
+      blueprints). [assumed]: held effects restart their emitters; the 66% / 33% thresholds (from the effects' names); engine
+      markers eng, eng01..; particles of FXPT flags 0x100000 kept in the effect's frame. Left: the effects' lights (the FXET
+      colour and radius curves), cell animation, the oriented / stretched draws (FXPT 0x200, 0x1000-0x4000), the emitter scale
+      of flags 0x40000 (thrust size), the boost / space-dust / hero effects, and the exact noise (088EF134).
 - [ ] **R.7 Shadows and decals.** Shadow blobs and scorch marks as the game places them.
   - 2026-11-20: the blob shadows are one batch (08918144): a vertex list at 0x08C19240 (20-byte vertices, room for 2024; count
     0x08C23244), drawn as one triangle strip (prim 4, vertex type 0x183: float UV and position) with \specialfx\blobshadow.tga,
