@@ -119,7 +119,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - Aurek: the player respawns on confirm (cross / fire) after 3 s (AK_RESPAWN_AUTO=1 without a press); fallen bots leave
     after 5 s (were 8).
   - [ ] **1.10b** A spawn screen (score board, map, spawn point choice with the game's default).
-  - [ ] **1.10c** The AI's respawn rule (Aurek still brings bots back with a 10 s wave).
+  - [x] **1.10c** The AI's respawn rule. 2026-11-20: the game has spawn waves - the option "Respawn delay is time between spawn
+    waves (in seconds)" is a float at 0x08B1BB48, 10.0 on every match (RS_DRIVE_PEEK; the warm-up beside it is 5.0); the match
+    status (089883F8) counts the next wave from it. With the body's 5 s, the next 10 s wave gives the measured 5-15 s. Aurek
+    kept the 10 s wave but let a bot back 1 s after dying; it now waits for its body to leave (5 s).
 - [ ] **1.11 Hit reactions and flinch [partly measured 2026-11-16].**
   - Harness (player teleported into the Rebel spawn, running back and forth 40 s, every frame): blaster hits of 4.5 (an AI's
     rifle: 15 x Modifier_Bot_Damage 0.3) do not change the player's speed at all - no flinch on movement. Aurek: the same.

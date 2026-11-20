@@ -208,6 +208,7 @@ Vita: `cmake -S engine/platform/vita -B build/aurek_vita && cmake --build build/
 | 2026-11-20 | R.3 | **the sky is not fogged.** The FOG chunk's sky strength (0 on most levels) decides how much fog the sky box takes; Aurek fogged it fully. New `ak_gfx_set_fog_range` (GL, GXM; 3DS on / off) lets the sky draw clear: Hoth's blue sky, clouds and capital ship now show as in the original. |
 | 2026-11-20 | R.3 | **sky box turned as in the game.** Logged the GE sky draws in the harness (RS_SKY_LOG): identity world, the camera's view and projection, the SKYB turn baked into the vertices; faces matched to the SKYB names by their texels in VRAM. The game's frame is Aurek's with y and z negated, so the box turns by pi - angle; corners and UVs agree to 1e-4 on Hoth and the capital ship is where the original shows it. |
 | 2026-11-20 | 9.1 | **zoom divides the horizontal angle.** The game's camera field of view is "fov" / magnification (func_0896EC88) across the PSP screen, the height following through the tangent; Aurek now zooms the same way. Harness program `zoom` (triangle every 2 s); `[DRAW]` lines carry the texture address (LOD study). |
+| 2026-11-20 | 1.10c | **AI respawn: 10 s waves after the body leaves.** The game's respawn delay (time between spawn waves) is 10 s (option at 0x08B1BB48, read live); bots now return at the first wave after their 5 s body time, giving the original's 5-15 s. |
 
 ## Known issues (cleanup pass once gameplay reaches parity)
 

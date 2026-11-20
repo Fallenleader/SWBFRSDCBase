@@ -2531,9 +2531,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 p->stamina = p->stamina_max; p->stamina_spent = false;   /* a new soldier */
             }
         }
-        for (u32 i = 0; i < p->nbots && wave; i++) {                          /* the bots: with the wave [PARITY(1.10c)] */
+        /* the bots: with the wave, once their body has left (5 s).  The game's respawn delay - the time between spawn waves - is
+           10 s (the option at 0x08B1BB48, read live in the harness; "Respawn delay is time between spawn waves"); fallen AI soldiers
+           came back 5-15 s after dying in the original: the body's 5 s, then the next wave [PARITY(1.10c)] */
+        for (u32 i = 0; i < p->nbots && wave; i++) {
             ak_play_bot *b = &p->bot[i];
-            if (b->alive || b->dead_t < 1.0f || (p->have_cq && p->match.tickets[b->team] <= 0)) continue;
+            if (b->alive || b->dead_t < 5.0f || (p->have_cq && p->match.tickets[b->team] <= 0)) continue;
             bot_spawn(p, m, b, i);
         }
     }
