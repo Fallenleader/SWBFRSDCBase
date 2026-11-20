@@ -166,6 +166,13 @@ textures and how they are used. Section R lists only what must be in place so th
 
 ## 2. Weapons, items and projectiles
 
+- [x] **1.16 Leaving the battlefront [traced 2026-11-20].** 089D4BDC, every frame, against the bounds object 08A145E4(0): ENTI
+  class 0x8021 records {1, 0, 0, x min, x max, y min, y max, z min, z max, flags} (Hoth: x -217..249, y -20.9..19.5, z
+  -64.7..181.1, game axes); flags byte 1 picks the box (0: soldiers and what they drive; 1: the AI pilots', 089477A8 /
+  0894B7D8). Inside - nothing. Outside but within the box grown by 500 m (x, z) and 340 m (y), and within +-3940 / +-940 of
+  the origin - message 0x804A to the local player: STDTEXT 72 "You are leaving the battlefront!" in the centre box (style 3)
+  while it lasts and Speech_BN_Return once a spell (08A09928). Beyond - a damage message of 1.0 each frame. Engine: play.c
+  reads the box and does the same (the damage as 60 a second [assumed: 1.0 a frame at 60 Hz]).
 - [ ] **2.1 Loadouts [partly found].**
   - The player's loadout is the Customisation Menu (credits; each Weapon blueprint has a Cost): categories Weapon 1, Weapon 2,
     Explosive, Special Item, Power Up, Health, Speed, Capture Rate. Default (read from the original's menu, Empire on Hoth):
@@ -438,14 +445,15 @@ textures and how they are used. Section R lists only what must be in place so th
   - Ported: the start-group 0x8022 / 0x8002 messages (ak_conquest.c ticket_mods).  Other levels' start groups change nothing;
     Tatooine's script sets 10 on an event (group 17) - script events are not run yet.  0x8003 (Tatooine: +5 / +10 / +20 on events)
     and 0x8006 / 0x8010 are other ticket-entity messages, not read.
-- [ ] **5.2 Heroes [partial].** Unlock threshold (AK_HERO_UNLOCK 3), and how HeroDeathRate and HeroHealthAddPerKill are applied.
+- [x] **5.2 Heroes [done 2026-11-20].** Unlock threshold (AK_HERO_UNLOCK 3), and how HeroDeathRate and HeroHealthAddPerKill are applied.
   - Traced 2026-11-19: the class record reads HeroHealthAddPerKill into +168 and HeroDeathRate into +164 (089E3E38).
     - Drain (08982DA4, every frame unless the mode is 3 or the game is paused (089E47D0), and not while vfunc +96 says so):
       health -= HeroDeathRate x max health (+8) x the frame time (D_08B285A0), floored at 0 - the hero dies at 0.
     - A kill (08982634, when the unit's flag +96 bit 0 is set, the mode is not 3 and the kill counts (a1 = 0)): health +=
       max health x HeroHealthAddPerKill, capped at the max.
     - The unlock time is the option at +420 (default 3 minutes, 0897782C), as Aurek's AK_HERO_UNLOCK.
-    - Aurek's heroes_drain and per-kill gain already do exactly this (play.c), so nothing changed.  Open: what mode 3 is.
+    - Aurek's heroes_drain and per-kill gain already do exactly this (play.c).  Mode 3 is HCTF (the mode table): heroes neither
+      wear out nor heal by kills there - Aurek now skips both in HCTF (2026-11-20).
 - [x] **5.3 Remaining entity types [partial].** Regions, soldier spawns, other ENTI types (doc 1.4 "still open").
   - Done 2026-11-19: the loader's full type -> class map, both families (docs/enti_types.md, "The factory").  Regions (0x8025)
     and soldier spawns (locators 0x8027 linked from posts) were already ported.  What the rest are, and where they belong:
@@ -557,13 +565,6 @@ textures and how they are used. Section R lists only what must be in place so th
     threshold (vfunc +0x1F0); above it the vehicle takes damage (message 0x8001: +0x34 x speed x dt x vfunc +500) and plays its
     blueprint's "Collision sound" event at its position, volume 1.0, stopping the previous one first (089CD7C4; also on message
     0x805C).  Aurek's ground vehicles have no collision damage yet, so the sound waits for that.
-- [x] **1.16 Leaving the battlefront [traced 2026-11-20].** 089D4BDC, every frame, against the bounds object 08A145E4(0): ENTI
-  class 0x8021 records {1, 0, 0, x min, x max, y min, y max, z min, z max, flags} (Hoth: x -217..249, y -20.9..19.5, z
-  -64.7..181.1, game axes); flags byte 1 picks the box (0: soldiers and what they drive; 1: the AI pilots', 089477A8 /
-  0894B7D8). Inside - nothing. Outside but within the box grown by 500 m (x, z) and 340 m (y), and within +-3940 / +-940 of
-  the origin - message 0x804A to the local player: STDTEXT 72 "You are leaving the battlefront!" in the centre box (style 3)
-  while it lasts and Speech_BN_Return once a spell (08A09928). Beyond - a damage message of 1.0 each frame. Engine: play.c
-  reads the box and does the same (the damage as 60 a second [assumed: 1.0 a frame at 60 Hz]).
 - [ ] **7.3 Speech [partial].** Trigger rules for every line category.
   - 2026-11-20: every Speech_* key's trigger found by its h31 hash in the code (the message 0x807F sender 089E3D2C, the
     narrator's 08A66150 / 08A6606C):

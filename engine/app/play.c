@@ -943,6 +943,7 @@ static void hero_make(ak_play *p, const ak_model_set *m, int t, s32 unit)
 /* a hero wears out: HeroDeathRate, the share of its health lost a second (before the frame's casualties are counted) */
 static void heroes_drain(ak_play *p, f32 dt)
 {
+    if (ak_game_mode == 3) return;                                          /* (08982DA4: not in mode 3 - hero CTF) */
     for (int t = 0; t < 2; t++) {
         ak_play_hero *h = &p->hero[t]; if (h->unit < 0) continue;
         ak_target *tg = &p->target[h->unit]; if (!tg->alive) continue;
@@ -2466,7 +2467,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (i >= NS(p)) { vehicle_destroyed(p, m, i - NS(p)); continue; }
         if (p->target[i].last_attacker == 0 && i != 0) p->kills++;
         {   s32 a = p->target[i].last_attacker; ak_play_hero *h = hero_of(p, a);      /* a hero's kill heals it (HeroHealthAddPerKill) */
-            if (h && p->target[a].alive && p->target[a].team != p->target[i].team) {
+            if (h && ak_game_mode != 3 && p->target[a].alive && p->target[a].team != p->target[i].team) {   /* (08982634: not in hero CTF) */
                 ak_target *ht = &p->target[a]; ht->health += h->per_kill * h->health; if (ht->health > h->health) ht->health = h->health; } }
         if (i == 0) player_down(p);
         else {
