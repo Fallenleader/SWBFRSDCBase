@@ -496,7 +496,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         p->pfx_on = ak_setting_int("AK_PFX", 1) != 0;
         p->pfx_tex_index = ak_level_find_texture(l, "\\specialfx\\partclfx.tga");
         if (p->pfx_tex_index < 0) p->pfx_tex_index = ak_level_find_texture(l, "\\graphics\\specialfx\\partclfx.tga");
-        if (p->pfx_on && ak_pfx_lib_load((const ak_blob *)&l->file, a, &p->pfx_lib)) { p->pfx = AK_NEW(a, ak_pfx_world, 1); if (p->pfx) ak_pfx_world_init(p->pfx, &p->pfx_lib); }
+        if (p->pfx_on && ak_pfx_lib_load((const ak_blob *)&l->file, a, &p->pfx_lib)) { p->pfx = AK_NEW(a, ak_pfx_world, 1); if (p->pfx) { ak_pfx_world_init(p->pfx, &p->pfx_lib); f32 cs = ak_setting_float("AK_COLOUR_SCALE", 2.0f); p->pfx->colour_k = 255.0f / (cs > 0.1f ? cs : 1.0f); } }
         AK_INFO("play", "pfx: %u effects, %u systems, %u particle types, sheet %d", p->pfx_lib.nfx, p->pfx_lib.nsys, p->pfx_lib.ntype, p->pfx_tex_index);
     }
     {   /* the mode (PARITY 5.4): AK_MODE = 0..5 or its code (CQST, CTF1, CTF2, HCTF, GTAG, CMPN; table 0x08B1B900) */
@@ -2626,18 +2626,21 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     ak_bolts_update(&p->bolts, &p->col, p->target, nt, dt);
     if (p->pfx) {                                                             /* the shots' muzzle flashes and the impacts' effects (R.6) */
         u32 ns = p->bolts.shots - p->pfx_shots; if (ns > AK_MAX_SHOT_FX) ns = AK_MAX_SHOT_FX;
-        for (u32 j = 0; j < ns; j++) { const ak_shot_fx *f = &p->bolts.shot[(p->bolts.shots - ns + j) % AK_MAX_SHOT_FX]; play_fx_within(p, f->pfx, f->pos, f->dir, 100.0f); }   /* [assumed] muzzle flashes as far as impacts */
+        for (u32 j = 0; j < ns; j++) { const ak_shot_fx *f = &p->bolts.shot[(p->bolts.shots - ns + j) % AK_MAX_SHOT_FX]; s32 h = play_fx_within(p, f->pfx, f->pos, f->dir, 100.0f);   /* [assumed] muzzle flashes as far as impacts */
+            /* in the bolt's colour (measured: the original's E-11 flash, curve grey 0.54 -> drawn 0x77 0x20 0x07 under the bolt's dd3d0c) */
+            if (h) { f32 c[3] = { (f32)((f->colour >> 16) & 255) / 255.0f, (f32)((f->colour >> 8) & 255) / 255.0f, (f32)(f->colour & 255) / 255.0f }; ak_pfx_tint(p->pfx, h, c); } }
         u32 ni = p->bolts.impacts - p->pfx_impacts; if (ni > AK_MAX_IMPACTS) ni = AK_MAX_IMPACTS;
         for (u32 j = 0; j < ni; j++) {
             const ak_impact *im = &p->bolts.imp[(p->bolts.next_imp + AK_MAX_IMPACTS - ni + j) % AK_MAX_IMPACTS];
             play_fx_within(p, im->pfx, im->pos, im->normal, 100.0f);         /* the weapon's "impact pfx max dist" (100 on every weapon) */
         }
-        {   static const char *test; static bool tset; static f32 tt; if (!tset) { tset = true; test = ak_setting_str("AK_PFX_TEST", NULL); }
+        {   static const char *test; static bool tset; static f32 tt; if (!tset) { tset = true; test = ak_setting_str("AK_PFX_TEST", NULL); tt = ak_setting_float("AK_PFX_TEST_AT", 1.0f); }
             if (test && (tt -= dt) <= 0) {                                    /* tests: an effect 8 m ahead of the eye every 2 s */
                 tt = ak_setting_float("AK_PFX_TEST_EVERY", 2.0f);
                 f32 f[3] = { p->aim[0], 0, p->aim[2] }, fl = sqrtf(f[0] * f[0] + f[2] * f[2]) + 1e-6f; f[0] /= fl; f[2] /= fl;
-                f32 q[3] = { p->eye[0] + f[0] * 8, p->eye[1] - 1.0f, p->eye[2] + f[2] * 8 };
+                f32 td = ak_setting_float("AK_PFX_TEST_DIST", 8.0f), q[3] = { p->eye[0] + f[0] * td, p->eye[1] - ak_setting_float("AK_PFX_TEST_DOWN", 1.0f), p->eye[2] + f[2] * td };
                 play_fx(p, test, q, ak_setting_int("AK_PFX_TEST_FWD", 0) ? f : NULL);
+                AK_INFO("pfx", "test %s at play frame %u", test, p->frame_no);
             } }
         for (u32 i = 0; i < AK_MAX_PROJ; i++) {                                /* projectile trails ("PFXEffect") */
             const ak_proj *q = &p->projs.p[i];
@@ -2666,6 +2669,18 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             }
         }
         ak_pfx_update(p->pfx, dt);
+        {   static int dump = -2; if (dump == -2) dump = ak_setting_int("AK_PFX_DUMP", -1);   /* tests: the live particles by type, every 6 frames from that frame */
+            if (dump >= 0 && (s32)p->frame_no >= dump && (s32)p->frame_no < dump + 60 && (p->frame_no - (u32)dump) % 6 == 0)
+                for (u32 t = 0; t < p->pfx_lib.ntype; t++) {
+                    u32 n = 0; f32 a0 = 9, a1 = 0, c[3] = { 0, 0, 0 }, sp = 0;
+                    for (u32 i = 0; i < p->pfx->np; i++) { const ak_pfx_particle *q = &p->pfx->p[i]; if (p->pfx->em[q->em].def->sys->type != &p->pfx_lib.type[t]) continue; n++; if (q->age < a0) a0 = q->age; if (q->age > a1) a1 = q->age;
+                        for (int k = 0; k < 3; k++) c[k] += q->pos[k]; }
+                    if (!n) continue;
+                    for (int k = 0; k < 3; k++) c[k] /= (f32)n;
+                    for (u32 i = 0; i < p->pfx->np; i++) { const ak_pfx_particle *q = &p->pfx->p[i]; if (p->pfx->em[q->em].def->sys->type != &p->pfx_lib.type[t]) continue;
+                        f32 d = sqrtf((q->pos[0] - c[0]) * (q->pos[0] - c[0]) + (q->pos[1] - c[1]) * (q->pos[1] - c[1]) + (q->pos[2] - c[2]) * (q->pos[2] - c[2])); if (d > sp) sp = d; }
+                    AK_INFO("pfx", "%u %s: %u, age %.2f..%.2f, spread %.2f m, centre %.2f %.2f %.2f (game)", p->frame_no, p->pfx_lib.type[t].name, n, a0, a1, sp, c[0], c[1], c[2]);
+                } }
     }
     p->pfx_shots = p->bolts.shots; p->pfx_impacts = p->bolts.impacts; p->bolts.pfx_impacts = p->pfx != NULL;
     {   int td = ak_setting_int("AK_TEST_HURT", 0);                         /* tests: damage per second to the soldier */
@@ -3093,10 +3108,11 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         f32 rl = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]), ul = sqrtf(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
         if (rl > 1e-6f && ul > 1e-6f) {
             for (int k = 0; k < 3; k++) { r[k] /= rl; u[k] /= ul; }
-            u32 na = ak_pfx_vertices(p->pfx, false, r, u, pv, sizeof pv / sizeof pv[0]);
-            if (na) ak_gfx_draw_immediate(AK_PIPE_BLEND, p->pfx_tex, pv, na);
-            u32 nd = ak_pfx_vertices(p->pfx, true, r, u, pv, sizeof pv / sizeof pv[0]);
-            if (nd) ak_gfx_draw_immediate(AK_PIPE_ADD, p->pfx_tex, pv, nd);
+            ak_pfx_run run[64]; u32 nrun = 0;
+            ak_pfx_vertices(p->pfx, r, u, pv, sizeof pv / sizeof pv[0], run, 64, &nrun);
+            static const f32 nofog[2] = { 0, 0 }; ak_gfx_set_fog_range(nofog);   /* (the original draws them unfogged, alpha-tested, depth-tested without writes) */
+            for (u32 k = 0; k < nrun; k++) ak_gfx_draw_immediate(run[k].additive ? AK_PIPE_ADD : AK_PIPE_BLEND, p->pfx_tex, pv + run[k].first, run[k].count);
+            ak_gfx_set_fog_range(NULL);
         }
     }
 }

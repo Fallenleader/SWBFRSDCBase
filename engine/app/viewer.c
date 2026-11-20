@@ -920,7 +920,7 @@ int main(int argc, char **argv)
         }
         {   const char *rec = ak_setting_str("AK_RECORD", NULL);           /* every frame to <dir>/NNNNN.ppm (recordings) */
             if (rec) { char fn[512]; snprintf(fn, sizeof fn, "%s/%05d.ppm", rec, frame); ak_gfx_screenshot(fn); } }
-        if (shot && frame == shot_frame) { ak_gfx_screenshot(shot); break; }
+        if (shot && frame == shot_frame) { ak_gfx_screenshot(shot); if (playing && play.ready) AK_INFO("aurek", "screenshot at frame %d, play frame %u", frame, play.frame_no); break; }
     }
     if (loaded) { ak_scene_models_free(&mscene); ak_scene_level_free(&scene); }
     ak_gfx_shutdown();

@@ -606,6 +606,15 @@ static void exec_draw(const u32 *payload){
         fprintf(stderr, "[DRAW] %d vt=%06x n=%d nv=%d tex=%08x d=%.2f w=%.1f,%.1f,%.1f v0=%.2f,%.2f,%.2f blend=%d/%d,%d\n", g_frames, vt, count, (int)d->nvert, X.lv[0].addr, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]), w[0], w[1], w[2], r0.px, r0.py, r0.pz, X.en[4], X.bsrc, X.bdst); } }
 #endif
 #ifndef __vita__
+    { static int pf = -2; if (pf == -2) pf = getenv("RS_PFX_LOG") ? atoi(getenv("RS_PFX_LOG")) : -1;   /* RS_PFX_LOG=frame: that frame's particle draws (vertex type 0x19F), vertices in the world */
+      extern volatile int g_frames;
+      if (pf >= 0 && g_frames >= pf && g_frames < pf + 60 && (g_frames - pf) % 6 == 0 && !through && (vt & 0x7FFFFF) == 0x19F) {
+        int o0[5]; vt_layout(vt, o0);
+        fprintf(stderr, "[PFX] %d n=%d prim=%d tex=%08x blend=%d/%d,%d fix=%06x,%06x op=%d ztest=%d zfunc=%d zmask=%d fog=%d atest=%d tfx=%d dbl=%d world=%.2f,%.2f,%.2f view=%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f t=%.2f,%.2f,%.2f\n", g_frames, count, ptype, X.lv[0].addr, X.en[4], X.bsrc, X.bdst, X.bfixa, X.bfixb, X.bop, X.en[1], X.zfunc, X.zmask, X.en[7], X.en[0], X.tfx, X.frag2x, X.world[9], X.world[10], X.world[11], X.view[0], X.view[1], X.view[2], X.view[3], X.view[4], X.view[5], X.view[6], X.view[7], X.view[8], X.view[9], X.view[10], X.view[11]);
+        for (int i = 0; i < count && i < 600; i++) { rawv_t r; decode_vertex(vt, vb + (size_t)i * d->vsz, o0, &r);
+          fprintf(stderr, "[PFXV] %.3f %.3f %.3f uv %.4f %.4f c %02x%02x%02x%02x\n", r.px, r.py, r.pz, r.u, r.v, (unsigned)r.col[0], (unsigned)r.col[1], (unsigned)r.col[2], (unsigned)r.col[3]); } } }
+#endif
+#ifndef __vita__
     { static int fr = -2; if (fr == -2) fr = getenv("RS_SKY_LOG") ? atoi(getenv("RS_SKY_LOG")) : -1;   /* RS_SKY_LOG=frame: that frame's draws under a rotation-only view (the sky), vertices */
       extern volatile int g_frames;
       if (fr == g_frames && !through && X.view[9] == 0 && X.view[10] == 0 && X.view[11] == 0) {

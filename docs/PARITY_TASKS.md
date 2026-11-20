@@ -931,6 +931,11 @@ groundwork below is needed before the parity work starts. The tiers come later.
       markers eng, eng01..; particles of FXPT flags 0x100000 kept in the effect's frame. Left: the effects' lights (the FXET
       colour and radius curves), cell animation, the oriented / stretched draws (FXPT 0x200, 0x1000-0x4000), the emitter scale
       of flags 0x40000 (thrust size), the boost / space-dust / hero effects, and the exact noise (088EF134).
+    - 2026-11-20, measured (harness RS_PFX_LOG; NATIVE_ENGINE row): c1 is the half-width; c2 is in turns from a random start;
+      unturned types mirror at random; the blends, depth (test, no write), no fog and x1 colour; types drawn in the level's
+      order; muzzle flashes take the bolt's colour. [assumed] left in the draw: flags 0x400's flip on half the particles (seen,
+      the rule not read), the mirror's rule, and an impact's Recoil drawn bluish (0xACCEF2 against a (1, 1, 0.76) curve: some tint
+      from the surface, not found).
 - [ ] **R.7 Shadows and decals.** Shadow blobs and scorch marks as the game places them.
   - 2026-11-20: the blob shadows are one batch (08918144): a vertex list at 0x08C19240 (20-byte vertices, room for 2024; count
     0x08C23244), drawn as one triangle strip (prim 4, vertex type 0x183: float UV and position) with \specialfx\blobshadow.tga,

@@ -130,7 +130,7 @@ static f32 rnd(ak_pfx_world *w)                                       /* 0..1 (t
 
 void ak_pfx_world_init(ak_pfx_world *w, const ak_pfx_lib *lib)
 {
-    memset(w, 0, sizeof *w); w->lib = lib; w->rng[0] = 0x12345u; w->rng[1] = 0x6789Au;
+    memset(w, 0, sizeof *w); w->lib = lib; w->colour_k = 127.5f; w->rng[0] = 0x12345u; w->rng[1] = 0x6789Au;
     for (u32 i = 0; i < AK_PFX_MAX_EMITTERS; i++) w->em[i].effect = -1;
 }
 
@@ -164,7 +164,7 @@ s32 ak_pfx_play(ak_pfx_world *w, s32 fx, const f32 *pos, const f32 *fwd)
     if (run < e->nem) { w->dropped++; return -1; }
     ak_pfx_instance *in = &w->fx[slot];
     u16 gen = (u16)(in->gen + 1);
-    memset(in, 0, sizeof *in); in->gen = gen; in->fx = e; in->alive = true; in->scale = 1; in->first_em = (u16)first; in->nem = (u16)e->nem;
+    memset(in, 0, sizeof *in); in->gen = gen; in->fx = e; in->tint[0] = in->tint[1] = in->tint[2] = 1; in->alive = true; in->scale = 1; in->first_em = (u16)first; in->nem = (u16)e->nem;
     set_frame(in, pos, fwd);
     for (u32 i = 0; i < e->nem; i++) {
         ak_pfx_emitter *m = &w->em[first + i]; memset(m, 0, sizeof *m);
@@ -172,6 +172,14 @@ s32 ak_pfx_play(ak_pfx_world *w, s32 fx, const f32 *pos, const f32 *fwd)
     }
     w->played++;
     return slot | ((s32)(gen & 0x7FFF) << 16);
+}
+
+void ak_pfx_tint(ak_pfx_world *w, s32 h, const f32 *rgb)
+{
+    if (h < 0) return;
+    u32 slot = (u32)h & 0xFFFF; if (slot >= AK_PFX_MAX_EFFECTS) return;
+    ak_pfx_instance *in = &w->fx[slot];
+    if (in->alive && (in->gen & 0x7FFF) == ((u32)h >> 16)) memcpy(in->tint, rgb, 12);
 }
 
 bool ak_pfx_follow(ak_pfx_world *w, s32 h, const f32 *pos, const f32 *fwd, const f32 *vel, bool held)
@@ -247,7 +255,7 @@ static void spawn(ak_pfx_world *w, ak_pfx_emitter *m, u32 ei)
     f32 lv[3]; for (int k = 0; k < 3; k++) lv[k] = 2 * uv * u[k] + (ww * ww - uu) * v[k] + 2 * ww * cr[k];
     for (int r = 0; r < 3; r++) p->vel[r] = R[r * 3] * lv[0] + R[r * 3 + 1] * lv[1] + R[r * 3 + 2] * lv[2];
     if (s->flags & 0x1000) for (int k = 0; k < 3; k++) p->vel[k] += in->vel[k] * s->inherit;
-    p->rnd = rnd(w);
+    p->rnd = rnd(w); p->turn0 = rnd(w);
     p->life = y->life; if ((y->flags & 0x20000) && y->life_spread > 0) p->life += p->rnd * y->life_spread;
     if (p->life < 1e-3f) p->life = 1e-3f;
     p->em = (u16)ei; p->alive = 1; m->nlive++;
@@ -305,43 +313,66 @@ void ak_pfx_update(ak_pfx_world *w, f32 dt)
 
 u32 ak_pfx_live(const ak_pfx_world *w) { return w->np; }
 
-u32 ak_pfx_vertices(const ak_pfx_world *w, bool additive, const f32 *right, const f32 *up, ak_vtx *out, u32 cap)
+static u32 particle_quad(const ak_pfx_world *w, const ak_pfx_particle *p, const ak_pfx_type *y, const f32 *right, const f32 *up, ak_vtx *out)
 {
-    u32 n = 0;
-    for (u32 i = 0; i < w->np && n + 6 <= cap; i++) {
-        const ak_pfx_particle *p = &w->p[i]; const ak_pfx_type *y = w->em[p->em].def->sys->type;
-        if ((y->kind != 1) != additive) continue;                     /* kind 1 alpha-blended, the rest additive (0890D108) */
-        f32 c[4]; sample(&y->colour, p->age, c);
-        if (c[3] <= 0) continue;                                      /* (0891589C skips a particle with no alpha) */
-        /* the size: c1 at the age x (1 - the particle's random x c3 at the age) - a half-width [assumed] */
-        f32 hw = sample1(&y->size, p->age) * (1.0f - p->rnd * sample1(&y->size_rand, p->age));
-        if (hw <= 0) continue;
-        f32 ang = 0;                                                  /* the turn: c2 at the age (none with flags 0x8000 or 2 without 0x200) */
-        if (!(y->flags & 0x8000) && (y->flags & 0x202) != 2) {
-            ang = (y->flags & 4) ? p->rnd * 6.2831853f : sample1(&y->spin, p->age) * 6.2831853f;   /* [assumed] turns */
-            if ((y->flags & 0x400) && (((u32)(p->rnd * 65536.0f)) & 1)) ang = -ang;
+    f32 c[4]; sample(&y->colour, p->age, c);
+    if (c[3] <= 0) return 0;                                          /* (0891589C skips a particle with no alpha) */
+    { const f32 *t = w->fx[w->em[p->em].effect].tint; c[0] *= t[0]; c[1] *= t[1]; c[2] *= t[2]; }
+    /* the size: c1 at the age x (1 - the particle's random x c3 at the age), a half-width (measured: the original's quads) */
+    f32 hw = sample1(&y->size, p->age) * (1.0f - p->rnd * sample1(&y->size_rand, p->age));
+    if (hw <= 0) return 0;
+    f32 ang = 0;                                                      /* the turn: c2 at the age (none with flags 0x8000 or 2 without 0x200) */
+    if (!(y->flags & 0x8000) && (y->flags & 0x202) != 2) {
+        /* measured in the original's draws (BFF_BigExplosion_2): each particle starts at its own random turn and turns by c2 at
+           its age in whole turns (fire +4 degrees a 0.1 s, dust -10), half of them (flags 0x400) the other way */
+        f32 sp = (y->flags & 4) ? 0 : sample1(&y->spin, p->age);
+        if ((y->flags & 0x400) && (((u32)(p->rnd * 65536.0f)) & 1)) sp = -sp;
+        ang = (p->turn0 + sp) * 6.2831853f;
+    }
+    f32 ca = cosf(ang) * hw, sa = sinf(ang) * hw;
+    f32 ax[3], ay[3];
+    for (int k = 0; k < 3; k++) { ax[k] = right[k] * ca + up[k] * sa; ay[k] = -right[k] * sa + up[k] * ca; }
+    f32 g[3] = { p->pos[0], p->pos[1], p->pos[2] };
+    if (y->flags & 0x100000) {                                        /* in the effect's frame: to the world */
+        const f32 *M = w->fx[w->em[p->em].effect].M;
+        for (int r = 0; r < 3; r++) g[r] = M[r * 4] * p->pos[0] + M[r * 4 + 1] * p->pos[1] + M[r * 4 + 2] * p->pos[2] + M[r * 4 + 3];
+    }
+    f32 e[3] = { g[0], -g[1], -g[2] };                                /* to engine axes */
+    static const f32 qs[4][2] = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } };
+    static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
+    u8 col[4];
+    for (int k = 0; k < 3; k++) { f32 v = c[k] * w->colour_k; col[k] = (u8)(v > 255 ? 255 : v < 0 ? 0 : v); }   /* (the original: TFX modulate, no doubling) */
+    { f32 v = c[3] * 255.0f; col[3] = (u8)(v > 255 ? 255 : v); }
+    /* unturned types are mirrored at random (the original's streak quads: u and v swapped ends per particle) [assumed rule] */
+    u32 mir = (y->flags & 0x202) == 2 ? ((u32)(p->rnd * 4096.0f)) & 3 : 0;
+    for (int t = 0; t < 6; t++) {
+        const f32 *q = qs[tri[t]]; ak_vtx *o = &out[t];
+        for (int k = 0; k < 3; k++) o->pos[k] = e[k] + ax[k] * q[0] + ay[k] * q[1];
+        bool lu = (q[0] < 0) != ((mir & 1) != 0), tv = (q[1] > 0) != ((mir & 2) != 0);
+        o->uv[0] = lu ? y->uv[0] : y->uv[2]; o->uv[1] = tv ? y->uv[1] : y->uv[3];
+        o->nrm[0] = o->nrm[1] = o->nrm[2] = o->nrm[3] = 0; memcpy(o->col, col, 4);
+    }
+    return 6;
+}
+
+u32 ak_pfx_vertices(const ak_pfx_world *w, const f32 *right, const f32 *up, ak_vtx *out, u32 cap, ak_pfx_run *run, u32 max_runs, u32 *nruns)
+{
+    u32 n = 0; *nruns = 0;
+    if (!w->lib || !w->np) return 0;
+    for (u32 t = 0; t < w->lib->ntype; t++) {                         /* type by type, in the level's order (088E9398) */
+        const ak_pfx_type *y = &w->lib->type[t]; u32 first = n;
+        for (u32 i = 0; i < w->np && n + 6 <= cap; i++) {
+            const ak_pfx_particle *p = &w->p[i];
+            if (w->em[p->em].def->sys->type != y) continue;
+            n += particle_quad(w, p, y, right, up, out + n);
         }
-        f32 ca = cosf(ang) * hw, sa = sinf(ang) * hw;
-        f32 ax[3], ay[3];
-        for (int k = 0; k < 3; k++) { ax[k] = right[k] * ca + up[k] * sa; ay[k] = -right[k] * sa + up[k] * ca; }
-        f32 g[3] = { p->pos[0], p->pos[1], p->pos[2] };
-        if (y->flags & 0x100000) {                                    /* in the effect's frame: to the world */
-            const f32 *M = w->fx[w->em[p->em].effect].M;
-            for (int r = 0; r < 3; r++) g[r] = M[r * 4] * p->pos[0] + M[r * 4 + 1] * p->pos[1] + M[r * 4 + 2] * p->pos[2] + M[r * 4 + 3];
+        if (n > first) {
+            bool add = y->kind != 1;                                  /* kind 1 alpha-blended, the rest additive (0890D108; seen in the
+                                                                         original's draws: kind 5 (ADD, SRC_ALPHA, FIX 0xFFFFFF)) */
+            if (*nruns && run[*nruns - 1].additive == add && run[*nruns - 1].first + run[*nruns - 1].count == first) run[*nruns - 1].count += n - first;
+            else if (*nruns < max_runs) { run[*nruns].first = first; run[*nruns].count = n - first; run[*nruns].additive = add; (*nruns)++; }
+            else { n = first; break; }
         }
-        f32 e[3] = { g[0], -g[1], -g[2] };                            /* to engine axes */
-        static const f32 qs[4][2] = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } };
-        static const int tri[6] = { 0, 1, 2, 0, 2, 3 };
-        u8 col[4];
-        for (int k = 0; k < 3; k++) { f32 v = c[k] * 128.0f; col[k] = (u8)(v > 255 ? 255 : v < 0 ? 0 : v); }   /* 128 = full (x2 in the shader) */
-        { f32 v = c[3] * 255.0f; col[3] = (u8)(v > 255 ? 255 : v); }
-        for (int t = 0; t < 6; t++) {
-            const f32 *q = qs[tri[t]]; ak_vtx *o = &out[n + t];
-            for (int k = 0; k < 3; k++) o->pos[k] = e[k] + ax[k] * q[0] + ay[k] * q[1];
-            o->uv[0] = q[0] < 0 ? y->uv[0] : y->uv[2]; o->uv[1] = q[1] > 0 ? y->uv[1] : y->uv[3];
-            o->nrm[0] = o->nrm[1] = o->nrm[2] = o->nrm[3] = 0; memcpy(o->col, col, 4);
-        }
-        n += 6;
     }
     return n;
 }

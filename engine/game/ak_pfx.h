@@ -52,7 +52,7 @@ s32  ak_pfx_find(const ak_pfx_lib *l, const char *name);       /* -1 = none; cas
 
 /* ---- the running effects */
 enum { AK_PFX_MAX_EFFECTS = 256, AK_PFX_MAX_EMITTERS = 1024, AK_PFX_MAX_PARTICLES = 2048 };
-typedef struct { f32 pos[3], vel[3], age, life, rnd; u16 em; u16 alive; } ak_pfx_particle;
+typedef struct { f32 pos[3], vel[3], age, life, rnd, turn0; u16 em; u16 alive; } ak_pfx_particle;   /* turn0: the starting turn (0..1) */
 typedef struct {
     s16 effect; u16 nlive;                        /* effect index in the pool (-1 free) */
     f32 t, acc; bool burst_done;
@@ -64,6 +64,7 @@ typedef struct {
     f32 vel[3]; f32 scale;
     u16 first_em, nem;
     u16 gen; bool held;                           /* held: its emitters start over instead of ending (an effect on a moving object) */
+    f32 tint[3];                                  /* multiplies its particles' colour (the draw's colour argument, 088E6CD4: a weapon's muzzle flash takes its bolt's colour) */
 } ak_pfx_instance;
 typedef struct {
     const ak_pfx_lib *lib;
@@ -72,6 +73,7 @@ typedef struct {
     ak_pfx_particle p[AK_PFX_MAX_PARTICLES]; u32 np;
     u32 rng[2];
     u32 played, dropped, dropped_particles;
+    f32 colour_k;                                 /* vertex colour = curve x this (255 / the renderer's colour doubling: the game draws them x1) */
 } ak_pfx_world;
 
 void ak_pfx_world_init(ak_pfx_world *w, const ak_pfx_lib *lib);
@@ -82,8 +84,12 @@ void ak_pfx_update(ak_pfx_world *w, f32 dt);
 /* an effect that rides an object: play it with ak_pfx_play, then every frame ak_pfx_follow (the handle's frame and velocity, engine
  * axes; held = keep emitting); ak_pfx_follow(.., false) lets it finish.  Returns false once the handle is gone. */
 bool ak_pfx_follow(ak_pfx_world *w, s32 handle, const f32 *pos, const f32 *fwd, const f32 *vel, bool held);
-/* the particles of one blending kind as triangles (6 vertices each, engine axes), facing the camera (right / up vectors) */
-u32  ak_pfx_vertices(const ak_pfx_world *w, bool additive, const f32 *right, const f32 *up, ak_vtx *out, u32 cap);
+void ak_pfx_tint(ak_pfx_world *w, s32 handle, const f32 *rgb);
+/* the particles as triangles (6 vertices each, engine axes), facing the camera (right / up vectors), in the game's drawing order:
+ * particle type by type in the level's order (088E9398), each type a run of one blending; returns the vertex count, runs in `run`
+ * (first vertex, count, additive) */
+typedef struct { u32 first, count; bool additive; } ak_pfx_run;
+u32  ak_pfx_vertices(const ak_pfx_world *w, const f32 *right, const f32 *up, ak_vtx *out, u32 cap, ak_pfx_run *run, u32 max_runs, u32 *nruns);
 u32  ak_pfx_live(const ak_pfx_world *w);
 
 #endif

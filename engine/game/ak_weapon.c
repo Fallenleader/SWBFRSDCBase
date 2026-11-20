@@ -162,7 +162,7 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
         o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->headshots = d->headshots; o->colour = d->colour; o->dscale_max = d->dscale_max; o->dscale_dist = d->dscale_dist; o->team = w->team; o->owner = w->owner; o->impact_pfx = d->impact_pfx; o->shield_pfx = d->shield_pfx;
     }
     b->fired++;
-    if (d->muzzle_pfx) { ak_shot_fx *f = &b->shot[b->shots++ % AK_MAX_SHOT_FX]; memcpy(f->pos, muzzle, 12); memcpy(f->dir, dir, 12); f->pfx = d->muzzle_pfx; }
+    if (d->muzzle_pfx) { ak_shot_fx *f = &b->shot[b->shots++ % AK_MAX_SHOT_FX]; memcpy(f->pos, muzzle, 12); memcpy(f->dir, dir, 12); f->pfx = d->muzzle_pfx; f->colour = d->colour; }
     w->cooldown = d->rate_of_fire;
     if (d->clip > 0) w->ammo--;
     /* the reload starts with the shot that empties the clip (measured: the blaster rifle's last round at frame 497, a full clip

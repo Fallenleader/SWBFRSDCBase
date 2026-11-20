@@ -49,7 +49,7 @@ typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, dam
 typedef struct { f32 pos[3], normal[3]; f32 age; u32 colour; u16 material; bool body; const char *pfx; } ak_impact;   /* pfx: the effect it plays (NULL none) */   /* material: the surface's (0xFFFF none) */
 #define AK_MAX_BOLTS 512
 #define AK_MAX_IMPACTS 64
-typedef struct { f32 pos[3], dir[3]; const char *pfx; } ak_shot_fx;   /* a shot's muzzle effect (the weapon's PFXMuzzleFlash) */
+typedef struct { f32 pos[3], dir[3]; const char *pfx; u32 colour; } ak_shot_fx;   /* a shot's muzzle effect (the weapon's PFXMuzzleFlash, in its bolt's colour 0xAARRGGBB) */
 #define AK_MAX_SHOT_FX 32
 typedef struct { ak_bolt b[AK_MAX_BOLTS]; u32 n; ak_impact imp[AK_MAX_IMPACTS]; u32 nimp, next_imp; u32 fired, hits, impacts;
                  ak_shot_fx shot[AK_MAX_SHOT_FX]; u32 shots; bool pfx_impacts; } ak_bolts;   /* impacts / shots: ever made (rings of the latest); pfx_impacts: impacts with an effect are drawn by it */
