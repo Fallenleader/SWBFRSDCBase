@@ -512,6 +512,12 @@ textures and how they are used. Section R lists only what must be in place so th
 
 - [ ] **6.1 Animation tables for soldiers [partial].** Soldiers still use hand-picked Human_Rifle clips; they should use the ATEX
   tables (sets, rows, columns) and the game's layer and blend rules.
+  - Done 2026-11-19: the set is the game's (08998D74): the weapon's AnimPose ("Pistol" 0, "Bazooka" 8, else 4) + 2 crouched +
+    1 alert; alert comes from the controller (08994C30), measured in the original as firing or holding the lock-on and 3 s after
+    letting go (Aurek's 3 s alert matched).  Aurek now takes the body rows (idle 0, walk 1 / 2, run 3 / 4, strafe 5 / 6, sprint 7,
+    jump 8, land 10, fall 12), the deaths (21-23) and rolls (24-27) from the set, the shoot layer from the alert set's column 1 and
+    a reload layer from column 2 while reloading.  Pistols and launchers now hold their own poses.  Open: crouching (no crouch in
+    Aurek), the idle variations (rows 18 / 19), hit reactions (13-16), death 20 (front), the layers' blend rules.
 - [ ] **6.2 Skinning [missing].** v2 meshes (Taun-Taun, Vader, the cone, flags) are drawn rigid in the bind pose.
 - [ ] **6.3 Death animations and ragdoll.** The death clips. After death the body has gravity on (08993D38): trace what it does next.
 - [ ] **6.4 Command post cone [assumed].** Its capture animation and the logo height (1.25 m is an estimate).

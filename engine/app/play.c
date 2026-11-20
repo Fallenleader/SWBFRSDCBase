@@ -357,6 +357,7 @@ static void team_classes(ak_play *p, const ak_blueprints *bp, const ak_model_set
     }
 }
 
+static void anim_sets(ak_play *p, const ak_model_set *m);
 bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a, const char *body, const f32 *start)
 {
     memset(p, 0, sizeof *p);
@@ -472,7 +473,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->idle_clip = p->clip[PLAY_IDLE]; p->death_clips[0] = find_clip(m, d1); p->death_clips[1] = find_clip(m, d2); p->death_clips[2] = find_clip(m, d3);
     /* the alert set (the game's generic_male table, set 5: rifle raised - when shooting or locked on) and its shoot layer; the
        relaxed body clips stay the ones above (set 4 is the same family) */
-    memcpy(p->aclip, p->clip, sizeof p->aclip); p->shoot_clip = -1;
+    memcpy(p->aclip, p->clip, sizeof p->aclip); p->shoot_clip = -1; p->reload_clip = -1;
     {   const ak_anim_table *gt = ak_anim_table_find(m, "generic_male");
         static const int row[PLAY_NCLIPS] = { [PLAY_IDLE] = 0, [PLAY_RUN] = 3, [PLAY_BACK] = 4, [PLAY_LEFT] = 5, [PLAY_RIGHT] = 6, [PLAY_JUMP] = 8, [PLAY_FALL] = 12, [PLAY_LAND] = 10, [PLAY_SPRINT] = 7,
                                               [PLAY_WALK] = 1, [PLAY_WALK_BACK] = 2 };
@@ -524,6 +525,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
     p->armed = ak_weapon_def_load(bp, m, wname, p->look.faction, &p->wdef);
     if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
+    anim_sets(p, m);
     {   ak_target *t = &p->target[0];
         t->health = p->health; t->max_health = p->max_health; t->headshot_mult = ak_bp_float(p->look.bp, "Headshot multiplier", 4.0f); t->alive = true; t->team = p->team; t->last_attacker = -1;
         memcpy(t->feet, p->ch.pos, 12); t->height = 1.45f * S; t->radius = 0.35f * S; t->head_radius = 0.2f * S; memcpy(t->head, p->ch.pos, 12); t->head[1] += 1.6f * S; }
@@ -601,6 +603,43 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         } }
     p->ready = true;
     return true;
+}
+
+/* The soldiers' clips from the game's animation table (PARITY 6.1).  The set (08998D74): the weapon's AnimPose (soldier +200) -
+ * "Pistol" 0, "Bazooka" 8, anything else 4 - plus 2 crouched (+0x208 bit 0) plus 1 alert (bit 1 set and bit 16 clear); alert comes
+ * from the controller (08994C30 copies its bit 9): measured in the original, firing or holding the lock-on and 3 s after letting
+ * go.  Rows: 0 idle, 1 / 2 walk, 3 / 4 run, 5 / 6 strafe, 7 sprint, 8 jump, 10 soft landing, 12 fall, 20-23 deaths (front, back,
+ * left, right), 24 / 25 rolls left / right, 26 dive forward, 27 roll back; columns 1 shoot, 2 reload (layers over the body).  Not
+ * ported: crouching (sets +2), the idle variations (rows 18 / 19: when the game plays them is not traced), hit reactions (13-16). */
+static void anim_sets(ak_play *p, const ak_model_set *m)
+{
+    const ak_anim_table *gt = ak_anim_table_find(m, "generic_male");
+    if (!gt || gt->sets < 12 || gt->rows < 28 || gt->cols < 3) return;
+    const char *pose = p->armed && p->wdef.bp ? ak_bp_string(p->wdef.bp, "AnimPose", "Default") : "Default";
+    int base = !strcmp(pose, "Pistol") ? 0 : !strcmp(pose, "Bazooka") ? 8 : 4;
+    static const int row[PLAY_NCLIPS] = { [PLAY_IDLE] = 0, [PLAY_RUN] = 3, [PLAY_BACK] = 4, [PLAY_LEFT] = 5, [PLAY_RIGHT] = 6, [PLAY_JUMP] = 8, [PLAY_FALL] = 12,
+                                          [PLAY_LAND] = 10, [PLAY_SPRINT] = 7, [PLAY_WALK] = 1, [PLAY_WALK_BACK] = 2 };
+    for (int k = 0; k < PLAY_NCLIPS; k++) {
+        s32 c0 = AK_ATAB(gt, base, row[k], 0), c1 = AK_ATAB(gt, base + 1, row[k], 0);
+        if (c0 >= 0) p->clip[k] = c0;
+        if (c1 >= 0) p->aclip[k] = c1;
+    }
+    p->idle_clip = p->clip[PLAY_IDLE];
+    p->shoot_clip = AK_ATAB(gt, base + 1, 0, 1); p->reload_clip = AK_ATAB(gt, base, 0, 2);
+    static const int drow[3] = { 21, 22, 23 }, rrow[4] = { 26, 24, 25, 27 };   /* (Aurek's death picks: back, left, right; rolls: dive, left, right, back) */
+    for (int k = 0; k < 3; k++) if (AK_ATAB(gt, base, drow[k], 0) >= 0) p->death_clips[k] = AK_ATAB(gt, base, drow[k], 0);
+    for (int k = 0; k < 4; k++) {
+        s32 ci = AK_ATAB(gt, base, rrow[k], 0); if (ci < 0) continue;
+        const ak_anim_clip *cl = &m->clips[ci]; p->roll_clip[k] = ci; p->roll_dur[k] = cl->duration > 0.1f ? cl->duration : 0.6f;
+        if (cl->nchannels > 0) { const ak_anim_channel *a = &cl->chan[cl->nchannels - 1];
+            if (a->pos_count >= 2) { const f32 *p0 = cl->pos[a->pos_first], *p1 = cl->pos[a->pos_first + a->pos_count - 1];
+                f32 dx = p1[0] - p0[0], dz = p1[2] - p0[2]; p->roll_len[k] = sqrtf(dx * dx + dz * dz); } }
+        if (p->roll_len[k] < 0.5f) p->roll_len[k] = 2.0f;
+    }
+    if (p->roots) for (int k = PLAY_JUMP; k <= PLAY_LAND; k++) {               /* (the air's clips carry nothing) */
+        if (p->clip[k] >= 0) p->roots[p->clip[k]].n = 0;
+        if (p->aclip[k] >= 0) p->roots[p->aclip[k]].n = 0; }
+    ak_loco_reset(&p->loco, p->clip[PLAY_IDLE]);
 }
 
 /* ------------------------------------------------------------------ bots */
@@ -2206,8 +2245,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (ph && ph->atk_i >= 0) pose(m, &p->look, ph->atk[ph->atk_i], ph->atk_t, false, p->bones);
         else if (p->roll_i >= 0) pose(m, &p->look, p->roll_clip[p->roll_i], p->roll_t, false, p->bones);
         else                                                                   /* the body clips crossfading; alert: the shoot layer while firing */
+        {   bool rl = !ph && p->armed && p->weapon.reload_t > 0 && p->reload_clip >= 0;   /* reloading: the set's reload layer (column 2) */
             pose_mix(m, &p->look, p->loco.prev, p->loco.prev_t, p->loco.cur, p->loco.t, p->loco.w, p->state != PLAY_JUMP && p->state != PLAY_LAND,
-                     !ph && p->alert_t > 0 && p->shoot_t < 0.3f ? p->shoot_clip : -1, p->shoot_t, p->bones);
+                     rl ? p->reload_clip : !ph && p->alert_t > 0 && p->shoot_t < 0.3f ? p->shoot_clip : -1,
+                     rl ? p->wdef.reload_time - p->weapon.reload_t : p->shoot_t, p->bones); }
         if (p->in_veh < 0) body_target(m, &p->look, (const f32 (*)[12])p->bones, p->ch.pos, p->ch.yaw, &p->target[0]);
     }
     /* where the centre of the view meets the level: shots go there unless locked on */

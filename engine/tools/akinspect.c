@@ -376,6 +376,12 @@ int main(int argc, char **argv)
                 printf("  table %08x: %u sets x %u rows x %u columns, %u of %u cells resolve to clips\n", t->name_hash, t->sets, t->rows, t->cols, f, n);
                 for (u32 r = 0; r < t->rows; r++) { s32 c0 = AK_ATAB(t, t->sets > 4 ? 4 : 0, r, 0); printf("    row %2u: %s\n", r, c0 >= 0 ? ms.clips[c0].name : "-"); }
             }
+        if (!strcmp(argv[i], "--atab-full"))                                 /* one table, every cell: set row col clip */
+            for (u32 k = 0; k < ms.ntables; k++) {
+                const ak_anim_table *t = &ms.tables[k]; if (t->name_hash != (u32)strtoul(argv[i + 1], NULL, 16)) continue;
+                for (u32 s = 0; s < t->sets; s++) for (u32 r = 0; r < t->rows; r++) for (u32 c = 0; c < t->cols; c++) {
+                    s32 ci = AK_ATAB(t, s, r, c); if (ci >= 0) printf("    %2u %2u %u %s\n", s, r, c, ms.clips[ci].name); }
+            }
         if (!strcmp(argv[i], "--models"))
             for (u32 k = 0; k < ms.nmodels; k++) {
                 const ak_model *m = &ms.models[k];

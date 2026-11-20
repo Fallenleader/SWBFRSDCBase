@@ -112,7 +112,7 @@ typedef struct {
     f32 capture_rate;                  /* the customisation's capture rate (unit +0x138; 1.0 at the default level 1) */
     bool roll_end, respawn_req;        /* respawn_req: the confirm pressed this frame */                     /* a roll just ended: the next body clip starts at full weight */
     s32 sclip[PLAY_NCLIPS];            /* the saber heroes' (generic_male LightSabre clips) */
-    s32 aclip[PLAY_NCLIPS], shoot_clip;   /* the alert set (rifle raised: generic_male set 5) and its shoot layer (column 1) */
+    s32 aclip[PLAY_NCLIPS], shoot_clip, reload_clip;   /* reload_clip: the set's column 2 (reloading) */   /* the alert set (rifle raised: generic_male set 5) and its shoot layer (column 1) */
     f32 alert_t, shoot_t;              /* the player: seconds of alert pose left; seconds since the trigger was last held */
     bool psp_buttons, l_was, sprint;   /* the PSP button layout (AK_BUTTONS=psp): L tap jumps, L held sprints */
     /* stamina (the game's: object +0xA0, maximum +0xA4, regeneration +0xA8 - 100 / 100 / 10 a second by default, 089D9EE0, and no
