@@ -74,4 +74,6 @@ void ak_hud_2d_quad(ak_gfx_tex *t, f32 x0, f32 y0, f32 x1, f32 y1, f32 u0, f32 v
 f32 ak_hud_2d_text(int big, f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s, u32 n, int align);
 f32 ak_hud_2d_line(int big);
 void ak_hud_2d_end(void);
+void ak_hud_2d_map(f32 x, f32 y, f32 size, u32 argb);                       /* the level's map in a disc */
+bool ak_hud_2d_map_point(const f32 pos[3], f32 x, f32 y, f32 size, f32 *sx, f32 *sy);
 #endif

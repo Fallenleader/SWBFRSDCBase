@@ -9,6 +9,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static void fill_all(const struct ak_widget *w);
+static u32 id_of(const char *name);
+
 static const char *const files[] = { "BFF_MAINMENU", "BFF_SINGLEPLAYER", "BFF_SERVERSETUP", "BFF_OPTIONS", "BFF_PROFILE", "BFF_MULTIPLAYER",
                                      "BFF_CUSTOMISATION", "BFF_GALACTICCONQUEST", "BFF_GUIMENU_INGAMESP" };
 #define NFILES (int)(sizeof files / sizeof files[0])
@@ -58,6 +61,20 @@ static const map_entry maps[] = {
 static int sel_map = -1, sel_mode = -1;
 static struct { int map, mode, era; } rot[16]; static int nrot;   /* the play list (BFF.NumMapsInRotation) */
 static char launch_level[64]; static int launch_mode;
+static ak_fe_match match; static bool have_match; static int team_choice, spawn_choice = -1;
+void ak_fe_set_match(const ak_fe_match *m)
+{
+    match = *m; have_match = true;
+    if (!match.level_text && nrot > 0) match.level_text = maps[rot[0].map].text;   /* (the play list's map: its name) */
+    var_set("BFF.FE_GameType", m->mode); var_set("BFF.FE_GameEra", m->era == 0 ? 1 : 0);   /* (FE_GameEra: 1 classic, 0 prequel - the team buttons) */
+    var_set("BFF.FE_PlayerFaction", m->faction[m->team]); var_set("BFF.FE_ChangeTeamAllowed", 1);
+    var_set("BFF.FE_SpawnPointCount", (s32)m->nposts);
+    for (u32 i = 0; i < AK_FE_MAX_POSTS; i++) { char k[40]; snprintf(k, sizeof k, "BFF.FE_SpawnPointActive%u", i); var_set(k, i < m->nposts && m->post_owner[i] == m->team); }
+    if (page) fill_all(&page->root);                                  /* (the team lists follow the match) */
+}
+int ak_fe_team(void) { return team_choice; }
+int ak_fe_spawn_post(void) { return spawn_choice; }
+void ak_fe_close(void) { page = NULL; nstack = 0; }
 
 /* ---- text lists (2005): their rows, filled by their FE_List* function */
 #define MAXROWS 48
@@ -73,7 +90,7 @@ static void row_add16(const u16 *t, u32 n, int val)
 }
 static void row_std(u32 id, int val) { u32 n; const u16 *t = ak_hud_stdtext(id, &n); if (t) row_add16(t, n, val); }
 
-static void fill_all(const ak_widget *w);
+static u32 child_tint = 0xFFFFFFFFu;   /* the colour the widgets drawn now are multiplied by (a spawn point's owner) */
 static void path_of(int f, char *out, size_t n) { snprintf(out, n, "PSP_GAME/USRDIR/GUIMENU/%s.GUI", files[f]); }
 
 bool ak_fe_init(ak_vfs *v)
@@ -139,6 +156,8 @@ static bool open_hash(u32 h, bool push)
         const ak_gui_page *pg = ak_gui_find_page(&gf, h); if (!pg) return false;
         if (push && page && nstack < 16) stack[nstack++] = page->root.id;
         page = pg; focus = pg->focus; clock = 0;
+        if (have_match && h == ak_gui_hash("MP_Spawn_Location"))     /* the first post the player's side holds */
+            for (u32 k = 0; k < match.nposts; k++) if (match.post_owner[k] == match.team) { char nm[32]; snprintf(nm, sizeof nm, "W_BU_SpawnPoint%u", k); if (id_of(nm)) focus = id_of(nm); break; }
         nlists = 0; ak_arena_reset(&rowmem); fill_all(&pg->root);
         if (pg->on_open.fn && pg->on_open.fn[0]) AK_INFO("fe", "%s: %s(%s)", idx[i].name, pg->on_open.fn, pg->on_open.arg);
         else AK_INFO("fe", "%s", idx[i].name);
@@ -147,6 +166,7 @@ static bool open_hash(u32 h, bool push)
     AK_WARN("fe", "no page %08x", h); return false;
 }
 bool ak_fe_open(const char *name) { return ready && open_hash(ak_gui_hash(name), false); }
+bool ak_fe_open_ingame(const char *name) { return ak_fe_open(name); }
 const char *ak_fe_page(void) { return page ? page->root.name : NULL; }
 
 /* ---- the widgets */
@@ -162,6 +182,13 @@ static const ak_widget *find_named(const ak_widget *w, const char *prefix)
     for (u32 i = 0; i < w->nchild; i++) { const ak_widget *r = find_named(&w->child[i], prefix); if (r) return r; }
     return NULL;
 }
+static const ak_widget *find_name(const ak_widget *w, const char *name)   /* (ids are not always the name's hash: W_BU_SpawnPoint0 is 0x55F10F71) */
+{
+    if (w->name && !strcmp(w->name, name)) return w;
+    for (u32 i = 0; i < w->nchild; i++) { const ak_widget *r = find_name(&w->child[i], name); if (r) return r; }
+    return NULL;
+}
+static u32 id_of(const char *name) { const ak_widget *w = page ? find_name(&page->root, name) : NULL; return w ? w->id : 0; }
 static bool is_button(u32 t) { return t >= 2000 && t < 3000 && t != AK_GUI_GROUP && t != AK_GUI_TEXTBOX && t != AK_GUI_TEXTLIST; }
 
 /* a widget shows by its flags and its button's focus: bit 1 while the button is not focused, bit 2 while it is (a page's own
@@ -186,14 +213,46 @@ static bool cond_holds(const ak_widget *w)
 }
 static u32 argb_of(const f32 *c, f32 a)
 {
+    f32 tc[4] = { c[0] * ((child_tint >> 16) & 255) / 255.0f, c[1] * ((child_tint >> 8) & 255) / 255.0f, c[2] * (child_tint & 255) / 255.0f, c[3] * (child_tint >> 24) / 255.0f };
+    c = tc;
     u32 r = (u32)(c[0] * 255 + 0.5f), g = (u32)(c[1] * 255 + 0.5f), b = (u32)(c[2] * 255 + 0.5f), al = (u32)(c[3] * a * 255 + 0.5f);
     r = r > 255 ? 255 : r; g = g > 255 ? 255 : g; b = b > 255 ? 255 : b; al = al > 255 ? 255 : al;
     return al << 24 | r << 16 | g << 8 | b;
 }
 static const list_rows *scroll; static int scroll_shown;
+/* the in-match pages' widgets the game fills at run time: the level's map (E_IM_SpawnLocal), the spawn points placed on it
+ * (W_BU_SpawnPoint<k>, coloured by owner), the level's name and mode (E_TX_LevelName / LevelType), the focused post's name
+ * (W_TB_SpawnName) [assumed: positions and colours as the original's frame shows them] */
+static bool spawn_point_pos(const ak_widget *w, f32 *x, f32 *y)
+{
+    if (!have_match || !w->name || strncmp(w->name, "W_BU_SpawnPoint", 15)) return false;
+    u32 k = (u32)atoi(w->name + 15); if (k >= match.nposts) return false;
+    f32 sx, sy; if (!ak_hud_2d_map_point(match.post_pos[k], 40, 35, 200, &sx, &sy)) return false;
+    *x = sx - 10; *y = sy - 10; return true;
+}
+static const char *parent_name;
+static int focused_spawn(void)
+{
+    const ak_widget *f = page && focus ? find_id(&page->root, focus) : NULL;
+    return f && f->name && !strncmp(f->name, "W_BU_SpawnPoint", 15) ? atoi(f->name + 15) : -1;
+}
+static const u16 *override_text(const ak_widget *w, u32 *n)
+{
+    if (!have_match || !w->name) return NULL;
+    if (parent_name && !strcmp(parent_name, "W_TB_SpawnName")) {          /* the focused post's name */
+        int k = focused_spawn(); if (k >= 0 && (u32)k < match.nposts && match.post_name[k] >= 0) return ak_hud_post_name(match.post_name[k], n);
+    }
+    if (!strcmp(w->name, "E_TX_LevelName")) return ak_hud_stdtext(match.level_text, n);
+    if (!strcmp(w->name, "E_TX_LevelType")) return ak_hud_stdtext(40 + 2 * (u32)(match.mode & 3), n);
+    return NULL;
+}
 static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
 {
     f32 x = ox + w->pos[0], y = oy + w->pos[1];
+    if (spawn_point_pos(w, &x, &y)) { ox = 0; oy = 0; }
+    if (have_match && w->name && !strcmp(w->name, "E_IM_SpawnLocal")) { ak_hud_2d_map(x, y, 200, 0xFFFFFFFFu); return; }
+    if (have_match && w->name && !strcmp(w->name, "E_TX_StyleMenuTitle") && cur_file == 8) return;   /* (the campaign's title: none in a plain match) */
+    if (getenv("AK_FE_TRACE") && w->name && strstr(w->name, getenv("AK_FE_TRACE"))) AK_INFO("fe", "draw %s shows %d cond %d at %.0f,%.0f", w->name, shows(w, focused), cond_holds(w), x, y);
     if (w->type != AK_GUI_PAGE && (!shows(w, focused) || !cond_holds(w))) return;
     /* the Italian subtitle under the logo (menu_logos.tga's strip at v 0.445: "W_IM_ItalianLogo", or plain "Image 1") shows for
        the Italian language only - the original's English frames have none [assumed: the page scripts' doing] */
@@ -210,8 +269,8 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
             f32 n = (f32)scroll->n, sh = (f32)scroll_shown; if (n > sh) { yy = y + h * (f32)scroll->top / n; h = h * sh / n; }
         }
         ak_hud_2d_quad(NULL, x, yy, x + w->size[0], yy + h, 0, 0, 1, 1, argb_of(w->rgba, a));
-    } else if (w->type == AK_GUI_TEXT && w->text_key) {
-        u32 n; const u16 *s = ak_gui_text(&texts, w->text_key, &n);
+    } else if (w->type == AK_GUI_TEXT && (w->text_key || override_text(w, &(u32){0}))) {
+        u32 n; const u16 *s = override_text(w, &n); if (!s) s = ak_gui_text(&texts, w->text_key, &n);
         if (s && n) {
             int big = w->font && strstr(w->font, "_13") != NULL;
             int al = (w->text_flags & 8) ? 2 : (w->text_flags & 4) ? 1 : 0;   /* 0xC8 right, 0xC4 centred, 0xC2 left */
@@ -233,7 +292,12 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
         }
     }
     bool f2 = is_button(w->type) ? (w->id == focus) : focused;
-    const list_rows *keep = scroll; int keep_shown = scroll_shown;
+    const list_rows *keep = scroll; int keep_shown = scroll_shown; const char *keep_parent = parent_name; u32 keep_tint = child_tint;
+    if (w->type >= 2000) parent_name = w->name;
+    if (have_match && w->name && !strncmp(w->name, "W_BU_SpawnPoint", 15)) {   /* the post's owner: ours blue, theirs red, nobody's grey (as the HUD's) */
+        u32 k = (u32)atoi(w->name + 15); int o = k < match.nposts ? match.post_owner[k] : -1;
+        child_tint = o == match.team ? 0xFF4060FFu : (o == 0 || o == 1) ? 0xFFFF4040u : 0xFFC0C0C0u;
+    }
     if (w->type == AK_GUI_GROUP && w->name && !strncmp(w->name, "W_GP_", 5) && strstr(w->name, "Scroll")) {   /* "W_GP_PlanetScroll" scrolls "W_LB_PlanetList" [assumed: by name] */
         char want[64]; size_t l = strstr(w->name, "Scroll") - (w->name + 5); snprintf(want, sizeof want, "W_LB_%.*s", (int)l, w->name + 5);
         scroll = NULL;
@@ -241,7 +305,7 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
         if (!scroll || scroll->n <= scroll_shown) { scroll = keep; return; }   /* (nothing to scroll: no bar) */
     }
     for (u32 i = 0; i < w->nchild; i++) draw_widget(&w->child[i], x, y, f2);
-    scroll = keep; scroll_shown = keep_shown;
+    scroll = keep; scroll_shown = keep_shown; parent_name = keep_parent; child_tint = keep_tint;
 }
 
 void ak_fe_draw(void)
@@ -270,6 +334,9 @@ static void fill(const ak_widget *w)
     } else if (!strcmp(fn, "FE_ListValidEras") && sel_map >= 0) {    /* 08A319F4: Galactic Civil War, Clone Wars */
         if (maps[sel_map].gcw) row_std(348, 0);
         if (maps[sel_map].cw) row_std(349, 1);
+    } else if ((!strcmp(fn, "FE_ListFriendlyEntities") || !strcmp(fn, "FE_ListEnemyEntities")) && have_match) {   /* the sides' soldiers */
+        int side = !strcmp(fn, "FE_ListFriendlyEntities") ? match.team : 1 - match.team;
+        for (u32 i = 0; i < match.nnames[side] && i < 32; i++) if (match.name[side][i]) row_add16(match.name[side][i], match.name_len[side][i], (int)i);
     } else if (!strcmp(fn, "FE_ListMapsInRotation")) {               /* 08A31CA4: "Tatooine - CQST - GCW" */
         for (int i = 0; i < nrot; i++) {
             u16 b[96]; u32 n = 0, k; const u16 *t;
@@ -318,6 +385,12 @@ static int run(const ak_gui_action *a, int row)
         }
         rotation_changed();
     }
+    else if (!strcmp(fn, "FE_TeamSelection")) { team_choice = atoi(a->arg); open_hash(ak_gui_hash("MP_Spawn_Location"), true); return AK_FE_TEAM; }
+    else if (!strcmp(fn, "FE_RequestRespawn")) {                       /* the focused spawn point (W_BU_SpawnPoint<k>) */
+        const ak_widget *f = focus ? find_id(&page->root, focus) : NULL; spawn_choice = -1;
+        if (f && f->name && !strncmp(f->name, "W_BU_SpawnPoint", 15)) spawn_choice = atoi(f->name + 15);
+        return spawn_choice >= 0 ? AK_FE_SPAWN : AK_FE_NONE;
+    }
     else if (!strcmp(fn, "FE_HostGame")) {
         if (!nrot) return AK_FE_NONE;
         const map_entry *e = &maps[rot[0].map]; const char *lv = rot[0].era ? e->cw : e->gcw;
@@ -364,9 +437,31 @@ int ak_fe_update(const ak_input *in, f32 dt)
                 return run(&f->actions[i], row);
             }
     }
+    if (have_match && focused_spawn() >= 0) {                          /* the spawn map: the nearest active post that way [assumed] */
+        static const f32 dv[4][2] = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }; static const u32 bt[4] = { AK_BTN_LEFT, AK_BTN_RIGHT, AK_BTN_UP, AK_BTN_DOWN };
+        int cur = focused_spawn(); f32 cx, cy;
+        if (ak_hud_2d_map_point(match.post_pos[cur], 0, 0, 200, &cx, &cy))
+            for (int d = 0; d < 4; d++) if (in->pressed & bt[d]) {
+                int best = -1; f32 bd = 1e9f;
+                for (u32 k = 0; k < match.nposts; k++) {
+                    f32 kx, ky; if ((int)k == cur || match.post_owner[k] != match.team || !ak_hud_2d_map_point(match.post_pos[k], 0, 0, 200, &kx, &ky)) continue;
+                    f32 ax = kx - cx, ay = ky - cy, along = ax * dv[d][0] + ay * dv[d][1]; if (along <= 0) continue;
+                    f32 sc = along + 2.0f * fabsf(ax * dv[d][1] - ay * dv[d][0]); if (sc < bd) { bd = sc; best = (int)k; }
+                }
+                if (best >= 0) { char nm[32]; snprintf(nm, sizeof nm, "W_BU_SpawnPoint%d", best); if (id_of(nm)) focus = id_of(nm); }
+                return AK_FE_NONE;
+            }
+    }
     static const u32 dirs[4] = { AK_BTN_LEFT, AK_BTN_RIGHT, AK_BTN_UP, AK_BTN_DOWN };
     for (int k = 0; k < 4; k++)                                        /* the neighbour links: left, right, up, down */
-        if ((in->pressed & dirs[k]) && f && f->links[k] && find_visible(&page->root, f->links[k])) { focus = f->links[k]; clock = 0; return AK_FE_NONE; }
+        if ((in->pressed & dirs[k]) && f && f->links[k]) {          /* (a hidden neighbour: on along its own link the same way) */
+            u32 to = f->links[k];
+            for (int hop = 0; hop < 8 && to; hop++) {
+                if (find_visible(&page->root, to)) { focus = to; clock = 0; return AK_FE_NONE; }
+                const ak_widget *n = find_id(&page->root, to); to = n ? n->links[k] : 0;
+            }
+        }
+    if ((in->pressed & AK_BTN_CROSS) && getenv("AK_FE_TRACE")) AK_INFO("fe", "cross on %s (%u actions)", f && f->name ? f->name : "-", f ? f->nactions : 0);
     if ((in->pressed & AK_BTN_CROSS) && f && is_button(f->type) && f->type != AK_GUI_TEXTLIST) return activate(f);
     if (in->pressed & AK_BTN_CIRCLE) {                                 /* back: the page's back button, else the page before */
         const ak_widget *b = find_named(&page->root, "W_BU_Back");

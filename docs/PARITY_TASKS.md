@@ -118,7 +118,8 @@ textures and how they are used. Section R lists only what must be in place so th
     not on a fixed wave.
   - Aurek: the player respawns on confirm (cross / fire) after 3 s (AK_RESPAWN_AUTO=1 without a press); fallen bots leave
     after 5 s (were 8).
-  - [ ] **1.10b** A spawn screen (score board, map, spawn point choice with the game's default).
+  - [ ] **1.10b** A spawn screen (score board, map, spawn point choice with the game's default). 2026-11-20: the spawn map and
+    team selection run from the game's own pages with AK_FRONTEND=1 (see 8.2); the score board before it is not shown yet.
   - [x] **1.10c** The AI's respawn rule. 2026-11-20: the game has spawn waves - the option "Respawn delay is time between spawn
     waves (in seconds)" is a float at 0x08B1BB48, 10.0 on every match (RS_DRIVE_PEEK; the warm-up beside it is 5.0); the match
     status (089883F8) counts the next wave from it. With the body's 5 s, the next 10 s wave gives the measured 5-15 s. Aurek
@@ -640,6 +641,16 @@ textures and how they are used. Section R lists only what must be in place so th
     level, STDTEXT name, modes[4], space}). Aurek's Planet and Playlist screens match the original's frames, scroll bar
     included, and Launch starts the first play-list map in its mode. [assumed] FE_SelectRandomMaps' rules, the scroll bar's
     link to its list (by name).
+  - 2026-11-20, the match's own pages (BFF_GUIMENU_INGAMESP.GUI): after Launch the match loads behind MP_Team_Selection (its
+    team lists filled with each side's soldiers - FE_ListFriendlyEntities / FE_ListEnemyEntities -, the era's team buttons by
+    BFF.FE_GameEra, the side names by BFF.FE_PlayerFaction, the level's name and mode code); FE_TeamSelection(1 / 2) picks the
+    side (the era's faction and its trooper [assumed: MediumRebel, Stormtrooper, Clonetrooper, Battle_Droid until the
+    customisation menu]) and opens MP_Spawn_Location: the level's map in a disc with the side's posts on it (W_BU_SpawnPoint<k>,
+    shown by BFF.FE_SpawnPointCount / Active<k>), the focused post's name; cross (FE_RequestRespawn) spawns the soldier at
+    that post. Dead, the spawn map comes back after three seconds. Widget ids are not always their names' hashes
+    (W_BU_SpawnPoint0 is 0x55F10F71): the code finds those by name. A neighbour link to a hidden widget is followed on in
+    the same direction. Open: the spawn map's zoom (the original fits the playable area; Aurek shows the whole map picture),
+    the team lists' insignia and the faction logos, the respawn timer, the pause menu, the score boards.
 
 ## 9. Camera and input
 

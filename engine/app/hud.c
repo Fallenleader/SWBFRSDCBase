@@ -835,3 +835,32 @@ f32 ak_hud_2d_text(int big, f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u
 f32 ak_hud_2d_line(int big) { return fonts[big ? 1 : 0].line; }
 void ak_hud_2d_end(void) { flush(); ak_gfx_set_transform(NULL); }
 
+/* the level's map in a disc (the spawn screen's E_IM_SpawnLocal, 200 x 200): the whole map picture over the square (x, y, size),
+ * cut to the inscribed circle as the radar cuts its own (32 slices); grey (0xFF86807B, the radar's disc) where there is none */
+void ak_hud_2d_map(f32 x, f32 y, f32 size, u32 argb)
+{
+    const int N = 32; f32 cx = x + size * 0.5f, cy = y + size * 0.5f, R = size * 0.5f;
+    for (int pass = 0; pass < (map.tex ? 2 : 1); pass++)
+        for (int i = 0; i < N; i++) {
+            f32 a0 = 6.2831853f * i / N, a1 = 6.2831853f * (i + 1) / N;
+            f32 xs[3] = { 0, cosf(a0) * R, cosf(a1) * R }, ys[3] = { 0, sinf(a0) * R, sinf(a1) * R };
+            ak_gfx_tex *t = pass ? map.tex : NULL;
+            if (t != vtex || !vset || nv + 3 > MAXV) { flush(); vtex = t; vset = true; }
+            u32 c = pass ? argb : 0xFF86807Bu; u8 col[4] = { (u8)(c >> 16), (u8)(c >> 8), (u8)c, (u8)(c >> 24) };
+            for (int k = 0; k < 3; k++) {
+                ak_vtx *v = &vb[nv++]; memset(v, 0, sizeof *v);
+                v->pos[0] = cx + xs[k]; v->pos[1] = cy + ys[k]; memcpy(v->col, col, 4);
+                f32 u = 0.5f + xs[k] / size, vv = 0.5f + ys[k] / size;
+                v->uv[0] = map.pic.u0 + u * (map.pic.u1 - map.pic.u0); v->uv[1] = map.pic.v0 + vv * (map.pic.v1 - map.pic.v0);
+            }
+        }
+}
+/* where an engine-space point lies on that map */
+bool ak_hud_2d_map_point(const f32 pos[3], f32 x, f32 y, f32 size, f32 *sx, f32 *sy)
+{
+    if (map.w <= 0.1f || map.d <= 0.1f) return false;
+    f32 wx = pos[0], wz = pos[2];                                       /* (the game's z is the engine's -z) */
+    f32 u = 0.5f + (wx - map.ox) / map.w, vv = 0.5f - (-wz - map.oz) / map.d;
+    *sx = x + u * size; *sy = y + vv * size; return true;
+}
+

@@ -152,6 +152,7 @@ int main(int argc, char **argv)
     ak_gfx_stats gs; memset(&gs, 0, sizeof gs);
     /* the front end (PARITY 8.2): the game's menus first (AK_FRONTEND=1; AK_FE_PAGE the first page), the level once launched */
     bool fe_on = ak_setting_int("AK_FRONTEND", 0) && ak_fe_init(vfs) && ak_fe_open(ak_setting_str("AK_FE_PAGE", "MP_MainMenu"));
+    bool fe_ingame = false, fe_after_team = false;                      /* the match's own pages (team selection, the spawn map) */
     for (;;) {
         if (fe_on) {
             if (!ak_plat_poll(&in)) break;
@@ -171,7 +172,7 @@ int main(int argc, char **argv)
                 static const char *codes[4] = { "CQST", "CTF1", "CTF2", "HCTF" }; ak_setting_set("AK_MODE", codes[md & 3]);
                 for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, lv)) cur = i;
                 AK_INFO("fe", "launch %s, %s", lv, codes[md & 3]);
-                fe_on = false; playing = true; loaded = false;
+                fe_on = false; playing = true; loaded = false; fe_ingame = ak_setting_int("AK_FE_INGAME", 1) != 0; ak_fe_close();
             }
             continue;
         }
@@ -454,6 +455,55 @@ int main(int argc, char **argv)
             else AK_INFO("aurek", "playing as %s (%s, head %d) at %.1f %.1f %.1f; level memory %.1f MB", models.models[play.look.body].name, ak_faction_name(play.look.faction),
                          play.look.head_index + 1, play.ch.pos[0], play.ch.pos[1], play.ch.pos[2], lvl.used / 1048576.0);
             if (play.ready) ak_play_sound_start(&play, &level, &bps);
+            if (play.ready && fe_ingame) {                                  /* the player waits for the menus: team, then the spawn map */
+                play.alive = false; play.target[0].alive = false; play.menu_hold = true; play.dead_t = 0;
+                ak_fe_open_ingame(fe_after_team ? "MP_Spawn_Location" : "MP_Team_Selection"); fe_after_team = false;
+            }
+        }
+        bool fe_menu = false;
+        if (playing && play.ready && fe_ingame) {
+            static ak_fe_match fm; memset(&fm, 0, sizeof fm);
+            fm.mode = ak_game_mode; fm.era = strncmp(levels[cur].label, "PREQUEL", 7) == 0; fm.team = play.team;
+            fm.faction[0] = play.team_faction[0]; fm.faction[1] = play.team_faction[1];
+            for (u32 i = 0; i < play.cq.nposts && fm.nposts < AK_FE_MAX_POSTS; i++) {
+                if (play.cq.post[i].absent || play.cq.post[i].disabled) continue;
+                memcpy(fm.post_pos[fm.nposts], play.cq.post[i].pos, 12); fm.post_owner[fm.nposts] = play.match.post[i].owner; fm.post_name[fm.nposts] = play.cq.post[i].name;
+                fm.nposts++;
+            }
+            for (u32 i = 0; i < play.nbots; i++) {
+                int t = play.bot[i].team & 1; if (fm.nnames[t] >= 32) continue;
+                u32 n; const u16 *nm = ak_hud_bot_name(play.team_faction[t], play.bot[i].name, &n);
+                if (nm) { fm.name[t][fm.nnames[t]] = nm; fm.name_len[t][fm.nnames[t]] = n; fm.bot[t][fm.nnames[t]] = true; fm.nnames[t]++; }
+            }
+            ak_fe_set_match(&fm);
+            if (!ak_fe_page() && !play.alive && play.dead_t >= 3.0f) ak_fe_open_ingame("MP_Spawn_Location");   /* (the original: three seconds of the death camera) */
+            if (ak_fe_page()) {
+                fe_menu = true;
+                { const char *keys = ak_setting_str("AK_FE_KEYS2", NULL);   /* tests: the in-match pages' buttons, as AK_FE_KEYS */
+                  static int kf = 0; if (keys) { int k = kf / 4, ph = kf % 4; const char *q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; }
+                      if (kf > 20) { k = (kf - 21) / 4; ph = (kf - 21) % 4; q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; } }
+                      if (*q && ph == 0 && kf > 20) { u32 m = *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : 0; in.pressed |= m; }
+                      if (kf <= 20 || ph == 0) {} kf++; } }
+                int ev = ak_fe_update(&in, dt);
+                if (ev == AK_FE_TEAM) {
+                    /* 1 the good side, 2 the evil side, 0 auto (stays); each side's soldier: the era's faction's trooper [assumed:
+                       MediumRebel / Stormtrooper, Clonetrooper / Battle_Droid until the customisation menu is ported] */
+                    int t = ak_fe_team(), era = strncmp(levels[cur].label, "PREQUEL", 7) == 0;
+                    if (t == 1 || t == 2) {
+                        int fac = era ? (t == 1 ? 0 : 1) : (t == 1 ? 2 : 3);
+                        static const char *trooper[4] = { "Clonetrooper", "Battle_Droid", "MediumRebel", "Stormtrooper" };
+                        if (fac != play.team_faction[play.team]) {
+                            char v[4]; snprintf(v, sizeof v, "%d", ak_faction_team(fac) + 1); ak_setting_set("AK_TEAM", v); ak_setting_set("AK_SOLDIER", trooper[fac]);
+                            play.ready = false; fe_after_team = true;
+                        }
+                    }
+                } else if (ev == AK_FE_SPAWN) {
+                    int k = ak_fe_spawn_post(), idx = -1, seen = 0;           /* (the page's index among the shown posts -> the conquest post) */
+                    for (u32 i = 0; i < play.cq.nposts; i++) { if (play.cq.post[i].absent || play.cq.post[i].disabled) continue; if (seen++ == k) idx = (int)i; }
+                    play.spawn_post = idx; play.menu_spawn = true; ak_fe_close();
+                }
+                memset(&in, 0, sizeof in);                                     /* (the menu has the pad) */
+            }
         }
         f32 fovy = 1.05f;
         if (playing && play.ready) {
@@ -693,7 +743,7 @@ int main(int argc, char **argv)
                         hs.post_contested = ps->contest > 0; hs.post_time = at_t; hs.post_cross = play.cq.post[near].disabled;
                     }
                 }
-                ak_hud_draw(&hs, w, h);
+                if (fe_menu) ak_fe_draw(); else ak_hud_draw(&hs, w, h);
 
             }
             if (play.snd.sub && ak_setting_int("AK_SUBTITLES", 0))                 /* the narrator's line (the game's subtitle text) */

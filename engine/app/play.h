@@ -110,6 +110,7 @@ typedef struct {
     bool sprint_spent;                 /* the stamina ran out in this sprint: none until L is let go */
     f32 speed_scale;                   /* the customisation's Speed level (1.0 at the default level 1) */
     f32 capture_rate;                  /* the customisation's capture rate (unit +0x138; 1.0 at the default level 1) */
+    bool menu_hold, menu_spawn; s32 spawn_post;   /* the front end's spawn map decides: hold the player until it asks (menu_spawn), at that post (-1 nearest) */
     bool roll_end, respawn_req;        /* respawn_req: the confirm pressed this frame */                     /* a roll just ended: the next body clip starts at full weight */
     s32 sclip[PLAY_NCLIPS];            /* the saber heroes' (generic_male LightSabre clips) */
     s32 aclip[PLAY_NCLIPS], shoot_clip, reload_clip;   /* reload_clip: the set's column 2 (reloading) */   /* the alert set (rifle raised: generic_male set 5) and its shoot layer (column 1) */

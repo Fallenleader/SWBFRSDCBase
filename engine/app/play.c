@@ -304,13 +304,16 @@ static f32 clip_rate(int st, f32 hs, const ak_char_params *cp)
 /* ------------------------------------------------------------------ spawning */
 /* a spot near the team's spawn at a post it owns (random among them; `near` biases toward the closest), jittered so a wave
  * does not stack its soldiers, on the ground and in sight of the spawn point */
-static bool spawn_spot(ak_play *p, int team, const f32 *near, u32 *seed, f32 *pos, f32 *yaw)
+static bool spawn_spot_at(ak_play *p, int team, const f32 *near, bool exact, u32 *seed, f32 *pos, f32 *yaw);
+static bool spawn_spot(ak_play *p, int team, const f32 *near, u32 *seed, f32 *pos, f32 *yaw) { return spawn_spot_at(p, team, near, false, seed, pos, yaw); }
+/* exact: the post nearest `near` always (the spawn map's choice), else half the time */
+static bool spawn_spot_at(ak_play *p, int team, const f32 *near, bool exact, u32 *seed, f32 *pos, f32 *yaw)
 {
     u32 cand[AK_MAX_POSTS], n = 0;
     for (u32 i = 0; i < p->cq.nposts; i++) if (p->match.post[i].owner == team && p->cq.post[i].has_spawn[team] && !p->cq.post[i].absent) cand[n++] = i;
     if (!n) return false;
     u32 pick = cand[(u32)(rnd(seed) * n) % n];
-    if (near && rnd(seed) < 0.5f) {
+    if (near && (exact || rnd(seed) < 0.5f)) {
         f32 bd = 1e30f;
         for (u32 k = 0; k < n; k++) { const f32 *q = p->cq.post[cand[k]].pos; f32 dx = q[0] - near[0], dz = q[2] - near[2]; if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; pick = cand[k]; } }
     }
@@ -427,7 +430,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         int h = ak_setting_int("AK_HEALTH_LEVEL", 1), sp = ak_setting_int("AK_SPEED_LEVEL", 1), cr = ak_setting_int("AK_CAPTURE_LEVEL", 1);
         h = h < 0 ? 0 : h > 3 ? 3 : h; sp = sp < 0 ? 0 : sp > 3 ? 3 : sp; cr = cr < 0 ? 0 : cr > 3 ? 3 : cr;
         p->max_health = p->health = ak_bp_float(p->look.bp, "Health", hl[h]); p->speed_scale = sl[sp]; p->capture_rate = cl[cr]; }
-    p->alive = true; p->near_post = -1;
+    p->alive = true; p->near_post = -1; p->spawn_post = -1; p->menu_hold = false; p->menu_spawn = false;
     /* where the player starts: the team's spawn at its post nearest the start */
     f32 sp[3] = { start[0], start[1], start[2] }, gy, syaw = 0;
     s32 post = -1;
@@ -2517,11 +2520,14 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
        the spawn map, and the soldier is back as soon as the player confirms [PARITY(1.10b): Aurek has no spawn screen yet - the
        confirm (cross) respawns at the spawn point chosen as before; AK_RESPAWN_AUTO=1 respawns without it] */
     static int autorsp = -1; if (autorsp < 0) autorsp = ak_setting_int("AK_RESPAWN_AUTO", 0);
-    bool player_back = !p->alive && p->dead_t >= 3.0f && (p->respawn_req || autorsp);
+    bool player_back = !p->alive && (p->menu_hold ? p->menu_spawn : p->dead_t >= 3.0f && (p->respawn_req || autorsp));
+    p->menu_spawn = false;
     if (playing && (wave || player_back)) {
         if (player_back) {
             f32 sp[3], syaw = p->ch.yaw;
-            bool ok = p->have_cq ? (p->match.tickets[p->team] > 0 && spawn_spot(p, p->team, p->ch.pos, &p->seed, sp, &syaw)) : false;
+            const f32 *near = p->ch.pos;                                  /* (the spawn map's post: spawn there) */
+            if (p->spawn_post >= 0 && p->have_cq && (u32)p->spawn_post < p->cq.nposts) near = p->cq.post[p->spawn_post].pos;
+            bool ok = p->have_cq ? (p->match.tickets[p->team] > 0 && spawn_spot_at(p, p->team, near, near != p->ch.pos, &p->seed, sp, &syaw)) : false;
             if (!p->have_cq) { memcpy(sp, p->ch.pos, 12); ok = true; }
             if (ok) {
                 hero_unmake_player(p, m);
