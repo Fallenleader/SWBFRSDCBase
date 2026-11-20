@@ -226,6 +226,7 @@ Vita: `cmake -S engine/platform/vita -B build/aurek_vita && cmake --build build/
 | 2026-11-20 | 4.4 | **the AI path node, read.** 0893D4E8 follows a list of path points, handing the controller a wanted velocity of 8.5 toward the next (0893E67C) and taking the next point within 1.0 m; Aurek's bots now take their nav node within 1 m (was 2). |
 | 2026-11-20 | 4.4 | **AI path speed.** The path node's wanted speed is 8.5 m/s, 5.0 within 40 m of a unit it scans (the local player [assumed]); bots ran at the soldier run speed 6. ak_char_input gains `speed` (the AI's wanted ground speed). |
 | 2026-11-20 | 2.1 / 2.6 | **the AI's loadouts and weapon choice.** The game's AI weapon table per faction (0x08ADDB94) and its eight loadouts (0x08ADDC64), drawn per spawn by 0897FA38's weights (difficulty and an enemy-vehicle count [assumed]); bots now carry rifles, pistols, chainguns, incinerators, shotguns, rocket and EMP launchers, and take the one for each target and distance (0893F65C: incinerator under 8.5 m, shotgun under 12.5 m, launchers at vehicles). AK_BOT_LOADOUTS=0 gives every bot AK_BOT_WEAPON. |
+| 2026-11-20 | 7.2 / 3.3 | **flyer collision damage and sound.** 089CE510's per-class values read from the vtables: threshold 30 m/s (flyers 5), factor 0.025 (flyers 0.05 in free flight). A flyer's glancing touch now costs max health x impact x dt x factor and plays the blueprint's Collision Sound. |
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |

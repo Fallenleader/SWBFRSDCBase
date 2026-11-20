@@ -228,6 +228,7 @@ static bool auto_level(void){ static int on = -1; if (on < 0) on = ak_setting_in
 
 static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool boost, f32 dt)
 {
+    v->impact = 0;
     const ak_vehicle_def *d = v->def;
     if (!v->flying) {                                                     /* on the ground: settle; a pilot takes off */
         f32 o[3] = { v->pos[0], v->pos[1] + 2.0f, v->pos[2] }, dn[3] = { 0, -1, 0 }; ak_col_hit h;
@@ -362,6 +363,7 @@ static void flyer_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bo
             return;
         }
         if (into > -0.7f) {                                                /* a glancing touch: skim off the surface (ground, ceiling, wall) */
+            v->impact = v->speed * -into;
             v->pitch += h.normal[1] * (0.6f * dt - into);
             if (fabsf(h.normal[1]) < 0.5f) {                               /* a wall: turn along it */
                 f32 side = -sinf(v->yaw) * 0 + (cosf(v->yaw) * h.normal[0] - sinf(v->yaw) * h.normal[2]);

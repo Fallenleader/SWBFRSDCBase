@@ -2547,6 +2547,19 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             ak_vehicle_update(vh, &p->col, p->cp.gravity, false, dt);
         }
         if (vh->driver == 0 && ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "%s acc %.0f top %.0f pos %.1f %.1f %.1f vel %.1f %.1f %.1f yaw %.2f", vh->def->name, vh->def->max_acc, vh->def->top_speed, vh->pos[0], vh->pos[1], vh->pos[2], vh->vel[0], vh->vel[1], vh->vel[2], vh->yaw);
+        /* collision damage (089CE510, from the physics with the impact speed): at or above the class's threshold (vfunc +0x1F0: 30 m/s,
+           flyers 5) the vehicle sends itself damage +0x34 x speed x dt x the class's factor (vfunc +500: 0.025; flyers 089B02E0:
+           0.05 in free flight (+852 bit 0) unless bit 1, else 0.025) and plays its blueprint's "Collision sound" (089CD7C4)
+           [assumed: +0x34 is the maximum health; only flyers' touches measure an impact here] */
+        if (vh->def && vh->impact > 0) {
+            f32 thr = vh->def->kind == AK_VEH_FLYER ? 5.0f : 30.0f, k = vh->def->kind == AK_VEH_FLYER && vh->free_flight ? 0.05f : 0.025f;
+            if (vh->impact >= thr) {
+                ak_target *vt = &p->target[VT(p, v)]; vt->health -= vt->max_health * vh->impact * dt * k;
+                if (!vh->coll_snd) { const char *cs = ak_bp_string(vh->def->bp, "Collision sound", NULL); if (!cs) cs = ak_bp_string(vh->def->bp, "Collision Sound", NULL);
+                                     if (cs && *cs) ak_audio_play(cs, vh->pos, false); }
+                vh->coll_snd = true;
+            } else vh->coll_snd = false;
+        } else if (vh->def) vh->coll_snd = false;
         if (vh->crashed) {                                                    /* flown into the level */
             p->target[VT(p, v)].alive = false; p->target[VT(p, v)].last_attacker = -1; vehicle_destroyed(p, m, v); vh->crashed = false; continue;
         }

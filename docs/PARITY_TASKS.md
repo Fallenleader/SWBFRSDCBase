@@ -600,6 +600,11 @@ textures and how they are used. Section R lists only what must be in place so th
     threshold (vfunc +0x1F0); above it the vehicle takes damage (message 0x8001: +0x34 x speed x dt x vfunc +500) and plays its
     blueprint's "Collision sound" event at its position, volume 1.0, stopping the previous one first (089CD7C4; also on message
     0x805C).  Aurek's ground vehicles have no collision damage yet, so the sound waits for that.
+  - 2026-11-20, the classes' values: the threshold (vfunc +0x1F0) is 30 m/s by default (08AC4C6C) and 5 for flyers (the flyer
+    vtable 0x08AFCBD0 -> 08AC4CD0); the factor (vfunc +500) 0.025 by default (08AC4C78), for flyers 089B02E0: 0.05 in free
+    flight (+852 bit 0) unless +852 bit 1, else 0.025. Ported for flyers: a glancing touch's speed into the surface is the
+    impact; at 5 m/s or more the craft takes max health x impact x dt x the factor and plays its "Collision Sound" once per
+    touch [assumed: +0x34 is the maximum health]. Ground vehicles' impacts (30 m/s) are not measured by Aurek's bodies yet.
 - [ ] **7.3 Speech [partial].** Trigger rules for every line category.
   - 2026-11-20: every Speech_* key's trigger found by its h31 hash in the code (the message 0x807F sender 089E3D2C, the
     narrator's 08A66150 / 08A6606C):
