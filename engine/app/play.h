@@ -91,6 +91,8 @@ typedef struct {                       /* a bot soldier */
     /* the mind */
     s32 goal; u32 path[128]; u32 npath, path_i; f32 hold[3]; bool holding;
     f32 think_t, goal_t, react_t, burst_t, stuck_t, strafe_t; f32 stuck_pos[3]; s32 enemy; f32 strafe; u32 seed;
+    /* what it has seen (traced: the AI sensor 08961A50): an enemy, where it was last seen, how long the record has lived */
+    struct { s16 t; f32 age, pos[3]; } mem[16]; u32 nmem; f32 sense_dt;
     /* vehicles: the one it drives (-1 on foot), the one it walks to; getting unstuck; a flyer's attack run */
     s32 veh, want_veh; bool boost; f32 veh_cool, rev_t, vstuck_t, vstuck_pos[3]; u32 vstucks; f32 fly_alt, run_t, feel_t, feel_yaw, feel_pitch; bool feel, near_wall;
     /* space: the commander's role (SPACE_COMBAT, SPACE_RUN, SPACE_LAND) and its objective / leg; leaving the hangar */
@@ -155,6 +157,7 @@ typedef struct {
     ak_weapon_def team_wdef[2], team_bdef[2]; bool team_armed[2];   /* bdef: the bots' copy (the game's bot modifiers) */
     const char *klass[2][PLAY_MAX_CLASSES]; u32 nklass[2];
     ak_arena scratch; bool bots_passive; f32 bot_aim, sight;
+    f32 sense_mult; u32 sense_every, frame_no;   /* the bots' sight: range multiplier, run every n frames (1: every frame) */
     ak_conquest_map cq; bool have_cq; int team;   /* command posts; the soldier's team (0 = team 1) */
     ak_cq_rules rules; ak_conquest match; int team_faction[2];
     f32 health, max_health, dead_t; bool alive;

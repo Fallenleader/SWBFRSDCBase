@@ -375,9 +375,24 @@ textures and how they are used. Section R lists only what must be in place so th
 ## 4. AI
 
 - [ ] **4.1 Bot vehicle use [assumed].** All Aurek's, including AK_BOT_VEHICLES 0.6.
-- [ ] **4.2 Target selection [assumed].** Tooling: RS_DRIVE_TGTSCAN=1 lists soldier fields (and their controller's) holding
+- [ ] **4.2 Target selection [traced for soldier bots 2026-11-19].** The AI sensor (vtable 0x08AF96F0; built by 08961784 on the
+  base 0892538C; updated every frame by 08961A50; read by 08962DAC from the fire node 0893F364):
+  - Sight: 55 m (+32) x a multiplier (+48, 1.0); a cone of +-45 degrees across and vertically (+36/+40/+44 = tan(pi/4),
+    tested by 089258F8 in the sensor's frame, Euler angles at +20); the eye is the soldier's position raised by
+    min(0.9 x height, 2 m) (0896293C); the sight line (08835014) must reach the enemy's aim point (vfunc +144) within 0.01 m.
+  - Records (list at +52, 12-byte nodes): new on first sight with awareness (+24) 1 and age (+20) 0; seen again: last position
+    (+28), velocity (+40) and team (+16) updated, the age runs on.  Each frame every record ages by dt and is dropped at 2 s
+    (D_08B1B77C) or when its object is dead or gone; one still in view comes straight back.  Awareness below 1 grows by 2/3 per
+    second (a branch zeroes it: a lookup in D_08C2B3A4 and its vfunc +32 - not traced).
+  - Target: the record nearest the soldier by last-seen position with awareness > 0.99 (08962DAC).
+  - Ported 2026-11-19 (soldier bots: bot_sense / bot_find_enemy in play.c): every frame (spread over frames above 16 bots,
+    AK_BOT_SENSE_EVERY).  60 s Hoth, 15 bots: soldier hits 298 -> 181 of ~10,400 shots (bots no longer see behind them).
+  - Open: what turns the sensor (Aurek: the facing), the second list it scans (08961C58, D_08C2B2A8: own-side objects, a
+    distance at +52 - perhaps shared sightings), the awareness-zeroing branch, and the same for bots in vehicles and turrets
+    (still Aurek's find_enemy).
+  - Earlier tooling: RS_DRIVE_TGTSCAN=1 lists soldier fields (and their controller's) holding
   another soldier's object or id.  On Hoth only +5E0 turned up (one bot → another, likely its squad leader), so the target is
-  not a soldier pointer or id field; the AI weapon record (2.6, +0 a target id) is the next lead. Aurek takes the nearest (play.c:1223). Trace the game's choice, memory and reaction time.
+  not a soldier pointer or id field; the AI weapon record (2.6, +0 a target id) was the lead. Aurek took the nearest (play.c:1223).
 - [ ] **4.3 Turret AI [assumed].** States NEUTRAL / SEARCHING / ORIENTATING (0x08B1B6AC) and who aims.
 - [ ] **4.4 Movement behaviour.** Path following, strafing, cover, objective choice, and retreat. Compare against the original's
   decisions.

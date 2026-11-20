@@ -336,7 +336,7 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
     if (b->hero) { b->look = b->base_look; b->hero = false; }               /* a fallen hero comes back as its soldier */
     ak_char_spawn(&b->ch, pos, yaw);
     b->alive = true; b->dead_t = 0; b->state = PLAY_IDLE; b->clip_t = rnd(&b->seed); b->land_t = 0; b->was_ground = true;
-    b->goal = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
+    b->goal = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
     b->stuck_t = 0; memcpy(b->stuck_pos, pos, 12); b->veh = b->want_veh = -1; b->rev_t = 0; b->vstucks = 0; b->veh_cool = 0;
     ak_target *t = &p->target[1 + idx];
     t->health = t->max_health = ak_bp_float(b->look.bp, "Health", 60.0f); t->headshot_mult = ak_bp_float(b->look.bp, "Headshot multiplier", 4.0f);
@@ -505,6 +505,9 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         memcpy(t->feet, p->ch.pos, 12); t->height = 1.45f * S; t->radius = 0.35f * S; t->head_radius = 0.2f * S; memcpy(t->head, p->ch.pos, 12); t->head[1] += 1.6f * S; }
     /* bots */
     p->sight = p->lock_range;
+    p->sense_mult = ak_setting_float("AK_BOT_SIGHT_MULT", 1.0f);                /* (the sensor's +48: 1.0) */
+    {   int se = ak_setting_int("AK_BOT_SENSE_EVERY", 0);                        /* 0: every frame up to 16 bots, then spread */
+        p->sense_every = se > 0 ? (u32)se : 1; }
     {   /* the aim error: the weapon's AIWeapon_Accuracy_Normal (degrees; Weapon "Base": 5), unless AK_BOT_AIM says otherwise */
         const ak_bp_object *wb = ak_bp_find(bp, "Weapon", "Base");
         p->bot_aim = ak_setting_float("AK_BOT_AIM", wb ? ak_bp_float(wb, "AIWeapon_Accuracy_Normal", 5.0f) : 5.0f) * 3.14159265f / 180.0f;
@@ -543,6 +546,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         bot_spawn(p, m, b, p->nbots);
         p->nbots++;
     }
+    if (ak_setting_int("AK_BOT_SENSE_EVERY", 0) <= 0 && p->nbots > 16) p->sense_every = (p->nbots + 15) / 16;   /* (performance) */
     vehicles_init(p, l, m, bp, a);
     p->nturret = 0; p->ntdef = 0; turrets_init(p, l, m, bp);
     {   int tt = ak_setting_int("AK_TEST_AT_TURRET", 0);                    /* tests: start beside turret N */
@@ -663,7 +667,54 @@ static s32 find_enemy(ak_play *p, int team, const f32 *pos, f32 yaw, f32 eye_h, 
     }
     return best;
 }
-static s32 bot_find_enemy(ak_play *p, ak_play_bot *b) { return find_enemy(p, b->team, b->ch.pos, b->ch.yaw, 1.5f * S, p->sight, false); }
+/* A soldier bot's sight (traced: the AI sensor, class vtable 0x08AF96F0, update 08961A50, built by 08961784 / 0892538C):
+ * - range 55 m (+32, D_08AEDFAC) x a multiplier (+48, 1.0); a view cone of +-45 degrees across and up / down around the sensor's
+ *   facing (+36/+40/+44: tan of D_08AED434 = pi/4; the test 089258F8 in the sensor's own frame: |x| <= z tan, y <= z tan, z >= 0);
+ * - the eye: the soldier's position raised by min(0.9 x its height, 2 m) (0896293C); the sight line goes to the enemy's aim point
+ *   and must reach it to within 0.01 m (08835014 / 08834E84);
+ * - each enemy seen goes on its record list (new: age 0, awareness 1; seen again: its position is updated, the age runs on);
+ * - every frame the records age by dt and go when 2 s old (D_08B1B77C) or when the enemy is dead or gone - an enemy still in view
+ *   is put back the same frame, so one out of view is remembered for what was left of its record's 2 s;
+ * - the target (08962DAC): the record nearest by its last-seen position whose awareness is above 0.99.
+ * Not traced: what turns the sensor (Aurek: the soldier's facing), the second object list it scans (08961C58: D_08C2B2A8, records
+ * with a distance at +52) and the branch that zeroes a record's awareness (it then grows back at 2/3 per second).  [PARITY(4.2)] */
+static bool bot_can_see(ak_play *p, const ak_play_bot *b, const f32 *eye, const ak_target *t, f32 *aim)
+{
+    aim[0] = t->feet[0]; aim[1] = t->feet[1] + 1.2f * S; aim[2] = t->feet[2];
+    f32 dx = aim[0] - eye[0], dy = aim[1] - eye[1], dz = aim[2] - eye[2], d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 > 55.0f * S * 55.0f * S * p->sense_mult * p->sense_mult) return false;
+    f32 fx = -sinf(b->ch.yaw), fz = -cosf(b->ch.yaw), z = dx * fx + dz * fz, x = dx * -fz + dz * fx;   /* the facing's frame */
+    if (z < 0 || fabsf(x) > z || fabsf(dy) > z) return false;                                         /* (tan 45 = 1) */
+    return in_sight(p, eye, aim);
+}
+static void bot_sense(ak_play *p, ak_play_bot *b, f32 dt)
+{
+    for (u32 k = 0; k < b->nmem;) {                                              /* age; drop the old and the dead */
+        b->mem[k].age += dt; const ak_target *t = &p->target[b->mem[k].t];
+        bool gone = !t->alive || t->team == b->team || (b->mem[k].t >= (s32)NS(p) && b->mem[k].t < (s32)NV(p) && p->veh[b->mem[k].t - NS(p)].driver < 0);
+        if (b->mem[k].age >= 2.0f || gone) b->mem[k] = b->mem[--b->nmem]; else k++;
+    }
+    f32 eye[3] = { b->ch.pos[0], b->ch.pos[1] + fminf(0.9f * 1.8f * S, 2.0f * S), b->ch.pos[2] };
+    u32 nt = NT(p);
+    for (u32 i = 0; i < nt; i++) {
+        const ak_target *t = &p->target[i];
+        if (!t->alive || t->team == b->team) continue;
+        if (i >= NS(p) && i < NV(p) && p->veh[i - NS(p)].driver < 0) continue;   /* empty vehicles are no threat */
+        f32 aim[3]; if (!bot_can_see(p, b, eye, t, aim)) continue;
+        u32 k = 0; while (k < b->nmem && b->mem[k].t != (s16)i) k++;
+        if (k == b->nmem) { if (b->nmem == sizeof b->mem / sizeof b->mem[0]) continue; b->nmem++; b->mem[k].t = (s16)i; b->mem[k].age = 0; }
+        memcpy(b->mem[k].pos, t->feet, 12);
+    }
+}
+static s32 bot_find_enemy(ak_play *p, ak_play_bot *b)
+{
+    s32 best = -1; f32 bd = 1e30f;
+    for (u32 k = 0; k < b->nmem; k++) {
+        f32 dx = b->mem[k].pos[0] - b->ch.pos[0], dy = b->mem[k].pos[1] - b->ch.pos[1], dz = b->mem[k].pos[2] - b->ch.pos[2], d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 < bd) { bd = d2; best = b->mem[k].t; }
+    }
+    return best;
+}
 
 
 /* ------------------------------------------------------------------ heroes */
@@ -853,12 +904,14 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         if (!vh->alive || vh->driver >= 0 || (vh->team != b->team && !vh->open) || b->goal_t < -25.0f) { b->want_veh = -1; b->goal = -1; b->goal_t = 0; }
         else if (dx * dx + dz * dz < r * r && fabsf(vh->pos[1] - b->ch.pos[1]) < 4.0f) { bot_board(p, b, idx, (u32)b->want_veh); return; }
     }
+    /* sight and the target, every frame as the game does (AK_BOT_SENSE_EVERY > 1 spreads it over frames for large bot counts) */
+    b->sense_dt += dt;
+    if (p->sense_every <= 1 || (p->frame_no + idx) % p->sense_every == 0) { bot_sense(p, b, b->sense_dt); b->sense_dt = 0; }
+    b->enemy = p->bots_passive ? -1 : bot_find_enemy(p, b);
     /* think */
     b->think_t -= dt; b->goal_t -= dt;
     if (b->think_t <= 0) {
         b->think_t = 0.25f + rnd(&b->seed) * 0.1f;
-        s32 e = p->bots_passive ? -1 : bot_find_enemy(p, b);
-        if (e != b->enemy) b->enemy = e;
         bool done = b->goal >= 0 && p->match.post[b->goal].owner == b->team && p->match.post[b->goal].progress >= p->cq.post[b->goal].amount;
         if (b->want_veh < 0 && (b->goal < 0 || (done && b->goal_t <= 0) || (b->holding && b->goal_t <= -20.0f))) bot_choose_goal(p, b);
     }
@@ -1841,7 +1894,7 @@ static ak_input psp_layout(ak_play *p, const ak_input *raw, f32 dt)
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt)
 {
     if (!p->ready) return;
-    p->clock += dt;
+    p->clock += dt; p->frame_no++;
     p->respawn_req = (in->pressed & (AK_BTN_CROSS | AK_BTN_R)) != 0;           /* (the raw press: the respawn screen's confirm) */
     static ak_input mapped; mapped = psp_layout(p, in, dt); in = &mapped;
     if (ak_setting_int("AK_TEST_TAKEOVER", 0) && p->in_veh < 0 && p->alive)   /* tests: stand beside a vehicle a teammate bot drives */
