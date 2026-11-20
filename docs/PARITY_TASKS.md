@@ -613,6 +613,9 @@ groundwork below is needed before the parity work starts. The tiers come later.
 - [ ] **R.4 Material modes.** All 6 texture slots of a material, its mode, its "extra" field and animated materials (water,
   screens, lightning). Aurek handles diffuse plus flags only.
 - [ ] **R.5 LOD distances.** AK_LOD_SCALE 12 is Aurek's own; trace the real ones.
+  - 2026-11-19, looked for and not found: no blueprint key, level chunk or string names a LOD distance (the lower details are
+    the "L1#" / "L2#" meshes); the switch is somewhere in the model draw.  Next: watch the GE vertex counts of one prop in
+    the harness while the camera backs away (--tp), to measure the distances per model radius.
 - [ ] **R.6 Particles and effects (PFX).** Explosions, muzzle flashes, impacts, streaks, and the command post glow (AK_POST_GLOW
   is Aurek's own).
 - [ ] **R.7 Shadows and decals.** Shadow blobs and scorch marks as the game places them.
