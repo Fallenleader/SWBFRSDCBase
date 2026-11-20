@@ -581,7 +581,11 @@ textures and how they are used. Section R lists only what must be in place so th
 ## 8. HUD and front end
 
 - [ ] **8.1 HUD gaps.**
-  - Bot names in the target panel (player records, 0897DD80).
+  - Bot names in the target panel (player records, 0897DD80). Done 2026-11-20: the names are TEXT/BOTNAMES_<side>.ASR
+    (PTXT per language: hash, count 48, language, "BotNames_Alliance", then {u32 length with the 0, UTF-16}); the record keeps
+    its name at +22 (0897DD80). Read from the running original's memory: each side's bots hold distinct random entries
+    (eight rebels: 42, 18, 28, 22, 26, 34, 15, 20). Aurek gives each bot a random unused entry of its side's list and the
+    target panel shows it ("Waynar Ardam"). Open: the small grey icon the original draws before a bot's name.
   - Jetpack and shield bars.
   - The unmanned turret's hit source.
   - World markers (08A55238).

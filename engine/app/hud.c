@@ -145,6 +145,38 @@ static void load_cpnames(ak_vfs *vfs)
     }
 }
 
+/* TEXT/BOTNAMES_<faction>.ASR: the AI soldiers' names, laid out as CPNAMES (48 a side; Empire's are "AG 176"...).  Each bot of a
+ * side gets one at random, no two the same (read from the running original: the player records hold the names at +22, func
+ * 0897DD80, and a Hoth match's eight rebels had entries 42, 18, 28, 22, 26, 34, 15, 20) */
+static u16 *botname[4][64]; static u32 botlen[4][64], nbot[4];
+static void load_botnames(ak_vfs *vfs)
+{
+    static const char *file[4] = { "REPUBLIC", "CIS", "ALLIANCE", "EMPIRE" };   /* AK_FACTION_* order */
+    int lang = ak_setting_int("AK_LANGUAGE", 0);
+    for (int f = 0; f < 4; f++) {
+        char path[96]; snprintf(path, sizeof path, "PSP_GAME/USRDIR/TEXT/BOTNAMES_%s.ASR", file[f]);
+        ak_blob b; if (!ak_vfs_read(vfs, path, &mem, &b) || !ak_asura_check(&b)) continue;
+        u32 pos = 8; ak_chunk c;
+        while (ak_asura_next(&b, &pos, &c)) {
+            if (ak_chunk_tag(&c) != AK_TAG('P', 'T', 'X', 'T') || c.size < 16 || (int)ak_rd32(c.body + 8) != lang) continue;
+            u32 n = ak_rd32(c.body + 4), p = 12; p += ((u32)strnlen((const char *)c.body + p, c.size - p) + 1 + 3) & ~3u;
+            for (u32 i = 0; i < n && i < 64 && p + 4 <= c.size; i++) {
+                u32 len = ak_rd32(c.body + p); p += 4; if (p + len * 2 > c.size) break;
+                botname[f][i] = ak_arena_alloc(&mem, (len + 1) * 2, 2); botlen[f][i] = len ? len - 1 : 0;
+                if (botname[f][i]) for (u32 k = 0; k < len; k++) botname[f][i][k] = ak_rd16(c.body + p + k * 2);
+                p += len * 2; nbot[f] = i + 1;
+            }
+            break;
+        }
+    }
+}
+u32 ak_hud_bot_names(int faction) { return faction >= 0 && faction < 4 ? nbot[faction] : 0; }
+const u16 *ak_hud_bot_name(int faction, s32 i, u32 *len)
+{
+    if (faction < 0 || faction >= 4 || i < 0 || (u32)i >= nbot[faction]) { *len = 0; return NULL; }
+    *len = botlen[faction][i]; return botname[faction][i];
+}
+
 bool ak_hud_load(ak_vfs *vfs)
 {
     if (ready) return true;
@@ -158,7 +190,7 @@ bool ak_hud_load(ak_vfs *vfs)
     wpn_first[1] = nspr; wpn_n[1] = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD_WEAPONS_PREQUEL.ASR");
     fontp = &fonts[1]; load_font(vfs, "Cond_13"); fontp = &fonts[0];
     bool f = load_font(vfs, "Cond_9");
-    load_cpnames(vfs); load_stdtext(vfs);
+    load_cpnames(vfs); load_stdtext(vfs); load_botnames(vfs);
     ready = n > 0;
     AK_INFO("hud", "%u HUD pictures, %u + %u weapon icons, font %s (%u glyphs), %u post names, %u texts", n, wpn_n[0], wpn_n[1], f ? "Franklin Gothic Medium Cond 9" : "missing", font.n, ncp, nstd);
     return ready;

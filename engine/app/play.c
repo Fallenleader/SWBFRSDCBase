@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "app/play.h"
+#include "app/hud.h"
 #include "audio/ak_audio.h"
 #include "core/ak_settings.h"
 #include "assets/entity.h"
@@ -573,6 +574,12 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         const char *k = p->klass[team][(u32)(rnd(&b->seed) * p->nklass[team]) % p->nklass[team]];
         if (!ak_soldier_look_make(bp, m, k, (int)(rnd(&b->seed) * 3) % 3, -1, -1, &b->look) || !poseable(m, &b->look)) continue;
         b->team = team; b->death_clip = p->death_clips[i % 3]; b->base_look = b->look;
+        {   /* a name: a random entry of the side's BOTNAMES list not yet taken (the original, read from a running match) */
+            u32 nn = ak_hud_bot_names(p->team_faction[team]); b->name = -1;
+            if (nn) { u32 at = (u32)(rnd(&p->seed) * nn) % nn;
+                for (u32 t = 0; t < nn && b->name < 0; t++) { u32 c = (at + t) % nn; bool used = false;
+                    for (u32 j = 0; j < p->nbots && !used; j++) used = p->bot[j].team == team && p->bot[j].name == (s32)c;
+                    if (!used) b->name = (s32)c; } } }
         memcpy(b->ch.pos, p->ch.pos, 12);
         bot_spawn(p, m, b, p->nbots);
         p->nbots++;
