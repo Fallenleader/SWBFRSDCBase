@@ -41,6 +41,7 @@ typedef struct ak_widget {
     const ak_gui_cond *cond; u32 ncond, cond_mode;
     /* text lists (2005): rows at most, rows shown, the chosen row's colour, the function that fills it (FE_ListAllMaps) */
     u32 rows_max, rows_shown; f32 sel_rgba[4]; ak_gui_action fill;
+    f32 step;                          /* spinners / sliders (2003): the step of the value they set (0.1 for the volumes) */
     struct ak_widget *child; u32 nchild;
 } ak_widget;
 

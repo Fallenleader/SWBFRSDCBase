@@ -28,18 +28,20 @@ static u32 stack[16]; static int nstack; static bool focus_fix_pending;
 
 /* ---- script values ("BFF.FE_MapSelectionStatus", "GUIMenu.ActiveWidget", ...), as the pages' conditions read them */
 #define MAXVARS 64
-static struct { u32 h; s32 v; } vars[MAXVARS]; static int nvars;
-static s32 *var_ref(const char *name)
+static struct { u32 h; f32 v; } vars[MAXVARS]; static int nvars;
+static f32 *var_ref(const char *name)
 {
     u32 h = ak_gui_hash(name);
     for (int i = 0; i < nvars; i++) if (vars[i].h == h) return &vars[i].v;
-    if (nvars >= MAXVARS) { static s32 junk; return &junk; }
-    vars[nvars].h = h; vars[nvars].v = 0; return &vars[nvars++].v;
+    if (nvars >= MAXVARS) { static f32 junk; return &junk; }
+    /* first use: the profile's defaults [assumed: full volumes, subtitles off] */
+    f32 d = 0; if (!strncmp(name, "BFF.Volume", 10)) d = 1.0f;
+    vars[nvars].h = h; vars[nvars].v = d; return &vars[nvars++].v;
 }
-static void var_set(const char *name, s32 v) { *var_ref(name) = v; }
-static s32 var_get(const char *name)
+static void var_set(const char *name, f32 v) { *var_ref(name) = v; }
+static f32 var_get(const char *name)
 {
-    if (!strcmp(name, "GUIMenu.ActiveWidget")) return (s32)focus;
+    if (!strcmp(name, "GUIMenu.ActiveWidget")) return (f32)(s32)focus;
     if (!strcmp(name, "Asura.CurrentLanguage")) return 0;              /* (English) [assumed numbering] */
     return *var_ref(name);
 }
@@ -206,8 +208,16 @@ static bool is_button(u32 t) { return t >= 2000 && t < 3000 && t != AK_GUI_GROUP
 /* a widget shows by its flags and its button's focus: bit 1 while the button is not focused, bit 2 while it is (a page's own
  * widgets count as unfocused); neither bit: always [assumed: read from the main menu's buttons - the D picture 0x43E shows
  * always, the H picture 0x43C only on the focused button, as in the original's frame] */
+static const char *check_var;          /* drawing a check box's children: its value's name */
 static bool shows(const ak_widget *w, bool focused)
 {
+    size_t l = w->name ? strlen(w->name) : 0;
+    if (check_var && l > 2 && !strncmp(w->name, "E_IM_StyleCheckBox", 18) && (w->name[l - 1] == 'U' || w->name[l - 1] == 'C')) {
+        bool on = var_get(check_var) != 0;                              /* the box's own pictures: ticked (..C) or not (..U) */
+        if ((w->name[l - 1] == 'C') != on) return false;
+        u32 f = w->flags & 6; return !f ? true : focused ? (f & 4) != 0 : (f & 2) != 0;
+    }
+    if (w->type < 2000 && w->flags && !(w->flags & 0x400)) return false;   /* (pictures and texts: bit 10 shown) [assumed] */
     u32 f = w->flags & 6;
     if (!f) return true;
     return focused ? (f & 4) != 0 : (f & 2) != 0;
@@ -217,8 +227,9 @@ static bool cond_holds(const ak_widget *w)
     if (!w->ncond) return true;
     int any = 0, all = 1;
     for (u32 i = 0; i < w->ncond; i++) {
-        const ak_gui_cond *c = &w->cond[i]; s32 a = var_get(c->var), b = (s32)strtol(c->val, NULL, 0); bool r;
-        switch (c->op) { case 1: r = a == b; break; case 2: r = a > b; break; case 3: r = a >= b; break; case 4: r = a < b; break; case 5: r = a <= b; break; default: r = true; }
+        const ak_gui_cond *c = &w->cond[i]; f32 a = var_get(c->var), b = strtof(c->val, NULL); bool r;
+        if (!strcmp(c->var, "GUIMenu.ActiveWidget")) { s32 ia = (s32)focus, ib = (s32)strtol(c->val, NULL, 0); a = (f32)(ia > ib) - (f32)(ia < ib); b = 0; }   /* (ids: exact) */
+        switch (c->op) { case 1: r = fabsf(a - b) < 1e-4f; break; case 2: r = a > b + 1e-4f; break; case 3: r = a >= b - 1e-4f; break; case 4: r = a < b - 1e-4f; break; case 5: r = a <= b + 1e-4f; break; default: r = true; }
         any |= r; all &= r;
     }
     return w->cond_mode == 1 ? any != 0 : all != 0;
@@ -304,7 +315,8 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
         }
     }
     bool f2 = is_button(w->type) ? (w->id == focus) : focused;
-    const list_rows *keep = scroll; int keep_shown = scroll_shown; const char *keep_parent = parent_name; u32 keep_tint = child_tint;
+    const list_rows *keep = scroll; int keep_shown = scroll_shown; const char *keep_parent = parent_name; u32 keep_tint = child_tint; const char *keep_check = check_var;
+    if (w->type == AK_GUI_BUTTON2 && w->binding && w->binding[0]) check_var = w->binding;
     if (w->type >= 2000) parent_name = w->name;
     if (have_match && w->name && !strncmp(w->name, "W_BU_SpawnPoint", 15)) {   /* the post's owner: ours blue, theirs red, nobody's grey (as the HUD's) */
         u32 k = (u32)atoi(w->name + 15); int o = k < match.nposts ? match.post_owner[k] : -1;
@@ -317,7 +329,7 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
         if (!scroll || scroll->n <= scroll_shown) { scroll = keep; return; }   /* (nothing to scroll: no bar) */
     }
     for (u32 i = 0; i < w->nchild; i++) draw_widget(&w->child[i], x, y, f2);
-    scroll = keep; scroll_shown = keep_shown; parent_name = keep_parent; child_tint = keep_tint;
+    scroll = keep; scroll_shown = keep_shown; parent_name = keep_parent; child_tint = keep_tint; check_var = keep_check;
 }
 
 void ak_fe_draw(void)
@@ -480,6 +492,13 @@ int ak_fe_update(const ak_input *in, f32 dt)
                 if (best >= 0) { char nm[32]; snprintf(nm, sizeof nm, "W_BU_SpawnPoint%d", best); if (id_of(nm)) focus = id_of(nm); }
                 return AK_FE_NONE;
             }
+    }
+    if (f && f->type == AK_GUI_SPINNER && f->binding && f->binding[0] && (in->pressed & (AK_BTN_LEFT | AK_BTN_RIGHT))) {   /* a slider: its value by its step, 0..1 [assumed range] */
+        f32 st = f->step > 0 ? f->step : 0.1f, v = var_get(f->binding) + ((in->pressed & AK_BTN_RIGHT) ? st : -st);
+        var_set(f->binding, v < 0 ? 0 : v > 1 ? 1 : v); return AK_FE_NONE;
+    }
+    if (f && f->type == AK_GUI_BUTTON2 && f->binding && f->binding[0] && (in->pressed & AK_BTN_CROSS)) {   /* a check box */
+        var_set(f->binding, var_get(f->binding) != 0 ? 0 : 1); return AK_FE_NONE;
     }
     static const u32 dirs[4] = { AK_BTN_LEFT, AK_BTN_RIGHT, AK_BTN_UP, AK_BTN_DOWN };
     for (int k = 0; k < 4; k++)                                        /* the neighbour links: left, right, up, down */

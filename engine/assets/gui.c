@@ -161,7 +161,7 @@ static void widget(rd *s, ak_widget *w, int depth)
         break;
     case AK_GUI_SPINNER:                                              /* 08893AF4 */
         button_base(s, w); children(s, w, depth); r32(s);
-        if (v >= 1) { rf(s); r32(s); r32(s); }
+        if (v >= 1) { w->step = rf(s); r32(s); r32(s); }
         if (v >= 2) w->binding = named(s);
         break;
     case AK_GUI_TEXTBOX:                                              /* 088943B0 */

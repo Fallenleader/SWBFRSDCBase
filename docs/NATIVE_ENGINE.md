@@ -214,6 +214,7 @@ Vita: `cmake -S engine/platform/vita -B build/aurek_vita && cmake --build build/
 | 2026-11-20 | 8.2 | **Instant Action from the menus.** Show conditions (script values, ops ==, >, >=, <, <=, all / any), text lists with their FE_List* fill functions, and the Instant Action FE functions (planet, mode, era, play list, Launch) on the game's map table. Main menu > Single Player > Instant Action > pick Tatooine / Conquest / GCW > Launch starts the match; the screens match the original's. |
 | 2026-11-20 | 8.2 / 1.10b | **team selection and the spawn map.** The match's own pages from BFF_GUIMENU_INGAMESP.GUI: Team Selection with the sides' soldier lists, the side choice (the era's faction), then the spawn map (the level's map, the side's posts, the post's name) and FE_RequestRespawn spawning at the chosen post; the spawn map returns 3 s after death. The full loop main menu > Instant Action > team > spawn > play works. |
 | 2026-11-20 | 8.2 | **the pause menu.** START opens the game's MP_InGame_Menu (the match stops); Resume, Respawn, Restart and Quit (through the yes / no page) work; button targets that name a widget open its page focused on it. |
+| 2026-11-20 | 8.2 | **options pages' controls.** Script values as numbers; sliders step their bound values, check boxes toggle and show their tick by it; pictures and texts show by flags bit 10. The Audio Options page works (values not yet applied to the mixer). |
 
 ## Known issues (cleanup pass once gameplay reaches parity)
 
