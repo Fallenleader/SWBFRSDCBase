@@ -155,6 +155,15 @@ static bool load_file(int f)
         gtex[i] = NULL; gown[i] = false;
         for (u32 j = 0; btex && j < base.ntex; j++) if (same_name(gf.tex[i].name, base.tex[j].name)) { gtex[i] = btex[j]; break; }
         if (!gtex[i]) { gtex[i] = ak_gfx_texture(&gf.tex[i]); gown[i] = true; }
+        {   const char *dn = getenv("AK_FE_DUMP_TEX");                  /* (tools: AK_FE_DUMP_TEX=part of a name -> /tmp/fe_<i>.ppm) */
+            const ak_texture *t = &gf.tex[i];
+            if (dn && t->name && strstr(t->name, dn) && t->pixels[0]) {
+                char fn[64]; snprintf(fn, sizeof fn, "/tmp/fe_%u.ppm", i); FILE *o = fopen(fn, "wb");
+                if (o) { fprintf(o, "P6 %u %u 255\n", t->width, t->height);
+                    for (u32 y = 0; y < t->height; y++) for (u32 x = 0; x < t->width; x++) {
+                        u32 k = y * t->width + x, ix = t->bpp == 8 ? t->pixels[0][k] : (t->pixels[0][k >> 1] >> ((k & 1) * 4)) & 15, c = t->palette[ix];
+                        u8 a = (u8)(c >> 24), px[3] = { (u8)((c & 255) * a / 255), (u8)((c >> 8 & 255) * a / 255), (u8)((c >> 16 & 255) * a / 255) }; fwrite(px, 1, 3, o); }
+                    fclose(o); AK_INFO("fe", "dumped %s -> %s", t->name, fn); } } }
     }
     cur_file = f;
     AK_INFO("fe", "%s: %u pages, %u pictures, %.1f MB", files[f], gf.npages, gf.ntex, mem.used / 1048576.0);
@@ -280,6 +289,34 @@ static const u16 *override_text(const ak_widget *w, u32 *n)
     if (!strcmp(w->name, "E_TX_LevelType")) return ak_hud_stdtext(40 + 2 * (u32)(match.mode & 3), n);
     return NULL;
 }
+/* the sides' pictures on the team and score board pages (MP_Team_Selection, MP_ScoreBoard, MP_RespawnScoreboard,
+ * MP_GameOverScoreboard), set by the game at run time:
+ *  - E_IM_StyleButtonH_Logo_CIS / ..._CIS 1: the player's faction's logo and its opponent's (08A2A844: menu_buttons.tga cells
+ *    from the table 0x08AE1B1C by faction, 0 Republic .. 3 Empire; the opponent by 08A26F88: 0 <-> 1, 2 <-> 3);
+ *  - E_IM_GoodInsignia<k> / E_IM_EvilInsignia<k>: row k of the friendly / enemy list (08A32698): an AI soldier (entity +72 bit 1)
+ *    the terminal cell (0.586, 0.941 - 0.645, 0.996); a person the insignia chosen in the customisation (+68, cells 0x08AE28DC,
+ *    12 = none) [assumed: the player's is cell 0 until the customisation menu is ported]; no row, no picture.
+ * Returns true with the cell in uv (an empty cell hides the picture). */
+static const f32 faction_logo[5][4] = { { 0.914f, 0.352f, 0.992f, 0.43f }, { 0.84f, 0.352f, 0.918f, 0.43f }, { 0.715f, 0.914f, 0.793f, 0.992f },
+                                        { 0.762f, 0.352f, 0.84f, 0.43f }, { 0, 0, 0, 0 } };
+static const f32 insignia_cell[13][4] = {
+    { 0.527f, 0.941f, 0.586f, 0.996f }, { 0.41f, 0.941f, 0.469f, 0.996f }, { 0.469f, 0.941f, 0.527f, 0.996f }, { 0.352f, 0.941f, 0.41f, 0.996f },
+    { 0.234f, 0.941f, 0.293f, 0.996f }, { 0.293f, 0.941f, 0.352f, 0.996f }, { 0.059f, 0.941f, 0.117f, 0.996f }, { 0.176f, 0.941f, 0.234f, 0.996f },
+    { 0, 0.941f, 0.059f, 0.996f }, { 0.117f, 0.941f, 0.176f, 0.996f }, { 0.586f, 0.941f, 0.645f, 0.996f }, { 0.703f, 0.18f, 0.754f, 0.23f }, { 0, 0, 0, 0 } };
+static bool picture_override(const ak_widget *w, f32 *uv)
+{
+    if (!strncmp(w->name, "E_IM_StyleButtonH_Logo_CIS", 26)) {
+        int f = match.faction[match.team & 1], o = f == 1 ? 0 : f == 0 ? 1 : f == 2 ? 3 : f == 3 ? 2 : 4;
+        int k = w->name[26] ? o : (f >= 0 && f < 4 ? f : 4); memcpy(uv, faction_logo[k], 16); return true;
+    }
+    bool good = !strncmp(w->name, "E_IM_GoodInsignia", 17), evil = !strncmp(w->name, "E_IM_EvilInsignia", 17);
+    if (!good && !evil) return false;
+    u32 k = (u32)atoi(w->name + 17); int side = good ? match.team : 1 - match.team;
+    if (side < 0 || side > 1 || k >= match.nnames[side]) { memset(uv, 0, 16); return true; }
+    int cell = match.bot[side][k] ? 10 : ak_setting_int("AK_PLAYER_INSIGNIA", 0);
+    if (cell < 0 || cell > 12) cell = 12;
+    memcpy(uv, insignia_cell[cell], 16); return true;
+}
 static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
 {
     f32 x = ox + w->pos[0], y = oy + w->pos[1];
@@ -295,10 +332,12 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
     f32 a = 1;
     for (u32 i = 0; i < w->nanims; i++)                               /* "pulse_highlight": the highlight breathes [assumed rate] */
         if (!strncmp(w->anims[i], "pulse_highlight", 15)) a = 0.65f + 0.35f * cosf(clock * 6.2831853f);
+    f32 uvo[4]; const f32 *uv = w->uv;
+    if (have_match && w->type == AK_GUI_IMAGE && w->name && picture_override(w, uvo)) { if (uvo[2] <= uvo[0]) return; uv = uvo; }
     if (w->type == AK_GUI_IMAGE && w->tex >= 0 && (u32)w->tex < gf.ntex && gtex[w->tex]) {
         const f32 *c = w->rgba;
         if (spawn_owner >= 0 && w->name && !strncmp(w->name, "E_IM_SpawnPoint", 15)) c = spawn_rgba[spawn_owner][w->name[15] == 'H'];
-        ak_hud_2d_quad(gtex[w->tex], x, y, x + w->size[0], y + w->size[1], w->uv[0], w->uv[1], w->uv[2], w->uv[3], argb_of(c, a));
+        ak_hud_2d_quad(gtex[w->tex], x, y, x + w->size[0], y + w->size[1], uv[0], uv[1], uv[2], uv[3], argb_of(c, a));
     } else if (w->type == AK_GUI_IMAGE && w->rgba[3] > 0) {          /* no picture: a plain quad in its colour (panels, scroll bars) */
         f32 h = w->size[1], yy = y;
         if (scroll && w->name && !strcmp(w->name, "W_IM_Bar")) {      /* the bar: the shown share of the rows, at the first shown row */
@@ -323,7 +362,8 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
             for (int r = 0; r < shown && L->top + r < L->n; r++) {
                 int k = L->top + r; bool on = k == L->sel && (w->id == focus);
                 u32 col = on ? argb_of(w->sel_rgba, 1) : argb_of(w->rgba, 1);
-                ak_hud_2d_text(big, x + 3, y + r * rh + (rh - lh) * 0.5f, x + w->size[0], 1.0f, col, L->row[k], L->len[k], 0);
+                int al = (w->rows_align & 8) ? 2 : (w->rows_align & 4) ? 1 : 0;   /* [assumed: a 3-unit margin on either side] */
+                ak_hud_2d_text(big, x + 3, y + r * rh + (rh - lh) * 0.5f, x + w->size[0] - (al == 2 ? 3 : 0), 1.0f, col, L->row[k], L->len[k], al);
             }
         }
     }

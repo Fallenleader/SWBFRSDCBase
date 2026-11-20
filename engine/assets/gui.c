@@ -174,7 +174,7 @@ static void widget(rd *s, ak_widget *w, int depth)
     case AK_GUI_TEXTLIST:                                             /* 08895EA0 */
         button_base(s, w); children(s, w, depth);
         w->size[0] = rf(s); w->size[1] = rf(s); w->rows_max = r32(s); w->rows_shown = r32(s); w->font = rstr(s);
-        if (v >= 1) r32(s);
+        if (v >= 1) w->rows_align = r32(s);                           /* (the team lists: 2 for the left one, 8 for the right one) */
         if (v >= 2) action_list(s, w);
         if (v >= 3) w->fill = action(s);
         if (v >= 4) { r32(s); r32(s); for (int k = 0; k < 4; k++) w->sel_rgba[k] = rf(s); rf(s); }
