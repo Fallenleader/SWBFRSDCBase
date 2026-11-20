@@ -55,6 +55,7 @@
 #include "game/ak_weapon.h"
 #include "game/ak_pfx.h"
 #include "game/ak_conquest.h"
+#include "game/ak_script.h"
 #include "game/ak_ctf.h"
 #include "game/ak_vehicle.h"
 #include "game/ak_space.h"
@@ -181,6 +182,7 @@ typedef struct {
     f32 sense_mult; u32 sense_every, frame_no;   /* the bots' sight: range multiplier, run every n frames (1: every frame) */
     ak_conquest_map cq; bool have_cq; int team;   /* command posts; the soldier's team (0 = team 1) */
     ak_cq_rules rules; ak_conquest match; int team_faction[2];
+    ak_script script; bool have_script;   /* the level script (game/ak_script.h) */
     f32 oob_min[3], oob_max[3]; bool have_oob, oob_out; f32 oob_msg_t;   /* the battlefront's bounds (ENTI 0x8021, 089D4BDC): outside - the warning */
     ak_ctf_map ctf_map; ak_ctf ctf; bool have_ctf; s32 flag_model[AK_CTF_MAX], flag_clip[2];   /* flag_clip: flag_Flapping, flag_Flapping_Backattch */   /* capture the flag (AK_MODE CTF1 / CTF2 / HCTF) */
     f32 health, max_health, dead_t; bool alive;

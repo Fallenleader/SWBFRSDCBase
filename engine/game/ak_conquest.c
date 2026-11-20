@@ -54,42 +54,32 @@ static f32 yaw_of(const f32 *gq)
     return atan2f(-fx, -fz);
 }
 
-/* The level script's ticket changes (traced 2026-11-19, harness watch on the ticket counts): the ticket entity (ENTI type 9,
- * class 0x8009, handler 089875C8) takes message 0x8002 (extra: u32, u32 team, u32 count; non-zero sets the side's count,
- * 0898810C) and 0x8022 (extra: u32, u32 team, f32 percent: adds round(starting count x percent x 0.01), the starting count being
- * the option BFF.InitialTickets).  Hoth's script adds 25 % for the Empire: 100 / 125.  The match settings block then copies the
- * counts to the conquest manager (089883F8 -> 0898858C -> 089870F8).  Read here from the SMSG chunk (side 0) as messages to that
- * entity, in the groups a timer fires at 0 s (the start); the rest are events of the level's script (Tatooine sets 10 on one). */
-static void ticket_mods(const ak_level *l, ak_conquest_map *out)
+/* The ticket entity (ENTI type 9, class 0x8009, handler 089875C8; traced 2026-11-19 / 20): the level script's messages to it
+ * (game/ak_script.h) change the counts - 0x8002 {u32, team, count} sets a non-zero count (0898810C), 0x8003 adds a count
+ * (08987FEC), 0x8004 takes one off (not below 0), 0x8005 {u32, team} zeroes, 0x8022 {u32, team, f32 percent} adds
+ * round(starting count x percent x 0.01), the starting count being the option BFF.InitialTickets.  Hoth's start group adds 25 %
+ * for the Empire: 100 / 125, as the original's HUD.  In campaign (mode 5) only some difficulty passes them [not ported]. */
+static void ticket_entity(const ak_level *l, ak_conquest_map *out)
 {
-    u32 pos = 8, tid = 0; ak_chunk c; bool have = false;
+    u32 pos = 8; ak_chunk c;
     while (ak_asura_next(&l->file, &pos, &c))
-        if (ak_chunk_tag(&c) == AK_TAG('E', 'N', 'T', 'I') && c.size >= 8 && (ak_rd32(c.body + 4) & 0x7FFF) == 9) { tid = ak_rd32(c.body); have = true; break; }
-    if (!have) return;
-    /* the groups fired at the start: a timer (ENTI type 1, version >= 4) with time 0 fires its group [2] (as the music, ak_audio.c) */
-    s32 start[32]; u32 nstart = 0; pos = 8;
-    while (ak_asura_next(&l->file, &pos, &c))
-        if (ak_chunk_tag(&c) == AK_TAG('E', 'N', 'T', 'I') && c.size >= 0x34 && ak_rd32(c.body + 4) == 1 && ak_rd32(c.body + 0x1C) >= 4 &&
-            ak_rdf32(c.body + 0x30) == 0.0f && nstart < 32) start[nstart++] = (s16)ak_rd16(c.body + 0x24);
-    pos = 8;
-    while (ak_asura_next(&l->file, &pos, &c)) {
-        if (ak_chunk_tag(&c) != AK_TAG('S', 'M', 'S', 'G') || c.size < 8) continue;
-        u32 ver = c.version & 0xFFFF, ng = ak_rd32(c.body), p = 4, side = 0;
-        if (ver >= 2) { side = ak_rd32(c.body + 4); p = 8; }
-        if (side != 0 || ng > 4096 || p + ng > c.size) continue;
-        u32 msz = 8 + (ver >= 3 ? 4 : 0) + (ver > 4 ? 4 : 0) + (ver > 5 ? 4 : 0); const u8 *cnt = c.body + p; p += ng;
-        for (u32 g = 0; g < ng; g++) for (u32 m = 0; m < cnt[g]; m++) {
-            if (p + msz > c.size) return;
-            u16 ty = ak_rd16(c.body + p), ex = ak_rd16(c.body + p + 2); u32 tg = ak_rd32(c.body + p + 4);
-            u32 eb = !(c.flags & 1) ? ((ex + 3u) & ~3u) : 0; const u8 *x = c.body + p + msz;
-            bool at_start = false; for (u32 k = 0; k < nstart; k++) at_start |= start[k] == (s32)g;
-            if (at_start && tg == tid && ex >= 12 && p + msz + 12 <= c.size && (ty == 0x8002 || ty == 0x8022) && out->ntmod < 8) {
-                ak_ticket_mod *t = &out->tmod[out->ntmod++]; t->team = (int)ak_rd32(x + 4); t->set = ty == 0x8002;
-                t->value = t->set ? (f32)ak_rd32(x + 8) : ak_rdf32(x + 8);
-            }
-            p += msz + eb;
-        }
+        if (ak_chunk_tag(&c) == AK_TAG('E', 'N', 'T', 'I') && c.size >= 8 && (ak_rd32(c.body + 4) & 0x7FFF) == 9) { out->ticket_id = ak_rd32(c.body); return; }
+}
+
+bool ak_conquest_ticket_msg(const ak_conquest_map *m, const ak_cq_rules *r, ak_conquest *s, u32 target, u16 type, const u8 *x, u32 nx)
+{
+    if (!m->ticket_id || target != m->ticket_id || nx < 8 || !x) return false;
+    u32 team = ak_rd32(x + 4); if (team > 1 || !r->ticket_mode) return true;
+    s32 v = nx >= 12 ? (s32)ak_rd32(x + 8) : 0; f32 pc; u32 w = nx >= 12 ? ak_rd32(x + 8) : 0; memcpy(&pc, &w, 4);
+    switch (type) {
+    case 0x8002: if (v > 0) s->tickets[team] = v; break;
+    case 0x8003: s->tickets[team] += v; break;
+    case 0x8004: s->tickets[team] = s->tickets[team] > v ? s->tickets[team] - v : 0; break;
+    case 0x8005: s->tickets[team] = 0; break;
+    case 0x8022: s->tickets[team] += (s32)lroundf((f32)r->tickets * pc * 0.01f); break;
+    default: return false;
     }
+    return true;
 }
 
 bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
@@ -166,7 +156,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
             f32 dx = rg[i][0] - out->post[k].pos[0], dz = rg[i][2] - out->post[k].pos[2];
             if (dx * dx + dz * dz < 25.0f && !out->post[k].has_region) { memcpy(out->post[k].region, rg[i], 12); out->post[k].has_region = true; }
         }
-    ticket_mods(l, out);
+    ticket_entity(l, out);
     return out->nposts > 0;
 }
 
@@ -207,11 +197,6 @@ void ak_conquest_start(const ak_conquest_map *m, const ak_cq_rules *r, ak_conque
         p->owner = m->post[i].start_owner; p->capturing = AK_CQ_NEUTRAL; p->progress = m->post[i].amount;
     }
     s->tickets[0] = s->tickets[1] = r->ticket_mode ? r->tickets : -1;
-    for (u32 i = 0; i < m->ntmod; i++) {                                     /* the level script's changes (Hoth: the Empire +25 %) */
-        const ak_ticket_mod *t = &m->tmod[i]; if (t->team < 0 || t->team > 1 || !r->ticket_mode) continue;
-        if (t->set) { if (t->value > 0) s->tickets[t->team] = (s32)t->value; }
-        else s->tickets[t->team] += (s32)lroundf((f32)r->tickets * t->value * 0.01f);
-    }
     s->all_team = AK_CQ_NEUTRAL; s->winner = -1; s->respawn_t = r->respawn_delay;
     recount(m, s);
 }
@@ -221,6 +206,27 @@ static void set_owner(const ak_conquest_map *m, ak_conquest *s, u32 i, int team)
     ak_post_state *p = &s->post[i];
     p->owner = team; p->progress = m->post[i].amount; p->capturing = AK_CQ_NEUTRAL; s->captures++;
     recount(m, s);
+}
+
+/* A command post's script messages (handler 089ECC48, flags at +0xC0): 0x800B locks it (bit 0: it cannot be captured - the
+ * cross), 0x800A unlocks, 0x8014 / 0x8013 set / clear bit 1 [what bit 1 does: not traced], 0x800C {u32, team} gives it to a
+ * team (08A26FF4; 2 and up: neutral [assumed]), 3 / 4 enable / disable the object (08A067A8 - Aurek: the post is there or
+ * absent [assumed]).  The CTF timers of most levels lock the posts at the start (Endor, Geonosis, Kashyyyk ...). */
+bool ak_conquest_post_msg(ak_conquest_map *m, ak_conquest *s, u32 target, u16 type, const u8 *x, u32 nx)
+{
+    u32 i = 0; while (i < m->nposts && m->post_id[i] != target) i++;
+    if (i >= m->nposts) return false;
+    ak_post *po = &m->post[i];
+    switch (type) {
+    case 0x800B: po->flags |= 1; po->disabled = true; break;
+    case 0x800A: po->flags &= ~1u; po->disabled = false; break;
+    case 0x8014: po->flags |= 2; break;
+    case 0x8013: po->flags &= ~2u; break;
+    case 0x800C: if (x && nx >= 8) { u32 t = ak_rd32(x + 4); set_owner(m, s, i, t < 2 ? (int)t : AK_CQ_NEUTRAL); s->captures--; } break;
+    case 3: case 4: if (po->absent != (type == 4)) { po->absent = type == 4; recount(m, s); } break;
+    default: return false;
+    }
+    return true;
 }
 
 static void lose_ticket(ak_conquest *s, int team)

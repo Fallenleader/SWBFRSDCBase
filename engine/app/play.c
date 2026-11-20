@@ -545,6 +545,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->team_faction[p->team] = p->look.faction; p->team_faction[1 - p->team] = p->look.faction ^ 1;
     ak_cq_rules_default(&p->rules);
     if (p->have_cq) ak_conquest_start(&p->cq, &p->rules, &p->match);
+    p->have_script = ak_script_load(l, ak_game_mode, (u32)ak_setting_int("AK_SEED", 1), a, &p->script);   /* PARITY(5.4) */
     p->have_ctf = ak_ctf_load(l, ak_game_mode, &p->ctf_map);                  /* PARITY(5.4) */
     if (p->have_ctf) {
         ak_ctf_start(&p->ctf_map, &p->ctf);
@@ -2426,6 +2427,18 @@ static bool vehicle_exit_spot(const ak_play *p, const ak_vehicle *vh, f32 out[3]
     return false;
 }
 
+/* what the level script sends to the game's objects: the ticket entity and the command posts; the music the level starts with is
+ * the viewer's (ak_audio_level_music_start); the rest is logged (AK_DEBUG_SCRIPT) - not ported yet */
+static void script_sink(void *user, const ak_script_msg *m)
+{
+    ak_play *p = user; bool done = false;
+    if (m->node) done = m->node->type == AK_SN_MUSIC;   /* (the start music is the viewer's; a later change is not played [not ported]) */
+    else if (p->have_cq) done = ak_conquest_ticket_msg(&p->cq, &p->rules, &p->match, m->target, m->type, m->extra, m->nextra) ||
+                                ak_conquest_post_msg(&p->cq, &p->match, m->target, m->type, m->extra, m->nextra);
+    static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_SCRIPT", 0);
+    if (dbg) AK_INFO("script", "%.2f s: %x -> %x from %x%s%s", p->clock, m->type, m->target, m->sender, m->node ? " (a node's play)" : "", done ? "" : " - not handled");
+}
+
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt)
 {
     if (!p->ready) return;
@@ -3066,6 +3079,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (p->alive && p->ch.pos[1] < -400.0f) ak_play_damage(p, 1e6f);
     for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0 && p->bot[i].ch.pos[1] < -400.0f) {
         p->target[1 + i].alive = false; p->bot[i].alive = false; p->bot[i].dead_t = 0; if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, p->bot[i].team); }
+    /* the level script (game/ak_script.h): its timers, its queue, what it sends to the game's objects */
+    if (p->have_script) ak_script_update(&p->script, dt, false, script_sink, p);
     /* conquest: the posts, the tickets, the spawn wave */
     bool wave = false;
     if (p->have_cq) {

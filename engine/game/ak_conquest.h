@@ -48,10 +48,7 @@ typedef struct {
 typedef struct { u32 id; s32 post; f32 respawn; } ak_vspawn_link;
 #define AK_MAX_DROIDS 32
 typedef struct { f32 pos[3]; bool ammo; } ak_droid;   /* a health (class 0x800F) or ammo (0x8010) droid where the level places it */
-/* a ticket change the level script makes at the start (SMSG messages to the ticket entity, ENTI type 9): set = the count,
- * else a percentage of the starting count added */
-typedef struct { int team; bool set; f32 value; } ak_ticket_mod;
-typedef struct { ak_post post[AK_MAX_POSTS]; u32 nposts; u32 nregions; u32 post_id[AK_MAX_POSTS]; ak_ticket_mod tmod[8]; u32 ntmod;
+typedef struct { ak_post post[AK_MAX_POSTS]; u32 nposts; u32 nregions; u32 post_id[AK_MAX_POSTS]; u32 ticket_id;   /* ticket_id: the ticket entity (ENTI type 9) */
                  ak_vspawn_link vlink[AK_MAX_VSPAWN_LINKS]; u32 nvlink; ak_droid droid[AK_MAX_DROIDS]; u32 ndroid; } ak_conquest_map;
 
 bool ak_conquest_load(const ak_level *l, ak_conquest_map *out);
@@ -75,6 +72,10 @@ int ak_faction_team(int faction);
 void ak_conquest_start(const ak_conquest_map *m, const ak_cq_rules *r, ak_conquest *s);
 /* one step: posts, bleed, total loss; returns true on the step the spawn wave goes */
 bool ak_conquest_update(const ak_conquest_map *m, const ak_cq_rules *r, ak_conquest *s, const ak_cq_soldier *sol, u32 n, f32 dt);
+/* a level script message (game/ak_script.h) to the ticket entity: true when it was one */
+bool ak_conquest_ticket_msg(const ak_conquest_map *m, const ak_cq_rules *r, ak_conquest *s, u32 target, u16 type, const u8 *x, u32 nx);
+/* a level script message to a command post: true when it was one (lock, unlock, owner, there / absent) */
+bool ak_conquest_post_msg(ak_conquest_map *m, ak_conquest *s, u32 target, u16 type, const u8 *x, u32 nx);
 void ak_conquest_killed(const ak_cq_rules *r, ak_conquest *s, int team);
 /* the team's spawn at an owned post nearest `near` (or any owned post's); false if the team owns none */
 /* a vehicle-carried post (see play): where it is, whose it is, and whether it exists; it never counts as a capture */

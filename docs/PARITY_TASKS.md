@@ -617,9 +617,10 @@ textures and how they are used. Section R lists only what must be in place so th
     (0898810C).  Hoth's start group adds 25 % for the Empire: 100 / 125, as the original's HUD.  The match settings block
     (089883F8) copies the counts to the manager (0898858C -> 089870F8, which also raises the low-tickets event under 11).
   - Bleed measured (Hoth, Empire holding 2 of 6 posts): one ticket every 240 frames = 4.0 s, as Aurek's.
-  - Ported: the start-group 0x8022 / 0x8002 messages (ak_conquest.c ticket_mods).  Other levels' start groups change nothing;
-    Tatooine's script sets 10 on an event (group 17) - script events are not run yet.  0x8003 (Tatooine: +5 / +10 / +20 on events)
-    and 0x8006 / 0x8010 are other ticket-entity messages, not read.
+  - Ported: the ticket entity's messages as the level script sends them (2026-11-20, game/ak_script.c -> ak_conquest_ticket_msg:
+    0x8002 set, 0x8003 add, 0x8004 take, 0x8005 zero, 0x8022 percent).  Other levels' start groups change nothing; Tatooine's
+    events (0x8002 10, 0x8003 +5 / +10 / +20) are in its campaign groups.  0x8006 (ends the match: 0897392C) and 0x8010 are not
+    ported; in campaign 0x8002-0x8004 pass only at some difficulties (08979DF4) [not ported].
 - [x] **5.2 Heroes [done 2026-11-20].** Unlock threshold (AK_HERO_UNLOCK 3), and how HeroDeathRate and HeroHealthAddPerKill are applied.
   - Traced 2026-11-19: the class record reads HeroHealthAddPerKill into +168 and HeroDeathRate into +164 (089E3E38).
     - Drain (08982DA4, every frame unless the mode is 3 or the game is paused (089E47D0), and not while vfunc +96 says so):
@@ -661,6 +662,14 @@ textures and how they are used. Section R lists only what must be in place so th
     with the flag's share (0.7, HCTF 0.4; state 2, order 0x3F3) or guard our own (3).  [assumed]: the game hands these to squads
     (groups 0898BC68) and switches them by its counts; Aurek's bots take a role each per life.  Endor CTF2, 12 bots, 5 min: the
     flags change hands and captures are scored.
+  - Part 4, 2026-11-20 - **the level script runtime** (game/ak_script.c; layout and functions in ak_script.h): SMSG groups (both
+    sides), delays (100-entry queue), probabilities, timers / counters / selectors / music / FMV nodes and the base messages.  Each
+    level has a start timer for every mode but campaign (music) and one for its CTF modes (mask 0xC or 0xA) that locks some posts
+    (0x800B to the posts, 089ECC48 - now ported, with 0x800A / 0x800C / 3 / 4); Hoth and Boz Pity have a conquest-only one (the
+    ticket change).  Everything else in the CLASSIC files' scripts is campaign (its targets are campaign-file entities).
+    Open: type 33 objects (Hoth's start activates four), AI path node messages (0x3B / 0x51 / 0x4C to type 55), the walker's 0x8007,
+    music after the start, the objects that fire groups (AI hint points 56 carry groups), campaign objects (0x3E8 game messages
+    0x8015-0x801F, spawn places 35 / 36, FMV).
   - Still open in 5.4 (left for later passes): HCTF's heroes as flag holders (the loading hints: kill the enemy hero to take
     the flag; mode 3 lets anyone carry and returns a side's own flag at its own base - who gets the flag is not traced), Gungan
     Tag (GTAG, mode 4), CTF in space (400 m pickup, flyers), Galactic Conquest and the campaign rules.  The modes' names come
