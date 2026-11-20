@@ -217,6 +217,14 @@ void rs_drive_report(FILE *f){
                 if (w != (u32)a && fw != fa) continue;
                 for (u32 y = x - 64; y <= x + 64; y += 4) { if (y == x || !gok(y)) continue; u32 v = GU32(y); float fv; memcpy(&fv, &v, 4);
                     if (v == (u32)b || fv == fb) { fprintf(f, "memscan %08x=%s %08x=%s\n", x, w == (u32)a ? "int" : "float", y, v == (u32)b ? "int" : "float"); n++; } } } } }
+    if (getenv("RS_DRIVE_LIST")) {   /* RS_DRIVE_LIST=addr: a registry like 0x08C2C200 (buckets, count): each entry's id and class */
+        u32 la = (u32)strtoul(getenv("RS_DRIVE_LIST"), 0, 16), lb = GU32(IMG(la)), ln = GU32(IMG(la + 4));
+        fprintf(f, "list %08x", la);
+        if (gok(lb) && ln && ln <= 4096) for (u32 bi = 0; bi < ln; bi++) for (u32 nd = GU32(lb + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
+            u32 o = GU32(nd); if (!gok(o) || !gok(GU32(o))) continue;
+            u32 vt = GU32(o), info = o + GU32(vt - 16); if (!gok(info)) continue;
+            fprintf(f, " %x:%x%s", GU32(info + 4), GU16(info + 8), GU8(nd + 8) ? "d" : ""); }
+        fprintf(f, "\n"); }
     u32 bk = GU32(IMG(0x08C2C200u)), nb = GU32(IMG(0x08C2C204u)), me = rs_input_object(); if (!gok(bk) || nb == 0 || nb > 65536) return;
     for (u32 bi = 0; bi < nb; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
         if (GU8(nd + 8)) continue; u32 o = GU32(nd); if (!gok(o) || !gok(GU32(o))) continue;

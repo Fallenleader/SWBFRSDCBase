@@ -1305,11 +1305,19 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     /* the stick: toward `want`, relative to the facing; slower and strafing in a fight */
     ak_char_input ci = { 0, 0, 0, 0, false, false, false, { 0, 0 }, 0 };
     f32 speed = en && !saber ? 0.55f : 1.0f;
-    /* the path node's wanted speed (0893D4E8): 8.5 m/s (D_08AED88C); within 40 m (D_08AED890) of a unit of the list it scans - here
-       the player [assumed: 0x08C2A880 holds the local players] - 5.0 (D_08AED894), or 4.5 (D_08AED898) when the byte at 0x08C2932D
-       is set [not read: 5.0 here].  The measured AI ground speeds on Hoth: 0, 5.0, 8.5, 11.4-11.7 m/s. */
-    {   f32 px = p->ch.pos[0] - b->ch.pos[0], pz = p->ch.pos[2] - b->ch.pos[2];
-        ci.speed = p->alive && px * px + pz * pz < 40.0f * 40.0f ? 5.0f : 8.5f; }
+    /* the path node's wanted speed (0893D4E8): 8.5 m/s (D_08AED88C); 5.0 (D_08AED894) within 40 m (D_08AED890, 3-D) of a soldier of
+       the soldier list 0x08C2A880 (harness RS_DRIVE_LIST: every soldier) that is a player (089E3BD4: a player record, +84 != 999;
+       either side) or a living enemy (team +12 differs, health +40 > 0, flags +5 and +64 set) - unless the node's byte +41 is set
+       [not read]; 4.5 (D_08AED898) when the byte at 0x08C2932D is set [not read].  The measured AI ground speeds on Hoth: 0, 5.0,
+       8.5 m/s (11.4-11.7 is a bot riding a vehicle). */
+    {   bool near = false;
+        for (u32 u = 0; u < NS(p) && !near; u++) {
+            const ak_target *o = &p->target[u]; if (!o->alive || u == 1 + idx) continue;
+            if (u != 0 && (o->team == b->team || o->health <= 0)) continue;
+            f32 ox = o->feet[0] - b->ch.pos[0], oy = o->feet[1] - b->ch.pos[1], oz = o->feet[2] - b->ch.pos[2];
+            near = ox * ox + oy * oy + oz * oz < 40.0f * S * 40.0f * S;
+        }
+        ci.speed = near ? 5.0f : 8.5f; }
     f32 rx = cosf(b->ch.yaw), rz = -sinf(b->ch.yaw), fx = -sinf(b->ch.yaw), fz = -cosf(b->ch.yaw);
     if (moving) { ci.move_x = (mdx * rx + mdz * rz) * speed; ci.move_y = (mdx * fx + mdz * fz) * speed; }
     if (en && !saber) {

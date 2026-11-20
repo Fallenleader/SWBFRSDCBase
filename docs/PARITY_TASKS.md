@@ -499,7 +499,7 @@ textures and how they are used. Section R lists only what must be in place so th
   - 2026-11-20, the node's speed: 8.5 (D_08AED88C), but 5.0 (D_08AED894) when a unit of the list it scans (0x08C2A880, by
     08ABC44C) is within 40 m (D_08AED890) and 0x08C29B58 is 1 - 4.5 (D_08AED898) when the byte 0x08C2932D is set. Matches the
     measured 8.5 / 5.0 modes. Ported (ak_char_input.speed): bots on a path run at 8.5 m/s, 5.0 within 40 m of the player
-    [assumed: the list is the local players; the 4.5 case not taken]; Aurek's own 0.55 in a fight stays (PARITY(4.4)). Hoth,
+    [the list: every soldier, 2026-11-20 - see the 5.0 rule's NATIVE_ENGINE row; the 4.5 case not taken]; Aurek's own 0.55 in a fight stays (PARITY(4.4)). Hoth,
     60 s: captures 0 -> 2 against the old 6 m/s. Avoidance (0893E014): traced and built 2026-11-20 (NATIVE_ENGINE row; the
     side it turns to is [assumed]).
   - 2026-11-20, the 11.5 m/s: not a soldier speed. Harness (RS_DRIVE_AICTL now also logs soldier +520 and the input object's
