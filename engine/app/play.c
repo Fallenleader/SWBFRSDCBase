@@ -992,6 +992,9 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     if (!b->alive) {
         b->dead_t += dt;
         if (b->dead_t < 3.0f && poseable(m, &b->look)) pose(m, &b->look, b->death_clip, b->dead_t, false, b->bones);
+        if (b->veh < 0 && b->dead_t < 5.0f) {                                  /* the body: stopped where it fell, gravity still on (PARITY 6.3) */
+            ak_char_input ci = { 0, 0, 0, 0, false, false, false, { 0, 0 } };
+            b->ch.vel[0] = b->ch.vel[2] = 0; ak_char_update(&b->ch, &p->cp, &p->col, &ci, dt); }
         return;
     }
     if (b->veh >= 0) { bot_drive(p, m, b, idx, dt); return; }
@@ -2198,6 +2201,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 f32 sp = sqrtf(v[0] * v[0] + v[1] * v[1]); v[0] = 0; v[1] = intent == PLAY_LEFT ? sp : -sp; }
             ci.root = true; ci.root_vel[0] = v[0] * S * p->speed_scale; ci.root_vel[1] = v[1] * S * p->speed_scale;   /* [PARITY(1.15): how Speed scales - rate or distance - is not traced] */
         } }
+    if (!p->alive) { p->ch.vel[0] = p->ch.vel[2] = 0; ci.root = false; }    /* PARITY(6.3): a body stops where it falls (measured: no slide), gravity stays on (08993D38) */
     ak_char_update(&p->ch, use, &p->col, &ci, dt);
     {   /* tests against the original: AK_TEST_TRACE = a file - the player's position in game axes every 10 frames */
         static FILE *tf; static int tinit; static u32 tfr;

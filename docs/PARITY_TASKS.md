@@ -525,6 +525,10 @@ textures and how they are used. Section R lists only what must be in place so th
     walks back, else a turn faster than 0.05 rad/s plays the turn clip, else AnimLanded; the clip runs at speed x 0.11 (turns:
     rate x 0.75).  Open: the 1 s blend between creature clips, AnimFidget, the creature deaths; the cone's capture clip is 6.4.
 - [ ] **6.3 Death animations and ragdoll.** The death clips. After death the body has gravity on (08993D38): trace what it does next.
+  - 2026-11-19: measured in the harness (Hoth, killed while running): the body stops where it falls - no slide - and stays
+    there; gravity stays on.  Aurek: the player's body no longer slides on, and bots' bodies (frozen in the air until now) fall
+    to the ground.  The death clips now come from the animation table (rows 21-23, 6.1).  Open: which death row the game picks
+    (rows 20-23: front / back / left / right - by the hit's direction, not found yet; Aurek gives each bot one by index).
 - [ ] **6.4 Command post cone [assumed].** Its capture animation and the logo height (1.25 m is an estimate).
 - [ ] **6.5 Heroes [missing].** Saber combos, blocking, force powers, saber throw. Blaster heroes' own tables.
 
