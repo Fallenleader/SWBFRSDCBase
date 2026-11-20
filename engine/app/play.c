@@ -199,6 +199,7 @@ static void droids_update(ak_play *p, f32 dt)
 static void heroes_drain(ak_play *p, f32 dt);
 static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a);
 static bool vehicle_make(ak_play *p, u32 v);
+static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v);
 static f32 rnd(u32 *s) { *s = *s * 1664525u + 1013904223u; return (f32)(*s >> 8) / 16777216.0f; }
 static f32 wrap(f32 a) { while (a > 3.14159265f) a -= 6.2831853f; while (a < -3.14159265f) a += 6.2831853f; return a; }
 
@@ -770,6 +771,22 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     if (ak_setting_int("AK_DEBUG_VEH", 0))
         for (u32 v = 0; v < p->nveh; v++) AK_INFO("veh", "vehicle %u: %s / %s, post %d, respawn %.1f s, %s%s", v + 1, p->vspawn[v].def[0] >= 0 ? p->vdef[p->vspawn[v].def[0]].name : "-",
                                                 p->vspawn[v].def[1] >= 0 ? p->vdef[p->vspawn[v].def[1]].name : "-", p->vspawn[v].post, p->vspawn[v].respawn, p->veh[v].alive ? "up" : "waiting", p->vspawn[v].fixed ? ", placed" : "");
+    /* placed craft in flight (space levels' type 13 flyers): in the original they fly from the first frame (harness state.log,
+       Space Hoth: 30d44 / 30d46 / 30d48 / 30d4a / 30d4c move at 60-80 m/s from the start) - here a bot of the craft's side starts
+       in each, flying at its cruise speed [assumed: who pilots them in the game is not traced] */
+    for (u32 v = 0; v < p->nveh; v++) {
+        ak_vehicle *vh = &p->veh[v];
+        if (!p->vspawn[v].fixed || !vh->alive || !vh->def || vh->def->kind != AK_VEH_FLYER || vh->driver >= 0) continue;
+        f32 dn[3] = { 0, -1, 0 }; ak_col_hit hh; if (ak_col_raycast(&p->col, vh->pos, dn, 20.0f, AK_COL_FLYER_MASK, &hh)) continue;   /* (standing on something: parked) */
+        for (u32 i = 0; i < p->nbots; i++) {
+            ak_play_bot *b = &p->bot[i]; if (!b->alive || b->veh >= 0 || b->team != vh->team || b->hero) continue;
+            bot_board(p, b, i, v);
+            vh->flying = true; vh->takeoff = 0; vh->speed = vh->def->cruise > 0 ? vh->def->cruise : vh->def->stall_speed;
+            vh->lvel[0] = vh->lvel[1] = 0; vh->lvel[2] = vh->speed; vh->r_tap_t = 99.0f;
+            b->fly_phase = 1;
+            break;
+        }
+    }
     {   int tv = ak_setting_int("AK_TEST_VEHICLE", 0);                      /* tests: start in vehicle N */
         if (tv > 0 && (u32)tv <= p->nveh && p->veh[tv - 1].alive) {
             ak_vehicle *vh = &p->veh[tv - 1]; vh->driver = 0; vh->team = p->team; p->target[VT(p, tv - 1)].team = p->team;
@@ -843,7 +860,6 @@ static void bot_route(ak_play *p, ak_play_bot *b, const f32 *to)
 
 static bool bot_take_vehicle(ak_play *p, ak_play_bot *b);
 static void bot_drive(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, f32 dt);
-static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v);
 static bool vehicle_exit_spot(const ak_play *p, const ak_vehicle *vh, f32 out[3]);
 
 /* a post its side does not hold (the nearest, with some randomness); every post held: defend one.  On foot it may take a free vehicle

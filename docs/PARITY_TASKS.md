@@ -578,8 +578,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - Measured (harness state.log, Space Hoth, class 0x8004): 13-19 flyers, 14-15 of them moving, nearest other flyer 22-365 m at
     75 s and 167-965 m at 115 s. Found why Aurek had 6-7: a placed (type 13) craft made its whole vehicle kind undrivable - Space
     Hoth's X-wings, A-wings and TIE fighters, the hangars' too (the flag sat on the shared def). Now the spawn's own flag: bots
-    board 20 craft in 110 s (13 before) and the flyers hit flyers 37 times (13). [ ] What the placed craft do in the original
-    (they may be AI ships in flight), and the pursuit's engagement distances.
+    board 20 craft in 110 s (13 before) and the flyers hit flyers 37 times (13). The placed craft fly from the first frame in
+    the original (30d44 / 46 / 48 / 4a / 4c, 60-80 m/s); Aurek now starts a bot of the craft's side in each one that is in the
+    air (who pilots them in the game: not traced) - 50 hits in 110 s. [ ] The pursuit's engagement distances.
 
 ## 5. Game rules and modes
 
