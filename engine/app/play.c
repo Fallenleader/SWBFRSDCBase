@@ -465,7 +465,7 @@ static void loadout_items(ak_play *p, const ak_model_set *m, const ak_blueprints
         const ak_bp_object *gw = en[0] ? ak_bp_find(bp, "Weapon", en) : NULL;
         p->gren_ok = gw && ak_proj_def_load(bp, ak_bp_string(gw, "Projectile", "Grenade"), &p->gren_def);
         p->gren_left = p->gren_max = gw ? ak_bp_int(gw, "AmmoPerClip", 4) : 0; p->det_t = -1; p->gren_t = -1; p->gren_cool = 0;
-        p->gren_rate = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f; p->gren_icon = gw ? ak_bp_string(gw, "HUDIcon", NULL) : NULL; p->gren_name = gw ? ak_bp_int(gw, "Weapon_Name", -1) : -1;
+        p->gren_rate = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f; p->gren_ps = gw ? ak_bp_float(gw, "ProjectileSpeed", 10.0f) : 10.0f; p->gren_vts = gw ? ak_bp_float(gw, "VerticalThrowSpeed", 2.5f) : 2.5f; p->gren_icon = gw ? ak_bp_string(gw, "HUDIcon", NULL) : NULL; p->gren_name = gw ? ak_bp_int(gw, "Weapon_Name", -1) : -1;
         p->gren_limit = gw ? ak_bp_int(gw, "GlobalAmmoLimit", 0) : 0; }
     const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
     p->armed = wname[0] && ak_weapon_def_load(bp, m, wname, p->look.faction, &p->wdef);
@@ -2531,7 +2531,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     /* the explosive (measured, thermal detonator, standing): square starts the throw; the grenade appears in the hand 29 frames
        later and leaves it 8 frames after that (0.62 s from the press), 1.0 m ahead of the feet along the facing and 2.1 m up, at
        20.4 m/s along the facing and 1.2 up, then falls at 10 m/s^2 with a little drag, stops where it lands and
-       explodes 3 s (its Timer) after it appeared.  [PARITY(2.3b): the 20.4 m/s (ProjectileSpeed is 10) and the timings are measured] */
+       explodes 3 s (its Timer) after it appeared.  The velocity (traced, 08A1A77C, logged in the harness): the thrower's aim frame
+       (pitched 8.2 degrees down from the facing when standing) times (0, VerticalThrowSpeed up, ProjectileSpeed forward); the
+       object then moves at twice the velocity it was given (measured on the cluster grenade: 20.7 m/s for a given 10.4; gravity
+       unchanged), and its first 10 Hz step takes 1.0 m/s off the climb.  That gives 20.5 / 1.1 for REP_Grenade (measured 20.4 /
+       1.2) and 20.8 / 3.1 for the cluster grenade (measured 20.7 / 3.0).  [PARITY(2.3b): where the factor 2 comes from in the
+       code, and whether the frame follows the camera's pitch, are open; the timings are measured] */
     p->gren_cool -= dt;
     bool gren_press = (in->pressed & AK_BTN_CIRCLE) && p->alive && p->in_veh < 0 && p->in_turret < 0 && p->roll_i < 0 && !hero_of(p, 0);
     if (gren_press && p->gren_ok && p->gren_def.remote && ak_projs_count(&p->projs, &p->gren_def, 0) > 0) {
@@ -2548,7 +2553,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (p->gren_t >= 37.0f / 60.0f) {
             f32 fx = -sinf(p->ch.yaw), fz = -cosf(p->ch.yaw);
             f32 at[3] = { p->ch.pos[0] + fx * 1.0f * S, p->ch.pos[1] + 2.1f * S, p->ch.pos[2] + fz * 1.0f * S };
-            f32 v[3] = { fx * 20.4f, 1.19f, fz * 20.4f };   /* [PARITY(2.3b): measured; VerticalThrowSpeed is 2.5, ProjectileSpeed 10] */
+            const f32 cp = 0.9898f, sp = 0.1426f;   /* (the aim frame's 8.2 degrees, from the harness log) */
+            f32 fw = 2.0f * (p->gren_ps * cp + p->gren_vts * sp), up = 2.0f * (p->gren_vts * cp - p->gren_ps * sp) - 1.0f;
+            f32 v[3] = { fx * fw, up, fz * fw };
             ak_proj_throw(&p->projs, &p->gren_def, at, v, p->team, 0, 8.0f / 60.0f);
             if (ak_setting_int("AK_LOG_GRENADES", 0)) AK_INFO("play", "player throws at %.1f %.1f %.1f", at[0], at[1], at[2]);
             p->gren_t = -1;

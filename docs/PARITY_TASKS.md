@@ -248,6 +248,15 @@ textures and how they are used. Section R lists only what must be in place so th
     lands 0.85 m from the original's spot over 21 m.
   - [ ] **2.3b** Where 20.4 and 1.2 come from (ProjectileSpeed 10, VerticalThrowSpeed 2.5: pitch? a factor?), throws
     while moving, and the other explosives and items.
+    - 2026-11-20, found (a temporary log in 08A1A77C, harness `cluster` with `--fine`): the aim frame is the facing pitched
+      8.2 degrees down (standing), and the velocity sent is frame x (0, VerticalThrowSpeed up, ProjectileSpeed forward) - for
+      the cluster grenade (3.5, 10) that is 10.39 forward and 2.05 up, |v| = 10.6. The object then moves at twice that: 20.7 m/s
+      forward, while its climb falls by 1.0 m/s each 0.1 s (gravity 10, unchanged) and its first 10 Hz step already takes 1.0
+      off (3.0 up measured, 2 x 2.05 - 1.0 = 3.1). The same rule gives 20.5 / 1.1 for REP_Grenade (measured 20.4 / 1.2). Built:
+      play.c throws with the weapon's own ProjectileSpeed and VerticalThrowSpeed by this rule. (The release point is 2 m above
+      the hand point, D_08AEF89C, subtracted because the game's y points down.) [ ] Where the factor 2 is in the code (the
+      projectile's physics step), whether the frame follows the camera's pitch, and the bots' path (08A1ABB0, taken when the
+      thrower's vfunc +196 is set: it looks up a target through vfunc +272 - likely the AI's aimed throw).
     - 2026-11-20, the throw (08A1A77C, the Weapon loader 08A16FD8 keeps ProjectileSpeed at +60 and VerticalThrowSpeed at +64):
       the grenade starts at the hand's point 2.0 m higher (D_08AEF89C) and its velocity is a 3x3 frame (the thrower's, vfunc
       +240 / +92 of an aim object - not identified) times (0, VerticalThrowSpeed up, ProjectileSpeed forward), sent as message
