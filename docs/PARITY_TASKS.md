@@ -968,7 +968,9 @@ groundwork below is needed before the parity work starts. The tiers come later.
     channel max(0, n . dir), then the frame's doubling; the GL back end per vertex, Vita / 3DS as a tint for now);
     holograms and additive parts stay unlit; AK_LIGHT=0 turns it off. 2026-11-20, the weighting traced (0889B6B0): the 6 nearest samples (a
     k-d tree walk), each weighted 1 / (squared distance + 0.001) - Aurek took 4 with 1 / (d^2 + 1); now the game's. Open: the
-    dynamic lights, and per-vertex lighting on Vita / 3DS.
+    dynamic lights (made by 0889CE40 and set by 0889D14C / 0889D1BC; its callers are the effects code - 0885ACE0 / 0885C6C0,
+    the emitters 088E59C8 / 088E5B50 - and the classes 089F3B78..089F45F8 and 08A66F20..08A675C8: so an effect's light element
+    makes them, read from its FX data - not traced), and per-vertex lighting on Vita / 3DS.
 - [x] **R.2 Fog.** The FOG values are read but not understood (Tatooine 11–75 m). Trace them.
   - Done 2026-11-19: the FOG chunk (loader 08825C9C) is flags (bit 0 on; space levels off), r, g, b, -, start, end, strength,
     sky strength, 2 more.  The game sets the GU fog from near 0 to far = end (08903470 - logged in the harness: Tatooine
