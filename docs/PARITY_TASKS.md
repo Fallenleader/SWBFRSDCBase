@@ -20,6 +20,9 @@ textures and how they are used. Section R lists only what must be in place so th
 
 ## 0. Ground rules and tooling
 
+> **Milestone (2026-11-20):** parity minus networking (10.1) and the non-legacy rendering items (R.10-R.17) - the point at which
+> on-device testing and bug fixing starts. Work continues session to session automatically, with progress reported between sessions.
+
 - [x] **0.1 A side-by-side harness against the original.** *(Done 2026-11-16: `tools/harness` - the original runs headless in
   lock-step with a driver that reads its screens; `compare_walk.py` gives the report. See tools/harness/README.md.)*
   - Scripted inputs that drive both the original game and Aurek.
