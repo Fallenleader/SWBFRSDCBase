@@ -100,6 +100,8 @@ typedef struct {                       /* a bot soldier */
     s32 veh, want_veh; bool boost; f32 veh_cool, rev_t, vstuck_t, vstuck_pos[3]; u32 vstucks; f32 fly_alt, run_t, feel_t, feel_yaw, feel_pitch; bool feel, near_wall;
     /* space: the commander's role (SPACE_COMBAT, SPACE_RUN, SPACE_LAND) and its objective / leg; leaving the hangar */
     int role, role_leg; s32 role_obj; f32 role_t; int fly_phase; f32 fly_pt[3], fly_t; bool circle; f32 circle_dir[3];
+    /* its explosive (0893F1A8 -> 0893679C): the kind (0 thermal, 1 cluster, -1 none), left this life, the cooldown, a throw under way */
+    s8 gren_kind; s32 gren_left; f32 gren_cool, gren_t; f32 gren_at[3];
 } ak_play_bot;
 
 typedef struct {
@@ -154,6 +156,7 @@ typedef struct {
     f32 bot_drive;                     /* the chance a bot near a free vehicle of its side takes it (AK_BOT_VEHICLES) */
     ak_space_map space; bool is_space, free_flight, bot_aim_set; int difficulty; s32 obj_unit[AK_MAX_OBJECTIVES];   /* space maps: AI objectives, the bot on each */
     ak_projs projs;                    /* torpedoes, missiles, bombs in flight */
+    ak_proj_def ai_gren_def[2]; bool ai_gren_ok[2]; s32 ai_gren_ammo[2]; f32 ai_gren_rate[2];   /* the bots' explosives: REP_Grenade (thermal), Cluster_Grenades */
     ak_proj_def gren_def; const char *gren_icon; s32 gren_name, gren_limit; bool gren_ok; s32 gren_left; f32 gren_t, gren_cool, gren_rate;   /* the player's explosive (customisation: the thermal
                                           detonator): grenades left, time since the throw began (-1: none), time to the next */
     ak_turret_def tdef[8]; u32 ntdef; ak_turret turret[PLAY_MAX_TURRETS]; u32 nturret;   /* level turrets (ENTI type 30) */
@@ -205,6 +208,7 @@ void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *f
 bool ak_play_lock_point(const ak_play *p, f32 out[3]);
 void ak_play_sound_start(ak_play *p, const ak_level *l, const ak_blueprints *bp);
 void ak_play_sound_update(ak_play *p, f32 dt);
+void ak_play_chatter(ak_play *p, u32 unit, const char *key);   /* an AI soldier's chatter line (its Humanoid's Speech_BC_* key) */
 const char *ak_play_surface_sound(const ak_play *p, u16 material, const char *key);   /* a Material blueprint's event */
 u16  ak_play_ground_material(const ak_play *p, const f32 *pos);
 /* the held weapon's world matrix (3x4 rows) */

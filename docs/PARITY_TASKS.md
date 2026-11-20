@@ -202,7 +202,7 @@ textures and how they are used. Section R lists only what must be in place so th
       and the rocket loadout 0.3 from 3 [assumed: the enemy's vehicles]. The measured Hoth mixes fit only roughly (fewer
       shotguns and incinerators than the weights give) - the count's meaning and the difficulty in the harness run are open.
       Aurek (AK_BOT_LOADOUTS=1): each bot draws its loadout per life and carries its weapons; 0893F65C's choice (2.6) picks the
-      one in hand per target. Grenades, shields and items are not carried (2.3).
+      one in hand per target. Grenades are thrown (2.3d); shields and items are not carried (2.3).
   - Aurek: every soldier carries the blaster rifle; the thermal detonator (secondary attack) is task 2.3.
 - [x] **2.2 Ammo droids [measured 2026-11-16: Aurek matches].** Firing non-stop 6.8 m from Hoth's first ammo droid (the harness
   reads the weapon: clip +0xA0, spare clips +0xA4, explosives +0xA8): each emptied clip's spare came back on the next whole-second
@@ -246,6 +246,14 @@ textures and how they are used. Section R lists only what must be in place so th
     (which code reads +0x94 / +0xF0: not found from 08A189F0 / 08A1A77C), the det pack's detonation input, Detonation_Height's
     use, how mines and det packs are placed (the "place" animations), and the items row (dispenser, auto turret, recon droid,
     stealth, jetpack, jump pack, shield).
+  - [ ] **2.3d** Bots' explosives [traced 2026-11-20, built]: 0893F1A8 -> 08940C7C -> 0893679C. Chance 1 - (1 - k)^dt a frame,
+    k 0.15 elite / 0.05 otherwise; the target is the first sensed enemy (not class 0x8006) with a count of its side's units
+    within 3.0 m (itself included, +1.0 each) above 1.5; a global list (D_08B28DC4) is checked first and any entry in it at a
+    non-zero distance is taken at once (not identified; empty in the runs seen); the aim is the target's position + its
+    velocity x a time. Open: the throw's speed and arc for bots (Aurek: 20.4 m/s on the lower arc, [assumed]), the time used
+    for the lead, slot 11's item, the throw animation. Harness (Hoth, 100 s): 5 throws landing 21-28 m away. Aurek (Hoth,
+    200 s): 2 throws at normal (20 and 43 m), 4 at elite (5-34 m) - fewer than the original's 5 in 100 s (its sensed list
+    may hold more units, or its difficulty in the harness run is elite: open).
 
 - [ ] **2.4 Guided projectiles [assumed].** Aurek turns them at 100°/s; trace the turn rate.
   - Traced so far: tracking projectiles are Rocket (20 m/s), Proton Torpedo (125), Harpoon (100), HomingMissile and
@@ -651,7 +659,7 @@ textures and how they are used. Section R lists only what must be in place so th
     - A line 0x529BB384 (0893254C, to a random squad member) has no blueprint key, so it never plays. BC_Withdraw, Flanking
       and Defence are not referenced by code.
     Engine: Sniper, Friendly, OnTarget and the CTF lines are built (ak_target.last_quiet marks the listed kinds). Not built:
-    Grenade / Rocket (Aurek's AI fires only its blaster) and Return (no out-of-bounds yet).
+    Rocket (Grenade: 2.3d) and Return (no out-of-bounds yet).
 
 ## 8. HUD and front end
 

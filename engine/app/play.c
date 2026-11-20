@@ -426,6 +426,12 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
         b->loadout = (s8)ai_loadout_pick(p, b->team, &b->seed);
         int first = ai_weapon_choice(p, b, false, 50.0f); ai_hold(p, b, idx, first);
     }
+    {   /* its explosive this life: the loadout's thermal detonator (slot 9) or cluster grenades (slot 12) [the other explosive
+           slots, 10 Personal_Shield and 11, are not thrown] */
+        b->gren_kind = -1; b->gren_t = -1; b->gren_cool = 0; b->gren_left = 0;
+        if (b->held >= 0) { const s8 *lo = ai_loadouts[b->loadout & 7];
+            for (int k = 0; k < 4; k++) { int kind = lo[k] == 9 ? 0 : lo[k] == 12 ? 1 : -1; if (kind >= 0 && p->ai_gren_ok[kind]) { b->gren_kind = (s8)kind; b->gren_left = p->ai_gren_ammo[kind]; } } }
+    }
     if (b->held < 0 && p->team_armed[b->team]) { ak_weapon_give(&b->weapon, &p->team_bdef[b->team]); b->weapon.team = b->team; b->weapon.owner = (s32)(1 + idx); }
     if (poseable(m, &b->look)) { pose(m, &b->look, p->idle_clip, b->clip_t, true, b->bones); body_target(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, t); }
 }
@@ -677,6 +683,12 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     u32 want = (u32)ak_setting_int("AK_BOTS", 15); if (want > PLAY_MAX_BOTS) want = PLAY_MAX_BOTS;   /* PARITY(4.5) */
     if (!p->have_nav || !p->nav.nnode) want = 0;
     if (want) {
+        for (int k = 0; k < 2; k++) {   /* the bots' explosives (loadout slots 9 REP_Grenade and 12 Cluster_Grenades; Weapon_Name 127 and 130) */
+            const ak_bp_object *gw = ak_bp_find(bp, "Weapon", k ? "Cluster_Grenades" : "REP_Grenade");
+            p->ai_gren_ok[k] = gw && ak_setting_int("AK_BOT_GRENADES", 1) && ak_proj_def_load(bp, ak_bp_string(gw, "Projectile", k ? "cluster_grenade" : "Grenade"), &p->ai_gren_def[k]);
+            p->ai_gren_ammo[k] = gw ? ak_bp_int(gw, "AmmoPerClip", 4) : 0; p->ai_gren_rate[k] = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f;
+            if (ak_setting_int("AK_LOG_GRENADES", 0)) AK_INFO("play", "bot explosive %d: %s, %d, every %.1f s", k, p->ai_gren_ok[k] ? "ok" : "none", p->ai_gren_ammo[k], p->ai_gren_rate[k]);
+        }
         for (int t = 0; t < 2; t++) {
             team_classes(p, bp, m, t);
             p->team_armed[t] = ak_weapon_def_load(bp, m, ak_setting_str("AK_BOT_WEAPON", "BlasterRifle"), p->team_faction[t], &p->team_wdef[t]);   /* PARITY(2.1): the bots' classes' weapons */
@@ -1141,6 +1153,74 @@ static void hero_attack(ak_play *p, const ak_model_set *m, ak_play_hero *h, bool
     if (h->atk_t > 0.15f * dur && h->atk_t < 0.85f * dur) saber_strike(p, h->unit, w, pos, yaw);
 }
 
+/* a bot's explosive (traced: the AI node 0893F1A8 -> 08940C7C, the target, -> 0893679C, the throw).  The throw is tried with the
+ * chance 1 - (1 - k)^dt each frame, k 0.15 at the elite difficulty (08979DF4 == 2) and 0.05 below (about once in 20 s); the
+ * target is the first enemy it has seen (not a vehicle) with another unit of its side within 3 m (08940C7C: a count from 0, +1
+ * for each unit of the target's side within 3.0, itself included, against 1.5), and the aim is where that enemy will be when the
+ * grenade lands (0893679C: its position + its velocity x the time).  The kind: the loadout's (thermal detonator, else cluster;
+ * 0893FAE0 orders Weapon_Name 117, 127, 130).  [PARITY(2.3d): the throw itself is the player's (measured, 20.4 m/s along the
+ * facing, leaving the hand 37 frames after the start) but aimed: the lower of the two arcs at that speed that reach the point
+ * [assumed; the harness saw bots on Hoth throw 5 grenades in 100 s, landing 21-28 m away, beyond the player's flat 16 m throw];
+ * the lead's flight time is from that arc] */
+static void target_velocity(const ak_play *p, s32 ti, f32 *vel)
+{
+    const ak_character *ch = ti == 0 ? &p->ch : ti >= 1 && (u32)ti <= p->nbots ? &p->bot[ti - 1].ch : NULL;
+    if (ch) memcpy(vel, ch->vel, 12);
+}
+/* the lower arc at speed sp under gravity g from a to b (false: out of reach) */
+static bool lob(const f32 *a, const f32 *b, f32 sp, f32 g, f32 *v)
+{
+    f32 dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], x = sqrtf(dx * dx + dz * dz);
+    if (x < 0.01f) return false;
+    f32 s2 = sp * sp, disc = s2 * s2 - g * (g * x * x + 2 * dy * s2);
+    if (disc < 0) return false;
+    f32 th = atanf((s2 - sqrtf(disc)) / (g * x)), c = cosf(th) * sp;
+    v[0] = dx / x * c; v[1] = sinf(th) * sp; v[2] = dz / x * c;
+    return true;
+}
+static void bot_grenade(ak_play *p, ak_play_bot *b, u32 idx, f32 dt)
+{
+    b->gren_cool -= dt;
+    if (b->gren_t >= 0) {                                       /* a throw under way */
+        b->gren_t += dt;
+        if (b->gren_t < 37.0f / 60.0f) return;
+        b->gren_t = -1;
+        if (!b->alive || b->veh >= 0 || b->gren_kind < 0) return;
+        f32 dx = b->gren_at[0] - b->ch.pos[0], dz = b->gren_at[2] - b->ch.pos[2], hd = sqrtf(dx * dx + dz * dz);
+        if (hd < 0.01f) return;
+        dx /= hd; dz /= hd;
+        f32 at[3] = { b->ch.pos[0] + dx * 1.0f * S, b->ch.pos[1] + 2.1f * S, b->ch.pos[2] + dz * 1.0f * S };
+        f32 v[3]; if (!lob(at, b->gren_at, 20.4f * S, 10.0f * S, v)) return;
+        ak_proj_throw(&p->projs, &p->ai_gren_def[(int)b->gren_kind], at, v, b->team, (s32)(1 + idx), 8.0f / 60.0f);
+        ak_play_chatter(p, 1 + idx, "Speech_BC_Grenade");   /* (089395E4: the AI fires a "Grenade" kind) */
+        if (ak_setting_int("AK_LOG_GRENADES", 0)) AK_INFO("play", "bot %u throws %s %.1f m (side %d)", idx, b->gren_kind ? "cluster" : "thermal", hd / S, b->team);
+        return;
+    }
+    if (b->gren_kind < 0 || b->gren_left <= 0 || b->gren_cool > 0 || !b->alive || b->veh >= 0 || b->hero) return;
+    f32 k = p->difficulty >= 2 ? 0.15f : 0.05f;
+    if (rnd(&b->seed) >= 1.0f - powf(1.0f - k, dt)) return;
+    u32 ns = NS(p);
+    for (u32 m = 0; m < b->nmem; m++) {                         /* 08940C7C */
+        s32 ti = b->mem[m].t; if (ti < 0 || (u32)ti >= ns) continue;    /* (soldiers only) */
+        const ak_target *t = &p->target[ti]; if (!t->alive) continue;
+        f32 n = 0;
+        for (u32 j = 0; j < ns; j++) {
+            const ak_target *o = &p->target[j]; if (!o->alive || o->team != t->team) continue;
+            f32 ox = o->feet[0] - t->feet[0], oy = o->feet[1] - t->feet[1], oz = o->feet[2] - t->feet[2];
+            if (ox * ox + oy * oy + oz * oz < 3.0f * S * 3.0f * S) n += 1.0f;
+        }
+        if (ak_setting_int("AK_LOG_GRENADES", 0) > 1) { f32 qx = t->feet[0] - b->ch.pos[0], qz = t->feet[2] - b->ch.pos[2]; AK_INFO("play", "bot %u: target %d with %.0f near, %.1f m", idx, ti, n, sqrtf(qx * qx + qz * qz) / S); }
+        if (!(n > 1.5f)) continue;
+        f32 ex = t->feet[0] - b->ch.pos[0], ez = t->feet[2] - b->ch.pos[2], d = sqrtf(ex * ex + ez * ez);
+        f32 rel[3] = { b->ch.pos[0], b->ch.pos[1] + 2.1f * S, b->ch.pos[2] }, tv[3];
+        if (!lob(rel, t->feet, 20.4f * S, 10.0f * S, tv)) continue;   /* (out of reach) */
+        f32 tf = d / sqrtf(tv[0] * tv[0] + tv[2] * tv[2]), vel[3] = { 0, 0, 0 };
+        target_velocity(p, ti, vel);
+        for (int a = 0; a < 3; a++) b->gren_at[a] = t->feet[a] + vel[a] * tf;
+        b->gren_t = 0; b->gren_left--; b->gren_cool = p->ai_gren_rate[(int)b->gren_kind];
+        return;
+    }
+}
 static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, f32 dt, const ak_frustum *fr)
 {
     ak_target *self = &p->target[1 + idx];
@@ -1291,6 +1371,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
             ak_weapon_fire(&b->weapon, &p->bolts, &p->col, p->target, NT(p), muz, tgt, &b->seed);
             b->shoot_t = 0;
         }
+        bot_grenade(p, b, idx, dt);
     }
     if (en) b->alert_t = 3.0f;
 }

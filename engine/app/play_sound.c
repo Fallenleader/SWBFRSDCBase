@@ -124,6 +124,9 @@ static void chatter_event(ak_play *p, u32 unit, const char *ev)
     p->snd.chat = p->snd.voice[unit] = ak_speech_play(ev, head, 0.7f, NULL, NULL);
 }
 
+/* an AI soldier's chatter line by its Humanoid key (play.c: Speech_BC_Grenade when it throws, 089395E4) */
+void ak_play_chatter(ak_play *p, u32 unit, const char *key) { chatter(p, unit, key); }
+
 /* the speech dip (func 08A662E8): the mixer goes to "Dipping for speech" while the narrator talks (more than one line, or one
  * that is not AI chatter) and back to "default" after, 0.3 s each way (0x08AF086C) */
 static void speech_dip(ak_play *p)
