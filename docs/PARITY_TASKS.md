@@ -433,6 +433,13 @@ textures and how they are used. Section R lists only what must be in place so th
     The speed is set elsewhere (not found yet).  Harness (RS_DRIVE_AICTL=1, Hoth, 600 frames, positions every 1/6 s): bot
     ground speeds are 0 (31 %), 5.0 (28 %), 8.5 (26 %) and 11.4-11.7 (21 %) m/s, 7.4 rare.  The movement node 0893D4E8 (one of
     the four node types) uses 8.5 / 40 / 5.0 (D_08AED88C..94) - next to read.
+  - 2026-11-20, the path node read (0893D4E8, Ghidra + the decomp for the VFPU parts): the AI soldier walks a list of path
+    points (indices at node +0x2C, the current one +0x22; points are 24-byte records at *0x08B204A0: x, y, z, then a fraction
+    +0xC that places the first and last legs' start along their segment); each frame the vector to the point (x, z) goes,
+    normalised and times 8.5 (D_08AED88C), to the controller (0893E67C -> the controller's vfunc +128: the move vector at
+    ctl +72 that 0899984C steers by); within 1.0 m (D_08AED884) the next point is taken, past the last the node ends (+0x20 =
+    0xFFFF). 0893E014 (avoidance among nearby units, VFPU) not read. Aurek: its nodes are taken within 1 m (was 2 m); the 8.5 is
+    a wanted velocity whose turn into speed (the measured 0 / 5.0 / 8.5 / 11.5 m/s) is still not found.
 - [ ] **4.5 Bot counts per mode and level [partly measured].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source

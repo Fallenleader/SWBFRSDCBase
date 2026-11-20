@@ -1083,7 +1083,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
             f32 r = nd->radius < 2.0f ? nd->radius : 2.0f, a = (f32)(b->seed >> 3 & 1023) * (6.2831853f / 1024.0f) + (f32)idx;
             want[0] += cosf(a) * r * 0.7f; want[2] += sinf(a) * r * 0.7f; }
         f32 dx = want[0] - b->ch.pos[0], dz = want[2] - b->ch.pos[2];
-        if (dx * dx + dz * dz < 2.0f * 2.0f) b->path_i++;
+        if (dx * dx + dz * dz < 1.0f * 1.0f) b->path_i++;   /* (the game's path node 0893D4E8: the next point within 1 m, D_08AED884) */
     } else {
         memcpy(want, b->hold, 12);
         f32 dx = b->hold[0] - b->ch.pos[0], dz = b->hold[2] - b->ch.pos[2];
