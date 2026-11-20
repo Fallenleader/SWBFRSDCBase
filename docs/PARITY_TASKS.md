@@ -230,6 +230,14 @@ textures and how they are used. Section R lists only what must be in place so th
     the taker message 0x8073 with a kind (Health 1, HealthAmmo 2, Ammo / Stamina 0; 089F8DD8): health becomes min(maximum, health
     + the pickup's +0x104 - Capacity, in health points; 089F8F60); kinds 0 and 2 go on to the unit's weapons (088AC9B0, not
     read). Aurek: health as traced; ammo and stamina still its own rule.
+  - Traced 2026-11-20, the claim: a pickup's +84 is the h31 of its kind (Health 0xB735025C, Ammo 0x002DBECE, Stamina
+    0x8EE8D26F, HealthAmmo 0x3622332A). 089F51CC counts InitialDelay down (+132) and then, every frame, 089F5400 (not Health)
+    -> 089F544C walks the unit list: Ammo / HealthAmmo by 089F5A24 (not in a vehicle +196, alive +4, +68, health > 0,
+    089F5858, in range 089F5794 - squared distance <= +140, and 0898582C: a weapon of +0 / +72 with (spare +88 / clip +80) <
+    MaxClips +76 and its flag 0x20 at +364, or an item of +48 with count +84 < +80); Stamina by 089F5944 (alive, health > 0,
+    not in a vehicle, vfunc +344 < vfunc +348, in range, 089F5858). The first found gets 0x8072 (089F5AF8). The Humanoid's
+    0x8073 handler (089A6D64): kinds 0 / 2 to the weapons (088AC9B0), 1 / 2 to 089F8EE0 (health). Built (NATIVE_ENGINE row).
+    [ ] The amount of ammunition (the weapons' handler), 089F5858 (vfunc +112, +195, a table at D_08C29F04), flag 0x20.
 - [ ] **2.3 Secondary items [partial].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
   incinerator, fusion cutter, shields, jetpack, jump pack, stealth. Trace each one's blueprint use.
   - Thermal detonator [measured and built 2026-11-16]: Weapon REP_Grenade (4, no spare clips, 2 s between throws), Projectile

@@ -464,7 +464,7 @@ static void loadout_items(ak_play *p, const ak_model_set *m, const ak_blueprints
         const char *en = ak_setting_str("AK_EXPLOSIVE", "REP_Grenade");
         const ak_bp_object *gw = en[0] ? ak_bp_find(bp, "Weapon", en) : NULL;
         p->gren_ok = gw && ak_proj_def_load(bp, ak_bp_string(gw, "Projectile", "Grenade"), &p->gren_def);
-        p->gren_left = gw ? ak_bp_int(gw, "AmmoPerClip", 4) : 0; p->gren_t = -1; p->gren_cool = 0;
+        p->gren_left = p->gren_max = gw ? ak_bp_int(gw, "AmmoPerClip", 4) : 0; p->gren_t = -1; p->gren_cool = 0;
         p->gren_rate = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f; p->gren_icon = gw ? ak_bp_string(gw, "HUDIcon", NULL) : NULL; p->gren_name = gw ? ak_bp_int(gw, "Weapon_Name", -1) : -1;
         p->gren_limit = gw ? ak_bp_int(gw, "GlobalAmmoLimit", 0) : 0; }
     const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
@@ -1419,7 +1419,7 @@ static bool vehicle_make(ak_play *p, u32 v)
 /* a fallen soldier's pickups (the Humanoid death 089A70FC): SpawnPickupA, then B, each made by 089F96C4 when a random 0..1 is
    at most SpawnPickupProbability - 75 in every Humanoid, so always; "Random" (1004) is Health, Ammo or Stamina at 1/3 each
    (089F97D4), "None" (1005) nothing; placed 0.1 m up and 1 m along the world z, the other way each time (DAT_08C2C008) */
-static void drop_pickups(ak_play *p, const ak_bp_object *body, const f32 *at)
+static void drop_pickups(ak_play *p, const ak_bp_object *body, const f32 *at, s32 from)
 {
     if (!body) return;
     f32 prob = ak_bp_float(body, "SpawnPickupProbability", 75);
@@ -1431,7 +1431,7 @@ static void drop_pickups(ak_play *p, const ak_bp_object *body, const f32 *at)
         s32 slot = -1; for (int j = 0; j < 32; j++) if (!p->pickup[j].alive) { slot = j; break; }
         if (slot < 0) continue;
         __typeof__(p->pickup[0]) *q = &p->pickup[slot]; memset(q, 0, sizeof *q);
-        q->alive = true; q->kind = (u8)(id - 1000); q->t = 0;
+        q->alive = true; q->kind = (u8)(id - 1000); q->t = 0; q->from = from;
         q->pos[0] = at[0]; q->pos[1] = at[1] + 0.1f; q->pos[2] = at[2] + (p->pickup_alt ? 1.0f : -1.0f);   /* (game z +1 / -1 = engine -1 / +1) */
         p->pickup_alt = !p->pickup_alt; p->pickups_made++;
     }
@@ -2789,7 +2789,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         }
         {   static int pt = -1; if (pt < 0) pt = ak_setting_int("AK_PICKUP_TEST", 0);   /* tests: a soldier's drop 4 m ahead at 1 s */
             if (pt && p->frame_no == 60) { f32 f[3] = { p->aim[0], 0, p->aim[2] }, fl = sqrtf(f[0] * f[0] + f[2] * f[2]) + 1e-6f;
-                f32 q[3] = { p->ch.pos[0] + f[0] / fl * 4, p->ch.pos[1], p->ch.pos[2] + f[2] / fl * 4 }; drop_pickups(p, p->look.bp, q); drop_pickups(p, p->look.bp, q); } }
+                f32 q[3] = { p->ch.pos[0] + f[0] / fl * 4, p->ch.pos[1], p->ch.pos[2] + f[2] / fl * 4 }; drop_pickups(p, p->look.bp, q, -1); drop_pickups(p, p->look.bp, q, -1); } }
         ak_pfx_update(p->pfx, dt);
         {   static int dump = -2; if (dump == -2) dump = ak_setting_int("AK_PFX_DUMP", -1);   /* tests: the live particles by type, every 6 frames from that frame */
             if (dump >= 0 && (s32)p->frame_no >= dump && (s32)p->frame_no < dump + 60 && (p->frame_no - (u32)dump) % 6 == 0)
@@ -2818,7 +2818,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         {   s32 a = p->target[i].last_attacker; ak_play_hero *h = hero_of(p, a);      /* a hero's kill heals it (HeroHealthAddPerKill) */
             if (h && ak_game_mode != 3 && p->target[a].alive && p->target[a].team != p->target[i].team) {   /* (08982634: not in hero CTF) */
                 ak_target *ht = &p->target[a]; ht->health += h->per_kill * h->health; if (ht->health > h->health) ht->health = h->health; } }
-        drop_pickups(p, i == 0 ? p->look.bp : p->bot[i - 1].look.bp, p->target[i].feet);
+        drop_pickups(p, i == 0 ? p->look.bp : p->bot[i - 1].look.bp, p->target[i].feet, (s32)i);
         if (i == 0) player_down(p);
         else {
             ak_play_bot *b = &p->bot[i - 1]; b->alive = false; b->dead_t = 0; b->state = PLAY_IDLE;
@@ -2833,26 +2833,44 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (q->t >= d->timer + d->fade) { q->alive = false;   /* (measured: an untouched one lasts 10.7 s - Timer 10 + FadeTime 0.75) */ ride_fx(p, &q->fx, false, NULL, NULL, NULL, NULL); continue; }
         ride_fx(p, &q->fx, true, d->pfx, q->pos, NULL, NULL);
         if (q->t < d->delay) continue;
-        /* who takes it: health ones (traced, 089F91A0 / 089F9408 / 089F8F60) the first unit of any side, alive, on foot, below its
-           maximum health and within EffectiveRadius - health + Capacity points, up to the maximum; Ammo (Capacity per cent of the
-           weapon's full ammunition; HealthAmmo SecondaryCapacity) and Stamina (Capacity stamina, the player's) [assumed: whoever
-           needs it - the original waits for a unit's claim, 0x8072, not read] */
-        bool used = false;
+        /* who takes it (traced, the pickup class 0x8015):
+           - Health and HealthAmmo look every 0.25 s (089F90A0, 0x08AEF488; 089F91A0 / 089F9408) for the first unit of any side
+             alive, on foot, below its maximum health and within EffectiveRadius; health + Capacity points up to the maximum
+             (089F8F60);
+           - Ammo, HealthAmmo and Stamina, every frame once InitialDelay has run (089F51CC -> 089F5400 / 089F544C), the first unit
+             alive with health above 0, on foot, within EffectiveRadius (089F5794: the squared distance against +140), not the one
+             that dropped it (+0x118), that needs it: Ammo / HealthAmmo a weapon whose spare clips (spare / clip) are fewer than
+             its MaxClips, or an explosive below its count (089F5A24 -> 0898582C / 08A19C3C / 08A19BF0); Stamina below its maximum
+             (089F5944, vfuncs +344 / +348); the claim is the message 0x8072, the reply 0x8073 (HealthAmmo: the health too).
+           [assumed: how much ammunition a pickup gives (here Capacity per cent of the weapon's full spare clips, explosives the
+           same of the count, at least one) - the reply goes on to the weapons (088AC9B0) and is not read; 089F5858's test (a
+           vfunc +112 and +195 / a table lookup) is taken as "a soldier"; only the player has stamina in Aurek] */
+        bool used = false, look = (q->look_t -= dt) <= 0;
+        if (look) q->look_t = 0.25f;
         for (u32 u = 0; u < NS(p) && !used; u++) {
             ak_target *t = &p->target[u];
-            if (!t->alive || (u == 0 ? (p->in_veh >= 0 || p->in_turret >= 0) : p->bot[u - 1].veh >= 0)) continue;
+            if (!t->alive || t->health <= 0 || (u == 0 ? (p->in_veh >= 0 || p->in_turret >= 0) : p->bot[u - 1].veh >= 0)) continue;
             f32 dx = t->feet[0] - q->pos[0], dy = t->feet[1] - q->pos[1], dz = t->feet[2] - q->pos[2];
             if (dx * dx + dy * dy + dz * dz > d->radius * d->radius) continue;
             f32 maxh = u == 0 ? p->max_health : ak_bp_float(p->bot[u - 1].look.bp, "Health", 60.0f);
             for (int t2 = 0; t2 < 2; t2++) if (p->hero[t2].unit == (s32)u) maxh = p->hero[t2].health;
+            bool heal = (q->kind == 0 || q->kind == 3) && look && t->health < maxh;
             ak_weapon *w = u == 0 ? (p->armed ? &p->weapon : NULL) : (p->bot[u - 1].weapon.def ? &p->bot[u - 1].weapon : NULL);
-            if ((q->kind == 0 || q->kind == 3) && t->health < maxh) { t->health += d->cap; if (t->health > maxh) t->health = maxh; if (u == 0) p->health = t->health; used = true; }
-            if ((q->kind == 1 || q->kind == 3) && w && w->def && w->def->clip > 0) {
-                s32 full = w->def->clip * (w->def->clips > 0 ? w->def->clips : 1), have = w->ammo + w->spare;
-                if (have < full) { s32 add = (s32)((q->kind == 3 ? d->cap2 : d->cap) * 0.01f * (f32)full + 0.5f); if (add < 1) add = 1;
-                    w->spare += add; if (w->ammo + w->spare > full) w->spare = full - w->ammo; used = true; }
+            s32 *gl = u == 0 ? (p->gren_ok ? &p->gren_left : NULL) : (p->bot[u - 1].gren_kind >= 0 ? &p->bot[u - 1].gren_left : NULL);
+            s32 gmax = !gl ? 0 : u == 0 ? p->gren_max : p->ai_gren_ammo[(int)p->bot[u - 1].gren_kind];
+            bool short_w = w && w->def && w->def->clip > 0 && w->def->clips > 0 && w->spare / w->def->clip < w->def->clips;
+            bool short_g = gl && *gl < gmax;
+            bool claim = (s32)u != q->from && (((q->kind == 1 || q->kind == 3) && (short_w || short_g)) || (q->kind == 2 && u == 0 && p->stamina < p->stamina_max));
+            if (!heal && !claim) continue;
+            f32 cap = q->kind == 3 ? d->cap2 : d->cap;
+            if ((q->kind == 0 || q->kind == 3) && t->health < maxh) { t->health += d->cap; if (t->health > maxh) t->health = maxh; if (u == 0) p->health = t->health; }
+            if ((q->kind == 1 || q->kind == 3) && short_w) {
+                s32 full = w->def->clip * w->def->clips, add = (s32)(cap * 0.01f * (f32)full + 0.5f); if (add < 1) add = 1;
+                w->spare += add; if (w->spare > full) w->spare = full;
             }
-            if (q->kind == 2 && u == 0 && p->stamina < p->stamina_max) { p->stamina += d->cap; if (p->stamina > p->stamina_max) p->stamina = p->stamina_max; used = true; }
+            if ((q->kind == 1 || q->kind == 3) && short_g) { s32 add = (s32)(cap * 0.01f * (f32)gmax + 0.5f); if (add < 1) add = 1; *gl += add; if (*gl > gmax) *gl = gmax; }
+            if (q->kind == 2 && u == 0) { p->stamina += d->cap; if (p->stamina > p->stamina_max) p->stamina = p->stamina_max; }
+            used = true;
         }
         if (used) { p->pickups_taken++; q->alive = false; ride_fx(p, &q->fx, false, NULL, NULL, NULL, NULL); if (d->sfx) ak_audio_play(d->sfx, q->pos, false); }
     }

@@ -157,12 +157,12 @@ typedef struct {
     ak_space_map space; bool is_space, free_flight, bot_aim_set; int difficulty; s32 obj_unit[AK_MAX_OBJECTIVES];   /* space maps: AI objectives, the bot on each */
     ak_projs projs;                    /* torpedoes, missiles, bombs in flight */
     ak_proj_def ai_gren_def[2]; bool ai_gren_ok[2]; s32 ai_gren_ammo[2]; f32 ai_gren_rate[2];   /* the bots' explosives: REP_Grenade (thermal), Cluster_Grenades */
-    ak_proj_def gren_def; const char *gren_icon; s32 gren_name, gren_limit; bool gren_ok; s32 gren_left; f32 gren_t, gren_cool, gren_rate;   /* the player's explosive (customisation: the thermal
+    ak_proj_def gren_def; const char *gren_icon; s32 gren_name, gren_limit; bool gren_ok; s32 gren_left, gren_max; f32 gren_t, gren_cool, gren_rate;   /* the player's explosive (customisation: the thermal
                                           detonator): grenades left, time since the throw began (-1: none), time to the next */
     ak_turret_def tdef[8]; u32 ntdef; ak_turret turret[PLAY_MAX_TURRETS]; u32 nturret;   /* level turrets (ENTI type 30) */
     ak_play_boom boom[PLAY_MAX_BOOMS]; u32 nboom;
     struct {                           /* pickups dropped by fallen soldiers (Humanoid SpawnPickupA / B; Projectile Health, Ammo, Stamina) */
-        bool alive; u8 kind; f32 pos[3], t, spin; s32 fx;   /* kind: 0 Health, 1 Ammo, 2 Stamina, 3 HealthAmmo */
+        bool alive; u8 kind; f32 pos[3], t, spin, look_t; s32 fx, from;   /* kind: 0 Health, 1 Ammo, 2 Stamina, 3 HealthAmmo; from: the unit that dropped it */
     } pickup[32]; bool pickup_alt; u32 pickups_made, pickups_taken;
     struct { const ak_bp_object *bp; f32 cap, cap2, radius, delay, timer, fade; const char *pfx, *sfx; s32 model; } pickup_def[4];
     ak_pfx_lib pfx_lib; ak_pfx_world *pfx;   /* the level's particle effects and the ones running (R.6) */
