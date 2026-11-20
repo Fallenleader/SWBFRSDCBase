@@ -549,6 +549,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     if (ak_setting_int("AK_BOT_SENSE_EVERY", 0) <= 0 && p->nbots > 16) p->sense_every = (p->nbots + 15) / 16;   /* (performance) */
     vehicles_init(p, l, m, bp, a);
     p->nturret = 0; p->ntdef = 0; turrets_init(p, l, m, bp);
+    {   const char *tp = ak_setting_str("AK_TEST_START", NULL); f32 g[4];   /* tests: "x,y,z,yaw" in game axes (the harness's) */
+        if (tp && sscanf(tp, "%f,%f,%f,%f", &g[0], &g[1], &g[2], &g[3]) == 4) { f32 q[3]; ak_from_game(g, q); ak_char_spawn(&p->ch, q, g[3]); } }
     {   int tt = ak_setting_int("AK_TEST_AT_TURRET", 0);                    /* tests: start beside turret N */
         if (tt > 0 && (u32)tt <= p->nturret) { f32 q[3] = { p->turret[tt - 1].pos[0] + p->turret[tt - 1].rad + 1.0f, p->turret[tt - 1].pos[1] + 2.0f, p->turret[tt - 1].pos[2] }, gy;
             if (ak_char_ground_below(&p->col, q, 10.0f, &gy)) q[1] = gy;

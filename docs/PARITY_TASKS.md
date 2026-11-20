@@ -433,6 +433,12 @@ textures and how they are used. Section R lists only what must be in place so th
 - [ ] **5.4 Modes.** CTF, hunt and space completeness. Galactic conquest and campaign rules (credits, map moves, unlocks).
 - [ ] **5.6 Entity placement [assumed].** From the Known-issues table: many meshes float or sit in the wrong place (likely
   parent-relative transforms), and command post models are not in place (only the cone and logo). Trace the game's placement.
+  - Checked 2026-11-19 (harness RS_DRIVE_ALL=1 on Hoth against AK_DUMP_ENTS=1): every game object the original makes from the
+    level's entities - 5 health droids (0x800F), 5 ammo droids (0x8010), 10 turrets (0x801E), the vehicle spawns, the AT-AT, the
+    command posts - sits where Aurek places it, to the printed 0.0001 m.  The level geometry is stored in world space (its
+    strips' object index only groups them).  So the floating meshes are not entity placements on Hoth; they need a level and a
+    spot (or a screenshot) to find.  Tooling: AK_TEST_START="x,y,z,yaw" (game axes) starts the player there to compare views
+    with the harness's (--tp).
 - [ ] **5.5 Command posts [partial].** The capture cross (post flag 0x74 bit 0), the colour pulse (08A516BC), and capture speed per
   soldier count.
 

@@ -159,6 +159,10 @@ int main(int argc, char **argv)
             }
             if (!ak_models_load(&level, &lvl, &models) || !ak_scene_models_init(&mscene, &models, &scene, &lvl)) AK_WARN("aurek", "models did not load");
             ak_entities_load(&level, &models, &lvl, &ents);
+            if (ak_setting_int("AK_DUMP_ENTS", 0)) for (u32 i = 0; i < ents.n; i++) {   /* tests: the entities, game axes */
+                const ak_entity *e = &ents.e[i]; f32 g[3] = { e->pos[0], -e->pos[1], -e->pos[2] };
+                AK_INFO("ent", "%x type %u flagged %d placed %d model %s pos %.3f %.3f %.3f", e->id, e->type, e->flagged, e->placed,
+                        e->model[0] >= 0 ? models.models[e->model[0]].name : "-", g[0], g[1], g[2]); }
             ak_audio_level_reset(); b_level_keep = b; ak_hud_level(&b);
             AK_INFO("audio", "%s: %u sounds and events", levels[cur].label, ak_audio_bank_add(&b, true));
             {   char mp[160], list[64]; ak_blob mb; u32 lh = 0, st = 0, nth = 0;   /* the level's music, as its script picks it */
