@@ -271,7 +271,7 @@ static void drive_step(int frame){
             snprintf(b, sizeof b, "%s/frame.ppm", dir); rename(a, b); } }
     { extern void rs_drive_health(float) __attribute__((weak));        /* tests: hp.txt "<frame> health" sets the player's health */
       snprintf(a, sizeof a, "%s/hp.txt", dir); FILE *hf = fopen(a, "r");
-      if (hf) { int fr; float h; if (fscanf(hf, "%d %f", &fr, &h) == 2 && fr == frame && rs_drive_health) rs_drive_health(h); fclose(hf); } }
+      if (hf) { int fr; float h; while (fscanf(hf, "%d %f", &fr, &h) == 2) if (fr == frame && rs_drive_health) rs_drive_health(h); fclose(hf); } }   /* (one line per change) */
     { extern void rs_drive_teleport(float, float, float) __attribute__((weak));   /* tests: tp.txt "<frame> x y z" moves the player there */
       snprintf(a, sizeof a, "%s/tp.txt", dir); FILE *tf = fopen(a, "r");
       if (tf) { int fr; float x, y, z; if (fscanf(tf, "%d %f %f %f", &fr, &x, &y, &z) == 4 && fr == frame && rs_drive_teleport) rs_drive_teleport(x, y, z); fclose(tf); } }

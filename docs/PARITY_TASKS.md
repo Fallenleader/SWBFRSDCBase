@@ -218,6 +218,11 @@ textures and how they are used. Section R lists only what must be in place so th
   their PFXEffect rings, Skin and SFXEffect "Generic_Pick_Up"); the pickup class's loader is 089F5F60. Aurek (NATIVE_ENGINE row)
   drops and draws them; [ ] who may take one and the units of Capacity are not traced (Aurek: any soldier who needs it; health
   points, per cent of the full ammunition, stamina), nor the model's motion and the fade.
+  - Measured (harness, class 0x8015 in the state log; programs `respawn` / `cluster`, repeatable --hp): the player's own drop
+    appears 0.1 m up and 1.0 m along +z of where it died and settles to the ground; untouched it lasts 10.7 s (Timer + FadeTime;
+    Aurek now too). Respawning 1 m from it with full health, the soldier's spare clips went 4 -> 5 within 10 frames (an ammo
+    pickup?) while the pickup stayed 1.8 s more - not understood yet. The harness's health override is undone by the game
+    within 10 frames (no use for testing health pickups).
 - [ ] **2.3 Secondary items [partial].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
   incinerator, fusion cutter, shields, jetpack, jump pack, stealth. Trace each one's blueprint use.
   - Thermal detonator [measured and built 2026-11-16]: Weapon REP_Grenade (4, no spare clips, 2 s between throws), Projectile

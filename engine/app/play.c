@@ -2747,7 +2747,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         __typeof__(p->pickup[0]) *q = &p->pickup[j]; if (!q->alive) continue;
         const __typeof__(p->pickup_def[0]) *d = &p->pickup_def[q->kind];
         q->t += dt; q->spin += dt * 3.0f;                                     /* [assumed] a slow turn */
-        if (q->t >= d->timer) { q->alive = false; ride_fx(p, &q->fx, false, NULL, NULL, NULL, NULL); continue; }
+        if (q->t >= d->timer + d->fade) { q->alive = false;   /* (measured: an untouched one lasts 10.7 s - Timer 10 + FadeTime 0.75) */ ride_fx(p, &q->fx, false, NULL, NULL, NULL, NULL); continue; }
         ride_fx(p, &q->fx, true, d->pfx, q->pos, NULL, NULL);
         if (q->t < d->delay) continue;
         /* who takes it: the first soldier (any side) within EffectiveRadius who needs it [assumed: only what it lacks]; Health adds
