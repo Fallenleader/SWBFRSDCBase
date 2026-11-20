@@ -888,7 +888,16 @@ groundwork below is needed before the parity work starts. The tiers come later.
       with FXPT flags 0x20000 the lifetime is +0x54 + frac(record +0x1C x ...) x +0x58, a per-particle spread); past 1 it is
       removed (088E7AEC), or restarts at 0 with FXPT flags 0x4000000 (looping). While the emitter's time is under 1 it emits:
       the count comes from a system curve at that time (+0x54.. on the system: the 5th curve, e) times the effect's scale
-      (effect +0x40), not finished reading.
+      (effect +0x40): an accumulator (+0x70) gains rate x dt and each whole unit spawns one (088E6E9C, placed back along the
+      frame by the fraction); with the system's flags bit 5 (0x20) the emitter instead fills up to its limit at once (a burst).
+      So curve e is the emission rate (particles a second over the emitter's life): BigExplosion:streaks ~100/s for 0.4 s.
+    - The motion (088E2DDC; particle record: position +0, velocity +0xC, age +0x18, a random word +0x1C): position += velocity x
+      dt; system flags 0x400: velocity += the system vec3 (+0xA0) x curve g (+0x78) at the particle's age x dt (gravity:
+      streaks (0, 0.5, 0) x 9.81, game y down); 0x80: velocity += curve h (+0x8C) at age x dt x a noise of position x +0xCC
+      (088EF134, per axis); 0x200: velocity x= max(0, 1 - +0xB4 x dt) (drag); 0x100: the same with +0xB4 x the particle type's
+      curve c1 at age (x the time with FXPT flags 0x40000). The system's 13 words are +0xAC (its hash), +0xB0 duration, +0xB4
+      drag, +0xB8, +0xBC (a bone/marker for flags bit 2), +0xC0, +0xC4 time scale (flags 8), +0xC8, +0xCC noise scale, +0xD0,
+      +0xD4, +0xD8 (flags 0x2000: a fade-in limit), +0xDC the particle limit; then +0xE0 (a parent, -1 none) and the flags +0xE4.
     - FXPT's words in the stream's order are its +0x50 (an int: 1 streaks, 5 fire - the blend or kind), +0x54 the lifetime
       (s), +0x58 its spread, +0x60, +0x64, +0x6C, +0x68, +0x70, +0x74; the frames list is +0x88 (count +0x5C); the flags +0x8C.
     Next: the rest of the particle step (motion, the emit count) and the draw, then which effect each event plays (weapons' PFXMuzzleFlash, impact pfx, projectiles'
