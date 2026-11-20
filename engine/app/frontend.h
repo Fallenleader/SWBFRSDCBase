@@ -14,4 +14,5 @@ bool ak_fe_open(const char *page);             /* "MP_MainMenu" */
 int ak_fe_update(const ak_input *in, f32 dt);  /* AK_FE_START: a match was launched (FE_HostGame) */
 void ak_fe_draw(void);                         /* between ak_gfx_begin and ak_gfx_end */
 const char *ak_fe_page(void);                  /* the page shown (its name), NULL none */
+const char *ak_fe_launch(int *mode);           /* after AK_FE_START: the level ("CLASSIC TATOOINE") and the mode (0 CQST .. 3 HCTF) */
 #endif

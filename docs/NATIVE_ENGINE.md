@@ -211,6 +211,7 @@ Vita: `cmake -S engine/platform/vita -B build/aurek_vita && cmake --build build/
 | 2026-11-20 | 1.10c | **AI respawn: 10 s waves after the body leaves.** The game's respawn delay (time between spawn waves) is 10 s (option at 0x08B1BB48, read live); bots now return at the first wave after their 5 s body time, giving the original's 5-15 s. |
 | 2026-11-20 | 6.4 | **command post logo height and spin.** The original draws the logo 1.60 m above the post (harness draw log with the new RS_DRAW_ALL); the logo turns by its own clip logo_spin_move (3.133 s, easing) rather than at a constant rate. Aurek does both now. |
 | 2026-11-20 | 8.2 | **the game's own menus.** UIMP pages decoded from the game's widget loaders (all 95 pages read exactly; tools/asura/uimp.py, engine/assets/gui.c); app/frontend.c draws and drives them: pictures, menu texts (MENU_AM.ASR), button marks (PSPBUTTONS.ASR), focus links, page targets, back. AK_FRONTEND=1 shows the main menu; the main menu and Single Player pages match the original's frames. |
+| 2026-11-20 | 8.2 | **Instant Action from the menus.** Show conditions (script values, ops ==, >, >=, <, <=, all / any), text lists with their FE_List* fill functions, and the Instant Action FE functions (planet, mode, era, play list, Launch) on the game's map table. Main menu > Single Player > Instant Action > pick Tatooine / Conquest / GCW > Launch starts the match; the screens match the original's. |
 
 ## Known issues (cleanup pass once gameplay reaches parity)
 

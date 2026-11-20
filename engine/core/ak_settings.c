@@ -34,8 +34,19 @@ void ak_settings_load(const char *path)
     AK_INFO("settings", "%s: %d values", path, nset);
 }
 
+/* values the program itself sets (the front end's choices: AK_MODE, ...): above the file and the environment */
+static struct { char key[48]; char val[208]; } over[32];
+static int nover;
+void ak_setting_set(const char *key, const char *val)
+{
+    int i = 0; while (i < nover && strcmp(over[i].key, key)) i++;
+    if (i == nover) { if (nover >= 32) return; nover++; }
+    snprintf(over[i].key, sizeof over[i].key, "%s", key); snprintf(over[i].val, sizeof over[i].val, "%s", val);
+}
+
 const char *ak_setting_str(const char *key, const char *def)
 {
+    for (int i = 0; i < nover; i++) if (!strcmp(over[i].key, key)) return over[i].val;
 #ifndef __vita__
     const char *e = getenv(key);
     if (e) return e;

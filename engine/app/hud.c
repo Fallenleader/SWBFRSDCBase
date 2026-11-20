@@ -128,6 +128,7 @@ static void load_stdtext(ak_vfs *vfs)
     }
 }
 static const u16 *stdtext_get(u32 id, u32 *len) { if (!stdtext || id >= nstd || !stdtext[id]) { *len = 0; return NULL; } *len = stdlen[id]; return stdtext[id]; }
+const u16 *ak_hud_stdtext(u32 id, u32 *len) { return stdtext_get(id, len); }
 const u16 *ak_hud_post_name(s32 i, u32 *len) { if (i < 0 || (u32)i >= ncp) { *len = 0; return NULL; } *len = cplen[i]; return cpname[i]; }
 static void load_cpnames(ak_vfs *vfs)
 {
@@ -246,13 +247,16 @@ static void pic_mirror(const sprite *s, f32 x, f32 y, bool centred, u32 argb)
     quad(s->tex, x, y, x + w, y + h, s->u1, s->v0, s->u0, s->v1, argb);
 }
 static const sprite *idx(int i) { return i >= 0 && i < (int)S_COUNT && by_index[i] >= 0 ? &spr[by_index[i]] : NULL; }
-/* the button marks in text (private-use characters, PSPBUTTONS.ASR): read from the menu texts' own use - "\ue800 Select",
- * "\ue801 Clear", "\ue802 Back", "\ue803 Cancel": cross, square, circle, triangle (the rest of the range: not placed yet) */
+/* the button marks in text (private-use characters, GRAPHICS/PSPBUTTONS.ASR): U+E800 + the picture's place in the sheet's TTXT
+ * ("\ue813 Use" is button_x, the 20th), except U+E800..E803, which the menu texts use as cross, square, circle, triangle
+ * ("\ue800 Select", "\ue801 Clear", "\ue802 Back", "\ue803 Cancel"; MENU_AM's key list names them BU_CROSS, BU_SQUARE,
+ * BU_CIRCLE, BU_TRIANGLE) - in the sheet those places hold the analog stick and the big circle, square, triangle */
 static const sprite *button_mark(u16 c)
 {
-    static const char *const names[] = { "button_x.tga", "button_square.tga", "button_circle.tga", "button_triangle.tga" };
-    if (c < 0xE800 || c >= 0xE800 + sizeof names / sizeof names[0] || !btn_n) return NULL;
-    return find(h31(names[c - 0xE800]), btn_first, btn_n);
+    static const char *const first4[] = { "button_x.tga", "button_square.tga", "button_circle.tga", "button_triangle.tga" };
+    if (c < 0xE800 || !btn_n || c >= 0xE800 + btn_n) return NULL;
+    if (c < 0xE804) return find(h31(first4[c - 0xE800]), btn_first, btn_n);
+    return &spr[btn_first + (c - 0xE800)];
 }
 static const glyph *glyph_of(u16 c) { for (u32 i = 0; i < font.n; i++) if (font.g[i].ch == c) return &font.g[i]; return NULL; }
 static f32 text_width(const char *s) { f32 w = 0; for (; *s; s++) { const glyph *g = glyph_of((u8)*s); if (g) w += g->w; } return w; }

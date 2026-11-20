@@ -166,7 +166,13 @@ int main(int argc, char **argv)
             ak_gfx_begin(0xFF000000u, &id, &env); ak_fe_draw(); ak_gfx_end(&gs);
             frame++;
             if (shot && frame == shot_frame) { ak_gfx_screenshot(shot); break; }
-            if (ev == AK_FE_START) { fe_on = false; playing = true; loaded = false; }
+            if (ev == AK_FE_START) {                                       /* FE_HostGame: the play list's first map, its mode */
+                int md = 0; const char *lv = ak_fe_launch(&md);
+                static const char *codes[4] = { "CQST", "CTF1", "CTF2", "HCTF" }; ak_setting_set("AK_MODE", codes[md & 3]);
+                for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, lv)) cur = i;
+                AK_INFO("fe", "launch %s, %s", lv, codes[md & 3]);
+                fe_on = false; playing = true; loaded = false;
+            }
             continue;
         }
         if (!loaded) {

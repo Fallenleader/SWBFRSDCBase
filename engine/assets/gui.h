@@ -21,7 +21,10 @@ enum { AK_GUI_PAGE = 1, AK_GUI_IMAGE = 1001, AK_GUI_TEXT = 1002, AK_GUI_POINTS =
        AK_GUI_BUTTON = 2001, AK_GUI_BUTTON2 = 2002, AK_GUI_SPINNER = 2003, AK_GUI_TEXTBOX = 2004, AK_GUI_TEXTLIST = 2005,
        AK_GUI_GROUP = 2006, AK_GUI_SCROLLBAR = 2009, AK_GUI_LIST = 2010, AK_GUI_LIST2 = 2012 };
 
-typedef struct { const char *fn, *arg; u32 key; } ak_gui_action;    /* a script function by name ("FE_OpenProfileMenu") and its argument */
+typedef struct { const char *fn, *arg; u32 key; } ak_gui_action;    /* key: the button that runs it (16 cross, 32 square, 64 circle) */
+/* a condition on a script value ("BFF.FE_MapSelectionStatus", "1", op): the widget shows while its conditions hold (0887E7B0: mode
+ * 0 all, 1 any; 0887E45C / 08AB10A4: op 0 true, 1 ==, 2 >, 3 >=, 4 <, 5 <=, the value against the number in `val`) */
+typedef struct { const char *var, *val; u32 op; } ak_gui_cond;    /* a script function by name ("FE_OpenProfileMenu") and its argument */
 
 typedef struct ak_widget {
     u32 type, cver;                    /* class and its version (the header's first word) */
@@ -35,6 +38,9 @@ typedef struct ak_widget {
     const ak_gui_action *actions; u32 nactions;
     const char *binding;               /* a script value the widget shows ("BFF.FE_ShowVersionNumber") */
     const char **anims; u32 nanims;    /* UIAN animations it plays ("pulse_highlight") */
+    const ak_gui_cond *cond; u32 ncond, cond_mode;
+    /* text lists (2005): rows at most, rows shown, the chosen row's colour, the function that fills it (FE_ListAllMaps) */
+    u32 rows_max, rows_shown; f32 sel_rgba[4]; ak_gui_action fill;
     struct ak_widget *child; u32 nchild;
 } ak_widget;
 

@@ -629,6 +629,17 @@ textures and how they are used. Section R lists only what must be in place so th
     the original's frames (harness menu_main_menu / menu_single_player). [assumed]: the show-by-focus rule for flags bits 1 / 2,
     the highlight's pulse rate, the Italian subtitle hidden for other languages. Open: the FE_* script functions (map lists,
     eras, modes, profile, options), the list boxes' rows, UIAN animations, the 3D model widgets, the in-match pages.
+  - 2026-11-20, page logic and Instant Action: a widget's "animation block" (0887EA90) is its show condition - records {script
+    value, number, op} (0887E45C / 08AB10A4: op 1 ==, 2 >, 3 >=, 4 <, 5 <=) joined by all (mode 0) or any (1) (0887E7B0);
+    e.g. the Mode title shows while BFF.FE_MapSelectionStatus == 1, Launch while BFF.NumMapsInRotation > 0. Text lists (2005)
+    carry their rows at most / shown, the chosen row's colour and their fill function (FE_ListAllMaps), and actions keyed by
+    button (16 cross, 32 square, 64 circle). The FE functions are registered by UTF-16 name (08A29690; 156 of them listed);
+    their effects ported for Instant Action: FE_ListAllMaps / ListValidModes / ListValidEras / ListMapsInRotation,
+    FE_SelectMapPlanet / Mode, FE_Deselect*, FE_AddMap, FE_RemoveMap, FE_RemoveAllMaps, FE_ClearMapRotation, FE_HostGame
+    (08A275D0 closes a list, 08A27590 opens and focuses one). The map table is the game's (0x08B1B980: 22 entries {CW level, GCW
+    level, STDTEXT name, modes[4], space}). Aurek's Planet and Playlist screens match the original's frames, scroll bar
+    included, and Launch starts the first play-list map in its mode. [assumed] FE_SelectRandomMaps' rules, the scroll bar's
+    link to its list (by name).
 
 ## 9. Camera and input
 

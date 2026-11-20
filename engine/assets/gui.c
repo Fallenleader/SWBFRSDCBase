@@ -47,12 +47,14 @@ static void base(rd *s, ak_widget *w)  /* 08888454, version 11 */
     w->id = r32(s); w->flags = r32(s);
     u32 n = r32(s); if (n > 64) { s->bad = true; return; } skip(s, n * 8);
     r32(s); r32(s); r32(s); r32(s); r32(s);
-    if (r32(s) != 0) { s->bad = true; return; }                       /* the animation block (0887EA90) */
-    r32(s); u32 na = r32(s); if (na > 64) { s->bad = true; return; }
+    if (r32(s) != 0) { s->bad = true; return; }                       /* the condition block (0887EA90) */
+    w->cond_mode = r32(s); u32 na = r32(s); if (na > 64) { s->bad = true; return; }
+    ak_gui_cond *cd = na ? AK_NEW(s->a, ak_gui_cond, na) : NULL; if (na && !cd) { s->bad = true; return; }
     for (u32 i = 0; i < na && !s->bad; i++) {                        /* 0887E588: u32 0, (u32 0, str), str, u32 */
         if (r32(s) != 0 || r32(s) != 0) { s->bad = true; return; }
-        rstr(s); rstr(s); r32(s);
+        cd[i].var = rstr(s); cd[i].val = rstr(s); cd[i].op = r32(s);
     }
+    w->cond = cd; w->ncond = na;
     u32 np = r32(s); if (np > 64) { s->bad = true; return; }
     for (u32 i = 0; i < np && !s->bad; i++) {                        /* properties (08886218): u32 0, u32, u32, u32 kind, value */
         if (r32(s) != 0) { s->bad = true; return; }
@@ -171,11 +173,11 @@ static void widget(rd *s, ak_widget *w, int depth)
         break;
     case AK_GUI_TEXTLIST:                                             /* 08895EA0 */
         button_base(s, w); children(s, w, depth);
-        w->size[0] = rf(s); w->size[1] = rf(s); r32(s); r32(s); w->font = rstr(s);
+        w->size[0] = rf(s); w->size[1] = rf(s); w->rows_max = r32(s); w->rows_shown = r32(s); w->font = rstr(s);
         if (v >= 1) r32(s);
         if (v >= 2) action_list(s, w);
-        if (v >= 3) { ak_gui_action a = action(s); if (!w->nactions && a.fn[0]) { ak_gui_action *p = AK_NEW(s->a, ak_gui_action, 1); if (p) { *p = a; w->actions = p; w->nactions = 1; } } }
-        if (v >= 4) { r32(s); r32(s); skip(s, 20); }
+        if (v >= 3) w->fill = action(s);
+        if (v >= 4) { r32(s); r32(s); for (int k = 0; k < 4; k++) w->sel_rgba[k] = rf(s); rf(s); }
         if (v >= 5) skip(s, 8);
         if (v >= 6) skip(s, 4);
         break;

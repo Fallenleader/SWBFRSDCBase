@@ -62,6 +62,7 @@ void ak_hud_messages_clear(void);
 void ak_hud_hit(const f32 src[3]);
 /* a post's name (TEXT/CPNAMES.ASR entry `i`) */
 const u16 *ak_hud_post_name(s32 i, u32 *len);
+const u16 *ak_hud_stdtext(u32 id, u32 *len);                /* TEXT/STDTEXT.ASR entry id */
 u32 ak_hud_bot_names(int faction);                          /* how many names the side's list has */
 const u16 *ak_hud_bot_name(int faction, s32 i, u32 *len);   /* BOTNAMES_<faction>.ASR entry i */
 void ak_hud_level(const ak_blob *level);   /* the level's radar map (its hmap chunk and picture); per level */         /* once; false = the files are missing (the HUD stays off) */
