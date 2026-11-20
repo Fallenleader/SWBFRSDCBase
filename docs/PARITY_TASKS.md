@@ -744,8 +744,9 @@ textures and how they are used. Section R lists only what must be in place so th
       once per warning - the out-of-bounds warning, which Aurek does not have yet.
     - A line 0x529BB384 (0893254C, to a random squad member) has no blueprint key, so it never plays. BC_Withdraw, Flanking
       and Defence are not referenced by code.
-    Engine: Sniper, Friendly, OnTarget and the CTF lines are built (ak_target.last_quiet marks the listed kinds). Not built:
-    Rocket (Grenade: 2.3d) and Return (no out-of-bounds yet).
+    Engine: Sniper, Friendly, OnTarget, the CTF lines, Grenade (2.3d) and Return (the out-of-bounds warning, 089D4BDC: built -
+    play.c, vehicles only) and Rocket (a bot pressing the trigger of a weapon whose Projectile is "rocket": the rocket launchers)
+    are built (ak_target.last_quiet marks the listed kinds).
 
 ## 8. HUD and front end
 

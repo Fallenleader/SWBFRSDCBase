@@ -1423,6 +1423,10 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         {   f32 fwd[3] = { -sinf(b->ch.yaw), 0, -cosf(b->ch.yaw) }, to[3] = { 0, 0, 0 };
             if (en) { to[0] = en->feet[0] - b->ch.pos[0]; to[1] = en->feet[1] - b->ch.pos[1]; to[2] = en->feet[2] - b->ch.pos[2]; }
             held = ak_ai_fire_update(&b->fire_ai, b->weapon.def, en && b->react_t <= 0, en && ak_ai_fire_ok(fwd, to, 40.0f * S, 7.5f * 0.017453293f, true), rnd(&b->seed), dt);
+            /* Speech_BC_Rocket (089395E4): an AI that starts firing a weapon of the "Rocket" kind (the rocket launchers' Projectile
+               "rocket") says it once, until it lets go */
+            if (b->fire_ai.began && b->weapon.def && b->weapon.def->bp) { const char *pj = ak_bp_string(b->weapon.def->bp, "Projectile", "");
+                if (pj && !strcasecmp(pj, "rocket")) ak_play_chatter(p, 1 + idx, "Speech_BC_Rocket"); }
         }
         if (en && held) {
             f32 gun[12], muz[3];
