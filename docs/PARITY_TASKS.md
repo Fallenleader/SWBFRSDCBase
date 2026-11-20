@@ -500,7 +500,8 @@ textures and how they are used. Section R lists only what must be in place so th
     08ABC44C) is within 40 m (D_08AED890) and 0x08C29B58 is 1 - 4.5 (D_08AED898) when the byte 0x08C2932D is set. Matches the
     measured 8.5 / 5.0 modes. Ported (ak_char_input.speed): bots on a path run at 8.5 m/s, 5.0 within 40 m of the player
     [assumed: the list is the local players; the 4.5 case not taken]; Aurek's own 0.55 in a fight stays (PARITY(4.4)). Hoth,
-    60 s: captures 0 -> 2 against the old 6 m/s. Open: the avoidance (0893E014).
+    60 s: captures 0 -> 2 against the old 6 m/s. Avoidance (0893E014): traced and built 2026-11-20 (NATIVE_ENGINE row; the
+    side it turns to is [assumed]).
   - 2026-11-20, the 11.5 m/s: not a soldier speed. Harness (RS_DRIVE_AICTL now also logs soldier +520 and the input object's
     controls 20 / 21; Hoth, 900 frames): bots have no input object (+92 = 0) and the sprint bit (+520 bit 5, set from control 21
     in 0899530C) is never set; every 11.4-11.7 m/s stretch is a bot riding a vehicle (its position 1.9 m from a class 0x801D

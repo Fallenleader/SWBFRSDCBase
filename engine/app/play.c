@@ -1269,6 +1269,27 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     }
     f32 mdx = want[0] - b->ch.pos[0], mdz = want[2] - b->ch.pos[2], ml = sqrtf(mdx * mdx + mdz * mdz);
     if (ml > 1e-3f) { mdx /= ml; mdz /= ml; } else moving = false;
+    if (moving) {
+        /* avoidance (traced, 0893E014, after the path node): each soldier within 2 m (d^2 against 4.0, D_08AED89C) that the two are
+           closing on - c = (own wanted velocity - its velocity) along the line to it, above 0 - with (d / c)^2 under 0.2 (D_08AED8A4)
+           turns the wanted direction by 0.9425 rad (D_08AED8A8, 0.3 pi) x (1 - 25 (d / c)^4) (D_08AED8AC).  [assumed: which way -
+           away from the side the other is on (the side test against 1.0, D_08AED8A0, is not read); one turn per unit found] */
+        f32 sp0 = 8.5f;
+        for (u32 u = 0; u < NS(p); u++) {
+            if (u == 1 + idx) continue;
+            const ak_target *o = &p->target[u]; if (!o->alive) continue;
+            f32 ox = o->feet[0] - b->ch.pos[0], oz = o->feet[2] - b->ch.pos[2], d2 = ox * ox + oz * oz;
+            if (d2 > 4.0f * S * S || d2 < 1e-6f) continue;
+            f32 dl = sqrtf(d2), nx = ox / dl, nz = oz / dl;
+            const f32 *ov = u == 0 ? p->ch.vel : p->bot[u - 1].ch.vel;
+            f32 cl = (mdx * sp0 * S - ov[0]) * nx + (mdz * sp0 * S - ov[2]) * nz;
+            if (cl <= 0) continue;
+            f32 t2 = d2 / (cl * cl); if (t2 >= 0.2f) continue;
+            f32 ang = 0.9424778f * (1.0f - 25.0f * t2 * t2);
+            if (nx * mdz - nz * mdx < 0) ang = -ang;                                  /* (turn away from its side) */
+            f32 cs = cosf(ang), sn = sinf(ang), tx = mdx * cs - mdz * sn; mdz = mdx * sn + mdz * cs; mdx = tx;
+        }
+    }
     /* facing: the enemy, else the way it goes */
     f32 face = b->ch.yaw;
     const ak_target *en = b->enemy >= 0 ? &p->target[b->enemy] : NULL;
