@@ -90,6 +90,7 @@ typedef struct {                       /* a bot soldier */
     ak_soldier_look look, base_look; bool hero; f32 alert_t, shoot_t; ak_character ch; int team; ak_weapon weapon; bool alive;
     s8 loadout, held;                  /* its AI loadout this life (0..7, the game's table 0x08ADDC64), the slot in its hands */
     f32 bones[64][12]; int state; f32 clip_t, land_t, dead_t, pose_dt; s32 death_clip; bool was_ground;
+    s32 idle_var; f32 idle_t, idle_vt;   /* an idle variation playing (-1 none), the wait before the next, its time */
     /* the mind */
     s32 goal; s8 ctf_role; u32 path[128];   /* goal: a post, -1 none, -2 a CTF goal; ctf_role: 1 attack, 0 guard, -1 not chosen (each life) */ u32 npath, path_i; f32 hold[3]; bool holding;
     ak_ai_fire fire_ai;   /* the AI's trigger on foot (ak_weapon.h: 40 m, 7.5 degrees across the ground) */
@@ -171,7 +172,7 @@ typedef struct {
     s32 proj_fx[AK_MAX_PROJ], veh_fx[PLAY_MAX_VEH][2], eng_fx[PLAY_MAX_VEH][4], boost_fx[PLAY_MAX_VEH][6];   /* effects riding objects: projectile trails (PFXEffect), vehicle smoke / fire (0 none) */
     u32 kills, deaths;
     u16 tally_kills[64], tally_deaths[64];   /* per soldier (0 the player, 1.. the bots): the score boards' columns */
-    s32 idle_clip, death_clips[4], death_pick;   /* death_pick: the player's, of the four */
+    s32 idle_clip, death_clips[4], death_pick, idle_vars[2];   /* idle_vars: the rifle set's rows 18 / 19 (the idle variations) */   /* death_pick: the player's, of the four */
     ak_weapon_def team_wdef[2], team_bdef[2]; bool team_armed[2];
     ak_weapon_def ai_wdef[2][13]; bool ai_armed[2][13];   /* the AI's weapons by the game's slot (0x08ADDB94: 2 rifle .. 8 EMP launcher), bot copies */   /* bdef: the bots' copy (the game's bot modifiers) */
     const char *klass[2][PLAY_MAX_CLASSES]; u32 nklass[2];

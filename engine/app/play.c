@@ -416,7 +416,7 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
     }
     if (b->hero) { b->look = b->base_look; b->hero = false; }               /* a fallen hero comes back as its soldier */
     ak_char_spawn(&b->ch, pos, yaw);
-    b->alive = true; b->dead_t = 0; b->state = PLAY_IDLE; b->clip_t = rnd(&b->seed); b->land_t = 0; b->was_ground = true;
+    b->alive = true; b->dead_t = 0; b->state = PLAY_IDLE; b->clip_t = rnd(&b->seed); b->land_t = 0; b->was_ground = true; b->idle_var = -1; b->idle_t = (rnd(&b->seed) + 0.5f) * 2.5f;
     b->goal = -1; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
     b->stuck_t = 0; memcpy(b->stuck_pos, pos, 12); b->veh = b->want_veh = -1; b->rev_t = 0; b->vstucks = 0; b->veh_cool = 0;
     ak_target *t = &p->target[1 + idx];
@@ -620,7 +620,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         }
         p->roll_i = -1; p->roll_req = false; p->zoom = 0; p->zoom_req = false;
     }
-    p->idle_clip = p->clip[PLAY_IDLE]; p->death_clips[0] = find_clip(m, d1); p->death_clips[1] = find_clip(m, d2); p->death_clips[2] = find_clip(m, d3); p->death_clips[3] = p->death_clips[0]; p->death_pick = 0;
+    p->idle_clip = p->clip[PLAY_IDLE]; p->death_clips[0] = find_clip(m, d1); p->death_clips[1] = find_clip(m, d2); p->death_clips[2] = find_clip(m, d3); p->death_clips[3] = p->death_clips[0]; p->death_pick = 0; p->idle_vars[0] = p->idle_vars[1] = -1;
     /* the alert set (the game's generic_male table, set 5: rifle raised - when shooting or locked on) and its shoot layer; the
        relaxed body clips stay the ones above (set 4 is the same family) */
     memcpy(p->aclip, p->clip, sizeof p->aclip); p->shoot_clip = -1; p->reload_clip = -1;
@@ -818,6 +818,7 @@ static void anim_sets(ak_play *p, const ak_model_set *m)
     }
     p->idle_clip = p->clip[PLAY_IDLE];
     p->shoot_clip = AK_ATAB(gt, base + 1, 0, 1); p->reload_clip = AK_ATAB(gt, base, 0, 2);
+    p->idle_vars[0] = AK_ATAB(gt, 4, 18, 0); p->idle_vars[1] = AK_ATAB(gt, 4, 19, 0);   /* (the rifle set's: the bots' idle variations) */
     /* the deaths: rows 20-23, one at random each time (traced, 0899FF38: 20 + (the game's random >> 1 & 3), unless the soldier's
        +196 is set - then row 32 for a 089DE500 body, else none; neither seen in play) */
     static const int drow[4] = { 20, 21, 22, 23 }, rrow[4] = { 26, 24, 25, 27 };   /* (rolls: dive, left, right, back) */
@@ -1379,6 +1380,12 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     f32 hs; int st = motion_state(&b->ch, &p->cp, b->was_ground, &b->land_t, dt, &hs);
     b->was_ground = b->ch.on_ground;
     const s32 *bcl = unit_clips(p, (s32)(1 + idx));
+    /* idle variations (traced, 08998828): standing idle and not alert, a wait of (random + 0.5) x 2.5 s (1.25-3.75), then row 18
+       or 19 at random once, then a new wait [assumed: the rifle set's rows for every bot] */
+    if (b->state == PLAY_IDLE && b->alert_t <= 0 && !b->hero && b->veh < 0 && p->idle_vars[0] >= 0) {
+        if (b->idle_var < 0) { if ((b->idle_t -= dt) <= 0) { b->idle_var = p->idle_vars[rnd(&b->seed) < 0.5f ? 0 : (p->idle_vars[1] >= 0 ? 1 : 0)]; b->idle_vt = 0; } }
+        else if ((b->idle_vt += dt) >= m->clips[b->idle_var].duration) { b->idle_var = -1; b->idle_t = (rnd(&b->seed) + 0.5f) * 2.5f; }
+    } else { b->idle_var = -1; if (b->idle_t <= 0) b->idle_t = (rnd(&b->seed) + 0.5f) * 2.5f; }
     if (bcl[st] < 0) st = bcl[PLAY_RUN] >= 0 && hs >= 0.5f ? PLAY_RUN : PLAY_IDLE;
     if (st != b->state) { b->state = st; b->clip_t = 0; }
     b->clip_t += dt * clip_rate(st, hs, &p->cp);
@@ -1393,6 +1400,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         if (bh && bh->atk_i >= 0) pose(m, &b->look, bh->atk[bh->atk_i], bh->atk_t, false, b->bones);   /* a stroke: the whole body */
         else if (!bh && b->alert_t > 0)
             pose_layer(m, &b->look, p->aclip[b->state], b->clip_t, b->state != PLAY_JUMP && b->state != PLAY_LAND, b->shoot_t < 0.3f ? p->shoot_clip : -1, b->shoot_t, b->bones);
+        else if (b->idle_var >= 0) pose(m, &b->look, b->idle_var, b->idle_vt, false, b->bones);
         else pose(m, &b->look, bcl[b->state], b->clip_t, b->state != PLAY_JUMP && b->state != PLAY_LAND, b->bones);
     }
     body_target(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, self);
