@@ -95,6 +95,10 @@ typedef struct {
     bool has_sky; f32 sky_tint[3], sky_angle; s32 sky_tex[5]; const char *sky_names[5];
 } ak_level;
 bool ak_level_load(const char *path, ak_arena *a, ak_level *out);       /* a file on disk (tools) */
+/* The level's fog (FOG chunk, version 1, loader 08825C9C): flags bit 0 on; f32 r, g, b, -, start, end, strength, sky strength,
+ * 2 more.  The game draws it from 0 to `end` (08903470: the GU fog from near 0 to far `end` in its colour); `start` is not used there. */
+typedef struct { bool on; f32 rgb[3], start, end; } ak_level_fog;
+bool ak_level_fog_read(const ak_level *l, ak_level_fog *out);
 bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *out);  /* a file already read (ak_vfs) */
 s32  ak_level_find_texture(const ak_level *l, const char *name);
 

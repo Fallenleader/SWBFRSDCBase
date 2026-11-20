@@ -45,6 +45,8 @@ AK_FAR=8000
 # vertex colour scale: the game's baked vertex colours use 128 = full brightness, so 2 is the game's look
 AK_COLOUR_SCALE=2.0
 # distance fog in metres (end <= start: none)
+# the level's own fog, percent (as the PSP port's RS_FOG): 100 the game's distances, 25 farther; AK_FOG_START / AK_FOG_END override
+AK_FOG=25
 AK_FOG_START=0
 AK_FOG_END=0
 # back-face culling of solid level surfaces: 0 = off (as the game draws: some surfaces are single-sided panels meant to be seen

@@ -603,7 +603,12 @@ groundwork below is needed before the parity work starts. The tiers come later.
 ### Original look, traced first
 
 - [ ] **R.1 Level lighting.** Today it is approximated as vertex colour × 2. Read the game's own level lighting data.
-- [ ] **R.2 Fog.** The FOG values are read but not understood (Tatooine 11–75 m). Trace them.
+- [x] **R.2 Fog.** The FOG values are read but not understood (Tatooine 11–75 m). Trace them.
+  - Done 2026-11-19: the FOG chunk (loader 08825C9C) is flags (bit 0 on; space levels off), r, g, b, -, start, end, strength,
+    sky strength, 2 more.  The game sets the GU fog from near 0 to far = end (08903470 - logged in the harness: Tatooine
+    near 0, far 75, colour (88, 78, 43) = the chunk's); `start` is not used there.  A level start fades the fog in from black
+    with far from 10 % (not ported).  Aurek now fogs every level whose flag is on, linear 0..end in its colour; AK_FOG scales
+    it like the PSP port's RS_FOG (default 25 = farther, 100 = the game's); settings.txt files updated.
 - [ ] **R.3 Sky.** The sky set-up.
 - [ ] **R.4 Material modes.** All 6 texture slots of a material, its mode, its "extra" field and animated materials (water,
   screens, lightning). Aurek handles diffuse plus flags only.

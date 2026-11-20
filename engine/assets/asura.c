@@ -399,3 +399,17 @@ bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *l)
         }
     return have_env && have_env_mtrl;
 }
+
+bool ak_level_fog_read(const ak_level *l, ak_level_fog *out)
+{
+    memset(out, 0, sizeof *out);
+    ak_chunk c; u32 pos = 8;
+    while (ak_asura_next(&l->file, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('F', 'O', 'G', ' ') || c.version != 1 || c.size < 24) continue;
+        out->on = (c.flags & 1) != 0;
+        for (int k = 0; k < 3; k++) out->rgb[k] = ak_rdf32(c.body + 4 * k);
+        out->start = ak_rdf32(c.body + 16); out->end = ak_rdf32(c.body + 20);
+        return true;
+    }
+    return false;
+}

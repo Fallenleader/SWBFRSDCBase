@@ -239,6 +239,8 @@ static float fog_scale(void){
         k = 2.0f - i; if (k < 0.05f) k = 0.05f; }
     return k; }
 void rgu_fog(u32 color, float n, float f){
+    { static int lg = -1; if (lg < 0) lg = getenv("RS_FOG_LOG") != 0; static float ln = -1, lf = -1; static u32 lc;
+      if (lg && (n != ln || f != lf || color != lc)) { ln = n; lf = f; lc = color; fprintf(stderr, "[FOG] game near %.3f far %.3f colour %06x\n", n, f, color & 0xFFFFFF); } }
     { float k = fog_scale(); n *= k; f *= k; }
     float d = f - n, slope = 0.0f; if (1e-4f < d || d < -1e-4f) slope = 1.0f / d;      /* exactly: 9.9999997e-05 < d, d < -9.9999997e-05 */
     float a = f24f(f), b = f24f(slope); u32 x, y; memcpy(&x, &a, 4); memcpy(&y, &b, 4); OP(OP_FOG, x, y, color & 0xFFFFFF); }

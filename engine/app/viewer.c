@@ -455,6 +455,16 @@ int main(int argc, char **argv)
         ak_m4 view = ak_m4_view_yaw_pitch(cam.pos, cam.yaw, cam.pitch), vp = ak_m4_mul(&proj, &view);
         ak_gfx_env env = { { 0.55f, 0.62f, 0.70f }, ak_setting_float("AK_FOG_START", 0), ak_setting_float("AK_FOG_END", 0),
                            ak_setting_float("AK_COLOUR_SCALE", 2.0f) };   /* PARITY(R.1) */
+        {   /* the level's own fog (PARITY R.2): linear from 0 to the FOG chunk's end in its colour, when its flag is on.  AK_FOG is a
+               percentage of it as in the PSP port's RS_FOG (distances x (2 - AK_FOG / 100), at least 0.05): 100 the game's, the
+               default 25 the port's farther fog; AK_FOG_START / AK_FOG_END override it */
+            static ak_level_fog lf; static const void *lf_of = NULL;
+            if (lf_of != (const void *)level.file.data) { lf_of = level.file.data; ak_level_fog_read(&level, &lf); }
+            if (lf.on && env.fog_end <= env.fog_start) {
+                f32 k = 2.0f - ak_setting_float("AK_FOG", 25.0f) / 100.0f; if (k < 0.05f) k = 0.05f;
+                memcpy(env.fog_rgb, lf.rgb, 12); env.fog_start = 0; env.fog_end = lf.end * k;
+            }
+        }
         ak_gfx_begin(0x6B5A4Cu | 0xFF000000u, &vp, &env);
         if (ak_setting_int("AK_SKY", 1)) ak_scene_sky_draw(&scene, &proj, &view, ak_setting_float("AK_FAR", 8000.0f) * 0.45f);
         ak_scene_stats ss; ak_scene_level_draw(&scene, &vp, &ss);
