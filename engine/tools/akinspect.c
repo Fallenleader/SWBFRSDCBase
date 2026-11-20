@@ -389,6 +389,8 @@ int main(int argc, char **argv)
                     printf("  %-44s lod %u parts %2u bones %2u verts %5u tris %5u radius %7.2f hash %08x\n", m->name, m->lod, m->nparts,
                            m->skeleton >= 0 ? ms.skels[m->skeleton].nbones : 0, m->nvtx, m->nidx / 3, m->radius, m->hash);
             }
+        if (!strcmp(argv[i], "--clips"))                                     /* clip names containing a word */
+            for (u32 k = 0; k < ms.nclips; k++) if (strstr(ms.clips[k].name, argv[i + 1])) printf("  clip %s (%.2f s, %u channels)\n", ms.clips[k].name, ms.clips[k].duration, ms.clips[k].nchannels);
         if (!strcmp(argv[i], "--clip"))
             for (u32 k = 0; k < ms.nclips; k++) if (!strcmp(ms.clips[k].name, argv[i + 1])) {
                 const ak_anim_clip *c = &ms.clips[k];

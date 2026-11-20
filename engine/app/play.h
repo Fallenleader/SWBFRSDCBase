@@ -162,7 +162,7 @@ typedef struct {
     f32 sense_mult; u32 sense_every, frame_no;   /* the bots' sight: range multiplier, run every n frames (1: every frame) */
     ak_conquest_map cq; bool have_cq; int team;   /* command posts; the soldier's team (0 = team 1) */
     ak_cq_rules rules; ak_conquest match; int team_faction[2];
-    ak_ctf_map ctf_map; ak_ctf ctf; bool have_ctf; s32 flag_model[AK_CTF_MAX];   /* capture the flag (AK_MODE CTF1 / CTF2 / HCTF) */
+    ak_ctf_map ctf_map; ak_ctf ctf; bool have_ctf; s32 flag_model[AK_CTF_MAX], flag_clip[2];   /* flag_clip: flag_Flapping, flag_Flapping_Backattch */   /* capture the flag (AK_MODE CTF1 / CTF2 / HCTF) */
     f32 health, max_health, dead_t; bool alive;
     f32 scale;                         /* soldiers' size relative to the world (AK_SOLDIER_SCALE) */
     f32 clock;                         /* seconds of play (spinning logos) */

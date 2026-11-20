@@ -518,7 +518,12 @@ textures and how they are used. Section R lists only what must be in place so th
     jump 8, land 10, fall 12), the deaths (21-23) and rolls (24-27) from the set, the shoot layer from the alert set's column 1 and
     a reload layer from column 2 while reloading.  Pistols and launchers now hold their own poses.  Open: crouching (no crouch in
     Aurek), the idle variations (rows 18 / 19), hit reactions (13-16), death 20 (front), the layers' blend rules.
-- [ ] **6.2 Skinning [missing].** v2 meshes (Taun-Taun, Vader, the cone, flags) are drawn rigid in the bind pose.
+- [x] **6.2 Skinning [missing].** v2 meshes (Taun-Taun, Vader, the cone, flags) are drawn rigid in the bind pose.
+  - Done 2026-11-19: the weighted meshes have been skinned since 1.8 (render/ak_scene.c draw_skinned); what was missing was their
+    motion.  The CTF flags now flap (flag_Flapping, flag_Flapping_Backattch while carried).  Creatures (the Taun-Taun) play their
+    blueprint's clips by the game's rule (089B4898 / 089B47F8): forward speed above 10 runs, above 1 walks, below -10 / -1 runs /
+    walks back, else a turn faster than 0.05 rad/s plays the turn clip, else AnimLanded; the clip runs at speed x 0.11 (turns:
+    rate x 0.75).  Open: the 1 s blend between creature clips, AnimFidget, the creature deaths; the cone's capture clip is 6.4.
 - [ ] **6.3 Death animations and ragdoll.** The death clips. After death the body has gravity on (08993D38): trace what it does next.
 - [ ] **6.4 Command post cone [assumed].** Its capture animation and the logo height (1.25 m is an estimate).
 - [ ] **6.5 Heroes [missing].** Saber combos, blocking, force powers, saber throw. Blaster heroes' own tables.

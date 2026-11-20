@@ -397,6 +397,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         ak_ctf_start(&p->ctf_map, &p->ctf);
         /* each flag's model (089F84D4): its side's faction, blue when it is the player's side, red otherwise; neutral_flag */
         static const u32 own[4] = { 0x3D7C732Au, 0x95314C5Bu, 0x9EA8D745u, 0x5F017962u }, foe[4] = { 0xF177DBC1u, 0x2E1A9870u, 0x4F710846u, 0x349D2E89u };
+        {   const char *c0[2] = { "flag_Flapping", NULL }, *c1[2] = { "flag_Flapping_Backattch", NULL };
+            p->flag_clip[0] = find_clip(m, c0); p->flag_clip[1] = find_clip(m, c1); }
         for (u32 f = 0; f < p->ctf_map.nflags; f++) {
             int sd = p->ctf_map.flag[f].side, fac = sd <= 1 ? p->team_faction[sd] : -1;
             u32 h = fac >= 0 && fac < 4 ? (sd == p->team ? own[fac] : foe[fac]) : 0xEC5B1EE4u;
@@ -2647,7 +2649,15 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         const ak_ctf_flag *fl = &p->ctf.flag[f]; if (!fl->present || p->flag_model[f] < 0) continue;
         f32 M[12] = { 1, 0, 0, fl->pos[0],  0, 1, 0, fl->pos[1],  0, 0, 1, fl->pos[2] };
         if (fl->carrier >= 0) M[7] += 1.0f;   /* [PARITY(5.4) assumed: the game hangs it on the carrier's bone 0x7E779B80, not mapped yet] */
-        draw_part(ms, p->flag_model[f], M, vp, st);
+        /* skinned (v2, 4 bones), flapping: its own clip, the back-attached one while carried (PARITY 6.2) */
+        const ak_model *fm = &m->models[p->flag_model[f]]; static f32 fb[8][12]; static ak_quat lq[8]; static f32 lt[8][3];
+        s32 fc = p->flag_clip[fl->carrier >= 0 ? 1 : 0]; if (fc < 0) fc = p->flag_clip[0];
+        if (fm->skeleton >= 0 && m->skels[fm->skeleton].nbones <= 8 && fc >= 0) {
+            const ak_skeleton *sk = &m->skels[fm->skeleton];
+            ak_anim_sample(&m->clips[fc], sk, p->clock, true, lq, lt); ak_skeleton_pose_matrices(sk, lq, (const f32 (*)[3])lt, fb);
+            ak_m4 w = { { M[0], M[4], M[8], 0,  M[1], M[5], M[9], 0,  M[2], M[6], M[10], 0,  M[3], M[7], M[11], 1 } };
+            ak_scene_models_draw(ms, (u32)p->flag_model[f], vp, &w, (const f32 (*)[12])fb, NULL, st);
+        } else draw_part(ms, p->flag_model[f], M, vp, st);
     }
     static ak_vtx bv[(AK_MAX_BOLTS + AK_MAX_IMPACTS + AK_MAX_POSTS + PLAY_MAX_BOOMS + 4) * AK_BEAM_VERTS];
     ak_gfx_set_transform(NULL);

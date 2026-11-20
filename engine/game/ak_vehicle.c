@@ -77,6 +77,14 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     const char *tt = ak_bp_string(o, "tank_type", "hover_tank");
     d->kind = flyer ? AK_VEH_FLYER : walker ? AK_VEH_WALKER : !strcmp(tt, "speeder_bike") ? AK_VEH_SPEEDER : !strcmp(tt, "track_tank") ? AK_VEH_TRACK : !strcmp(tt, "creature_tank") ? AK_VEH_CREATURE : AK_VEH_HOVER;
     d->clip_walk = d->clip_idle = d->clip_death = d->clip_flight = d->clip_landed = -1;
+    for (int k = 0; k < 8; k++) d->cclip[k] = -1;
+    {   /* a creature's clips (its blueprint's Anim* paths; the clip is the file's name) */
+        static const char *ck[8] = { "AnimLanded", "AnimWalk", "AnimRun", "AnimWalkBack", "AnimRunBack", NULL, "AnimLeftTurn", "AnimRightTurn" };
+        for (int k = 0; k < 8; k++) if (ck[k]) {
+            const char *v = ak_bp_string(o, ck[k], ""), *b = strrchr(v, '\\'); char nm[96]; b = b ? b + 1 : v;
+            snprintf(nm, sizeof nm, "%s", b); char *dot = strrchr(nm, '.'); if (dot) *dot = 0;
+            d->cclip[k] = *nm ? find_clip(m, nm) : -1;
+        } }
     if (flyer) {
         d->flyer_type = ak_flyer_type(ak_bp_string(o, "Flyer_Type", ""));
         d->cruise = ak_bp_float(o, "CruisingSpeed", 85); d->pitch_rate = ak_bp_float(o, "MaxTurnPitch", 80) * DEG;
@@ -613,6 +621,19 @@ void ak_vehicle_pose(ak_vehicle *v, const ak_model_set *m, f32 dt)
         v->anim_t += dt * rate;
     }
     if (d->kind == AK_VEH_FLYER) { clip = v->flying ? d->clip_flight : d->clip_landed; loop = false; if (clip != v->clip) v->anim_t = 0; v->anim_t += dt; }
+    if (d->kind == AK_VEH_CREATURE && v->alive) {
+        /* the creature's clip (PARITY 6.2; 089B4898 / 089B47F8): its forward speed above 10 runs, above 1 walks, below -10 runs back,
+           below -1 walks back; else turning faster than 0.05 rad/s plays the turn clip; else AnimLanded.  The clip advances at
+           speed x 0.11 (walking and running; backwards the same with the sign turned), the turn rate x 0.75, the rest at 1.
+           (The game's yaw rate is of its y-down axes: its left is Aurek's positive.)  Not ported: the 1 s blend between clips
+           (089C8FD4), AnimFidget, the deaths (AnimLeftDeath / AnimRightDeath). */
+        f32 sy = sinf(v->yaw), cy = cosf(v->yaw), fwd = -sy * v->vel[0] - cy * v->vel[2], yr = v->yaw_rate, rate = 1;
+        int st = fwd > 10 ? 2 : fwd > 1 ? 1 : fwd < -10 ? 4 : fwd < -1 ? 3 : yr > 0.05f ? 6 : yr < -0.05f ? 7 : 0;
+        if (st != v->cstate) { v->cstate = st; v->anim_t = 0; }
+        rate = st == 1 || st == 2 ? fwd * 0.11f : st == 3 || st == 4 ? -fwd * 0.11f : st == 6 || st == 7 ? fabsf(yr) * 0.75f : 1.0f;
+        clip = d->cclip[st] >= 0 ? d->cclip[st] : d->cclip[0];
+        v->anim_t += dt * rate;
+    }
     v->clip = clip;
 sample:;
     static ak_quat q[64]; static f32 t[64][3];

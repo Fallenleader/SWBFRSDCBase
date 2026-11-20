@@ -40,6 +40,7 @@ typedef struct {
     /* walkers ("Walker" blueprints: AT-ST, AT-AT, AT-RT, AT-TE, spider walker): no root motion in their clips, so the walking
      * speed is measured from the walk loop itself - how fast a planted foot slides back (AT-ST 4.9 m/s, AT-AT 2.0 m/s) */
     s32 clip_walk, clip_idle, clip_death; f32 walk_speed, sprint_scale; bool drivable;
+    s32 cclip[8];                      /* creatures (089B4898): 0 AnimLanded, 1 walk, 2 run, 3 walk back, 4 run back, 6 / 7 left / right turn; -1 none */
     /* the walk's clips and their root speeds (|root velocity| across the ground, per key segment): idle_to_leftfoot, the walk
        loop, leftfoot_to_idle, rightfoot_to_idle */
     s32 clip_wstart, clip_wstop_l, clip_wstop_r;
@@ -73,6 +74,7 @@ typedef struct {
     f32 anim_t; s32 clip; bool posed; f32 bones[64][12];   /* the pose (walkers walk; the rest hold their bind pose) */
     bool flying, crashed; f32 speed, takeoff; bool brake;  /* flyers */
     f32 pitch_rate, roll_vel, takeoff_y0, lvel[3]; bool takeoff_req, fast, r_was, boosting, free_flight; f32 r_tap_t, level_t;   /* flyers: lvel = the velocity in the craft's frame (right, up, ahead) */
+    int cstate;                        /* creatures: the clip state (089B47F8) */
     int walk_state; f32 walk_t, in_clock; u32 in_head; f32 in_hist[64][3];   /* walkers: the walk's phase, the delayed controls */          /* flyers: the pitch rate (its dynamics as the yaw's), lift-off base, R pressed */
 } ak_vehicle;
 
