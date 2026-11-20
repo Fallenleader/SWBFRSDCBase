@@ -133,6 +133,7 @@ void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *vp, ak_scene_stats *st)
 bool ak_scene_models_init(ak_scene_models *s, const ak_model_set *set, const ak_scene_level *level, ak_arena *a)
 {
     memset(s, 0, sizeof *s); s->set = set; s->level = level;
+    if (level && level->level) { ak_light_sample *ls; s->nlight = ak_level_light_samples(level->level, a, &ls); s->light = ls; }
     u32 nv = 0, ni = 0;
     for (u32 i = 0; i < set->nmodels; i++) { nv += set->models[i].nvtx; ni += set->models[i].nidx; }
     s->index_base = AK_NEW(a, u32, set->nmodels ? set->nmodels : 1);
@@ -183,7 +184,46 @@ static ak_gfx_tex *coloured(ak_scene_models *s, s32 ti, const ak_model_colours *
 static int g_force_pipe = -1;
 void ak_scene_force_pipe(int pipe) { g_force_pipe = pipe; }
 
-static void draw_skinned(ak_scene_models *s, const ak_model *m, const ak_m4 *vw, const f32 (*bones)[12], const ak_model_colours *colours, ak_scene_stats *st)
+
+/* the light at a point: the game keeps its samples packed and lights each object from them (the per-object light set 0889C91C, GE
+ * lights 0890452C: ambient plus one directional light per colour channel, |dir| its strength, clamped to 1).  How it weighs the
+ * samples is not traced yet: here the four nearest, by inverse squared distance [PARITY(R.1)] */
+bool ak_scene_light_at(const ak_scene_models *s, const f32 *pos, f32 out[12])
+{
+    if (!s->nlight || !ak_setting_int("AK_LIGHT", 1)) return false;
+    s32 best[4] = { -1, -1, -1, -1 }; f32 bd[4] = { 1e30f, 1e30f, 1e30f, 1e30f };
+    for (u32 i = 0; i < s->nlight; i++) {
+        const f32 *q = s->light[i].pos; f32 dx = q[0] - pos[0], dy = q[1] - pos[1], dz = q[2] - pos[2], d = dx * dx + dy * dy + dz * dz;
+        for (int k = 0; k < 4; k++) if (d < bd[k]) { for (int j = 3; j > k; j--) { bd[j] = bd[j - 1]; best[j] = best[j - 1]; } bd[k] = d; best[k] = (s32)i; break; }
+    }
+    memset(out, 0, 12 * sizeof *out); f32 wsum = 0;
+    for (int k = 0; k < 4; k++) {
+        if (best[k] < 0) continue;
+        const ak_light_sample *l = &s->light[best[k]]; f32 w = 1.0f / (bd[k] + 1.0f); wsum += w;
+        for (int c = 0; c < 3; c++) { out[c] += w * l->amb[c]; for (int a = 0; a < 3; a++) out[3 + c * 3 + a] += w * l->dir[c][a]; }
+    }
+    if (wsum <= 0) return false;
+    for (int i = 0; i < 12; i++) out[i] /= wsum;
+    for (int c = 0; c < 3; c++) {                                  /* (0890452C: each strength clamped to 1) */
+        f32 *d = &out[3 + c * 3]; f32 len = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        if (len > 1.0f) { d[0] /= len; d[1] /= len; d[2] /= len; }
+        if (out[c] > 1.0f) out[c] = 1.0f;
+    }
+    return true;
+}
+/* the light in a draw's model space: the directions turned by the inverse of the model's rotation (columns of m) */
+static void light_local(const f32 world_sh[12], const ak_m4 *m, f32 out[12])
+{
+    memcpy(out, world_sh, 3 * sizeof *out);
+    for (int c = 0; c < 3; c++) {
+        const f32 *d = &world_sh[3 + c * 3];
+        for (int a = 0; a < 3; a++) {
+            f32 cx = m->m[a * 4], cy = m->m[a * 4 + 1], cz = m->m[a * 4 + 2], l = sqrtf(cx * cx + cy * cy + cz * cz); if (l < 1e-6f) l = 1;
+            out[3 + c * 3 + a] = (d[0] * cx + d[1] * cy + d[2] * cz) / l;
+        }
+    }
+}
+static void draw_skinned(ak_scene_models *s, const ak_model *m, const ak_m4 *vw, const ak_m4 *world, const f32 (*bones)[12], const ak_model_colours *colours, ak_scene_stats *st)
 {
     static f32 K[256][12]; static ak_vtx *sv, *tri; static u32 svcap, tricap;
     const ak_skeleton *sk = &s->set->skels[m->skeleton];
@@ -217,6 +257,7 @@ static void draw_skinned(ak_scene_models *s, const ak_model *m, const ak_m4 *vw,
         for (int r = 0; r < 3; r++) { f32 q = n[r] * 127.0f; sv[i].nrm[r] = (s8)(q < -127 ? -127 : q > 127 ? 127 : q); }
     }
     ak_gfx_set_cull(false); ak_gfx_set_transform(vw);
+    {   f32 L[12], ll[12]; if (world && g_force_pipe < 0 && ak_scene_light_at(s, &world->m[12], L)) { light_local(L, world, ll); ak_gfx_set_light(ll); } }
     for (int pass = 0; pass < 2; pass++)
         for (u32 p = 0; p < m->nparts; p++) {
             const ak_model_part *pt = &m->parts[p];
@@ -238,8 +279,9 @@ void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_
 {
     const ak_model *m = &s->set->models[mi];
     ak_m4 vw = ak_m4_mul(vp, world);
-    if (m->skin && bones && m->skeleton >= 0) { draw_skinned(s, m, &vw, bones, colours, st); return; }
+    if (m->skin && bones && m->skeleton >= 0) { draw_skinned(s, m, &vw, world, bones, colours, st); ak_gfx_set_light(NULL); return; }
     ak_gfx_set_cull(false);
+    f32 L[12]; bool lit = world && ak_scene_light_at(s, &world->m[12], L);
     for (int pass = 0; pass < 2; pass++)                      /* opaque and cutout parts first, blended after */
         for (u32 p = 0; p < m->nparts; p++) {
             const ak_model_part *pt = &m->parts[p];
@@ -254,11 +296,12 @@ void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_
                 memcpy(bm.m, c, sizeof c);
             } else { memset(&bm, 0, sizeof bm); bm.m[0] = bm.m[5] = bm.m[10] = bm.m[15] = 1; }
             ak_m4 mvp = ak_m4_mul(&vw, &bm);
-            ak_gfx_set_transform(&mvp);
+            ak_gfx_set_transform(&mvp); if (g_force_pipe >= 0 || pipe == AK_PIPE_ADD) ak_gfx_set_light(NULL);
+            if (lit && g_force_pipe < 0 && pipe != AK_PIPE_ADD) { ak_m4 wm = ak_m4_mul(world, &bm); f32 ll[12]; light_local(L, &wm, ll); ak_gfx_set_light(ll); }
             ak_gfx_tex *gt = pt->texture < 0 ? NULL : colours && s->masked[pt->texture] ? coloured(s, pt->texture, colours) : s->level->tex[pt->texture];
             ak_gfx_draw(pipe, gt, s->vb, s->ib, s->index_base[mi] + pt->first, pt->count);
             if (st) { st->draws++; st->tris += pt->count / 3; }
         }
-    ak_gfx_set_transform(NULL);
+    ak_gfx_set_transform(NULL); ak_gfx_set_light(NULL);
     ak_gfx_set_cull(true);
 }

@@ -30,6 +30,7 @@ typedef struct {
     u32 *index_base;           /* per model: its first index in ib (indices are rebased to the shared vertex buffer) */
     u8 *masked;                /* per level texture: has a personalisation colour mask */
     struct { s32 tex; u32 c1, c2; ak_gfx_tex *gt; } *variant; u32 nvariant, cap_variant;
+    const ak_light_sample *light; u32 nlight;   /* the level's light samples (GISN): models are lit from them (R.1); none = unlit */
 } ak_scene_models;
 /* personalisation colours of one drawn model (0xRRGGBB), or NULL for the texture as stored */
 typedef struct { u32 colour1, colour2; } ak_model_colours;
@@ -38,6 +39,8 @@ void ak_scene_models_free(ak_scene_models *s);
 /* bones: model-space 3x4 matrix per bone (ak_skeleton_bind_matrices, or an animated pose); NULL = parts at the model origin */
 /* every part of the model draws that follow with this pipeline (-1: each part's own) - holograms drawn as light */
 void ak_scene_force_pipe(int pipe);
+/* the game's object light at a point (engine axes): out = ambient rgb, then per channel a direction scaled by its strength (world) */
+bool ak_scene_light_at(const ak_scene_models *s, const f32 *pos, f32 out[12]);
 void ak_scene_models_draw(ak_scene_models *s, u32 model, const ak_m4 *view_proj, const ak_m4 *world, const f32 (*bones)[12],
                           const ak_model_colours *colours, ak_scene_stats *st);
 #endif

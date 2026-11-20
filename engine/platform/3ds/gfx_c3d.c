@@ -196,6 +196,20 @@ static u16 push_mtx(const f32 *rows)
     if (nmtx == mtx_cap) { u32 c = mtx_cap ? mtx_cap * 2 : 256; void *p = realloc(mtx, sizeof *mtx * c); if (!p) return (u16)(nmtx - 1); mtx = (f32 (*)[16])p; mtx_cap = c; }
     memcpy(mtx[nmtx], rows, 64); return (u16)nmtx++;
 }
+
+/* object lighting (ak_gfx.h): this back end has no per-vertex lighting yet, so the light becomes a tint: the ambient plus half of
+ * each channel's directional part (an upward-facing average), against the models' vertex colour of 128 */
+static f32 user_tint_[4] = { 1, 1, 1, 1 }, light_f_[3] = { 1, 1, 1 };
+static void apply_tint_(void);
+void ak_gfx_set_light(const f32 *sh)
+{
+    for (int c = 0; c < 3; c++) {
+        if (!sh) { light_f_[c] = 1; continue; }
+        f32 d = sqrtf(sh[3 + c * 3] * sh[3 + c * 3] + sh[4 + c * 3] * sh[4 + c * 3] + sh[5 + c * 3] * sh[5 + c * 3]);
+        light_f_[c] = (sh[c] + 0.5f * d) * (255.0f / 128.0f);
+    }
+    apply_tint_();
+}
 static u16 push_tint(const f32 *c)
 {
     if (ntint && !memcmp(tints[ntint - 1], c, 16)) return (u16)(ntint - 1);
@@ -431,7 +445,7 @@ void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
     clear_rgba = (clear & 0xFF) << 24 | ((clear >> 8) & 0xFF) << 16 | ((clear >> 16) & 0xFF) << 8 | 0xFF;
     env_ = *env; fog_ramp(env->fog_rgb);
     ak_gfx_set_transform(vp); mtx_frame = cur_mtx;
-    f32 w[4] = { 1, 1, 1, 1 }; cur_tint = push_tint(w); cull_on = true;
+    f32 w[4] = { 1, 1, 1, 1 }; cur_tint = push_tint(w); cull_on = true; memcpy(user_tint_, w, sizeof w); light_f_[0] = light_f_[1] = light_f_[2] = 1;
 }
 void ak_gfx_set_cull(bool on) { cull_on = on; }
 void ak_gfx_set_transform(const ak_m4 *m)
@@ -440,7 +454,12 @@ void ak_gfx_set_transform(const ak_m4 *m)
     f32 r[16]; for (int a = 0; a < 4; a++) for (int b = 0; b < 4; b++) r[a * 4 + b] = m->m[b * 4 + a];
     cur_mtx = push_mtx(r);
 }
-void ak_gfx_set_tint(const f32 *rgba) { f32 w[4] = { 1, 1, 1, 1 }; cur_tint = push_tint(rgba ? rgba : w); }
+static void apply_tint_(void)
+{
+    f32 t[4] = { user_tint_[0] * light_f_[0], user_tint_[1] * light_f_[1], user_tint_[2] * light_f_[2], user_tint_[3] };
+    cur_tint = push_tint(t);
+}
+void ak_gfx_set_tint(const f32 *rgba) { f32 w[4] = { 1, 1, 1, 1 }; memcpy(user_tint_, rgba ? rgba : w, sizeof w); apply_tint_(); }
 
 void ak_gfx_draw(ak_pipe p, ak_gfx_tex *t, ak_gfx_buf *vb, ak_gfx_buf *ib, u32 first, u32 count)
 {

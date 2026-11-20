@@ -583,6 +583,18 @@ static void exec_draw(const u32 *payload){
           if (through && d->vsz == 10 && d->count <= 4) { const short *v = (const short *)vb; for (int i = 0; i < (int)d->count; i++) fprintf(stderr, "[GU]   uv %u,%u xy %d,%d\n", (unsigned short)v[i*5], (unsigned short)v[i*5+1], v[i*5+2], v[i*5+3]);
             fprintf(stderr, "[GU]   op=%d defc=%08x fix %06x %06x tfx=%d tcc=%d cpsm=%d csh=%d cm=%x cst=%d\n", X.bop, X.mat_amb | (X.mat_a << 24), X.bfixa, X.bfixb, X.tfx, X.tcc, X.cpsm, X.cshift, X.cmask, X.cstart); } } } }
 #endif
+#ifndef __vita__
+    { static int lg = -1; if (lg < 0) lg = getenv("RS_STATE_LOG") != 0;     /* RS_STATE_LOG: each new lighting / texture-function state of 3D draws */
+      if (lg && !through && ptype >= 3 && ptype <= 5) {
+        static u32 seen[512][8]; static int ns; u32 k[8] = { vt & ~(3u << 11), (u32)(X.tfx | X.tcc << 4 | X.frag2x << 20 | X.en[10] << 8 | X.colmat << 12 | (X.L[0].type & 3) << 16), X.amb, X.mat_amb, X.mat_dif, X.L[0].cd, X.L[0].ca, X.en[11] | X.en[12] << 1 | X.en[13] << 2 | X.en[14] << 3 };
+        int f = 0; for (int i = 0; i < ns && !f; i++) f = !memcmp(seen[i], k, sizeof k);
+        if (!f && ns < 512) { memcpy(seen[ns++], k, sizeof k); int o0[5]; vt_layout(vt, o0);
+          float cs[4] = {0}; int nc = 0; if (o0[1] >= 0) for (int i = 0; i < (int)d->nvert && i < 256; i++) { rawv_t r; decode_vertex(vt, vb + (size_t)i * d->vsz, o0, &r); if (r.hascol) { for (int c = 0; c < 4; c++) cs[c] += r.col[c]; nc++; } }
+          extern volatile int g_frames;
+          fprintf(stderr, "[STATE] %d vt=%06x tfx=%d tcc=%d dbl=%d light=%d colmat=%d L0type=%d lights=%x amb=%06x mamb=%06x mdif=%06x L0d=%06x L0a=%06x vcol avg %.0f %.0f %.0f %.0f (%d)\n", g_frames, k[0], X.tfx, X.tcc, X.frag2x, X.en[10], X.colmat, X.L[0].type, k[7], X.amb, X.mat_amb, X.mat_dif, X.L[0].cd, X.L[0].ca,
+            nc ? cs[0] / nc : -1, nc ? cs[1] / nc : -1, nc ? cs[2] / nc : -1, nc ? cs[3] / nc : -1, nc);
+          if (X.en[10]) for (int l = 0; l < 4; l++) if (X.en[11 + l]) fprintf(stderr, "[STATE]   L%d type %d pos %.3f %.3f %.3f amb %06x dif %06x spe %06x\n", l, X.L[l].type, X.L[l].pos[0], X.L[l].pos[1], X.L[l].pos[2], X.L[l].ca, X.L[l].cd, X.L[l].cs); } } }
+#endif
     float defc[4] = {(float)(X.mat_amb & 255), (float)((X.mat_amb >> 8) & 255), (float)((X.mat_amb >> 16) & 255), (float)(X.mat_a & 255)};
     /* the renderer reads the PSP vertex format itself (triangles, strips, fans): native draw */
     if (ptype >= 3 && ptype <= 5 && !through && cull_draw(d, vb, ix, vt, off)) { st_culled++; return; }

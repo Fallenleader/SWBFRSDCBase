@@ -99,6 +99,12 @@ bool ak_level_load(const char *path, ak_arena *a, ak_level *out);       /* a fil
  * 2 more.  The game draws it from 0 to `end` (08903470: the GU fog from near 0 to far `end` in its colour); `start` is not used there. */
 typedef struct { bool on; f32 rgb[3], start, end; } ak_level_fog;
 bool ak_level_fog_read(const ak_level *l, ak_level_fog *out);
+/* The level's light samples (GISN, version 3; loader 08826244, kept packed in the game's light manager 0x08B2A7A4): u32 count,
+ * f32 base[12], f32 scale[12], one more word, then count x { f32 pos[3]; u32 r, g, b }.  Each channel word's bytes, high to low, are
+ * that channel's ambient and its direction x, y, z: value = base[c*4+k] + byte * scale[c*4+k].  The direction points toward the light
+ * and its length is the light's strength (Hoth: ambient ~0.3, up ~0.15).  Read here in engine axes. */
+typedef struct { f32 pos[3]; f32 amb[3]; f32 dir[3][3]; } ak_light_sample;
+u32 ak_level_light_samples(const ak_level *l, ak_arena *a, ak_light_sample **out);
 bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *out);  /* a file already read (ak_vfs) */
 s32  ak_level_find_texture(const ak_level *l, const char *name);
 

@@ -7,6 +7,7 @@
  * - Shaders are compiled at first start with the system Cg compiler (ur0:data/libshacccg.suprx, through vitaShaRK) and cached in
  *   ux0:data/Aurek/shaders.
  * - Triple-buffered display, paced by vblank when vsync is on. */
+#include <math.h>
 #include "../../render/ak_gfx.h"
 #include "../../render/ak_font.h"
 #include "../../core/ak_settings.h"
@@ -339,6 +340,20 @@ void ak_gfx_wait_idle(void) { sceGxmFinish(ctx); }
 
 static bool cull_on = true; static int cull_state = -1;
 static ak_m4 vp_t, frame_vp_t; static ak_gfx_env env_; static bool vp_dirty; static f32 tint_[4] = { 1, 1, 1, 1 }; static int cur_pipe; static ak_gfx_tex *cur_tex; static ak_gfx_buf *cur_vb;
+
+/* object lighting (ak_gfx.h): this back end has no per-vertex lighting yet, so the light becomes a tint: the ambient plus half of
+ * each channel's directional part (an upward-facing average), against the models' vertex colour of 128 */
+static f32 user_tint_[4] = { 1, 1, 1, 1 }, light_f_[3] = { 1, 1, 1 };
+static void apply_tint_(void);
+void ak_gfx_set_light(const f32 *sh)
+{
+    for (int c = 0; c < 3; c++) {
+        if (!sh) { light_f_[c] = 1; continue; }
+        f32 d = sqrtf(sh[3 + c * 3] * sh[3 + c * 3] + sh[4 + c * 3] * sh[4 + c * 3] + sh[5 + c * 3] * sh[5 + c * 3]);
+        light_f_[c] = (sh[c] + 0.5f * d) * (255.0f / 128.0f);
+    }
+    apply_tint_();
+}
 static ak_gfx_stats st; static u64 t_begin;
 
 static void *frame_alloc(size_t n, size_t a)
@@ -380,7 +395,7 @@ void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
     for (int r = 0; r < 4; r++) for (int c2 = 0; c2 < 4; c2++) vp_t.m[r * 4 + c2] = vp->m[c2 * 4 + r];
     frame_vp_t = vp_t; vp_dirty = false;
     env_ = *env; cur_pipe = -1; cur_tex = NULL; cur_vb = NULL;
-    tint_[0] = tint_[1] = tint_[2] = tint_[3] = 1;
+    tint_[0] = tint_[1] = tint_[2] = tint_[3] = 1; user_tint_[0] = user_tint_[1] = user_tint_[2] = user_tint_[3] = 1; light_f_[0] = light_f_[1] = light_f_[2] = 1;
 }
 
 void ak_gfx_set_cull(bool on) { cull_on = on; }
@@ -391,10 +406,15 @@ void ak_gfx_set_transform(const ak_m4 *mvp)
     vp_dirty = true;
 }
 
+static void apply_tint_(void)
+{
+    f32 t[4] = { user_tint_[0] * light_f_[0], user_tint_[1] * light_f_[1], user_tint_[2] * light_f_[2], user_tint_[3] };
+    if (memcmp(t, tint_, sizeof t)) { memcpy(tint_, t, sizeof t); vp_dirty = true; }
+}
 void ak_gfx_set_tint(const f32 *rgba)
 {
     f32 t[4] = { 1, 1, 1, 1 }; if (rgba) memcpy(t, rgba, sizeof t);
-    if (memcmp(t, tint_, sizeof t)) { memcpy(tint_, t, sizeof t); vp_dirty = true; }
+    memcpy(user_tint_, t, sizeof t); apply_tint_();
 }
 static void upload_vertex_uniforms(int pipe)
 {

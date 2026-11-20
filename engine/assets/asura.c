@@ -400,6 +400,32 @@ bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *l)
     return have_env && have_env_mtrl;
 }
 
+u32 ak_level_light_samples(const ak_level *l, ak_arena *a, ak_light_sample **out)
+{
+    *out = NULL;
+    ak_chunk c; u32 pos = 8;
+    while (ak_asura_next(&l->file, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('G', 'I', 'S', 'N') || c.version != 3 || c.size < 104) continue;
+        u32 n = ak_rd32(c.body); if (n > 65536 || 104 + (u64)n * 24 > c.size) return 0;
+        f32 base[12], scale[12];
+        for (int k = 0; k < 12; k++) { base[k] = ak_rdf32(c.body + 4 + 4 * k); scale[k] = ak_rdf32(c.body + 52 + 4 * k); }
+        ak_light_sample *s = (ak_light_sample *)ak_arena_alloc(a, sizeof *s * (n ? n : 1), 8); if (!s) return 0;
+        u32 m = 0;
+        for (u32 i = 0; i < n; i++) {
+            const u8 *q = c.body + 104 + 24 * i; f32 g[3] = { ak_rdf32(q), ak_rdf32(q + 4), ak_rdf32(q + 8) };
+            if (!q[12] && !q[13] && !q[14] && !q[15] && g[0] == 0 && g[1] == 0 && g[2] == 0) continue;   /* (the first entry is empty) */
+            ak_light_sample *o = &s[m++]; ak_from_game(g, o->pos);
+            for (int ch = 0; ch < 3; ch++) {
+                const u8 *w = q + 12 + 4 * ch; f32 v[4];
+                for (int k = 0; k < 4; k++) v[k] = base[ch * 4 + k] + (f32)w[3 - k] * scale[ch * 4 + k];
+                o->amb[ch] = v[0]; f32 dg[3] = { v[1], v[2], v[3] }; ak_from_game(dg, o->dir[ch]);
+            }
+        }
+        *out = s; return m;
+    }
+    return 0;
+}
+
 bool ak_level_fog_read(const ak_level *l, ak_level_fog *out)
 {
     memset(out, 0, sizeof *out);

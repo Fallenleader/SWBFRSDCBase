@@ -651,6 +651,20 @@ groundwork below is needed before the parity work starts. The tiers come later.
 ### Original look, traced first
 
 - [ ] **R.1 Level lighting.** Today it is approximated as vertex colour × 2. Read the game's own level lighting data.
+  - 2026-11-20, measured (harness RS_STATE_LOG: each new GE lighting / texture-function state with its lights): level geometry
+    draws with lighting on, its vertex colour as the material ambient, the scene ambient white and no lights, texture modulate
+    and colour doubling - so texture x vertex colour x 2 is the game's own rule, not an approximation. Models (no vertex colour)
+    draw lit: a scene ambient per object (Hoth ~0x4C4C49) plus three directional lights, one per colour channel (red only,
+    green only, blue only, ~0x29 each, nearly the same direction), doubled. The values come from the level's GISN chunk (loader
+    08826244, kept packed in the light manager 0x08B2A7A4): u32 count, base[12], scale[12], a word, then {pos, three words};
+    each channel word's bytes (high to low) are ambient, dir x, y, z = base + byte x scale - a first-order spherical harmonic
+    per channel (a Hoth sample: ambient 0.297, |dir| 0.141 - the GE values 0x4C and 0x24 seen in the log). 0890452C turns a
+    set into the GE lights (direction normalised, strength = length clamped to 1, x255). 0889B9E4 adds dynamic point lights
+    (60-byte records: position, radius, colour; 1 - d / r; ambient x 0.235, direction x 0.47) - none in the measured scene.
+  - Engine: asura.c reads GISN (ak_level_light_samples); ak_scene lights every model from it (ak_scene_light_at: ambient + per
+    channel max(0, n . dir), then the frame's doubling; the GL back end per vertex, Vita / 3DS as a tint for now);
+    holograms and additive parts stay unlit; AK_LIGHT=0 turns it off. Open: how the game weighs the samples for an object
+    (Aurek: the 4 nearest by inverse squared distance [PARITY(R.1)]), the dynamic lights, and per-vertex lighting on Vita / 3DS.
 - [x] **R.2 Fog.** The FOG values are read but not understood (Tatooine 11–75 m). Trace them.
   - Done 2026-11-19: the FOG chunk (loader 08825C9C) is flags (bit 0 on; space levels off), r, g, b, -, start, end, strength,
     sky strength, 2 more.  The game sets the GU fog from near 0 to far = end (08903470 - logged in the harness: Tatooine
