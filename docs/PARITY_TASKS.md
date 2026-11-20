@@ -223,6 +223,13 @@ textures and how they are used. Section R lists only what must be in place so th
     Aurek now too). Respawning 1 m from it with full health, the soldier's spare clips went 4 -> 5 within 10 frames (an ammo
     pickup?) while the pickup stayed 1.8 s more - not understood yet. The harness's health override is undone by the game
     within 10 frames (no use for testing health pickups).
+  - Traced 2026-11-20 (the pickup class 0x8015, vtable 0x08B112AC, update 089F90A0): with no taker yet it looks every 0.25 s
+    (0x08AEF488) - Health and HealthAmmo pickups only (089F912C) - through the unit list for one that is alive, not in a vehicle
+    (vfunc +0xA8), below its maximum health and within the radius (089F91A0 / 089F9408), whatever its side; Ammo and Stamina
+    pickups wait to be claimed by a unit's message 0x8072 (089F8D6C; never by the one that dropped it, +0x118). Taken, it sends
+    the taker message 0x8073 with a kind (Health 1, HealthAmmo 2, Ammo / Stamina 0; 089F8DD8): health becomes min(maximum, health
+    + the pickup's +0x104 - Capacity, in health points; 089F8F60); kinds 0 and 2 go on to the unit's weapons (088AC9B0, not
+    read). Aurek: health as traced; ammo and stamina still its own rule.
 - [ ] **2.3 Secondary items [partial].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
   incinerator, fusion cutter, shields, jetpack, jump pack, stealth. Trace each one's blueprint use.
   - Thermal detonator [measured and built 2026-11-16]: Weapon REP_Grenade (4, no spare clips, 2 s between throws), Projectile

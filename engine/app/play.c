@@ -2752,9 +2752,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (q->t >= d->timer + d->fade) { q->alive = false;   /* (measured: an untouched one lasts 10.7 s - Timer 10 + FadeTime 0.75) */ ride_fx(p, &q->fx, false, NULL, NULL, NULL, NULL); continue; }
         ride_fx(p, &q->fx, true, d->pfx, q->pos, NULL, NULL);
         if (q->t < d->delay) continue;
-        /* who takes it: the first soldier (any side) within EffectiveRadius who needs it [assumed: only what it lacks]; Health adds
-           Capacity health, Ammo Capacity per cent of the weapon's full ammunition (HealthAmmo: SecondaryCapacity), Stamina
-           Capacity stamina (the player's) [assumed units] */
+        /* who takes it: health ones (traced, 089F91A0 / 089F9408 / 089F8F60) the first unit of any side, alive, on foot, below its
+           maximum health and within EffectiveRadius - health + Capacity points, up to the maximum; Ammo (Capacity per cent of the
+           weapon's full ammunition; HealthAmmo SecondaryCapacity) and Stamina (Capacity stamina, the player's) [assumed: whoever
+           needs it - the original waits for a unit's claim, 0x8072, not read] */
         bool used = false;
         for (u32 u = 0; u < NS(p) && !used; u++) {
             ak_target *t = &p->target[u];
