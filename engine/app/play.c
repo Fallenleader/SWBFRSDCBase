@@ -2627,7 +2627,11 @@ void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *f
     if (p->zoom > 0 && p->wdef.bp) {                                          /* zoomed: the view narrows by the level's magnification */
         char k[24]; snprintf(k, sizeof k, "WZoomMagnification%d", p->zoom);
         f32 mag = ak_bp_float(p->wdef.bp, k, 1.0f);                         /* the game's camera: field of view / magnification (0x0896EC88) */
-        if (mag > 1.0f) *fovy /= mag;
+        if (mag > 1.0f) {   /* the game divides its "fov" (the angle across 480 x 272) and builds the projection from that:
+                               the height follows through the tangent (func_0896EC88: camera +144 / +104) */
+            f32 h = 2.0f * atanf(tanf(*fovy * 0.5f) * 480.0f / 272.0f) / mag;
+            *fovy = 2.0f * atanf(tanf(h * 0.5f) * 272.0f / 480.0f);
+        }
     }
 }
 

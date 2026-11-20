@@ -621,6 +621,11 @@ textures and how they are used. Section R lists only what must be in place so th
     (-0.2, 0.5, 7): the blueprint's "pull in close dist" 3. Running it draws out at ~1 m/s ("pull out rate"; +0.7 m in a 1 s
     run) and comes back in after a stop with a 0.75 s time constant. Aurek's classic camera (AK_CAM_STYLE=classic) does this
     (it sat at the 7 m desired offset before).
+  - 2026-11-20, zoom: the camera's field of view is "fov" / magnification (func_0896EC88: camera +144 / +104, read through
+    the camera's virtual 089DC988), the angle across the 480 x 272 screen; the height follows through the tangent. Aurek
+    divided its vertical angle; it now divides the horizontal one and converts (2x zoom: 30 degrees across, 17.1 high, not
+    18.1). The harness's default rifle has one zoom level at 1.0 (program `zoom`: the projection is unchanged), so a
+    sniper's magnified projection is not measured. Aurek's debug `AK_DEBUG_CAMPOS` logs the camera each frame.
 - [ ] **9.2 Vehicle cameras [partial].** CameraVelocityWeight and the "Min" values.
   - 2026-11-19: measured in the AT-ST (harness, RS_PROJ_LOG): the same projection as on foot (60 degrees across at 480 x 272,
     near 0.25, no far plane), so vehicles share the soldier's field of view.
