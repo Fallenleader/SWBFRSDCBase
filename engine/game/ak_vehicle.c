@@ -399,6 +399,7 @@ static void box_place(const ak_vehicle *v, f32 ctr[3], f32 ax[3][3], f32 h[3])
 
 static void box_body_step(ak_vehicle *v, const ak_collision *col, f32 gravity, f32 dt, f32 fx, f32 fz, f32 rx, f32 rz, f32 fwd)
 {
+    v->impact = 0;
     const ak_vehicle_def *d = v->def;
     if (!v->settled) {                                                       /* a new body: set down from 1 m up onto its lowest corner */
         v->settled = true; f32 ctr[3], ax[3][3], h[3], t, n[3], drop[3] = { 0, -3.0f, 0 }; u16 fl;
@@ -425,6 +426,7 @@ static void box_body_step(ak_vehicle *v, const ak_collision *col, f32 gravity, f
         if (n[1] >= 0.70710678f) { ground = true; memcpy(gn, n, 12); }
         f32 dm = move[0] * n[0] + move[1] * n[1] + move[2] * n[2], dv = v->vel[0] * n[0] + v->vel[1] * n[1] + v->vel[2] * n[2];
         if (dm < 0) for (int k = 0; k < 3; k++) move[k] -= n[k] * dm;
+        if (dv < 0 && n[1] < 0.70710678f && -dv > v->impact) v->impact = -dv;   /* (a wall: the speed into it - collision damage) */
         if (dv < 0) for (int k = 0; k < 3; k++) v->vel[k] -= n[k] * dv;
     }
     if (!ground && v->vel[1] <= 0.01f) {                                     /* resting just above it: a short probe keeps the footing */

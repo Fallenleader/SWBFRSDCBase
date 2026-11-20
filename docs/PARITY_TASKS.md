@@ -604,7 +604,7 @@ textures and how they are used. Section R lists only what must be in place so th
     vtable 0x08AFCBD0 -> 08AC4CD0); the factor (vfunc +500) 0.025 by default (08AC4C78), for flyers 089B02E0: 0.05 in free
     flight (+852 bit 0) unless +852 bit 1, else 0.025. Ported for flyers: a glancing touch's speed into the surface is the
     impact; at 5 m/s or more the craft takes max health x impact x dt x the factor and plays its "Collision Sound" once per
-    touch [assumed: +0x34 is the maximum health]. Ground vehicles' impacts (30 m/s) are not measured by Aurek's bodies yet.
+    touch [assumed: +0x34 is the maximum health]. Ground vehicles with box bodies (creatures, tracked tanks) measure the speed into a wall too (30 m/s threshold); hover and walkers (rays) do not.
 - [ ] **7.3 Speech [partial].** Trigger rules for every line category.
   - 2026-11-20: every Speech_* key's trigger found by its h31 hash in the code (the message 0x807F sender 089E3D2C, the
     narrator's 08A66150 / 08A6606C):
