@@ -45,6 +45,7 @@ typedef struct {
     f32 move_x, move_y; f32 look_x, look_y; bool jump, sprint;   /* move: right / forward, -1..1 */
     bool root; f32 root_vel[2];        /* on the ground, move with this velocity (forward, right m/s: the clips' root motion, ak_loco.h)
                                         * instead of the stick at a fixed speed */
+    f32 speed;                         /* > 0: the full stick's speed on the ground (the AI's wanted velocity), else the run speed */
 } ak_char_input;
 
 void ak_char_params_load(const ak_blueprints *bp, ak_char_params *out);

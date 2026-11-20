@@ -165,7 +165,7 @@ void ak_char_update(ak_character *c, const ak_char_params *p, const ak_collision
     f32 mx = in->move_x, my = in->move_y, ml = sqrtf(mx * mx + my * my);
     if (ml > 1) { mx /= ml; my /= ml; }
     if (c->on_ground) c->sprinting = in->sprint && my > 0.3f;                  /* (forward only; kept through a jump) */
-    f32 vmax = c->sprinting ? p->sprint_speed : p->run_speed;
+    f32 vmax = c->sprinting ? p->sprint_speed : in->speed > 0 ? in->speed : p->run_speed;
     f32 want[2] = { (fwd[0] * my + right[0] * mx) * vmax, (fwd[1] * my + right[1] * mx) * vmax };
     if (c->on_ground && in->root) {                                          /* the clips carry the body (ak_loco.h) */
         c->vel[0] = fwd[0] * in->root_vel[0] + right[0] * in->root_vel[1];

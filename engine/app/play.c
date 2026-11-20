@@ -1051,7 +1051,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         b->dead_t += dt;
         if (b->dead_t < 3.0f && poseable(m, &b->look)) pose(m, &b->look, b->death_clip, b->dead_t, false, b->bones);
         if (b->veh < 0 && b->dead_t < 5.0f) {                                  /* the body: stopped where it fell, gravity still on (PARITY 6.3) */
-            ak_char_input ci = { 0, 0, 0, 0, false, false, false, { 0, 0 } };
+            ak_char_input ci = { 0, 0, 0, 0, false, false, false, { 0, 0 }, 0 };
             b->ch.vel[0] = b->ch.vel[2] = 0; ak_char_update(&b->ch, &p->cp, &p->col, &ci, dt); }
         return;
     }
@@ -1104,8 +1104,13 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     f32 dyaw = wrap(face - b->ch.yaw), mx = p->cp.yaw_speed * dt;
     b->ch.yaw += dyaw > mx ? mx : dyaw < -mx ? -mx : dyaw;
     /* the stick: toward `want`, relative to the facing; slower and strafing in a fight */
-    ak_char_input ci = { 0, 0, 0, 0, false, false, false, { 0, 0 } };
+    ak_char_input ci = { 0, 0, 0, 0, false, false, false, { 0, 0 }, 0 };
     f32 speed = en && !saber ? 0.55f : 1.0f;
+    /* the path node's wanted speed (0893D4E8): 8.5 m/s (D_08AED88C); within 40 m (D_08AED890) of a unit of the list it scans - here
+       the player [assumed: 0x08C2A880 holds the local players] - 5.0 (D_08AED894), or 4.5 (D_08AED898) when the byte at 0x08C2932D
+       is set [not read: 5.0 here].  The measured AI ground speeds on Hoth: 0, 5.0, 8.5, 11.4-11.7 m/s. */
+    {   f32 px = p->ch.pos[0] - b->ch.pos[0], pz = p->ch.pos[2] - b->ch.pos[2];
+        ci.speed = p->alive && px * px + pz * pz < 40.0f * 40.0f ? 5.0f : 8.5f; }
     f32 rx = cosf(b->ch.yaw), rz = -sinf(b->ch.yaw), fx = -sinf(b->ch.yaw), fz = -cosf(b->ch.yaw);
     if (moving) { ci.move_x = (mdx * rx + mdz * rz) * speed; ci.move_y = (mdx * fx + mdz * fz) * speed; }
     if (en && !saber) {
@@ -2158,7 +2163,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (p->in_veh >= 0) in = &none;                                           /* the soldier stands still inside */
     static ak_input manned; if (p->in_turret >= 0) { manned = *in; manned.lx = manned.ly = 0; manned.pressed &= ~AK_BTN_CROSS; in = &manned; }   /* a gunner aims only */
     /* the soldier's pitch is positive looking down (the camera uses -pitch): stick up looks up unless AK_INVERT_Y */
-    ak_char_input ci = { in->lx, in->ly, in->rx, p->invert_y ? in->ry : -in->ry, (in->pressed & AK_BTN_CROSS) != 0, p->sprint && p->in_turret < 0, false, { 0, 0 } };
+    ak_char_input ci = { in->lx, in->ly, in->rx, p->invert_y ? in->ry : -in->ry, (in->pressed & AK_BTN_CROSS) != 0, p->sprint && p->in_turret < 0, false, { 0, 0 }, 0 };
     if (p->twin_stick) {
         /* free aim with a response curve (fine near the centre, fast at the edge); the body turns with the aim */
         f32 ax = in->rx, ay = p->invert_y ? in->ry : -in->ry;

@@ -440,6 +440,11 @@ textures and how they are used. Section R lists only what must be in place so th
     ctl +72 that 0899984C steers by); within 1.0 m (D_08AED884) the next point is taken, past the last the node ends (+0x20 =
     0xFFFF). 0893E014 (avoidance among nearby units, VFPU) not read. Aurek: its nodes are taken within 1 m (was 2 m); the 8.5 is
     a wanted velocity whose turn into speed (the measured 0 / 5.0 / 8.5 / 11.5 m/s) is still not found.
+  - 2026-11-20, the node's speed: 8.5 (D_08AED88C), but 5.0 (D_08AED894) when a unit of the list it scans (0x08C2A880, by
+    08ABC44C) is within 40 m (D_08AED890) and 0x08C29B58 is 1 - 4.5 (D_08AED898) when the byte 0x08C2932D is set. Matches the
+    measured 8.5 / 5.0 modes. Ported (ak_char_input.speed): bots on a path run at 8.5 m/s, 5.0 within 40 m of the player
+    [assumed: the list is the local players; the 4.5 case not taken]; Aurek's own 0.55 in a fight stays (PARITY(4.4)). Hoth,
+    60 s: captures 0 -> 2 against the old 6 m/s. Open: what the 11.5 is (a sprint state), the avoidance (0893E014).
 - [ ] **4.5 Bot counts per mode and level [partly measured].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source
