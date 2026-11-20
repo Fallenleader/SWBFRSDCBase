@@ -1669,7 +1669,11 @@ static bool stamina_pay(ak_play *p, f32 cost)
     p->stamina -= cost; return true;
 }
 
-static void proj_boom(void *ctx, const f32 *pos, f32 radius, const ak_proj_def *d) { (void)radius; boom_fx((ak_play *)ctx, pos, d ? d->explosion_pfx : NULL); }
+static void proj_boom(void *ctx, const f32 *pos, f32 radius, const ak_proj_def *d)
+{
+    (void)radius; boom_fx((ak_play *)ctx, pos, d ? d->explosion_pfx : NULL);
+    if (ak_setting_int("AK_LOG_GRENADES", 0)) AK_INFO("play", "explosion at %.1f %.1f %.1f", pos[0], pos[1], pos[2]);
+}
 
 /* ------------------------------------------------------------------ bots in vehicles */
 #define FLY_RAYS AK_COL_FLYER_MASK
@@ -2462,6 +2466,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             f32 at[3] = { p->ch.pos[0] + fx * 1.0f * S, p->ch.pos[1] + 2.1f * S, p->ch.pos[2] + fz * 1.0f * S };
             f32 v[3] = { fx * 20.4f, 1.19f, fz * 20.4f };   /* [PARITY(2.3b): measured; VerticalThrowSpeed is 2.5, ProjectileSpeed 10] */
             ak_proj_throw(&p->projs, &p->gren_def, at, v, p->team, 0, 8.0f / 60.0f);
+            if (ak_setting_int("AK_LOG_GRENADES", 0)) AK_INFO("play", "player throws at %.1f %.1f %.1f", at[0], at[1], at[2]);
             p->gren_t = -1;
         }
     }

@@ -250,8 +250,9 @@ textures and how they are used. Section R lists only what must be in place so th
     while moving, and the other explosives and items.
   - 2026-11-20, the other explosives: the Projectile loader 08A01590 reads WillDetonateAT +0x94, Detonation_Height +0xB0,
     ChildProjectiles +0xB4, ChildSpeed +0xB8, AmmountOfSplay +0xBC, DispersionDistance +0xC0, NumberOfChildren +0xC4,
-    ProximityExplodeDelay +0xF0. The cluster burst is traced (08A02464; NATIVE_ENGINE row). [ ] 2.3c: the mine's trigger
-    (which code reads +0x94 / +0xF0: not found from 08A189F0 / 08A1A77C), the det pack's detonation input, Detonation_Height's
+    ProximityExplodeDelay +0xF0. The cluster burst is traced (08A02464; NATIVE_ENGINE row). The mine's trigger is traced
+    (2026-11-20: the unit update 089E1890 -> 08A02228: within +0x94 of a living unit that did not lay it, once its age +216 is
+    past +0xF0 - an arming delay, no team test; built). [ ] 2.3c: the det pack's detonation input, Detonation_Height's
     use, how mines and det packs are placed (the "place" animations), and the items row (dispenser, auto turret, recon droid,
     stealth, jetpack, jump pack, shield).
   - [ ] **2.3d** Bots' explosives [traced 2026-11-20, built]: 0893F1A8 -> 08940C7C -> 0893679C. Chance 1 - (1 - k)^dt a frame,

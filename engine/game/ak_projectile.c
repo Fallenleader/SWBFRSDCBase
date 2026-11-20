@@ -180,15 +180,17 @@ void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *tg, u32 n
                 for (int k = 0; k < 3; k++) p->vel[k] = cur[k] / cl * sp;
             }
         }
-        if (p->stuck && d->prox > 0) {                                        /* a mine: an enemy within WillDetonateAT starts ProximityExplodeDelay [assumed reading] */
-            if (p->prox_t < 0)
+        if (d->prox > 0) {
+            /* a mine (traced: each living unit's update 089E1890 walks the mines; one within WillDetonateAT of the unit's position
+               calls 08A02228, which sets it off when the unit is not the one that laid it (+156) and the mine's age (+216) is past
+               ProximityExplodeDelay (+240) - an arming time; either side, no team test) [assumed: vehicles the same, by position] */
+            if (p->t > d->prox_delay)
                 for (u32 k = 0; k < nt; k++) {
-                    const ak_target *t = &tg[k]; if (!t->alive || t->team == p->team) continue;
-                    f32 dx = t->feet[0] - p->pos[0], dy = t->feet[1] + t->height * 0.5f - p->pos[1], dz = t->feet[2] - p->pos[2];
-                    f32 rr = d->prox + (t->vehicle ? t->radius : 0);
-                    if (dx * dx + dy * dy + dz * dz < rr * rr) { p->prox_t = 0; break; }
+                    const ak_target *t = &tg[k]; if (!t->alive || t->health <= 0 || (s32)k == p->owner) continue;
+                    f32 dx = t->feet[0] - p->pos[0], dy = t->feet[1] - p->pos[1], dz = t->feet[2] - p->pos[2];
+                    if (dx * dx + dy * dy + dz * dz < d->prox * d->prox) { p->prox_t = 0; break; }
                 }
-            else if ((p->prox_t += dt) >= d->prox_delay) { explode(ps, p, tg, nt, boom, ctx, col); continue; }
+            if (p->prox_t >= 0) { explode(ps, p, tg, nt, boom, ctx, col); continue; }
         }
         if (p->stuck) continue;                                               /* (resting where it landed, waiting for its timer) */
         if (d->gravity) p->vel[1] -= gravity * dt;
