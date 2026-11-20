@@ -412,6 +412,13 @@ textures and how they are used. Section R lists only what must be in place so th
   decisions.
   - Measured (1.4): AI soldiers' speeds come from the AI controller (soldier +88 -> +72), not the clips: 5.0, 7.4, 8.5, 11.5
     m/s seen on Hoth, changing every ~6 frames. Trace where they come from.
+  - 2026-11-19: the AI soldiers' controller (soldier +88) is one class for every bot, vtable 0x08B04798 (built by 089DE870,
+    +72 a vector set to zero there).  The soldier update (0899530C) hands ctl +72 to the soldier's vfunc +484 (0899984C) while
+    the controller block's flags (+56 -> +112) have bit 16 clear - the bots' case (flags read 0 on Hoth): 0899984C takes it as
+    the wanted move direction (x, z; under a small length the soldier stops, vfunc +488) and turns the soldier toward it.
+    The speed is set elsewhere (not found yet).  Harness (RS_DRIVE_AICTL=1, Hoth, 600 frames, positions every 1/6 s): bot
+    ground speeds are 0 (31 %), 5.0 (28 %), 8.5 (26 %) and 11.4-11.7 (21 %) m/s, 7.4 rare.  The movement node 0893D4E8 (one of
+    the four node types) uses 8.5 / 40 / 5.0 (D_08AED88C..94) - next to read.
 - [ ] **4.5 Bot counts per mode and level [partly measured].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source

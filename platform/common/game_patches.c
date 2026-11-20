@@ -269,6 +269,11 @@ void rs_drive_report(FILE *f){
                             if (gok(c2) && gok(GU32(c2))) fprintf(f, " b{vt %08x %08x %08x}", GU32(c2), GU32(c2 + 12), GU32(c2 + 16));
                             fprintf(f, "}"); b = GU32(b + 8); }
                         fprintf(f, "\n"); } } } }
+        if (cls == 0x8005 && getenv("RS_DRIVE_AICTL")) {   /* a bot's AI controller (soldier +88): its vtable, the wanted speed +72, its first words */
+            u32 c = GU32(o + 88);
+            if (!gok(c)) fprintf(f, "aictl %x raw %08x\n", GU32(info + 4), c);
+            if (gok(c) && gok(GU32(c))) { u32 blk = GU32(c + 56); fprintf(f, "aictl %x ctl %x vt %x svt %x s240 %x flags %08x vel %.3f %.3f %.3f w", GU32(info + 4), c, GU32(c), GU32(o), GU32(GU32(o) + 240), gok(blk) ? GU32(blk + 112) : 0, GF32(c + 72), GF32(c + 76), GF32(c + 80));
+                for (u32 k = 0; k < 0x80; k += 4) fprintf(f, " %08x", GU32(c + k)); fprintf(f, "\n"); } }
         if (cls == 0x8005 && getenv("RS_DRIVE_OBJ")) {   /* soldier objects, raw (finding fields) */
             fprintf(f, "pobj %x %x", GU32(info + 4), o); for (u32 k = 0; k < 0x600; k += 4) fprintf(f, " %08x", GU32(o + k)); fprintf(f, "\n"); }
         if (me && cls == 0x8005 && GU32(o + 92) == me && getenv("RS_DRIVE_BODY")) {   /* the player's physics body (soldier +40 -> +12), raw */
