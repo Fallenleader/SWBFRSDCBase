@@ -121,7 +121,7 @@ AK_BOT_BODY=1
 AK_AUDIO=1
 # effects and music volume, 0 .. 1
 AK_SFX_VOLUME=1.0
-AK_MUSIC_VOLUME=0.6
+AK_MUSIC_VOLUME=0.5625
 # the match music is the level script's pick, as the game does it: one of "OGM Music 1" / "OGM Music 2" and one of their three
 # loops, at random, for the whole match.  To force one instead: the list (OGM Music 1 or OGM Music 2) and its track (0, 1, 2)
 #AK_MUSIC_LIST=OGM Music 1

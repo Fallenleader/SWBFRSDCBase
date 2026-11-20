@@ -92,8 +92,10 @@ u32 ak_audio_bank_add(const ak_blob *f, bool level)
         /* f32 master; u32 n; n x { name, parent name, f32 volume, f32, f32, u32 }; u32 snapshots; each: name, u32 0, u32 n, n x { group
          * name, u32 hash, f32 volume, f32, f32, u32 } (func 0882D090) */
         u32 q = 4, n = ak_rd32(c.body + 4); q = 8; ngroups = 0; nsnaps = 0;
+        if (ak_setting_int("AK_DEBUG_AUDIO", 0)) AK_INFO("audio", "mixer master %.3f", rdf(c.body));
         for (u32 i = 0; i < n && q < c.size; i++) {
-            const char *g = cstr(c.body, c.size, &q); cstr(c.body, c.size, &q); if (!g || q + 16 > c.size) break;
+            const char *g = cstr(c.body, c.size, &q), *par = cstr(c.body, c.size, &q); if (!g || q + 16 > c.size) break;
+            if (ak_setting_int("AK_DEBUG_AUDIO", 0)) AK_INFO("audio", "group %s under %s: %.3f %.3f %.3f %u", g, par ? par : "-", rdf(c.body + q), rdf(c.body + q + 4), rdf(c.body + q + 8), ak_rd32(c.body + q + 12));
             if (ngroups < MAX_GROUPS) { u32 k = ngroups++; snprintf(groups[k].name, sizeof groups[k].name, "%s", g); groups[k].hash = ak_hash31(g);
                                         groups[k].cur = groups[k].target = rdf(c.body + q); groups[k].rate = 0; }
             q += 16;
@@ -158,7 +160,7 @@ typedef struct {
 static voice voices[MAX_VOICES];
 static u32 next_id = 1;
 static f32 lis_pos[3], lis_yaw;
-static f32 sfx_volume = 1.0f, music_volume = 0.6f;
+static f32 sfx_volume = 1.0f, music_volume = 0.5625f;
 static volatile int lock_flag;
 static bool opened;
 static u32 rng = 0x1234567u;
@@ -386,7 +388,11 @@ static void platform_cb(s16 *out, u32 frames, void *u) { (void)u; ak_audio_mix(o
 bool ak_audio_init(void)
 {
     sfx_volume = ak_setting_float("AK_SFX_VOLUME", 1.0f);
-    music_volume = ak_setting_float("AK_MUSIC_VOLUME", 0.6f);
+    /* the music's level (PARITY 7.1): measured against the original's own mix (harness RS_WAV_DUMP, Hoth's MXALLHOT01_AMB02:
+       a least-squares fit of the track to the output, 0.555..0.567 over its loud passages) - 0.5625; the game's music mixer
+       (0891260C) holds a master gain of 0.75 with one stream playing (0.5 while two cross-fade, moving 0.02 a step), times
+       the stream's own volume.  The profile's volumes (master, music, sfx: +148 / +152 / +156) default to 1.0 (08977808). */
+    music_volume = ak_setting_float("AK_MUSIC_VOLUME", 0.5625f);
     if (!ak_setting_int("AK_AUDIO", 1)) return false;
     if (getenv("AK_AUDIO_DUMP")) return false;                    /* (tests render the mix to a file instead) */
     opened = ak_plat_audio_open(AK_AUDIO_RATE, platform_cb, NULL);

@@ -545,7 +545,13 @@ textures and how they are used. Section R lists only what must be in place so th
 
 ## 7. Audio
 
-- [ ] **7.1 Music mixing [partial].** audio/ak_music.c "not yet mixed" into the mixer groups.
+- [x] **7.1 Music mixing [partial].** audio/ak_music.c "not yet mixed" into the mixer groups.
+  - Done 2026-11-19: the music was already in the mix under the mixer's "Music" group (every SDMX group sits flat under Master,
+    master 1.0); its level was a guess (0.6).  Measured against the original's own output (harness RS_WAV_DUMP on Hoth, the
+    track fitted to the mix by least squares): 0.5625 (0.555-0.567).  The game's music mixer (0891260C) keeps a gain of 0.75 for
+    one stream and 0.5 while two cross-fade (moving 0.02 a step), times the stream's volume; the profile's master / music / sfx
+    volumes default to 1.0 (08977808).  AK_MUSIC_VOLUME defaults to 0.5625 (settings.txt files updated).  Open: the two-stream
+    cross-fade (Aurek plays one stream).
 - [ ] **7.2 Missing effects.** Vehicle collisions ("Collision sound"), Doppler, any reverb or occlusion the game uses.
 - [ ] **7.3 Speech [partial].** Trigger rules for every line category.
 
