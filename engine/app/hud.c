@@ -17,8 +17,9 @@
 typedef struct { u32 hash; f32 u0, v0, u1, v1, w, h; ak_gfx_tex *tex; } sprite;
 typedef struct { u16 ch; f32 u, v, w; } glyph;
 
-#define MAX_SPRITES 192
+#define MAX_SPRITES 320
 static sprite spr[MAX_SPRITES]; static u32 nspr;
+static u32 btn_first, btn_n;   /* PSPBUTTONS.ASR's pictures in spr[] */
 typedef struct { glyph g[512]; u32 n; f32 line, tw, th; ak_gfx_tex *tex; } fontdef;
 static fontdef fonts[2], *fontp = &fonts[0];   /* Franklin Gothic Medium Cond 9 (most of the HUD) and 13 (the timer, 08A5BE24) */
 #define font (*fontp)
@@ -188,6 +189,7 @@ bool ak_hud_load(ak_vfs *vfs)
     }
     wpn_first[0] = nspr; wpn_n[0] = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD_WEAPONS_CLASSIC.ASR");
     wpn_first[1] = nspr; wpn_n[1] = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD_WEAPONS_PREQUEL.ASR");
+    btn_first = nspr; btn_n = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/PSPBUTTONS.ASR");
     fontp = &fonts[1]; load_font(vfs, "Cond_13"); fontp = &fonts[0];
     bool f = load_font(vfs, "Cond_9");
     load_cpnames(vfs); load_stdtext(vfs); load_botnames(vfs);
@@ -244,6 +246,14 @@ static void pic_mirror(const sprite *s, f32 x, f32 y, bool centred, u32 argb)
     quad(s->tex, x, y, x + w, y + h, s->u1, s->v0, s->u0, s->v1, argb);
 }
 static const sprite *idx(int i) { return i >= 0 && i < (int)S_COUNT && by_index[i] >= 0 ? &spr[by_index[i]] : NULL; }
+/* the button marks in text (private-use characters, PSPBUTTONS.ASR): read from the menu texts' own use - "\ue800 Select",
+ * "\ue801 Clear", "\ue802 Back", "\ue803 Cancel": cross, square, circle, triangle (the rest of the range: not placed yet) */
+static const sprite *button_mark(u16 c)
+{
+    static const char *const names[] = { "button_x.tga", "button_square.tga", "button_circle.tga", "button_triangle.tga" };
+    if (c < 0xE800 || c >= 0xE800 + sizeof names / sizeof names[0] || !btn_n) return NULL;
+    return find(h31(names[c - 0xE800]), btn_first, btn_n);
+}
 static const glyph *glyph_of(u16 c) { for (u32 i = 0; i < font.n; i++) if (font.g[i].ch == c) return &font.g[i]; return NULL; }
 static f32 text_width(const char *s) { f32 w = 0; for (; *s; s++) { const glyph *g = glyph_of((u8)*s); if (g) w += g->w; } return w; }
 static void text(f32 x, f32 y, u32 argb, u32 flags, const char *s)
@@ -372,7 +382,7 @@ static f32 text16_box(f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s,
     while (i < n) {
         u32 j = i, brk = i; f32 w = 0, wb = 0;                                   /* one line: as many words as fit */
         while (j < n) {
-            const glyph *g = glyph_of(s[j]); f32 gw = g ? g->w * scale : 0;
+            const glyph *g = glyph_of(s[j]); f32 gw = g ? g->w * scale : button_mark(s[j]) ? font.line * scale : 0;
             if (s[j] == ' ') { brk = j; wb = w; }
             if (w + gw > bw && j > i) { if (brk > i) { j = brk; w = wb; } break; }
             w += gw; j++;
@@ -380,7 +390,8 @@ static f32 text16_box(f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s,
         if (draw) {
             f32 x = centre ? x0 + (bw - w) * 0.5f : x0;                   /* (flag 4: centred; else from the left) */
             for (u32 k = i; k < j; k++) {
-                const glyph *g = glyph_of(s[k]); if (!g) continue;
+                const glyph *g = glyph_of(s[k]);
+                if (!g) { const sprite *m = button_mark(s[k]); if (m) { quad(m->tex, x, y, x + lh, y + lh, m->u0, m->v0, m->u1, m->v1, argb | 0x00FFFFFFu); x += lh; } continue; }
                 quad(font.tex, x, y, x + g->w * scale, y + lh, g->u, g->v, g->u + g->w / font.tw, g->v + font.line / font.th, argb);
                 x += g->w * scale;
             }
@@ -803,3 +814,20 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     flush();
     ak_gfx_set_transform(NULL);
 }
+
+/* ---- the front end's drawing (app/frontend.c): the same 480 x 272 space, quads and the game's two fonts */
+void ak_hud_2d_begin(void) { ak_m4 o = ak_m4_ortho2d(480.0f, 272.0f); ak_gfx_set_transform(&o); ak_gfx_set_tint(NULL); vset = false; nv = 0; }
+void ak_hud_2d_quad(ak_gfx_tex *t, f32 x0, f32 y0, f32 x1, f32 y1, f32 u0, f32 v0, f32 u1, f32 v1, u32 argb) { quad(t, x0, y0, x1, y1, u0, v0, u1, v1, argb); }
+f32 ak_hud_2d_text(int big, f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s, u32 n, int align)
+{
+    fontdef *keep = fontp; fontp = &fonts[big ? 1 : 0];
+    f32 h;
+    if (align == 2) {                                                   /* right: measure one line */
+        f32 w = 0; for (u32 i = 0; i < n; i++) { const glyph *g = glyph_of(s[i]); if (g) w += g->w * scale; }
+        h = text16_box(x1 - w, y0, x1 + 1, scale, argb, s, n, true, false);
+    } else h = text16_box(x0, y0, x1, scale, argb, s, n, true, align == 1);
+    fontp = keep; return h;
+}
+f32 ak_hud_2d_line(int big) { return fonts[big ? 1 : 0].line; }
+void ak_hud_2d_end(void) { flush(); ak_gfx_set_transform(NULL); }
+

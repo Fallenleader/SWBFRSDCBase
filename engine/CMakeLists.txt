@@ -28,7 +28,7 @@ endif()
 
 add_custom_target(independence ALL COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_independence.sh VERBATIM)
 
-add_library(akcore STATIC core/ak_core.c core/ak_vfs.c core/ak_settings.c assets/asura.c assets/model.c assets/entity.c assets/blueprint.c game/ak_soldier.c game/ak_character.c game/ak_weapon.c game/ak_conquest.c game/ak_ctf.c game/ak_vehicle.c game/ak_space.c game/ak_turret.c game/ak_projectile.c game/ak_path.c game/ak_loco.c world/ak_collision.c world/ak_nav.c render/ak_scene.c audio/ak_audio.c audio/ak_music.c audio/ak_speech.c audio/ak_adp.c)
+add_library(akcore STATIC core/ak_core.c core/ak_vfs.c core/ak_settings.c assets/asura.c assets/model.c assets/entity.c assets/blueprint.c assets/gui.c game/ak_soldier.c game/ak_character.c game/ak_weapon.c game/ak_conquest.c game/ak_ctf.c game/ak_vehicle.c game/ak_space.c game/ak_turret.c game/ak_projectile.c game/ak_path.c game/ak_loco.c world/ak_collision.c world/ak_nav.c render/ak_scene.c audio/ak_audio.c audio/ak_music.c audio/ak_speech.c audio/ak_adp.c)
 target_include_directories(akcore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(akcore PUBLIC m)
 
@@ -47,7 +47,7 @@ target_link_libraries(akbp PRIVATE akcore akplat_desktop)
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
 execute_process(COMMAND git -C "${CMAKE_CURRENT_SOURCE_DIR}" describe --always --dirty=+ OUTPUT_VARIABLE AK_GIT_ID OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-add_executable(aurek_viewer app/viewer.c app/play.c app/play_sound.c app/hud.c platform/desktop/plat_sdl.c platform/desktop/gfx_gl.c)
+add_executable(aurek_viewer app/viewer.c app/play.c app/play_sound.c app/hud.c app/frontend.c platform/desktop/plat_sdl.c platform/desktop/gfx_gl.c)
 target_compile_definitions(aurek_viewer PRIVATE AK_BUILD_ID="${AK_GIT_ID}")
 target_include_directories(aurek_viewer PRIVATE ${SDL2_INCLUDE_DIRS})
 target_link_libraries(aurek_viewer PRIVATE akcore akplat_desktop ${SDL2_LIBRARIES} OpenGL::GL m)

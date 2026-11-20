@@ -155,3 +155,6 @@ AK_RESPAWN_DELAY=10
 # after dying: 3 s death camera, then CROSS respawns (the game waits for the spawn screen's confirm); 1 = respawn without it
 AK_RESPAWN_AUTO=0
 AK_TOTAL_LOSS_TIME=60
+
+# Front end: 1 = start in the game's own menus (main menu; Instant Action > Launch starts the match), 0 = straight into AK_LEVEL
+AK_FRONTEND=0

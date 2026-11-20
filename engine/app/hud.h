@@ -9,6 +9,7 @@
 #include "../core/ak_core.h"
 #include "../core/ak_vfs.h"
 #include "../assets/asura.h"
+#include "../render/ak_gfx.h"
 
 /* a radar blip (engine coordinates): kind 0 a soldier, 1 a command post, 2 an empty vehicle; team 0 / 1, 4 = nobody's */
 typedef struct { f32 pos[3]; u8 kind; int team; } ak_hud_blip;
@@ -65,4 +66,11 @@ u32 ak_hud_bot_names(int faction);                          /* how many names th
 const u16 *ak_hud_bot_name(int faction, s32 i, u32 *len);   /* BOTNAMES_<faction>.ASR entry i */
 void ak_hud_level(const ak_blob *level);   /* the level's radar map (its hmap chunk and picture); per level */         /* once; false = the files are missing (the HUD stays off) */
 void ak_hud_draw(const ak_hud_state *s, int screen_w, int screen_h);   /* after the 3D, before ak_gfx_end */
+/* the front end's drawing, in the PSP's 480 x 272 (app/frontend.c): quads, and text in Franklin Gothic Medium Cond 9 or (big) 13;
+ * align 0 left, 1 centred, 2 right; returns the height drawn */
+void ak_hud_2d_begin(void);
+void ak_hud_2d_quad(ak_gfx_tex *t, f32 x0, f32 y0, f32 x1, f32 y1, f32 u0, f32 v0, f32 u1, f32 v1, u32 argb);
+f32 ak_hud_2d_text(int big, f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s, u32 n, int align);
+f32 ak_hud_2d_line(int big);
+void ak_hud_2d_end(void);
 #endif

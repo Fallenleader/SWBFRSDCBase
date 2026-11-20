@@ -614,7 +614,21 @@ textures and how they are used. Section R lists only what must be in place so th
   - World markers (08A55238).
   - The capture cross (done with 5.5).
   - The missile-warning check against a screenshot of the original.
-- [ ] **8.2 Front end (1.10) [missing].** Menus, loadouts, colour picker, map selection, galactic conquest, campaign, subtitles.
+- [ ] **8.2 Front end (1.10) [started 2026-11-20].** Menus, loadouts, colour picker, map selection, galactic conquest, campaign, subtitles.
+  - 2026-11-20, the menu pages: GUIMENU/*.GUI hold one UIMP chunk per page - a widget tree written by each widget class's load
+    method (vtable slot 21; widget header {u32 class version, u32 type}; the factory 08888B48 by type: 1 page, 1001 image, 1002
+    text, 1003 point list, 1004 model, 1005 sprite list, 2001 button, 2002 / 2006 plain buttons, 2003 spinner, 2004 text box,
+    2005 text list, 2009 scroll bar, 2010 / 2012 list box; the base load 08888454; strings in 4-byte steps, 0882DD88). Every one
+    of the game's 95 pages reads to its last byte (tools/asura/uimp.py; engine/assets/gui.c). A widget's id is the h31 of its
+    lower-case name; a button's "target" is the h31 of the page it opens; texts are (table, key) pairs into MISC/MENU/
+    MENU_AM.ASR (HTXT: 577 entries {key, length, UTF-16}); the button marks in texts are private-use characters (\ue800 cross,
+    \ue801 square, \ue802 circle, \ue803 triangle - read from the texts' own "\ue802 Back" etc.; PSPBUTTONS.ASR's pictures).
+    Engine: app/frontend.c draws a page with the HUD's 2D layer and fonts, moves the focus along the buttons' neighbour links
+    (left, right, up, down), opens a button's page on cross, goes back on circle (the page's back button); FE_HostGame starts
+    the match. `AK_FRONTEND=1` (AK_FE_PAGE, AK_FE_LANGUAGE, AK_FE_KEYS for tests). The main menu and Single Player pages match
+    the original's frames (harness menu_main_menu / menu_single_player). [assumed]: the show-by-focus rule for flags bits 1 / 2,
+    the highlight's pulse rate, the Italian subtitle hidden for other languages. Open: the FE_* script functions (map lists,
+    eras, modes, profile, options), the list boxes' rows, UIAN animations, the 3D model widgets, the in-match pages.
 
 ## 9. Camera and input
 

@@ -16,6 +16,7 @@
 #include "play.h"
 #include "../audio/ak_audio.h"
 #include "hud.h"
+#include "frontend.h"
 #include "../audio/ak_speech.h"
 #include "../platform/plat.h"
 #include <stdio.h>
@@ -149,7 +150,25 @@ int main(int argc, char **argv)
     ak_input in; memset(&in, 0, sizeof in);
     u64 last = ak_plat_time_us(), fps_t0 = last; int fps_frames = 0; f32 fps = 0, frame_ms = 0, load_ms = 0;
     ak_gfx_stats gs; memset(&gs, 0, sizeof gs);
+    /* the front end (PARITY 8.2): the game's menus first (AK_FRONTEND=1; AK_FE_PAGE the first page), the level once launched */
+    bool fe_on = ak_setting_int("AK_FRONTEND", 0) && ak_fe_init(vfs) && ak_fe_open(ak_setting_str("AK_FE_PAGE", "MP_MainMenu"));
     for (;;) {
+        if (fe_on) {
+            if (!ak_plat_poll(&in)) break;
+            u64 now = ak_plat_time_us(); f32 dt = (now - last) / 1e6f; last = now; if (dt > 0.1f) dt = 0.1f;
+            { f32 fdt = ak_setting_float("AK_FIXED_DT", 0); if (fdt > 0) dt = fdt; }
+            { const char *keys = ak_setting_str("AK_FE_KEYS", NULL);   /* tests: one button per frame from frame 10 ("D,D,X": down, down, cross) */
+              if (keys && frame >= 10) { int k = (frame - 10) / 4, ph = (frame - 10) % 4; const char *q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; }
+                  if (*q && ph == 0) { u32 m = *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : 0; in.pressed |= m; } } }
+            int ev = ak_fe_update(&in, dt);
+            ak_m4 id; memset(&id, 0, sizeof id); id.m[0] = id.m[5] = id.m[10] = id.m[15] = 1;
+            ak_gfx_env env = { { 0, 0, 0 }, 0, 0, 1.0f };
+            ak_gfx_begin(0xFF000000u, &id, &env); ak_fe_draw(); ak_gfx_end(&gs);
+            frame++;
+            if (shot && frame == shot_frame) { ak_gfx_screenshot(shot); break; }
+            if (ev == AK_FE_START) { fe_on = false; playing = true; loaded = false; }
+            continue;
+        }
         if (!loaded) {
             u64 t0 = ak_plat_time_us();
             ak_arena_reset(&lvl);
