@@ -883,7 +883,15 @@ groundwork below is needed before the parity work starts. The tiers come later.
       frame's motion unless bit 4, plus a random point of the emission shape (088EA81C); its velocity comes from curve b (vec3)
       at t. +0xB0 (the second word) is the emitter's duration (its time runs at dt / +0xB0). 088E4934 moves an effect and its
       emitters to a new matrix. Particle stepping and drawing are not read yet (VFPU code: the decomp's C, not Ghidra).
-    Next: the particle step and draw, then which effect each event plays (weapons' PFXMuzzleFlash, impact pfx, projectiles'
+    - The particle step (088E6638, per emitter each frame): the emitter's time (+0x74) runs at dt (x +0xC4 with flags bit 3)
+      / the system's +0xB0; each particle's age (record +0x18, 0..1) runs at dt / the particle type's lifetime (FXPT +0x54;
+      with FXPT flags 0x20000 the lifetime is +0x54 + frac(record +0x1C x ...) x +0x58, a per-particle spread); past 1 it is
+      removed (088E7AEC), or restarts at 0 with FXPT flags 0x4000000 (looping). While the emitter's time is under 1 it emits:
+      the count comes from a system curve at that time (+0x54.. on the system: the 5th curve, e) times the effect's scale
+      (effect +0x40), not finished reading.
+    - FXPT's words in the stream's order are its +0x50 (an int: 1 streaks, 5 fire - the blend or kind), +0x54 the lifetime
+      (s), +0x58 its spread, +0x60, +0x64, +0x6C, +0x68, +0x70, +0x74; the frames list is +0x88 (count +0x5C); the flags +0x8C.
+    Next: the rest of the particle step (motion, the emit count) and the draw, then which effect each event plays (weapons' PFXMuzzleFlash, impact pfx, projectiles'
     PFXExplosion name them).
 - [ ] **R.7 Shadows and decals.** Shadow blobs and scorch marks as the game places them.
   - 2026-11-20: the blob shadows are one batch (08918144): a vertex list at 0x08C19240 (20-byte vertices, room for 2024; count
