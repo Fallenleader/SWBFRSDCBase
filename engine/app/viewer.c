@@ -152,6 +152,7 @@ int main(int argc, char **argv)
     ak_gfx_stats gs; memset(&gs, 0, sizeof gs);
     /* the front end (PARITY 8.2): the game's menus first (AK_FRONTEND=1; AK_FE_PAGE the first page), the level once launched */
     bool fe_on = ak_setting_int("AK_FRONTEND", 0) && ak_fe_init(vfs) && ak_fe_open(ak_setting_str("AK_FE_PAGE", "MP_MainMenu"));
+    ak_fe_set_blueprints(&bps);                                         /* (the customisation menu: items, costs, descriptions) */
     bool fe_ingame = false, fe_after_team = false;                      /* the match's own pages (team selection, the spawn map) */
     for (;;) {
         if (fe_on) {
@@ -160,7 +161,7 @@ int main(int argc, char **argv)
             { f32 fdt = ak_setting_float("AK_FIXED_DT", 0); if (fdt > 0) dt = fdt; }
             { const char *keys = ak_setting_str("AK_FE_KEYS", NULL);   /* tests: one button per frame from frame 10 ("D,D,X": down, down, cross) */
               if (keys && frame >= 10) { int k = (frame - 10) / 4, ph = (frame - 10) % 4; const char *q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; }
-                  if (*q && ph == 0) { u32 m = *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : 0; in.pressed |= m; } } }
+                  if (*q && ph == 0) { u32 m = *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : *q == 'S' ? AK_BTN_SQUARE : *q == 'T' ? AK_BTN_TRIANGLE : 0; in.pressed |= m; } } }
             int ev = ak_fe_update(&in, dt);
             ak_m4 id; memset(&id, 0, sizeof id); id.m[0] = id.m[5] = id.m[10] = id.m[15] = 1;
             ak_gfx_env env = { { 0, 0, 0 }, 0, 0, 1.0f };
@@ -496,7 +497,7 @@ int main(int argc, char **argv)
                 { const char *keys = ak_setting_str("AK_FE_KEYS2", NULL);   /* tests: the in-match pages' buttons, as AK_FE_KEYS */
                   static int kf = 0; if (keys) { int k = kf / 4, ph = kf % 4; const char *q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; }
                       if (kf > 20) { k = (kf - 21) / 4; ph = (kf - 21) % 4; q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; } }
-                      if (*q && ph == 0 && kf > 20) { u32 m = *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : 0; in.pressed |= m; }
+                      if (*q && ph == 0 && kf > 20) { u32 m = *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : *q == 'S' ? AK_BTN_SQUARE : *q == 'T' ? AK_BTN_TRIANGLE : 0; in.pressed |= m; }
                       if (kf <= 20 || ph == 0) {} kf++; } }
                 int ev = ak_fe_update(&in, dt);
                 if (ev == AK_FE_TEAM) {
@@ -519,6 +520,15 @@ int main(int argc, char **argv)
                     loaded = false; play.ready = false;
                 } else if (ev == AK_FE_RESTART) {
                     play.ready = false;
+                } else if (ev == AK_FE_LOADOUT) {                           /* the customisation menu's loadout: the next soldier's */
+                    int sel[8]; const char *nm[5]; ak_fe_loadout(sel, nm); char v[8];
+                    ak_setting_set("AK_WEAPON", nm[0] ? nm[0] : ""); ak_setting_set("AK_EXPLOSIVE", nm[2] ? nm[2] : "");
+                    snprintf(v, sizeof v, "%d", sel[5]); ak_setting_set("AK_HEALTH_LEVEL", v);
+                    snprintf(v, sizeof v, "%d", sel[6]); ak_setting_set("AK_SPEED_LEVEL", v);
+                    /* [assumed: Capture Speed Level n is the rate table's n (None the 1.0 measured at the menu's default)] */
+                    snprintf(v, sizeof v, "%d", sel[7] ? sel[7] : 1); ak_setting_set("AK_CAPTURE_LEVEL", v);
+                    ak_play_loadout(&play, &models, &bps);
+                    AK_INFO("aurek", "loadout: %s / %s / %s, health %d speed %d capture %d", nm[0] ? nm[0] : "-", nm[1] ? nm[1] : "-", nm[2] ? nm[2] : "-", sel[5], sel[6], sel[7]);
                 } else if (ev == AK_FE_KILL) {
                     ak_play_damage(&play, 1e9f);                              /* (the soldier dies: the spawn map follows) */
                 } else if (ev == AK_FE_SPAWN) {

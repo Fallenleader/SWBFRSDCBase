@@ -186,6 +186,8 @@ typedef struct {
 /* body: a Humanoid blueprint name; start: where to look for the nearest walkable spot */
 bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a, const char *body, const f32 *start);
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt);
+/* the loadout settings again (the customisation menu's choice; the soldier is down - it takes them at the respawn) */
+void ak_play_loadout(ak_play *p, const ak_model_set *m, const ak_blueprints *bp);
 void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy);
 /* sound (app/play_sound.c): set up with the level, then once a frame after ak_play_update */
 bool ak_play_lock_point(const ak_play *p, f32 out[3]);

@@ -39,9 +39,11 @@ typedef struct ak_widget {
     const char *binding;               /* a script value the widget shows ("BFF.FE_ShowVersionNumber") */
     const char **anims; u32 nanims;    /* UIAN animations it plays ("pulse_highlight") */
     const ak_gui_cond *cond; u32 ncond, cond_mode;
-    /* text lists (2005): rows at most, rows shown, the chosen row's colour, the function that fills it (FE_ListAllMaps) */
+    /* text lists (2005) and list boxes (2010 / 2012; size = the list's box): rows at most, rows shown, the chosen row's colour, the
+       function that fills it (FE_ListAllMaps; a list box's row parts each have their own, the column's) */
     u32 rows_max, rows_shown, rows_align; f32 sel_rgba[4]; ak_gui_action fill;   /* (align: the text flags' 2 left, 4 centred, 8 right) */
     f32 step;                          /* spinners / sliders (2003): the step of the value they set (0.1 for the volumes) */
+    bool is_template;                  /* a list box's row (its last child): drawn once per row, not on its own */
     struct ak_widget *child; u32 nchild;
 } ak_widget;
 

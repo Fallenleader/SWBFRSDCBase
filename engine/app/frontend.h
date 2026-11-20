@@ -7,7 +7,7 @@
 #include "../core/ak_vfs.h"
 #include "../platform/plat.h"
 
-enum { AK_FE_NONE = 0, AK_FE_START = 1, AK_FE_QUIT = 2, AK_FE_TEAM = 3, AK_FE_SPAWN = 4, AK_FE_RESUME = 5, AK_FE_RESTART = 6, AK_FE_KILL = 7 };
+enum { AK_FE_NONE = 0, AK_FE_START = 1, AK_FE_QUIT = 2, AK_FE_TEAM = 3, AK_FE_SPAWN = 4, AK_FE_RESUME = 5, AK_FE_RESTART = 6, AK_FE_KILL = 7, AK_FE_LOADOUT = 8 };
 
 /* what the in-match pages show (team selection, the spawn map): the match as it is */
 #define AK_FE_MAX_POSTS 8
@@ -31,5 +31,9 @@ bool ak_fe_open_ingame(const char *page);
 void ak_fe_set_match(const ak_fe_match *m);
 void ak_fe_close(void);
 int ak_fe_team(void);                          /* after AK_FE_TEAM: 0 auto, 1 the good side, 2 the evil side */
+/* the customisation (the spawn map's Customization Menu): after AK_FE_LOADOUT the player's choice - each category's item (0 = none
+   or the lowest), the Weapon blueprints of the first five (NULL none); returns the credits spent */
+void ak_fe_set_blueprints(const void *bp);     /* (COMMON.ASR's, for the items' names, costs and descriptions) */
+int ak_fe_loadout(int sel[8], const char *names[5]);
 int ak_fe_spawn_post(void);                    /* after AK_FE_SPAWN: the post chosen (index), -1 none */           /* after AK_FE_START: the level ("CLASSIC TATOOINE") and the mode (0 CQST .. 3 HCTF) */
 #endif

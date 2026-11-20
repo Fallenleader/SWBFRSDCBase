@@ -188,10 +188,16 @@ static void widget(rd *s, ak_widget *w, int depth)
         if (v >= 3) r32(s);
         break;
     case AK_GUI_LIST: case AK_GUI_LIST2: {                            /* 0888FD8C: a list box and its row template */
-        button_base(s, w); children(s, w, depth); skip(s, 16); action_list(s, w);
+        button_base(s, w); children(s, w, depth);
+        w->size[0] = rf(s); w->size[1] = rf(s); w->rows_max = r32(s); w->rows_shown = r32(s); action_list(s, w);
         ak_widget t; memset(&t, 0, sizeof t); t.tex = -1; t.cver = r32(s); t.type = r32(s);
         button_base(s, &t); children(s, &t, depth);
-        if (v >= 1) for (u32 i = 0; i < t.nchild && !s->bad; i++) { if (v >= 2) r32(s); action(s); }
+        /* each template part's column function (FE_Customisation_ListCategoryNames ...), by the part's id (version 1: in order) */
+        if (v >= 1) for (u32 i = 0; i < t.nchild && !s->bad; i++) {
+            u32 id = v >= 2 ? r32(s) : t.child[i].id; ak_gui_action fa = action(s);
+            for (u32 k = 0; k < t.nchild; k++) if (t.child[k].id == id) t.child[k].fill = fa;
+        }
+        t.is_template = true;
         skip(s, 8); if (v >= 3) r8(s);
         /* the template becomes the list's last child */
         ak_widget *c = AK_NEW(s->a, ak_widget, w->nchild + 1); if (!c) { s->bad = true; return; }

@@ -370,6 +370,37 @@ static void team_classes(ak_play *p, const ak_blueprints *bp, const ak_model_set
 }
 
 static void anim_sets(ak_play *p, const ak_model_set *m);
+/* the player's loadout from the settings the customisation menu sets (AK_WEAPON, AK_EXPLOSIVE, AK_HEALTH_LEVEL, AK_SPEED_LEVEL,
+   AK_CAPTURE_LEVEL): at the start and again before a respawn (ak_play_loadout) */
+static void loadout_levels(ak_play *p)
+{
+    static const f32 hl[4] = { 100, 133, 166, 200 }, sl[4] = { 0.85f, 1.0f, 1.15f, 1.3f }, cl[4] = { 0.5f, 1.0f, 1.5f, 2.0f };
+    int h = ak_setting_int("AK_HEALTH_LEVEL", 1), sp = ak_setting_int("AK_SPEED_LEVEL", 1), cr = ak_setting_int("AK_CAPTURE_LEVEL", 1);
+    h = h < 0 ? 0 : h > 3 ? 3 : h; sp = sp < 0 ? 0 : sp > 3 ? 3 : sp; cr = cr < 0 ? 0 : cr > 3 ? 3 : cr;
+    p->max_health = p->health = ak_bp_float(p->look.bp, "Health", hl[h]); p->speed_scale = sl[sp]; p->capture_rate = cl[cr];
+}
+static void loadout_items(ak_play *p, const ak_model_set *m, const ak_blueprints *bp)
+{
+    {   /* the explosive slot (default: the thermal detonator, Weapon REP_Grenade: AmmoPerClip 4, MaxClips 0, RateOfFire 2) */
+        const char *en = ak_setting_str("AK_EXPLOSIVE", "REP_Grenade");
+        const ak_bp_object *gw = en[0] ? ak_bp_find(bp, "Weapon", en) : NULL;
+        p->gren_ok = gw && ak_proj_def_load(bp, ak_bp_string(gw, "Projectile", "Grenade"), &p->gren_def);
+        p->gren_left = gw ? ak_bp_int(gw, "AmmoPerClip", 4) : 0; p->gren_t = -1; p->gren_cool = 0;
+        p->gren_rate = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f; p->gren_icon = gw ? ak_bp_string(gw, "HUDIcon", NULL) : NULL; p->gren_name = gw ? ak_bp_int(gw, "Weapon_Name", -1) : -1; }
+    const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
+    p->armed = wname[0] && ak_weapon_def_load(bp, m, wname, p->look.faction, &p->wdef);
+    if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
+}
+void ak_play_loadout(ak_play *p, const ak_model_set *m, const ak_blueprints *bp)
+{
+    loadout_levels(p); loadout_items(p, m, bp);
+    p->base_wdef = p->wdef; p->base_armed = p->armed; p->base_max_health = p->max_health;   /* (what the soldier goes back to after a hero) */
+    AK_INFO("play", "loadout: %s (%s), explosive %s, health %.0f, speed x%.2f, capture %.1f", p->armed ? p->wdef.name : "unarmed",
+            p->armed && p->wdef.model >= 0 ? "model" : "no model", p->gren_ok ? "yes" : "none", p->max_health, p->speed_scale, p->capture_rate);
+    p->target[0].health = p->health; p->target[0].max_health = p->max_health;
+    anim_sets(p, m);
+}
+
 bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a, const char *body, const f32 *start)
 {
     memset(p, 0, sizeof *p);
@@ -426,10 +457,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
        AK_SPEED_LEVEL (0..3) until Aurek has the menu.  The capture rate (PARITY 5.5): a post's capture speed is the sum of the
        soldiers' rates on it (unit +0x138, 089EC970), at most 5 a second; the player's comes from the third attribute's level
        (+0x1D4, 089782A8: 0.5 / 1.0 / 1.5 / 2.0), measured 1.0 with the menu's default (harness, Hoth) - AK_CAPTURE_LEVEL. */
-    {   static const f32 hl[4] = { 100, 133, 166, 200 }, sl[4] = { 0.85f, 1.0f, 1.15f, 1.3f }, cl[4] = { 0.5f, 1.0f, 1.5f, 2.0f };
-        int h = ak_setting_int("AK_HEALTH_LEVEL", 1), sp = ak_setting_int("AK_SPEED_LEVEL", 1), cr = ak_setting_int("AK_CAPTURE_LEVEL", 1);
-        h = h < 0 ? 0 : h > 3 ? 3 : h; sp = sp < 0 ? 0 : sp > 3 ? 3 : sp; cr = cr < 0 ? 0 : cr > 3 ? 3 : cr;
-        p->max_health = p->health = ak_bp_float(p->look.bp, "Health", hl[h]); p->speed_scale = sl[sp]; p->capture_rate = cl[cr]; }
+    loadout_levels(p);
     p->alive = true; p->near_post = -1; p->spawn_post = -1; p->menu_hold = false; p->menu_spawn = false;
     /* where the player starts: the team's spawn at its post nearest the start */
     f32 sp[3] = { start[0], start[1], start[2] }, gy, syaw = 0;
@@ -534,14 +562,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->sprint_cost = ak_bp_float(ctl, "sprint cost", 20.0f); p->roll_cost = ak_bp_float(ctl, "roll stamina cost", 0.0f);
     p->lock = -1; p->lock_range = ak_bp_float(ctl, "targeting range", 50.0f); p->lock_turn = ak_bp_float(ctl, "aim yaw speed", 3.5f);
     p->lock_head_time = ak_bp_float(ctl, "lock on to head time", 5.0f);
-    {   /* the explosive slot (default: the thermal detonator, Weapon REP_Grenade: AmmoPerClip 4, MaxClips 0, RateOfFire 2) */
-        const ak_bp_object *gw = ak_bp_find(bp, "Weapon", ak_setting_str("AK_EXPLOSIVE", "REP_Grenade"));
-        p->gren_ok = gw && ak_proj_def_load(bp, ak_bp_string(gw, "Projectile", "Grenade"), &p->gren_def);
-        p->gren_left = gw ? ak_bp_int(gw, "AmmoPerClip", 4) : 0; p->gren_t = -1; p->gren_cool = 0;
-        p->gren_rate = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f; p->gren_icon = gw ? ak_bp_string(gw, "HUDIcon", NULL) : NULL; p->gren_name = gw ? ak_bp_int(gw, "Weapon_Name", -1) : -1; }
-    const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
-    p->armed = ak_weapon_def_load(bp, m, wname, p->look.faction, &p->wdef);
-    if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
+    loadout_items(p, m, bp);
     anim_sets(p, m);
     {   ak_target *t = &p->target[0];
         t->health = p->health; t->max_health = p->max_health; t->headshot_mult = ak_bp_float(p->look.bp, "Headshot multiplier", 4.0f); t->alive = true; t->team = p->team; t->last_attacker = -1;
@@ -561,7 +582,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     if (want) {
         for (int t = 0; t < 2; t++) {
             team_classes(p, bp, m, t);
-            p->team_armed[t] = ak_weapon_def_load(bp, m, wname, p->team_faction[t], &p->team_wdef[t]);
+            p->team_armed[t] = ak_weapon_def_load(bp, m, ak_setting_str("AK_BOT_WEAPON", "BlasterRifle"), p->team_faction[t], &p->team_wdef[t]);   /* PARITY(2.1): the bots' classes' weapons */
             /* in a bot's hands (the game's Weapon blueprint): Modifier_Bot_Damage scales the damage, Modifier_Bot_RateOfFire the time
              * between shots (RateOfFire is a time) - the rifles inherit Weapon "Base": 0.3 and 3 */
             p->team_bdef[t] = p->team_wdef[t];
@@ -608,6 +629,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             if (!(v[1] > v[0] && v[3] > v[2] && v[5] > v[4])) continue;
             p->oob_min[0] = v[0]; p->oob_max[0] = v[1]; p->oob_min[1] = -v[3]; p->oob_max[1] = -v[2]; p->oob_min[2] = -v[5]; p->oob_max[2] = -v[4];
             p->have_oob = true;
+            AK_INFO("play", "battlefront: game x %.0f..%.0f, y %.0f..%.0f, z %.0f..%.0f", v[0], v[1], v[2], v[3], v[4], v[5]);
         }
         p->oob_out = false; p->oob_msg_t = 0;
     }
@@ -2249,12 +2271,15 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         } }
     if (!p->alive) { p->ch.vel[0] = p->ch.vel[2] = 0; ci.root = false; }    /* PARITY(6.3): a body stops where it falls (measured: no slide), gravity stays on (08993D38) */
     ak_char_update(&p->ch, use, &p->col, &ci, dt);
-    if (p->have_oob && p->alive) {
+    if (p->in_veh < 0 || !p->alive) p->oob_out = false;
+    if (p->have_oob && p->alive && p->in_veh >= 0) {
+        /* (only in a vehicle: 089D4BDC is called from the vehicles' update (089B08F8) alone - the box's other caller is the AI
+           pilots' - and a soldier on foot at Hoth's Empire base, x 267 beyond the box's 249, gets no warning in the original) */
         /* leaving the battlefront (089D4BDC, every frame): inside the box - nothing; outside it but within it grown by 500 m across
          * and 340 m up and down (and within +-3940 / +-940 of the origin) - the local player gets message 0x804A: STDTEXT 72 "You
          * are leaving the battlefront!" in the centre box (style 3) while it lasts, and the narrator's Speech_BN_Return once a
          * spell (08A09928); beyond that - a damage message of 1.0 every frame. */
-        const f32 *q = p->in_veh >= 0 ? p->veh[p->in_veh].pos : p->ch.pos;
+        const f32 *q = p->veh[p->in_veh].pos;
         bool in = true, near = true;
         for (int k = 0; k < 3; k++) {
             f32 grow = k == 1 ? 340.0f : 500.0f, lim = k == 1 ? 940.0f : 3940.0f;
@@ -2264,7 +2289,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         p->oob_out = !in;
         if (!in && near) { if ((p->oob_msg_t -= dt) <= 0) { ak_hud_message(3, 72, NULL, 0); p->oob_msg_t = 3.0f; } }
         else p->oob_msg_t = 0;
-        if (!in && !near) { if (p->in_veh >= 0) p->target[VT(p, p->in_veh)].health -= 60.0f * dt; else ak_play_damage(p, 60.0f * dt); }   /* [PARITY(1.x): 1.0 a frame at 60 Hz] */
+        if (!in && !near) p->target[VT(p, p->in_veh)].health -= 60.0f * dt;   /* [PARITY(1.x): 1.0 a frame at 60 Hz] */
     }
     {   /* tests against the original: AK_TEST_TRACE = a file - the player's position in game axes every 10 frames */
         static FILE *tf; static int tinit; static u32 tfr;

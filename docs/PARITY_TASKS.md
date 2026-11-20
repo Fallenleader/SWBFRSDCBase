@@ -177,6 +177,9 @@ textures and how they are used. Section R lists only what must be in place so th
   the origin - message 0x804A to the local player: STDTEXT 72 "You are leaving the battlefront!" in the centre box (style 3)
   while it lasts and Speech_BN_Return once a spell (08A09928). Beyond - a damage message of 1.0 each frame. Engine: play.c
   reads the box and does the same (the damage as 60 a second [assumed: 1.0 a frame at 60 Hz]).
+  - 2026-11-20, correction: 089D4BDC runs from the vehicles' update (089B08F8) only; the box's other reader is the AI pilots'.
+    A soldier on foot is never warned (the original's player at x 267 at Hoth's Empire base, past the box's 249, sees nothing).
+    Aurek now holds only a driven vehicle to the box.
 - [ ] **2.1 Loadouts [partly found].**
   - The player's loadout is the Customisation Menu (credits; each Weapon blueprint has a Cost): categories Weapon 1, Weapon 2,
     Explosive, Special Item, Power Up, Health, Speed, Capture Rate. Default (read from the original's menu, Empire on Hoth):
@@ -671,6 +674,24 @@ textures and how they are used. Section R lists only what must be in place so th
     side as friendly and the player in neither list - Aurek now does the same on the team page. Open: the original shows 8 + 8
     AI soldiers there (Aurek 8 + 7: the player's place is empty), and the player's own row marker (the list's vfunc +32 at
     x 10 / 250, y 77 + 14 x row).
+  - 2026-11-20, the customisation menu (BFF_CUSTOMISATION.GUI; square on the spawn map, FE_OpenCustomisationMenu 08A2F540):
+    OnInitMenu (08A276F0) opens MP_CustomBackground and MP_CustomCarousel without the focus (0888ADB0(page, 0, 0)) beside
+    MP_Customisation. Categories Weapon 1, Weapon 2, Explosive, Special Item, Power Up, Health, Speed, Capture Rate (menu texts
+    0x08ADFBF4, descriptions 0x08ADFC14, icons attributes_01.tga v = 0.125 + 0.1015625 x row); items: Weapon blueprints by
+    h31 (0x08ADC5E8, 0x08ADC610, 0x08ADC630, 0x08ADC648, 0x08ADC668; 0 = None), in the player's faction's version (08A23598),
+    named by Weapon_Name, described by Description, costing Cost; levels None / Level 1-3 (texts 0x08ADFCE4 / 0x08ADFD04 /
+    0x08ADFCF4) at 0/10/20/30 (Health, Speed) and 0/15/25/35 (Capture, table 0x08AE30BC). Totals "%d" (08A342E8), "CREDITS:
+    spent/max" (08A27994, "%ls %d/%d"), BFF.FE_Customisation_Credits = left (< 0: the red line and, on Back, MP_CustomOverSpent),
+    BFF.FE_Customisation_EnableSellButton (the "Clear" prompt), _Health / _Speed / _Agility / _PowerUp / _Insignia for the
+    background's pictures. Cross on a category: the carousel gets the focus (08A27EC4); cross on an item takes it, no credit
+    check (08A27F28); square clears (08A27FD8); triangle CONFIRM CANCEL (08A27E74 -> MP_CustomCancel; its cross 08A27DE0 puts
+    the loadout back); circle leaves. Max 200 and the default (Blaster Rifle, Blaster Pistol, the grenade, Health 1, Speed 1)
+    from the original's frame. The UI's action keys are 16 cross, 32 square, 64 triangle (the spawn map's buttons: square
+    customisation, triangle personalisation). Engine: frontend.c (layers, list boxes, the FE functions), the loadout goes to
+    AK_WEAPON / AK_EXPLOSIVE / AK_*_LEVEL and ak_play_loadout for the next soldier. [assumed]: list-box row parts with flags bit
+    5 show on the chosen row only; Capture Speed Level n uses the rate table's n and None the 1.0 measured at the default; the
+    level / power-up carousel pictures are the background's own. Open: the 3D models (1004 widgets: items, the soldier),
+    Weapon 2 and the special items / power-ups in play (2.3), the main menu's customisation, the personalisation menu.
   - 2026-11-20, the score board: dead three seconds, the player gets MP_RespawnScoreboard (then "Respawn" -> the spawn map):
     each side's soldiers (the player first [assumed: AK_PLAYER_NAME]) with their status, score, kills and deaths columns
     (FE_ListFriendly* / FE_ListEnemy*; per-soldier tallies kept by play.c; score = kills [assumed]).

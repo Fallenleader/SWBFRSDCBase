@@ -5,6 +5,7 @@
 #include "../render/ak_gfx.h"
 #include "../core/ak_settings.h"
 #include "../audio/ak_audio.h"
+#include "../assets/blueprint.h"
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
@@ -24,11 +25,21 @@ static int cur_file = -1; static ak_gui_file gf; static ak_gfx_tex **gtex; stati
 /* the main menu's file stays loaded: its pictures win over another file's copies of the same name (the game keeps one picture
  * per name - SINGLEPLAYER.GUI's own menu_logos.tga carries the Italian logo, and the original shows the main menu's) */
 static ak_arena basemem; static ak_gui_file base; static ak_gfx_tex **btex;
-static const ak_gui_page *page; static u32 focus; static f32 clock;
+static const ak_gui_page *page; static u32 focus, active_widget; static f32 clock;   /* (active_widget: the page in use's focus - GUIMenu.ActiveWidget) */
 static u32 stack[16]; static int nstack; static bool focus_fix_pending;
+/* pages open together, drawn in order, one of them in use (`page`): the customisation's MP_CustomBackground, MP_Customisation, its
+ * MP_CustomCarousel and the dialogues over them (the game's 0888ADB0 opens a page with or without the focus) */
+#define MAXLAYERS 6
+static const ak_gui_page *layer[MAXLAYERS]; static u32 layer_focus[MAXLAYERS]; static int layer_prev[MAXLAYERS], nlayer, active_layer;
+static int cust_event(const ak_input *in);
+static void refill(void);
+static int layer_of(const char *name);
+static void use_layer(int k);
+static void cust_carousel_sync(void);
+static bool open_hash(u32 h, bool push);
 
 /* ---- script values ("BFF.FE_MapSelectionStatus", "GUIMenu.ActiveWidget", ...), as the pages' conditions read them */
-#define MAXVARS 64
+#define MAXVARS 128
 static struct { u32 h; f32 v; } vars[MAXVARS]; static int nvars;
 static f32 *var_ref(const char *name)
 {
@@ -76,11 +87,11 @@ void ak_fe_set_match(const ak_fe_match *m)
     /* every post on the map is shown (08A2DD50: Active<k> = the post exists and is on the map, +4 / +68), coloured by its owner;
        only the side's own go into the list the focus moves through */
     for (u32 i = 0; i < AK_FE_MAX_POSTS; i++) { char k[40]; snprintf(k, sizeof k, "BFF.FE_SpawnPointActive%u", i); var_set(k, i < m->nposts); }
-    if (page) fill_all(&page->root);                                  /* (the team lists follow the match) */
+    refill();                                                          /* (the team lists follow the match) */
 }
 int ak_fe_team(void) { return team_choice; }
 int ak_fe_spawn_post(void) { return spawn_choice; }
-void ak_fe_close(void) { page = NULL; nstack = 0; }
+void ak_fe_close(void) { page = NULL; nstack = 0; nlayer = 0; }
 
 /* ---- text lists (2005): their rows, filled by their FE_List* function */
 #define MAXROWS 48
@@ -170,6 +181,14 @@ static bool load_file(int f)
     return true;
 }
 
+static void refill(void)                                               /* every shown page's lists again (their rows' memory reused) */
+{
+    ak_arena_reset(&rowmem);
+    if (nlayer) { for (int k = 0; k < nlayer; k++) fill_all(&layer[k]->root); }
+    else if (page) fill_all(&page->root);
+}
+static bool focus_new = true;           /* (open_layer: the new page takes the focus, else it opens behind it) */
+static bool layering;                  /* (open_hash: the new page goes over the one in use, which stays drawn) */
 static bool open_hash(u32 h, bool push)
 {
     for (u32 i = 0; i < nidx; i++) {
@@ -177,11 +196,13 @@ static bool open_hash(u32 h, bool push)
         if (!load_file(idx[i].file)) return false;
         const ak_gui_page *pg = ak_gui_find_page(&gf, h); if (!pg) return false;
         if (push && page && nstack < 16) stack[nstack++] = page->root.id;
+        if (!layering) nlayer = 0;
         page = pg; focus = pg->focus; clock = 0;
         focus_fix_pending = true;
         if (have_match && h == ak_gui_hash("MP_Spawn_Location"))     /* the first post the player's side holds */
             for (u32 k = 0; k < match.nposts; k++) if (match.post_owner[k] == match.team) { char nm[32]; snprintf(nm, sizeof nm, "W_BU_SpawnPoint%u", k); if (id_of(nm)) focus = id_of(nm); break; }
-        nlists = 0; ak_arena_reset(&rowmem); fill_all(&pg->root);
+        if (!layering) nlists = 0;
+        refill();
         if (pg->on_open.fn && pg->on_open.fn[0]) AK_INFO("fe", "%s: %s(%s)", idx[i].name, pg->on_open.fn, pg->on_open.arg);
         else AK_INFO("fe", "%s", idx[i].name);
         return true;
@@ -221,6 +242,7 @@ static const ak_widget *find_name(const ak_widget *w, const char *name)   /* (id
     for (u32 i = 0; i < w->nchild; i++) { const ak_widget *r = find_name(&w->child[i], name); if (r) return r; }
     return NULL;
 }
+static const ak_widget *find_named_in(const ak_gui_page *pg, const char *name) { return pg ? find_name(&pg->root, name) : NULL; }
 static u32 id_of(const char *name) { const ak_widget *w = page ? find_name(&page->root, name) : NULL; return w ? w->id : 0; }
 static bool is_button(u32 t) { return t >= 2000 && t < 3000 && t != AK_GUI_GROUP && t != AK_GUI_TEXTBOX && t != AK_GUI_TEXTLIST; }
 
@@ -248,7 +270,7 @@ static bool cond_holds(const ak_widget *w)
     int any = 0, all = 1;
     for (u32 i = 0; i < w->ncond; i++) {
         const ak_gui_cond *c = &w->cond[i]; f32 a = var_get(c->var), b = strtof(c->val, NULL); bool r;
-        if (!strcmp(c->var, "GUIMenu.ActiveWidget")) { s32 ia = (s32)focus, ib = (s32)strtol(c->val, NULL, 0); a = (f32)(ia > ib) - (f32)(ia < ib); b = 0; }   /* (ids: exact) */
+        if (!strcmp(c->var, "GUIMenu.ActiveWidget")) { s32 ia = (s32)active_widget, ib = (s32)strtol(c->val, NULL, 0); a = (f32)(ia > ib) - (f32)(ia < ib); b = 0; }   /* (ids: exact) */
         switch (c->op) { case 1: r = fabsf(a - b) < 1e-4f; break; case 2: r = a > b + 1e-4f; break; case 3: r = a >= b - 1e-4f; break; case 4: r = a < b - 1e-4f; break; case 5: r = a <= b + 1e-4f; break; default: r = true; }
         any |= r; all &= r;
     }
@@ -289,6 +311,129 @@ static const u16 *override_text(const ak_widget *w, u32 *n)
     if (!strcmp(w->name, "E_TX_LevelType")) return ak_hud_stdtext(40 + 2 * (u32)(match.mode & 3), n);
     return NULL;
 }
+/* ---- the customisation menu (PARITY 8.2 / 2.1): BFF_CUSTOMISATION.GUI's MP_Customisation over MP_CustomBackground, the item
+ * carousel MP_CustomCarousel over both.  Read from the FE_Customisation_* functions (08A276F0 ..):
+ *  - eight categories (names: menu texts at 0x08ADFBF4, descriptions at 0x08ADFC14), each a list of items: Weapon 1 (10),
+ *    Weapon 2 (8), Explosive (6), Special Item (8), Power Up (6) - Weapon blueprints by h31 hash (tables 0x08ADC5E8 ..; 0 = none),
+ *    taken in the player's faction's version (08A23598) - then Health, Speed and Capture Rate (None and levels 1-3, texts at
+ *    0x08ADFCE4 / 0x08ADFD04 / 0x08ADFCF4).
+ *  - an item's cost: the weapon's Cost (08A3454C); the levels' from 0x08AE30BC (Health and Speed 0 / 10 / 20 / 30, Capture Rate
+ *    0 / 15 / 25 / 35); a category's total is its item's cost (08A342E8, "%d"); the credits line "CREDITS: <spent>/<max>"
+ *    (08A27994, "%ls %d/%d") and BFF.FE_Customisation_Credits = what is left (< 0: the over-spent line and the OVERSPENT page).
+ *  - cross on a category opens the carousel (08A27EC4); cross on an item takes it (08A27F28, no credit check), square clears the
+ *    category (08A27FD8: the item 0); triangle asks CONFIRM CANCEL (08A27E74 -> MP_CustomCancel), whose cross puts the loadout
+ *    back as it was (08A27DE0); circle leaves the menu.
+ *  The credits are 200 and the default loadout Blaster Rifle, Blaster Pistol, the faction's grenade, Health and Speed Level 1
+ *  (the original's spawn screen, 1.15).  [assumed: the level and power-up rows' carousel pictures are the background page's
+ *  own attribute pictures; the 3D item and soldier models (1004 widgets) are not drawn yet] */
+#define NCAT 8
+static const char *const cust_bp[5][10] = {
+    { NULL, "BlasterRifle", "ArcCaster", "Carbonite_Gun", "ALL_Incinerator", "Shotgun", "Sniper Rifle", "REP_Chaingun", "ALL_Bow_Caster", "Rocket_Launcher" },
+    { "BlasterPistol", "Fusion Cutter", "ALL_Tri_Shot", "Emp_Launcher", "Particle_Pistol", "Grenade_Launcher_OnTime", "Guided_Missile", "Orbital Strike Gun" },
+    { NULL, "REP_Grenade", "Det_Pack", "Proximity_Mines", "Cluster_Grenades", "Wrist_Rocket" },
+    { NULL, "ALL_HealthAmmo_Dispenser", "auto_turret_droid", "Recon_Droid", "Stealth_Suit", "Jetpack", "Jumppack", "Personal_Shield" },
+    { NULL, "Rally", "Rage", "Stamina", "Regenerate", "VehicleAutoRepair" } };
+static const int cust_count[NCAT] = { 10, 8, 6, 8, 6, 4, 4, 4 };
+static const u32 cust_name_key[NCAT] = { 0x6853C9B5u, 0x59E84303u, 0xEE4A6FA9u, 0x13A07C95u, 0x10EDCBD1u, 0x0649FD18u, 0xDFCBBE0Bu, 0x54844D09u };
+static const u32 cust_desc_key[NCAT] = { 0xB208FD2Bu, 0x0B1E70F9u, 0xCA746A73u, 0xCCD8158Bu, 0x49944FC7u, 0x838D068Eu, 0x25E6ADD5u, 0x7FA27253u };
+static const u32 cust_level_key[3][4] = { { 0xA40C5954u, 0xA354D5E1u, 0xA354D5E2u, 0xA354D5E3u }, { 0xA40C5954u, 0x6C2B49F0u, 0x6C2B49F1u, 0x6C2B49F2u },
+                                          { 0xA40C5954u, 0xB671376Eu, 0xB671376Fu, 0xB6713770u } };
+static const int cust_level_cost[3][4] = { { 0, 10, 20, 30 }, { 0, 10, 20, 30 }, { 0, 15, 25, 35 } };
+#define CUST_CREDITS 200
+static int cust_sel[NCAT] = { 1, 0, 1, 0, 0, 1, 1, 0 }, cust_saved[NCAT], cust_cat; static u32 cust_return;
+static const ak_blueprints *fe_bp;
+void ak_fe_set_blueprints(const void *bp) { fe_bp = (const ak_blueprints *)bp; }
+static const ak_bp_object *cust_item(int cat, int i)          /* the faction's version of a Weapon (08A23598) */
+{
+    if (cat < 0 || cat > 4 || i < 0 || i >= cust_count[cat] || !cust_bp[cat][i] || !fe_bp) return NULL;
+    const ak_bp_object *w = ak_bp_find(fe_bp, "Weapon", cust_bp[cat][i]); if (!w) return NULL;
+    int fac = have_match ? match.faction[match.team & 1] : 2;
+    if (ak_bp_int(w, "Faction Specific", 0)) {
+        const ak_bp_type *t = ak_bp_find_type(fe_bp, "Weapon");
+        for (u32 k = 0; t && k < t->nobjects; k++) if (t->objects[k].parent == w && ak_bp_int(&t->objects[k], "Faction", -1) == fac) return &t->objects[k];
+    }
+    return w;
+}
+static int cust_cost(int cat, int i)
+{
+    if (cat >= 5) return i >= 0 && i < 4 ? cust_level_cost[cat - 5][i] : 0;
+    const ak_bp_object *o = cust_item(cat, i); return o ? ak_bp_int(o, "Cost", 0) : 0;
+}
+static int cust_spent(void) { int t = 0; for (int c = 0; c < NCAT; c++) t += cust_cost(c, cust_sel[c]); return t; }
+static const u16 *cust_name(int cat, int i, u32 *n)
+{
+    if (cat >= 5) return i >= 0 && i < 4 ? ak_gui_text(&texts, cust_level_key[cat - 5][i], n) : NULL;
+    const ak_bp_object *o = cust_item(cat, i);
+    if (!o) return ak_gui_text(&texts, 0xA40C5954u, n);                /* "None" */
+    s32 id = ak_bp_int(o, "Weapon_Name", -1); return id >= 0 ? ak_hud_stdtext((u32)id, n) : NULL;
+}
+static void cust_vars(void)                                            /* the script values the pages show by */
+{
+    var_set("BFF.FE_Customisation_Credits", (f32)(CUST_CREDITS - cust_spent()));
+    var_set("BFF.FE_Customisation_EnableSellButton", cust_sel[cust_cat] > 0 && cust_cost(cust_cat, cust_sel[cust_cat]) > 0);
+    var_set("BFF.FE_Customisation_PowerUp", (f32)cust_sel[4]); var_set("BFF.FE_Customisation_Health", (f32)cust_sel[5]);
+    var_set("BFF.FE_Customisation_Speed", (f32)cust_sel[6]); var_set("BFF.FE_Customisation_Agility", (f32)cust_sel[7]);
+    var_set("BFF.FE_Customisation_Insignia", (f32)ak_setting_int("AK_PLAYER_INSIGNIA", 0));
+}
+static bool in_cust(void) { return page && page->root.name && (!strncmp(page->root.name, "MP_Custom", 9)); }
+int ak_fe_loadout(int sel[8], const char *names[5])
+{
+    for (int c = 0; c < NCAT; c++) sel[c] = cust_sel[c];
+    for (int c = 0; c < 5; c++) names[c] = cust_bp[c][cust_sel[c]];
+    return cust_spent();
+}
+/* a list box's rows: the customisation's categories or the chosen category's items */
+static int lb_count(const ak_widget *w)
+{
+    if (!w->name) return 0;
+    const ak_widget *t = w->nchild ? &w->child[w->nchild - 1] : NULL;
+    for (u32 i = 0; t && i < t->nchild; i++) {
+        const char *fn = t->child[i].fill.fn; if (!fn) continue;
+        if (!strncmp(fn, "FE_Customisation_ListCategory", 29)) return NCAT;
+        if (!strncmp(fn, "FE_Customisation_ListCarousel", 29)) return cust_count[cust_cat];
+    }
+    return 0;
+}
+/* the carousel's rows: the category's items, the chosen one picked, about it in view (3 shown) */
+static void cust_carousel_sync(void)
+{
+    int k = layer_of("MP_CustomCarousel"); if (k < 0) return;
+    const ak_widget *cw = find_name(&layer[k]->root, "W_LB_Carousel"); if (!cw) return;
+    list_rows *C = rows_of(cw->id);
+    if (!C && nlists < 24) { C = &lists[nlists++]; memset(C, 0, sizeof *C); C->id = cw->id; }
+    if (!C) return;
+    C->n = cust_count[cust_cat]; C->sel = cust_sel[cust_cat]; C->top = C->sel > 1 ? C->sel - 1 : 0; if (C->top + 3 > C->n) C->top = C->n > 3 ? C->n - 3 : 0;
+}
+/* a row part's column: its text (true) */
+static bool lb_text(const char *fn, int row, u16 *buf, u32 *n, const u16 **out)
+{
+    char t[24] = ""; *out = NULL;
+    if (!strcmp(fn, "FE_Customisation_ListCategoryNames")) { *out = ak_gui_text(&texts, cust_name_key[row & 7], n); return true; }
+    if (!strcmp(fn, "FE_Customisation_ListCategoryTotals")) snprintf(t, sizeof t, "%d", cust_cost(row & 7, cust_sel[row & 7]));
+    else if (!strcmp(fn, "FE_Customisation_ListCarouselCosts")) snprintf(t, sizeof t, "%d", cust_cost(cust_cat, row));
+    else if (!strcmp(fn, "FE_Customisation_ListCarouselNames")) { *out = cust_name(cust_cat, row, n); return true; }
+    else return false;
+    u32 k = 0; for (const char *c = t; *c && k < 23; c++) buf[k++] = (u16)(u8)*c; *n = k; *out = buf; return true;
+}
+/* a row part's picture: true with its cell (empty = none) */
+static const ak_widget *find_named_in(const ak_gui_page *pg, const char *name);
+static bool lb_picture(const char *fn, int row, f32 *uv)
+{
+    if (!strcmp(fn, "FE_Customisation_ListCategoryIcons")) {          /* attributes_01.tga: the category's cell, 0.1015625 a row down from 0.125 */
+        f32 v0 = 0.125f + (f32)(row & 7) * 0.1015625f; uv[0] = 0; uv[1] = v0; uv[2] = 0.12109375f; uv[3] = v0 + 0.1015625f; return true;
+    }
+    if (!strcmp(fn, "FE_Customisation_ListCarouselIcons")) {
+        static const char *const lvl[3] = { "E_IM_Health%d", "E_IM_Speed%d", "E_IM_Agility%d" }, *pu[6] = { NULL, "E_IM_Rally", "E_IM_Rage", "E_IM_Stamina", "E_IM_Regenerate", "E_IM_AutoRepair" };
+        char nm[32] = ""; memset(uv, 0, 16);
+        if (cust_cat >= 5 && row > 0) snprintf(nm, sizeof nm, lvl[cust_cat - 5], row);
+        else if (cust_cat == 4 && row > 0 && row < 6) snprintf(nm, sizeof nm, "%s", pu[row]);
+        for (int k = 0; nm[0] && k < nlayer; k++) { const ak_widget *b = find_named_in(layer[k], nm); if (b) { memcpy(uv, b->uv, 16); break; } }
+        return true;
+    }
+    if (!strcmp(fn, "FE_Customisation_ListCarouselAnims")) { memset(uv, 0, 16); return true; }   /* (the 3D items: not drawn yet) */
+    return false;
+}
+static int lb_row = -1; static bool lb_selected;                     /* drawing a list box's row: which, and is it the chosen one */
 /* the sides' pictures on the team and score board pages (MP_Team_Selection, MP_ScoreBoard, MP_RespawnScoreboard,
  * MP_GameOverScoreboard), set by the game at run time:
  *  - E_IM_StyleButtonH_Logo_CIS / ..._CIS 1: the player's faction's logo and its opponent's (08A2A844: menu_buttons.tga cells
@@ -323,8 +468,12 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
     if (spawn_point_pos(w, &x, &y)) { ox = 0; oy = 0; }
     if (have_match && w->name && !strcmp(w->name, "E_IM_SpawnLocal")) { ak_hud_2d_map(x, y, 200, 0xFFFFFFFFu); return; }
     if (have_match && w->name && !strcmp(w->name, "E_TX_StyleMenuTitle") && cur_file == 8) return;   /* (the campaign's title: none in a plain match) */
+    if (w->is_template && lb_row < 0) return;                          /* (a list box's row: drawn by the list, once per row) */
     if (getenv("AK_FE_TRACE") && w->name && strstr(w->name, getenv("AK_FE_TRACE"))) AK_INFO("fe", "draw %s shows %d cond %d at %.0f,%.0f", w->name, shows(w, focused), cond_holds(w), x, y);
-    if (w->type != AK_GUI_PAGE && (!shows(w, focused) || !cond_holds(w))) return;
+    bool in_row = lb_row >= 0 && !w->is_template;
+    if (in_row && (w->flags & 0x20) && !(w->flags & 0x400)) {          /* a row part for the chosen row only (flags bit 5) [assumed] */
+        if (!lb_selected || !cond_holds(w)) return;
+    } else if (w->type != AK_GUI_PAGE && (!shows(w, focused) || !cond_holds(w))) return;
     /* the Italian subtitle under the logo (menu_logos.tga's strip at v 0.445: "W_IM_ItalianLogo", or plain "Image 1") shows for
        the Italian language only - the original's English frames have none [assumed: the page scripts' doing] */
     if (w->type == AK_GUI_IMAGE && w->tex >= 0 && fabsf(w->uv[1] - 0.4453125f) < 1e-4f && gf.tex[w->tex].name && strstr(gf.tex[w->tex].name, "menu_logos")
@@ -334,6 +483,7 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
         if (!strncmp(w->anims[i], "pulse_highlight", 15)) a = 0.65f + 0.35f * cosf(clock * 6.2831853f);
     f32 uvo[4]; const f32 *uv = w->uv;
     if (have_match && w->type == AK_GUI_IMAGE && w->name && picture_override(w, uvo)) { if (uvo[2] <= uvo[0]) return; uv = uvo; }
+    if (in_row && w->fill.fn && w->fill.fn[0] && w->type == AK_GUI_IMAGE && lb_picture(w->fill.fn, lb_row, uvo)) { if (uvo[2] == uvo[0]) return; uv = uvo; }
     if (w->type == AK_GUI_IMAGE && w->tex >= 0 && (u32)w->tex < gf.ntex && gtex[w->tex]) {
         const f32 *c = w->rgba;
         if (spawn_owner >= 0 && w->name && !strncmp(w->name, "E_IM_SpawnPoint", 15)) c = spawn_rgba[spawn_owner][w->name[15] == 'H'];
@@ -344,8 +494,10 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
             f32 n = (f32)scroll->n, sh = (f32)scroll_shown; if (n > sh) { yy = y + h * (f32)scroll->top / n; h = h * sh / n; }
         }
         ak_hud_2d_quad(NULL, x, yy, x + w->size[0], yy + h, 0, 0, 1, 1, argb_of(w->rgba, a));
-    } else if (w->type == AK_GUI_TEXT && (w->text_key || override_text(w, &(u32){0}))) {
-        u32 n; const u16 *s = override_text(w, &n); if (!s) s = ak_gui_text(&texts, w->text_key, &n);
+    } else if (w->type == AK_GUI_TEXT && (w->text_key || override_text(w, &(u32){0}) || (in_row && w->fill.fn))) {
+        u32 n = 0; u16 rb[24]; const u16 *s = NULL;
+        if (in_row && w->fill.fn && w->fill.fn[0] && lb_text(w->fill.fn, lb_row, rb, &n, &s)) { if (!s) return; }
+        else { s = override_text(w, &n); if (!s) s = ak_gui_text(&texts, w->text_key, &n); }
         if (s && n) {
             int big = w->font && strstr(w->font, "_13") != NULL;
             int al = (w->text_flags & 8) ? 2 : (w->text_flags & 4) ? 1 : 0;   /* 0xC8 right, 0xC4 centred, 0xC2 left */
@@ -365,6 +517,17 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
                 int al = (w->rows_align & 8) ? 2 : (w->rows_align & 4) ? 1 : 0;   /* [assumed: a 3-unit margin on either side] */
                 ak_hud_2d_text(big, x + 3, y + r * rh + (rh - lh) * 0.5f, x + w->size[0] - (al == 2 ? 3 : 0), 1.0f, col, L->row[k], L->len[k], al);
             }
+        }
+    }
+    if ((w->type == AK_GUI_LIST || w->type == AK_GUI_LIST2) && w->nchild && w->child[w->nchild - 1].is_template) {   /* a list box: its row per row */
+        list_rows *L = rows_of(w->id); const ak_widget *t = &w->child[w->nchild - 1];
+        int n = lb_count(w), shown = w->rows_shown ? (int)w->rows_shown : 8; f32 rh = w->size[1] > 0 ? w->size[1] / (f32)shown : 25;
+        if (L) { L->n = n; if (L->sel >= n) L->sel = n ? n - 1 : 0; }
+        for (int r = 0; L && r < shown && L->top + r < n; r++) {
+            int keep_row = lb_row; bool keep_sel = lb_selected;
+            lb_row = L->top + r; lb_selected = lb_row == L->sel;
+            draw_widget(t, x, y + (f32)r * rh, lb_selected);
+            lb_row = keep_row; lb_selected = keep_sel;
         }
     }
     bool f2 = is_button(w->type) ? (w->id == focus) : focused;
@@ -389,7 +552,15 @@ void ak_fe_draw(void)
 {
     if (!page) return;
     ak_hud_2d_begin();
-    draw_widget(&page->root, 0, 0, false);
+    if (nlayer) {
+        layer_focus[active_layer] = focus; active_widget = focus; var_set("GUIMenu.ActiveWidget", (f32)(s32)focus);   /* (one active widget, the page in use's) */
+        for (int k = 0; k < nlayer; k++) {                             /* (each page drawn with its own focus) */
+            u32 keepf = focus; focus = layer_focus[k];
+            const ak_gui_page *keepp = page; page = layer[k];
+            draw_widget(&layer[k]->root, 0, 0, false); focus = keepf; page = keepp;
+        }
+        var_set("GUIMenu.ActiveWidget", (f32)(s32)focus);
+    } else { active_widget = focus; draw_widget(&page->root, 0, 0, false); }
     ak_hud_2d_end();
 }
 
@@ -425,7 +596,20 @@ static void fill(const ak_widget *w)
             for (const char *c = t; *c && n < 15; c++) b[n++] = (u16)(u8)*c;
             row_add16(b, n, (int)i);
         }
-    } else if (0) {
+    } else if (!strcmp(fn, "FE_Customisation_Credits")) {          /* 08A27994: "CREDITS: <spent>/<max>" */
+        u32 n; const u16 *t = ak_gui_text(&texts, 0x1DEFE5CCu, &n); u16 b[48]; u32 k = 0; char num[24];
+        if (t) { memcpy(b, t, (n < 30 ? n : 30) * 2); k = n < 30 ? n : 30; }
+        snprintf(num, sizeof num, " %d/%d", cust_spent(), CUST_CREDITS); for (const char *c = num; *c && k < 47; c++) b[k++] = (u16)(u8)*c;
+        row_add16(b, k, 0);
+    } else if (!strcmp(fn, "FE_Customisation_Prompt")) {           /* 08A27C24: the category's description, on the carousel the item's */
+        u32 n = 0; const u16 *t = NULL;
+        if (page && page->root.name && !strcmp(page->root.name, "MP_CustomCarousel")) {
+            list_rows *C = NULL; const ak_widget *cw = find_named(&page->root, "W_LB_Carousel"); if (cw) C = rows_of(cw->id);
+            const ak_bp_object *o = cust_item(cust_cat, C ? C->sel : cust_sel[cust_cat]); s32 d = o ? ak_bp_int(o, "Description", -1) : -1;
+            if (d >= 0) t = ak_hud_stdtext((u32)d, &n);
+        }
+        if (!t) t = ak_gui_text(&texts, cust_desc_key[cust_cat & 7], &n);
+        if (t) row_add16(t, n, 0);
     } else if (!strcmp(fn, "FE_ListMapsInRotation")) {               /* 08A31CA4: "Tatooine - CQST - GCW" */
         for (int i = 0; i < nrot; i++) {
             u16 b[96]; u32 n = 0, k; const u16 *t;
@@ -444,7 +628,35 @@ static void fill(const ak_widget *w)
 static void fill_all(const ak_widget *w)
 {
     if (w->type == AK_GUI_TEXTLIST) fill(w);
+    if ((w->type == AK_GUI_LIST || w->type == AK_GUI_LIST2) && !rows_of(w->id) && nlists < 24) { list_rows *L = &lists[nlists++]; memset(L, 0, sizeof *L); L->id = w->id; L->n = lb_count(w); }
     for (u32 i = 0; i < w->nchild; i++) fill_all(&w->child[i]);
+}
+static void open_layer(u32 h)                                          /* a page over the one in use, which stays drawn */
+{
+    if (!page) return;
+    if (!nlayer) { layer[0] = page; layer_prev[0] = -1; nlayer = 1; active_layer = 0; }
+    if (nlayer >= MAXLAYERS) return;
+    layer_focus[active_layer] = focus;
+    layering = true; bool ok = open_hash(h, false); layering = false;
+    if (!ok) { page = layer[active_layer]; return; }
+    layer[nlayer] = page; layer_prev[nlayer] = focus_new ? active_layer : -1;
+    if (focus_new) active_layer = nlayer;
+    else { layer_focus[nlayer] = focus; page = layer[active_layer]; focus = layer_focus[active_layer]; layer_prev[nlayer] = -1; }
+    nlayer++; focus_new = true;
+}
+static void use_layer(int k)                                           /* the focus to an open page */
+{
+    if (k < 0 || k >= nlayer) return;
+    layer_focus[active_layer] = focus; active_layer = k; page = layer[k]; focus = layer_focus[k]; clock = 0;
+}
+static int layer_of(const char *name) { for (int k = 0; k < nlayer; k++) if (layer[k]->root.name && !strcmp(layer[k]->root.name, name)) return k; return -1; }
+static void close_layer(void)
+{
+    if (nlayer < 2) return;
+    int back = layer_prev[nlayer - 1]; nlayer--;
+    if (active_layer >= nlayer) { active_layer = back >= 0 && back < nlayer ? back : nlayer - 1; }
+    page = layer[active_layer]; focus = layer_focus[active_layer]; clock = 0;
+    refill();
 }
 static void status(int s) { var_set("BFF.FE_MapSelectionStatus", s); }
 static void rotation_changed(void) { var_set("BFF.NumMapsInRotation", nrot); var_set("BFF.FE_IsRotationListFull", nrot >= 16); }
@@ -473,6 +685,29 @@ static int run(const ak_gui_action *a, int row)
             rot[nrot].map = m; rot[nrot].mode = 0; rot[nrot].era = era; nrot++;
         }
         rotation_changed();
+    }
+    else if (!strcmp(fn, "FE_OpenCustomisationMenu")) {               /* 08A2F540: the menu over its background; back to this page after */
+        cust_return = page ? page->root.id : 0;
+        if (open_hash(ak_gui_hash("MP_CustomBackground"), false)) {   /* (08A276F0: the background and the carousel open without the focus) */
+            open_layer(ak_gui_hash("MP_Customisation")); focus_new = false; open_layer(ak_gui_hash("MP_CustomCarousel")); cust_carousel_sync(); }
+        memcpy(cust_saved, cust_sel, sizeof cust_sel); cust_cat = 0; cust_vars();   /* (08A276F0: OnInitMenu keeps the loadout to go back to) */
+        refill(); return AK_FE_NONE;
+    }
+    else if (!strcmp(fn, "FE_Customisation_AcceptCategoryItem")) {   /* 08A27EC4: the category's items, over the menu */
+        if (row >= 0 && row < NCAT) { cust_cat = row; cust_carousel_sync(); int k = layer_of("MP_CustomCarousel"); if (k >= 0) { use_layer(k); focus = find_named(&page->root, "W_LB_Carousel") ? find_named(&page->root, "W_LB_Carousel")->id : focus; } }
+    }
+    else if (!strcmp(fn, "FE_Customisation_AcceptCarouselItem")) {   /* 08A27F28: the item taken (no credit check), back to the menu */
+        if (row >= 0 && row < cust_count[cust_cat]) cust_sel[cust_cat] = row;
+        use_layer(layer_of("MP_Customisation"));
+    }
+    else if (!strcmp(fn, "FE_Customisation_SellCarouselItem")) {     /* 08A27FD8: the category cleared (item 0) */
+        if (cust_sel[cust_cat] > 0 && cust_cost(cust_cat, cust_sel[cust_cat]) > 0) { cust_sel[cust_cat] = 0; cust_carousel_sync(); use_layer(layer_of("MP_Customisation")); }
+    }
+    else if (!strcmp(fn, "FE_Customisation_ConfirmCancel")) open_layer(ak_gui_hash("MP_CustomCancel"));   /* 08A27E74 */
+    else if (!strcmp(fn, "FE_Customisation_Cancel")) {                 /* 08A27DE0: the loadout as it was, the menu closed */
+        memcpy(cust_sel, cust_saved, sizeof cust_sel); nlayer = 0; page = NULL;
+        if (cust_return) open_hash(cust_return, false);
+        cust_vars(); return AK_FE_NONE;
     }
     else if (!strcmp(fn, "FE_RespawnOrTeamSelect")) {}
     else if (!strcmp(fn, "FE_ProcessGameover")) {                       /* Retry: the same map again; Continue: the play list's next, else the main menu */
@@ -504,7 +739,8 @@ static int run(const ak_gui_action *a, int row)
         launch_mode = rot[0].mode;
         return AK_FE_START;
     }
-    if (page) fill_all(&page->root);
+    if (in_cust()) cust_vars();
+    refill();
     return AK_FE_NONE;
 }
 const char *ak_fe_launch(int *mode) { if (mode) *mode = launch_mode; return launch_level; }
@@ -531,6 +767,18 @@ static const ak_widget *find_visible(const ak_widget *w, u32 id)
     for (u32 i = 0; i < w->nchild; i++) { const ak_widget *r = find_visible(&w->child[i], id); if (r) return r; }
     return NULL;
 }
+/* the customisation menu's circle: off the carousel or a dialogue back to the menu; off the menu itself out of it - over the credits
+ * the OVERSPENT page instead (W_BU_Back_OverSpent, shown while BFF.FE_Customisation_Credits < 0); -1 = not handled here */
+static int cust_event(const ak_input *in)
+{
+    if (!(in->pressed & AK_BTN_CIRCLE)) return -1;
+    if (!strcmp(page->root.name, "MP_CustomCarousel")) { cust_carousel_sync(); use_layer(layer_of("MP_Customisation")); cust_vars(); refill(); return AK_FE_NONE; }
+    if (strcmp(page->root.name, "MP_Customisation")) { close_layer(); cust_vars(); refill(); return AK_FE_NONE; }
+    if (cust_spent() > CUST_CREDITS) { open_layer(ak_gui_hash("MP_CustomOverSpent")); return AK_FE_NONE; }
+    nlayer = 0; page = NULL;
+    if (cust_return) open_hash(cust_return, false);
+    return AK_FE_LOADOUT;
+}
 int ak_fe_update(const ak_input *in, f32 dt)
 {
     if (!page) return AK_FE_NONE;
@@ -540,13 +788,30 @@ int ak_fe_update(const ak_input *in, f32 dt)
         const ak_widget *f0 = focus ? find_visible(&page->root, focus) : NULL;
         if (!f0 || (f0->type == AK_GUI_BUTTON && !f0->nactions && !f0->target)) { const ak_widget *c = first_control(&page->root); if (c) focus = c->id; }
     }
-    var_set("GUIMenu.ActiveWidget", (s32)focus);
+    var_set("GUIMenu.ActiveWidget", (s32)focus); active_widget = focus;
+    if (in_cust()) { int e = cust_event(in); if (e >= 0) return e; }
     const ak_widget *f = focus ? find_id(&page->root, focus) : NULL;
+    /* the buttons' keys (the game's: 16 cross, 32 square, 64 triangle - the spawn map's "\ue801 Customization Menu" runs on
+       square, "\ue803 Personalization Menu" on triangle) */
+    static const u32 keys[3][2] = { { AK_BTN_CROSS, 16 }, { AK_BTN_SQUARE, 32 }, { AK_BTN_TRIANGLE, 64 } };
+    if (f && (f->type == AK_GUI_LIST || f->type == AK_GUI_LIST2)) {  /* a list box: up / down through its rows, its keys */
+        list_rows *L = rows_of(f->id); int shown = f->rows_shown ? (int)f->rows_shown : 8;
+        if (L) {
+            L->n = lb_count(f);
+            int was = L->sel;
+            if ((in->pressed & AK_BTN_UP) && L->sel > 0) L->sel--;
+            if ((in->pressed & AK_BTN_DOWN) && L->sel + 1 < L->n) L->sel++;
+            if (L->sel < L->top) L->top = L->sel;
+            if (L->sel >= L->top + shown) L->top = L->sel - shown + 1;
+            if (L->sel != was) { if (f->name && !strcmp(f->name, "W_LB_TypeList")) cust_cat = L->sel; if (in_cust()) cust_vars(); refill(); return AK_FE_NONE; }
+        }
+        for (int k = 0; k < 3; k++) if (in->pressed & keys[k][0])
+            for (u32 i = 0; i < f->nactions; i++) if (f->actions[i].key == keys[k][1]) return run(&f->actions[i], L && L->n ? L->sel : -1);
+    }
     if (f && f->type == AK_GUI_TEXTLIST) {                            /* a text list: up / down through its rows, its keys */
         list_rows *L = rows_of(f->id); int shown = f->rows_shown ? (int)f->rows_shown : 8;
         if (L && (in->pressed & AK_BTN_UP) && L->sel > 0) { L->sel--; if (L->sel < L->top) L->top = L->sel; return AK_FE_NONE; }
         if (L && (in->pressed & AK_BTN_DOWN) && L->sel + 1 < L->n) { L->sel++; if (L->sel >= L->top + shown) L->top = L->sel - shown + 1; return AK_FE_NONE; }
-        static const u32 keys[3][2] = { { AK_BTN_CROSS, 16 }, { AK_BTN_SQUARE, 32 }, { AK_BTN_CIRCLE, 64 } };
         for (int k = 0; k < 3; k++) if (in->pressed & keys[k][0])
             for (u32 i = 0; i < f->nactions; i++) if (f->actions[i].key == keys[k][1]) {
                 int row = L && L->n ? L->val[L->sel] : -1;
@@ -591,6 +856,9 @@ int ak_fe_update(const ak_input *in, f32 dt)
         }
     if ((in->pressed & AK_BTN_CROSS) && getenv("AK_FE_TRACE")) AK_INFO("fe", "cross on %s (%u actions)", f && f->name ? f->name : "-", f ? f->nactions : 0);
     if ((in->pressed & AK_BTN_CROSS) && f && is_button(f->type) && f->type != AK_GUI_TEXTLIST) return activate(f);
+    for (int k = 1; k < 3; k++)                                        /* square, triangle: a button's own action for them */
+        if ((in->pressed & keys[k][0]) && f && is_button(f->type))
+            for (u32 i = 0; i < f->nactions; i++) if (f->actions[i].key == keys[k][1]) return run(&f->actions[i], -1);
     if (in->pressed & AK_BTN_CIRCLE) {                                 /* back: the page's back button, else the page before */
         const ak_widget *b = find_named(&page->root, "W_BU_Back");
         if (b && b->target) { open_hash(b->target, false); return AK_FE_NONE; }

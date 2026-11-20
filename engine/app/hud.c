@@ -827,7 +827,7 @@ f32 ak_hud_2d_text(int big, f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u
     fontdef *keep = fontp; fontp = &fonts[big ? 1 : 0];
     f32 h;
     if (align == 2) {                                                   /* right: measure one line */
-        f32 w = 0; for (u32 i = 0; i < n; i++) { const glyph *g = glyph_of(s[i]); if (g) w += g->w * scale; }
+        f32 w = 0; for (u32 i = 0; i < n; i++) { const glyph *g = glyph_of(s[i]); if (g) w += g->w * scale; else if (button_mark(s[i])) w += fontp->line * scale; }   /* (button marks: a line square) */
         h = text16_box(x1 - w, y0, x1 + 1, scale, argb, s, n, true, false);
     } else h = text16_box(x0, y0, x1, scale, argb, s, n, true, align == 1);
     fontp = keep; return h;
