@@ -495,6 +495,10 @@ textures and how they are used. Section R lists only what must be in place so th
       is turned with its vfunc +56.
     - With flag +33, every 10 s (+52) while the aim is within 5 degrees of the target (cos 5 deg, cached), it raises AI event 1
       for the target with 2.0 (08A24358) - a warning / call-out, not the firing.
+    - 2026-11-20: the turret class is 0x801E (made by 089BC0AC from the factory 0896F170; vtable 0x08B00800, update 089BBF80 ->
+      089BBD30, which dispatches on its mode +568 through a table at 0x08ADE5CC after finding its driver, 089D194C). The firing
+      goes through the vehicle's driver like any other vehicle, so the AI side is the turret controller's input - not read. The
+      lead's shot speed is 1000.0 (built).
     - Who fires and which sensor fills the target record are not read (the sensor classes are built in 0895FD14..08961784;
       the soldiers' is 0x08AF96F0, see 4.2).  Aurek's turrets keep their own pick (nearest it can point at and see).
 - [ ] **4.4 Movement behaviour.** Path following, strafing, cover, objective choice, and retreat. Compare against the original's

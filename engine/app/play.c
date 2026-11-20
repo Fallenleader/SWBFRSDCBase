@@ -2248,13 +2248,14 @@ static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
             AK_INFO("turret", "%.0f s turret %u team %d enemy %d nearest enemy craft %.0f m yaw %.2f pitch %.2f", p->clock, i, t->team, t->enemy, nd, t->yaw, t->pitch);
         }
         if (t->enemy < 0) { t->volley_t = 0; continue; }
-        /* aim: lead a moving vehicle by the bolt's flight time */
+        /* aim: lead a moving vehicle (traced, 0895076C: flyers, walkers and tanks by their vfunc +104 with the shot speed D_08B1B740,
+           1000.0 - the same constant the soldiers' AI fire nodes pass - not the bolt's own speed; anything else at its position) */
         const ak_target *e = &p->target[t->enemy];
         f32 c[3] = { e->feet[0], e->feet[1] + e->height * 0.5f, e->feet[2] };
         if (t->enemy >= (s32)NS(p) && t->enemy < (s32)NV(p)) {
             const ak_vehicle *ev = &p->veh[t->enemy - NS(p)];
             f32 dx = c[0] - eye[0], dy = c[1] - eye[1], dz = c[2] - eye[2], dist = sqrtf(dx * dx + dy * dy + dz * dz);
-            f32 lt = d->gun.speed > 1 ? dist / d->gun.speed : 0;
+            f32 lt = dist / (1000.0f * S);
             for (int k = 0; k < 3; k++) c[k] += ev->vel[k] * lt;
         }
         f32 wy, wp; ak_turret_aim_at(t, m, c, &wy, &wp);

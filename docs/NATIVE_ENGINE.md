@@ -261,6 +261,7 @@ Aurek now does both. Its free test checks clear of the vehicle's box grown by 0.
 So a vehicle driven away is replaced while it still lives, as the harness showed. The record's flags (body +20, always 3) set +28 and +29.
 
 Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is now 32). Each spawn has its own clock, reset while one of its live vehicles is within 25 m. A waiting slot is made once its wreck has gone and the clock has passed the respawn time + the measured extra (1 s; flyers 2.5 s). Hoth, 100 s with bots: 10 vehicles made as bots drove others away; 7 captures. `AK_VEHICLE_SLOTS=0` keeps one vehicle per spawn (settings.txt updated, with AK_BOT_GRENADES). Contradiction left open: with +29 set (every record), the game's update would spawn without waiting, but the measured respawn is ~11 s after a kill; 08A16320 (the spawn itself) is not read. |
+| 2026-11-20 | 4.3 | **turret lead.** The turret AI's aim (0895076C) leads flyers, walkers and tanks through their vfunc +104, given a shot speed of 1000.0 (D_08B1B740). The soldiers' AI fire nodes (08943020, 08946E80, 089496E8) and 089520B8 pass the same constant. Aurek's automatic turrets now lead by distance / 1000 m/s instead of the bolt's own speed, so they lead almost nothing. [assumed]: that the vfunc's float is the shot speed (the base class's +104, 08AC38B8, returns no solution; the vehicles' own versions were not read). Still open: who pulls the trigger, see PARITY 4.3. |
 
 ## Known issues (cleanup pass once gameplay reaches parity)
 
