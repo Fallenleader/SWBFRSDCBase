@@ -465,7 +465,11 @@ static void loadout_items(ak_play *p, const ak_model_set *m, const ak_blueprints
         const ak_bp_object *gw = en[0] ? ak_bp_find(bp, "Weapon", en) : NULL;
         p->gren_ok = gw && ak_proj_def_load(bp, ak_bp_string(gw, "Projectile", "Grenade"), &p->gren_def);
         p->gren_left = p->gren_max = gw ? ak_bp_int(gw, "AmmoPerClip", 4) : 0; p->det_t = -1; p->gren_t = -1; p->gren_cool = 0;
-        p->gren_rate = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f; p->gren_ps = gw ? ak_bp_float(gw, "ProjectileSpeed", 10.0f) : 10.0f; p->gren_vts = gw ? ak_bp_float(gw, "VerticalThrowSpeed", 2.5f) : 2.5f; p->gren_icon = gw ? ak_bp_string(gw, "HUDIcon", NULL) : NULL; p->gren_name = gw ? ak_bp_int(gw, "Weapon_Name", -1) : -1;
+        p->gren_rate = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f;
+        {   /* the throw's speeds are the Projectile blueprint's (Grenade 10 / 2.5, Cluster_Grenade 10 / 3.5: the values the harness
+               logged; the Weapon's own ProjectileSpeed, Cluster_Grenades' 20, is not used for it); the loader's defaults 10 / 0 */
+            const ak_bp_object *pj = gw ? ak_bp_find(bp, "Projectile", ak_bp_string(gw, "Projectile", "Grenade")) : NULL;
+            p->gren_ps = pj ? ak_bp_float(pj, "ProjectileSpeed", 10.0f) : 10.0f; p->gren_vts = pj ? ak_bp_float(pj, "VerticalThrowSpeed", 0.0f) : 0.0f; } p->gren_icon = gw ? ak_bp_string(gw, "HUDIcon", NULL) : NULL; p->gren_name = gw ? ak_bp_int(gw, "Weapon_Name", -1) : -1;
         p->gren_limit = gw ? ak_bp_int(gw, "GlobalAmmoLimit", 0) : 0; }
     const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
     p->armed = wname[0] && ak_weapon_def_load(bp, m, wname, p->look.faction, &p->wdef);
@@ -687,7 +691,9 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             const ak_bp_object *gw = ak_bp_find(bp, "Weapon", k ? "Cluster_Grenades" : "REP_Grenade");
             p->ai_gren_ok[k] = gw && ak_setting_int("AK_BOT_GRENADES", 1) && ak_proj_def_load(bp, ak_bp_string(gw, "Projectile", k ? "cluster_grenade" : "Grenade"), &p->ai_gren_def[k]);
             p->ai_gren_ammo[k] = gw ? ak_bp_int(gw, "AmmoPerClip", 4) : 0; p->ai_gren_rate[k] = gw ? ak_bp_float(gw, "RateOfFire", 2.0f) : 2.0f;
-            if (ak_setting_int("AK_LOG_GRENADES", 0)) AK_INFO("play", "bot explosive %d: %s, %d, every %.1f s", k, p->ai_gren_ok[k] ? "ok" : "none", p->ai_gren_ammo[k], p->ai_gren_rate[k]);
+            { const ak_bp_object *pj = gw ? ak_bp_find(bp, "Projectile", ak_bp_string(gw, "Projectile", k ? "cluster_grenade" : "Grenade")) : NULL;   /* (the Projectile's, as the player's) */
+              p->ai_gren_ps[k] = pj ? ak_bp_float(pj, "ProjectileSpeed", 10.0f) : 10.0f; p->ai_gren_vts[k] = pj ? ak_bp_float(pj, "VerticalThrowSpeed", 0.0f) : 0.0f; }
+            if (ak_setting_int("AK_LOG_GRENADES", 0)) AK_INFO("play", "bot explosive %d: %s, %d, every %.1f s, speed %.1f, up %.1f", k, p->ai_gren_ok[k] ? "ok" : "none", p->ai_gren_ammo[k], p->ai_gren_rate[k], p->ai_gren_ps[k], p->ai_gren_vts[k]);
         }
         for (int t = 0; t < 2; t++) {
             team_classes(p, bp, m, t);
@@ -1159,25 +1165,28 @@ static void hero_attack(ak_play *p, const ak_model_set *m, ak_play_hero *h, bool
  * target is the first enemy it has seen (not a vehicle) with another unit of its side within 3 m (08940C7C: a count from 0, +1
  * for each unit of the target's side within 3.0, itself included, against 1.5), and the aim is where that enemy will be when the
  * grenade lands (0893679C: its position + its velocity x the time).  The kind: the loadout's (thermal detonator, else cluster;
- * 0893FAE0 orders Weapon_Name 117, 127, 130).  [PARITY(2.3d): the throw itself is the player's (measured, 20.4 m/s along the
- * facing, leaving the hand 37 frames after the start) but aimed: the lower of the two arcs at that speed that reach the point
- * [assumed; the harness saw bots on Hoth throw 5 grenades in 100 s, landing 21-28 m away, beyond the player's flat 16 m throw];
- * the lead's flight time is from that arc] */
+ * 0893FAE0 orders Weapon_Name 117, 127, 130).  The throw is the player's rule (08A1A77C, logged in the harness: bots' throws
+ * carry the full (0, VerticalThrowSpeed, ProjectileSpeed), never scaled) with the bot's aim frame, whose pitch follows its aim -
+ * level throws land about 23 m away, as the harness's 21-28 m.  [PARITY(2.3d): the pitch taken as the line to the target's
+ * middle; no reach test; the lead's time is the flight's] */
+/* a throw's velocity (traced 08A1A77C and logged in the harness, PARITY 2.3b): the aim frame times (0, VerticalThrowSpeed up,
+ * ProjectileSpeed forward), moved at twice that, and the first 10 Hz step's 1.0 m/s off the climb; `down` is the frame's pitch
+ * below the horizontal (radians) and (fx, fz) the unit facing */
+static void throw_vel(f32 ps, f32 vts, f32 down, f32 fx, f32 fz, f32 *v)
+{
+    f32 cp = cosf(down), sp = sinf(down), fw = 2.0f * (ps * cp + vts * sp), up = 2.0f * (vts * cp - ps * sp) - 1.0f;
+    v[0] = fx * fw; v[1] = up; v[2] = fz * fw;
+}
+/* where a throw from `a` with velocity v (gravity g) comes down to the height of `b`: the horizontal distance and the time */
+static f32 throw_time(const f32 *a, const f32 *b, const f32 *v, f32 g)
+{
+    f32 h = a[1] - b[1], disc = v[1] * v[1] + 2 * g * h;
+    return disc > 0 ? (v[1] + sqrtf(disc)) / g : v[1] > 0 ? 2 * v[1] / g : 0.1f;
+}
 static void target_velocity(const ak_play *p, s32 ti, f32 *vel)
 {
     const ak_character *ch = ti == 0 ? &p->ch : ti >= 1 && (u32)ti <= p->nbots ? &p->bot[ti - 1].ch : NULL;
     if (ch) memcpy(vel, ch->vel, 12);
-}
-/* the lower arc at speed sp under gravity g from a to b (false: out of reach) */
-static bool lob(const f32 *a, const f32 *b, f32 sp, f32 g, f32 *v)
-{
-    f32 dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], x = sqrtf(dx * dx + dz * dz);
-    if (x < 0.01f) return false;
-    f32 s2 = sp * sp, disc = s2 * s2 - g * (g * x * x + 2 * dy * s2);
-    if (disc < 0) return false;
-    f32 th = atanf((s2 - sqrtf(disc)) / (g * x)), c = cosf(th) * sp;
-    v[0] = dx / x * c; v[1] = sinf(th) * sp; v[2] = dz / x * c;
-    return true;
 }
 static void bot_grenade(ak_play *p, ak_play_bot *b, u32 idx, f32 dt)
 {
@@ -1191,10 +1200,11 @@ static void bot_grenade(ak_play *p, ak_play_bot *b, u32 idx, f32 dt)
         if (hd < 0.01f) return;
         dx /= hd; dz /= hd;
         f32 at[3] = { b->ch.pos[0] + dx * 1.0f * S, b->ch.pos[1] + 2.1f * S, b->ch.pos[2] + dz * 1.0f * S };
-        f32 v[3]; if (!lob(at, b->gren_at, 20.4f * S, 10.0f * S, v)) return;
+        f32 ey = b->gren_at[1] + 1.0f * S - at[1], v[3];   /* (the aim's pitch at the target's middle: [assumed]) */
+        throw_vel(p->ai_gren_ps[(int)b->gren_kind] * S, p->ai_gren_vts[(int)b->gren_kind] * S, -atan2f(ey, hd), dx, dz, v);
         ak_proj_throw(&p->projs, &p->ai_gren_def[(int)b->gren_kind], at, v, b->team, (s32)(1 + idx), 8.0f / 60.0f);
         ak_play_chatter(p, 1 + idx, "Speech_BC_Grenade");   /* (089395E4: the AI fires a "Grenade" kind) */
-        if (ak_setting_int("AK_LOG_GRENADES", 0)) AK_INFO("play", "bot %u throws %s %.1f m (side %d)", idx, b->gren_kind ? "cluster" : "thermal", hd / S, b->team);
+        if (ak_setting_int("AK_LOG_GRENADES", 0)) AK_INFO("play", "bot %u throws %s %.1f m (side %d) from %.1f %.1f %.1f at %.1f m/s, %.1f up", idx, b->gren_kind ? "cluster" : "thermal", hd / S, b->team, at[0], at[1], at[2], sqrtf(v[0] * v[0] + v[2] * v[2]), v[1]);
         return;
     }
     if (b->gren_kind < 0 || b->gren_left <= 0 || b->gren_cool > 0 || !b->alive || b->veh >= 0 || b->hero) return;
@@ -1213,9 +1223,11 @@ static void bot_grenade(ak_play *p, ak_play_bot *b, u32 idx, f32 dt)
         if (ak_setting_int("AK_LOG_GRENADES", 0) > 1) { f32 qx = t->feet[0] - b->ch.pos[0], qz = t->feet[2] - b->ch.pos[2]; AK_INFO("play", "bot %u: target %d with %.0f near, %.1f m", idx, ti, n, sqrtf(qx * qx + qz * qz) / S); }
         if (!(n > 1.5f)) continue;
         f32 ex = t->feet[0] - b->ch.pos[0], ez = t->feet[2] - b->ch.pos[2], d = sqrtf(ex * ex + ez * ez);
-        f32 rel[3] = { b->ch.pos[0], b->ch.pos[1] + 2.1f * S, b->ch.pos[2] }, tv[3];
-        if (!lob(rel, t->feet, 20.4f * S, 10.0f * S, tv)) continue;   /* (out of reach) */
-        f32 tf = d / sqrtf(tv[0] * tv[0] + tv[2] * tv[2]), vel[3] = { 0, 0, 0 };
+        if (d < 0.01f) continue;
+        f32 rel[3] = { b->ch.pos[0], b->ch.pos[1] + 2.1f * S, b->ch.pos[2] }, tv[3], vel[3] = { 0, 0, 0 };
+        int gk = (int)b->gren_kind;
+        throw_vel(p->ai_gren_ps[gk] * S, p->ai_gren_vts[gk] * S, -atan2f(t->feet[1] + 1.0f * S - rel[1], d), ex / d, ez / d, tv);
+        f32 tf = throw_time(rel, t->feet, tv, 10.0f * S);   /* (the lead's time: the flight's [assumed]) */
         target_velocity(p, ti, vel);
         for (int a = 0; a < 3; a++) b->gren_at[a] = t->feet[a] + vel[a] * tf;
         b->gren_t = 0; b->gren_left--; b->gren_cool = p->ai_gren_rate[(int)b->gren_kind];
@@ -2553,9 +2565,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (p->gren_t >= 37.0f / 60.0f) {
             f32 fx = -sinf(p->ch.yaw), fz = -cosf(p->ch.yaw);
             f32 at[3] = { p->ch.pos[0] + fx * 1.0f * S, p->ch.pos[1] + 2.1f * S, p->ch.pos[2] + fz * 1.0f * S };
-            const f32 cp = 0.9898f, sp = 0.1426f;   /* (the aim frame's 8.2 degrees, from the harness log) */
-            f32 fw = 2.0f * (p->gren_ps * cp + p->gren_vts * sp), up = 2.0f * (p->gren_vts * cp - p->gren_ps * sp) - 1.0f;
-            f32 v[3] = { fx * fw, up, fz * fw };
+            f32 v[3]; throw_vel(p->gren_ps, p->gren_vts, 0.1432f, fx, fz, v);   /* (the aim frame's 8.2 degrees down, from the harness log) */
             ak_proj_throw(&p->projs, &p->gren_def, at, v, p->team, 0, 8.0f / 60.0f);
             if (ak_setting_int("AK_LOG_GRENADES", 0)) AK_INFO("play", "player throws at %.1f %.1f %.1f", at[0], at[1], at[2]);
             p->gren_t = -1;

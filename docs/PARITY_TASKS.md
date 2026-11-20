@@ -253,10 +253,14 @@ textures and how they are used. Section R lists only what must be in place so th
       the cluster grenade (3.5, 10) that is 10.39 forward and 2.05 up, |v| = 10.6. The object then moves at twice that: 20.7 m/s
       forward, while its climb falls by 1.0 m/s each 0.1 s (gravity 10, unchanged) and its first 10 Hz step already takes 1.0
       off (3.0 up measured, 2 x 2.05 - 1.0 = 3.1). The same rule gives 20.5 / 1.1 for REP_Grenade (measured 20.4 / 1.2). Built:
-      play.c throws with the weapon's own ProjectileSpeed and VerticalThrowSpeed by this rule. (The release point is 2 m above
+      play.c throws by this rule with the Projectile blueprint's ProjectileSpeed and VerticalThrowSpeed (Grenade 10 / 2.5,
+      Cluster_Grenade 10 / 3.5 - the logged values; the Weapon Cluster_Grenades' own ProjectileSpeed 20 is not what is used). (The release point is 2 m above
       the hand point, D_08AEF89C, subtracted because the game's y points down.) [ ] Where the factor 2 is in the code (the
-      projectile's physics step), whether the frame follows the camera's pitch, and the bots' path (08A1ABB0, taken when the
-      thrower's vfunc +196 is set: it looks up a target through vfunc +272 - likely the AI's aimed throw).
+      projectile's physics step), whether the player's frame follows the camera's pitch.
+    - The other path (08A1ABB0, taken when the thrower's vfunc +196 is set) scales the throw by min(distance to a target from
+      vfunc +272, 15 m) / 15 m (21 m for Cluster_Grenade, D_08AEF8A0 x D_08AEF8A4 1.4). Not the bots': in a 120 s harness run
+      on Hoth (idle player) all 15 bot throws carried the full (0, VerticalThrowSpeed, ProjectileSpeed); their aim frames were
+      pitched with their aim (from 17 degrees up to 14 down, most level). Which thrower takes it is open.
     - 2026-11-20, the throw (08A1A77C, the Weapon loader 08A16FD8 keeps ProjectileSpeed at +60 and VerticalThrowSpeed at +64):
       the grenade starts at the hand's point 2.0 m higher (D_08AEF89C) and its velocity is a 3x3 frame (the thrower's, vfunc
       +240 / +92 of an aim object - not identified) times (0, VerticalThrowSpeed up, ProjectileSpeed forward), sent as message
@@ -274,7 +278,8 @@ textures and how they are used. Section R lists only what must be in place so th
     k 0.15 elite / 0.05 otherwise; the target is the first sensed enemy (not class 0x8006) with a count of its side's units
     within 3.0 m (itself included, +1.0 each) above 1.5; a global list (D_08B28DC4) is checked first and any entry in it at a
     non-zero distance is taken at once (not identified; empty in the runs seen); the aim is the target's position + its
-    velocity x a time. Open: the throw's speed and arc for bots (Aurek: 20.4 m/s on the lower arc, [assumed]), the time used
+    velocity x a time. The throw (2026-11-20, built): the player's rule with the bot's aim frame, pitched with its aim (Aurek:
+    the line to the target's middle [assumed]), no reach test; level throws land about 23 m away. Open: the time used
     for the lead, slot 11's item, the throw animation. Harness (Hoth, 100 s): 5 throws landing 21-28 m away. Aurek (Hoth,
     200 s): 2 throws at normal (20 and 43 m), 4 at elite (5-34 m) - fewer than the original's 5 in 100 s (its sensed list
     may hold more units, or its difficulty in the harness run is elite: open).
