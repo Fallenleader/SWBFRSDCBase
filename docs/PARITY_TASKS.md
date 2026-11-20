@@ -857,6 +857,11 @@ groundwork below is needed before the parity work starts. The tiers come later.
 - [ ] **R.6 Particles and effects (PFX).** Explosions, muzzle flashes, impacts, streaks, and the command post glow (AK_POST_GLOW
   is Aurek's own).
 - [ ] **R.7 Shadows and decals.** Shadow blobs and scorch marks as the game places them.
+  - 2026-11-20: the blob shadows are one batch (08918144): a vertex list at 0x08C19240 (20-byte vertices, room for 2024; count
+    0x08C23244), drawn as one triangle strip (prim 4, vertex type 0x183: float UV and position) with \specialfx\blobshadow.tga,
+    depth writes off, when the count is not 0. The harness's draw log of a Hoth match (RS_DRAW_LOG=60, RS_DRAW_ALL=1, frames
+    1500-1680, Empire spawn) has no such batch: every 0x183 draw is a sky face, so nothing in that scene casts a blob - Aurek's
+    lack of soldier shadows matches it there. Who fills the list (and on which levels or objects) is not found.
 - [ ] **R.8 Screen effects.** Damage, zoom overlay, hyperspace.
 
 ### Groundwork before any PBR code
