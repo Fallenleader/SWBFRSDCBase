@@ -14,6 +14,7 @@ enum { AK_FE_NONE = 0, AK_FE_START = 1, AK_FE_QUIT = 2, AK_FE_TEAM = 3, AK_FE_SP
 typedef struct {
     u32 level_text; int mode, era;                 /* the planet's STDTEXT name; 0 CQST .. 3 HCTF; 0 Galactic Civil War, 1 Clone Wars */
     int team, faction[2];                          /* the player's side; each side's faction (0 Republic, 1 CIS, 2 Alliance, 3 Empire) */
+    int winner;                                    /* the match's winner (0 / 1), -1 still on */
     u32 nposts; f32 post_pos[AK_FE_MAX_POSTS][3]; int post_owner[AK_FE_MAX_POSTS]; s32 post_name[AK_FE_MAX_POSTS];   /* (owner 0 / 1, else nobody's; names: CPNAMES entries) */
     u32 nnames[2]; const u16 *name[2][32]; u32 name_len[2][32]; bool bot[2][32];
     u16 kills[2][32], deaths[2][32]; bool alive[2][32];          /* (the score boards) */

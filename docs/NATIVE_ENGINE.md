@@ -216,6 +216,7 @@ Vita: `cmake -S engine/platform/vita -B build/aurek_vita && cmake --build build/
 | 2026-11-20 | 8.2 | **the pause menu.** START opens the game's MP_InGame_Menu (the match stops); Resume, Respawn, Restart and Quit (through the yes / no page) work; button targets that name a widget open its page focused on it. |
 | 2026-11-20 | 8.2 | **options pages' controls.** Script values as numbers; sliders step their bound values, check boxes toggle and show their tick by it; pictures and texts show by flags bit 10. The Audio Options page works (values not yet applied to the mixer). |
 | 2026-11-20 | 8.2 | **the respawn score board.** MP_RespawnScoreboard after a death: both sides' soldiers with status, score, kills and deaths (per-soldier tallies), then Respawn -> the spawn map. |
+| 2026-11-20 | 8.2 | **game over.** The game's MP_GameoverDialogue at the match's end: Victory / Defeat, Continue (the play list's next map or the main menu), Retry, Quit. |
 
 ## Known issues (cleanup pass once gameplay reaches parity)
 

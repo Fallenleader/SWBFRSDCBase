@@ -72,7 +72,7 @@ void ak_fe_set_match(const ak_fe_match *m)
     if (!match.level_text && nrot > 0) match.level_text = maps[rot[0].map].text;   /* (the play list's map: its name) */
     var_set("BFF.FE_GameType", m->mode); var_set("BFF.FE_GameEra", m->era == 0 ? 1 : 0);   /* (FE_GameEra: 1 classic, 0 prequel - the team buttons) */
     var_set("BFF.FE_PlayerFaction", m->faction[m->team]); var_set("BFF.FE_ChangeTeamAllowed", 1);
-    var_set("BFF.FE_SpawnPointCount", (s32)m->nposts);
+    var_set("BFF.FE_SpawnPointCount", (f32)m->nposts); var_set("BFF.FE_IsPlayerVictorious", m->winner == m->team);
     for (u32 i = 0; i < AK_FE_MAX_POSTS; i++) { char k[40]; snprintf(k, sizeof k, "BFF.FE_SpawnPointActive%u", i); var_set(k, i < m->nposts && m->post_owner[i] == m->team); }
     if (page) fill_all(&page->root);                                  /* (the team lists follow the match) */
 }
@@ -422,7 +422,17 @@ static int run(const ak_gui_action *a, int row)
         }
         rotation_changed();
     }
-    else if (!strcmp(fn, "FE_RespawnOrTeamSelect")) {}                 /* (the button's page follows: the spawn map) */
+    else if (!strcmp(fn, "FE_RespawnOrTeamSelect")) {}
+    else if (!strcmp(fn, "FE_ProcessGameover")) {                       /* Retry: the same map again; Continue: the play list's next, else the main menu */
+        const ak_widget *f = focus ? find_id(&page->root, focus) : NULL;
+        if (f && f->name && strstr(f->name, "Retry")) { ak_fe_close(); return AK_FE_RESTART; }
+        if (nrot > 1) {                                                 /* (the rotation moves on) */
+            memmove(&rot[0], &rot[1], (size_t)(nrot - 1) * sizeof rot[0]); nrot--; rotation_changed();
+            run(&(ak_gui_action){ "FE_HostGame", "", 16 }, -1); ak_fe_close(); return AK_FE_START;
+        }
+        ak_fe_close(); return AK_FE_QUIT;
+    }
+    else if (!strcmp(fn, "FE_EnterGameover")) {}                 /* (the button's page follows: the spawn map) */
     else if (!strcmp(fn, "FE_RequestMenuMode")) var_set("BFF.FE_MenuMode", atoi(a->arg));   /* (which of a dialogue's answers show) */
     else if (!strcmp(fn, "FE_ResumePlay")) { ak_fe_close(); return AK_FE_RESUME; }
     else if (!strcmp(fn, "FE_QuitGame") || !strcmp(fn, "FE_ForfeitBattle")) { ak_fe_close(); return AK_FE_QUIT; }

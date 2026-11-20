@@ -654,6 +654,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - 2026-11-20, the score board: dead three seconds, the player gets MP_RespawnScoreboard (then "Respawn" -> the spawn map):
     each side's soldiers (the player first [assumed: AK_PLAYER_NAME]) with their status, score, kills and deaths columns
     (FE_ListFriendly* / FE_ListEnemy*; per-soldier tallies kept by play.c; score = kills [assumed]).
+  - 2026-11-20, game over: the match won or lost, MP_GameoverDialogue opens [assumed: 5 s after the end] with Victory / Defeat
+    and Mission Complete / "You ran out of reinforcements" by BFF.FE_IsPlayerVictorious; FE_ProcessGameover: Retry restarts,
+    Continue plays the play list's next map (else the main menu); Quit to Main Menu through the yes / no page.
   - 2026-11-20, the pause menu: START opens MP_InGame_Menu (the match stops while it is up); FE_ResumePlay, FE_RequestMenuMode(n)
     (BFF.FE_MenuMode: which of the yes / no page's answers show), FE_QuitGame / FE_ForfeitBattle (back to the main menu),
     FE_RestartMap, FE_RespawnKillPlayer. A button's target may be a widget's id rather than a page's ("Quit to Main Menu" ->

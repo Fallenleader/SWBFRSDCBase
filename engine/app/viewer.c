@@ -463,7 +463,8 @@ int main(int argc, char **argv)
         bool fe_menu = false;
         if (playing && play.ready && fe_ingame) {
             static ak_fe_match fm; memset(&fm, 0, sizeof fm);
-            fm.mode = ak_game_mode; fm.era = strncmp(levels[cur].label, "PREQUEL", 7) == 0; fm.team = play.team;
+            fm.mode = ak_game_mode; fm.era = strncmp(levels[cur].label, "PREQUEL", 7) == 0; fm.team = play.team; fm.winner = play.have_cq ? play.match.winner : -1;
+            if (ak_setting_int("AK_FE_TEST_OVER_AT", -1) >= 0 && frame >= ak_setting_int("AK_FE_TEST_OVER_AT", -1)) fm.winner = play.team;   /* (tests: a won match) */
             fm.faction[0] = play.team_faction[0]; fm.faction[1] = play.team_faction[1];
             for (u32 i = 0; i < play.cq.nposts && fm.nposts < AK_FE_MAX_POSTS; i++) {
                 if (play.cq.post[i].absent || play.cq.post[i].disabled) continue;
@@ -482,6 +483,8 @@ int main(int argc, char **argv)
             ak_fe_set_match(&fm);
             if (!ak_fe_page() && !play.alive && play.dead_t >= 3.0f) ak_fe_open_ingame(play.deaths ? "MP_RespawnScoreboard" : "MP_Spawn_Location");   /* (the original: three seconds of the death camera, the score board, then the spawn map) */
             if (frame == ak_setting_int("AK_FE_START_AT", -1)) in.pressed |= AK_BTN_START;   /* (tests) */
+            {   static f32 over_t = 0; over_t = fm.winner >= 0 ? over_t + dt : 0;   /* the match over: the game-over page [assumed: after 5 s of its end] */
+                if (over_t > 5.0f && (!ak_fe_page() || strcmp(ak_fe_page(), "MP_GameoverDialogue")) && over_t < 5.0f + dt * 1.5f) ak_fe_open_ingame("MP_GameoverDialogue"); }
             if (!ak_fe_page() && play.alive && (in.pressed & AK_BTN_START)) ak_fe_open_ingame("MP_InGame_Menu");   /* START: the pause menu */
             if (ak_fe_page()) {
                 fe_menu = true;
@@ -505,6 +508,10 @@ int main(int argc, char **argv)
                     }
                 } else if (ev == AK_FE_QUIT) {                              /* back to the main menu */
                     playing = false; fe_ingame = false; fe_on = ak_fe_open("MP_MainMenu"); play.ready = false;
+                } else if (ev == AK_FE_START) {                             /* the game-over page's Continue: the play list's next map */
+                    int md = 0; const char *lv = ak_fe_launch(&md); static const char *codes[4] = { "CQST", "CTF1", "CTF2", "HCTF" };
+                    ak_setting_set("AK_MODE", codes[md & 3]); for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, lv)) cur = i;
+                    loaded = false; play.ready = false;
                 } else if (ev == AK_FE_RESTART) {
                     play.ready = false;
                 } else if (ev == AK_FE_KILL) {
