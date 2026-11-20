@@ -836,6 +836,7 @@ static void bot_route(ak_play *p, ak_play_bot *b, const f32 *to)
 static bool bot_take_vehicle(ak_play *p, ak_play_bot *b);
 static void bot_drive(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, f32 dt);
 static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v);
+static bool vehicle_exit_spot(const ak_play *p, const ak_vehicle *vh, f32 out[3]);
 
 /* a post its side does not hold (the nearest, with some randomness); every post held: defend one.  On foot it may take a free vehicle
  * of its side first. */
@@ -1764,9 +1765,11 @@ static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v)
 static void bot_exit(ak_play *p, ak_play_bot *b, u32 idx)
 {
     ak_vehicle *vh = &p->veh[b->veh]; f32 out[3], gy;
-    f32 rx = cosf(vh->yaw), rz = -sinf(vh->yaw), dd = vh->def->radius + p->cp.radius + 0.5f;
-    out[0] = vh->pos[0] - rx * dd; out[1] = vh->pos[1] + 1.0f; out[2] = vh->pos[2] - rz * dd;   /* out on the left */
-    if (ak_char_ground_below(&p->col, out, 6.0f, &gy)) out[1] = gy; else memcpy(out, vh->pos, 12);
+    if (!vehicle_exit_spot(p, vh, out)) {                                    /* (the game's exit spot, 089D2DBC; none free: the left) */
+        f32 rx = cosf(vh->yaw), rz = -sinf(vh->yaw), dd = vh->def->radius + p->cp.radius + 0.5f;
+        out[0] = vh->pos[0] - rx * dd; out[1] = vh->pos[1] + 1.0f; out[2] = vh->pos[2] - rz * dd;
+        if (ak_char_ground_below(&p->col, out, 6.0f, &gy)) out[1] = gy; else memcpy(out, vh->pos, 12);
+    }
     ak_char_spawn(&b->ch, out, vh->yaw);
     vh->driver = -1; vh->open = true; vh->throttle = vh->steer = vh->strafe = 0; vh->brake = false;
     b->veh = -1; b->veh_cool = 20.0f; b->state = PLAY_IDLE; b->clip_t = 0; b->stuck_t = 0; memcpy(b->stuck_pos, out, 12);
