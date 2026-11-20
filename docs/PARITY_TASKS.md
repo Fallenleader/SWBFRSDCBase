@@ -341,8 +341,9 @@ textures and how they are used. Section R lists only what must be in place so th
     (the full damage) and an AI rifle's hits came 18 frames apart (its RateOfFire 0.3 s - no x3 from
     Modifier_Bot_RateOfFire). Aurek applied both to every bot shot; now Modifier_Bot_Damage only on hits on the local player
     (its soldier, vehicle or turret: ak_target.local), and Modifier_Bot_RateOfFire not at all. Hoth 120 s: 16 tickets lost
-    (6 before; the original: 13 soldier deaths in ~110 s). [ ] The victim's +128, the elite global's key, where
-    Modifier_Bot_RateOfFire (the AI record +32) is read.
+    (6 before; the original: 13 soldier deaths in ~110 s). The elite global is Weapon "Base"'s
+    Modifier_Bot_Damage_Elite_Global (1.35): built too (ak_target.elite, bolts and projectiles of AIs). [ ] The victim's +128,
+    where Modifier_Bot_RateOfFire (the AI record +32) is read.
   - Traced so far: 08A24438 reads each weapon's AIWeapon_Accuracy_Normal (+24), AIWeapon_Accuracy_Elite (+28) and
     Modifier_Bot_RateOfFire (+32) into an AI weapon record, each clamped to 0..5 (0x08AEF9CC). Who reads them (the aim error)
     is not found yet. Bolts are not registry objects, so the harness cannot count AI shots directly; hits on the player can be.
@@ -423,7 +424,9 @@ textures and how they are used. Section R lists only what must be in place so th
     and once the control scheme's binding chains) and RS_INPUT_DUMP=1 (the soldier's scheme).
   - [ ] Roll (craft with MaxTurnRoll > 0): no starfighter flies on a planet map. Measure it in space (3.7).
   - [ ] Crash and skim rules: a ~10° dive into Hoth's snow skimmed once, then crashed (the pilot dies, the wreck stays).
-    The rule (angle, speed or surface) is not found.  Landing (AnimLand) is not measured.  Both are still Aurek's.
+    2026-11-20: the crash is the collision damage of 7.2 (089CE510: 5 m/s or more into a surface costs max health x the
+    impact speed x dt x 0.05 in free flight, built) - a skim is a short touch, a crash a long one. Landing (AnimLand) is not
+    measured.
   - [ ] Stunts (Immelmann, barrel roll: the EnergyStunt use).
 - [ ] **3.4 Walkers [partial].** Measured on Hoth's AT-ST (harness: `--team empire --tp 60:264,14.8,14 --program walker`;
   boarded from its side with d-pad up):

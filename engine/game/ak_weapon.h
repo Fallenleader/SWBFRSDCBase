@@ -28,6 +28,7 @@ typedef struct {
     f32 heat_shot, heat_decay, heat_recover, burst_time;   /* OverheatPershot / OverheatDecay / OverheatRecoveryTime, BurstTime */
     f32 windup;                        /* WindupTime */
     f32 bot_dmg;                       /* in an AI's hands: Modifier_Bot_Damage, applied only to hits on the local player (1 otherwise) */
+    bool ai;                           /* an AI's copy (its hits on the local player take bot_dmg and, at elite, ak_target.elite) */
     f32 ai_acc[2];                     /* AIWeapon_Accuracy_Normal / _Elite (degrees; 08A24438) */
     const char *muzzle_pfx;            /* the weapon's "PFXMuzzleFlash" effect (played at the muzzle, along the shot) */
     const char *impact_pfx, *shield_pfx;   /* the bolt's "impact pfx" (on the level) and "shield impact pfx" (on vehicles) */
@@ -64,7 +65,7 @@ bool ak_ai_fire_ok(const f32 *fwd, const f32 *to, f32 range, f32 cone, bool flat
 
 typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; ak_heat heat; bool heats; } ak_weapon;   /* team/owner: set after ak_weapon_give; heats: a player's (ak_heat) */
 
-typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle, vs_local; u32 colour; f32 dscale_max, dscale_dist; bool headshots; int team; s32 owner; const char *impact_pfx, *shield_pfx; } ak_bolt;
+typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle, vs_local; bool ai; u32 colour; f32 dscale_max, dscale_dist; bool headshots; int team; s32 owner; const char *impact_pfx, *shield_pfx; } ak_bolt;
 typedef struct { f32 pos[3], normal[3]; f32 age; u32 colour; u16 material; bool body; const char *pfx; } ak_impact;   /* pfx: the effect it plays (NULL none) */   /* material: the surface's (0xFFFF none) */
 #define AK_MAX_BOLTS 512
 #define AK_MAX_IMPACTS 64
@@ -83,6 +84,7 @@ typedef struct {
     bool alive, vehicle;
     bool local;                        /* the local player's (its soldier, or what it drives or mans): AI damage to it takes the
                                         * weapon's Modifier_Bot_Damage (089E1FDC) */
+    f32 elite;                         /* and at the elite difficulty Weapon "Base" Modifier_Bot_Damage_Elite_Global (1.35; 1 below) */
     int team;                          /* shots of the same team pass through (friendly fire off, the game's default) */
     s32 last_attacker;                 /* the owner of the last shot that hurt it (-1 none) */
     bool last_quiet;                   /* that hurt came from a kind the soldiers' Sniper / Friendly calls ignore (func 089E22BC's list) */

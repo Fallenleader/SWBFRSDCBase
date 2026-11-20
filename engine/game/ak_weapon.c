@@ -159,7 +159,7 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
         if (b->n >= AK_MAX_BOLTS) break;
         ak_bolt *o = &b->b[b->n++];
         memcpy(o->pos, muzzle, 12); memcpy(o->dir, dd, 12);
-        o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->vs_local = d->bot_dmg > 0 ? d->bot_dmg : 1.0f; o->headshots = d->headshots; o->colour = d->colour; o->dscale_max = d->dscale_max; o->dscale_dist = d->dscale_dist; o->team = w->team; o->owner = w->owner; o->impact_pfx = d->impact_pfx; o->shield_pfx = d->shield_pfx;
+        o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->vs_local = d->bot_dmg > 0 ? d->bot_dmg : 1.0f; o->ai = d->ai; o->headshots = d->headshots; o->colour = d->colour; o->dscale_max = d->dscale_max; o->dscale_dist = d->dscale_dist; o->team = w->team; o->owner = w->owner; o->impact_pfx = d->impact_pfx; o->shield_pfx = d->shield_pfx;
     }
     b->fired++;
     if (d->muzzle_pfx) { ak_shot_fx *f = &b->shot[b->shots++ % AK_MAX_SHOT_FX]; memcpy(f->pos, muzzle, 12); memcpy(f->dir, dir, 12); f->pfx = d->muzzle_pfx; f->colour = d->colour; }
@@ -194,7 +194,7 @@ void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *tg, u32 nt
         bool wall = step > 0 && ak_col_raycast(col, o->pos, o->dir, step, SHOT_IGNORE, &h);
         s32 ti = step > 0 ? ray_targets(tg, ntg, o->pos, o->dir, wall ? h.t : step, &tt, &head, o->team) : -1;
         if (ti >= 0) {
-            {   f32 k = tg[ti].local ? o->vs_local : 1.0f;   /* (089E1FDC: an AI's shot at the local player takes Modifier_Bot_Damage) */
+            {   f32 k = tg[ti].local && o->ai ? o->vs_local * (tg[ti].elite > 0 ? tg[ti].elite : 1.0f) : 1.0f;   /* (089E1FDC: an AI's shot at the local player takes Modifier_Bot_Damage) */
                 hurt(&tg[ti], o->damage * k, o->damage_vehicle * k, head, o->headshots, o->dir, o->owner); }
             ak_col_hit fake; for (int k = 0; k < 3; k++) { fake.pos[k] = o->pos[k] + o->dir[k] * tt; fake.normal[k] = -o->dir[k]; }
             fake.material = 0xFFFF; impact(b, &fake, o->colour, true, tg[ti].vehicle ? o->shield_pfx : NULL);   /* [assumed] soldiers: none */ step = tt; dead = true;

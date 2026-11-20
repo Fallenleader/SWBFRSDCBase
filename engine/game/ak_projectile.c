@@ -110,7 +110,7 @@ static void explode(ak_projs *ps, ak_proj *p, ak_target *tg, u32 nt, void (*boom
         if (dist < 0) dist = 0;
         if (dist > r) continue;
         f32 k = 1.0f - (dist / r) * (dist / r);
-        f32 dmg = (t->vehicle ? d->dmg_vehicle : d->dmg_infantry) * k * (t->local ? p->dmg_scale : 1.0f);   /* (an AI's: Modifier_Bot_Damage on the local player only, 089E1FDC) */
+        f32 dmg = (t->vehicle ? d->dmg_vehicle : d->dmg_infantry) * k * (t->local && p->owner != 0 ? p->dmg_scale * (t->elite > 0 ? t->elite : 1.0f) : 1.0f);   /* (an AI's: Modifier_Bot_Damage and the elite global on the local player only, 089E1FDC) */
         if (dmg <= 0) continue;
         t->health -= dmg; t->hits++; t->last_attacker = p->owner; t->last_quiet = ak_proj_quiet_kind(d->name); ps->hits++;
         if (t->health <= 0) { t->health = 0; t->alive = false; }

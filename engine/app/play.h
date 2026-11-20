@@ -156,7 +156,7 @@ typedef struct {
     ak_play_vspawn vspawn[PLAY_MAX_VEH]; ak_vehicle veh[PLAY_MAX_VEH]; u32 nveh; s32 in_veh; f32 veh_respawn;
     s32 in_turret; bool turret_fire;   /* the boardable turret the player mans (-1 none); R held in it */
     f32 bot_drive;                     /* the chance a bot near a free vehicle of its side takes it (AK_BOT_VEHICLES) */
-    ak_space_map space; bool is_space, free_flight, bot_aim_set; int difficulty; s32 obj_unit[AK_MAX_OBJECTIVES];   /* space maps: AI objectives, the bot on each */
+    ak_space_map space; bool is_space, free_flight, bot_aim_set; int difficulty; f32 elite_mul; s32 obj_unit[AK_MAX_OBJECTIVES];   /* space maps: AI objectives, the bot on each */
     ak_projs projs;                    /* torpedoes, missiles, bombs in flight */
     ak_proj_def ai_gren_def[2]; bool ai_gren_ok[2]; s32 ai_gren_ammo[2]; f32 ai_gren_rate[2], ai_gren_ps[2], ai_gren_vts[2];   /* the bots' explosives: REP_Grenade (thermal), Cluster_Grenades */
     ak_proj_def gren_def; const char *gren_icon; s32 gren_name, gren_limit; bool gren_ok; s32 gren_left, gren_max; f32 det_t; f32 gren_t, gren_cool, gren_rate, gren_ps, gren_vts;   /* the player's explosive (customisation: the thermal
