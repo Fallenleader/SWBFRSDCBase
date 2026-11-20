@@ -11,8 +11,9 @@
 #   L + R + START + SELECT: quit (the HOME menu works too).  The C-stick is not used, so a New 3DS plays the same way.
 #   SELECT tapped: next level (a new match).  SELECT + L: the level before.  SELECT + R: figures / debug text on / off (bottom screen).
 #   SELECT + SQUARE: play (a soldier in a conquest match with bots) / free camera.  SELECT + CIRCLE: the model gallery.
-#   On foot: the stick turns the soldier toward where it points and runs that way (pulled back: runs backward, facing the mirrored
-#            way); the view swings in behind.  CROSS fire, SQUARE secondary (the thermal detonator), R hold lock-on (then the stick
+#   On foot: stick up / down runs forward / back, stick left / right turns the soldier and the view (as the PSP game: the turn
+#            builds up over 1.5 s; AK_SINGLE_STICK_TURN=0 instead turns the soldier toward the stick and runs that way, the view
+#            swinging in behind).  CROSS fire, SQUARE secondary (the thermal detonator), R hold lock-on (then the stick
 #            moves around the target), L tap jump, L hold sprint, d-pad UP get in / out of a vehicle or man a turret (the stick
 #            aims it), CIRCLE roll, TRIANGLE zoom.
 #   Ground vehicles: stick throttle / steer, CROSS fire, SQUARE secondary, L hold boost, UP get out.
@@ -22,6 +23,8 @@
 #   Stereo 3D: raise the 3D slider.  The HUD sits on the screen; the world goes behind it.
 # button layout: psp (the game's, above) or legacy (R fire, L lock, CROSS jump, TRIANGLE get in)
 AK_BUTTONS=psp
+# the one stick: 1 = turns (the PSP game), 0 = the soldier faces where it points and runs
+AK_SINGLE_STICK_TURN=1
 # debug text colour, 0xRRGGBB (drawn on the bottom screen's black)
 AK_DEBUG_TEXT_RGB=0xFFFFFF
 

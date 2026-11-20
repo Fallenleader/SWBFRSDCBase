@@ -590,8 +590,17 @@ textures and how they are used. Section R lists only what must be in place so th
     Engine: play.c builds the eye this way (AK_DEBUG_VEH_CAM logs it). Still open: while turning the T4B's eye sits 1.5 m to
     the side (0.115 x the speed, and it fades with the speed after the turn), CameraMinY / MinZ (Aurek pulls in toward them
     when blocked [assumed]), the speeder bikes' CameraMaxYaw, and whether the tank's view follows its turret.
-- [ ] **9.3 Controls.** The PSP layout is traced. Twin-stick aiming (AK_AIM_*) is a modern option and stays as one, kept apart from
+- [ ] **9.3 Controls [partial].** The PSP layout is traced. Twin-stick aiming (AK_AIM_*) is a modern option and stays as one, kept apart from
   the classic controls.
+  - 2026-11-20: the original's own one-stick controls measured (harness `RS_TWIN_STICK=0 RS_VIEW_LOG=1`, program strafe_switch):
+    stick X turns - the soldier stands and the view turns with it - at the Humanoid control's "yaw speed" (4 rad/s) times the
+    turn binding's value, which eases toward the stick over 1.5 s as the stick moves out and drops back at once (the port's
+    patch log: ease-in 1.5 s, ease-out 0; func_08896A3C). Full right: 111 degrees/s after 1 s, 168 after 2 s, 207 after 3.3 s.
+    The earlier 1.14 measurement (the soldier faces the stick's direction and runs, the view holds still) was taken with the
+    port's twin-stick patch on, which puts strafe on stick X: it is the game's strafe, not its one-stick turn.
+    Engine: the one-stick scheme now turns this way by default (`AK_SINGLE_STICK_TURN`=1); 0 keeps the 1.14 strafe-facing
+    scheme. Locked on (R) the stick strafes, as before. Open: how the soldier's model faces while turning in place (it read
+    90 degrees off the view in the state log), and the R-held strafe binding's own response.
 
 ## 10. Network and server (1.11)
 

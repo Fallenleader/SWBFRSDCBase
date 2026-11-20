@@ -511,7 +511,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             int ss = ak_setting_int("AK_SINGLE_STICK", -1);
             p->single_stick = ss == 1 || (ss < 0 && !ak_plat_has_right_stick());
             if (p->single_stick) p->twin_stick = false;
-            p->view_follow = ak_setting_float("AK_VIEW_FOLLOW", 2.0f);       /* PARITY(1.14): how fast the view swings behind (not measured) */
+            p->view_follow = ak_setting_float("AK_VIEW_FOLLOW", 2.0f);       /* PARITY(1.14): how fast the view swings behind (the strafe scheme; not measured) */
+            p->stick_turns = ak_setting_int("AK_SINGLE_STICK_TURN", 1) != 0;  /* 1: the original (stick X turns, measured 9.3); 0: stick X strafes, the soldier faces the run (1.14) */
         }
         p->aim_yaw_speed = ak_setting_float("AK_AIM_SPEED", 3.2f); p->aim_pitch_speed = p->aim_yaw_speed * 0.7f;
         p->aim_curve = ak_setting_float("AK_AIM_CURVE", 2.0f); p->invert_y = ak_setting_int("AK_INVERT_Y", 0) != 0;
@@ -2073,6 +2074,16 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (p->single_stick && p->in_veh < 0 && p->alive) {
         classic = *in;
         if (p->in_turret >= 0) { classic.rx = in->lx; classic.ry = in->ly; }   /* (a gunner aims with the one stick) */
+        else if (p->stick_turns && p->lock < 0) {
+            /* the original's own controls (measured 2026-11-20, harness RS_TWIN_STICK=0 RS_VIEW_LOG=1): stick X turns the soldier
+             * and the view together, stick Y moves; the turn binding eases toward the stick over 1.5 s as it moves out
+             * (value += (stick - value) dt / 1.5, func_08896A3C; back at once) and turns at the soldier's "yaw speed" (4 rad/s):
+             * full right reached 111 degrees/s after 1 s, 168 after 2 s.  (Locked on - R in the PSP layout - X strafes.) */
+            f32 sx = in->lx;
+            if (fabsf(sx) > fabsf(p->turn_val) && sx * p->turn_val >= 0) p->turn_val += (sx - p->turn_val) * fminf(1.0f, dt / 1.5f); else p->turn_val = sx;
+            p->ch.yaw -= p->turn_val * p->cp.yaw_speed * dt;
+            classic.lx = 0; classic.rx = 0;
+        }
         else if (p->lock < 0 && p->roll_i < 0) {
             f32 sx = in->lx, sy = in->ly, sm = sqrtf(sx * sx + sy * sy);
             if (sm > 1) sm = 1;
@@ -2086,7 +2097,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         in = &classic;
     }
     if (p->single_stick) {
-        f32 k = p->view_follow * dt;
+        f32 k = p->stick_turns ? 1.0f : p->view_follow * dt;                 /* (the original's turn: the view turns with the soldier) */
         if (p->in_veh >= 0 || p->in_turret >= 0 || p->lock >= 0 || p->zoom > 0 || !p->alive) k = 1;
         p->view_yaw += wrap(p->ch.yaw - p->view_yaw) * (k < 1 ? k : 1);
     }

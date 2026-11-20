@@ -136,7 +136,7 @@ typedef struct {
     f32 eye[3], aim[3]; bool aim_ok;   /* last camera position and its forward direction (shots go where it looks) */
     f32 aim_point[3];                  /* where the centre of the view meets the level */
     bool twin_stick; f32 aim_yaw_speed, aim_pitch_speed, aim_curve; bool invert_y;
-    bool single_stick; f32 view_yaw, view_follow;   /* the PSP's one-stick scheme (1.14): the stick turns the soldier, the view trails it */
+    bool single_stick, stick_turns; f32 view_yaw, view_follow, turn_val;   /* stick_turns: the original's one-stick turn (9.3); turn_val: its eased value */   /* the PSP's one-stick scheme (1.14): the stick turns the soldier, the view trails it */
     /* lock-on (the game's) */
     s32 lock; f32 lock_t, lock_range, lock_turn, lock_head_time;
     /* weapon */
