@@ -874,8 +874,17 @@ groundwork below is needed before the parity work starts. The tiers come later.
     - FXPT: a colour curve (RGBA over life), three float curves (size over life, then two more), n texture cells {u0, v0, u1,
       v1, a float}, 9 words (+0x14 .. +0x1D) and the flags (+0x23), [v10] 2 floats, [v11] 1, [v12] the texture
       (\specialfx\partclfx.tga), [v13] a word.
-    Next: the runtime (spawning, the curves' meanings, drawing) and which effect each event plays (weapons' PFXMuzzleFlash,
-    impact pfx, projectiles' PFXExplosion name them).
+    - The runtime so far (game_10.c, 088E2000..088EF000): a curve object is {?, n, samples, t0 0, t1 1}, sampled at a
+      normalised time t by 08AABE50 (index (t - t0) / (t1 - t0) x (n - 1), linear between samples). The spawn step 088E6E9C (per
+      emitter): t = the emitter's time (+0x74); a particle is made when a random number in 0..1 is at or below curve f(t)
+      (system +0x64) and the emitter has fewer than the system's +0xDC (the last of the 13 words: its particle limit); the
+      emitter's own step is scaled by +0xC4 when the system's flags (+0xE4) have bit 3; the new particle (32 bytes) starts at
+      the emitter (or a parent's moving frame when +0xE0 is not -1), less the emitter's velocity x dt when flags bit 2, less the
+      frame's motion unless bit 4, plus a random point of the emission shape (088EA81C); its velocity comes from curve b (vec3)
+      at t. +0xB0 (the second word) is the emitter's duration (its time runs at dt / +0xB0). 088E4934 moves an effect and its
+      emitters to a new matrix. Particle stepping and drawing are not read yet (VFPU code: the decomp's C, not Ghidra).
+    Next: the particle step and draw, then which effect each event plays (weapons' PFXMuzzleFlash, impact pfx, projectiles'
+    PFXExplosion name them).
 - [ ] **R.7 Shadows and decals.** Shadow blobs and scorch marks as the game places them.
   - 2026-11-20: the blob shadows are one batch (08918144): a vertex list at 0x08C19240 (20-byte vertices, room for 2024; count
     0x08C23244), drawn as one triangle strip (prim 4, vertex type 0x183: float UV and position) with \specialfx\blobshadow.tga,
