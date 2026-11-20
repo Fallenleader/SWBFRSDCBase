@@ -491,6 +491,13 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         if (!ok) return false;
     }
     p->seed = 12345;
+    {   /* particle effects (R.6): the level's FXET / FXST / FXPT, drawn from its \specialfx\partclfx.tga sheet */
+        p->pfx_on = ak_setting_int("AK_PFX", 1) != 0;
+        p->pfx_tex_index = ak_level_find_texture(l, "\\specialfx\\partclfx.tga");
+        if (p->pfx_tex_index < 0) p->pfx_tex_index = ak_level_find_texture(l, "\\graphics\\specialfx\\partclfx.tga");
+        if (p->pfx_on && ak_pfx_lib_load((const ak_blob *)&l->file, a, &p->pfx_lib)) { p->pfx = AK_NEW(a, ak_pfx_world, 1); if (p->pfx) ak_pfx_world_init(p->pfx, &p->pfx_lib); }
+        AK_INFO("play", "pfx: %u effects, %u systems, %u particle types, sheet %d", p->pfx_lib.nfx, p->pfx_lib.nsys, p->pfx_lib.ntype, p->pfx_tex_index);
+    }
     {   /* the mode (PARITY 5.4): AK_MODE = 0..5 or its code (CQST, CTF1, CTF2, HCTF, GTAG, CMPN; table 0x08B1B900) */
         static const char *codes[6] = { "CQST", "CTF1", "CTF2", "HCTF", "GTAG", "CMPN" };
         const char *ms = ak_setting_str("AK_MODE", "CQST"); ak_game_mode = 0;
@@ -1311,11 +1318,24 @@ static bool vehicle_make(ak_play *p, u32 v)
     return true;
 }
 
-static void boom(ak_play *p, const f32 *pos)
+/* an effect by name at pos along fwd (NULL: the effect's own frame) - R.6 */
+static void play_fx(ak_play *p, const char *name, const f32 *pos, const f32 *fwd)
 {
-    ak_play_boom *b = &p->boom[p->nboom < PLAY_MAX_BOOMS ? p->nboom++ : 0];
+    if (!p->pfx || !name) return;
+    f32 dx = pos[0] - p->eye[0], dy = pos[1] - p->eye[1], dz = pos[2] - p->eye[2];
+    if (dx * dx + dy * dy + dz * dz > 100.0f * 100.0f) return;          /* [assumed] every effect as the impacts' "impact pfx max dist" */
+    s32 fx = ak_pfx_find(&p->pfx_lib, name);
+    if (fx >= 0) ak_pfx_play(p->pfx, fx, pos, fwd);
+}
+
+static void boom_fx(ak_play *p, const f32 *pos, const char *pfx)
+{
+    if (p->pfx && pfx) { play_fx(p, pfx, pos, NULL); return; }
+    ak_play_boom *b = &p->boom[p->nboom < PLAY_MAX_BOOMS ? p->nboom++ : 0];   /* Aurek's own fireball (no effect to play) */
     memcpy(b->pos, pos, 12); b->pos[1] += 1.5f; b->t = 0;
 }
+/* a wreck: the game's vehicle explosion [assumed BFF_BigExplosion_E: no blueprint names one] */
+static void boom(ak_play *p, const f32 *pos) { f32 q[3] = { pos[0], pos[1] + 1.5f, pos[2] }; boom_fx(p, q, "BFF_BigExplosion_E"); }
 
 static void player_down(ak_play *p);
 static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
@@ -1514,7 +1534,7 @@ static bool stamina_pay(ak_play *p, f32 cost)
     p->stamina -= cost; return true;
 }
 
-static void proj_boom(void *ctx, const f32 *pos, f32 radius) { (void)radius; boom((ak_play *)ctx, pos); }
+static void proj_boom(void *ctx, const f32 *pos, f32 radius, const ak_proj_def *d) { (void)radius; boom_fx((ak_play *)ctx, pos, d ? d->explosion_pfx : NULL); }
 
 /* ------------------------------------------------------------------ bots in vehicles */
 #define FLY_RAYS AK_COL_FLYER_MASK
@@ -2582,6 +2602,25 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     heroes_drain(p, dt);
     for (u32 i = 0; i < nt; i++) if (p->target[i].alive && p->target[i].health <= 0 && alive_before[i]) { p->target[i].health = 0; p->target[i].alive = false; }   /* saber strokes */
     ak_bolts_update(&p->bolts, &p->col, p->target, nt, dt);
+    if (p->pfx) {                                                             /* the shots' muzzle flashes and the impacts' effects (R.6) */
+        u32 ns = p->bolts.shots - p->pfx_shots; if (ns > AK_MAX_SHOT_FX) ns = AK_MAX_SHOT_FX;
+        for (u32 j = 0; j < ns; j++) { const ak_shot_fx *f = &p->bolts.shot[(p->bolts.shots - ns + j) % AK_MAX_SHOT_FX]; play_fx(p, f->pfx, f->pos, f->dir); }
+        u32 ni = p->bolts.impacts - p->pfx_impacts; if (ni > AK_MAX_IMPACTS) ni = AK_MAX_IMPACTS;
+        for (u32 j = 0; j < ni; j++) {
+            const ak_impact *im = &p->bolts.imp[(p->bolts.next_imp + AK_MAX_IMPACTS - ni + j) % AK_MAX_IMPACTS];
+            f32 dx = im->pos[0] - p->eye[0], dy = im->pos[1] - p->eye[1], dz = im->pos[2] - p->eye[2];
+            if (dx * dx + dy * dy + dz * dz < 100.0f * 100.0f) play_fx(p, im->pfx, im->pos, im->normal);   /* "impact pfx max dist" 100 */
+        }
+        {   static const char *test; static bool tset; static f32 tt; if (!tset) { tset = true; test = ak_setting_str("AK_PFX_TEST", NULL); }
+            if (test && (tt -= dt) <= 0) {                                    /* tests: an effect 8 m ahead of the eye every 2 s */
+                tt = ak_setting_float("AK_PFX_TEST_EVERY", 2.0f);
+                f32 f[3] = { p->aim[0], 0, p->aim[2] }, fl = sqrtf(f[0] * f[0] + f[2] * f[2]) + 1e-6f; f[0] /= fl; f[2] /= fl;
+                f32 q[3] = { p->eye[0] + f[0] * 8, p->eye[1] - 1.0f, p->eye[2] + f[2] * 8 };
+                play_fx(p, test, q, ak_setting_int("AK_PFX_TEST_FWD", 0) ? f : NULL);
+            } }
+        ak_pfx_update(p->pfx, dt);
+    }
+    p->pfx_shots = p->bolts.shots; p->pfx_impacts = p->bolts.impacts; p->bolts.pfx_impacts = p->pfx != NULL;
     {   int td = ak_setting_int("AK_TEST_HURT", 0);                         /* tests: damage per second to the soldier */
         if (td && p->alive) { p->target[0].health -= (f32)td * dt; if (p->target[0].health <= 0) { p->target[0].health = 0; p->target[0].alive = false; } } }
     /* who fell this frame: a ticket each, the kill to whoever shot last */
@@ -3001,6 +3040,18 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         }
     }
     if (n) ak_gfx_draw_immediate(AK_PIPE_BEAM, NULL, bv, n);
+    if (p->pfx && p->pfx_tex && ak_pfx_live(p->pfx)) {                        /* particle effects (R.6): camera-facing quads */
+        static ak_vtx pv[AK_PFX_MAX_PARTICLES * 6];
+        f32 r[3] = { vp->m[0], vp->m[4], vp->m[8] }, u[3] = { vp->m[1], vp->m[5], vp->m[9] };   /* the view's right / up (rows of the view-projection) */
+        f32 rl = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]), ul = sqrtf(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+        if (rl > 1e-6f && ul > 1e-6f) {
+            for (int k = 0; k < 3; k++) { r[k] /= rl; u[k] /= ul; }
+            u32 na = ak_pfx_vertices(p->pfx, false, r, u, pv, sizeof pv / sizeof pv[0]);
+            if (na) ak_gfx_draw_immediate(AK_PIPE_BLEND, p->pfx_tex, pv, na);
+            u32 nd = ak_pfx_vertices(p->pfx, true, r, u, pv, sizeof pv / sizeof pv[0]);
+            if (nd) ak_gfx_draw_immediate(AK_PIPE_ADD, p->pfx_tex, pv, nd);
+        }
+    }
 }
 
 /* the point the lock-on holds (the chest, then the head once held "lock on to head time"); false = no lock */

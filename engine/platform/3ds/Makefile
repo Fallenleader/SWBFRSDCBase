@@ -20,7 +20,7 @@ OUT := $(B)/Aurek
 
 SRC := $(E)/app/viewer.c $(E)/app/play.c $(E)/app/play_sound.c $(E)/app/hud.c $(E)/app/frontend.c $(E)/core/ak_core.c $(E)/core/ak_vfs.c $(E)/core/ak_settings.c \
        $(E)/assets/asura.c $(E)/assets/model.c $(E)/assets/entity.c $(E)/assets/blueprint.c $(E)/assets/gui.c $(E)/game/ak_soldier.c $(E)/game/ak_character.c \
-       $(E)/game/ak_weapon.c $(E)/game/ak_conquest.c $(E)/game/ak_ctf.c $(E)/game/ak_vehicle.c $(E)/game/ak_space.c $(E)/game/ak_turret.c $(E)/game/ak_projectile.c \
+       $(E)/game/ak_weapon.c $(E)/game/ak_conquest.c $(E)/game/ak_ctf.c $(E)/game/ak_vehicle.c $(E)/game/ak_space.c $(E)/game/ak_turret.c $(E)/game/ak_projectile.c $(E)/game/ak_pfx.c \
        $(E)/game/ak_path.c $(E)/game/ak_loco.c $(E)/world/ak_collision.c $(E)/world/ak_nav.c $(E)/render/ak_scene.c $(E)/audio/ak_audio.c \
        $(E)/audio/ak_music.c $(E)/audio/ak_speech.c $(E)/audio/ak_adp.c $(P)/plat_3ds.c $(P)/gfx_c3d.c
 OBJ := $(patsubst $(E)/%.c,$(B)/%.o,$(SRC)) $(B)/aurek.shbin.o

@@ -148,6 +148,8 @@ AK_SUBTITLES=0
 AK_HUD=1
 # command post hologram light: 0 = unlit .. 1 = full strength
 AK_POST_GLOW=0.75
+# the game's particle effects (muzzle flashes, impacts, explosions; the level's PFX): 1 on, 0 Aurek's simple flashes
+AK_PFX=1
 #AK_VEHICLE_RESPAWN=10
 # gravity (m/s^2): the game's is 10
 AK_GRAVITY=10

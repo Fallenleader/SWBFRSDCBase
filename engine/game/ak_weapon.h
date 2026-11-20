@@ -27,6 +27,9 @@ typedef struct {
     const char *hud_icon;              /* "HUDIcon": its picture on the HUD's weapon sheets ("EMP_Blaster_Rifle.tga") */
     f32 heat_shot, heat_decay, heat_recover, burst_time;   /* OverheatPershot / OverheatDecay / OverheatRecoveryTime, BurstTime */
     f32 ai_acc[2];                     /* AIWeapon_Accuracy_Normal / _Elite (degrees; 08A24438) */
+    const char *muzzle_pfx;            /* the weapon's "PFXMuzzleFlash" effect (played at the muzzle, along the shot) */
+    const char *impact_pfx, *shield_pfx;   /* the bolt's "impact pfx" (on the level) and "shield impact pfx" (on vehicles) */
+    f32 impact_pfx_dist;               /* the weapon's "impact pfx max dist": no impact effect farther from the camera */
 } ak_weapon_def;
 
 /* A weapon's heat (the game's, weapon loader 08A16FD8: OverheatPershot / Decay / RecoveryTime at w+0x7C / +0x80 / +0x84, the heat
@@ -42,11 +45,14 @@ void ak_heat_update(ak_heat *h, const ak_weapon_def *d, f32 dt);
 
 typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; ak_heat heat; bool heats; } ak_weapon;   /* team/owner: set after ak_weapon_give; heats: a player's (ak_heat) */
 
-typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle; u32 colour; f32 dscale_max, dscale_dist; bool headshots; int team; s32 owner; } ak_bolt;
-typedef struct { f32 pos[3], normal[3]; f32 age; u32 colour; u16 material; bool body; } ak_impact;   /* material: the surface's (0xFFFF none) */
+typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle; u32 colour; f32 dscale_max, dscale_dist; bool headshots; int team; s32 owner; const char *impact_pfx, *shield_pfx; } ak_bolt;
+typedef struct { f32 pos[3], normal[3]; f32 age; u32 colour; u16 material; bool body; const char *pfx; } ak_impact;   /* pfx: the effect it plays (NULL none) */   /* material: the surface's (0xFFFF none) */
 #define AK_MAX_BOLTS 512
 #define AK_MAX_IMPACTS 64
-typedef struct { ak_bolt b[AK_MAX_BOLTS]; u32 n; ak_impact imp[AK_MAX_IMPACTS]; u32 nimp, next_imp; u32 fired, hits, impacts; } ak_bolts;   /* impacts: ever made */
+typedef struct { f32 pos[3], dir[3]; const char *pfx; } ak_shot_fx;   /* a shot's muzzle effect (the weapon's PFXMuzzleFlash) */
+#define AK_MAX_SHOT_FX 32
+typedef struct { ak_bolt b[AK_MAX_BOLTS]; u32 n; ak_impact imp[AK_MAX_IMPACTS]; u32 nimp, next_imp; u32 fired, hits, impacts;
+                 ak_shot_fx shot[AK_MAX_SHOT_FX]; u32 shots; bool pfx_impacts; } ak_bolts;   /* impacts / shots: ever made (rings of the latest); pfx_impacts: impacts with an effect are drawn by it */
 
 /* Something a shot can hurt: a standing body (vertical capsule from its feet) with a head sphere.  Soldiers have 100 health (the
  * game's default for a Humanoid blueprint without "Health": func_089826E8 reads it with 100.0 from 0x08AEE53C; heroes say 600) and

@@ -29,6 +29,8 @@ static bool proj_def(const ak_blueprints *bp, const char *name, ak_proj_def *d)
     d->track = ak_bp_int(o, "WillTrack", 0) != 0; d->gravity = ak_bp_int(o, "FeelsGravity", 1) != 0;
     d->on_impact = ak_bp_int(o, "ExplodesOnImpact", 0) != 0; d->on_timer = ak_bp_int(o, "ExplodesOnTimer", 0) != 0;
     d->add_vel = ak_bp_int(o, "AddFirerVelocity", 0) != 0;
+    d->explosion_pfx = ak_bp_string(o, "PFXExplosion", NULL); if (d->explosion_pfx && !*d->explosion_pfx) d->explosion_pfx = NULL;
+    d->trail_pfx = ak_bp_string(o, "PFXEffect", NULL); if (d->trail_pfx && !*d->trail_pfx) d->trail_pfx = NULL;
     const char *n = o->name;
     d->colour = strstr(n, "Bomb") ? 0xFFFFB060u : strstr(n, "Torpedo") ? 0xFFFFE0C0u : 0xFF40A0FFu;   /* (ABGR) */
     return true;
@@ -77,7 +79,7 @@ void ak_proj_throw(ak_projs *ps, const ak_proj_def *d, const f32 *pos, const f32
     ps->fired++;
 }
 
-static void explode(ak_projs *ps, ak_proj *p, ak_target *tg, u32 nt, void (*boom)(void *, const f32 *, f32), void *ctx)
+static void explode(ak_projs *ps, ak_proj *p, ak_target *tg, u32 nt, void (*boom)(void *, const f32 *, f32, const ak_proj_def *), void *ctx)
 {
     const ak_proj_def *d = p->d; f32 r = d->radius > 0.5f ? d->radius : 0.5f;
     {   static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_PROJ", 0);
@@ -99,12 +101,12 @@ static void explode(ak_projs *ps, ak_proj *p, ak_target *tg, u32 nt, void (*boom
         t->health -= dmg; t->hits++; t->last_attacker = p->owner; t->last_quiet = ak_proj_quiet_kind(d->name); ps->hits++;
         if (t->health <= 0) { t->health = 0; t->alive = false; }
     }
-    if (boom) boom(ctx, p->pos, d->radius);
+    if (boom) boom(ctx, p->pos, d->radius, d);
     p->alive = false;
 }
 
 void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *tg, u32 nt, f32 gravity, f32 dt,
-                     void (*boom)(void *, const f32 *, f32), void *ctx)
+                     void (*boom)(void *, const f32 *, f32, const ak_proj_def *), void *ctx)
 {
     for (u32 i = 0; i < AK_MAX_PROJ; i++) {
         ak_proj *p = &ps->p[i]; if (!p->alive) continue;

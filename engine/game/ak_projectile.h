@@ -18,6 +18,7 @@ typedef struct {
     f32 speed, life, radius, dmg_vehicle, dmg_infantry, drop_time;
     bool track, gravity, on_impact, on_timer, add_vel;
     u32 colour;                         /* the streak's colour (by kind: torpedo blue-white, missile orange, bomb blue) */
+    const char *explosion_pfx, *trail_pfx;   /* "PFXExplosion" (where it blows up) and "PFXEffect" (its trail) */
 } ak_proj_def;
 
 /* a secondary weapon (HardpointW2), resolved through its Weapon blueprint */
@@ -47,5 +48,5 @@ void ak_proj_throw(ak_projs *ps, const ak_proj_def *d, const f32 *pos, const f32
 /* move, steer, collide and explode them; an explosion hurts every target within the radius (not the firer's team); `boom` gets each
  * explosion's position (effects) */
 void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *targets, u32 ntargets, f32 gravity, f32 dt,
-                     void (*boom)(void *ctx, const f32 *pos, f32 radius), void *ctx);
+                     void (*boom)(void *ctx, const f32 *pos, f32 radius, const ak_proj_def *d), void *ctx);
 #endif

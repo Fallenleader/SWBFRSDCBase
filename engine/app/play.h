@@ -54,6 +54,7 @@
 #include "game/ak_loco.h"
 #include "game/ak_soldier.h"
 #include "game/ak_weapon.h"
+#include "game/ak_pfx.h"
 #include "game/ak_conquest.h"
 #include "game/ak_ctf.h"
 #include "game/ak_vehicle.h"
@@ -157,6 +158,9 @@ typedef struct {
                                           detonator): grenades left, time since the throw began (-1: none), time to the next */
     ak_turret_def tdef[8]; u32 ntdef; ak_turret turret[PLAY_MAX_TURRETS]; u32 nturret;   /* level turrets (ENTI type 30) */
     ak_play_boom boom[PLAY_MAX_BOOMS]; u32 nboom;
+    ak_pfx_lib pfx_lib; ak_pfx_world *pfx;   /* the level's particle effects and the ones running (R.6) */
+    u32 pfx_shots, pfx_impacts; s32 pfx_tex_index; struct ak_gfx_tex *pfx_tex;   /* the shots / impacts already played; the sheet (set by the viewer) */
+    bool pfx_on;                       /* AK_PFX (1): the game's effects in place of Aurek's flashes */
     u32 kills, deaths;
     u16 tally_kills[64], tally_deaths[64];   /* per soldier (0 the player, 1.. the bots): the score boards' columns */
     s32 idle_clip, death_clips[3];

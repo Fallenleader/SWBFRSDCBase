@@ -859,7 +859,7 @@ groundwork below is needed before the parity work starts. The tiers come later.
     game draws models with an identity view, so the model matrix's translation is the distance): Hoth's soldiers drew 782
     strip indices up to 39.2 m and 442 from 40.2 m, none lower out to 220 m - one step at 40 m. Aurek's soldiers now take their
     L1 meshes beyond 40 m (`AK_SOLDIER_LOD`). Props: their draws are split per part, not identified yet.
-- [ ] **R.6 Particles and effects (PFX).** Explosions, muzzle flashes, impacts, streaks, and the command post glow (AK_POST_GLOW
+- [ ] **R.6 Particles and effects (PFX) [partial].** Explosions, muzzle flashes, impacts, streaks, and the command post glow (AK_POST_GLOW
   is Aurek's own).
   - 2026-11-20, the data read (tools/asura/pfx.py; every FX chunk of Hoth parses to its last byte but FXET's 48-byte tail):
     three chunk kinds per level, each {u32 hash, name}: FXET effects (69 on Hoth; loader 0882A3C0 -> 0882ACE0), FXST particle
@@ -900,8 +900,28 @@ groundwork below is needed before the parity work starts. The tiers come later.
       +0xD4, +0xD8 (flags 0x2000: a fade-in limit), +0xDC the particle limit; then +0xE0 (a parent, -1 none) and the flags +0xE4.
     - FXPT's words in the stream's order are its +0x50 (an int: 1 streaks, 5 fire - the blend or kind), +0x54 the lifetime
       (s), +0x58 its spread, +0x60, +0x64, +0x6C, +0x68, +0x70, +0x74; the frames list is +0x88 (count +0x5C); the flags +0x8C.
-    Next: the rest of the particle step (motion, the emit count) and the draw, then which effect each event plays (weapons' PFXMuzzleFlash, impact pfx, projectiles'
-    PFXExplosion name them).
+    - The draw (088E4454 -> per emitter 088E6CD4 -> batched by 088E92CC / 088E9398 -> 088E261C -> 089173D4 -> 0891589C): per
+      particle the alpha is the type's colour curve (+0x00) at its age, skipped at or below 0; the size c1 (+0x14) at the age x
+      a scale (1, or the emitter's with FXPT flags 0x40000) x (1 - the record's random x c3 (+0x3C) at the age); the turn c2
+      (+0x28) at the age (a random one with flags 4; none with 0x8000 or with 2 but not 0x200; flags 0x400 and an odd random
+      flip it [assumed]); flags 0x200 / 0x1000 / 0x2000 / 0x4000 pick other orientations (velocity-stretched and emitter-
+      facing: VFPU code not followed). The blending is the type's kind (+0x50) through 0890D108: 1 sceGuBlendFunc(ADD,
+      SRC_ALPHA, ONE_MINUS_SRC_ALPHA), 5 (ADD, SRC_ALPHA, FIX) - additive, 4 (ADD, SRC_COLOR...), 0xC reverse subtract. 6
+      vertices a particle (0x08AD95DC; 26 with flags 0x400000), vertex type 0x19F (float UV, colour 8888, float position).
+    - The spawn's direction (088E6E9C): the base vector is (0, 0, speed); the angles are b(t) x pi + d(t) x r, r = a random in
+      -pi..pi (0x08AECDD0 / D4); one quaternion is built from the x and y angles (half-angle sines and cosines), a second from
+      z, and their product turns the vector; the emitter's 3x3 matrix then takes it to the world. System flags 0x1000 add the
+      emitter's velocity x +0xC8. The emission shapes (088EA81C): 1 a box {x min, max, y min, max, z min, max} (inside, or with
+      the shape's flag 1 on a face), 2 a sphere of radius r and 3 an ellipsoid of radii (x, y, z) (inside by rejection, or on
+      the surface).
+    - Which effect each event plays is the blueprints': Weapon "PFXMuzzleFlash" (Laser_Blast_E, BFF_Space_Laser_Blast_E,
+      BFF_Muz_Shotgun_E, ...), LaserBolt "impact pfx" (BFF_Impact_Metal_E; space BFF_Space_Impact PFX_E) and "shield impact
+      pfx" (BFF_ShieldImpact_E), Weapon "impact pfx max dist" 100, Projectile "PFXExplosion" (BFF_BigExplosion_2_E for grenades
+      and rockets, BFF_Space_Plasma_Explosion_E for torpedoes and bombs) and "PFXEffect" (trails), Flyer EnginePFX / SmokePFX
+      (66% health) / FirePFX (33%) / BoostPFX / SpaceDustPFX, UtilityDroid PFXDeath, Humanoid PFXExplosion (droids).
+    - 2026-11-20, Aurek runs them (`game/ak_pfx`, NATIVE_ENGINE row): muzzle flashes, impacts, projectile explosions and wrecks
+      (BFF_BigExplosion_E [assumed]). Left: trails and vehicle effects (they follow a moving object), the effects' lights (the
+      FXET colour and radius curves), cell animation, the oriented / stretched draws, and the exact noise (088EF134).
 - [ ] **R.7 Shadows and decals.** Shadow blobs and scorch marks as the game places them.
   - 2026-11-20: the blob shadows are one batch (08918144): a vertex list at 0x08C19240 (20-byte vertices, room for 2024; count
     0x08C23244), drawn as one triangle strip (prim 4, vertex type 0x183: float UV and position) with \specialfx\blobshadow.tga,

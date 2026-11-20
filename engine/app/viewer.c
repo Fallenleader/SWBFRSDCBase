@@ -475,6 +475,7 @@ int main(int argc, char **argv)
                     AK_INFO("test", "vehicle %u %s at %.2f,%.2f,%.2f", v, play.veh[v].def ? play.veh[v].def->name : "-", g[0], g[1], g[2]); }
                 AK_INFO("test", "vehicles:%s", vl);
                 AK_INFO("test", "projectiles: %u fired, %u hits", play.projs.fired, play.projs.hits);
+                if (play.pfx) AK_INFO("test", "pfx: %u played, %u dropped (%u particles), %u particles live", play.pfx->played, play.pfx->dropped, play.pfx->dropped_particles, ak_pfx_live(play.pfx));
                 if (play.nturret) { k = 0;
                     for (u32 v = 0; v < play.nturret && k < 480; v++)
                         k += snprintf(vl + k, sizeof vl - (size_t)k, " %s:%s%.0f(%u hits)", play.turret[v].def->name, play.turret[v].alive ? "" : "wreck ", play.target[1 + play.nbots + play.nveh + v].health, play.target[1 + play.nbots + play.nveh + v].hits);
@@ -488,6 +489,7 @@ int main(int argc, char **argv)
             else AK_INFO("aurek", "playing as %s (%s, head %d) at %.1f %.1f %.1f; level memory %.1f MB", models.models[play.look.body].name, ak_faction_name(play.look.faction),
                          play.look.head_index + 1, play.ch.pos[0], play.ch.pos[1], play.ch.pos[2], lvl.used / 1048576.0);
             if (play.ready) ak_play_sound_start(&play, &level, &bps);
+            if (play.ready && play.pfx_tex_index >= 0 && (u32)play.pfx_tex_index < level.ntex) play.pfx_tex = scene.tex[play.pfx_tex_index];   /* the particle sheet (R.6) */
             if (play.ready && fe_ingame) {                                  /* the player waits for the menus: team, then the spawn map */
                 play.alive = false; play.target[0].alive = false; play.menu_hold = true; play.dead_t = 0;
                 ak_fe_open_ingame(fe_after_team ? "MP_Spawn_Location" : "MP_Team_Selection"); fe_after_team = false;

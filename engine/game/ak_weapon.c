@@ -37,6 +37,9 @@ bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, con
     d->length = ak_bp_float(lb, "length", 1.5f); d->thickness = ak_bp_float(lb, "thickness", 0.2f);
     d->colour = (u32)ak_bp_int(lb, "colour", (s32)0xFFFF2020u);
     d->dscale_dist = ak_bp_float(lb, "DistanceScalingMaxDist", 0); d->dscale_max = ak_bp_float(lb, "DistanceScalingMaxScale", 1);
+    d->muzzle_pfx = ak_bp_string(w, "PFXMuzzleFlash", NULL); if (d->muzzle_pfx && !*d->muzzle_pfx) d->muzzle_pfx = NULL;
+    d->impact_pfx = ak_bp_string(lb ? lb : w, "impact pfx", NULL); d->shield_pfx = ak_bp_string(lb ? lb : w, "shield impact pfx", NULL);
+    d->impact_pfx_dist = ak_bp_float(w, "impact pfx max dist", 100);
     ak_weapon_def_heat(w, d);
     return true;
 }
@@ -74,6 +77,7 @@ bool ak_weapon_def_bolt(const ak_blueprints *bp, const char *bolt, ak_weapon_def
     d->length = ak_bp_float(lb, "length", 1.5f); d->thickness = ak_bp_float(lb, "thickness", 0.2f);
     d->colour = (u32)ak_bp_int(lb, "colour", (s32)0xFFFF2020u);
     d->dscale_dist = ak_bp_float(lb, "DistanceScalingMaxDist", 0); d->dscale_max = ak_bp_float(lb, "DistanceScalingMaxScale", 1);
+    d->impact_pfx = ak_bp_string(lb, "impact pfx", NULL); d->shield_pfx = ak_bp_string(lb, "shield impact pfx", NULL); d->impact_pfx_dist = 100;
     return true;
 }
 
@@ -118,11 +122,11 @@ static void hurt(ak_target *T, f32 dmg_inf, f32 dmg_veh, bool head, bool allow_h
 
 static f32 rnd(u32 *s) { *s = *s * 1664525u + 1013904223u; return (f32)(*s >> 8) / 16777216.0f; }
 
-static void impact(ak_bolts *b, const ak_col_hit *h, u32 colour, bool body)
+static void impact(ak_bolts *b, const ak_col_hit *h, u32 colour, bool body, const char *pfx)
 {
     ak_impact *im = &b->imp[b->next_imp]; b->next_imp = (b->next_imp + 1) % AK_MAX_IMPACTS; if (b->nimp < AK_MAX_IMPACTS) b->nimp++;
     memcpy(im->pos, h->pos, 12); memcpy(im->normal, h->normal, 12); im->age = 0; im->colour = colour;
-    im->material = body ? 0xFFFF : h->material; im->body = body;
+    im->material = body ? 0xFFFF : h->material; im->body = body; im->pfx = pfx;
     b->hits++; b->impacts++;
 }
 
@@ -149,15 +153,16 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
             bool wall = ak_col_raycast(col, muzzle, dd, reach, SHOT_IGNORE, &h); if (wall) reach = h.t;
             s32 ti = ray_targets(tg, ntg, muzzle, dd, reach, &tt, &head, w->team);
             if (ti >= 0) hurt(&tg[ti], d->dmg_infantry, d->dmg_vehicle, head, d->headshots, dd, w->owner);
-            else if (wall) impact(b, &h, 0xFFFFFFFFu, false);
+            else if (wall) impact(b, &h, 0xFFFFFFFFu, false, d->impact_pfx);
             continue;
         }
         if (b->n >= AK_MAX_BOLTS) break;
         ak_bolt *o = &b->b[b->n++];
         memcpy(o->pos, muzzle, 12); memcpy(o->dir, dd, 12);
-        o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->headshots = d->headshots; o->colour = d->colour; o->dscale_max = d->dscale_max; o->dscale_dist = d->dscale_dist; o->team = w->team; o->owner = w->owner;
+        o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->headshots = d->headshots; o->colour = d->colour; o->dscale_max = d->dscale_max; o->dscale_dist = d->dscale_dist; o->team = w->team; o->owner = w->owner; o->impact_pfx = d->impact_pfx; o->shield_pfx = d->shield_pfx;
     }
     b->fired++;
+    if (d->muzzle_pfx) { ak_shot_fx *f = &b->shot[b->shots++ % AK_MAX_SHOT_FX]; memcpy(f->pos, muzzle, 12); memcpy(f->dir, dir, 12); f->pfx = d->muzzle_pfx; }
     w->cooldown = d->rate_of_fire;
     if (d->clip > 0) w->ammo--;
     /* the reload starts with the shot that empties the clip (measured: the blaster rifle's last round at frame 497, a full clip
@@ -191,8 +196,8 @@ void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *tg, u32 nt
         if (ti >= 0) {
             hurt(&tg[ti], o->damage, o->damage_vehicle, head, o->headshots, o->dir, o->owner);
             ak_col_hit fake; for (int k = 0; k < 3; k++) { fake.pos[k] = o->pos[k] + o->dir[k] * tt; fake.normal[k] = -o->dir[k]; }
-            fake.material = 0xFFFF; impact(b, &fake, o->colour, true); step = tt; dead = true;
-        } else if (wall) { impact(b, &h, o->colour, false); dead = true; }
+            fake.material = 0xFFFF; impact(b, &fake, o->colour, true, tg[ti].vehicle ? o->shield_pfx : NULL);   /* [assumed] soldiers: none */ step = tt; dead = true;
+        } else if (wall) { impact(b, &h, o->colour, false, o->impact_pfx); dead = true; }
         for (int k = 0; k < 3; k++) o->pos[k] += o->dir[k] * step;
         o->travelled += step;
         if (dead) b->b[i] = b->b[--b->n]; else i++;
@@ -310,7 +315,7 @@ u32 ak_bolts_vertices(const ak_bolts *b, const f32 *eye, ak_vtx *out, u32 max)
     }
     for (u32 i = 0; i < b->nimp && n + AK_BEAM_VERTS <= max; i++) {
         const ak_impact *im = &b->imp[i];
-        if (im->age > 0.15f) continue;
+        if (im->age > 0.15f || (b->pfx_impacts && im->pfx)) continue;   /* (impacts that play the game's effect draw no flash) */
         f32 p[3]; for (int k = 0; k < 3; k++) p[k] = im->pos[k] + im->normal[k] * 0.05f;
         n += ak_flash(out + n, p, 0.25f + im->age * 3.0f, eye, im->colour, (u8)(255 * (1.0f - im->age / 0.15f)));
     }
