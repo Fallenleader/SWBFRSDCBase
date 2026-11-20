@@ -224,20 +224,23 @@ void ak_scene_force_pipe(int pipe) { g_force_pipe = pipe; }
 
 
 /* the light at a point: the game keeps its samples packed and lights each object from them (the per-object light set 0889C91C, GE
- * lights 0890452C: ambient plus one directional light per colour channel, |dir| its strength, clamped to 1).  How it weighs the
- * samples is not traced yet: here the four nearest, by inverse squared distance [PARITY(R.1)] */
+ * lights 0890452C: ambient plus one directional light per colour channel, |dir| its strength, clamped to 1), weighing the six
+ * nearest samples (0889B6B0, below) */
 bool ak_scene_light_at(const ak_scene_models *s, const f32 *pos, f32 out[12])
 {
     if (!s->nlight || !ak_setting_int("AK_LIGHT", 1)) return false;
-    s32 best[4] = { -1, -1, -1, -1 }; f32 bd[4] = { 1e30f, 1e30f, 1e30f, 1e30f };
+    /* the game's weighting (traced, 0889B6B0): the 6 nearest samples (a k-d tree walk over the GISN samples), each weighted
+       1 / (squared distance + 0.001), the sum divided by the weights' total */
+    enum { NB = 6 };
+    s32 best[NB]; f32 bd[NB]; for (int k = 0; k < NB; k++) { best[k] = -1; bd[k] = 1e30f; }
     for (u32 i = 0; i < s->nlight; i++) {
         const f32 *q = s->light[i].pos; f32 dx = q[0] - pos[0], dy = q[1] - pos[1], dz = q[2] - pos[2], d = dx * dx + dy * dy + dz * dz;
-        for (int k = 0; k < 4; k++) if (d < bd[k]) { for (int j = 3; j > k; j--) { bd[j] = bd[j - 1]; best[j] = best[j - 1]; } bd[k] = d; best[k] = (s32)i; break; }
+        for (int k = 0; k < NB; k++) if (d < bd[k]) { for (int j = NB - 1; j > k; j--) { bd[j] = bd[j - 1]; best[j] = best[j - 1]; } bd[k] = d; best[k] = (s32)i; break; }
     }
     memset(out, 0, 12 * sizeof *out); f32 wsum = 0;
-    for (int k = 0; k < 4; k++) {
+    for (int k = 0; k < NB; k++) {
         if (best[k] < 0) continue;
-        const ak_light_sample *l = &s->light[best[k]]; f32 w = 1.0f / (bd[k] + 1.0f); wsum += w;
+        const ak_light_sample *l = &s->light[best[k]]; f32 w = 1.0f / (bd[k] + 0.001f); wsum += w;
         for (int c = 0; c < 3; c++) { out[c] += w * l->amb[c]; for (int a = 0; a < 3; a++) out[3 + c * 3 + a] += w * l->dir[c][a]; }
     }
     if (wsum <= 0) return false;

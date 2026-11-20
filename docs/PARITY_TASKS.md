@@ -966,8 +966,9 @@ groundwork below is needed before the parity work starts. The tiers come later.
     (60-byte records: position, radius, colour; 1 - d / r; ambient x 0.235, direction x 0.47) - none in the measured scene.
   - Engine: asura.c reads GISN (ak_level_light_samples); ak_scene lights every model from it (ak_scene_light_at: ambient + per
     channel max(0, n . dir), then the frame's doubling; the GL back end per vertex, Vita / 3DS as a tint for now);
-    holograms and additive parts stay unlit; AK_LIGHT=0 turns it off. Open: how the game weighs the samples for an object
-    (Aurek: the 4 nearest by inverse squared distance [PARITY(R.1)]), the dynamic lights, and per-vertex lighting on Vita / 3DS.
+    holograms and additive parts stay unlit; AK_LIGHT=0 turns it off. 2026-11-20, the weighting traced (0889B6B0): the 6 nearest samples (a
+    k-d tree walk), each weighted 1 / (squared distance + 0.001) - Aurek took 4 with 1 / (d^2 + 1); now the game's. Open: the
+    dynamic lights, and per-vertex lighting on Vita / 3DS.
 - [x] **R.2 Fog.** The FOG values are read but not understood (Tatooine 11–75 m). Trace them.
   - Done 2026-11-19: the FOG chunk (loader 08825C9C) is flags (bit 0 on; space levels off), r, g, b, -, start, end, strength,
     sky strength, 2 more.  The game sets the GU fog from near 0 to far = end (08903470 - logged in the harness: Tatooine
