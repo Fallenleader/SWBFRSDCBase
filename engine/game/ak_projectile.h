@@ -20,6 +20,7 @@ typedef struct ak_proj_def_s {
     u32 colour;                         /* the streak's colour (by kind: torpedo blue-white, missile orange, bomb blue) */
     const char *explosion_pfx, *trail_pfx;   /* "PFXExplosion" (where it blows up) and "PFXEffect" (its trail) */
     f32 prox, prox_delay;               /* "WillDetonateAT" (m) / "ProximityExplodeDelay" (s): a mine (def +0x94 / +0xF0) */
+    f32 det_height;                     /* "Detonation_Height" (m, def +0xB0): goes off that close above the ground (the cluster grenade 0.25) */
     bool remote;                        /* neither timed nor on impact, not a mine: set off by its owner (the det pack) [assumed] */
     const struct ak_proj_def_s *child;  /* "ChildProjectiles" (def +0xB4): what it bursts into (cluster grenades) */
     u32 nchildren; f32 child_speed, splay, dispersion;   /* "NumberOfChildren" +0xC4, "ChildSpeed" +0xB8, "AmmountOfSplay" +0xBC, "DispersionDistance" +0xC0 */

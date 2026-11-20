@@ -31,7 +31,7 @@ static bool proj_def_depth(const ak_blueprints *bp, const char *name, ak_proj_de
     d->add_vel = ak_bp_int(o, "AddFirerVelocity", 0) != 0;
     d->explosion_pfx = ak_bp_string(o, "PFXExplosion", NULL); if (d->explosion_pfx && !*d->explosion_pfx) d->explosion_pfx = NULL;
     d->trail_pfx = ak_bp_string(o, "PFXEffect", NULL); if (d->trail_pfx && !*d->trail_pfx) d->trail_pfx = NULL;
-    d->prox = ak_bp_float(o, "WillDetonateAT", 0); d->prox_delay = ak_bp_float(o, "ProximityExplodeDelay", 0);
+    d->prox = ak_bp_float(o, "WillDetonateAT", 0); d->prox_delay = ak_bp_float(o, "ProximityExplodeDelay", 0); d->det_height = ak_bp_float(o, "Detonation_Height", 0);
     d->remote = !d->on_impact && !d->on_timer && d->prox <= 0;
     d->nchildren = (u32)ak_bp_int(o, "NumberOfChildren", 0); d->child_speed = ak_bp_float(o, "ChildSpeed", 0);
     d->splay = ak_bp_float(o, "AmmountOfSplay", 0); d->dispersion = ak_bp_float(o, "DispersionDistance", 0);
@@ -189,6 +189,11 @@ void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *tg, u32 n
                     if (dx * dx + dy * dy + dz * dz < d->prox * d->prox) { p->prox_t = 0; break; }
                 }
             if (p->prox_t >= 0) { explode(ps, p, tg, nt, boom, ctx, col); continue; }
+        }
+        if (d->det_height > 0 && !p->stuck) {                                 /* (traced, 08A005B0: a ray 10 m down; the ground within
+                                                                                  Detonation_Height sets it off - the cluster grenade bursts 0.25 m up) */
+            f32 dn[3] = { 0, -1, 0 }; ak_col_hit gh;
+            if (ak_col_raycast(col, p->pos, dn, 10.0f, AK_COL_NOT_BODIES, &gh) && gh.t <= d->det_height) { explode(ps, p, tg, nt, boom, ctx, col); continue; }
         }
         if (p->stuck) continue;                                               /* (resting where it landed, waiting for its timer) */
         if (d->gravity) p->vel[1] -= gravity * dt;

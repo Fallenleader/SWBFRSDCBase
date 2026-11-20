@@ -274,6 +274,7 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 | 2026-11-20 | 6.1 | **idle variations.** A soldier standing idle and not alert waits (random + 0.5) x 2.5 s, then plays row 18 or 19 of its set once, then waits again (08998828). The bots now do this, using the rifle set's rows for every bot; the player uses its own set's rows |
 | 2026-11-20 | 2.6 | **the elite damage factor; all levels checked.** At the elite difficulty an AI's hit on the local player is also multiplied by Weapon "Base" Modifier_Bot_Damage_Elite_Global (1.35; the key's h31 0x311D4DBF, read by 08A25020, applied in 089E1FDC), for bolts and projectiles. All 45 levels run 30 s headless with bots after today's AI changes (trigger, damage, space crews), none failing |
 | 2026-11-20 | R.1 | **model lighting takes the game's sample weighting.** An object's light (0889B6B0) blends the 6 GISN samples nearest to it, each weighted 1 / (squared distance + 0.001), found by a k-d tree walk. Aurek blended 4, weighted 1 / (d^2 + 1); ak_scene_light_at now does the game's |
+| 2026-11-20 | 2.3c | **Detonation_Height.** A projectile with a Detonation_Height casts a ray 10 m down every frame in flight and goes off when the ground is that close (08A005B0). Only the cluster grenade has one (0.25 m), so it bursts just above the ground before its 1 s timer (the original: 0.83 s after leaving the hand). ak_projectile does this; before, the cluster grenade landed and waited for its timer |
 
 ## Known issues (cleanup pass once gameplay reaches parity)
 

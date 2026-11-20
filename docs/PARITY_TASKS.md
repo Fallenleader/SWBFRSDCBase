@@ -275,8 +275,10 @@ textures and how they are used. Section R lists only what must be in place so th
     ProximityExplodeDelay +0xF0. The cluster burst is traced (08A02464; NATIVE_ENGINE row). The mine's trigger is traced
     (2026-11-20: the unit update 089E1890 -> 08A02228: within +0x94 of a living unit that did not lay it, once its age +216 is
     past +0xF0 - an arming delay, no team test; built). The det pack's input is measured (2026-11-20, harness `detpack`: the second press sets it off 29
-    frames later, no new throw; built). [ ] 2.3c: Detonation_Height's
-    use, how mines and det packs are placed (the "place" animations), and the items row (dispenser, auto turret, recon droid,
+    frames later, no new throw; built). 2.3c, Detonation_Height (2026-11-20, 08A005B0): while
+    in flight the projectile casts a ray 10 m down and goes off when the ground is within Detonation_Height - only the cluster
+    grenade has one (0.25): it bursts just above the ground before its 1 s timer (harness: 0.83 s after the release); built.
+    [ ] how mines and det packs are placed (the "place" animations), and the items row (dispenser, auto turret, recon droid,
     stealth, jetpack, jump pack, shield).
   - [ ] **2.3d** Bots' explosives [traced 2026-11-20, built]: 0893F1A8 -> 08940C7C -> 0893679C. Chance 1 - (1 - k)^dt a frame,
     k 0.15 elite / 0.05 otherwise; the target is the first sensed enemy (not class 0x8006) with a count of its side's units
