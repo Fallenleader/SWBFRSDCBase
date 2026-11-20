@@ -439,6 +439,13 @@ textures and how they are used. Section R lists only what must be in place so th
     Tatooine's script sets 10 on an event (group 17) - script events are not run yet.  0x8003 (Tatooine: +5 / +10 / +20 on events)
     and 0x8006 / 0x8010 are other ticket-entity messages, not read.
 - [ ] **5.2 Heroes [partial].** Unlock threshold (AK_HERO_UNLOCK 3), and how HeroDeathRate and HeroHealthAddPerKill are applied.
+  - Traced 2026-11-19: the class record reads HeroHealthAddPerKill into +168 and HeroDeathRate into +164 (089E3E38).
+    - Drain (08982DA4, every frame unless the mode is 3 or the game is paused (089E47D0), and not while vfunc +96 says so):
+      health -= HeroDeathRate x max health (+8) x the frame time (D_08B285A0), floored at 0 - the hero dies at 0.
+    - A kill (08982634, when the unit's flag +96 bit 0 is set, the mode is not 3 and the kill counts (a1 = 0)): health +=
+      max health x HeroHealthAddPerKill, capped at the max.
+    - The unlock time is the option at +420 (default 3 minutes, 0897782C), as Aurek's AK_HERO_UNLOCK.
+    - Aurek's heroes_drain and per-kill gain already do exactly this (play.c), so nothing changed.  Open: what mode 3 is.
 - [ ] **5.3 Remaining entity types [partial].** Regions, soldier spawns, other ENTI types (doc 1.4 "still open").
 - [ ] **5.4 Modes.** CTF, hunt and space completeness. Galactic conquest and campaign rules (credits, map moves, unlocks).
 - [ ] **5.6 Entity placement [assumed].** From the Known-issues table: many meshes float or sit in the wrong place (likely
