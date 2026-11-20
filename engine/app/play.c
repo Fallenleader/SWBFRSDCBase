@@ -2764,7 +2764,16 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
     if (p->have_cq) {                                                         /* the command posts: the game's cone of light and the owner's logo */
         static const char *logo[4] = { "republic_logo_blue", "cis_logo_blue", "alliance_logo_blue", "empire_logo_blue" };
         s32 cone = ak_models_find(m, "cone_of_light");
-        f32 spin = p->clock * 6.2831853f / 3.13f;                             /* "logo_spin_move": a turn every 3.13 s */
+        /* the logo turns by its clip "logo_spin_move" (one bone, a turn in 3.133 s that eases: 24 degrees at 0.26 s, 88 at 0.78 s) */
+        f32 spin = p->clock * 6.2831853f / 3.133f;
+        static const ak_anim_clip *spin_clip; static const ak_model_set *spin_of;
+        if (spin_of != m) { spin_of = m; spin_clip = NULL; for (u32 k = 0; k < m->nclips; k++) if (m->clips[k].name && !strcmp(m->clips[k].name, "logo_spin_move")) spin_clip = &m->clips[k]; }
+        if (spin_clip && spin_clip->duration > 0 && spin_clip->nbones == 1) {
+            s16 par = -1; f32 bt[1][3] = { { 0, 0, 0 } }; ak_quat bq = { 0, 0, 0, 1 }, q[1]; f32 t[1][3];
+            ak_skeleton one; memset(&one, 0, sizeof one); one.nbones = 1; one.parent = &par; one.bind_t = bt; one.bind_q = &bq; one.world_t = bt; one.world_q = &bq;
+            ak_anim_sample(spin_clip, &one, fmodf(p->clock, spin_clip->duration), true, q, t);
+            spin = 2.0f * atan2f(q[0].y, q[0].w);
+        }
         for (u32 i = 0; i < p->cq.nposts; i++) {
             if (p->cq.post[i].disabled) continue;
             const ak_post_state *ps = &p->match.post[i];
@@ -2780,7 +2789,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
             if (cone >= 0) { ak_m4 w; world_of(pp, p->cq.post[i].yaw, &w); ak_scene_models_draw(ms, (u32)cone, vp, &w, NULL, NULL, st); }
             if (ps->owner < 2) {
                 s32 lg = ak_models_find(m, logo[p->team_faction[ps->owner] & 3]);
-                if (lg >= 0) { f32 lp[3] = { pp[0], pp[1] + 1.25f, pp[2] }; ak_m4 w; world_of(lp, spin + (f32)i, &w); ak_scene_models_draw(ms, (u32)lg, vp, &w, NULL, NULL, st); }
+                if (lg >= 0) { f32 lp[3] = { pp[0], pp[1] + 1.6f, pp[2] };   /* 1.60 m over the post (the original's draws, harness RS_DRAW_ALL) */ ak_m4 w; world_of(lp, spin + (f32)i, &w); ak_scene_models_draw(ms, (u32)lg, vp, &w, NULL, NULL, st); }
             }
             ak_scene_force_pipe(-1);
         }

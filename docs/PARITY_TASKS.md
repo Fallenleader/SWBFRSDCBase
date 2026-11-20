@@ -548,7 +548,12 @@ textures and how they are used. Section R lists only what must be in place so th
     record, otherwise backwards and then cone_of_light_Rest; the logo's clip is driven by the cone's (08809AB8 with the capture
     clip's time, reversed when it runs backwards); a capture sound (0x6E926355) loops while the amount is under full, its pitch
     0.6 + 0.6 x amount / full (owner neutral: 1 - that), fading at 1.5 a second after.  Open: which record value the amount is
-    compared with, what 08809AB8 sets (time or rate), and the logo's height.
+    compared with, what 08809AB8 sets (time or rate).
+  - 2026-11-20, the logo's height and turn (harness RS_DRAW_ALL: unlit draws in the draw log; each draw's world position from
+    the frame's view): over Hoth's posts the base model (639 indices) sits at the post, the cone's parts 0.30 m up (its bone 1,
+    0.332 m in the bind pose), and the logo's quad (10 indices) 1.60 m up - whatever the capture state. The logo model is a
+    1 x 1 m quad standing on its origin; its clip logo_spin_move (one bone, 3.133 s a turn) only turns it, easing (24 degrees at
+    0.26 s, 88 at 0.78 s, 181 at 1.57 s). Aurek now draws the logo 1.6 m up (was 1.25) and turns it by the clip.
 - [ ] **6.5 Heroes [missing].** Saber combos, blocking, force powers, saber throw. Blaster heroes' own tables.
   - 2026-11-19: a blaster hero played by the player now takes generic_male's set by its own weapon's AnimPose (the 6.1 rule),
     and the soldier's set comes back when the hero ends.  Open: everything else listed (saber combo timing, blocking, force

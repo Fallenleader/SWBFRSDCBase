@@ -598,7 +598,8 @@ static void exec_draw(const u32 *payload){
 #ifndef __vita__
     { static int lg = -1; if (lg < 0) lg = getenv("RS_DRAW_LOG") ? atoi(getenv("RS_DRAW_LOG")) : 0;   /* RS_DRAW_LOG=N: every N frames, each lit 3D draw's distance (LOD study) */
       extern volatile int g_frames;
-      if (lg > 0 && !through && ptype >= 3 && ptype <= 5 && X.en[10] && (g_frames % lg) == 0) {
+      static int all = -1; if (all < 0) all = getenv("RS_DRAW_ALL") != 0;   /* RS_DRAW_ALL: unlit draws too */
+      if (lg > 0 && !through && ptype >= 3 && ptype <= 5 && (X.en[10] || all) && (g_frames % lg) == 0) {
         float w[3] = { X.world[9], X.world[10], X.world[11] }, v[3];
         for (int c = 0; c < 3; c++) v[c] = w[0] * X.view[c] + w[1] * X.view[3 + c] + w[2] * X.view[6 + c] + X.view[9 + c];
         fprintf(stderr, "[DRAW] %d vt=%06x n=%d nv=%d tex=%08x d=%.2f w=%.1f,%.1f,%.1f\n", g_frames, vt, count, (int)d->nvert, X.lv[0].addr, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]), w[0], w[1], w[2]); } }
