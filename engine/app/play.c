@@ -2179,7 +2179,9 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
     if (en || ob) b->patrol = false;
     f32 tx = dest[0] - vh->pos[0], ty = dest[1] - vh->pos[1], tz = dest[2] - vh->pos[2], h = sqrtf(tx * tx + tz * tz), dist = sqrtf(h * h + ty * ty);
     if (ob) {                                                                  /* along the objective's three points */
-        f32 reach = b->role == SPACE_LAND ? (b->role_leg >= 2 ? 6.0f : 25.0f) : (b->role_leg >= 2 ? 70.0f : 35.0f);
+        /* (a run's first legs end within 20 m: the fly-to node 0x487 over the objective's points, 0894D570 state 1, |d|^2 <= 400;
+           its later states are VFPU code not read - the last leg's 70 m stays Aurek's) */
+        f32 reach = b->role == SPACE_LAND ? (b->role_leg >= 2 ? 6.0f : 25.0f) : (b->role_leg >= 2 ? 70.0f : 20.0f);
         b->role_t += dt;
         if (dist < reach || (b->role == SPACE_RUN && b->role_leg >= 2 && b->feel && dist < 160.0f) || b->role_t > 40.0f) {
             b->role_leg++; b->role_t = 0;

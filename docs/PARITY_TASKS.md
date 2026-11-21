@@ -760,6 +760,13 @@ textures and how they are used. Section R lists only what must be in place so th
     commander's next order follows. Aurek's legs: offset -> start -> end; [ ] whether the original's run also takes the first two
     points (the command 2 handler, goal kind 2 -> 0x486, 0894C07C) is the next read. The braking: Aurek's brake is the flight
     step's own (-1 throttle at MaxAcc); how the AI pilot reaches +0x88 (089B2DC8, VFPU) is not read.
+  - 2026-11-21, the run's legs: goal kinds map to orders as 2 TAKE_OFF 0x486 (0894C07C, its update the take-off 0894C438), 3
+    GENERAL_COMBAT 0x44E, 4 ATTACK_SHIP 0x455, 5 DEFEND_SHIP 0x450, 6 FOLLOW_SHIP 0x451, 7 CAPTURE_FLAG 0x452, 8 ATTACK_TARGET 0x453,
+    9 LAND_IN_HANGAR 0x454 (08942448 with the goal names' order). 0x453 hands the objective to the fly-to node (0894CD30): the
+    objective's three points are at +0x28 / +0x34 / +0x40, and the node starts at the leg the craft is nearest (it projects the
+    craft on the first segment, 08835730), so the original's run takes the same three points as Aurek's; its first state ends
+    within 20 m (400, D_08AEDBF0). Aurek's first legs now end within 20 m (were 35 m; the last leg's 70 m is Aurek's). Space
+    Hoth 110 s: runs last 16-70 s (were 9-35 s; the original's fly-to spans 40-75 s), 17 vehicle hits (14).
 
 ## 5. Game rules and modes
 
