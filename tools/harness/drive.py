@@ -236,7 +236,16 @@ def prog_cmpn_train(i, fr):                                                     
     if i < 3300: return (0x100 if i % 120 < 4 else 0, 128, 0)
     if i in range(4000, 4004) or i in range(4100, 4104): return (CROSS, 128, 128)
     if 4150 <= i < 4900: return (0x200, 128, 128)
-    if 4900 <= i < 5400: return (0x200 | CROSS, 128, 128)
+    if 4900 <= i < 5050: return (0x200 | CROSS, 128, 128)
+    if 5150 <= i < 5800: return (CROSS if i % 120 < 4 else 0, 128, 128)      # the pages after the droid (X every 2 s), then (--tp 5800:..) at the post
+    if 5900 <= i < 7000: return (0, 128, 128)                                # stand 18 s (the capture), then X every 2 s (the jetpack page) and d-pad up
+    if 7000 <= i < 7600: return (CROSS if i % 120 < 4 else 0, 128, 128)      # at 7700 (the customisation menu)
+    if i in range(7700, 7704): return (0x10, 128, 128)
+    if any(i in range(k, k + 4) for k in (7820, 7850, 7880)): return (0x40, 128, 128)   # the menu: down x3 (Special Item), X, X, circle, circle
+    if i in range(7960, 7964): return (0x10, 128, 128)                       # (in the list: up to the JETPACK above None)
+    if any(i in range(k, k + 4) for k in (7920, 8000)): return (CROSS, 128, 128)
+    if any(i in range(k, k + 4) for k in (8080, 8160)): return (CIRCLE, 128, 128)
+    if 8300 <= i < 9000: return (0x100 if i % 60 < 4 or i % 60 in range(8, 12) else 0, 128, 128)   # L double-taps (the jetpack, page 0x8B)
     return (0, 128, 128)
 def prog_zoom(i, fr):                                                            # triangle tapped at 2 s, 4 s, 6 s, 8 s (zoom levels in and out)
     return (TRIANGLE if i in range(120, 124) or i in range(240, 244) or i in range(360, 364) or i in range(480, 484) else 0, 128, 128)

@@ -205,7 +205,7 @@ typedef struct {
     /* the campaign's objective markers (class 0x8013, 089F0424; record 089F0A10: base version, u32, count x {event, group}, link,
        position (game axes), ...): 3 / 4 show / hide [assumed: the display follows the active flag], 0x8008 / 0x8009 raise their
        events 10009 / 10010 (089F05BC) */
-    struct { u32 id, link, text, order; bool active; f32 pos[3]; u32 ev[8], nev; } obj[48]; u32 nobj, obj_order;   /* text: 089F0924's bits 5-16 of the flags word, a MISSIONOBJECTIVES entry (0xFFF none) */
+    struct { u32 id, link, text, order; bool active, std; f32 pos[3]; u32 ev[8], nev; } obj[48]; u32 nobj, obj_order;   /* text: 089F0924's bits 5-16 of the flags word, a MISSIONOBJECTIVES entry (0xFFF none) */
     f32 oob_min[3], oob_max[3]; bool have_oob, oob_out; f32 oob_msg_t;
     f32 pil_min[3], pil_max[3]; bool have_pil;   /* the AI pilots' box (ENTI 0x8021 with flags byte 1 = 1, 08A145E4(1)): the patrol's (0894B7D8) */   /* the battlefront's bounds (ENTI 0x8021, 089D4BDC): outside - the warning */
     ak_ctf_map ctf_map; ak_ctf ctf; bool have_ctf; s32 flag_model[AK_CTF_MAX], flag_clip[2];   /* flag_clip: flag_Flapping, flag_Flapping_Backattch */   /* capture the flag (AK_MODE CTF1 / CTF2 / HCTF) */
@@ -216,7 +216,8 @@ typedef struct {
     struct { u32 id; f32 pos[3], yaw, fade[2]; } warp[8]; u32 nwarp;
     struct { char name[28]; f32 len, org[3]; s32 group; bool camera; u32 off, size; s32 cam_clip, cam2_clip, act_clip, act_model; char model[96]; f32 sp[3]; ak_quat sq;
                  s32 anim[6]; u32 nanim; f32 hfov;                           /* the scene's clips in its list order; the camera's width (rad) */
-                 struct { u8 type, anim; bool cam; f32 t, a, b; } ev[8]; u32 nev; } cuts[16]; u32 ncuts;   /* the level's cut-scenes (CUTS); camera: it has a camera animation */
+                 struct { u8 type, anim; bool cam; f32 t, a, b; } ev[8]; u32 nev;
+                 struct { u32 n; f32 t[8], pos[8][3]; ak_quat q[8]; } ctr[4]; u32 nctr; } cuts[16];   /* ctr: the camera's CTTR tracks (engine axes) */ u32 ncuts;   /* the level's cut-scenes (CUTS); camera: it has a camera animation */
     struct { u32 id, hash[2]; s32 group; bool got[2]; } listen[16]; u32 nlisten;
     struct { u32 id; s32 fx, h; f32 pos[3], dir[3]; bool on; } sfx[48]; u32 nsfx;
     struct { u32 id, ev[4], nev, speech; f32 t; } t62[32]; u32 nt62;    /* ENTI type 62: a speech line (the script's 5 says it; event 12 at its end) */   /* ENTI type 33 effect places the script turns on / off */      /* ENTI type 38: fire a group on message 0x14 with a hash */

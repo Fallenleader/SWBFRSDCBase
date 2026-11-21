@@ -719,6 +719,11 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             u32 nw = c.size / 4, cnt = ak_rd32(c.body + 16); if (cnt > 8 || 9 + cnt > nw) continue;
             typeof(p->obj[0]) *o = &p->obj[p->nobj++]; memset(o, 0, sizeof *o); o->id = ak_rd32(c.body);
             o->link = ak_rd32(c.body + 4 * (5 + cnt)); o->text = 9 + cnt < nw ? (ak_rd32(c.body + 4 * (9 + cnt)) >> 5) & 0xFFFu : 0xFFFu;
+            /* the text's table: with bit 30 or 31 of the flags word (089F0924: +0x48 / +0x49) a MISSIONOBJECTIVES entry (18c41 0x60
+               "Movement training: move into the marker.", 18bbc 0x2 "Secure the temple by capturing the command post."), with neither a
+               STDTEXT one (18bc2 0x90 "Equip your soldier with a JETPACK (SPECIAL ITEM) at a command post") [measured: the original's
+               objective lines; the reader of those two bytes not traced] */
+            o->std = 9 + cnt < nw && !(ak_rd32(c.body + 4 * (9 + cnt)) >> 30);
             for (int k = 0; k < 3; k++) { u32 w = ak_rd32(c.body + 4 * (6 + cnt + k)); memcpy(&o->pos[k], &w, 4); }
             o->nev = ak_script_events(l, o->id, 2, o->ev, 8);
         }
@@ -810,9 +815,23 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
                 u32 tg = ak_chunk_tag(&d);
                 if (tg == AK_TAG('C', 'U', 'T', 'S')) break;
                 if (tg == AK_TAG('C', 'T', 'A', 'C') && d.size >= 36) { kind = (int)ak_rd32(d.body); if (kind == 0 && d.size >= 40) cu->hfov = ak_rdf32(d.body + 36); }
-                else if (tg == AK_TAG('C', 'T', 'T', 'R') && d.size >= 68 && ak_rd32(d.body) == 1 && (kind == 0 || kind == 2)) {
-                    f32 g[3], q[4]; memcpy(g, d.body + 24, 12); memcpy(q, d.body + 52, 16);
-                    ak_from_game(g, cu->sp); cu->sq = (ak_quat){ q[0], -q[1], -q[2], q[3] };   /* [assumed: one frame for the scene] */
+                else if (tg == AK_TAG('C', 'T', 'T', 'R') && d.size >= 32) {
+                    /* a track (version 7): u32 n, 7, n, the name (NUL-ended, padded to 4), n places (game axes), n times (the scene's
+                       clock: Camera 0 0 / 1.2 / 2.4, then cam_trooper_run_to_cover 2.4, cam_last 6.767 / 10.0 - an actor's tracks follow
+                       on in time), n + 2 words (the last a flags word), n quaternions (x y z w, game axes) */
+                    u32 n = ak_rd32(d.body), o = 12; while (o < d.size && d.body[o]) o++; o = (o + 4) & ~3u;
+                    if (n < 1 || n > 8 || o + 16 * n + 4 * (n + 2) + 16 * n > d.size) continue;
+                    u32 qo = o + 16 * n + 4 * (n + 2);
+                    if (kind == 0 && cu->nctr < 4) {
+                        typeof(cu->ctr[0]) *t = &cu->ctr[cu->nctr++]; t->n = n;
+                        for (u32 k = 0; k < n; k++) { f32 g[3], q[4]; memcpy(g, d.body + o + 12 * k, 12); ak_from_game(g, t->pos[k]); t->t[k] = ak_rdf32(d.body + o + 12 * n + 4 * k);
+                            memcpy(q, d.body + qo + 16 * k, 16); t->q[k] = (ak_quat){ q[0], -q[1], -q[2], q[3] }; }
+                    }
+                    if (n == 1 && (kind == 0 || kind == 2)) {                 /* (one key: the scene's frame for its clips [assumed: one frame]) */
+                        f32 g[3], q[4]; memcpy(g, d.body + o, 12); memcpy(q, d.body + qo, 16);
+                        ak_from_game(g, cu->sp); cu->sq = (ak_quat){ q[0], -q[1], -q[2], q[3] };
+                    }
+                    if (kind == 0) cu->camera = true;
                 }
                 else if (tg == AK_TAG('C', 'T', 'E', 'V') && d.size >= 52 && cu->nev < 8) {
                     typeof(cu->ev[0]) *e = &cu->ev[cu->nev++]; e->type = (u8)ak_rd32(d.body); e->t = ak_rdf32(d.body + 4);
@@ -3128,7 +3147,7 @@ static void script_sink(void *user, const ak_script_msg *m)
             if ((m->type == 0x8008 || m->type == 0x8009) && p->have_script) ak_script_raise(&p->script, p->obj[k].ev, p->obj[k].nev, m->type == 0x8008 ? 10009 : 10010, m->target, script_sink, p);
             /* the objective line: the latest active objective with a text [assumed: the HUD's pick - its reader not traced] */
             s32 best = -1; for (u32 q = 0; q < p->nobj; q++) if (p->obj[q].active && p->obj[q].text != 0xFFFu && (best < 0 || p->obj[q].order > p->obj[best].order)) best = (s32)q;
-            u32 n = 0; const u16 *t = best >= 0 ? ak_hud_mission_text(p->obj[best].text, &n) : NULL; ak_hud_objective(t, n);
+            u32 n = 0; const u16 *t = best < 0 ? NULL : p->obj[best].std ? ak_hud_stdtext(p->obj[best].text, &n) : ak_hud_mission_text(p->obj[best].text, &n); ak_hud_objective(t, n);
         }
         else break;
         done = true; break; }
@@ -4026,8 +4045,19 @@ void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *f
         for (u32 e = 0; e < cu->nev; e++) { const typeof(cu->ev[0]) *v = &cu->ev[e]; if (!v->cam || v->t > st) continue;
             if (v->type == 0 && v->anim < cu->nanim && v->t >= t0) { clip = cu->anim[v->anim]; t0 = v->t; }
             if (v->type == 2) { f32 u = v->a > 0 ? (st - v->t) / v->a : 1; if (u > 1) u = 1; hf = hf + (v->b - hf) * u; } }
-        f32 cp[3]; ak_quat cq;
-        if (cut_track(p, clip, t0, cp, &cq)) {
+        f32 cp[3]; ak_quat cq; bool have = false;
+        if (clip < 0 && cu->nctr && st >= 0) {                              /* no camera clip: its tracks - the latest begun, its keys
+                                                                                  between (straight / nlerp [assumed: the curve]) */
+            u32 ti = 0; for (u32 k = 0; k < cu->nctr; k++) if (cu->ctr[k].t[0] <= st) ti = k;
+            const typeof(cu->ctr[0]) *t = &cu->ctr[ti]; u32 a = 0; while (a + 1 < t->n && t->t[a + 1] <= st) a++;
+            u32 b = a + 1 < t->n ? a + 1 : a; f32 u = b != a && t->t[b] > t->t[a] ? (st - t->t[a]) / (t->t[b] - t->t[a]) : 0; if (u > 1) u = 1;
+            for (int k = 0; k < 3; k++) cp[k] = t->pos[a][k] + (t->pos[b][k] - t->pos[a][k]) * u;
+            ak_quat qa = t->q[a], qb = t->q[b]; f32 dt2 = qa.x * qb.x + qa.y * qb.y + qa.z * qb.z + qa.w * qb.w, sg = dt2 < 0 ? -1.0f : 1.0f;
+            cq = (ak_quat){ qa.x + (sg * qb.x - qa.x) * u, qa.y + (sg * qb.y - qa.y) * u, qa.z + (sg * qb.z - qa.z) * u, qa.w + (sg * qb.w - qa.w) * u };
+            f32 ln = sqrtf(cq.x * cq.x + cq.y * cq.y + cq.z * cq.z + cq.w * cq.w); if (ln > 0) { cq.x /= ln; cq.y /= ln; cq.z /= ln; cq.w /= ln; }
+            have = true;
+        }
+        if (have || cut_track(p, clip, t0, cp, &cq)) {
             f32 f[3]; cq_rot(cq, (f32[3]){ 0, 0, -1 }, f);
             eye->x = cp[0]; eye->y = cp[1]; eye->z = cp[2]; *yaw = atan2f(-f[0], -f[2]); *pitch = atan2f(f[1], sqrtf(f[0] * f[0] + f[2] * f[2]));
             *fovy = 2.0f * atanf(tanf(hf * 0.5f / 57.29578f) * (272.0f / 480.0f)); p->aim_ok = false; return;   /* (the width across the PSP's 480 x 272) */
