@@ -1463,7 +1463,12 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     b->ch.yaw += dyaw > mx ? mx : dyaw < -mx ? -mx : dyaw;
     /* the stick: toward `want`, relative to the facing; slower and strafing in a fight */
     ak_char_input ci = { 0, 0, 0, 0, false, false, false, { 0, 0 }, 0 };
-    f32 speed = en && !saber && !attack ? 0.55f : 1.0f;
+    /* AK_BOT_FIGHT_DRIFT: Aurek's own slow strafe in a fight [PARITY(4.4)].  The original's conquest soldiers never start an attack
+       node (RS_ORDER_LOG) - they fire on their way under their movement orders and stand where those hold them; with the drift off
+       Aurek's shooters never stand (4.1 / 4.5 / 4.8 / 5.0 / 6.4 m/s against the original's 0 / 0.08 / 2.2 / 5.0 / 8.2), so it stays
+       on until the movement orders' holding (0x3F2) is ported */
+    static int drift = -1; if (drift < 0) drift = ak_setting_int("AK_BOT_FIGHT_DRIFT", 1);
+    f32 speed = en && !saber && !attack && drift ? 0.55f : 1.0f;
     /* the path node's wanted speed (0893D4E8): 8.5 m/s (D_08AED88C); 5.0 (D_08AED894) within 40 m (D_08AED890, 3-D) of a soldier of
        the soldier list 0x08C2A880 (harness RS_DRIVE_LIST: every soldier) that is a player (089E3BD4: a player record, +84 != 999;
        either side) or a living enemy (team +12 differs, health +40 > 0, flags +5 and +64 set) - unless the node's byte +41 is set
@@ -1479,7 +1484,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         ci.speed = near ? 5.0f : 8.5f; }
     f32 rx = cosf(b->ch.yaw), rz = -sinf(b->ch.yaw), fx = -sinf(b->ch.yaw), fz = -cosf(b->ch.yaw);
     if (moving) { ci.move_x = (mdx * rx + mdz * rz) * speed; ci.move_y = (mdx * fx + mdz * fz) * speed; }
-    if (en && !saber && !attack) {
+    if (en && !saber && !attack && drift) {
         b->strafe_t -= dt;
         if (b->strafe_t <= 0) { b->strafe_t = 0.8f + rnd(&b->seed) * 1.2f; b->strafe = rnd(&b->seed) < 0.5f ? -0.6f : 0.6f; if (rnd(&b->seed) < 0.3f) b->strafe = 0; }
         ci.move_x += b->strafe;

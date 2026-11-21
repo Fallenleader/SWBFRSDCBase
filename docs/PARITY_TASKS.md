@@ -728,6 +728,11 @@ textures and how they are used. Section R lists only what must be in place so th
     0x47F. So conquest soldiers do not use the attack node at all: they fire on their way under their movement orders, as Aurek's
     bots do; AK_BOT_ATTACK_NODE stays off (it is right off). The standing quarter of the shooters comes from elsewhere (holding at a
     post, the 0x48x nodes?) - next: what 0x3F2 and 0x489..0x48B are.
+    0x3F2 is the soldiers' move order (08930C94, base 08931D8C - the 0x3F0 family); 0x489 / 0x48A / 0x48B are three states of
+    one node (089528F8: 0x48A first, 0x489, then 0x48B with a sensor hold-off 089601D4). Tried: Aurek's fight drift off
+    (AK_BOT_FIGHT_DRIFT=0: full move speed, no strafe) - its shooters then never stand (4.1 / 4.5 / 4.8 / 5.0 / 6.4 m/s, 226
+    hits); with it on 0.4 / 0.85 / 2.7 / 4.3 / 7.1 (155); the original 0 / 0.08 / 2.2 / 5.0 / 8.2 (176). Left on until what
+    0x3F2 does on arriving (the standing) is ported.
 - [x] **4.5 Bot counts per mode and level [traced 2026-11-21].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source
