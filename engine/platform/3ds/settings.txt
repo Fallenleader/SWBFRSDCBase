@@ -104,6 +104,8 @@ AK_EXPLOSIVE=REP_Grenade
 # the power-up (the customisation menu sets it): Rage, Rally, Regenerate or Stamina; empty = none. In play d-pad right puts it in the
 # lower slot and square uses it (60 s to recharge)
 AK_POWERUP=
+# the special item (the customisation menu's Special Item; Jetpack is built - the others not yet)
+AK_SPECIAL=
 AK_HEALTH_LEVEL=1
 AK_SPEED_LEVEL=1
 # bots in all, shared between the sides (the player's side gets one fewer): 15 = 16 soldiers, the game's own count (Hoth); 0..127.
