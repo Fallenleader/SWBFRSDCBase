@@ -171,6 +171,7 @@ typedef struct {
        is passive, not built), its Weapon's icon / name, its recharge (RecuperationTime) left, the use under way (-1 none), whether the
        lower slot shows it rather than the explosive; each soldier's buff (target index: -1 none) and its time; the four kinds'
        times and radii (the Weapons' <name>_Time / _Radius) */
+    u32 node_open_id[32]; bool node_open[32]; u32 nnode_open;   /* path nodes the level script opened (0x3B) or shut (0x51) */
     s8 pu_kind; const char *pu_icon; s32 pu_name; f32 pu_cool, pu_recup, pu_t; bool pu_sel;
     s8 buff_k[1 + PLAY_MAX_BOTS]; f32 buff_t[1 + PLAY_MAX_BOTS]; f32 pu_time[4], pu_radius[4], pu_stamina_mul;
     ak_proj_def gren_def; const char *gren_icon; s32 gren_name, gren_limit; bool gren_ok; s32 gren_left, gren_max; f32 det_t; f32 gren_t, gren_cool, gren_rate, gren_ps, gren_vts;   /* the player's explosive (customisation: the thermal

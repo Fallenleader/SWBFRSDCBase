@@ -1912,8 +1912,17 @@ static void walker_route_step(ak_play *p, u32 v, f32 dt)
 {
     ak_vehicle *vh = &p->veh[v];
     ak_play_vspawn *sp = &p->vspawn[v]; f32 at[3], dir[3], ahead[3], d2[3];
-    bool going = ak_route_at(sp->route, sp->route_d, at, dir);
-    ak_route_at(sp->route, sp->route_d + 6.0f, ahead, d2);        /* steer for a point a little ahead */
+    /* the first waiting node ahead that is not open (2.3: Hoth's script opens / shuts the nodes as the sides take posts) */
+    f32 limit = sp->route->length;
+    for (u32 k = 0; k < sp->route->nnodes; k++) {
+        if (!sp->route->node_stop[k]) continue;
+        f32 nd = ak_route_dist(sp->route, sp->route->node_pt[k]); if (nd < sp->route_d - 0.5f) continue;
+        bool open = false; for (u32 q = 0; q < p->nnode_open; q++) if (p->node_open_id[q] == sp->route->node_id[k]) open = p->node_open[q];
+        if (!open) { limit = nd; break; }
+    }
+    bool going = ak_route_at(sp->route, sp->route_d, at, dir) && sp->route_d < limit - 0.05f;
+    if (!going) ak_route_at(sp->route, limit, at, dir);
+    ak_route_at(sp->route, fminf(sp->route_d + 6.0f, limit), ahead, d2);        /* steer for a point a little ahead */
     f32 dx = ahead[0] - vh->pos[0], dz = ahead[2] - vh->pos[2];
     f32 want = atan2f(-dx, -dz);
     f32 dy = wrap(want - vh->yaw);
@@ -1926,7 +1935,7 @@ static void walker_route_step(ak_play *p, u32 v, f32 dt)
         f32 best = sp->route_d, bd = 1e30f;
         for (f32 s = sp->route_d - 2.0f; s <= sp->route_d + 4.0f; s += 0.25f) { f32 q[3], qd[3]; ak_route_at(sp->route, s, q, qd);
             f32 ex = q[0] - vh->pos[0], ez = q[2] - vh->pos[2]; if (ex * ex + ez * ez < bd) { bd = ex * ex + ez * ez; best = s; } }
-        if (best > sp->route_d) sp->route_d = best; }
+        if (best > sp->route_d) sp->route_d = fminf(best, limit); }
 }
 
 static void vehicle_fire(ak_play *p, const ak_model_set *m, u32 v, const f32 *target, f32 dt, bool all)
@@ -2800,6 +2809,11 @@ static void script_sink(void *user, const ak_script_msg *m)
     if (m->node) done = m->node->type == AK_SN_MUSIC;   /* (the start music is the viewer's; a later change is not played [not ported]) */
     else if (p->have_cq && (ak_conquest_ticket_msg(&p->cq, &p->rules, &p->match, m->target, m->type, m->extra, m->nextra) ||
                             ak_conquest_post_msg(&p->cq, &p->match, m->target, m->type, m->extra, m->nextra))) done = true;
+    else if ((m->type == 0x3B || m->type == 0x51) && p->nnode_open < 32) {   /* a path node opened (0x3B) or shut (0x51): 08855908's flag 0x40 */
+        u32 q = 0; while (q < p->nnode_open && p->node_open_id[q] != m->target) q++;
+        if (q == p->nnode_open) { p->node_open_id[q] = m->target; p->nnode_open++; }
+        p->node_open[q] = m->type == 0x3B; done = true;
+    }
     else if (m->type == 0x8007) for (u32 v = 0; v < p->nveh; v++) {          /* a walker spawner: a new walker if its own is dead (0897F950) */
         if (!p->vspawn[v].fixed || p->vspawn[v].eid != m->target) continue;
         done = true;

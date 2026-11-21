@@ -14,7 +14,11 @@
 #include "assets/asura.h"
 
 #define AK_ROUTE_MAX 256
-typedef struct { f32 pt[AK_ROUTE_MAX][3]; u32 n; f32 length; } ak_route;
+#define AK_ROUTE_NODES 32
+/* nodes: the path nodes passed, in order - id, the point index, whether the walker must wait there (flags bit 7) */
+typedef struct { f32 pt[AK_ROUTE_MAX][3]; u32 n; f32 length; u32 node_id[AK_ROUTE_NODES], node_pt[AK_ROUTE_NODES]; bool node_stop[AK_ROUTE_NODES]; u32 nnodes; } ak_route;
+/* the distance along the route of its point i */
+f32 ak_route_dist(const ak_route *r, u32 i);
 
 /* the route of the placed unit with entity id `unit` (false if it has none) */
 bool ak_route_for_unit(const ak_level *l, u32 unit, ak_route *out);

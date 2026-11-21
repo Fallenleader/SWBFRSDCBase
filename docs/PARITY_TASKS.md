@@ -581,6 +581,12 @@ textures and how they are used. Section R lists only what must be in place so th
       it in four runs (it has no gunner in the original). Aurek: the route ends at the first flagged node after the start
       (ak_path.c), the walker stands exactly on it (play.c walker_route_step; it had walked on past 196 along the next legs);
       pace 2.0 m/s, as measured. AK_DEBUG_PATH prints the nodes, AK_DEBUG_WALKER the walk.
+    - The same day, the advance: Hoth's level script sends the AT-AT's waiting nodes 0x3B when the Empire takes a post (18875 for
+      187EE, 18877 for 187ED, 18879 for 187EF) and 0x51 when the Alliance does (5.4 part 5: the node sets / clears its flag 0x40,
+      08855908). Aurek now keeps the whole route with its nodes; the walker stops at the first waiting node (flags bit 7) that is
+      not open, and moves on once the script opens it [assumed: 0x3B opens, 0x51 shuts; the walker's own handler is not found -
+      in the measured runs the Empire took no post and the AT-AT never moved on]. Hoth, 4 min with bots: stops at 18875, goes on
+      at 71.5 s (the Empire took 187EE), stops at 18877, goes on at 169 s, and so on.
 - [ ] **3.5 Vehicle life cycle [assumed].**
   - Respawn time (AK_VEHICLE_RESPAWN 10).
   - How long a wreck stays and its effects (play.c:1528).
