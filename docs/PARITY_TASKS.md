@@ -493,6 +493,11 @@ textures and how they are used. Section R lists only what must be in place so th
     frame), the skid damping works across and backward only, the speed is held to StallSpeed..TopSpeed; turning spins up at
     YawInputDamp - YawDamp (100 degrees/s^2) to MaxTurnYaw and settles at YawDamp - Aurek matches.
   - [ ] **3.1b** The throttle cap over CruisingSpeed (vehicle +288), hover height, slopes, barrel aim, volleys, rider pose.
+    - 2026-11-21, the throttle cap read: +288 is AntiBoost (the vehicle base's getter 089C5790: key h31 0x81C82D81, default -2.0,
+      D_08AEEDE8; CruisingSpeed's default is 50, D_08AEEDE4) - no Tank blueprint sets it. In the tank step (089B2A04), when the
+      forward speed is above CruisingSpeed and the vehicle is not boosting (+844 bit 2), the throttle is min(throttle,
+      AntiBoost): a boost's extra speed is braked away when the boost ends. Built for ground vehicles (ak_vehicle.c; flyers had
+      it). Not measured in the harness yet.
     - 2026-11-20, hover height measured parked (harness state.log object height, Aurek's ground under it): speeder bikes
       0.09-0.11 m (Endor 30d46 / 30d47, Kashyyyk two), Kashyyyk's IFT-T 1.01 m (the other on a slope 0.35). Aurek's speeder
       bikes rode 0.8 m up; now 0.1 (hover tanks stay 1.0). [ ] Driving (the harness's teleport holds the player on Endor).

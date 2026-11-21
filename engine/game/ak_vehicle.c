@@ -151,6 +151,7 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     d->energy_max = ak_bp_float(o, "EnergyMax", 100); d->energy_boost = ak_bp_float(o, "EnergyBoost", 10);
     d->energy_stunt = ak_bp_float(o, "EnergyStunt", 0); d->energy_recharge = ak_bp_float(o, "EnergyRecharge", 10);
     d->boardable = ak_bp_bool(o, "Boardable", true);
+    if (!flyer) { d->cruise = ak_bp_float(o, "CruisingSpeed", 50.0f); d->anti_boost = ak_bp_float(o, "AntiBoost", -2.0f); }   /* (ground: the vehicle base's defaults, 089C573C / 089C5790) */
     d->max_acc = ak_bp_float(o, "MaxAcc", 15); d->boost_acc = ak_bp_float(o, "BoostAcc", 30); d->strafe_acc = ak_bp_float(o, "MaxStrafeAcc", 0);
     d->vel_damp = ak_bp_float(o, "VelDamp", 1.5f); d->skid_damp = ak_bp_float(o, "TimeTillStopSkid", 2.0f);
     d->yaw_in = ak_bp_float(o, "YawInputDamp", 280) * DEG; d->yaw_damp = ak_bp_float(o, "YawDamp", 230) * DEG; d->turn_rate = ak_bp_float(o, "MaxTurnYaw", 85) * DEG;
@@ -519,11 +520,13 @@ void ak_vehicle_update(ak_vehicle *v, const ak_collision *col, f32 gravity, bool
         /* the game's tank step (089B2A04, read from the code; measured on a Taun-Taun: 20 m/s at full stick reached with a 0.25 s
            time constant = MaxAcc 80 / VelDamp 4): the velocity loses "TimeTillStopSkid" x itself x dt across (and backward, never
            forward), then the throttle pushes MaxAcc x throttle (BoostAcc when boosting) while VelDamp x velocity drags every
-           component; the forward speed is held between StallSpeed and TopSpeed (and 300) [PARITY(3.1b): when over CruisingSpeed
-           unboosted the game caps the throttle at a value (vehicle +288) not yet identified] */
+           component; the forward speed is held between StallSpeed and TopSpeed (and 300); over CruisingSpeed (+280) and not
+           boosting, the throttle is held to at most AntiBoost (+288, 089C5790: default -2.0, D_08AEEDE8 - no Tank sets it), so
+           a boost's extra speed is braked away once the boost ends (3.1b) */
         f32 k = d->skid_damp * dt, sk = side * k, fk = fwd < 0 ? fwd * k : 0;
         side = fabsf(sk) > fabsf(side) ? 0 : side - sk; fwd -= fabsf(fk) > fabsf(fwd) ? fwd : fk;
-        f32 acc = (boost ? d->boost_acc : d->max_acc) * v->throttle * dt;
+        f32 thr = v->throttle; if (!boost && fwd > d->cruise && thr > d->anti_boost) thr = d->anti_boost;
+        f32 acc = (boost ? d->boost_acc : d->max_acc) * thr * dt;
         fwd += acc - fwd * d->vel_damp * dt;
         side += v->strafe * d->strafe_acc * dt - side * d->vel_damp * dt;
         f32 top = d->top_speed < 300 ? d->top_speed : 300;
