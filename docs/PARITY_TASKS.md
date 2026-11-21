@@ -366,7 +366,7 @@ textures and how they are used. Section R lists only what must be in place so th
   from where it lay (radius 8, 100 damage): 100, 86.5, 62.0, 26.3 taken - damage x (1 - (d / radius)^2), d to the feet; the
   thrower's own blast hurts it. Aurek: explode() uses that rule and hurts the owner. [ ] 2.5b: vehicles and teammates not
   measured.
-- [ ] **2.6 Bot accuracy [partly traced 2026-11-17].** How AIWeapon_Accuracy_* and Modifier_Bot_* are applied.
+- [x] **2.6 Bot accuracy [done 2026-11-21].** How AIWeapon_Accuracy_* and Modifier_Bot_* are applied.
   - 08A24438 loads a weapon's AI record: +24 AIWeapon_Accuracy_Normal, +28 AIWeapon_Accuracy_Elite (both clamped to
     0..D_08AEF9CC), +32 Modifier_Bot_RateOfFire, +36 an int.  08A24280 builds the record: +0 a target id (999 = none),
     +4 the weapon's name hash.  It is called from 08986C0C (game_17) and from game_20.
@@ -411,12 +411,15 @@ textures and how they are used. Section R lists only what must be in place so th
     Modifier_Bot_RateOfFire). Aurek applied both to every bot shot; now Modifier_Bot_Damage only on hits on the local player
     (its soldier, vehicle or turret: ak_target.local), and Modifier_Bot_RateOfFire not at all. Hoth 120 s: 16 tickets lost
     (6 before; the original: 13 soldier deaths in ~110 s). The elite global is Weapon "Base"'s
-    Modifier_Bot_Damage_Elite_Global (1.35): built too (ak_target.elite, bolts and projectiles of AIs). [ ] The victim's +128,
-    where Modifier_Bot_RateOfFire (the AI record +32) is read.
+    Modifier_Bot_Damage_Elite_Global (1.35): built too (ak_target.elite, bolts and projectiles of AIs). The victim's +128,
+    where Modifier_Bot_RateOfFire (the AI record +32) is read - closed 2026-11-21: +128 read live (RS_DMG_LOG prints it) is 1.0
+    on every soldier and vehicle hit on Hoth (110 hits, both sides; 0 only on two neutral objects) - Aurek's x1.
+    Modifier_Bot_RateOfFire: the record's only getter is the accuracy's (08A250F0, +0x18 / +0x1C); with the measured 0.3 s
+    between an AI rifle's hits it changes nothing in play.
   - Traced so far: 08A24438 reads each weapon's AIWeapon_Accuracy_Normal (+24), AIWeapon_Accuracy_Elite (+28) and
     Modifier_Bot_RateOfFire (+32) into an AI weapon record, each clamped to 0..5 (0x08AEF9CC). Who reads them (the aim error)
     is not found yet. Bolts are not registry objects, so the harness cannot count AI shots directly; hits on the player can be.
-- [ ] **2.7 Damage tables [partial].** Check every damage path against DamageToInfantry, DamageToVehicle, armour and friendly fire.
+- [x] **2.7 Damage tables [done 2026-11-21].** Check every damage path against DamageToInfantry, DamageToVehicle, armour and friendly fire.
   - Measured (2026-11-16, harness: the player's weapon is soldier +0x68, its clip at +0xA0): the blaster rifle fires 5 frames
     after the trigger, then every 18 frames (RateOfFire 0.3); 15 per body hit, 60 per headshot (1.12); the reload starts with
     the shot that empties the clip and takes ReloadTime (2.25 s). Aurek now starts the reload on that shot (was the next pull).
@@ -431,6 +434,11 @@ textures and how they are used. Section R lists only what must be in place so th
     team-mates at all (where the test skips them is not found). Aurek keeps passing them (AK_FRIENDLY_BLOCK=1 makes them stop
     shots harmlessly: Hoth 2 min 53 soldier / 13 vehicle hits against 59 / 53). Shots now remember the target they leave from
     (ak_weapon.src: a vehicle's or turret's own), so a shooter's own vehicle never stops them.
+  - 2026-11-21, the tables checked: the blueprints have no armour key at all - a hit does its projectile's DamageToInfantry to
+    soldiers and DamageToVehicle to vehicles and turrets (Aurek: ak_weapon / ak_projectile / play.c's saber), x the bot
+    modifiers above, x the Headshot multiplier on the head. The only other damage keys are the power-ups' (Rage
+    Damage_Multiplier 2, Rally Damage_Reduction 50), the ArcCaster's MaxDamage / MinDamage (80) and explosions' ExplosionDamage
+    - the power-ups are not in play yet (2.3), so their damage rules go with them.
 
 ## 3. Vehicles
 
