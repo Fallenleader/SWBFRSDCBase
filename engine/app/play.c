@@ -637,7 +637,7 @@ static void loadout_items(ak_play *p, const ak_model_set *m, const ak_blueprints
             p->jet_vacc = ak_bp_float(jw, "VERT_ACCEL", 2.0f) * 8.0f; p->jet_updrag = ak_bp_float(jw, "VERT_UP_DRAG", 20.0f);
             p->jet_downdrag = ak_bp_float(jw, "VERT_DOWN_DRAG", 10.0f); p->jet_drain = ak_bp_float(jw, "FUELDRAINRATE", 15.0f);
             p->jet_start = ak_bp_float(jw, "FUELCOSTTOSTART", 15.0f); p->jet_wob_a = ak_bp_float(jw, "WOBBLE_AMPLITUDE", 0.2f);
-            p->jet_wob_f = ak_bp_float(jw, "WOBBLE_FREQ", 0.5f);
+            p->jet_wob_f = ak_bp_float(jw, "WOBBLE_FREQ", 0.5f); p->jet_fuel = 100.0f;
             p->jet_fx = p->pfx ? ak_pfx_find(&p->pfx_lib, ak_bp_string(jw, "PFXEffect", "BFF_Jetpack_Thrust_E")) : -1;
         } }
     const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
@@ -3025,7 +3025,7 @@ static ak_input psp_layout(ak_play *p, const ak_input *raw, f32 dt)
         else if (p->l_was && p->l_t < 0.1f) {                               /* a tap: jump - or, with the jetpack, a tap in the air starts it
                                                                                   (the menu's text: "Tap Jump while already in the air"; tip
                                                                                   0x8B: "Double-tap L") [assumed: a tap while it runs stops it] */
-            if (p->jet_ok && (p->jet_on || !p->ch.on_ground)) { p->jet_on = !p->jet_on && stamina_pay(p, p->jet_start); }
+            if (p->jet_ok && (p->jet_on || !p->ch.on_ground)) { if (p->jet_on) p->jet_on = false; else if (p->jet_fuel >= p->jet_start) { p->jet_fuel -= p->jet_start; p->jet_on = true; } }
             else g.pressed |= AK_BTN_CROSS; }
         p->l_was = (H & AK_BTN_L) != 0;
         /* held: sprint (not while firing or locked on).  Measured: the sprint starts 0.1 s after L goes down (4 frames is still a
@@ -3081,7 +3081,8 @@ static bool script_test(void *user, u32 kind, u32 param)
     switch (kind) {
     case 7: return p->alive;
     case 0: return p->alive && p->in_veh < 0 && p->ch.sprinting;
-    case 3: return p->alive && p->jet_ok;      /* +0x208 bit 11: the held pack is the Jetpack (08993FE4: its hash 0x9A450832) */
+    case 3: return p->alive && p->jet_on;      /* +0x208 bit 11 (08993FE4: the held pack's hash 0x9A450832): passed when the jetpack started
+                                                   (Yavin's 18bc3, tip 0x8B, harness /tmp/ct14) */
     case 8: return p->alive && p->jet_ok;      /* the held item's +0x7C: Yavin's 18cbc passed the moment the Jet Pack was chosen in the
                                                    customisation menu (harness, /tmp/ct13) [assumed: any pack item] */
     case 1: return p->alive && p->in_veh < 0 && !p->ch.on_ground;
@@ -3459,31 +3460,32 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             ci.root = true; ci.root_vel[0] = v[0] * S * p->speed_scale; ci.root_vel[1] = v[1] * S * p->speed_scale;   /* [PARITY(1.15): how Speed scales - rate or distance - is not traced] */
         } }
     if (!p->alive) { p->ch.vel[0] = p->ch.vel[2] = 0; ci.root = false; }    /* PARITY(6.3): a body stops where it falls (measured: no slide), gravity stays on (08993D38) */
-    if (p->jet_on && (!p->alive || p->in_veh >= 0 || p->in_turret >= 0 || !stamina_pay(p, p->jet_drain * dt))) p->jet_on = false;   /* (the fuel is the
-                                                                                     stamina: FUELDRAINRATE a second, 0899EA24 [assumed: out of fuel it stops]) */
+    if (p->jet_on) { p->jet_fuel -= p->jet_drain * dt; if (p->jet_fuel <= 0 || !p->alive || p->in_veh >= 0 || p->in_turret >= 0) { p->jet_fuel = p->jet_fuel > 0 ? p->jet_fuel : 0; p->jet_on = false; } }
+    else if (p->jet_fuel < 100.0f) { p->jet_fuel += 5.0f * dt; if (p->jet_fuel > 100.0f) p->jet_fuel = 100.0f; }
+    /* (the special items' power bar, 0899EA24: 100, FUELDRAINRATE a second while it runs, out it stops - measured 6.1 s; it had not
+       come back 8 s later [assumed: 5 a second back]) */
     if (p->jet_on) {
-        /* the flight (089A19CC): a thrust velocity per axis steps toward the wanted one by the accelerations (HORIZ_ACCEL x and z, VERT_ACCEL
-           y) and is held within the speeds; the rest of the body's velocity dies away by the drags (HORIZ_DRAG; VERT_UP_DRAG rising,
-           VERT_DOWN_DRAG falling); the two add.  The wanted horizontal one is the stick's way at HORIZ_SPEED, the vertical one the
-           rise / descend input at VERT_SPEED.  [assumed: no gravity while thrusting; the wobble (amplitude / frequency) not drawn] */
+        /* the flight.  Measured (harness route cmpn, /tmp/ct14: jump, L tapped in the air, stick forward and triangle held): the
+           horizontal speed the soldier had at the start stays (7.26 m/s running) and the thrust adds to it at 6.1 m/s^2 - HORIZ_ACCEL x 8
+           x 0.8 = 6.4 (the loader 089A0FA0) - toward the stick's way at up to HORIZ_SPEED x 0.8 = 8 m/s; rising it climbs at 13.3 m/s
+           within 0.3 s; it ran 6.1 s (FUELDRAINRATE 15 a second of a 100 bar, FUELCOSTTOSTART 15 at the start) and then fell
+           (gravity).  The update 089A19CC (thrust per axis toward the wanted one by the accelerations, held within the speeds; the
+           drags on a second velocity) is not fully read.  [assumed: descending at the same 13.3 m/s, no rise input holds the height,
+           the drags not applied] */
         f32 sy = sinf(p->ch.yaw), cy = cosf(p->ch.yaw), mx = in->lx, my = in->ly, ml = sqrtf(mx * mx + my * my); if (ml > 1) { mx /= ml; my /= ml; }
-        f32 want[3] = { (-sy * my + cy * mx) * p->jet_hspeed, p->jet_rise * p->jet_vspeed, (-cy * my - sy * mx) * p->jet_hspeed };
-        for (int k = 0; k < 3; k++) {
-            f32 a = (k == 1 ? p->jet_vacc : p->jet_hacc) * dt, d = want[k] - p->jet_thrust[k];
-            p->jet_thrust[k] += d > a ? a : d < -a ? -a : d;
-            f32 lim = k == 1 ? p->jet_vspeed : p->jet_hspeed; if (p->jet_thrust[k] > lim) p->jet_thrust[k] = lim; if (p->jet_thrust[k] < -lim) p->jet_thrust[k] = -lim;
-            f32 drag = (k == 1 ? (p->jet_ext[1] > 0 ? p->jet_updrag : p->jet_downdrag) : p->jet_hdrag) * dt;
-            p->jet_ext[k] = fabsf(p->jet_ext[k]) <= drag ? 0.0f : p->jet_ext[k] - copysignf(drag, p->jet_ext[k]);
-            ci.fly_vel[k] = p->jet_thrust[k] + p->jet_ext[k];
-        }
+        f32 want[2] = { (-sy * my + cy * mx) * p->jet_hspeed, (-cy * my - sy * mx) * p->jet_hspeed };
+        for (int k = 0; k < 2; k++) { f32 a = p->jet_hacc * dt, d = want[k] - p->jet_thrust[k * 2];
+            p->jet_thrust[k * 2] += d > a ? a : d < -a ? -a : d; ci.fly_vel[k * 2] = p->jet_ext[k * 2] + p->jet_thrust[k * 2]; }
+        {   f32 vw = p->jet_rise * 13.3f, a = 40.0f * dt, d = vw - p->jet_thrust[1];
+            p->jet_thrust[1] += d > a ? a : d < -a ? -a : d; ci.fly_vel[1] = p->jet_thrust[1]; }
         ci.fly = true; ci.root = false; ci.jump = false; p->jet_t += dt;
-        if (ak_setting_int("AK_DEBUG_JET", 0) && p->frame_no % 10 == 0) AK_INFO("jet", "%.2f s: at %.2f %.2f %.2f vel %.2f %.2f %.2f stamina %.1f", p->clock, p->ch.pos[0], p->ch.pos[1], p->ch.pos[2], ci.fly_vel[0], ci.fly_vel[1], ci.fly_vel[2], p->stamina);
+        if (ak_setting_int("AK_DEBUG_JET", 0) && p->frame_no % 10 == 0) AK_INFO("jet", "%.2f s: at %.2f %.2f %.2f vel %.2f %.2f %.2f fuel %.1f", p->clock, p->ch.pos[0], p->ch.pos[1], p->ch.pos[2], ci.fly_vel[0], ci.fly_vel[1], ci.fly_vel[2], p->jet_fuel);
         if (p->pfx && p->jet_fx >= 0) {                                    /* the thrust (PFXEffect BFF_Jetpack_Thrust_E) at the back, down
                                                                               [assumed: the place - the pack's marker not read] */
             f32 at[3] = { p->ch.pos[0] + sy * 0.25f, p->ch.pos[1] + 1.2f * S, p->ch.pos[2] + cy * 0.25f }, dn[3] = { 0, -1, 0 };
             if (!(p->jet_h && ak_pfx_follow(p->pfx, p->jet_h, at, dn, p->ch.vel, true))) { s32 h = ak_pfx_play(p->pfx, p->jet_fx, at, dn); p->jet_h = h > 0 ? h : 0; } }
     } else { if (p->jet_h && p->pfx) ak_pfx_follow(p->pfx, p->jet_h, NULL, NULL, NULL, false); p->jet_h = 0;
-             if (!p->ch.flying) { memset(p->jet_thrust, 0, sizeof p->jet_thrust); memcpy(p->jet_ext, p->ch.vel, 12); } }
+             if (!p->ch.flying) { memset(p->jet_thrust, 0, sizeof p->jet_thrust); memcpy(p->jet_ext, p->ch.vel, 12); p->jet_thrust[1] = p->ch.vel[1]; } }
     ak_char_update(&p->ch, use, &p->col, &ci, dt);
     if (p->in_veh < 0 || !p->alive) p->oob_out = false;
     if (p->have_oob && p->alive && p->in_veh >= 0) {

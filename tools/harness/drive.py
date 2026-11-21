@@ -245,7 +245,10 @@ def prog_cmpn_train(i, fr):                                                     
     if any(i in range(k, k + 4) for k in (7960, 7990, 8020, 8050, 8080)): return (0x40, 128, 128)   # (in the list: down x5 from None)
     if any(i in range(k, k + 4) for k in (7920, 8120)): return (CROSS, 128, 128)
     if any(i in range(k, k + 4) for k in (8180, 8260)): return (CIRCLE, 128, 128)
-    if 8300 <= i < 9000: return (0x100 if i % 120 in (0, 20) else 0, 128, 128)   # L double-taps 20 frames apart (the jetpack, page 0x8B)
+    if i in (8450, 8550, 8650): return (CROSS, 128, 128)                     # the jetpack page(s): X
+    if i in (8800, 8830, 9700, 9730): return (0x100, 128, 0 if i < 9000 else 128)   # L tap (jump), L tap in the air (the jetpack) - again at 9700
+    if 8840 <= i < 9100: return (TRIANGLE, 128, 0)                           # rise (triangle) with the stick forward
+    if 9740 <= i < 9900: return (0, 128, 128)
     return (0, 128, 128)
 def prog_zoom(i, fr):                                                            # triangle tapped at 2 s, 4 s, 6 s, 8 s (zoom levels in and out)
     return (TRIANGLE if i in range(120, 124) or i in range(240, 244) or i in range(360, 364) or i in range(480, 484) else 0, 128, 128)

@@ -119,7 +119,7 @@ typedef struct {
     ak_loco loco;                      /* the player's body clips: the one playing, the one fading out - they move the body */
     bool sprint_spent;                 /* the stamina ran out in this sprint: none until L is let go */
     /* the jetpack (Special Item "Jetpack", Weapon blueprint Jetpack <- Packs; loader 089A0FA0, update 089A19CC - see play.c) */
-    bool jet_ok, jet_on; f32 jet_thrust[3], jet_ext[3], jet_tap, jet_rise, jet_t;
+    bool jet_ok, jet_on; f32 jet_thrust[3], jet_ext[3], jet_tap, jet_rise, jet_t, jet_fuel;
     f32 jet_hacc, jet_hdrag, jet_hspeed, jet_vspeed, jet_vacc, jet_updrag, jet_downdrag, jet_drain, jet_start, jet_wob_a, jet_wob_f;
     s32 jet_fx, jet_h;
     f32 speed_scale;                   /* the customisation's Speed level (1.0 at the default level 1) */

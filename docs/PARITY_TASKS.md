@@ -1241,6 +1241,9 @@ textures and how they are used. Section R lists only what must be in place so th
     the page's X, L tap in the air then hold the stick / triangle; RS_DRIVE_PLAYER=1 positions) and its power bar (the special
     items' energy: drain, recharge, the HUD icon 0x1E + bar); the rest of 089A19CC (turn rate, the camera, wobble), the pack model
     on the back, the soldier rows 28 / 29; then the training's next steps after the jetpack page (groups 82 / 13 onward).
+  - Part 32, 2026-11-21 - **the jetpack measured (flight, bar), kind 3 = running.** Next: the height limit (10.4 m over the floor in
+    the courtyard - ceiling or rule), descent, the bar's recharge and HUD (icon 0x1E + bar), the rest of 089A19CC; then the
+    training after group 67 (18bc4's line, the next steps) - extend cmpn_train past i 9100.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
