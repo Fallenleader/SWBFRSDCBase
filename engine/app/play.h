@@ -202,6 +202,10 @@ typedef struct {
     struct { bool done; int winner_faction; int left[2]; } gc_result;   /* a Galactic Conquest battle's end (5.4): the winning faction
                                                                        (-1 a draw) and the tickets each faction class has left (08972658) */
     ak_script script; bool have_script;   /* the level script (game/ak_script.h) */
+    /* the campaign's objective markers (class 0x8013, 089F0424; record 089F0A10: base version, u32, count x {event, group}, link,
+       position (game axes), ...): 3 / 4 show / hide [assumed: the display follows the active flag], 0x8008 / 0x8009 raise their
+       events 10009 / 10010 (089F05BC) */
+    struct { u32 id, link; bool active; f32 pos[3]; u32 ev[8], nev; } obj[48]; u32 nobj;
     f32 oob_min[3], oob_max[3]; bool have_oob, oob_out; f32 oob_msg_t;
     f32 pil_min[3], pil_max[3]; bool have_pil;   /* the AI pilots' box (ENTI 0x8021 with flags byte 1 = 1, 08A145E4(1)): the patrol's (0894B7D8) */   /* the battlefront's bounds (ENTI 0x8021, 089D4BDC): outside - the warning */
     ak_ctf_map ctf_map; ak_ctf ctf; bool have_ctf; s32 flag_model[AK_CTF_MAX], flag_clip[2];   /* flag_clip: flag_Flapping, flag_Flapping_Backattch */   /* capture the flag (AK_MODE CTF1 / CTF2 / HCTF) */
@@ -224,6 +228,8 @@ typedef struct {
 
 /* body: a Humanoid blueprint name; start: where to look for the nearest walkable spot */
 bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a, const char *body, const f32 *start);
+/* a placed object the campaign's objectives keep hidden: the marker an objective links to while it is not active [assumed] */
+bool ak_play_entity_hidden(const ak_play *p, u32 id);
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt);
 /* the loadout settings again (the customisation menu's choice; the soldier is down - it takes them at the respawn) */
 void ak_play_loadout(ak_play *p, const ak_model_set *m, const ak_blueprints *bp);

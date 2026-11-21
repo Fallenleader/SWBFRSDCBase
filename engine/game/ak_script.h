@@ -36,13 +36,26 @@
 
 typedef struct { u16 type, nextra; u32 target; f32 delay, prob; const u8 *extra; } ak_smsg;
 
-enum { AK_SN_TIMER = 1, AK_SN_SELECTOR = 11, AK_SN_COUNTER = 13, AK_SN_FMV = 28, AK_SN_MUSIC = 31 };
+enum { AK_SN_TIMER = 1, AK_SN_SELECTOR = 11, AK_SN_COUNTER = 13, AK_SN_FMV = 28, AK_SN_MUSIC = 31, AK_SN_COND = 0x801C, AK_SN_REGION = 20 };
+/* the region node (unflagged type 20, made by another loader [the loader not traced]; records read from the data): the node family's
+ * groups, then version 4, u32, u32, who (999 the player, 1000 [assumed: anyone]), n boxes { min x, max x, min y, max y, min z, max z
+ * (game axes), a rotation quaternion }, then { 1, 0, the mode mask, 0 }.  Active, it succeeds when the player stands in a box
+ * [assumed: the test - the box turned by its quaternion about its centre; edge-triggered as the condition nodes] */
+/* the player-condition node (flagged type 28, class 0x801C, 08A0FC64 / vtable 0x08B14DA0): the node family's groups, then version,
+ * kind (+0x28), param (+0x2C), word (+0x30) (version > 1; version 1: kind, param; 0: kind), the mode mask.  While active its watcher
+ * 08A0DEA8 tests the kind on the player (08A0E228 on foot / 08A0E3DC in a vehicle) and sends itself succeed (5) when it turns true
+ * (edge: +6).  Kinds on foot: 0 / 3 soldier +0x208 bits 15 / 11, 1 not on the ground (vfunc +0x1C4), 2 vfunc +0xC4, 4 / 5 / 6 an
+ * item 0xDA0CAE3B / 0x87D168AB / 0xDF19A556 held, 7 the player exists, 8 the item's +0x7C, 9 +0xC4, 10 the view mode 0x08C29B58 is 1,
+ * 0x10 the weapon's clip empty with ammo left, 0x11 the weapon 0xDA0CAE3B (-0x25F351C5), 0x12 difficulty 2; in a vehicle: 10, 0xB-0xF.
+ * The game supplies the test (ak_script_cond). */
 typedef struct {
     u32 id; u16 type; bool active, disabled, node; s16 group[5];
     f32 time, left; u32 tflags;                                          /* timer */
     u32 sflags, n, next; u32 *ent; f32 *wait; f32 dmin, dmax;           /* selector: ent = { group | flags, weight } x n */
     s32 count; u32 *cnt;                                                 /* counter: cnt = { hash, threshold, group | flags << 16 } x n */
     u32 list, mflags;                                                    /* music */
+    u32 kind, param; bool was;                                           /* condition (0x801C) */
+    f32 *box; u32 nbox, who;                                             /* region: 10 floats a box */
 } ak_snode;
 
 #define AK_SCRIPT_QUEUE 100
@@ -77,4 +90,9 @@ void ak_script_send(ak_script *s, u16 type, u32 target, const u8 *extra, u32 nex
 u32 ak_script_events(const ak_level *l, u32 id, u32 at, u32 *out, u32 max);
 void ak_script_raise(ak_script *s, const u32 *ev, u32 nev, u32 event, u32 sender, ak_script_sink sink, void *user);
 const ak_snode *ak_script_node(const ak_script *s, u32 id);
+/* the condition nodes: each active one asks `test(user, kind, param)` and succeeds when it turns true (08A0DEA8) */
+typedef bool (*ak_script_test)(void *user, u32 kind, u32 param);
+void ak_script_cond(ak_script *s, ak_script_test test, ak_script_sink sink, void *user);
+/* the region nodes against the player's position (game axes; NULL: no player) */
+void ak_script_regions(ak_script *s, const f32 *pos, ak_script_sink sink, void *user);
 #endif

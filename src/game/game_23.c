@@ -12421,6 +12421,7 @@ rv_t func_08A100A4(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u8 stack_[16] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 16);
 L_08A100A4:;
+    { extern void rs_801c_log(u32, u32); rs_801c_log(a0, a1); }   /* (harness: RS_801C_LOG) */
     sp = sp - 16;
     s0 = a0 + 0;
     a0 = a0 + 52;

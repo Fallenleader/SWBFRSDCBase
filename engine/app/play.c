@@ -709,6 +709,17 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     ak_cq_rules_default(&p->rules);
     if (p->have_cq) ak_conquest_start(&p->cq, &p->rules, &p->match);
     p->have_script = ak_script_load(l, ak_game_mode, (u32)ak_setting_int("AK_SEED", 1), a, &p->script);   /* PARITY(5.4) */
+    p->nobj = 0;
+    {   u32 pos = 8; ak_chunk c;
+        while (ak_asura_next(&l->file, &pos, &c) && p->nobj < 48) {
+            if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 40 || (ak_rd32(c.body + 4) & 0xFFFFu) != 0x8013) continue;
+            u32 nw = c.size / 4, cnt = ak_rd32(c.body + 16); if (cnt > 8 || 9 + cnt > nw) continue;
+            typeof(p->obj[0]) *o = &p->obj[p->nobj++]; memset(o, 0, sizeof *o); o->id = ak_rd32(c.body);
+            o->link = ak_rd32(c.body + 4 * (5 + cnt));
+            for (int k = 0; k < 3; k++) { u32 w = ak_rd32(c.body + 4 * (6 + cnt + k)); memcpy(&o->pos[k], &w, 4); }
+            o->nev = ak_script_events(l, o->id, 2, o->ev, 8);
+        }
+    }
     p->have_ctf = ak_ctf_load(l, ak_game_mode, &p->ctf_map);                  /* PARITY(5.4) */
     {   /* kill boxes (traced: the factory 0896F170 makes class 0x16 from ENTI type 0x16 (unflagged): the loader 0886D334 reads, after
            the version (4) and the base words, the box x min, x max, y min, y max, z min, z max (game axes), the damage a second (+0x34)
@@ -1851,6 +1862,7 @@ static void boom(ak_play *p, const f32 *pos, const ak_bp_object *bp)
 
 static void player_down(ak_play *p);
 static void script_sink(void *user, const ak_script_msg *m);
+static bool script_test(void *user, u32 kind, u32 param);
 static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
 {
     ak_vehicle *vh = &p->veh[v]; (void)m;
@@ -2855,6 +2867,20 @@ static bool vehicle_exit_spot(const ak_play *p, const ak_vehicle *vh, f32 out[3]
 
 /* what the level script sends to the game's objects: the ticket entity and the command posts; the music the level starts with is
  * the viewer's (ak_audio_level_music_start); the rest is logged (AK_DEBUG_SCRIPT) - not ported yet */
+/* the condition nodes' tests on the player (08A0E228 on foot; 08A0E3DC in a vehicle): ported kinds 7 (the player exists - alive),
+   1 (not on the ground), 2 (vfunc +0xC4 [assumed: the lock-on held]), 9 (+0xC4 byte [assumed: in a vehicle]); the others (the
+   soldier's +0x208 bits, items, the view mode, the clip, difficulty 2) are not yet - false */
+static bool script_test(void *user, u32 kind, u32 param)
+{
+    ak_play *p = user; (void)param;
+    switch (kind) {
+    case 7: return p->alive;
+    case 1: return p->alive && p->in_veh < 0 && !p->ch.on_ground;
+    case 2: return p->alive && p->lock >= 0;
+    case 9: return p->alive && p->in_veh >= 0;
+    default: return false;
+    }
+}
 static void script_sink(void *user, const ak_script_msg *m)
 {
     ak_play *p = user; bool done = false;
@@ -2878,6 +2904,11 @@ static void script_sink(void *user, const ak_script_msg *m)
         done = true;
         if (!p->veh[v].alive && vehicle_make(p, v)) { p->vspawn[v].route_d = 0; if (p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 10007, p->vspawn[v].eid, script_sink, p); }
     }
+    if (!done) for (u32 k = 0; k < p->nobj; k++) if (p->obj[k].id == m->target) {   /* an objective marker (089F05BC) */
+        if (m->type == 3) p->obj[k].active = true; else if (m->type == 4) p->obj[k].active = false;
+        else if ((m->type == 0x8008 || m->type == 0x8009) && p->have_script) ak_script_raise(&p->script, p->obj[k].ev, p->obj[k].nev, m->type == 0x8008 ? 10009 : 10010, m->target, script_sink, p);
+        else break;
+        done = true; break; }
     static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_SCRIPT", 0);
     if (dbg) AK_INFO("script", "%.2f s: %x -> %x from %x%s%s", p->clock, m->type, m->target, m->sender, m->node ? " (a node's play)" : "", done ? "" : " - not handled");
 }
@@ -3557,7 +3588,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0 && p->bot[i].ch.pos[1] < -400.0f) {
         p->target[1 + i].alive = false; p->bot[i].alive = false; p->bot[i].dead_t = 0; if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, p->bot[i].team); }
     /* the level script (game/ak_script.h): its timers, its queue, what it sends to the game's objects */
-    if (p->have_script) ak_script_update(&p->script, dt, false, script_sink, p);
+    if (p->have_script) { ak_script_update(&p->script, dt, false, script_sink, p); ak_script_cond(&p->script, script_test, script_sink, p);
+        f32 gp[3]; ak_from_game(p->ch.pos, gp); ak_script_regions(&p->script, p->alive && p->in_veh < 0 ? gp : NULL, script_sink, p); }   /* (ak_from_game is its own inverse: engine -> game) */
     /* conquest: the posts, the tickets, the spawn wave */
     bool wave = false;
     if (p->have_cq) {
@@ -4056,4 +4088,11 @@ bool ak_play_lock_point(const ak_play *p, f32 out[3])
     const ak_target *t = &p->target[p->lock];
     if (p->lock_t >= p->lock_head_time) memcpy(out, t->head, 12); else { memcpy(out, t->feet, 12); out[1] += 1.1f * S; }
     return true;
+}
+
+bool ak_play_entity_hidden(const ak_play *p, u32 id)
+{
+    if (!p->ready) return false;
+    for (u32 k = 0; k < p->nobj; k++) if (p->obj[k].link == id) return !p->obj[k].active;
+    return false;
 }

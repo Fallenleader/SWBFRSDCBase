@@ -21,7 +21,7 @@ static ak_snode *find(ak_script *s, u32 id)
 const ak_snode *ak_script_node(const ak_script *s, u32 id) { return find((ak_script *)s, id); }
 
 /* ---- loading */
-static bool is_node_type(u32 t) { return t == AK_SN_TIMER || t == AK_SN_SELECTOR || t == AK_SN_COUNTER || t == AK_SN_FMV || t == AK_SN_MUSIC; }
+static bool is_node_type(u32 t) { return t == AK_SN_COND || t == AK_SN_REGION || t == AK_SN_TIMER || t == AK_SN_SELECTOR || t == AK_SN_COUNTER || t == AK_SN_FMV || t == AK_SN_MUSIC; }
 
 static u32 wd(const u8 *b, u32 nw, u32 i) { return i < nw ? ak_rd32(b + 4 * i) : 0u; }
 
@@ -30,14 +30,14 @@ static bool parse_node(const u8 *b, u32 size, ak_arena *a, int mode, ak_snode *n
     u32 nw = size / 4, k;
     #define W(i) wd(b, nw, (i))
     memset(n, 0, sizeof *n);
-    n->id = W(0); n->type = (u16)(W(1) & 0x7FFF);
+    n->id = W(0); n->type = (W(1) & 0xFFFF) == AK_SN_COND ? AK_SN_COND : (u16)(W(1) & 0x7FFF);
     for (int i = 0; i < 5; i++) n->group[i] = -1;
     k = n->type == AK_SN_TIMER ? 3 : 2;                                  /* [assumed] the timers' leading word */
     u32 bver = W(k++);
     if (bver > 2) { k++; k += 1 + W(k); if (bver >= 5) k++; }
     if (k >= nw) return false;
     n->active = (W(k++) & 1) != 0;
-    if (n->type == AK_SN_TIMER || n->type == AK_SN_COUNTER || n->type == AK_SN_FMV) {   /* the node family: its groups */
+    if (n->type == AK_SN_TIMER || n->type == AK_SN_COUNTER || n->type == AK_SN_FMV || n->type == AK_SN_COND || n->type == AK_SN_REGION) {   /* the node family: its groups */
         u32 v = W(k++), ng = v >= 3 ? 5 : 4; n->node = true;
         if ((k + 3) * 4 > size) return false;
         for (u32 i = 0; i < ng; i++) n->group[i] = (s16)ak_rd16(b + 4 * k + 2 * i);
@@ -71,6 +71,16 @@ static bool parse_node(const u8 *b, u32 size, ak_arena *a, int mode, ak_snode *n
         n->cnt = AK_NEW(a, u32, 3 * n->n + 1); if (!n->cnt) return false;
         for (u32 i = 0; i < 3 * n->n; i++) n->cnt[i] = W(k + i);
         for (u32 i = 0; i < n->n; i++) { u32 g = n->cnt[3 * i + 2]; n->cnt[3 * i + 2] = (g & 0xFFFFu) | (g >> 16 & 3u) << 16; }
+    } else if (n->type == AK_SN_REGION) {
+        u32 v = W(k++); (void)v; k += 2; n->who = W(k++); n->nbox = W(k++);
+        if (n->nbox > 16 || k + 10 * n->nbox > nw) return false;
+        n->box = AK_NEW(a, f32, 10 * n->nbox + 1); if (!n->box) return false;
+        for (u32 i = 0; i < 10 * n->nbox; i++) n->box[i] = rd_f(b + 4 * (k + i));
+        k += 10 * n->nbox;
+        if (k + 3 <= nw && W(k + 2) && W(k + 2) <= 0x3Fu && !(W(k + 2) >> mode & 1)) n->disabled = true;   /* { 1, 0, mode mask, 0 } */
+    } else if (n->type == AK_SN_COND) {
+        u32 v = W(k++); n->kind = W(k++); n->param = v >= 1 ? W(k++) : 0xFFFFFFFFu; if (v > 1) k++;
+        if (k + 2 <= nw && W(k) == 0 && W(k + 1) && W(k + 1) <= 0x3Fu && !(W(k + 1) >> mode & 1)) n->disabled = true;   /* { 0, mode mask } */
     } else if (n->type == AK_SN_MUSIC) {
         k++; n->list = W(k++); n->mflags = W(k++);
     }
@@ -86,11 +96,11 @@ bool ak_script_load(const ak_level *l, int mode, u32 seed, ak_arena *a, ak_scrip
     out->rng[0] = seed ? seed : 0x12345678u; out->rng[1] = 0x9E3779B9u;     /* [assumed] the game's start values are not traced */
     u32 pos = 8, n = 0; ak_chunk c;
     while (ak_asura_next(&l->file, &pos, &c))
-        if (ak_chunk_tag(&c) == AK_TAG('E', 'N', 'T', 'I') && c.size >= 12 && !(ak_rd32(c.body + 4) & 0x8000u) && is_node_type(ak_rd32(c.body + 4) & 0xFFFFu)) n++;
+        if (ak_chunk_tag(&c) == AK_TAG('E', 'N', 'T', 'I') && c.size >= 12 && ((ak_rd32(c.body + 4) & 0xFFFFu) == AK_SN_COND || (!(ak_rd32(c.body + 4) & 0x8000u) && is_node_type(ak_rd32(c.body + 4) & 0xFFFFu)))) n++;
     out->node = AK_NEW(a, ak_snode, n ? n : 1); if (!out->node) return false;
     pos = 8;
     while (ak_asura_next(&l->file, &pos, &c)) {
-        if (ak_chunk_tag(&c) == AK_TAG('E', 'N', 'T', 'I') && c.size >= 12 && !(ak_rd32(c.body + 4) & 0x8000u) && is_node_type(ak_rd32(c.body + 4) & 0xFFFFu)) {
+        if (ak_chunk_tag(&c) == AK_TAG('E', 'N', 'T', 'I') && c.size >= 12 && ((ak_rd32(c.body + 4) & 0xFFFFu) == AK_SN_COND || (!(ak_rd32(c.body + 4) & 0x8000u) && is_node_type(ak_rd32(c.body + 4) & 0xFFFFu)))) {
             if (parse_node(c.body, c.size, a, mode, &out->node[out->nnodes])) out->nnodes++;
             else AK_WARN("script", "node %x (type %u) not read", ak_rd32(c.body), ak_rd32(c.body + 4) & 0xFFFFu);
             continue;
@@ -350,4 +360,36 @@ void ak_script_raise(ak_script *s, const u32 *ev, u32 nev, u32 event, u32 sender
 {
     for (u32 i = 0; i < nev; i++) if ((ev[i] & 0xFFFFu) == event && (ev[i] >> 16) != 0xFFFFu) fire(s, (s32)(ev[i] >> 16), sender);
     drain(s, sink, user);
+}
+
+void ak_script_cond(ak_script *s, ak_script_test test, ak_script_sink sink, void *user)
+{
+    for (u32 i = 0; i < s->nnodes; i++) {
+        ak_snode *n = &s->node[i];
+        if (n->type != AK_SN_COND || n->disabled) continue;
+        if (!n->active) { n->was = false; continue; }
+        bool t = test(user, n->kind, n->param);
+        if (t && !n->was) ak_script_send(s, 5, n->id, NULL, 0, sink, user);
+        n->was = t;
+    }
+}
+
+void ak_script_regions(ak_script *s, const f32 *pos, ak_script_sink sink, void *user)
+{
+    for (u32 i = 0; i < s->nnodes; i++) {
+        ak_snode *n = &s->node[i];
+        if (n->type != AK_SN_REGION || n->disabled) continue;
+        if (!n->active || !pos) { n->was = false; continue; }
+        bool in = false;
+        for (u32 b = 0; b < n->nbox && !in; b++) {
+            const f32 *x = n->box + 10 * b;
+            f32 c[3] = { (x[0] + x[1]) * 0.5f, (x[2] + x[3]) * 0.5f, (x[4] + x[5]) * 0.5f }, d[3] = { pos[0] - c[0], pos[1] - c[1], pos[2] - c[2] };
+            f32 qx = -x[6], qy = -x[7], qz = -x[8], qw = x[9];             /* the point into the box's frame: the inverse turn */
+            f32 tx = 2 * (qy * d[2] - qz * d[1]), ty = 2 * (qz * d[0] - qx * d[2]), tz = 2 * (qx * d[1] - qy * d[0]);
+            f32 l[3] = { d[0] + qw * tx + qy * tz - qz * ty, d[1] + qw * ty + qz * tx - qx * tz, d[2] + qw * tz + qx * ty - qy * tx };
+            in = fabsf(l[0]) <= (x[1] - x[0]) * 0.5f && fabsf(l[1]) <= (x[3] - x[2]) * 0.5f && fabsf(l[2]) <= (x[5] - x[4]) * 0.5f;
+        }
+        if (in && !n->was) ak_script_send(s, 5, n->id, NULL, 0, sink, user);
+        n->was = in;
+    }
 }

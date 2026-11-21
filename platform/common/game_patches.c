@@ -986,3 +986,12 @@ void rs_slot_log(u32 tab, u32 k, u32 ctr, u32 hd){
     static unsigned n; static int ev = -1; if (ev < 0) ev = getenv("RS_SLOT_EVERY") ? atoi(getenv("RS_SLOT_EVERY")) : 5; if (n++ % (unsigned)ev) return;
     fprintf(stderr, "[SLOT] fr %u tab %08x k %u r %.3f ang %.3f heading %.3f centre %.1f %.1f %.1f\n", probe_fr, tab, k, GF32(tab + 8 * k + 4), GF32(tab + 8 * k + 8), GF32(hd), GF32(ctr), GF32(ctr + 4), GF32(ctr + 8));
 }
+
+/* (5.4 campaign) RS_801C_LOG: each message to a 0x801C object (08A100A4): frame, object id, kind (+0x28), param (+0x2C), message
+   type, its sender (msg +4 [assumed]) and the native call chain (resolve with addr2line -f) */
+void rs_801c_log(u32 obj, u32 msg){
+    static int on = -1; if (on < 0) on = getenv("RS_801C_LOG") != 0; if (!on) return;
+    void *bt[8]; int n = backtrace(bt, 8);
+    fprintf(stderr, "[801C] fr %u id %x kind %x param %x msg %u from %x |", probe_fr, GU32(obj + 4), GU32(obj + 0x28), GU32(obj + 0x2C), GU16(msg + 0x10), GU32(msg + 4));
+    for (int i = 1; i < n; i++) fprintf(stderr, " %p", bt[i]); fprintf(stderr, "\n");
+}
