@@ -3140,8 +3140,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
              that dropped it (+0x118), that needs it: Ammo / HealthAmmo a weapon whose spare clips (spare / clip) are fewer than
              its MaxClips, or an explosive below its count (089F5A24 -> 0898582C / 08A19C3C / 08A19BF0); Stamina below its maximum
              (089F5944, vfuncs +344 / +348); the claim is the message 0x8072, the reply 0x8073 (HealthAmmo: the health too).
-           [assumed: how much ammunition a pickup gives (here Capacity per cent of the weapon's full spare clips, explosives the
-           same of the count, at least one) - the reply goes on to the weapons (088AC9B0) and is not read; 089F5858's test (a
+           [the ammunition: below, traced; 089F5858's test (a
            vfunc +112 and +195 / a table lookup) is taken as "a soldier"; only the player has stamina in Aurek] */
         bool used = false, look = (q->look_t -= dt) <= 0;
         if (look) q->look_t = 0.25f;
@@ -3162,11 +3161,13 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (!heal && !claim) continue;
             f32 cap = q->kind == 3 ? d->cap2 : d->cap;
             if ((q->kind == 0 || q->kind == 3) && t->health < maxh) { t->health += d->cap; if (t->health > maxh) t->health = maxh; if (u == 0) p->health = t->health; }
-            if ((q->kind == 1 || q->kind == 3) && short_w) {
-                s32 full = w->def->clip * w->def->clips, add = (s32)(cap * 0.01f * (f32)full + 0.5f); if (add < 1) add = 1;
-                w->spare += add; if (w->spare > full) w->spare = full;
-            }
-            if ((q->kind == 1 || q->kind == 3) && short_g) { s32 add = (s32)(cap * 0.01f * (f32)gmax + 0.5f); if (add < 1) add = 1; *gl += add; if (*gl > gmax) *gl = gmax; }
+            /* the ammunition (089F5BA8 -> 08985954): N = Capacity + 0.5 (Ammo's +0x94, HealthAmmo's +0x98) whole clips to each weapon,
+               one at a time while its spare clips are fewer than MaxClips (08A19C3C / 08A19BB4); items (explosives) +N, at most their
+               count (+0x54 = min(+0x50, +0x54 + N)) [assumed: only the weapons that take clips - the flag 0x20 at +0x16C not read] */
+            s32 nclips = (s32)(cap + 0.5f);
+            if ((q->kind == 1 || q->kind == 3) && short_w)
+                for (s32 k = 0; k < nclips && w->spare / w->def->clip < w->def->clips; k++) w->spare += w->def->clip;
+            if ((q->kind == 1 || q->kind == 3) && short_g) { *gl += nclips; if (*gl > gmax) *gl = gmax; }
             if (q->kind == 2 && u == 0) { p->stamina += d->cap; if (p->stamina > p->stamina_max) p->stamina = p->stamina_max; }
             used = true;
         }

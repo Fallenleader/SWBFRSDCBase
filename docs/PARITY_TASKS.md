@@ -244,7 +244,11 @@ textures and how they are used. Section R lists only what must be in place so th
     MaxClips +76 and its flag 0x20 at +364, or an item of +48 with count +84 < +80); Stamina by 089F5944 (alive, health > 0,
     not in a vehicle, vfunc +344 < vfunc +348, in range, 089F5858). The first found gets 0x8072 (089F5AF8). The Humanoid's
     0x8073 handler (089A6D64): kinds 0 / 2 to the weapons (088AC9B0), 1 / 2 to 089F8EE0 (health). Built (NATIVE_ENGINE row).
-    [ ] The amount of ammunition (the weapons' handler), 089F5858 (vfunc +112, +195, a table at D_08C29F04), flag 0x20.
+    [x] The amount (2026-11-21): the soldier's 0x8073 handler (08994C30) -> 089F5BA8: Ammo / HealthAmmo give N = Capacity +
+    0.5 (Ammo's +0x94 = Capacity, HealthAmmo's +0x98 = SecondaryCapacity: 50) through 08985954 - to each weapon whole clips, one
+    at a time while spare / clip < MaxClips (08A19C3C / 08A19BB4; not a weapon with +0x16C bit 4; bit 5 needed outside the
+    forced case), to each item min(its most, count + N); Stamina min(max, stamina + Capacity).  Ported.  [ ] 089F5858, the flag
+    bits' blueprint keys.
 - [ ] **2.3 Secondary items [partial].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
   incinerator, fusion cutter, shields, jetpack, jump pack, stealth. Trace each one's blueprint use.
   - Thermal detonator [measured and built 2026-11-16]: Weapon REP_Grenade (4, no spare clips, 2 s between throws), Projectile
