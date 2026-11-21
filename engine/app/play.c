@@ -2076,7 +2076,9 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
         if (b->enemy >= (s32)NS(p) && b->enemy < (s32)NV(p)) {              /* a moving vehicle: steer for where it will be (lead pursuit) */
             const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
             f32 ex = dest[0] - vh->pos[0], ey = dest[1] - vh->pos[1], ez = dest[2] - vh->pos[2];
-            f32 lt = fminf(sqrtf(ex * ex + ey * ey + ez * ez) / fmaxf(vh->speed, 20.0f) * 0.6f, 1.5f);
+            /* FOLLOWING steers for the attack node's aim point (08948A9C -> node +0x30, 089496E8): the intercept for the shot speed
+               1000 (D_08B1B740), as the gun's */
+            f32 lt = ak_setting_int("AK_FLY_LEAD", 1) ? sqrtf(ex * ex + ey * ey + ez * ez) / (1000.0f * S) : fminf(sqrtf(ex * ex + ey * ey + ez * ez) / fmaxf(vh->speed, 20.0f) * 0.6f, 1.5f);
             for (int k = 0; k < 3; k++) dest[k] += ev->vel[k] * lt;
         }
     }
@@ -2165,7 +2167,14 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
     vh->steer = clampf(-dyaw * 2.0f, -1, 1);
     vh->throttle = clampf(-dp * 3.0f, -1, 1);
     b->boost = !landing && ((!chase && dist > 250.0f && !b->feel) || (chase && dist > 300.0f));
-    if (craft && !b->circle && dist < 90.0f) {                               /* on its tail: no faster than it */
+    if (craft && !b->circle && ak_setting_int("AK_FLY_LEAD", 1)) {
+        /* FOLLOWING's speed (08949834): the target's speed + (distance - 250) x 0.004 x the top speed, between the pilot's least and
+           most (+0x78 / +0x7C) - here the stall and cruising speeds [assumed] - reached by the throttle buttons */
+        const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
+        f32 top = d->cruise > 0 ? d->cruise : 60.0f, ws = clampf(ev->speed + (dist - 250.0f) * 0.004f * top, d->stall_speed, top);
+        b->boost = false; vh->fast = false; vh->brake = false;
+        if (vh->speed < ws - 2.0f) vh->fast = true; else if (vh->speed > ws + 2.0f) vh->brake = true;
+    } else if (craft && !b->circle && dist < 90.0f) {                        /* on its tail: no faster than it */
         const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
         if (ev->speed < vh->speed - 5.0f) vh->brake = true;
     }

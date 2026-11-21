@@ -660,6 +660,8 @@ textures and how they are used. Section R lists only what must be in place so th
   - 2026-11-21, measured: the original 203 flyer hits / 110 s, 16 pairs, median 391 m; Aurek's trigger held ~18 s in all.  Lead and
     body boxes ported.  Next: the pursuit (08948A9C FOLLOWING: how it steers - 08959914 / 08959B7C / 08959780 / 08959CC8) to get
     the time on target up.
+  - 2026-11-21: FOLLOWING's aim point and speed ported (42 hits).  Next: how much time Aurek's flyers spend CIRCLING vs FOLLOWING
+    against the original (the original hits from 0-577 m, median 391), the flyers' turn rates under AI control, the 5-degree cone.
 
 ## 5. Game rules and modes
 
