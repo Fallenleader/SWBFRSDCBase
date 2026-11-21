@@ -322,6 +322,7 @@ void ak_fe_set_gc(const ak_fe_gc *g) { gc = *g; gc_on = true; }
 int ak_fe_gc_choice(int *index) { *index = gc_index; return gc_kind; }
 static int gc_new_req = 1; int ak_fe_gc_new(void) { return gc_new_req; }
 static int gc_quit_req; int ak_fe_gc_quit(void) { return gc_quit_req; }
+static int cmpn_level; int ak_fe_cmpn_level(void) { return cmpn_level; }
 void ak_fe_var(const char *name, f32 v) { var_set(name, v); }
 static int gc_row(const char *pn, int *lvl)                          /* the tech row a widget is in: kind, level; -1 none */
 {
@@ -822,6 +823,13 @@ static int run(const ak_gui_action *a, int row)
         /* 08A2EE38: 08A3C574(new) sets the conquest up (1 new, 0 the saved one), then the GC mode (08A27544(6)); FE_CheckConquestState
            (New) asks before replacing a saved conquest [assumed: Aurek has no saved conquest yet - New starts one] */
         gc_new_req = !strcmp(fn, "FE_CheckConquestState") ? 1 : atoi(a->arg); var_set("BFF.HasGalacticConquestBeenPlayed", 1); ak_fe_close(); return AK_FE_GC_START; }
+    else if (!strcmp(fn, "FE_StartCampaign") || !strcmp(fn, "FE_CheckCampaignState")) {
+        /* 08A2ECB8: arg 1 (New) starts at level 0 (0x08C29918 = 0), else at the profile's level; the first level of the list
+           0x08B1C060 (yavin_IV, space_alderaan, ord_mantell, space_kessel, tatooine, boz_pity, hoth_ion_cannon, space_hoth,
+           korriban, sullust, endor) from there whose file is found, in mode 5 (08978CB4(5)).  FE_CheckCampaignState (New) asks
+           before replacing a saved campaign [assumed: no campaign progress kept yet - it starts one] */
+        cmpn_level = !strcmp(fn, "FE_CheckCampaignState") || atoi(a->arg) ? 0 : (int)var_get("BFF.ProfileCampaignLevel");
+        ak_fe_close(); return AK_FE_CMPN_START; }
     else if (!strcmp(fn, "GC_SetQuitMenuState")) var_set("Menus.GCQuitMenuState", (f32)atoi(a->arg));   /* 08A3BAAC (0x08B1C304): which confirm */
     else if (!strcmp(fn, "GC_SetQuitMenuRequest")) { gc_quit_req = atoi(a->arg); ak_fe_close(); return AK_FE_GC_QUIT; }   /* 08A3BAF4 (0x08B1C300), read by 08A382B0 */
     else if (!strncmp(fn, "GC_Purchase", 11)) {                       /* 08A3B738's GC_Purchase*: the choice for the GC code (0x08C2D8CC = 1) */

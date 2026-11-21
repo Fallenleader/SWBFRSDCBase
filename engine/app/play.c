@@ -2861,6 +2861,13 @@ static void script_sink(void *user, const ak_script_msg *m)
     if (m->node) done = m->node->type == AK_SN_MUSIC;   /* (the start music is the viewer's; a later change is not played [not ported]) */
     else if (p->have_cq && (ak_conquest_ticket_msg(&p->cq, &p->rules, &p->match, m->target, m->type, m->extra, m->nextra) ||
                             ak_conquest_post_msg(&p->cq, &p->match, m->target, m->type, m->extra, m->nextra))) done = true;
+    else if (m->target == 0x3E8 && (m->type == 0x801D || m->type == 0x8023) && m->nextra >= (m->type == 0x801D ? 8u : 16u)) {
+        /* the campaign's tips to the game: 0x801D {u32 0, STDTEXT id} (e.g. 0x8F "Use \ue817 to move and turn"), 0x8023 {u32, f32
+           seconds (3.0), u32 1, STDTEXT id} [assumed: both shown in the tip box; the original's frame shows the first at the top
+           of the screen - its handler not traced yet] */
+        u32 id = ak_rd32(m->extra + (m->type == 0x801D ? 4 : 12)); ak_hud_message(3, id, NULL, 0); done = true;
+    }
+    else if (m->target == 0x3E8 && m->type == 0x801E) { done = true; }   /* (clears the tip [assumed]) */
     else if ((m->type == 0x3B || m->type == 0x51) && p->nnode_open < 32) {   /* a path node opened (0x3B) or shut (0x51): 08855908's flag 0x40 */
         u32 q = 0; while (q < p->nnode_open && p->node_open_id[q] != m->target) q++;
         if (q == p->nnode_open) { p->node_open_id[q] = m->target; p->nnode_open++; }

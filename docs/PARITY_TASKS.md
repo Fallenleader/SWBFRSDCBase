@@ -1194,6 +1194,10 @@ textures and how they are used. Section R lists only what must be in place so th
     battles as matches, results, the opponent's turn on screen, Troops Overview, sector close-ups, quit / save / resume, win pages,
     front-end entry. Remaining [assumed] details are listed in NATIVE_ENGINE's 5.4 rows (label places, paces, neutral panel
     colour, 'CPU' text table, the save format).
+  - Part 22, 2026-11-21 - **campaign, first slice**: entry from MP_Campaign into CAMPAIGN/<level> in mode CMPN; tips 0x801D /
+    0x8023 shown. Next: the objectives (MISSIONOBJECTIVES.ASR; which message sets the line), the 0x8013 markers (ring + chevrons),
+    named objects (type 3) and cut-scenes (CUTS), 0x8017 / 0x8021, the level's end and the next level (0x08C29918 + 1), the HUD
+    without tickets in the campaign [to check], the difficulty-gated ticket messages (08979DF4).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -209,6 +209,16 @@ int main(int argc, char **argv)
             ak_gfx_begin(0xFF000000u, &id, &env); ak_fe_draw(); ak_gfx_end(&gs);
             frame++;
             if (shot && frame == shot_frame) { ak_gfx_screenshot(shot); break; }
+            if (ev == AK_FE_CMPN_START) {                                  /* the campaign: its level (0x08B1C060's list) in mode CMPN */
+                static const char *const camp[11] = { "YAVIN_IV", "SPACE_ALDERAAN", "ORD_MANTELL", "SPACE_KESSEL", "TATOOINE", "BOZ_PITY",
+                                                      "HOTH_ION_CANNON", "SPACE_HOTH", "KORRIBAN", "SULLUST", "ENDOR" };
+                int li = ak_fe_cmpn_level(); if (li < 0 || li > 10) li = 0;
+                char want[64]; snprintf(want, sizeof want, "CAMPAIGN %s", camp[li]);
+                for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, want)) cur = i;
+                ak_setting_set("AK_MODE", "CMPN"); ak_setting_set("AK_TEAM", "1"); ak_setting_set("AK_SOLDIER", "MediumRebel");   /* [assumed: the Alliance's campaign - the frame's soldier is a Rebel] */
+                AK_INFO("fe", "campaign level %d: %s", li, want);
+                fe_on = false; playing = true; loaded = false; fe_ingame = ak_setting_int("AK_FE_INGAME", 1) != 0; continue;
+            }
             if (ev == AK_FE_GC_START) {                                    /* Galactic Conquest: the map (a new conquest, or the one in memory) */
                 for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, "GC")) cur = i;
                 gc_keep = !ak_fe_gc_new(); fe_on = false; playing = false; loaded = false; AK_INFO("fe", "galactic conquest (%s)", gc_keep ? "resume" : "new");
@@ -537,7 +547,7 @@ int main(int argc, char **argv)
             if (play.ready && play.pfx_tex_index >= 0 && (u32)play.pfx_tex_index < level.ntex) play.pfx_tex = scene.tex[play.pfx_tex_index];   /* the particle sheet (R.6) */
             if (play.ready && fe_ingame) {                                  /* the player waits for the menus: team, then the spawn map */
                 play.alive = false; play.target[0].alive = false; play.menu_hold = true; play.dead_t = 0;
-                ak_fe_open_ingame(fe_after_team ? "MP_Spawn_Location" : "MP_Team_Selection"); fe_after_team = false;
+                ak_fe_open_ingame(fe_after_team || ak_game_mode == 5 ? "MP_Spawn_Location" : "MP_Team_Selection"); fe_after_team = false;   /* (the campaign: no team choice - the original goes to the spawn map) */
             }
         }
         bool fe_menu = false;
