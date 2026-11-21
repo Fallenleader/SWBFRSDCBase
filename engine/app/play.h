@@ -96,7 +96,7 @@ typedef struct {                       /* a bot soldier */
     /* the mind */
     s32 goal; s8 ctf_role; u32 path[128];   /* goal: a post, -1 none, -2 a CTF goal; ctf_role: 1 attack, 0 guard, -1 not chosen (each life) */ u32 npath, path_i; f32 hold[3]; bool holding;
     ak_ai_fire fire_ai;   /* the AI's trigger on foot (ak_weapon.h: 40 m, 7.5 degrees across the ground) */
-    f32 think_t, goal_t, react_t, stuck_t, strafe_t; f32 stuck_pos[3]; s32 enemy; f32 strafe; u32 seed; s32 name;   /* name: its entry in the side's BOTNAMES list (-1 none) */
+    f32 think_t, goal_t, react_t, stuck_t, strafe_t; f32 stuck_pos[3]; s32 enemy; f32 strafe; s8 fstate; s32 fenemy; f32 fstate_t, faim_t, fpoint[3];   /* the attack node 0x47E's state (4.4) */ u32 seed; s32 name;   /* name: its entry in the side's BOTNAMES list (-1 none) */
     /* what it has seen (traced: the AI sensor 08961A50): an enemy, where it was last seen, how long the record has lived */
     struct { s16 t; f32 age, pos[3]; } mem[16]; u32 nmem; f32 sense_dt;
     /* vehicles: the one it drives (-1 on foot), the one it walks to; getting unstuck; a flyer's attack run */

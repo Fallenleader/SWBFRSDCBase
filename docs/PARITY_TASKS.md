@@ -709,6 +709,14 @@ textures and how they are used. Section R lists only what must be in place so th
     moves the point when the target has moved more than 2 m (4 = 2^2, D_08AED974; 08944AEC); state 2 measures the way back to
     +0x34 against 625 (25 m); state 3 waits 5 s (D_08AED97C); 4 ends. So a fighting bot closes to within 20 m of its target and
     holds - the standing quarter measured above. To port: the 0x480 node (0894434C family) and the VFPU compares' directions.
+  - 2026-11-21, the compares settled in the recompiled C (FCMP cond 12 = less than): state 0 goes to 1 when 400 < d^2 (farther
+    than 20 m), else 2; the re-aim moves the point when 4 < moved^2; state 2 goes back to 1 when 625 < d^2 from the firing point
+    (+0x34: 08943020 picks it each frame - a navigation point near the target on the bot's side, 0895E3A4, or the target point).
+    Built (AK_BOT_ATTACK_NODE): approach to 20 m, stand 5 s, then stand while the target is within 25 m, else approach again.
+    Measured with it on for every bot with a target (Hoth 2.5 min): shooters' speeds 0 / 0 / 0 / 3.9 / 6.7 m/s and 354 hits
+    (155 off) - too still against the original's 0 / 0.08 / 2.2 / 5.0 / 8.2 and 176 hits: the original's soldiers also fire on
+    their way under other orders (the trigger node runs under any order). Left off by default until the order's choice is traced
+    (who gives 0x47E: the squad / goal logic).
 - [x] **4.5 Bot counts per mode and level [traced 2026-11-21].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source

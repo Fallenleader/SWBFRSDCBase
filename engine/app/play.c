@@ -483,7 +483,7 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
     if (ak_setting_int("AK_DEBUG_SPAWN", 0)) AK_INFO("spawn", "%.1f s: bot %d (team %d) at %.0f %.0f %.0f (game axes %.0f %.0f %.0f)", p->clock, (int)(b - p->bot), b->team, pos[0], pos[1], pos[2], pos[0], -pos[1], -pos[2]);
     ak_char_spawn(&b->ch, pos, yaw);
     b->alive = true; b->dead_t = 0; b->state = PLAY_IDLE; b->clip_t = rnd(&b->seed); b->land_t = 0; b->was_ground = true; b->idle_var = -1; b->idle_t = (rnd(&b->seed) + 0.5f) * 2.5f;
-    b->goal = -1; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
+    b->goal = -1; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->fenemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
     b->stuck_t = 0; memcpy(b->stuck_pos, pos, 12); b->veh = b->want_veh = -1; b->rev_t = 0; b->vstucks = 0; b->veh_cool = 0;
     b->wants_veh = p->bot_drive > 0 && rnd(&b->seed) < p->bot_drive;   /* the spawner's chance (089800C8: random % 100 < +0xEC, 100 by default - 0897E594) */
     ak_target *t = &p->target[1 + idx];
@@ -1431,13 +1431,39 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         f32 ex = en->feet[0] - b->ch.pos[0], ez = en->feet[2] - b->ch.pos[2], el = sqrtf(ex * ex + ez * ez);
         if (el > 1.2f) { mdx = ex / el; mdz = ez / el; moving = true; } else moving = false;
     }
+    /* the attack (traced, PARITY 4.4: order 0x47E, update 08942BBC, states 08943378, the points 08943020): the target point is the
+       target's position; state 0 - farther than 20 m (400 < d^2) approach (1), else hold (2); 1 - a move order 0x480 to the point,
+       ending 20 m from it (+0x70, D_08AED988), the point renewed each 1 s (D_08AED970) when the target has moved more than 2 m;
+       when the move ends, 3 - stand 5 s (D_08AED97C), then 2 - stand while within 25 m (625 < d^2, D_08AED978) of the firing
+       point (+0x34: a navigation point near the target on our side, 0895E3A4 - [assumed] the target point here), else approach.
+       AK_BOT_ATTACK_NODE=1 turns it on for every bot with a target - off by default: when the original gives a soldier this order
+       instead of letting it fire on its way (its trigger runs under any order) is not traced, and on for all it doubles the hits */
+    static int an = -1; if (an < 0) an = ak_setting_int("AK_BOT_ATTACK_NODE", 0);
+    bool attack = an && en && !saber && b->veh < 0;
+    if (attack) {
+        if (b->fenemy != b->enemy) { b->fenemy = b->enemy; b->fstate = 0; b->fstate_t = 0; b->faim_t = 0; memcpy(b->fpoint, en->feet, 12); }
+        f32 dx = b->fpoint[0] - b->ch.pos[0], dy = b->fpoint[1] - b->ch.pos[1], dz = b->fpoint[2] - b->ch.pos[2], d2 = dx * dx + dy * dy + dz * dz;
+        b->fstate_t += dt;
+        switch (b->fstate) {
+        case 0: b->fstate = d2 > 400.0f * S * S ? 1 : 2; b->fstate_t = 0; break;
+        case 1: if ((b->faim_t += dt) > 1.0f) { f32 mx = en->feet[0] - b->fpoint[0], my = en->feet[1] - b->fpoint[1], mz = en->feet[2] - b->fpoint[2];
+                    if (mx * mx + my * my + mz * mz > 4.0f * S * S) memcpy(b->fpoint, en->feet, 12);
+                    b->faim_t = 0; }
+                if (d2 <= 400.0f * S * S) { b->fstate = 3; b->fstate_t = 0; } break;
+        case 3: if (b->fstate_t > 5.0f) { b->fstate = 2; b->fstate_t = 0; } break;
+        default: { f32 hx = en->feet[0] - b->ch.pos[0], hy = en->feet[1] - b->ch.pos[1], hz = en->feet[2] - b->ch.pos[2];
+                   if (hx * hx + hy * hy + hz * hz > 625.0f * S * S) { memcpy(b->fpoint, en->feet, 12); b->fstate = 1; b->fstate_t = 0; b->faim_t = 0; } } break;
+        }
+        if (b->fstate == 1) { f32 hl = sqrtf(dx * dx + dz * dz); if (hl > 1e-3f) { mdx = dx / hl; mdz = dz / hl; moving = true; } }
+        else moving = false;
+    } else b->fenemy = -1;
     if (en) face = atan2f(-(en->feet[0] - b->ch.pos[0]), -(en->feet[2] - b->ch.pos[2]));
     else if (moving) face = atan2f(-mdx, -mdz);
     f32 dyaw = wrap(face - b->ch.yaw), mx = p->cp.yaw_speed * dt;
     b->ch.yaw += dyaw > mx ? mx : dyaw < -mx ? -mx : dyaw;
     /* the stick: toward `want`, relative to the facing; slower and strafing in a fight */
     ak_char_input ci = { 0, 0, 0, 0, false, false, false, { 0, 0 }, 0 };
-    f32 speed = en && !saber ? 0.55f : 1.0f;
+    f32 speed = en && !saber && !attack ? 0.55f : 1.0f;
     /* the path node's wanted speed (0893D4E8): 8.5 m/s (D_08AED88C); 5.0 (D_08AED894) within 40 m (D_08AED890, 3-D) of a soldier of
        the soldier list 0x08C2A880 (harness RS_DRIVE_LIST: every soldier) that is a player (089E3BD4: a player record, +84 != 999;
        either side) or a living enemy (team +12 differs, health +40 > 0, flags +5 and +64 set) - unless the node's byte +41 is set
@@ -1453,7 +1479,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         ci.speed = near ? 5.0f : 8.5f; }
     f32 rx = cosf(b->ch.yaw), rz = -sinf(b->ch.yaw), fx = -sinf(b->ch.yaw), fz = -cosf(b->ch.yaw);
     if (moving) { ci.move_x = (mdx * rx + mdz * rz) * speed; ci.move_y = (mdx * fx + mdz * fz) * speed; }
-    if (en && !saber) {
+    if (en && !saber && !attack) {
         b->strafe_t -= dt;
         if (b->strafe_t <= 0) { b->strafe_t = 0.8f + rnd(&b->seed) * 1.2f; b->strafe = rnd(&b->seed) < 0.5f ? -0.6f : 0.6f; if (rnd(&b->seed) < 0.3f) b->strafe = 0; }
         ci.move_x += b->strafe;
