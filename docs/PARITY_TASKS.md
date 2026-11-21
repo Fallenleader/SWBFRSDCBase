@@ -740,6 +740,16 @@ textures and how they are used. Section R lists only what must be in place so th
     pre-existing loop: a Tie_Interceptor chasing a soldier into the enemy hangar lands, lifts off and is given its role again every
     1.1 s (bot 9 from 51.9 s) - fixed: in space a flyer no longer falls back to soldiers (Aurek's own fallback; [assumed] the
     vehicle sensor holds no soldiers there). Space Hoth 110 s now: 13 runs, 11 combat, 3 landings - the original's 11 / 11 / 2.
+  - 2026-11-21, runs and the patrol. The original's pilot blocks (RS_PILOT_LOG) fly to points for 40-75 s each, attack for 24-103 s;
+    Aurek's runs (AK_DEBUG_BOTVEH) fly at 39 / 49 / 53 m/s (10 / 50 / 90 %) and last 9-35 s a run, its combat bots chase at a median
+    100. The patrol (node 0x485, update 0894B7D8) traced: every 5 s it rolls on the game's random against an edge measure
+    (0894BD4C: the largest |pos - centre| / half-extent of the pilots' box 08A145E4(1), to the 4th power, 0 under 0.125) - a random
+    direction (2r - 1 per axis) or back toward the centre - and flies it at most - (most - least) x 0.5 (D_08AEDB54..68; no box: 1500
+    x 500 x 1500 m about the origin, which Space Hoth uses). Ported for space combat flyers without a target (AK_FLY_PATROL).
+    Space Hoth 110 s: all flyers' speeds 40 / 49 / 73 / 101 / 126 (10 / 25 / 50 / 75 / 90 %; before 40 / 50 / 94 / 101 / 126; the
+    original 10 / 38 / 50 / 72 / 100 / 125 at 10 / 25 / 50 / 75 / 90 / 99) and 14 vehicle hits (9). The patrol node does not call
+    08959780, so RS_PILOT_LOG's two thirds leave its time out. Open: the patrol craft brake slowly (median 92 against the 70 asked);
+    the runs' length; why the original's combat pilots spend less time at top speed.
 
 ## 5. Game rules and modes
 

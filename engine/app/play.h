@@ -100,7 +100,7 @@ typedef struct {                       /* a bot soldier */
     /* what it has seen (traced: the AI sensor 08961A50): an enemy, where it was last seen, how long the record has lived */
     struct { s16 t; f32 age, pos[3]; } mem[16]; u32 nmem; f32 sense_dt;
     /* vehicles: the one it drives (-1 on foot), the one it walks to; getting unstuck; a flyer's attack run */
-    s32 veh, want_veh; bool boost, wants_veh; f32 veh_cool, rev_t, vstuck_t, vstuck_pos[3]; u32 vstucks; f32 att_t, tcool; f32 fly_alt, run_t, feel_t, feel_yaw, feel_pitch; bool feel, near_wall;
+    s32 veh, want_veh; bool boost, wants_veh; f32 veh_cool, rev_t, vstuck_t, vstuck_pos[3]; u32 vstucks; f32 att_t, tcool; f32 fly_alt, run_t, feel_t, feel_yaw, feel_pitch; bool feel, near_wall; f32 pat_t, pat_dir[3]; bool patrol;
     /* space: the commander's role (SPACE_COMBAT, SPACE_RUN, SPACE_LAND) and its objective / leg; leaving the hangar */
     int role, role_leg; s32 role_obj; f32 role_t; int fly_phase; f32 fly_pt[3], fly_t; bool circle; f32 circle_dir[3];
     /* its explosive (0893F1A8 -> 0893679C): the kind (0 thermal, 1 cluster, -1 none), left this life, the cooldown, a throw under way */
@@ -186,7 +186,8 @@ typedef struct {
     ak_conquest_map cq; bool have_cq; int team;   /* command posts; the soldier's team (0 = team 1) */
     ak_cq_rules rules; ak_conquest match; int team_faction[2];
     ak_script script; bool have_script;   /* the level script (game/ak_script.h) */
-    f32 oob_min[3], oob_max[3]; bool have_oob, oob_out; f32 oob_msg_t;   /* the battlefront's bounds (ENTI 0x8021, 089D4BDC): outside - the warning */
+    f32 oob_min[3], oob_max[3]; bool have_oob, oob_out; f32 oob_msg_t;
+    f32 pil_min[3], pil_max[3]; bool have_pil;   /* the AI pilots' box (ENTI 0x8021 with flags byte 1 = 1, 08A145E4(1)): the patrol's (0894B7D8) */   /* the battlefront's bounds (ENTI 0x8021, 089D4BDC): outside - the warning */
     ak_ctf_map ctf_map; ak_ctf ctf; bool have_ctf; s32 flag_model[AK_CTF_MAX], flag_clip[2];   /* flag_clip: flag_Flapping, flag_Flapping_Backattch */   /* capture the flag (AK_MODE CTF1 / CTF2 / HCTF) */
     f32 health, max_health, dead_t; bool alive;
     f32 scale;                         /* soldiers' size relative to the world (AK_SOLDIER_SCALE) */

@@ -818,12 +818,15 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->nturret = 0; p->ntdef = 0; turrets_init(p, l, m, bp);
     {   /* the battlefront's bounds: ENTI class 0x8021 records {1, 0, 0, x min, x max, y min, y max, z min, z max (game axes), flags};
          * flags byte 1 = 0 is the box soldiers and their vehicles are held to (089D4BDC asks 08A145E4(0)); 1 is the AI pilots' (089477A8) */
-        ak_chunk c; u32 pos = 8; p->have_oob = false;
-        while (!p->have_oob && ak_asura_next(&l->file, &pos, &c)) {
+        ak_chunk c; u32 pos = 8; p->have_oob = false; p->have_pil = false;
+        while ((!p->have_oob || !p->have_pil) && ak_asura_next(&l->file, &pos, &c)) {
             if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 48) continue;
-            const u8 *b = c.body; if ((ak_rd32(b + 4) & 0xFFFF) != 0x8021 || b[45] != 0) continue;
+            const u8 *b = c.body; if ((ak_rd32(b + 4) & 0xFFFF) != 0x8021 || b[45] > 1) continue;
             f32 v[6]; for (int k = 0; k < 6; k++) v[k] = ak_rdf32(b + 20 + 4 * k);
             if (!(v[1] > v[0] && v[3] > v[2] && v[5] > v[4])) continue;
+            if (b[45] == 1) { if (!p->have_pil) { p->pil_min[0] = v[0]; p->pil_max[0] = v[1]; p->pil_min[1] = -v[3]; p->pil_max[1] = -v[2]; p->pil_min[2] = -v[5]; p->pil_max[2] = -v[4]; p->have_pil = true;
+                AK_INFO("play", "pilots' box: game x %.0f..%.0f, y %.0f..%.0f, z %.0f..%.0f", v[0], v[1], v[2], v[3], v[4], v[5]); } continue; }
+            if (p->have_oob) continue;
             p->oob_min[0] = v[0]; p->oob_max[0] = v[1]; p->oob_min[1] = -v[3]; p->oob_max[1] = -v[2]; p->oob_min[2] = -v[5]; p->oob_max[2] = -v[4];
             p->have_oob = true;
             AK_INFO("play", "battlefront: game x %.0f..%.0f, y %.0f..%.0f, z %.0f..%.0f", v[0], v[1], v[2], v[3], v[4], v[5]);
@@ -2150,8 +2153,27 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
             for (int k = 0; k < 3; k++) dest[k] += ev->vel[k] * lt;
         }
     }
+    else if (p->is_space && d->kind == AK_VEH_FLYER && b->role == SPACE_COMBAT && ak_setting_int("AK_FLY_PATROL", 1)) {
+        /* GENERAL_COMBAT's patrol (node 0x485, update 0894B7D8): every 5 s, e = (the largest of |pos - centre| / half the extent per
+           axis of the pilots' box, 08A145E4(1); without one 1500 x 500 x 1500 m about the origin)^4, 0 under 0.125 (0894BD4C); a
+           roll r on the game's random: r >= e - a random direction (2r - 1 on each axis), else back toward the centre; flown at the
+           pilot's most - (most - least) x 0.5 */
+        f32 c[3], ext[3];
+        for (int k = 0; k < 3; k++) { c[k] = p->have_pil ? (p->pil_min[k] + p->pil_max[k]) * 0.5f : 0; ext[k] = p->have_pil ? p->pil_max[k] - p->pil_min[k] : (k == 1 ? 500.0f : 1500.0f); }
+        if (!b->patrol) { b->patrol = true; b->pat_t = 0; }
+        if ((b->pat_t -= dt) <= 0) {
+            f32 e = 0; for (int k = 0; k < 3; k++) { f32 q = fabsf(vh->pos[k] - c[k]) / (ext[k] * 0.5f); if (q > e) e = q; }
+            e = e * e * e * e; if (e < 0.125f) e = 0;
+            b->pat_t += 5.0f;
+            if (e <= game_roll(p) * 0.01f) for (int k = 0; k < 3; k++) b->pat_dir[k] = game_roll(p) * 0.02f - 1.0f;
+            else for (int k = 0; k < 3; k++) b->pat_dir[k] = c[k] - vh->pos[k];
+        }
+        f32 l = sqrtf(b->pat_dir[0] * b->pat_dir[0] + b->pat_dir[1] * b->pat_dir[1] + b->pat_dir[2] * b->pat_dir[2]); if (l < 1e-3f) { b->pat_dir[2] = -1; l = 1; }
+        for (int k = 0; k < 3; k++) dest[k] = vh->pos[k] + b->pat_dir[k] / l * 1000.0f;
+    }
     else if (b->goal >= 0) memcpy(dest, p->cq.post[b->goal].pos, 12);
     else { dest[0] = b->hold[0]; dest[1] = b->hold[1]; dest[2] = b->hold[2]; }
+    if (en || ob) b->patrol = false;
     f32 tx = dest[0] - vh->pos[0], ty = dest[1] - vh->pos[1], tz = dest[2] - vh->pos[2], h = sqrtf(tx * tx + tz * tz), dist = sqrtf(h * h + ty * ty);
     if (ob) {                                                                  /* along the objective's three points */
         f32 reach = b->role == SPACE_LAND ? (b->role_leg >= 2 ? 6.0f : 25.0f) : (b->role_leg >= 2 ? 70.0f : 35.0f);
@@ -2259,6 +2281,7 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
         f32 cp = cosf(vh->pitch), mf[3] = { -sinf(vh->yaw) * cp, sinf(vh->pitch), -cosf(vh->yaw) * cp };
         f32 c = dist > 1e-3f ? fmaxf(0.0f, (mf[0] * tx + mf[1] * ty + mf[2] * tz) / dist) : 1.0f, c4 = c * c * c * c;
         f32 top = d->cruise > 0 ? d->cruise : 60.0f, ws = clampf(top * (0.25f + 0.25f * c4), fminf(d->stall_speed, top), top);
+        if (b->patrol) ws = top - (top - fminf(d->stall_speed, top)) * 0.5f;   /* (the patrol's: 0894B7D8) */
         b->boost = false; vh->fast = false;
         if (vh->speed > ws + 2.0f) vh->brake = true;
     } else if (craft && !b->circle && dist < 90.0f) {                        /* on its tail: no faster than it */
