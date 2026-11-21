@@ -589,7 +589,17 @@ int main(int argc, char **argv)
                    board, opens EQUIPMENT AND ATTRIBUTES while play goes on; leaving it takes the loadout at once [assumed] */
                 static f32 tip_t = 0;
                 bool at_own = play.alive && play.in_veh < 0 && play.in_turret < 0 && play.near_post >= 0 && play.have_cq && play.match.post[play.near_post].owner == play.team;
-                if (at_own && !ak_fe_page()) { tip_t -= dt; if (tip_t <= 0) { ak_hud_message(3, 328, NULL, 0); tip_t = 3.0f; } } else tip_t = 0;
+                /* beside a turret our side can man: "\ue813 Use" (STDTEXT 0x47) in the same top box (the original's training, ct25 / ct26:
+                   from the repaired turret on) - and a use zone's prompt there too [assumed: the same box] */
+                u32 use_id = play.use_prompt;
+                if (!use_id && play.alive && play.in_veh < 0 && play.in_turret < 0)
+                    for (u32 i = 0; i < play.nturret && !use_id; i++) { const ak_turret *t = &play.turret[i];
+                        if (!t->alive || !t->def->boardable || t->team != play.team) continue;
+                        f32 dx = t->pos[0] - play.ch.pos[0], dz = t->pos[2] - play.ch.pos[2], r = t->rad + 2.5f;
+                        if (dx * dx + dz * dz < r * r && fabsf(t->pos[1] - play.ch.pos[1]) < 5.0f) use_id = 0x47; }
+                static f32 use_t = 0;
+                if (use_id && !ak_fe_page()) { use_t -= dt; if (use_t <= 0) { ak_hud_message(3, use_id, NULL, 0); use_t = 3.0f; } } else use_t = 0;
+                if (at_own && !ak_fe_page() && !use_id) { tip_t -= dt; if (tip_t <= 0) { ak_hud_message(3, 328, NULL, 0); tip_t = 3.0f; } } else tip_t = 0;
                 if (frame == ak_setting_int("AK_TEST_EQUIP_AT", -1)) { play.want_equipment = true; at_own = true; }   /* (tests) */
                 if (frame == ak_setting_int("AK_TEST_TIP_AT", -1)) ak_hud_message(3, 328, NULL, 0);
                 if (play.want_equipment) { play.want_equipment = false; if (at_own && !ak_fe_page()) ak_fe_open_customisation(); }
@@ -780,7 +790,7 @@ int main(int argc, char **argv)
         if (playing && play.ready) {
             ak_play_draw(&play, &mscene, &models, &vp, &ss);
             {   ak_hud_state hs; memset(&hs, 0, sizeof hs);                     /* the game's HUD (app/hud.c) */
-                hs.alive = play.alive; hs.use_text = play.use_prompt; hs.counter_val = play.counter_val; hs.counter_total = play.counter_total; hs.reticle = play.in_veh < 0 && play.in_turret < 0;
+                hs.alive = play.alive; hs.use_text = 0; hs.counter_val = play.counter_val; hs.counter_total = play.counter_total; hs.reticle = play.in_veh < 0 && play.in_turret < 0;
                 hs.health = play.health; hs.health_max = play.max_health; hs.weapon_name_t = -1; hs.weapon_name = hs.weapon2_name = -1; hs.weapon2_text = -1;
                 if (play.armed && play.weapon.def && play.in_veh < 0 && play.in_turret < 0) {
                     hs.weapon = play.weapon.def->hud_icon; hs.ammo = play.weapon.ammo;

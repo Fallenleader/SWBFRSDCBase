@@ -3320,6 +3320,19 @@ static void script_sink(void *user, const ak_script_msg *m)
             typeof(p->uspawn[0]) *u = &p->uspawn[k];
             if (!u->used && u->bot >= 0) { u->used = true; u->waiting = false; bot_spawn(p, p->mset, &p->bot[u->bot], (u32)u->bot); } break; }
     }
+    if (!done && m->type == 4 && p->nuspawn) {                                /* 4: the spawner's soldier dies - Yavin's group 9 (after cs_tank_entry)
+                                                                                 sends 4 to 18be0-18be3 and in the original all four raised 10006 in that
+                                                                                 frame (groups 8 / 22 / 23 / 24, the counter's 25-28; ct27) */
+        for (u32 k = 0; k < p->nuspawn; k++) if (p->uspawn[k].id == m->target) { done = true;
+            const typeof(p->uspawn[0]) *u = &p->uspawn[k];
+            if (u->bot >= 0 && p->bot[u->bot].alive) {
+                ak_play_bot *b = &p->bot[u->bot]; ak_target *t = &p->target[1 + u->bot];
+                t->health = 0; t->alive = false; t->last_attacker = -1;
+                b->alive = false; b->dead_t = 0; b->state = PLAY_IDLE; b->death_clip = p->death_clips[(s32)(rnd(&b->seed) * 4.0f) & 3];
+                if (p->have_script) ak_script_raise(&p->script, u->ev, u->nev, 10006, u->id, script_sink, p);
+            }
+            break; }
+    }
     if (!done && m->type == 3 && p->nveh) {                                   /* a waiting unit spawner started by the script */
         for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].fixed && p->vspawn[v].eid == m->target) {
             done = true;
@@ -3508,8 +3521,11 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (p->lock < 0 || !p->target[p->lock].alive) {
             f32 best = 0.5f; p->lock = -1; p->lock_t = 0;
             f32 fx = -sinf(p->ch.yaw), fz = -cosf(p->ch.yaw);
+            bool veh_only = p->armed && p->wdef.bp && ak_bp_int(p->wdef.bp, "OnlyLockOnToVehicles", 0);   /* the rocket launcher (STDTEXT 0x1A1 "the
+                                                                                 rocket launcher can only auto lock onto vehicles, not infantry") */
             for (u32 i = 1; i < nt; i++) {
                 if (!p->target[i].alive || p->target[i].team == p->team) continue;
+                if (veh_only && !p->target[i].vehicle) continue;
                 f32 dx = p->target[i].feet[0] - p->ch.pos[0], dz = p->target[i].feet[2] - p->ch.pos[2], d = sqrtf(dx * dx + dz * dz);
                 if (d > p->lock_range || d < 0.5f) continue;
                 f32 c = (dx * fx + dz * fz) / d;
@@ -3807,6 +3823,15 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     }
     /* the bots */
     for (u32 i = 0; i < p->nbots; i++) bot_update(p, m, &p->bot[i], i, dt, NULL);
+    {   const char *tf = ak_setting_str("AK_TEST_FIRE", NULL);              /* tests: "frame:group[;...]" fires script groups (as the harness's RS_FIRE_AT) */
+        if (tf && p->have_script) { char buf[256]; snprintf(buf, sizeof buf, "%s", tf);
+            for (char *t = strtok(buf, ";"); t; t = strtok(NULL, ";")) { unsigned f_, g; if (sscanf(t, "%u:%u", &f_, &g) == 2 && f_ == p->frame_no) {
+                AK_INFO("script", "test: group %u", g); ak_script_fire(&p->script, (s32)g, 0x3E7, script_sink, p); } } } }
+    {   static int dbb = -1; if (dbb < 0) dbb = ak_setting_int("AK_DEBUG_BOTS", 0);   /* tests: each live bot once a second */
+        if (dbb && p->frame_no % 30 == 0) { for (u32 i = 0; i < p->nbots; i++) { const ak_play_bot *b = &p->bot[i]; if (!b->alive) continue;
+            f32 dx = b->ch.pos[0] - p->ch.pos[0], dz = b->ch.pos[2] - p->ch.pos[2];
+            AK_INFO("bots", "%.1f s: bot %u at %.1f %.1f %.1f, %.1f m from the player, enemy %d, goal %d, state %d", p->clock, i, b->ch.pos[0], -b->ch.pos[1], -b->ch.pos[2], sqrtf(dx * dx + dz * dz), b->enemy, b->goal, b->fstate); }
+            AK_INFO("bots", "%.1f s: player health %.1f", p->clock, p->target[0].health); } }
     /* the vehicles */
     for (u32 v = 0; v < p->nveh; v++) {                                      /* each spawn's clock: reset while one of its vehicles stands near */
         ak_play_vspawn *sv = &p->vspawn[v]; if (sv->first != (s32)v) continue;

@@ -1283,6 +1283,11 @@ textures and how they are used. Section R lists only what must be in place so th
     group 28 (8009 to 18be4 after 2 s); 0x61F >= 10 -> 34. Next: the AI's engagement distance in this fight (the troopers' goal
     with no posts - trace the AI's choice for spawner units, 0897E594 / the squad orders), the turret's use tip, then group 28 on
     (18be4: the tank, rocket launcher).
+  - Part 38, 2026-11-21 - **to the rocket launcher.** Group 28 -> 35 -> cs_tank_entry -> 9 (4 kills the trooper spawners' soldiers,
+    3 starts the tank spawner 18bf1, 18c2c waits for the rocket launcher held). The harness's menu steps for the rocket launcher
+    (CT_RL) ran during the second cut-scene in ct28; they are now 850 frames later (--tp 15250 to the post). Next: run CT_RL,
+    then the tank: where 18bf1's tank goes, how many rockets, cs / groups after it; the Pyramid post; the scout. Open: the troopers'
+    damage rate (Aurek ~2.7x), the counter's meaning ("1/4" after all fell).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -256,6 +256,12 @@ def prog_cmpn_train(i, fr):                                                     
         if i in range(11560, 11564) or i in range(11680, 11684): return (CROSS, 128, 128)   #  Special Item) to Weapon 2, X, down, X, circle x2,
         if i in range(11620, 11624): return (DOWN, 128, 128)
         if i in range(11740, 11744) or i in range(11800, 11804): return (CIRCLE, 128, 128)
+        if os.environ.get('CT_RL'):                                           # (CT_RL=1, RS_FIRE_AT=..;14600:28:18beb, --tp ..;15250:-23.74,-6.73,201.0:
+            o = 850                                                           #  after the second cs_tank_entry, ct28) the rocket launcher:
+            if i in range(14500 + o, 14504 + o) or i in range(14560 + o, 14564 + o): return (UP, 128, 128)   #  up (the menu, on Weapon 2), up (Weapon 1), X,
+            if i in range(14620 + o, 14624 + o) or i in range(15160 + o, 15164 + o): return (CROSS, 128, 128)   #  down x8 (BlasterRifle -> Rocket_Launcher), X,
+            if any(i in range(k + o, k + o + 4) for k in range(14680, 15160, 60)): return (DOWN, 128, 128)   #  circle x2
+            if i in range(15220 + o, 15224 + o) or i in range(15280 + o, 15284 + o): return (CIRCLE, 128, 128)
         if i in range(11950, 11954): return (LEFT, 128, 128)                  #  then d-pad left (to weapon 2), cross held (the cutter)
         if i in range(12300, 12304) or i in range(12360, 12364): return (CROSS, 128, 128)   # (--tp ..;12100:-27.5,-6.34,148.1 west of the
         if 12450 <= i < 13050: return (CROSS, 128, 128)                       #  turret, facing it) the page's X, then the cutter held 10 s
