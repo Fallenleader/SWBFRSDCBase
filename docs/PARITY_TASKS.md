@@ -1254,6 +1254,19 @@ textures and how they are used. Section R lists only what must be in place so th
     (objective 0x4), 18bc9 (ring), 18bca (region, group 16 on entry), 18bc4 line -> 0x14 to 18c6a, the jetpack's start (kind 3) ->
     group 15 -> tip 0x94, 3 to 18c2e (type 19, two points -26.29 -17.97 169.42 / -25.86 73.18 169.56, hash 0xB1C2C3FB - not known).
     Next: fly into 18bca's box (the marker 18bc8 up high) and on (group 16 / 17: 18c6a's second hash 0x014A0B0A, 18bcb ..).
+  - Part 35, 2026-11-21 - **past the jetpack: hulls, the region, the terminal.** Type 19 = moving hull (18c2e: down 91 m in 1.00 s,
+    1.43 s after 3 [measured]); the marker 18bc8 sits on the wall top, 18bca's boxes lie past the wall (z < 168.2), so the step is:
+    fly over the wall into the temple (Aurek: AK_TEST_TP 2800 to -24.45,-16.5,167.0; harness --tp 9320 the same) -> group 16 / 17.
+    Group 17 starts the terminal objective 18bcb ("Open the main temple door") and the use zone 18bb8 (0x801F) by the console
+    18bb6 (terminal_console). The original did not take d-pad up in the zone (harness ct19-ct21) - how it is used is open
+    (08A11904 / 089A64F4 / who reads the soldier's zone). Group 5 (the zone's success) -> door cut-scenes 18c28 / 18c29, 18c27 down
+    3 s later, 18bcb done -> group 18: page 0x19A (fusion cutter in WEAPON 2), the line 18bce, 18c2b (kind 4: item 0xDA0CAE3B held).
+    The rest of the training, from STDTEXT 0x19B-0x1A4: repair the damaged turret with the fusion cutter (hold fire beside it, a
+    green meter in the reticle), get in it and beat the stormtroopers, lock onto the tank with the rocket launcher, capture the
+    Pyramid post, change back to a blaster rifle, find and kill the scout. 18d30 (look trigger) fired once in the harness when the
+    player was pushed out of the wall next to its point - its rule is open. Not done: the door's visible model (zigarat_door, a
+    cut-scene actor with zigarat_door_rest_anim / _anim: Aurek draws cut-scene actors only while their scene runs), the objective
+    chevrons.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

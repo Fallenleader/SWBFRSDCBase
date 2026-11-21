@@ -114,6 +114,14 @@ static void vehicle_box(const ak_model_set *m, const ak_vehicle *vh, ak_box *b)
     const f32 *mn, *mx; model_box(m, vh->def->model, &mn, &mx);
     f32 W[12]; ak_vehicle_matrix(vh, W); ak_box_place(b, mn, mx, W);
 }
+static void mover_box(const ak_play *p, u32 k, ak_box *b)   /* a moving hull's box at its place (type 19) */
+{
+    const typeof(p->mover[0]) *mv = &p->mover[k]; f32 x = mv->q.x, y = mv->q.y, z = mv->q.z, w = mv->q.w;
+    f32 W[12] = { 1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w), mv->pos[0],
+                  2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w), mv->pos[1],
+                  2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y), mv->pos[2] };
+    ak_box_place(b, mv->mn, mv->mx, W);
+}
 static void bodies_push(ak_play *p, const ak_model_set *m)
 {
     ak_box me, o; f32 push[3];
@@ -122,9 +130,10 @@ static void bodies_push(ak_play *p, const ak_model_set *m)
         bool flyer = vh->def->kind == AK_VEH_FLYER && vh->flying;
         for (int pass = 0; pass < 2; pass++) {                               /* (a second pass settles a push into another body) */
             vehicle_box(m, vh, &me);
-            for (u32 j = 0; j < NV(p) - 1 + p->nturret; j++) {
+            for (u32 j = 0; j < NV(p) - 1 + p->nturret + p->nmover; j++) {
                 if (j < p->nbots) { if (!p->target[1 + j].alive || p->bot[j].veh >= 0) continue; soldier_box(m, &p->bot[j].look, &p->bot[j].ch, &o); }
                 else if (j < p->nbots + p->nveh) { u32 v = j - p->nbots; if ((s32)v == p->in_veh || !p->veh[v].alive) continue; vehicle_box(m, &p->veh[v], &o); }
+                else if (j >= p->nbots + p->nveh + p->nturret) mover_box(p, j - p->nbots - p->nveh - p->nturret, &o);
                 else { const ak_turret *t = &p->turret[j - p->nbots - p->nveh]; if (!t->alive) continue; const f32 *mn, *mx; model_box(m, t->def->base, &mn, &mx); ak_box_place(&o, mn, mx, t->base); }
                 if (!ak_box_push(&me, &o, push)) continue;
                 if (!flyer) push[1] = 0;                                      /* ground vehicles keep to their own ground handling */
@@ -141,9 +150,10 @@ static void bodies_push(ak_play *p, const ak_model_set *m)
     ak_character *ch = &p->ch;
     for (int pass = 0; pass < 2; pass++) {
         soldier_box(m, &p->look, ch, &me);
-        for (u32 j = 0; j < p->nbots + p->nveh + p->nturret; j++) {
+        for (u32 j = 0; j < p->nbots + p->nveh + p->nturret + p->nmover; j++) {
             if (j < p->nbots) { if (!p->target[1 + j].alive || p->bot[j].veh >= 0) continue; soldier_box(m, &p->bot[j].look, &p->bot[j].ch, &o); }
             else if (j < p->nbots + p->nveh) { u32 v = j - p->nbots; if (!p->veh[v].alive) continue; vehicle_box(m, &p->veh[v], &o); }
+            else if (j >= p->nbots + p->nveh + p->nturret) mover_box(p, j - p->nbots - p->nveh - p->nturret, &o);
             else { const ak_turret *t = &p->turret[j - p->nbots - p->nveh]; if (!t->alive) continue; const f32 *mn, *mx; model_box(m, t->def->base, &mn, &mx); ak_box_place(&o, mn, mx, t->base); }
             if (!ak_box_push(&me, &o, push)) continue;
             if (ak_setting_int("AK_DEBUG_BODY", 0)) AK_INFO("body", "player pushed %.3f %.3f %.3f by body %u", push[0], push[1], push[2], j);
@@ -895,6 +905,36 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 24 || ak_rd32(c.body + 4) != 3) continue;
             char nm[29] = { 0 }; memcpy(nm, c.body + 20, c.size - 20 < 28 ? c.size - 20 : 28);
             for (u32 k = 0; k < p->ncuts; k++) if (!strcmp(nm, p->cuts[k].name)) { p->named[p->nnamed].id = ak_rd32(c.body); p->named[p->nnamed++].cut = (s32)k; break; }
+        }
+    }
+    {   /* moving hulls (unflagged ENTI type 19, class 0x13 - 08860F68; version 4: 7, the closed place, the open place (game axes),
+           the move's length (f32 s), 0xD2, ten zero words, 8 16 0 0, the closed place again, the turn (quaternion), 0, the hull's hash
+           - a SHAP chunk: u32 hash, 3, 9, vertex count, face count, 3 zero words, 0xFFFF000A, 0, the box (x min, x max, y min, y max,
+           z min, z max; game axes), the radius, the vertices, the faces).  Yavin's training: 18c2e, a 30 x 12 x 3 m slab
+           (objects/yavin/zigarat_door_col) over the temple door 18c27 (the same hull) that stops a jetpack over the wall.
+           Measured (harness, RS_DRIVE_ALL): the script's 3 (group 86, the jetpack's tip) - 1.43 s later the slab moves from its first
+           place to its second (91 m down) in a straight line at a steady speed, 1.00 s, and stays.  [assumed: the 1.43 s wait is the
+           class's (not traced); 4 puts it back in its first place at once (the training sends 4 to both at its start, when they are
+           there already)] */
+        ak_chunk c; u32 pos = 8; p->nmover = 0;
+        while (ak_asura_next(&l->file, &pos, &c) && p->nmover < 16) {
+            if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 36 * 4 || ak_rd32(c.body + 4) != 19 || ak_rd32(c.body + 8) != 4) continue;
+            const u8 *b = c.body; u32 h = ak_rd32(b + 4 * 34); bool got = false;
+            typeof(p->mover[0]) *mv = &p->mover[p->nmover]; memset(mv, 0, sizeof *mv);
+            ak_chunk d; u32 q = 8;
+            while (!got && ak_asura_next(&l->file, &q, &d)) {
+                if (ak_chunk_tag(&d) != AK_TAG('S', 'H', 'A', 'P') || d.size < 64 || ak_rd32(d.body) != h) continue;
+                f32 g[6]; for (int k = 0; k < 6; k++) g[k] = ak_rdf32(d.body + 40 + 4 * k);
+                mv->mn[0] = g[0]; mv->mx[0] = g[1]; mv->mn[1] = -g[3]; mv->mx[1] = -g[2]; mv->mn[2] = -g[5]; mv->mx[2] = -g[4];   /* (engine axes) */
+                got = true;
+            }
+            if (!got) continue;
+            f32 a[3], e[3]; memcpy(a, b + 16, 12); memcpy(e, b + 28, 12); ak_from_game(a, mv->p0); ak_from_game(e, mv->p1);
+            memcpy(mv->pos, mv->p0, 12); mv->len = ak_rdf32(b + 40); mv->id = ak_rd32(b);
+            mv->q.x = ak_rdf32(b + 4 * 29); mv->q.y = -ak_rdf32(b + 4 * 30); mv->q.z = -ak_rdf32(b + 4 * 31); mv->q.w = ak_rdf32(b + 4 * 32);
+            if (fabsf(mv->q.x * mv->q.x + mv->q.y * mv->q.y + mv->q.z * mv->q.z + mv->q.w * mv->q.w - 1) > 0.01f) { mv->q.x = mv->q.y = mv->q.z = 0; mv->q.w = 1; }
+            if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "mover %x: %.2f %.2f %.2f -> %.2f %.2f %.2f in %.2f s, hull %08x", mv->id, a[0], a[1], a[2], e[0], e[1], e[2], mv->len, h);
+            p->nmover++;
         }
     }
     p->have_ctf = ak_ctf_load(l, ak_game_mode, &p->ctf_map);                  /* PARITY(5.4) */
@@ -2045,6 +2085,13 @@ static void boom(ak_play *p, const f32 *pos, const ak_bp_object *bp)
 
 static void player_down(ak_play *p);
 static void script_sink(void *user, const ak_script_msg *m);
+static bool look_clear(void *user, const f32 *a, const f32 *b)              /* a look trigger's line (game axes) through the level */
+{
+    const ak_play *p = user; f32 ea[3], eb[3]; ak_from_game(a, ea); ak_from_game(b, eb);
+    f32 d[3] = { eb[0] - ea[0], eb[1] - ea[1], eb[2] - ea[2] }, l = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]); if (l < 0.05f) return true;
+    for (int k = 0; k < 3; k++) d[k] /= l;
+    ak_col_hit h; return !ak_col_raycast(&p->col, ea, d, l - 0.05f, AK_COL_NOT_BODIES, &h);
+}
 static bool script_test(void *user, u32 kind, u32 param);
 static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
 {
@@ -3114,6 +3161,13 @@ static void script_sink(void *user, const ak_script_msg *m)
     else if ((m->type == 2 || m->type == 3 || m->type == 4) && p->nsfx) {
         for (u32 k = 0; k < p->nsfx; k++) if (p->sfx[k].id == m->target) { p->sfx[k].on = m->type == 3; done = true; break; }
     }
+    if (!done && (m->type == 3 || m->type == 4) && p->nmover) {   /* a moving hull: 3 opens it (after 1.43 s), 4 back [assumed] (above) */
+        for (u32 k = 0; k < p->nmover; k++) if (p->mover[k].id == m->target) {
+            typeof(p->mover[0]) *mv = &p->mover[k]; done = true;
+            if (m->type == 3 && !mv->open) { mv->open = true; mv->moving = true; mv->t = 0; mv->wait = 1.43f; }
+            else if (m->type == 4) { mv->open = mv->moving = false; mv->t = 0; memcpy(mv->pos, mv->p0, 12); }
+            break; }
+    }
     if (done) {}
     else if (m->type == 0x14 && m->nextra >= 4 && p->nlisten) {
         u32 h = ak_rd32(m->extra);
@@ -3222,6 +3276,13 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (!p->alive) in = &none;                                               /* down: no control until the spawn wave */
     const ak_input *vin = in;                                                 /* the controls, for the vehicle when driving */
     bool tri = p->alive && (vin->pressed & AK_BTN_TRIANGLE);
+    p->use_prompt = 0;                                                        /* a use zone (0x801F) the player stands in: its prompt; the use
+                                                                                 button (the boarding one: the PSP's d-pad up) uses it first */
+    if (p->have_script && p->alive && p->in_veh < 0 && p->in_turret < 0) {
+        f32 gp[3]; ak_from_game(p->ch.pos, gp);
+        p->use_prompt = ak_script_use(&p->script, gp, tri, script_sink, p);
+        if (p->use_prompt && tri) tri = false;
+    }
     if (tri && p->in_veh < 0 && p->in_turret < 0 && p->have_ctf && ctf_carrying(p, 0)) {
         /* a flag carrier cannot board (08A0AF14: the boarding refusal's reason 2 - "You cannot use this while carrying a flag", STDTEXT
            0x11D; 0x167 in the campaign) [assumed: refused on the press, the text in the tip box as the other refusals] */
@@ -3758,6 +3819,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     for (u32 i = 0; i < p->nboom; i++) p->boom[i].t += dt;
     /* bodies (ak_box.h, traced): the one the local player controls is pushed out of every other soldier's, vehicle's and turret's
      * box; the rest are kinematic - never pushed, and they pass through each other */
+    for (u32 k = 0; k < p->nmover; k++) {                                    /* moving hulls (type 19): the wait, then the straight move */
+        typeof(p->mover[0]) *mv = &p->mover[k]; if (!mv->moving) continue;
+        if (mv->wait > 0) { mv->wait -= dt; continue; }
+        mv->t += dt; f32 u = mv->len > 0 ? mv->t / mv->len : 1; if (u >= 1) { u = 1; mv->moving = false; }
+        for (int c = 0; c < 3; c++) mv->pos[c] = mv->p0[c] + (mv->p1[c] - mv->p0[c]) * u;
+    }
     bodies_push(p, m);
     turrets_update(p, m, dt);
     if (p->have_cq) mobile_posts(p, m);
@@ -3932,7 +3999,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (p->have_script && p->cut >= 0 && (p->cut_t += dt) >= p->cuts[p->cut].len) {   /* the cut-scene's end: its group */
         s32 g = p->cuts[p->cut].group; p->cut = -1; if (g >= 0) ak_script_fire(&p->script, g, 0x3E7, script_sink, p); }
     if (p->have_script) { ak_script_update(&p->script, dt, false, script_sink, p); ak_script_cond(&p->script, script_test, script_sink, p);
-        f32 gp[3]; ak_from_game(p->ch.pos, gp); ak_script_regions(&p->script, p->alive && p->in_veh < 0 ? gp : NULL, script_sink, p); }   /* (ak_from_game is its own inverse: engine -> game) */
+        f32 gp[3]; ak_from_game(p->ch.pos, gp); ak_script_regions(&p->script, p->alive && p->in_veh < 0 ? gp : NULL, script_sink, p);   /* (ak_from_game is its own inverse: engine -> game) */
+        f32 eye[3] = { gp[0], gp[1] - 1.6f, gp[2] }, fw[3] = { -sinf(p->ch.yaw), 0, cosf(p->ch.yaw) };   /* (game axes: the body's facing) */
+        ak_script_look(&p->script, dt, p->alive && p->in_veh < 0 ? eye : NULL, fw, look_clear, script_sink, p); }
     /* conquest: the posts, the tickets, the spawn wave */
     bool wave = false;
     if (p->have_cq) {

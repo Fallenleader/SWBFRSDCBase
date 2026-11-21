@@ -249,7 +249,10 @@ def prog_cmpn_train(i, fr):                                                     
     if i in (8800, 8830): return (0x100, 128, 128)                           # L tap (jump), L tap in the air (the jetpack)
     if 8840 <= i < 8940: return (TRIANGLE, 128, 128)                         # rise 1.7 s, nothing 1 s (hold?), circle 1 s (descend), nothing
     if 9000 <= i < 9060: return (CIRCLE, 128, 128)
-    if i >= 9300 and i < 11300 and (i - 9300) % 120 in (0, 30): return (0x100, 128, 128)   # then a jump + air tap every 2 s (the bar's return)
+    if 10650 <= i < 10662 or 10800 <= i < 10806: return (0, 128, 255)       # (with --tp ..;10600:-38.8,-6.83,163.7, the use box's middle) a short step back
+    if i in range(10700, 10704) or i in range(10850, 10854) or i in range(10900, 11000): return (UP, 128, 128)   #  (toward the console: the soldier turns
+                                                                             #  to it), up tapped, again, then held
+    if os.environ.get('CT_BAR') and i >= 9300 and i < 11300 and (i - 9300) % 120 in (0, 30): return (0x100, 128, 128)   # (CT_BAR=1) then a jump + air tap every 2 s (the bar's return)
     return (0, 128, 128)
 def prog_zoom(i, fr):                                                            # triangle tapped at 2 s, 4 s, 6 s, 8 s (zoom levels in and out)
     return (TRIANGLE if i in range(120, 124) or i in range(240, 244) or i in range(360, 364) or i in range(480, 484) else 0, 128, 128)
@@ -268,6 +271,7 @@ def prog_drive_cam(i, fr):                                                      
     if 360 <= i < 540: return (0, 255, 0)
     if 660 <= i < 780: return (0, 128, 255)
     return (0, 128, 128)
+SHOTS = set(int(x) for x in os.environ.get('CT_SHOTS', '').split(',') if x)   # (CT_SHOTS=i,i,..: keep those step frames)
 PROGRAMS = {'cmpn_train': prog_cmpn_train, 'gc': prog_gc, 'slow_cross': prog_slow_cross, 'gc_overview': prog_gc_overview, 'gc_ai': prog_gc_ai, 'gc_attack': prog_gc_attack, 'gc_tech': prog_gc_tech, 'hero': prog_hero, 'sniper': prog_sniper, 'powerup': prog_powerup, 'detpack': prog_detpack, 'respawn_up': prog_respawn_up, 'respawn': prog_respawn, 'cluster': prog_cluster, 'zoom': prog_zoom, 'drive_cam': prog_drive_cam, 'fly_space_boost': prog_fly_space_boost, 'fly_boost4': prog_fly_boost4, 'fly_boost3': prog_fly_boost3, 'fly_boost2': prog_fly_boost2, 'fly_space': prog_fly_space, 'veh_fire': prog_veh_fire, 'walker': prog_walker, 'fly_climb': prog_fly_climb, 'fly_pitch': prog_fly_pitch, 'fly_boost': prog_fly_boost, 'fly_rl': prog_fly_rl, 'fly': prog_fly, 'fly_tap': prog_fly_tap, 'fly_slow': prog_fly_slow, 'fly_stick': prog_fly_stick, 'board_try': prog_board_try, 'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
 
 def main():
@@ -317,7 +321,8 @@ def main():
                             with open(os.path.join(drv, 'hp.txt'), 'w') as hf:
                                 for e in a.hp: f_, h_ = e.split(':'); hf.write('%d %s\n' % (fr + int(f_), h_))
                         if a.tp:
-                            f_, xyz = a.tp.split(':'); open(os.path.join(drv, 'tp.txt'), 'w').write('%d %s\n' % (fr + int(f_), xyz.replace(',', ' ')))
+                            with open(os.path.join(drv, 'tp.txt'), 'w') as tf:          # F:X,Y,Z[;F:X,Y,Z..]
+                                for e in a.tp.split(';'): f_, xyz = e.split(':'); tf.write('%d %s\n' % (fr + int(f_), xyz.replace(',', ' ')))
                     else:
                         act = menu_actions(scr, a.planet, state)
                         queue = act if act else [(0, 128, 128)] * 3
@@ -325,7 +330,7 @@ def main():
             else:
                 i = fr - start
                 pad = ((int(a.buttons, 16) if a.at <= i < a.until else 0),) + tuple(int(x) for x in a.hold.split(',')) if a.program == 'hold' else PROGRAMS[a.program](i, fr)
-                if a.keep: shutil.copy(img, os.path.join(a.out, 'step_%05d.ppm' % fr))
+                if a.keep or i in SHOTS: shutil.copy(img, os.path.join(a.out, 'step_%05d.ppm' % fr))
                 try: states.write(open(os.path.join(drv, 'state.txt')).read())
                 except OSError: pass
                 if fr - start >= a.frames: open(os.path.join(drv, 'pad.txt'), 'w').write('-1\n'); break

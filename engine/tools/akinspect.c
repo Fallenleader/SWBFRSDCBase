@@ -71,6 +71,8 @@ int main(int argc, char **argv)
     printf("batches    %u (%u objects with geometry, %u object slots), %u overlay triangles\n", g->nbatch, objs, g->nobj, g->overlay_tris);
     ak_model_set ms; u64 t2 = ak_plat_time_us();
     bool mok = ak_models_load(&l, &a, &ms);
+    if (getenv("AK_INSPECT_MODELS")) for (u32 i = 0; i < ms.nmodels; i++)   /* every model: name, mesh hash, lod, parts, skeleton */
+        printf("model %u %s hash %08x lod %u parts %u skel %d radius %.2f\n", i, ms.models[i].name, ms.models[i].hash, ms.models[i].lod, ms.models[i].nparts, ms.models[i].skeleton, ms.models[i].radius);
     if (getenv("AK_INSPECT_FLAGS")) {
         ak_collision cf; if (ak_collision_load(&l, &a, &cf)) for (int bit = 0; bit < 16; bit++) {
             u32 n = 0, surf[16] = { 0 }; for (u32 i = 0; i < cf.ntri; i++) if (cf.tri[i].flags & (1u << bit)) { n++; u32 mm = cf.tri[i].material; surf[mm < 16 ? mm : 15]++; }

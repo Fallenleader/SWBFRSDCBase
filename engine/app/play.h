@@ -225,7 +225,9 @@ typedef struct {
     struct { u32 id, hash[2]; s32 group; bool got[2]; } listen[16]; u32 nlisten;
     struct { u32 id; s32 fx, h; f32 pos[3], dir[3]; bool on; } sfx[48]; u32 nsfx;
     struct { u32 id, ev[4], nev, speech; f32 t; } t62[32]; u32 nt62;    /* ENTI type 62: a speech line (the script's 5 says it; event 12 at its end) */   /* ENTI type 33 effect places the script turns on / off */      /* ENTI type 38: fire a group on message 0x14 with a hash */
-    struct { u32 id; s32 cut; } named[64]; u32 nnamed;                    /* the named objects (type 3) that are cut-scenes */
+    struct { u32 id; f32 p0[3], p1[3], pos[3], len, t, wait; ak_quat q; f32 mn[3], mx[3]; bool moving, open; } mover[16]; u32 nmover;   /* ENTI type 19: a moving hull */
+    struct { u32 id; s32 cut; } named[64]; u32 nnamed;
+    u32 use_prompt;                                                       /* the use zone's prompt (STDTEXT) while the player is in one; 0 none */                    /* the named objects (type 3) that are cut-scenes */
     s32 cut; f32 cut_t; const ak_model_set *mset;
     bool modal, modal_x; f32 modal_t, modal_min;                                    /* a campaign page waiting for X (0x8023 with its flag set) */                                                    /* the cut-scene playing (-1 none), its time */   /* the campaign's player moves (ENTI type 68 -> its type 69 point) */
     bool want_equipment;               /* d-pad up at an own post with no vehicle to board: open the customisation menu */

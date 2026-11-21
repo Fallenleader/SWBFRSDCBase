@@ -36,7 +36,7 @@
 
 typedef struct { u16 type, nextra; u32 target; f32 delay, prob; const u8 *extra; } ak_smsg;
 
-enum { AK_SN_TIMER = 1, AK_SN_SELECTOR = 11, AK_SN_COUNTER = 13, AK_SN_FMV = 28, AK_SN_MUSIC = 31, AK_SN_COND = 0x801C, AK_SN_REGION = 20 };
+enum { AK_SN_TIMER = 1, AK_SN_SELECTOR = 11, AK_SN_COUNTER = 13, AK_SN_FMV = 28, AK_SN_MUSIC = 31, AK_SN_COND = 0x801C, AK_SN_REGION = 20, AK_SN_USE = 0x801F, AK_SN_LOOK = 35 };
 /* the region node (unflagged type 20, made by another loader [the loader not traced]; records read from the data): the node family's
  * groups, then version 4, u32, u32, who (999 the player, 1000 [assumed: anyone]), n boxes { min x, max x, min y, max y, min z, max z
  * (game axes), a rotation quaternion }, then { 1, 0, the mode mask, 0 }.  Active, it succeeds when the player stands in a box
@@ -56,6 +56,8 @@ typedef struct {
     u32 list, mflags;                                                    /* music */
     u32 kind, param; bool was;                                           /* condition (0x801C) */
     f32 *box; u32 nbox, who;                                             /* region: 10 floats a box */
+    u32 use_text; f32 use_pos[3];                                        /* use zone (0x801F): its prompt (STDTEXT), the user's spot */
+    f32 lk_rmax, lk_rmin, lk_cmin, lk_cmax, lk_pt[3], lk_t; u32 lk_flags;   /* look trigger (35): range, cone, its point, the check clock */
 } ak_snode;
 
 #define AK_SCRIPT_QUEUE 100
@@ -95,4 +97,20 @@ typedef bool (*ak_script_test)(void *user, u32 kind, u32 param);
 void ak_script_cond(ak_script *s, ak_script_test test, ak_script_sink sink, void *user);
 /* the region nodes against the player's position (game axes; NULL: no player) */
 void ak_script_regions(ak_script *s, const f32 *pos, ak_script_sink sink, void *user);
+/* The use zones (flagged type 31, class 0x801F, 08A12620): a region's record (the node family's groups, version 4, u32, u32, who, n
+ * boxes) then { 1, the user's spot (game axes), its turn (3 x 3 rows), 999, 0, 0, 999, u32, the prompt (STDTEXT: 0x47 "\ue813 Use"),
+ * 0, 0, mode mask }.  Yavin's 18bb8 (the training's terminal, the console 18bb6 beside it).  Active, with the player in a box: the
+ * prompt's id (returned; 0 none), and `use` (the use button pressed) succeeds it.  [assumed: the prompt shown while inside, the
+ * success on the press; the user's spot and animation not used] */
+u32 ak_script_use(ak_script *s, const f32 *pos, bool use, ak_script_sink sink, void *user);
+/* The look triggers (unflagged type 35, 0886E77C; update 0886E95C): the node family's groups, then version 0 and 72 bytes: f32 the
+ * farthest (+40, 40 m) and nearest (+44, 0) distance, f32 the cone's least and greatest cosine (+52 0.94 / +56 1.0), f32 +60, +64,
+ * a time (+72), f32 +80 (1.0: a second cone about the point's direction, off at 1), u32 +88 (who), +92, the count needed (+96, 1),
+ * the point (+100, game axes), the point's direction (+112), flags (bit 1: a clear line from the object to the point needed).
+ * Active, every 0.2 s (D_08AEBF90; the first after a random part of it) it counts the objects (registry 0x08B28EA4, ids from
+ * 100000, a positive +40) within the distances whose forward axis (third column of their turn) points at the point within the cone
+ * and, with bit 1, see it; enough of them: it succeeds.  Yavin's 18d30 (cs_xwing_crash, 7 m over the temple door).  Here: the
+ * player, facing = `fwd` (game axes), `clear` the line test.  [assumed: the player stands for the registry (it was empty in the
+ * harness while the trigger fired); the time and the other fields not used] */
+void ak_script_look(ak_script *s, f32 dt, const f32 *pos, const f32 *fwd, bool (*clear)(void *user, const f32 *a, const f32 *b), ak_script_sink sink, void *user);
 #endif

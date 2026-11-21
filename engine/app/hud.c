@@ -871,6 +871,8 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     if (elem_clock > 2.0f) elem_clock = 0;
     if (s->post && s->alive && !s->vehicle) capture_panel(s);
     if (!missile_warning(s)) messages(s->dt, s->alive);
+    if (s->use_text && s->alive) { u32 n; const u16 *w = stdtext_get(s->use_text, &n);   /* a use zone's prompt [assumed: white, centred at y 200] */
+        if (w) text16_box(0, 200, 480, 1.0f, 0xFFFFFFFFu, w, n, true, true); }
     if (s->alive) hit_marks(s); else nhits = 0;
     if (s->alive) { target_panel(s); stamina_bar(s); if (!s->vehicle) jet_bar(s); timer(s); ring(s); }
     if (s->tickets) { u32 tc = s->dark ? 0xFF000000u : 0xFFFFFFFFu; tickets(s->tickets_own, s->faction_own, 167.5f, tc, 0xFF0000FFu); tickets(s->tickets_enemy, s->faction_enemy, 312.5f, tc, 0xFFFF0000u); }

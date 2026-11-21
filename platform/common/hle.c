@@ -274,7 +274,7 @@ static void drive_step(int frame){
       if (hf) { int fr; float h; while (fscanf(hf, "%d %f", &fr, &h) == 2) if (fr == frame && rs_drive_health) rs_drive_health(h); fclose(hf); } }   /* (one line per change) */
     { extern void rs_drive_teleport(float, float, float) __attribute__((weak));   /* tests: tp.txt "<frame> x y z" moves the player there */
       snprintf(a, sizeof a, "%s/tp.txt", dir); FILE *tf = fopen(a, "r");
-      if (tf) { int fr; float x, y, z; if (fscanf(tf, "%d %f %f %f", &fr, &x, &y, &z) == 4 && fr == frame && rs_drive_teleport) rs_drive_teleport(x, y, z); fclose(tf); } }
+      if (tf) { int fr; float x, y, z; while (fscanf(tf, "%d %f %f %f", &fr, &x, &y, &z) == 4) if (fr == frame && rs_drive_teleport) rs_drive_teleport(x, y, z); fclose(tf); } }   /* (one line a move) */
     { extern void rs_drive_report(FILE *) __attribute__((weak));        /* the game's state for the driver (game_patches.c) */
       snprintf(a, sizeof a, "%s/state.tmp", dir); FILE *sf = fopen(a, "w"); if (sf) { fprintf(sf, "frame %d\n", frame); if (rs_drive_report) rs_drive_report(sf); fclose(sf); snprintf(b, sizeof b, "%s/state.txt", dir); rename(a, b); } }
     snprintf(a, sizeof a, "%s/frame.txt.tmp", dir); FILE *f = fopen(a, "w"); if (f) { fprintf(f, "%d\n", frame); fclose(f); snprintf(b, sizeof b, "%s/frame.txt", dir); rename(a, b); }
