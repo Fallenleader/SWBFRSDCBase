@@ -738,7 +738,8 @@ textures and how they are used. Section R lists only what must be in place so th
     stream, whose first draws ran high (58.9 twice); the rolls now use the game's shared random as the commander does
     (0899129C; `game_roll`, seed [assumed]): 14 runs, 46 combat, 3 landings in 110 s. The combat count is inflated by a
     pre-existing loop: a Tie_Interceptor chasing a soldier into the enemy hangar lands, lifts off and is given its role again every
-    1.1 s (bot 9 from 51.9 s) - [ ] to fix. Still: Aurek's flyers have a target 87 % of the time (median 100 m/s).
+    1.1 s (bot 9 from 51.9 s) - fixed: in space a flyer no longer falls back to soldiers (Aurek's own fallback; [assumed] the
+    vehicle sensor holds no soldiers there). Space Hoth 110 s now: 13 runs, 11 combat, 3 landings - the original's 11 / 11 / 2.
 
 ## 5. Game rules and modes
 

@@ -2115,7 +2115,10 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
             f32 dx = t->feet[0] - vh->pos[0], dy = t->feet[1] - vh->pos[1], dz = t->feet[2] - vh->pos[2], d2 = dx * dx + dy * dy + dz * dz;
             if (d2 < bd) { bd = d2; best = (s32)i; }
         }
-        if (best < 0) {                                                       /* else soldiers: near the goal post, or near the flyer */
+        /* else soldiers: near the goal post, or near the flyer - Aurek's own fallback, not in space: a flyer chasing a soldier into the
+           enemy hangar landed and lifted off every 1.1 s (GENERAL_COMBAT's target is the vehicle sensor's record; [assumed] it holds no
+           soldiers in space) */
+        if (best < 0 && !(p->is_space && gc && d->kind == AK_VEH_FLYER)) {
             bd = 250.0f * 250.0f;
             const f32 *c = b->goal >= 0 ? p->cq.post[b->goal].pos : vh->pos;
             for (u32 i = 0; i < NS(p); i++) {
