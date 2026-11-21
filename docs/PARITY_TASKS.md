@@ -538,7 +538,9 @@ textures and how they are used. Section R lists only what must be in place so th
     -> 187F0 2.0; Rebels +0x53 01, +0x54 0C -> 187EC 2.0 (the player), 187ED 1.0, 187EE 1.0 - which would put half the Rebels
     elsewhere, so the soldiers' own spawn is likely another path (0898B9F4 is reached from 0898383C only for 0x800D spawners).
     Next: find what spawns conquest AI soldiers (who calls the post spawn 089ED36C: 0898383C, 089A7570, 089D4140) and how it
-    picks the post.
+    picks the post.  089A7570 (a soldier) spawns at the owned, enabled post nearest its own position (089EDB40) - called from
+    089826E8 (a walker spawner's crew); 089D4140 and the AI soldier respawn path are still to read (callers of 089A76EC: the
+    soldier factory, 0895E9B4 / 08974318 / 089F7894 / 08A0CF24 / 08A61EEC).
 - [ ] **4.2 Target selection [traced for soldier bots 2026-11-19].** The AI sensor (vtable 0x08AF96F0; built by 08961784 on the
   base 0892538C; updated every frame by 08961A50; read by 08962DAC from the fire node 0893F364):
   - Sight: 55 m (+32) x a multiplier (+48, 1.0); a cone of +-45 degrees across and vertically (+36/+40/+44 = tan(pi/4),
