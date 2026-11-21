@@ -1155,6 +1155,12 @@ textures and how they are used. Section R lists only what must be in place so th
     enemy's); the button bar (249..272, icons 16 x 16 at 2 / 157 / 296 with labels 0x7F / 0x40 / 0x41). Open: the panel shows
     blue where the original's is green (texture colours or a faction choice); the treasury panel; where the cursor starts
     [assumed: the first own planet]; the sector shapes and halos are not 2D sprites (3D) - next to find.
+  - Part 15, 2026-11-21 - **sector shapes and halos (3D)**: the sectors are SHAP hulls (GC.PSP, four) placed by ENTI type 7 with no
+    mesh - inner outline + outer outline; fill = faces on the inner outline, rim = faces joining the two. Drawn translucent white,
+    blue / red when one side holds the sector [assumed: measured colours]. Halos: 08A4AF9C -> 08A4D00C(1.5, colour, planet, 0):
+    blue (0,0,1) side 0, red (1,0,0) side 1, hidden on neutral; now additive camera-facing squares, half-size 1.5 world units
+    [assumed]. Matches the original's screen (docs/gc_sectors_halos.png). Open: the cursor ring, the star field, planet brightness,
+    the panel colour, phase panels, input and the turn flow.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

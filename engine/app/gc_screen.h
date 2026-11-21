@@ -21,6 +21,9 @@ typedef struct {
     f32 planet_pos[AK_GC_PLANETS][3]; bool planet_known[AK_GC_PLANETS];
     ak_gfx_tex *corona;
     ak_gfx_tex *tex[6];                /* GCT_*: the overlay's atlases and button icons */
+    /* the sector outlines: SHAP hulls placed by ENTI type 7 (no mesh), in world space (engine axes); fill = the triangles, rim = the
+       quads between the inner and outer outline */
+    struct { ak_vtx *fill, *rim; u32 nfill, nrim; int sector; } shape[AK_GC_SECTORS]; int nshape;
     int cursor;                        /* the selected planet */
     int phase;                         /* GALACTICCONQUEST.ASR 0 Treasury, 1 Purchase, 2 Movement, 3 Reinforce */
 } ak_gc_screen;

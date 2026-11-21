@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 
 static ak_arena mem; static bool mem_ok;
 static u16 *gtext[160]; static u32 glen[160], ngtext;
@@ -29,6 +30,75 @@ static void load_text(ak_vfs *vfs)
 }
 const u16 *ak_gc_text(u32 id, u32 *len) { if (id >= ngtext || !gtext[id]) { *len = 0; return NULL; } *len = glen[id]; return gtext[id]; }
 
+/* The sector shapes.  SHAP body (GC.PSP's four): u32 hash, 3, 9, vertex count, face count, 5 zero words, the box (min / max per
+ * axis), the radius, the vertices (game axes, model space; the first half the inner outline, the second half the outer), the faces
+ * (4 x u16; the fourth 0xFFFF = a triangle): the fill joins inner vertices only, the rim joins the two outlines.  Each is placed by an
+ * ENTI type 7 record naming the hash after its position and rotation quaternion (no mesh of that name: the entity loader leaves it
+ * unplaced).  Which sector a shape is: the one whose planets lie nearest its centre. */
+static void qrot(const ak_quat *q, const f32 *v, f32 *o)   /* v' = q v q* */
+{
+    f32 tx = 2 * (q->y * v[2] - q->z * v[1]), ty = 2 * (q->z * v[0] - q->x * v[2]), tz = 2 * (q->x * v[1] - q->y * v[0]);
+    o[0] = v[0] + q->w * tx + q->y * tz - q->z * ty; o[1] = v[1] + q->w * ty + q->z * tx - q->x * tz; o[2] = v[2] + q->w * tz + q->x * ty - q->y * tx;
+}
+static void load_shapes(ak_gc_screen *s, const ak_level *l)
+{
+    static ak_vtx vbuf[4096]; u32 used = 0;
+    const u8 *shp[8]; u32 shp_n[8], nshp = 0; ak_chunk c; u32 pos = 8;
+    while (ak_asura_next(&l->file, &pos, &c))
+        if (ak_chunk_tag(&c) == AK_TAG('S', 'H', 'A', 'P') && c.size >= 68 && nshp < 8) { shp[nshp] = c.body; shp_n[nshp++] = c.size; }
+    pos = 8;
+    while (ak_asura_next(&l->file, &pos, &c) && s->nshape < AK_GC_SECTORS) {
+        if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 48) continue;
+        const u8 *b = c.body; u32 nw = c.size / 4;
+        #define W(i) ak_rd32(b + 4 * (i))
+        #define F(i) ak_rdf32(b + 4 * (i))
+        if (W(1) != 7) continue;
+        for (u32 i = 10; i < nw; i++) for (u32 k = 0; k < nshp; k++) {
+            if (W(i) != ak_rd32(shp[k])) continue;
+            const u8 *h = shp[k]; u32 nv = ak_rd32(h + 12), nf = ak_rd32(h + 16);
+            if (68 + nv * 12 + nf * 8 > shp_n[k] || used + nf * 6 > 4096) continue;
+            f32 gp[3] = { F(i - 8), F(i - 7), F(i - 6) }; ak_quat q = { F(i - 5), -F(i - 4), -F(i - 3), F(i - 2) }; f32 ep[3]; ak_from_game(gp, ep);
+            int si = s->nshape++; f32 cen[3] = { 0, 0, 0 };
+            ak_vtx *fill = vbuf + used; u32 nfill = 0;
+            for (int pass = 0; pass < 2; pass++) {
+                ak_vtx *o = vbuf + used; u32 n = 0;
+                for (u32 f = 0; f < nf; f++) {
+                    const u8 *fp = h + 68 + nv * 12 + f * 8; u16 ix[4]; for (int j = 0; j < 4; j++) ix[j] = (u16)(fp[2 * j] | fp[2 * j + 1] << 8);
+                    bool tri = ix[3] == 0xFFFF, inner = ix[0] < nv / 2 && ix[1] < nv / 2 && ix[2] < nv / 2 && (tri || ix[3] < nv / 2);
+                    if (inner != (pass == 0)) continue;
+                    static const int tri_i[6] = { 0, 1, 2, 0, 2, 3 }; int cnt = tri ? 3 : 6; bool ok = true;
+                    for (int j = 0; j < cnt; j++) ok = ok && ix[tri_i[j]] < nv;
+                    if (!ok) continue;
+                    for (int j = 0; j < cnt; j++) {
+                        const u8 *vp = h + 68 + ix[tri_i[j]] * 12; f32 g[3] = { ak_rdf32(vp), ak_rdf32(vp + 4), ak_rdf32(vp + 8) }, e[3], r[3];
+                        ak_from_game(g, e); qrot(&q, e, r);
+                        ak_vtx *v = &o[n++]; memset(v, 0, sizeof *v);
+                        for (int a = 0; a < 3; a++) { v->pos[a] = r[a] + ep[a]; if (pass == 0) cen[a] += v->pos[a]; }
+                        v->col[0] = v->col[1] = v->col[2] = v->col[3] = 255;
+                    }
+                }
+                if (pass == 0) { fill = o; nfill = n; } else { s->shape[si].rim = o; s->shape[si].nrim = n; }
+                used += n;
+            }
+            s->shape[si].fill = fill; s->shape[si].nfill = nfill;
+            for (int a = 0; a < 3; a++) cen[a] /= nfill ? (f32)nfill : 1.0f;
+            int best = -1; f32 bd = 1e30f;
+            for (int sec = 0; sec < AK_GC_SECTORS; sec++) {
+                f32 m[3] = { 0, 0, 0 }; int np = 0;
+                for (int p = 0; p < AK_GC_PLANETS; p++) if (ak_gc_planet_defs[p].sector == sec && s->planet_known[p]) { for (int a = 0; a < 3; a++) m[a] += s->planet_pos[p][a]; np++; }
+                if (!np) continue;
+                f32 d = 0; for (int a = 0; a < 3; a++) { f32 t = m[a] / (f32)np - cen[a]; d += t * t; }
+                if (d < bd) { bd = d; best = sec; }
+            }
+            s->shape[si].sector = best;
+            if (getenv("AK_GC_DEBUG")) fprintf(stderr, "[GC] shape %d: sector %d (%u fill, %u rim)\n", si, best, nfill, s->shape[si].nrim);
+            i = nw; break;
+        }
+        #undef W
+        #undef F
+    }
+}
+
 bool ak_gc_screen_init(ak_gc_screen *s, ak_vfs *vfs, const ak_level *l, const ak_scene_level *sc, const ak_model_set *ms,
                        const ak_entity_set *ents, const ak_blueprints *bp, u32 seed)
 {
@@ -47,13 +117,12 @@ bool ak_gc_screen_init(ak_gc_screen *s, ak_vfs *vfs, const ak_level *l, const ak
             if (!strcmp(nm, ak_gc_planet_keys[p]) && !s->planet_known[p]) { memcpy(s->planet_pos[p], e->pos, 12); s->planet_known[p] = true; }
     }
     if (nast) { for (int k = 0; k < 3; k++) s->planet_pos[0][k] = ast[k] / (f32)nast; s->planet_known[0] = true; }   /* Alderaan */
+    load_shapes(s, l);
+    { int gs = ak_setting_int("AK_GC_GIVE_SECTOR", -1);           /* (tests: side 0 holds sector n) */
+      if (gs >= 0 && gs < AK_GC_SECTORS) { for (int p = 0; p < AK_GC_PLANETS; p++) if (ak_gc_planet_defs[p].sector == gs && !s->g.planet[p].home) s->g.planet[p].owner = 0; ak_gc_update_sectors(&s->g); } }
+    if (getenv("AK_GC_DEBUG")) for (int i = 0; i < AK_GC_SECTORS; i++) { fprintf(stderr, "[GC] sector %d owner %d:", i, s->g.sector_owner[i]); for (int p = 0; p < AK_GC_PLANETS; p++) if (ak_gc_planet_defs[p].sector == i) fprintf(stderr, " %d", s->g.planet[p].owner); fprintf(stderr, "\n"); }
     s32 ti = ak_level_find_texture(l, "\\graphics\\GUI\\GC_Elements\\GC_Planet_Corona.bmp");
-    s->corona = NULL;
-    if (ti >= 0 && sc->tex && sc->tex[ti]) {          /* an opaque BMP drawn as a glow: its brightness as alpha, white to take the tint */
-        static u32 pal[256]; const ak_texture *t = &l->tex[ti];
-        for (int i = 0; i < 256; i++) { u32 c = t->palette[i], r = c & 255, g = (c >> 8) & 255, b = (c >> 16) & 255, a = r > g ? (r > b ? r : b) : (g > b ? g : b); pal[i] = 0x00FFFFFFu | (a << 24); }
-        s->corona = ak_gfx_texture_palette(sc->tex[ti], t, pal);
-    }
+    s->corona = ti >= 0 && sc->tex ? sc->tex[ti] : NULL;   /* GC_Planet_Corona.bmp: GC's texture 0 (08A4CB34(0)) */
     static const char *const tn[GCT_N] = { "\\graphics\\GUI\\GC_Elements\\GC_Tech_Elements.tga", "\\graphics\\GUI\\GC_Elements\\GC_Tech_Elements_02.tga",
         "\\graphics\\GUI\\PSP_Button_Icons\\button_square.tga", "\\graphics\\GUI\\PSP_Button_Icons\\button_triangle.tga",
         "\\graphics\\GUI\\PSP_Button_Icons\\button_x.tga", "\\graphics\\GUI\\PSP_Button_Icons\\button_select.tga" };
@@ -73,18 +142,51 @@ static bool project(const ak_m4 *vp, const f32 *p, f32 *x, f32 *y)
     *x = (cx / cw * 0.5f + 0.5f) * 480.0f; *y = (0.5f - cy / cw * 0.5f) * 272.0f; return true;
 }
 
+/* fill rgba, rim rgba; the tint is doubled by the frame's colour scale (as the game's vertex colours), so colours are halved.  Read off
+   the original's screen over the dark sky: white fill ~0.28, rim ~0.62; the player's fill ~(0.39, 0.5, 0.95) x 0.35, rim ~(0.27, 0.63,
+   0.92) x 0.7 [assumed: measured, not traced; the enemy's red mirrors the player's blue] */
+static const f32 GC_SEC_WHITE[8] = { 1, 1, 1, 0.28f, 1, 1, 1, 0.62f }, GC_SEC_BLUE[8] = { 0.195f, 0.25f, 0.475f, 0.35f, 0.135f, 0.315f, 0.46f, 0.70f },
+                 GC_SEC_RED[8] = { 0.475f, 0.15f, 0.15f, 0.35f, 0.46f, 0.17f, 0.135f, 0.70f };
 void ak_gc_screen_draw_back(const ak_gc_screen *s, const ak_m4 *vp)
 {
     if (!s->ready) return;
-    ak_hud_2d_begin();
-    /* owner halos: the player's (side 0) blue, the enemy's red, none on neutral planets (the original's screen) [assumed sizes] */
-    for (int p = 0; p < AK_GC_PLANETS; p++) {
-        int o = s->g.planet[p].owner; f32 x, y;
-        if (o == AK_GC_NONE || !s->planet_known[p] || !project(vp, s->planet_pos[p], &x, &y)) continue;
-        f32 r = 20.0f; u32 col = o == 0 ? 0xFF3050FFu : 0xFFFF3030u;
-        if (s->corona) ak_hud_2d_quad(s->corona, x - r, y - r, x + r, y + r, 0, 0, 1, 1, col);
+    (void)vp;
+    /* the sectors: a translucent fill and a brighter rim, white; the side's colour when one side holds the whole sector (the
+       original's screen: the player's blue) [assumed: alphas and colours read off the screen; red for the enemy by symmetry] */
+    ak_gfx_set_transform(NULL);
+    for (int i = 0; i < s->nshape; i++) {
+        int so = s->shape[i].sector >= 0 ? s->g.sector_owner[s->shape[i].sector] : AK_GC_NONE;
+        const f32 *c = so == 0 ? GC_SEC_BLUE : so == 1 ? GC_SEC_RED : GC_SEC_WHITE;
+        f32 tf[4] = { c[0], c[1], c[2], c[3] }, tr[4] = { c[4], c[5], c[6], c[7] };
+        ak_gfx_set_tint(tf); if (s->shape[i].nfill) ak_gfx_draw_immediate(AK_PIPE_BLEND, NULL, s->shape[i].fill, s->shape[i].nfill);
+        ak_gfx_set_tint(tr); if (s->shape[i].nrim) ak_gfx_draw_immediate(AK_PIPE_BLEND, NULL, s->shape[i].rim, s->shape[i].nrim);
     }
-    ak_hud_2d_end();
+    ak_gfx_set_tint(NULL);
+    /* owner halos: the game's flares (08A4CDC8 / 08A4D1C4: one per planet, pool 0x08B44C2C, the corona texture, at the planet's place
+       0x08C2DE40 + 12 p), shown by 08A4AF9C for owned planets once 1.0 <= 0x08B1C848 [assumed: reached at once], size 1.5
+       (0x08AF003C), colour (0, 0, 1) for side 0 and (1, 0, 0) for side 1, none on neutral ones.  Drawn as a camera-facing square of
+       half-size 1.5 world units [assumed: the size is the half-width], additive (the corona BMP is opaque, black outside the glow)
+       [assumed: blend not traced]. */
+    if (!s->corona) return;
+    const f32 *m = vp->m; f32 sx = sqrtf(m[0] * m[0] + m[4] * m[4] + m[8] * m[8]), sy = sqrtf(m[1] * m[1] + m[5] * m[5] + m[9] * m[9]);
+    static ak_vtx v[AK_GC_PLANETS * 6]; u32 n = 0;
+    for (int p = 0; p < AK_GC_PLANETS; p++) {
+        int o = s->g.planet[p].owner; const f32 *q = s->planet_pos[p];
+        if (o == AK_GC_NONE || !s->planet_known[p]) continue;
+        f32 cx = m[0] * q[0] + m[4] * q[1] + m[8] * q[2] + m[12], cy = m[1] * q[0] + m[5] * q[1] + m[9] * q[2] + m[13];
+        f32 cz = m[2] * q[0] + m[6] * q[1] + m[10] * q[2] + m[14], cw = m[3] * q[0] + m[7] * q[1] + m[11] * q[2] + m[15];
+        if (cw <= 0) continue;
+        f32 x = cx / cw, y = cy / cw, z = cz / cw, rx = 1.5f * sx / cw, ry = 1.5f * sy / cw;
+        static const f32 cs[6][2] = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, -1 }, { 1, 1 }, { -1, 1 } };
+        for (int k = 0; k < 6; k++) {
+            ak_vtx *w = &v[n++]; memset(w, 0, sizeof *w);
+            w->pos[0] = x + cs[k][0] * rx; w->pos[1] = y + cs[k][1] * ry; w->pos[2] = z;
+            w->uv[0] = cs[k][0] * 0.5f + 0.5f; w->uv[1] = 0.5f - cs[k][1] * 0.5f;
+            w->col[0] = o == 1 ? 128 : 0; w->col[1] = 0; w->col[2] = o == 0 ? 128 : 0; w->col[3] = 255;   /* 128 = 1.0 (the colour doubling) */
+        }
+    }
+    static const ak_m4 id = { { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 } };
+    if (n) { ak_gfx_set_transform(&id); ak_gfx_draw_immediate(AK_PIPE_ADD, s->corona, v, n); ak_gfx_set_transform(NULL); }
 }
 
 static void txt(int big, f32 x, f32 y, u32 col, u32 id, int align)
