@@ -358,7 +358,10 @@ bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *l)
             bool envs = false;
             for (u32 i = 0; i < last_text.count && !envs; i++) envs = strstr(last_text.names[i], "environments") != NULL;
             ak_material *m; u32 n;
-            if (envs && ak_mtrl_parse(&c, a, &m, &n) && n > 8) { l->mat = m; l->nmat = n; l->env_names = last_text; have_env_mtrl = true; }
+            if (envs && ak_mtrl_parse(&c, a, &m, &n)) {
+                if (n > 8) { l->mat = m; l->nmat = n; l->env_names = last_text; have_env_mtrl = true; }
+                else if (!l->nmat && n) { l->mat = m; l->nmat = n; l->env_names = last_text; }   /* a fallback: GC.PSP's one-material Env (grey.tga) */
+            }
         } else if (tag == AK_TAG('S', 'K', 'Y', 'B') && c.size >= 24 && ((const char *)c.body)[20] == '\\') {
             l->has_sky = true;
             for (int k = 0; k < 3; k++) l->sky_tint[k] = ak_rdf32(c.body + 4 * k);
@@ -397,8 +400,8 @@ bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *l)
             if (bt->material >= l->nmat || !(l->mat[bt->material].flags & AK_MAT_SELF_LIT)) continue;
             for (u32 k = 0; k < bt->count; k++) { ak_vtx *v = &l->geom.vtx[l->geom.idx[bt->first + k]]; if (v->col[0] < 128) v->col[0] = 128; if (v->col[1] < 128) v->col[1] = 128; if (v->col[2] < 128) v->col[2] = 128; }
         }
-    /* GC.PSP (the Galactic Conquest map) has a 44-triangle Env and no environment material list: it loads, its few faces untextured */
-    return have_env && (have_env_mtrl || l->geom.nbatch <= 1);
+    /* GC.PSP (the Galactic Conquest map) has a 44-triangle Env with a one-entry material list: it loads with that */
+    return have_env && (have_env_mtrl || l->nmat > 0);
 }
 
 u32 ak_level_tex_anims(const ak_level *l, ak_arena *a, ak_tex_anim **out)

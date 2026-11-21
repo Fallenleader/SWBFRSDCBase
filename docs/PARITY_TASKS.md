@@ -1119,6 +1119,17 @@ textures and how they are used. Section R lists only what must be in place so th
     planets (BFF_GC_GUI_13-15 Next_Planet 0.39 / 0.79 / 1.57 rad), the 2D overlay drawn by 08A44xxx-08A4Axxx, the pages of
     BFF_GALACTICCONQUEST.GUI (MP_TechPurchase, MP_Quit, MP_Win_*, MP_ConfirmQuit) and BFF_SINGLEPLAYER's MP_GalacticConquest
     (GC_RequestPlayerFaction, FE_StartGalacticConquest).
+  - Part 11, 2026-11-21 - **the original's GC screen captured** (harness `drive.py --route gc --program gc --keep`: Single Player ->
+    Galactic Conquest, cross every 3 s; docs/gc_original_harness.png): loading screen with a hint, then the map seen from above -
+    the galaxy image and stars behind, the planets with red / blue owner halos, the sectors as rounded translucent shapes (the
+    player's sector tinted blue), home planets with a commander badge and a name tag, "PHASE Treasury" / "PHASE Purchase" top
+    left, "CREDITS 630" top right (500 + 80 planets + 50 sector, as ak_gc's rules), the treasury panel (Player / Credits
+    Received / Planets / Sector(s) / Total), a planet panel (name, its credit bonus) and the button bar (Troops Overview, Buy
+    Tech/Comm, End Phase). Aurek: GC.PSP's level camera is ENTI 41 (position 3.11 -47.45 3.39, looking down +y; seen with
+    AK_CAMERA="3.11,47.45,-3.39,3.1416,-1.5707" the layout matches - docs/gc_aurek_vs_original.png); the Env shell is not drawn
+    [assumed: the original's picture shows none]. Open: the map camera's field of view (the original is about 1.5 x closer /
+    narrower), the black clear and star background (stars_4.tga), the halos, sector shapes and every 2D element (08A44xxx-
+    08A4Axxx, gc_elements textures), then the flow.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

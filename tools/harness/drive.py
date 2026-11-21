@@ -26,6 +26,9 @@ def press(b, hold=1, gap=2):
 def menu_actions(screen, planet, state):
     """The button sequence for a recognised menu screen (None: wait)."""
     if screen in ('profile_prompt', 'new_profile'): return press(DOWN) + press(CROSS)        # a fresh profile, default name
+    if screen == 'single_player' and state.get('route') == 'gc':                                   # Galactic Conquest (third item)
+        state['launched'] = True
+        return press(DOWN) + press(DOWN) + press(CROSS)
     if screen in ('difficulty', 'save_choice', 'save_slots', 'profile_saved', 'main_menu', 'single_player', 'mode', 'era'):
         return press(CROSS)
     if screen == 'planet':
@@ -188,6 +191,11 @@ def prog_fly_space_boost(i, fr):                                                
     if 180 <= i < 186 or 420 <= i < 480: b |= RTRIG
     if 900 <= i < 906 or 912 <= i < 1032: b |= RTRIG
     return (b, 128, 128)
+def prog_gc(i, fr):                                                              # (--route gc) after Galactic Conquest: cross every 3 s, the d-pad between
+    k = i // 180; t = i % 180
+    if t < 4: return (CROSS, 128, 128)
+    if 60 <= t < 64 and k >= 3: return (RIGHT, 128, 128)
+    return (0, 128, 128)
 def prog_zoom(i, fr):                                                            # triangle tapped at 2 s, 4 s, 6 s, 8 s (zoom levels in and out)
     return (TRIANGLE if i in range(120, 124) or i in range(240, 244) or i in range(360, 364) or i in range(480, 484) else 0, 128, 128)
 def prog_drive(i, fr):                                                           # (with --tp next to a vehicle) get in, then full forward
@@ -205,13 +213,14 @@ def prog_drive_cam(i, fr):                                                      
     if 360 <= i < 540: return (0, 255, 0)
     if 660 <= i < 780: return (0, 128, 255)
     return (0, 128, 128)
-PROGRAMS = {'hero': prog_hero, 'sniper': prog_sniper, 'powerup': prog_powerup, 'detpack': prog_detpack, 'respawn_up': prog_respawn_up, 'respawn': prog_respawn, 'cluster': prog_cluster, 'zoom': prog_zoom, 'drive_cam': prog_drive_cam, 'fly_space_boost': prog_fly_space_boost, 'fly_boost4': prog_fly_boost4, 'fly_boost3': prog_fly_boost3, 'fly_boost2': prog_fly_boost2, 'fly_space': prog_fly_space, 'veh_fire': prog_veh_fire, 'walker': prog_walker, 'fly_climb': prog_fly_climb, 'fly_pitch': prog_fly_pitch, 'fly_boost': prog_fly_boost, 'fly_rl': prog_fly_rl, 'fly': prog_fly, 'fly_tap': prog_fly_tap, 'fly_slow': prog_fly_slow, 'fly_stick': prog_fly_stick, 'board_try': prog_board_try, 'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
+PROGRAMS = {'gc': prog_gc, 'hero': prog_hero, 'sniper': prog_sniper, 'powerup': prog_powerup, 'detpack': prog_detpack, 'respawn_up': prog_respawn_up, 'respawn': prog_respawn, 'cluster': prog_cluster, 'zoom': prog_zoom, 'drive_cam': prog_drive_cam, 'fly_space_boost': prog_fly_space_boost, 'fly_boost4': prog_fly_boost4, 'fly_boost3': prog_fly_boost3, 'fly_boost2': prog_fly_boost2, 'fly_space': prog_fly_space, 'veh_fire': prog_veh_fire, 'walker': prog_walker, 'fly_climb': prog_fly_climb, 'fly_pitch': prog_fly_pitch, 'fly_boost': prog_fly_boost, 'fly_rl': prog_fly_rl, 'fly': prog_fly, 'fly_tap': prog_fly_tap, 'fly_slow': prog_fly_slow, 'fly_stick': prog_fly_stick, 'board_try': prog_board_try, 'drive_late': prog_drive_late, 'drive_turn': prog_drive_turn, 'drive': prog_drive, 'custom_menu': prog_custom_menu, 'strafe_circle': prog_strafe_circle, 'jump_back': prog_jump_back, 'still_jump_fwd': prog_still_jump_fwd, 'run_jump': prog_run_jump, 'stand_jump': prog_stand_jump, 'hold': None, 'walk_stop': prog_walk_stop, 'half_stick': prog_half_stick, 'strafe_switch': prog_strafe_switch, 'idle': prog_idle, 'walk_forward': prog_walk_forward, 'cross_mash': prog_cross_mash}
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--game', default='/home/claude/gd/GAME')
     ap.add_argument('--bin', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../build/linux64/rs_linux64'))
     ap.add_argument('--planet', type=int, default=3)
+    ap.add_argument('--route', default='ia', choices=['ia', 'gc'], help='ia: Instant Action into a match; gc: Galactic Conquest (the "match" starts at its first screen)')
     ap.add_argument('--team', choices=['auto', 'rebel', 'empire'], default='auto')
     ap.add_argument('--spawn', type=int, default=0, help='spawn list entry (0: the first; space: 1 = the first craft)')
     ap.add_argument('--out', default='/tmp/drive')
@@ -234,7 +243,7 @@ def main():
     for kv in a.env: k, v = kv.split('=', 1); env[k] = v
     log = open(os.path.join(a.out, 'game.log'), 'w')
     p = subprocess.Popen(['xvfb-run', '-a', 'setarch', '-R', os.path.abspath(a.bin)], cwd=a.game, env=env, stdout=log, stderr=log)
-    queue, state, last, start, trace = [], {'team': ['auto', 'rebel', 'empire'].index(a.team), 'spawn': a.spawn}, -1, None, open(os.path.join(a.out, 'trace.txt'), 'w')
+    queue, state, last, start, trace = [], {'team': ['auto', 'rebel', 'empire'].index(a.team), 'spawn': a.spawn, 'route': a.route}, -1, None, open(os.path.join(a.out, 'trace.txt'), 'w')
     states = open(os.path.join(a.out, 'state.log'), 'w')        # every step after the match starts: "frame N" then the units
     try:
         while p.poll() is None:
