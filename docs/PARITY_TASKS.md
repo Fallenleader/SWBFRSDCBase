@@ -1137,6 +1137,13 @@ textures and how they are used. Section R lists only what must be in place so th
     Textures for the overlay in GC.PSP: GC_Planet_Corona.bmp (the halos), GC_Counter_Icons, GC_Tech_Elements(_02/_03),
     GC_Alliance / Empire_Commanders (+ _Greys), the PSP button icons; stars_4.tga for the star field. Open: the sector shapes
     (no texture - drawn by code), halos, the 2D panels and text, the stars.
+  - Part 13, 2026-11-21 - **GC overlay, first slice** (engine/app/gc_screen.{h,c}, drawn on the viewer's "GC" level): a new game
+    (AK_SEED, AK_GC_FACTION) and the player's first treasury; the planets' places from the level's placed planet models
+    (Alderaan = its asteroids' mean); owner halos from GC_Planet_Corona.bmp (its brightness as alpha, blue for the player, red
+    for the enemy, behind the models) [assumed: 20 px radius, colours read off the screen]; the header "PHASE <phase>" and
+    "CREDITS n" from TEXT/GALACTICCONQUEST.ASR (0x37, 0x00-0x03, 0x35). The panel primitive 08A4A868 is a switch over ~40 panel
+    kinds, each a UV rectangle of the gc_tech_elements atlases (constants 0x08AEFF14..0x08AF001C) - next to port, with the
+    treasury panel 08A4656C, the sector shapes, name tags, home badges, the button bar and the phases' input.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

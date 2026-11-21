@@ -16,6 +16,7 @@
 #include "play.h"
 #include "../audio/ak_audio.h"
 #include "hud.h"
+#include "gc_screen.h"
 #include "frontend.h"
 #include "../audio/ak_speech.h"
 #include "../platform/plat.h"
@@ -30,6 +31,7 @@
 typedef struct { char path[128]; char label[64]; } level_ref;
 static level_ref levels[96];
 static int nlevels;
+static ak_gc_screen *gc_screen;                 /* the Galactic Conquest map's state and overlay (the "GC" level) */
 
 static void find_levels(ak_vfs *v, ak_arena *tmp)
 {
@@ -221,6 +223,10 @@ int main(int argc, char **argv)
             if (!ak_models_load(&level, &lvl, &models) || !ak_scene_models_init(&mscene, &models, &scene, &lvl)) AK_WARN("aurek", "models did not load");
             fe_models = &models; fe_mscene = &mscene; fe_play = &play;
             ak_entities_load(&level, &models, &lvl, &ents);
+            if (!strcmp(levels[cur].label, "GC")) {   /* the Galactic Conquest map: a new game, the player's first treasury */
+                static ak_gc_screen gcs_; ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, (u32)ak_setting_int("AK_SEED", 1));
+                gcs_.g.turn = 0; ak_gc_collect(&gcs_.g, &gcs_.r, 0); gcs_.phase = 0; gc_screen = &gcs_;
+            } else gc_screen = NULL;
             if (ak_setting_int("AK_DUMP_SMSG", 0)) {   /* tests: the level script's messages (SMSG: groups of u16 type, u16 extra, u32 target, ...) */
                 u32 pos = 8; ak_chunk c;
                 while (ak_asura_next(&level.file, &pos, &c)) {
@@ -641,6 +647,7 @@ int main(int argc, char **argv)
         /* the GC map: its Env (a grey 44-triangle shell around the galaxy) is not in the original's picture (harness, 2026-11-21:
            stars and the galaxy behind the planets) [assumed: not drawn] */
         if (strcmp(levels[cur].label, "GC")) ak_scene_level_draw(&scene, &vp, &ss);
+        else if (gc_screen) ak_gc_screen_draw_back(gc_screen, &vp);
         u32 ents_drawn = 0;
         if (show_ents && bindm) {
             ak_frustum fr = ak_frustum_from(&vp);
@@ -938,6 +945,7 @@ int main(int argc, char **argv)
 
             }
         }
+        if (gc_screen && !strcmp(levels[cur].label, "GC")) ak_gc_screen_draw(gc_screen, &vp);
         ak_gfx_end(&gs);
         {   f32 lp[3] = { cam.pos.x, cam.pos.y, cam.pos.z }; ak_audio_listener(lp, cam.yaw); }
         if (dumpf) {                                                          /* (tests: the mix, frame by frame, as a WAV file) */
