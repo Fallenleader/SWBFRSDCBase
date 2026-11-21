@@ -717,6 +717,11 @@ textures and how they are used. Section R lists only what must be in place so th
     (155 off) - too still against the original's 0 / 0.08 / 2.2 / 5.0 / 8.2 and 176 hits: the original's soldiers also fire on
     their way under other orders (the trigger node runs under any order). Left off by default until the order's choice is traced
     (who gives 0x47E: the squad / goal logic).
+    Read on: 0x47E is started only by node 0x44D (built by 089435A4; update 08943644, states 089437D8): state 1 runs child 0x47F
+    and switches to 2 (child 0x47E, the attack) as soon as the sensor has a record (0895FEF8), back to 1 when it has none. 0x44D is
+    started only by goal 0x41F (built by 0894EE6C; 0894EEFC: its state 3 starts 0x44D, and states 2 and up lead to 3) and by the
+    factory 0895A97C. So soldiers attack - approach and hold - only under goal 0x41F; which goal that is (its name) and how often the
+    squads give it (against "go to the post" goals, under which they fire on their way) is next, with the 0x47F child.
 - [x] **4.5 Bot counts per mode and level [traced 2026-11-21].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source
