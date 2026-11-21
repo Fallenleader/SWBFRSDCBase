@@ -702,6 +702,13 @@ textures and how they are used. Section R lists only what must be in place so th
     positions every 0.1 s, 2.5 min, 154 hits): 0.42 / 0.85 / 2.7 / 4.3 / 7.1 - the same middle, but Aurek's fighters never stand
     fully still (its own 0.55 strafe drift) and run a little slower at the top. Next: trace what the original's fight node does
     with the move vector (stand while shooting?).
+  - 2026-11-21, the soldiers' attack node read (order 0x47E: built by 08942834, its trigger record 40 m / 7.5 degrees by 089428DC,
+    update 08942BBC, state switch 08943378; the target is the sensor's best record, its id at controller +0x100): state 0 measures
+    the way to the fight point (+0x28) against 400 (20 m) and goes to 1 or 2 (the compare is VFPU code - which way is not read);
+    state 1 runs a child move order 0x480 to the point with +0x70 = 20 m (D_08AED988, 0894483C), and every 1 s (D_08AED970)
+    moves the point when the target has moved more than 2 m (4 = 2^2, D_08AED974; 08944AEC); state 2 measures the way back to
+    +0x34 against 625 (25 m); state 3 waits 5 s (D_08AED97C); 4 ends. So a fighting bot closes to within 20 m of its target and
+    holds - the standing quarter measured above. To port: the 0x480 node (0894434C family) and the VFPU compares' directions.
 - [x] **4.5 Bot counts per mode and level [traced 2026-11-21].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source
