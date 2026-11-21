@@ -45,6 +45,8 @@ static void find_levels(ak_vfs *v, ak_arena *tmp)
             nlevels++;
         }
     }
+    /* the Galactic Conquest map (5.4): ENVS/GC.PSP - the galaxy, the planets and Alderaan's asteroids as placed models */
+    if (nlevels < (int)AK_ARRAY_LEN(levels)) { snprintf(levels[nlevels].path, sizeof levels[nlevels].path, "PSP_GAME/USRDIR/ENVS/GC.PSP"); snprintf(levels[nlevels].label, sizeof levels[nlevels].label, "GC"); nlevels++; }
 }
 
 typedef struct { ak_v3 pos; f32 yaw, pitch; } camera;

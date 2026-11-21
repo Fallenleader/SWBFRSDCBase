@@ -1110,6 +1110,15 @@ textures and how they are used. Section R lists only what must be in place so th
     attacks the player, the player picks fight / auto-resolve (sub-state 3 waits on the pad); the GC screens; the GC game flow in
     the front end (new game, turns, battles started from the map, results back, saving); [assumed] a planned troop buy on a full
     planet is skipped (the game's press fails there - whether the AI then loops was not checked).
+  - Part 10, 2026-11-21 - **the GC map is a level**: FE_StartGalacticConquest (08A2EE38, registered by 08A29690) calls 08A3C574 and
+    switches the game to state 6; the map scene is ENVS/GC.PSP: ENTI type 7 placed models - Galaxy (-1.1 17.1 2.0, game axes), the
+    15 planets by name hash (the same hashes as 08AE4DC0), Alderaan as Asteroid_02 pieces, Geonosis_Ring - and an ENTI 0x29 (a
+    camera? floats 3.11 / -47.4 / 3.39 ...), plus hero / ship models (ObiWanEp3, jangofett, Slave_1) and their clips. Aurek now
+    loads GC.PSP (label "GC"; the file has a 44-triangle Env and no environment material list, which the loader accepted only as
+    a failure before). Open: it draws as a white screen (the untextured Env faces / fog); the map camera and its moves between
+    planets (BFF_GC_GUI_13-15 Next_Planet 0.39 / 0.79 / 1.57 rad), the 2D overlay drawn by 08A44xxx-08A4Axxx, the pages of
+    BFF_GALACTICCONQUEST.GUI (MP_TechPurchase, MP_Quit, MP_Win_*, MP_ConfirmQuit) and BFF_SINGLEPLAYER's MP_GalacticConquest
+    (GC_RequestPlayerFaction, FE_StartGalacticConquest).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

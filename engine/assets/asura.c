@@ -397,7 +397,8 @@ bool ak_level_parse(const ak_blob *file, ak_arena *a, ak_level *l)
             if (bt->material >= l->nmat || !(l->mat[bt->material].flags & AK_MAT_SELF_LIT)) continue;
             for (u32 k = 0; k < bt->count; k++) { ak_vtx *v = &l->geom.vtx[l->geom.idx[bt->first + k]]; if (v->col[0] < 128) v->col[0] = 128; if (v->col[1] < 128) v->col[1] = 128; if (v->col[2] < 128) v->col[2] = 128; }
         }
-    return have_env && have_env_mtrl;
+    /* GC.PSP (the Galactic Conquest map) has a 44-triangle Env and no environment material list: it loads, its few faces untextured */
+    return have_env && (have_env_mtrl || l->geom.nbatch <= 1);
 }
 
 u32 ak_level_tex_anims(const ak_level *l, ak_arena *a, ak_tex_anim **out)
