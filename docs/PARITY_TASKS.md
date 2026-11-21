@@ -781,7 +781,7 @@ textures and how they are used. Section R lists only what must be in place so th
   - 2026-11-21, settled: the path node 0893D4E8 does not stop for a target - its only early returns are a soldier riding
     something (its id found in the list D_08C2A6C8 with 089DD858: +0x58 -> +0x38 set) and no health. The original's standing
     measured again (harness Hoth 2.5 min, state.log soldiers, player left out): 29 % of 0.5 s samples, and a third of it is a
-    few long waits - 98 s beside the vehicle at (-168, 174) (class 0x8004), 70 s and 30 s at (262, 12), 19 s, 15 s; without
+    few long waits - 98 s beside the vehicle at (-168, 174) (class 0x8004), 70 s and 30 s at (262, 12) (beside Hoth's AT-ST, centre 261.98, 13.97), 19 s, 15 s; without
     waits over 10 s the original is 0 / 2.67 / 5.0 / 8.5 / 8.5 m/s (20 % standing) against Aurek's squads 0.28 / 2.6 / 6.2 /
     8.3 / 8.4 - the lower quartile now matches. What is left: the long waits (a soldier sent to a vehicle it never boards - the
     order 0x8037 has no time limit; Aurek keeps the vehicle's reach and gives up when the seat is taken) and the 5.0 m/s mode
