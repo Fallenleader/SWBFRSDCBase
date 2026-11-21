@@ -225,6 +225,14 @@ void rs_drive_report(FILE *f){
             fprintf(f, "squad %08x team %u b50 %02x %02x %02x %02x b54 %02x n %u total %.2f:", o, GU32(o + 0x4C), GU8(o + 0x50), GU8(o + 0x51), GU8(o + 0x52), GU8(o + 0x53), GU8(o + 0x54), GU32(o + 0x58), GF32(o + 0x5C));
             for (u32 i = 0; i < n; i++) fprintf(f, " %x:%u/%.2f", GU32(o + 0x60 + 4 * i), GU32(o + 0x80 + 4 * i), GF32(o + 0xA0 + 4 * i));
             fprintf(f, "\n"); } }
+    if (getenv("RS_DRIVE_SPAWNERS")) {   /* the unit spawners (registry 0x08C2C664: 0x800D family): team +0x58, post +0x68, timer +0xA8, unit +0x1C */
+        const char *ra = getenv("RS_DRIVE_SPAWNERS"); u32 rg = ra[0] == '0' ? (u32)strtoul(ra, 0, 16) : 0x08C29FC4u;   /* (=1: the 0x800D registry; or an address) */
+        u32 lb = GU32(IMG(rg)), ln = GU32(IMG(rg + 4));
+        fprintf(f, "spawners");
+        if (gok(lb) && ln && ln <= 4096) for (u32 bi = 0; bi < ln; bi++) for (u32 nd = GU32(lb + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
+            u32 o = GU32(nd); if (!gok(o)) continue;
+            fprintf(f, " %x:t%u/p%x/%.1f/u%x/c%x", GU32(o + 4), GU32(o + 0x58), GU32(o + 0x68), GF32(o + 0xA8), GU32(o + 0x1C), GU16(o + 0xE4)); }
+        fprintf(f, "\n"); }
     if (getenv("RS_DRIVE_LIST")) {   /* RS_DRIVE_LIST=addr: a registry like 0x08C2C200 (buckets, count): each entry's id and class */
         u32 la = (u32)strtoul(getenv("RS_DRIVE_LIST"), 0, 16), lb = GU32(IMG(la)), ln = GU32(IMG(la + 4));
         fprintf(f, "list %08x", la);

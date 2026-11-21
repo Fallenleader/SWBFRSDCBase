@@ -407,12 +407,13 @@ static void ai_hold(ak_play *p, ak_play_bot *b, u32 idx, int slot)
 static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx)
 {
     f32 pos[3], yaw = 0;
-    /* the post: on the player's side, the owned post nearest the player - measured on Hoth (harness: every Rebel bot of the first
-       waves spawned at the hangar post where the player stood; the team's spawn manager weights a post within 25 m of the player
-       +2.0, 0898ABFC, more than any post's own weight there) [assumed: the rule that picks it - the manager's draw 0898B9F4 was not
-       used for those bots]; the other side as before (random owned post, or the nearest to the bot half the time) [assumed] */
-    bool mine = b->team == p->team && ak_setting_int("AK_BOT_SPAWN_NEAR_PLAYER", 1);
-    if (!(p->have_cq && spawn_spot_at(p, b->team, mine ? p->ch.pos : b->ch.pos, mine, &b->seed, pos, &yaw))) {
+    /* the post (0898383C): the soldier's spawner's post (+0x68), else the team spawn manager's draw (0898B9F4).  Read live on Hoth
+       (harness RS_DRIVE_SPAWNERS): the player's side's spawners take the player's spawn post (the player spawner 0x3E8's, 187EC)
+       when their soldier comes in, the other side's keep 999 and draw [assumed: the draw's weights are not ported - a random
+       owned post, or the nearest to the bot half the time]. */
+    bool mine = b->team == p->team && p->player_post >= 0 && (u32)p->player_post < p->cq.nposts && p->match.post[p->player_post].owner == p->team &&
+                ak_setting_int("AK_BOT_SPAWN_NEAR_PLAYER", 1);
+    if (!(p->have_cq && spawn_spot_at(p, b->team, mine ? p->cq.post[p->player_post].pos : b->ch.pos, mine, &b->seed, pos, &yaw))) {
         /* no post to spawn at: a navigation node near the player's start */
         if (!p->have_nav || !p->nav.nnode) return;
         u32 n = (u32)(rnd(&b->seed) * p->nav.nnode) % p->nav.nnode; memcpy(pos, p->nav.node[n].pos, 12);
@@ -591,6 +592,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         if (p->have_cq && td > 0 && (u32)td <= p->cq.ndroid) { memcpy(sp, p->cq.droid[td - 1].pos, 12); sp[0] += 3.0f; sp[1] += 1.0f; post = 0; } }
     {   int tp = ak_setting_int("AK_TEST_AT_POST", 0);                      /* tests: start on command post N */
         if (p->have_cq && tp > 0 && (u32)tp <= p->cq.nposts) { memcpy(sp, p->cq.post[tp - 1].pos, 12); post = tp - 1; } }
+    p->player_post = post;
     if (post < 0 && p->have_nav) { s32 n = ak_nav_nearest(&p->nav, start, 1e6f); if (n >= 0) memcpy(sp, p->nav.node[n].pos, 12); }
     if (ak_char_ground_below(&p->col, sp, 50.0f, &gy)) sp[1] = gy;
     {   /* tests against the original (tools/harness): AK_TEST_SPAWN = gx,gy,gz,fx,fz - the start and facing in game axes, as the
@@ -3161,6 +3163,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (ok) {
                 hero_unmake_player(p, m);
                 ak_char_spawn(&p->ch, sp, syaw); p->alive = true; p->health = p->max_health; p->dead_t = 0; p->state = PLAY_IDLE; p->clip_t = 0;
+                if (p->have_cq) { f32 bd = 1e30f; p->player_post = -1;       /* (the post it came in at: the nearest owned one) */
+                    for (u32 i = 0; i < p->cq.nposts; i++) { if (p->match.post[i].owner != p->team) continue; const f32 *q = p->cq.post[i].pos; f32 dx = q[0] - sp[0], dz = q[2] - sp[2];
+                        if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; p->player_post = (s32)i; } } }
                 p->target[0].alive = true; p->target[0].health = p->max_health; p->target[0].last_attacker = -1;
                 if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
                 p->stamina = p->stamina_max; p->stamina_spent = false;   /* a new soldier */

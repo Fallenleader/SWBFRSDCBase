@@ -547,6 +547,8 @@ textures and how they are used. Section R lists only what must be in place so th
     (08974318 is the heroes', 08A0CF24 / 089826E8 a unit spawner's crew).
     The trickle, found 2026-11-21: each AI soldier's unit spawner (0x800D family) times it at 5-15 s (0897F158) from the start
     and from each fall - ported (AK_BOT_SPAWN_DELAY).  Still open: the other side's post.
+    Spawners read live (RS_DRIVE_SPAWNERS): the player's side's take the player's spawn post (ported: p->player_post); the
+    other side's draw from the manager (0898B9F4) - its +0x53 / +0x54 masks' source is the open part.
 - [ ] **4.2 Target selection [traced for soldier bots 2026-11-19].** The AI sensor (vtable 0x08AF96F0; built by 08961784 on the
   base 0892538C; updated every frame by 08961A50; read by 08962DAC from the fire node 0893F364):
   - Sight: 55 m (+32) x a multiplier (+48, 1.0); a cone of +-45 degrees across and vertically (+36/+40/+44 = tan(pi/4),
