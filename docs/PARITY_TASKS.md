@@ -657,6 +657,9 @@ textures and how they are used. Section R lists only what must be in place so th
     (harness state.log, class 0x8004, nearest-enemy distances over time).
   - 2026-11-21: GENERAL_COMBAT's target choice and timing ported (NATIVE_ENGINE row): 40 hits.  Open: what the patrol node 0x485
     does (08945A68 family), the sensor's record +8, and the remaining gap to 160 (the original's pairings not measured yet).
+  - 2026-11-21, measured: the original 203 flyer hits / 110 s, 16 pairs, median 391 m; Aurek's trigger held ~18 s in all.  Lead and
+    body boxes ported.  Next: the pursuit (08948A9C FOLLOWING: how it steers - 08959914 / 08959B7C / 08959780 / 08959CC8) to get
+    the time on target up.
 
 ## 5. Game rules and modes
 

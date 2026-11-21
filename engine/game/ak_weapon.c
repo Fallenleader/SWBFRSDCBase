@@ -1,5 +1,6 @@
 /* Aurek - weapons and laser bolts (see ak_weapon.h) */
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 #include "game/ak_weapon.h"
 #include "audio/ak_audio.h"
@@ -93,6 +94,20 @@ static s32 ray_targets(ak_target *tg, u32 n, const f32 *o, const f32 *d, f32 max
     s32 best = -1; f32 bt = max;
     for (u32 i = 0; i < n; i++) {
         ak_target *T = &tg[i]; if (!T->alive || (team >= 0 && T->team == team)) continue;
+        if (T->boxed) {                                                    /* the body box: a slab test in its frame */
+            f32 lo = 0, hi = bt; bool in = true;
+            for (int k = 0; k < 3 && in; k++) {
+                f32 oc = (o[0] - T->box_c[0]) * T->box_ax[k][0] + (o[1] - T->box_c[1]) * T->box_ax[k][1] + (o[2] - T->box_c[2]) * T->box_ax[k][2];
+                f32 dd = d[0] * T->box_ax[k][0] + d[1] * T->box_ax[k][1] + d[2] * T->box_ax[k][2];
+                if (fabsf(dd) < 1e-9f) { if (fabsf(oc) > T->box_h[k]) in = false; continue; }
+                f32 t1 = (-T->box_h[k] - oc) / dd, t2 = (T->box_h[k] - oc) / dd; if (t1 > t2) { f32 x = t1; t1 = t2; t2 = x; }
+                if (t1 > lo) lo = t1;
+                if (t2 < hi) hi = t2;
+                if (lo > hi) in = false;
+            }
+            if (in && lo > 0 && lo < bt) { bt = lo; best = (s32)i; *head = false; }
+            continue;
+        }
         /* head sphere */
         f32 oc[3] = { o[0] - T->head[0], o[1] - T->head[1], o[2] - T->head[2] };
         f32 b = oc[0] * d[0] + oc[1] * d[1] + oc[2] * d[2], c = oc[0] * oc[0] + oc[1] * oc[1] + oc[2] * oc[2] - T->head_radius * T->head_radius, disc = b * b - c;
@@ -196,6 +211,8 @@ void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *tg, u32 nt
         if (ti >= 0) {
             {   f32 k = tg[ti].local && o->ai ? o->vs_local * (tg[ti].elite > 0 ? tg[ti].elite : 1.0f) : 1.0f;   /* (089E1FDC: an AI's shot at the local player takes Modifier_Bot_Damage) */
                 hurt(&tg[ti], o->damage * k, o->damage_vehicle * k, head, o->headshots, o->dir, o->owner); }
+            {   static int lg = -1; if (lg < 0) lg = getenv("AK_LOG_VEH_HITS") != NULL;   /* tests: each hit on a vehicle, the shot's range */
+                if (lg && tg[ti].vehicle) AK_INFO("vhit", "owner %d target %d at %.0f m, %.1f", o->owner, ti, o->travelled + tt, o->damage_vehicle); }
             ak_col_hit fake; for (int k = 0; k < 3; k++) { fake.pos[k] = o->pos[k] + o->dir[k] * tt; fake.normal[k] = -o->dir[k]; }
             fake.material = 0xFFFF; impact(b, &fake, o->colour, true, tg[ti].vehicle ? o->shield_pfx : NULL);   /* [assumed] soldiers: none */ step = tt; dead = true;
         } else if (wall) { impact(b, &h, o->colour, false, o->impact_pfx); dead = true; }

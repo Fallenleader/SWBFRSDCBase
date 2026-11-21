@@ -90,6 +90,8 @@ typedef struct {
     bool last_quiet;                   /* that hurt came from a kind the soldiers' Sniper / Friendly calls ignore (func 089E22BC's list) */
     u32 hits, headshots;
     f32 last_hit_dir[3];
+    bool boxed; f32 box_c[3], box_ax[3][3], box_h[3];   /* a body box (centre, unit axes, half extents): shots test it instead of the
+                                        * capsule - vehicles, whose physics body is their model's box (ak_box.h) */
 } ak_target;
 
 /* the weapon a soldier of `faction` gets for `name` (the faction rule above); false = no such weapon */

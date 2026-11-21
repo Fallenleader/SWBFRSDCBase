@@ -1881,6 +1881,13 @@ static void bot_vehicle_gun(ak_play *p, const ak_model_set *m, ak_play_bot *b, u
     f32 tgt[3] = { en->feet[0], en->feet[1] + en->height * 0.5f, en->feet[2] };
     f32 eye[3] = { vh->pos[0], vh->pos[1] + d->hover + d->height * 0.8f, vh->pos[2] };
     f32 dx = tgt[0] - eye[0], dy2 = tgt[1] - eye[1], dz = tgt[2] - eye[2], dist = sqrtf(dx * dx + dy2 * dy2 + dz * dz);
+    if (d->kind == AK_VEH_FLYER && b->enemy >= (s32)NS(p) && b->enemy < (s32)NV(p) && ak_setting_int("AK_FLY_LEAD", 1)) {
+        /* the attack node's aim point (089496E8): the target's intercept for the shot speed D_08B1B740 (1000) - as the turrets'
+           (0895076C); the trigger's cone and the shot both take it (08948998 -> 08965A70) */
+        const ak_vehicle *ev = &p->veh[b->enemy - NS(p)]; f32 lt = dist / (1000.0f * S);
+        for (int k = 0; k < 3; k++) tgt[k] += ev->vel[k] * lt;
+        dx = tgt[0] - eye[0]; dy2 = tgt[1] - eye[1]; dz = tgt[2] - eye[2];
+    }
     bool held;
     /* the trigger (traced, 08946910 / 08948998 / 08949D5C -> 08965A70, ak_ai_fire): flyers 600 m and 5 degrees around the nose
        (0894878C, 08949B28), ground vehicles 250 m and 10 degrees across the ground (0894677C), in bursts by the gun's heat values */
@@ -1898,6 +1905,8 @@ static void bot_vehicle_gun(ak_play *p, const ak_model_set *m, ak_play_bot *b, u
             if (vehicle_fire2(p, m, v, c, b->enemy)) vh->bot_sec_t = 15.0f;
         }
     }
+    {   static int dg = -1; if (dg < 0) dg = ak_setting_int("AK_DEBUG_FLYGUN", 0);
+        if (dg && d->kind == AK_VEH_FLYER && held) AK_INFO("flygun", "%.2f bot %d fires at %d, %.0f m", p->clock, (int)(b - p->bot), b->enemy, dist); }
     if (!held) { vh->volley_t = 0; return; }
     aim_cap(&b->seed, eye, tgt, p->bot_aim_set ? p->bot_aim : d->gun_bot.ai_acc[p->difficulty >= 2 ? 1 : 0] * 0.017453293f);   /* (as the soldiers) */
     vehicle_fire(p, m, v, tgt, dt, vh->fire_ai.began && ak_ai_burst(&d->gun_bot) <= 0);
@@ -2980,6 +2989,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (ak_setting_int("AK_DEBUG_VEH", 0) > 1 && vh->def->turret_model >= 0) {
             f32 T[12]; if (ak_vehicle_marker(vh, m, vh->def->turret_marker, T)) AK_INFO("veh", "%s at %.1f %.1f %.1f: turret %s at %.1f %.1f %.1f", vh->def->name, vh->pos[0], vh->pos[1], vh->pos[2], m->models[vh->def->turret_model].name, T[3], T[7], T[11]); }
         vehicle_target(p, v);
+        {   /* shots hit its body: the model's box by its matrix (as the physics body, ak_box.h) [assumed: the bolts' test is that
+               body] (AK_SHOT_BOXES=0: the capsule) */
+            static int sb = -1; if (sb < 0) sb = ak_setting_int("AK_SHOT_BOXES", 1);
+            ak_target *t = &p->target[VT(p, v)]; t->boxed = false;
+            if (sb && vh->def->model >= 0) { ak_box bx; vehicle_box(m, vh, &bx); t->boxed = true; memcpy(t->box_c, bx.c, 12); memcpy(t->box_ax, bx.ax, 36); memcpy(t->box_h, bx.h, 12); }
+        }
         if (vh->pos[1] < -400.0f) { p->target[VT(p, v)].alive = false; }
     }
     for (u32 i = 0; i < p->nboom; i++) p->boom[i].t += dt;
