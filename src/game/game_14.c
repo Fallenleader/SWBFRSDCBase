@@ -32273,6 +32273,7 @@ rv_t func_08955410(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u8 stack_[32] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 32);
 L_08955410:;
+    { extern void rs_order_log(u32, u32, u32); rs_order_log(3, a0, a1); }   /* harness measurement (RS_ORDER_LOG, PARITY 4.4; hand-added) */
     sp = sp - 32;
     s0 = a0 + 0;
     a0 = LD32(a0+24);

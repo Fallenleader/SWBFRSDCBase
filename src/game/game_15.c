@@ -4359,6 +4359,7 @@ rv_t func_08959F30(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u8 stack_[32] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 32);
 L_08959F30:;
+    { extern void rs_order_log(u32, u32, u32); rs_order_log(1, a0, a1); }   /* harness measurement (RS_ORDER_LOG, PARITY 4.4; hand-added) */
     sp = sp - 32;
     s5 = D_08C278D8 - (30936);
     v0 = 0 + 0;
@@ -5294,6 +5295,7 @@ rv_t func_0895A97C(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u8 stack_[32] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 32);
 L_0895A97C:;
+    { extern void rs_order_log(u32, u32, u32); rs_order_log(2, a0, a1); }   /* harness measurement (RS_ORDER_LOG, PARITY 4.4; hand-added) */
     sp = sp - 32;
     s5 = D_08C278D8 - (30936);
     v0 = 0 + 0;

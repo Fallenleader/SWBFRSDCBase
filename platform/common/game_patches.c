@@ -823,3 +823,8 @@ void rs_cmd_log(u32 cmdr, u32 unit, u32 c){
     static int on = -1; if (on < 0) on = getenv("RS_NODE_LOG") != 0; if (!on || !c) return;
     fprintf(stderr, "[CMD] fr %u cmdr %08x unit %08x command %u obj %x\n", probe_fr, cmdr, unit, GU32(c), GU32(c + 4));
 }
+/* (4.4) the AI's node factories (08959F30 orders, 0895A97C goal nodes): a0 the owner, a1 the id - RS_ORDER_LOG */
+void rs_order_log(u32 which, u32 owner, u32 id){
+    static int on = -1; if (on < 0) on = getenv("RS_ORDER_LOG") != 0; if (!on) return;
+    fprintf(stderr, "[ORDER] fr %u %s %08x id %x\n", probe_fr, which == 1 ? "order" : which == 2 ? "goalnode" : "child", owner, id);
+}

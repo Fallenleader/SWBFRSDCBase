@@ -722,6 +722,12 @@ textures and how they are used. Section R lists only what must be in place so th
     started only by goal 0x41F (built by 0894EE6C; 0894EEFC: its state 3 starts 0x44D, and states 2 and up lead to 3) and by the
     factory 0895A97C. So soldiers attack - approach and hold - only under goal 0x41F; which goal that is (its name) and how often the
     squads give it (against "go to the post" goals, under which they fire on their way) is next, with the 0x47F child.
+  - 2026-11-21, measured (harness, new RS_ORDER_LOG: hand hooks on the child-node maker 08955410 and the factories 08959F30 /
+    0895A97C; Hoth, 2.5 min, idle player): the nodes started were 0x3F2 46 times, 0x48B 14, 0x48A 8, 0x489 7, 0x480 4 (+4 as
+    goal nodes), 0x456 4, 0x3F0 3, and one each of 0x41E / 0x44F / 0x481..0x483 / 0x457 / 0x3F5 - never 0x41F, 0x44D, 0x47E or
+    0x47F. So conquest soldiers do not use the attack node at all: they fire on their way under their movement orders, as Aurek's
+    bots do; AK_BOT_ATTACK_NODE stays off (it is right off). The standing quarter of the shooters comes from elsewhere (holding at a
+    post, the 0x48x nodes?) - next: what 0x3F2 and 0x489..0x48B are.
 - [x] **4.5 Bot counts per mode and level [traced 2026-11-21].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source
