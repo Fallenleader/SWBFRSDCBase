@@ -820,6 +820,21 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             if (ak_setting_int("AK_DEBUG_CUT", 0)) AK_INFO("cut", "%s frame %.2f %.2f %.2f q %.4f %.4f %.4f %.4f actor model %d", cu->name, cu->sp[0], cu->sp[1], cu->sp[2], cu->sq.x, cu->sq.y, cu->sq.z, cu->sq.w, cu->act_model);
         }
         p->mset = m;
+        {   /* effect places (unflagged ENTI type 33, version 9: 0, 0, the place (3 floats, game axes), a packed word, the effect's
+               name hash (h31 of e.g. "BFF_Location_marker_E" - the training's yellow ring with the chevron over it), a second place
+               1 m above, the direction (0, -1, 0), ..): the script's 3 starts the effect, 2 stops it - Yavin's 18bd1 gets 3 when the
+               training starts and 2 when its marker is reached (the original's ring went then).  [assumed: off until told; 4 also
+               stops it] */
+            u32 q = 8; ak_chunk d; p->nsfx = 0;
+            while (p->pfx && ak_asura_next(&l->file, &q, &d) && p->nsfx < 48) {
+                if (ak_chunk_tag(&d) != AK_TAG('E', 'N', 'T', 'I') || d.size < 64 || ak_rd32(d.body + 4) != 33) continue;
+                u32 h = ak_rd32(d.body + 36); s32 fx = -1;
+                for (u32 i = 0; i < p->pfx_lib.nfx; i++) if (p->pfx_lib.fx[i].hash == h) { fx = (s32)i; break; }
+                if (fx < 0) continue;
+                typeof(p->sfx[0]) *e = &p->sfx[p->nsfx++]; memset(e, 0, sizeof *e); e->id = ak_rd32(d.body); e->fx = fx;
+                f32 g[3], v[3]; memcpy(g, d.body + 20, 12); ak_from_game(g, e->pos); memcpy(v, d.body + 52, 12); ak_from_game(v, e->dir);
+            }
+        }
         pos = 8; p->nlisten = 0;
         while (ak_asura_next(&l->file, &pos, &c) && p->nlisten < 16) {   /* type 38 (0886E220): {3, 0, 0, 1, 2, 0, 2, groups 0xFFFF0040, 1,
                                                                             hash, 0, hash, 0, 0}: the script's 0x14 {hash} - Yavin's 18c5e fired
@@ -3013,11 +3028,16 @@ static void script_sink(void *user, const ak_script_msg *m)
         if (m->type == 0x8023 && ak_rd32(m->extra + 8)) {
             /* with its flag set: a page that stops the game until X (seen: the training's lock-on page with "Press X to continue"
                (STDTEXT 0x1A5) under it, the world still while the stick was held) [assumed: the float = the seconds before X is
-               taken; the flag's other values] */
-            ak_hud_tip(id, 0.0f); ak_hud_tip_more(0x1A5); p->modal = true; p->modal_t = 0; p->modal_min = secs;
+               taken (08A5D450: the X line shows once that long has passed); the flag's other values (08A5D404: on difficulty 2 a
+               page with the flag set does not hold the game)] */
+            ak_hud_tip(id, 0.0f); p->modal = true; p->modal_x = false; p->modal_t = 0; p->modal_min = secs;
         } else ak_hud_tip(id, m->type == 0x801D ? 0.0f : secs);
         done = true;
     }
+    else if ((m->type == 2 || m->type == 3 || m->type == 4) && p->nsfx) {
+        for (u32 k = 0; k < p->nsfx; k++) if (p->sfx[k].id == m->target) { p->sfx[k].on = m->type == 3; done = true; break; }
+    }
+    if (done) {}
     else if (m->type == 0x14 && m->nextra >= 4 && p->nlisten) {
         u32 h = ak_rd32(m->extra);
         for (u32 k = 0; k < p->nlisten; k++) if (p->listen[k].id == m->target && h && (h == p->listen[k].hash[0] || h == p->listen[k].hash[1])) {
@@ -3067,7 +3087,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (!p->ready) return;
     p->clock += dt; p->frame_no++;
     if (p->modal) {                                                        /* a page up: the world waits for X */
-        p->modal_t += dt; if ((in->pressed & AK_BTN_CROSS) && p->modal_t >= p->modal_min) { p->modal = false; ak_hud_tip_clear(); }
+        /* (traced: 08A5D390 sets the page {text, flag, wait, start} and stops the game's clock; 08A5D220 draws it and, once the
+           wait has passed (08A5D450), "Press X to continue" (421) under it; the player's update (08A08D00) then reads its control 6
+           and clears the page (08A5D3BC), the clock back) [assumed: control 6 = X on the PSP layout] */
+        bool ready = p->modal_x; p->modal_t += dt;
+        if (!p->modal_x && p->modal_t >= p->modal_min) { p->modal_x = true; ak_hud_tip_more(0x1A5); }
+        if (ready && (in->pressed & AK_BTN_CROSS)) { p->modal = false; ak_hud_tip_clear(); }
         return;
     }
     static const ak_input still; if (ak_play_cut_view(p)) in = &still;            /* a cut-scene: no control (seen: the player stands) */
@@ -3742,6 +3767,13 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0 && p->bot[i].ch.pos[1] < -400.0f) {
         p->target[1 + i].alive = false; p->bot[i].alive = false; p->bot[i].dead_t = 0; if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, p->bot[i].team); }
     /* the level script (game/ak_script.h): its timers, its queue, what it sends to the game's objects */
+    for (u32 k = 0; k < p->nsfx; k++) {                                   /* the script's effect places */
+        typeof(p->sfx[0]) *e = &p->sfx[k];
+        if (!e->on) { if (e->h) { ak_pfx_follow(p->pfx, e->h, NULL, NULL, NULL, false); e->h = 0; } continue; }
+        static const f32 zero[3] = { 0, 0, 0 };
+        if (e->h && ak_pfx_follow(p->pfx, e->h, e->pos, NULL, zero, true)) continue;
+        e->h = ak_pfx_play(p->pfx, e->fx, e->pos, NULL); if (e->h < 0) e->h = 0; else ak_pfx_follow(p->pfx, e->h, e->pos, NULL, zero, true);
+    }
     if (p->have_script && p->cut >= 0 && (p->cut_t += dt) >= p->cuts[p->cut].len) {   /* the cut-scene's end: its group */
         s32 g = p->cuts[p->cut].group; p->cut = -1; if (g >= 0) ak_script_fire(&p->script, g, 0x3E7, script_sink, p); }
     if (p->have_script) { ak_script_update(&p->script, dt, false, script_sink, p); ak_script_cond(&p->script, script_test, script_sink, p);

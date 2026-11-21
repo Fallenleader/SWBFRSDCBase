@@ -229,14 +229,14 @@ def prog_slow_cross(i, fr):                                                     
 def prog_cmpn_train(i, fr):                                                      # (--route cmpn) the campaign menu's New and the intro as slow_cross, forward 1.5 s
     if i < 1300: return prog_slow_cross(i, fr)                                   # at 24.5 s (into the first marker, straight ahead of the spawn), idle to 40 s,
     if 1470 <= i < 1560: return (0, 128, 0)                                      # forward 3 s, forward + L held 4 s (the sprint), idle 4 s, forward with L tapped
-    if i < 2400: return (0, 128, 128)                                            # (jump) every 2 s to 55 s (the cut-scene), idle; cross tapped at 63 s and 65 s
-    if i < 2580: return (0, 128, 0)                                              # (the lock-on page), R held 66-80 s (lock on the recon droid), then cross held
-    if i < 2820: return (0x100, 128, 0)                                          # 80-90 s (fire)
+    if i < 2400: return (0, 128, 128)                                            # (jump) every 2 s to 55 s (the cut-scene), idle; cross tapped at 66.7 s and 68.3 s
+    if i < 2580: return (0, 128, 0)                                              # (the lock-on page, after its 'Press X'), R held 69-82 s (lock on the droid), then cross held
+    if i < 2820: return (0x100, 128, 0)                                          # 82-90 s (fire)
     if i < 3060: return (0, 128, 128)
     if i < 3300: return (0x100 if i % 120 < 4 else 0, 128, 0)
-    if i in range(3780, 3784) or i in range(3900, 3904): return (CROSS, 128, 128)
-    if 3960 <= i < 4800: return (0x200, 128, 128)
-    if 4800 <= i < 5400: return (0x200 | CROSS, 128, 128)
+    if i in range(4000, 4004) or i in range(4100, 4104): return (CROSS, 128, 128)
+    if 4150 <= i < 4900: return (0x200, 128, 128)
+    if 4900 <= i < 5400: return (0x200 | CROSS, 128, 128)
     return (0, 128, 128)
 def prog_zoom(i, fr):                                                            # triangle tapped at 2 s, 4 s, 6 s, 8 s (zoom levels in and out)
     return (TRIANGLE if i in range(120, 124) or i in range(240, 244) or i in range(360, 364) or i in range(480, 484) else 0, 128, 128)
