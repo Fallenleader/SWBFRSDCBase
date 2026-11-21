@@ -1,4 +1,5 @@
 /* Aurek - play mode (see play.h) */
+#include "audio/ak_speech.h"
 #include "game/ak_box.h"
 #include <math.h>
 #include <string.h>
@@ -837,10 +838,21 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
                 f32 g[3], v[3]; memcpy(g, d.body + 20, 12); ak_from_game(g, e->pos); memcpy(v, d.body + 52, 12); ak_from_game(v, e->dir);
             }
         }
+        {   /* unflagged type 62 (0886D8C4): a speech line - {version 3, u32, count, count x {u16 event, u16 group}, 1, 1, the speech
+               event's h31 (GMSND: "M1_Objective_01" ...), 1, 0xEF59A7EF, 0x3E7}.  The script's 5 says it; event 12 fires when it has
+               been said [measured: Yavin's 18bbf got 5 0.5 s after group 40 and fired group 65 17.0-18.2 s later over four harness
+               runs - the line's length plus the stream's start]  (no line found: at once [assumed]) */
+            u32 q = 8; ak_chunk d; p->nt62 = 0;
+            while (ak_asura_next(&l->file, &q, &d) && p->nt62 < 32) {
+                if (ak_chunk_tag(&d) != AK_TAG('E', 'N', 'T', 'I') || d.size < 24 || ak_rd32(d.body + 4) != 62) continue;
+                typeof(p->t62[0]) *e = &p->t62[p->nt62++]; e->id = ak_rd32(d.body); e->nev = ak_script_events(l, e->id, 2, e->ev, 4); e->t = -1;
+                u32 cnt = ak_rd32(d.body + 16), w = 5 + cnt + 2; e->speech = 4 * w + 4 <= d.size ? ak_rd32(d.body + 4 * w) : 0;
+            }
+        }
         pos = 8; p->nlisten = 0;
         while (ak_asura_next(&l->file, &pos, &c) && p->nlisten < 16) {   /* type 38 (0886E220): {3, 0, 0, 1, 2, 0, 2, groups 0xFFFF0040, 1,
                                                                             hash, 0, hash, 0, 0}: the script's 0x14 {hash} - Yavin's 18c5e fired
-                                                                            group 0x40 on 0x14 {0x7E4B3609} (RS_FIRE_LOG) [assumed: either hash] */
+                                                                            group 0x40 on 0x14 {0x7E4B3609} (RS_FIRE_LOG), after {0xEDA911F9} */
             if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 56 || ak_rd32(c.body + 4) != 38) continue;
             typeof(p->listen[0]) *k = &p->listen[p->nlisten++]; k->id = ak_rd32(c.body); k->hash[0] = ak_rd32(c.body + 44); k->hash[1] = ak_rd32(c.body + 52);
             k->group = (s32)(ak_rd32(c.body + 36) & 0xFFFFu); if (k->group == 0xFFFF) k->group = -1;
@@ -3059,8 +3071,14 @@ static void script_sink(void *user, const ak_script_msg *m)
     if (done) {}
     else if (m->type == 0x14 && m->nextra >= 4 && p->nlisten) {
         u32 h = ak_rd32(m->extra);
+        /* both hashes are needed [measured, RS_FIRE_LOG: Yavin's 18c5e got 0x14 {0xEDA911F9} from 18bbf's group 65 at 3255 and fired
+           nothing; it fired its group 64 only at 4115 when {0x7E4B3609} came after the jump] - then it starts again [assumed] */
         for (u32 k = 0; k < p->nlisten; k++) if (p->listen[k].id == m->target && h && (h == p->listen[k].hash[0] || h == p->listen[k].hash[1])) {
-            done = true; if (p->listen[k].group >= 0 && p->have_script) ak_script_fire(&p->script, p->listen[k].group, m->target, script_sink, p); break; }
+            typeof(p->listen[0]) *L = &p->listen[k]; done = true;
+            L->got[h == L->hash[0] ? 0 : 1] = true;
+            if ((L->got[0] || !L->hash[0]) && (L->got[1] || !L->hash[1])) { L->got[0] = L->got[1] = false;
+                if (L->group >= 0 && p->have_script) ak_script_fire(&p->script, L->group, m->target, script_sink, p); }
+            break; }
     }
     else if (m->type == 3 && p->nnamed) {
         for (u32 k = 0; k < p->nnamed; k++) if (p->named[k].id == m->target) {
@@ -3084,6 +3102,16 @@ static void script_sink(void *user, const ak_script_msg *m)
         if (!p->vspawn[v].fixed || p->vspawn[v].eid != m->target) continue;
         done = true;
         if (!p->veh[v].alive && vehicle_make(p, v)) { p->vspawn[v].route_d = 0; if (p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 10007, p->vspawn[v].eid, script_sink, p); }
+    }
+    if (!done && m->type == 5 && p->nt62) {
+        for (u32 k = 0; k < p->nt62; k++) if (p->t62[k].id == m->target) {
+            typeof(p->t62[0]) *e = &p->t62[k]; f32 secs = 0; const char *sub = NULL; done = true;
+            ak_speech_play_hash(e->speech, NULL, 1.0f, &sub, &secs);
+            if (secs <= 0) secs = ak_speech_seconds(e->speech);
+            if (sub) { p->snd.sub = sub; p->snd.sub_t = secs > 0 ? secs + 0.5f : 3.0f; }
+            e->t = secs > 0 ? secs : 0;
+            if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "speech %08x (%.1f s)", e->speech, secs);
+            break; }
     }
     if (!done && m->type == 3 && p->nveh) {                                   /* a waiting unit spawner started by the script */
         for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].fixed && p->vspawn[v].eid == m->target) {
@@ -3813,6 +3841,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     /* the level script (game/ak_script.h): its timers, its queue, what it sends to the game's objects */
     if (ak_setting_int("AK_LOG_VEH", 0) && p->frame_no % 30 == 0)          /* (tests: each live vehicle's place once a second) */
         for (u32 v = 0; v < p->nveh; v++) if (p->veh[v].alive) { const ak_target *tg = &p->target[VT(p, v)]; AK_INFO("vpos", "%u %u %s %.2f %.2f %.2f box %d %.2f %.2f %.2f h %.2f %.2f %.2f alive %d lock %d", p->frame_no, v + 1, p->veh[v].def->name, p->veh[v].pos[0], p->veh[v].pos[1], p->veh[v].pos[2], tg->boxed, tg->box_c[0], tg->box_c[1], tg->box_c[2], tg->box_h[0], tg->box_h[1], tg->box_h[2], tg->alive, p->lock); }
+    for (u32 k = 0; k < p->nt62; k++) if (p->t62[k].t >= 0 && (p->t62[k].t -= dt) < 0 && p->have_script)   /* a speech line said: its event 12 */
+        ak_script_raise(&p->script, p->t62[k].ev, p->t62[k].nev, 12, p->t62[k].id, script_sink, p);
     for (u32 k = 0; k < p->nsfx; k++) {                                   /* the script's effect places */
         typeof(p->sfx[0]) *e = &p->sfx[k];
         if (!e->on) { if (e->h) { ak_pfx_follow(p->pfx, e->h, NULL, NULL, NULL, false); e->h = 0; } continue; }

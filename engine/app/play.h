@@ -217,8 +217,9 @@ typedef struct {
     struct { char name[28]; f32 len, org[3]; s32 group; bool camera; u32 off, size; s32 cam_clip, cam2_clip, act_clip, act_model; char model[96]; f32 sp[3]; ak_quat sq;
                  s32 anim[6]; u32 nanim; f32 hfov;                           /* the scene's clips in its list order; the camera's width (rad) */
                  struct { u8 type, anim; bool cam; f32 t, a, b; } ev[8]; u32 nev; } cuts[16]; u32 ncuts;   /* the level's cut-scenes (CUTS); camera: it has a camera animation */
-    struct { u32 id, hash[2]; s32 group; } listen[16]; u32 nlisten;
-    struct { u32 id; s32 fx, h; f32 pos[3], dir[3]; bool on; } sfx[48]; u32 nsfx;   /* ENTI type 33 effect places the script turns on / off */      /* ENTI type 38: fire a group on message 0x14 with a hash */
+    struct { u32 id, hash[2]; s32 group; bool got[2]; } listen[16]; u32 nlisten;
+    struct { u32 id; s32 fx, h; f32 pos[3], dir[3]; bool on; } sfx[48]; u32 nsfx;
+    struct { u32 id, ev[4], nev, speech; f32 t; } t62[32]; u32 nt62;    /* ENTI type 62: a speech line (the script's 5 says it; event 12 at its end) */   /* ENTI type 33 effect places the script turns on / off */      /* ENTI type 38: fire a group on message 0x14 with a hash */
     struct { u32 id; s32 cut; } named[64]; u32 nnamed;                    /* the named objects (type 3) that are cut-scenes */
     s32 cut; f32 cut_t; const ak_model_set *mset;
     bool modal, modal_x; f32 modal_t, modal_min;                                    /* a campaign page waiting for X (0x8023 with its flag set) */                                                    /* the cut-scene playing (-1 none), its time */   /* the campaign's player moves (ENTI type 68 -> its type 69 point) */

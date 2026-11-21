@@ -102,7 +102,19 @@ u32 ak_speech_play(const char *event, const f32 *pos, f32 gain, const char **sub
     if (subtitle) *subtitle = NULL;
     if (seconds) *seconds = 0;
     if (!event || !*event) return 0;
-    const event_t *e = find_event(ak_hash31(event));
+    return ak_speech_play_hash(ak_hash31(event), pos, gain, subtitle, seconds);
+}
+f32 ak_speech_seconds(u32 hash)
+{
+    const event_t *e = find_event(hash); if (!e || !e->n) return -1;
+    const line_t *l = find_line(ev_lines[e->first]); return l ? l->seconds : -1;
+}
+u32 ak_speech_play_hash(u32 hash, const f32 *pos, f32 gain, const char **subtitle, f32 *seconds)
+{
+    const char *event = "(by hash)";
+    if (subtitle) *subtitle = NULL;
+    if (seconds) *seconds = 0;
+    const event_t *e = find_event(hash);
     if (!e || !e->n) return 0;
     rng = rng * 1664525u + 1013904223u;
     u32 pick = (rng >> 8) % e->n;
