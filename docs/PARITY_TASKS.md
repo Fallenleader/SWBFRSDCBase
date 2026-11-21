@@ -634,10 +634,16 @@ textures and how they are used. Section R lists only what must be in place so th
     in 0899530C) is never set; every 11.4-11.7 m/s stretch is a bot riding a vehicle (its position 1.9 m from a class 0x801D
     object, bobbing +-2 m/s vertically at the mount's gait). On foot bots move at 8.5 or 5.0 m/s (7.4-8.3 is 8.5 along a slope:
     the path vector is horizontal); +520 bit 1 (0x2) is set in most 5.0 m/s samples.
-- [ ] **4.5 Bot counts per mode and level [partly measured].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
+- [x] **4.5 Bot counts per mode and level [traced 2026-11-21].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source
   of the count (mode or level data) is not traced.
+  - Traced 2026-11-21: the AI soldiers' spawners are made by 089809B8 (from 089719A0 at the match start, and 08A0C0D4): it counts
+    what is already there - the players' spawners (registry D_08C2C664, +0x60 bit 4) and the unit spawners whose vfunc +100 says
+    they spawn (registry D_08C29FC4; a walker spawner holding the hash 0x058D13BF unit of class 0x8014 left out) - and makes the rest
+    up to 08979D14(): the match's unit count (D_08C294D0, or +4 / +8 by the session kind at D_08C2932C / D). Read live (harness
+    RS_DRIVE_PEEK): 16 on Hoth and on Space Hoth (Instant Action), the same for every level - so 15 AI soldiers beside the player,
+    as Aurek's AK_BOTS 15; Space Hoth's placed craft come with spawners of their own (18 listed).  Not per level or mode.
 - [ ] **4.6 Space AI [partial].** Commander roles are traced; dogfight states FOLLOWING / CIRCLING_ROUND / DOING_STUNT are not.
   - 2026-11-20: FOLLOWING / CIRCLING_ROUND were already built from 08948A9C (play.c bot_fly). The state-name tables sit at
     0x08ADA314.. (UNSET / FOLLOWING / CIRCLING_ROUND / FINISHED; UNSET / FOLLOWING / CIRCLING_ROUND / DOING_STUNT / FINISHED,
