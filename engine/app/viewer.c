@@ -225,7 +225,7 @@ int main(int argc, char **argv)
             ak_entities_load(&level, &models, &lvl, &ents);
             if (!strcmp(levels[cur].label, "GC")) {   /* the Galactic Conquest map: a new game, the player's first treasury */
                 static ak_gc_screen gcs_; ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, (u32)ak_setting_int("AK_SEED", 1));
-                gcs_.g.turn = 0; ak_gc_collect(&gcs_.g, &gcs_.r, 0); gcs_.phase = ak_setting_int("AK_GC_PHASE", 0);   /* (tests: 1 purchase) */ gc_screen = &gcs_;
+                gcs_.g.turn = 0; gcs_.income = ak_gc_collect(&gcs_.g, &gcs_.r, 0); gcs_.phase = ak_setting_int("AK_GC_PHASE", 0);   /* (tests: 1 purchase) */ gc_screen = &gcs_;
             } else gc_screen = NULL;
             if (ak_setting_int("AK_DUMP_SMSG", 0)) {   /* tests: the level script's messages (SMSG: groups of u16 type, u16 extra, u32 target, ...) */
                 u32 pos = 8; ak_chunk c;
@@ -613,6 +613,8 @@ int main(int argc, char **argv)
                 if (ak_audio_level_music(&b_level_keep, play.snd.music_req, 0, mp, sizeof mp)) { ak_arena_reset(&musmem); bool hb = ak_vfs_read_part(vfs, mp, 0, 4096, &musmem, &mb); ak_audio_music_play(mp, hb ? mb.data : NULL, hb ? (u32)(mb.size < 4096 ? mb.size : 4096) : 0, false); }
                 play.snd.music_req = NULL;
             }
+        } else if (gc_map && gc_screen) {
+            /* the GC map: a fixed camera; the pad drives the conquest (app/gc_screen) after the view is built below */
         } else {
         /* free camera */
         cam.yaw -= in.rx * 2.0f * dt; cam.pitch += in.ry * 1.5f * dt;
@@ -628,6 +630,12 @@ int main(int argc, char **argv)
         int w, h; ak_gfx_size(&w, &h);
         ak_m4 proj = ak_m4_perspective(fovy, (f32)w / (f32)h, playing && play.ready ? 0.25f : ak_setting_float("AK_NEAR", 0.75f), ak_setting_float("AK_FAR", 8000.0f));   /* PARITY(9.1) */
         ak_m4 view = ak_m4_view_yaw_pitch(cam.pos, cam.yaw, cam.pitch), vp = ak_m4_mul(&proj, &view);
+        if (gc_map && gc_screen) {
+            { const char *keys = ak_setting_str("AK_GC_KEYS", NULL);   /* tests: one button every 8 frames from frame 10, as AK_FE_KEYS */
+              if (keys && frame >= 10) { int k = (frame - 10) / 8, ph = (frame - 10) % 8; const char *q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; }
+                  if (*q && ph == 0) in.pressed |= *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : *q == 'S' ? AK_BTN_SQUARE : *q == 'T' ? AK_BTN_TRIANGLE : 0u; } }
+            ak_gc_screen_update(gc_screen, &in, &vp, dt);
+        }
         ak_gfx_env env = { { 0.55f, 0.62f, 0.70f }, ak_setting_float("AK_FOG_START", 0), ak_setting_float("AK_FOG_END", 0),
                            ak_setting_float("AK_COLOUR_SCALE", 2.0f) };   /* PARITY(R.1) */
         {   /* the level's own fog (PARITY R.2): linear from 0 to the FOG chunk's end in its colour, when its flag is on.  AK_FOG is a

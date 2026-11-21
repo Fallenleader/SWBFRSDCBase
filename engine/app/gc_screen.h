@@ -13,24 +13,35 @@
 #include "assets/blueprint.h"
 #include "render/ak_scene.h"
 #include "game/ak_gc.h"
+#include "game/ak_gc_ai.h"
+#include "platform/plat.h"
 
-enum { GCT_TECH, GCT_TECH2, GCT_SQUARE, GCT_TRIANGLE, GCT_CROSS, GCT_SELECT, GCT_N };
+enum { GCT_TECH, GCT_TECH2, GCT_SQUARE, GCT_TRIANGLE, GCT_CROSS, GCT_SELECT, GCT_CIRCLE, GCT_N };
 typedef struct {
     bool ready;
     ak_gc g; ak_gc_rules r;
     f32 planet_pos[AK_GC_PLANETS][3]; bool planet_known[AK_GC_PLANETS];
     ak_gfx_tex *corona;
-    ak_gfx_tex *tex[6];                /* GCT_*: the overlay's atlases and button icons */
+    ak_gfx_tex *tex[GCT_N];                /* GCT_*: the overlay's atlases and button icons */
     /* the sector outlines: SHAP hulls placed by ENTI type 7 (no mesh), in world space (engine axes); fill = the triangles, rim = the
        quads between the inner and outer outline */
     struct { ak_vtx *fill, *rim; u32 nfill, nrim; int sector; } shape[AK_GC_SECTORS]; int nshape;
     int cursor;                        /* the selected planet */
-    int phase;                         /* GALACTICCONQUEST.ASR 0 Treasury, 1 Purchase, 2 Movement, 3 Reinforce */
+    int phase;                         /* GALACTICCONQUEST.ASR 0 Treasury, 1 Purchase, 2 Movement, 3 Reinforce, 4 Game Over */
+    /* the player's turn (ak_gc_screen_update): sub 0 browsing, 1 choosing a count, 2 choosing a destination, 3 battle choice */
+    int sub, src, dst, count, count_max;
+    f32 clock;                         /* seconds (the cursor's pulse, 08A4D128's clock 0x08B285B4) */
+    u32 msg; f32 msg_t;                /* a notice (GALACTICCONQUEST.ASR id) shown for msg_t seconds */
+    ak_gc_income income;               /* the last treasury */
+    ak_gc_ai ai;                       /* the opponent */
+    int battle_side, battle_to, battle_n; bool battle_second;   /* the pending battle (sub 3) */
 } ak_gc_screen;
 
 bool ak_gc_screen_init(ak_gc_screen *s, ak_vfs *vfs, const ak_level *l, const ak_scene_level *sc, const ak_model_set *ms,
                        const ak_entity_set *ents, const ak_blueprints *bp, u32 seed);
 void ak_gc_screen_draw_back(const ak_gc_screen *s, const ak_m4 *vp);   /* behind the models: the owner halos */
 void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp);        /* 2D, after the 3D */
+/* the player's input (pressed buttons); returns true while it is the player's turn */
+bool ak_gc_screen_update(ak_gc_screen *s, const ak_input *in, const ak_m4 *vp, f32 dt);
 const u16 *ak_gc_text(u32 id, u32 *len);                          /* TEXT/GALACTICCONQUEST.ASR entry */
 #endif

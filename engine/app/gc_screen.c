@@ -118,6 +118,7 @@ bool ak_gc_screen_init(ak_gc_screen *s, ak_vfs *vfs, const ak_level *l, const ak
     }
     if (nast) { for (int k = 0; k < 3; k++) s->planet_pos[0][k] = ast[k] / (f32)nast; s->planet_known[0] = true; }   /* Alderaan */
     load_shapes(s, l);
+    ak_gc_ai_init(&s->ai);
     { int gs = ak_setting_int("AK_GC_GIVE_SECTOR", -1);           /* (tests: side 0 holds sector n) */
       if (gs >= 0 && gs < AK_GC_SECTORS) { for (int p = 0; p < AK_GC_PLANETS; p++) if (ak_gc_planet_defs[p].sector == gs && !s->g.planet[p].home) s->g.planet[p].owner = 0; ak_gc_update_sectors(&s->g); } }
     if (getenv("AK_GC_DEBUG")) for (int i = 0; i < AK_GC_SECTORS; i++) { fprintf(stderr, "[GC] sector %d owner %d:", i, s->g.sector_owner[i]); for (int p = 0; p < AK_GC_PLANETS; p++) if (ak_gc_planet_defs[p].sector == i) fprintf(stderr, " %d", s->g.planet[p].owner); fprintf(stderr, "\n"); }
@@ -125,7 +126,8 @@ bool ak_gc_screen_init(ak_gc_screen *s, ak_vfs *vfs, const ak_level *l, const ak
     s->corona = ti >= 0 && sc->tex ? sc->tex[ti] : NULL;   /* GC_Planet_Corona.bmp: GC's texture 0 (08A4CB34(0)) */
     static const char *const tn[GCT_N] = { "\\graphics\\GUI\\GC_Elements\\GC_Tech_Elements.tga", "\\graphics\\GUI\\GC_Elements\\GC_Tech_Elements_02.tga",
         "\\graphics\\GUI\\PSP_Button_Icons\\button_square.tga", "\\graphics\\GUI\\PSP_Button_Icons\\button_triangle.tga",
-        "\\graphics\\GUI\\PSP_Button_Icons\\button_x.tga", "\\graphics\\GUI\\PSP_Button_Icons\\button_select.tga" };
+        "\\graphics\\GUI\\PSP_Button_Icons\\button_x.tga", "\\graphics\\GUI\\PSP_Button_Icons\\button_select.tga",
+        "\\graphics\\gui\\psp_button_icons\\button_circle.tga" };
     for (int i = 0; i < GCT_N; i++) { s32 k = ak_level_find_texture(l, tn[i]); s->tex[i] = k >= 0 && sc->tex ? sc->tex[k] : NULL; }
     if (getenv("AK_DEBUG_GC_TEX")) for (int i = 0; i < GCT_N; i++) fprintf(stderr, "[gc] tex %d %s\n", i, s->tex[i] ? "ok" : "missing");
     for (int p = 0; p < AK_GC_PLANETS && s->cursor < 0; p++) if (s->g.planet[p].owner == 0) s->cursor = p;   /* [assumed] the first own planet */
@@ -166,23 +168,28 @@ void ak_gc_screen_draw_back(const ak_gc_screen *s, const ak_m4 *vp)
        0x08C2DE40 + 12 p), shown by 08A4AF9C for owned planets once 1.0 <= 0x08B1C848 [assumed: reached at once], size 1.5
        (0x08AF003C), colour (0, 0, 1) for side 0 and (1, 0, 0) for side 1, none on neutral ones.  Drawn as a camera-facing square of
        half-size 1.5 world units [assumed: the size is the half-width], additive (the corona BMP is opaque, black outside the glow)
-       [assumed: blend not traced]. */
+       [assumed: blend not traced].  The cursor (08A4B0DC): its planet's flare shown at size 2.0 (0x08AF0044) in the owner's colour
+       (black on a neutral one) pulsing toward white by 08A4D128 = clamp((sin(2 pi fmod(t, 1)) + 1) x 0.5, 0, 1); while a destination is
+       chosen the source's flare stays at 2.0 [assumed: its colour unpulsed]. */
     if (!s->corona) return;
     const f32 *m = vp->m; f32 sx = sqrtf(m[0] * m[0] + m[4] * m[4] + m[8] * m[8]), sy = sqrtf(m[1] * m[1] + m[5] * m[5] + m[9] * m[9]);
     static ak_vtx v[AK_GC_PLANETS * 6]; u32 n = 0;
     for (int p = 0; p < AK_GC_PLANETS; p++) {
         int o = s->g.planet[p].owner; const f32 *q = s->planet_pos[p];
-        if (o == AK_GC_NONE || !s->planet_known[p]) continue;
+        bool cur = p == s->cursor && s->phase >= 1 && s->phase <= 3, src = p == s->src && (s->sub == 1 || s->sub == 2) && s->phase >= 2 && s->phase <= 3;
+        if ((o == AK_GC_NONE && !cur && !src) || !s->planet_known[p]) continue;
+        f32 size = cur || src ? 2.0f : 1.5f, col[3] = { o == 1 ? 1.0f : 0.0f, 0.0f, o == 0 ? 1.0f : 0.0f };
+        if (cur) { f32 k = (sinf(fmodf(s->clock, 1.0f) * 6.2831853f) + 1.0f) * 0.5f; for (int i = 0; i < 3; i++) col[i] += (1.0f - col[i]) * k; }
         f32 cx = m[0] * q[0] + m[4] * q[1] + m[8] * q[2] + m[12], cy = m[1] * q[0] + m[5] * q[1] + m[9] * q[2] + m[13];
         f32 cz = m[2] * q[0] + m[6] * q[1] + m[10] * q[2] + m[14], cw = m[3] * q[0] + m[7] * q[1] + m[11] * q[2] + m[15];
         if (cw <= 0) continue;
-        f32 x = cx / cw, y = cy / cw, z = cz / cw, rx = 1.5f * sx / cw, ry = 1.5f * sy / cw;
+        f32 x = cx / cw, y = cy / cw, z = cz / cw, rx = size * sx / cw, ry = size * sy / cw;
         static const f32 cs[6][2] = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, -1 }, { 1, 1 }, { -1, 1 } };
         for (int k = 0; k < 6; k++) {
             ak_vtx *w = &v[n++]; memset(w, 0, sizeof *w);
             w->pos[0] = x + cs[k][0] * rx; w->pos[1] = y + cs[k][1] * ry; w->pos[2] = z;
             w->uv[0] = cs[k][0] * 0.5f + 0.5f; w->uv[1] = 0.5f - cs[k][1] * 0.5f;
-            w->col[0] = o == 1 ? 128 : 0; w->col[1] = 0; w->col[2] = o == 0 ? 128 : 0; w->col[3] = 255;   /* 128 = 1.0 (the colour doubling) */
+            for (int i = 0; i < 3; i++) { w->col[i] = (u8)(col[i] * 128.0f); } w->col[3] = 255;   /* 128 = 1.0 (the colour doubling) */
         }
     }
     static const ak_m4 id = { { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 } };
@@ -245,11 +252,173 @@ void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp)
     /* the button bar: a dark bar, 16 x 16 icons with their labels (purchase: select Troops Overview, square Buy Tech/Comm,
        triangle End Phase; treasury: cross Continue) */
     ak_hud_2d_quad(NULL, 0, 249, 480, 272, 0, 0, 1, 1, 0x60000000u);
-    if (s->phase == 0) { spr(s->tex[GCT_CROSS], 404, 252.5f, 420, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, 422, 252.5f, 0xFFFFFFFFu, 0x58, 0); }   /* [assumed: place] */
-    else {
-        spr(s->tex[GCT_SELECT], 2, 252.5f, 34, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, 36, 252.5f, 0xFFFFFFFFu, 0x7F, 0);
-        spr(s->tex[GCT_SQUARE], 157, 252.5f, 173, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, 175, 252.5f, 0xFFFFFFFFu, 0x40, 0);
-        spr(s->tex[GCT_TRIANGLE], 296, 252.5f, 312, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, 314, 252.5f, 0xFFFFFFFFu, 0x41, 0);
+    /* the bar per phase and step: purchase browsing is the logged one; the rest uses the same three places with the texts the
+       original has for them (0x44 Buy, 0x45 Back, 0x46 Select Source, 0x48 Select Destination, 0x49 Confirm Move, 0x4A Auto-Resolve,
+       0x4B Attack, 0x4C / 0x47 End Phase, 0x4D Confirm Reinforcement) [assumed: which appear together and where] */
+    struct { int tex; u32 id; } b[3] = { { -1, 0 }, { -1, 0 }, { -1, 0 } };
+    if (s->phase == 0) { b[2].tex = GCT_CROSS; b[2].id = 0x58; }
+    else if (s->phase == 4) {}
+    else if (s->sub == 0 && s->phase == 1) { b[0].tex = GCT_SELECT; b[0].id = 0x7F; b[1].tex = GCT_SQUARE; b[1].id = 0x40; b[2].tex = GCT_TRIANGLE; b[2].id = 0x41; }
+    else if (s->sub == 0) { b[0].tex = GCT_CROSS; b[0].id = 0x46; b[2].tex = GCT_TRIANGLE; b[2].id = s->phase == 2 ? 0x47 : 0x4C; }
+    else if (s->sub == 2) { b[0].tex = GCT_CROSS; b[0].id = 0x48; b[1].tex = GCT_CIRCLE; b[1].id = 0x45; }
+    else if (s->sub == 1) { b[0].tex = GCT_CROSS; b[0].id = s->phase == 1 ? 0x44 : s->phase == 2 ? 0x49 : 0x4D; b[1].tex = GCT_CIRCLE; b[1].id = 0x45; }
+    else if (s->sub == 3) { b[0].tex = GCT_CROSS; b[0].id = 0x4B; b[1].tex = GCT_SQUARE; b[1].id = 0x4A; }
+    static const f32 bx[3] = { 2, 157, 296 };
+    for (int i = 0; i < 3; i++) {
+        if (b[i].tex < 0) continue;
+        f32 x = s->phase == 0 ? 404 : bx[i], w = b[i].tex == GCT_SELECT ? 32.0f : 16.0f;
+        spr(s->tex[b[i].tex], x, 252.5f, x + w, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, x + w + 2, 252.5f, 0xFFFFFFFFu, b[i].id, 0);
     }
+    /* the count being chosen (purchase / move / reinforce): the title and the number, under the planet panel [assumed: place] */
+    if (s->sub == 1) {
+        ak_hud_2d_quad(NULL, 5, 118, 123, 160, 0, 0, 1, 1, 0x99000000u);
+        txt(0, 64, 121, 0xFFFFFFFFu, s->phase == 1 ? 0x38 : s->phase == 2 ? 0x3A : 0x6F, 1);
+        num(1, 64, 137, 0xFFFFFF00u, (u32)s->count, 1, false);
+    }
+    /* the treasury: Player, Credits Received, Planets / Sector(s) / Total (the original's panel; [assumed: sizes]) */
+    if (s->phase == 0) {
+        spr(s->tex[GCT_TECH2], 163, 123, 311, 238, 0.4570f, 0.0f, 0.9180f, 0.3477f, 0x99FFFFFFu);
+        txt(0, 237, 128, 0xFFFFFF00u, 0x59, 1); txt(0, 237, 146, 0xFFFFFFFFu, 0x54, 1);
+        txt(0, 171, 164, 0xFFFFFFFFu, 0x55, 0); num(0, 303, 164, 0xFFFFFF00u, s->income.planets, 2, true);
+        txt(0, 171, 180, 0xFFFFFFFFu, 0x56, 0); num(0, 303, 180, 0xFFFFFF00u, s->income.sectors + s->income.commander, 2, true);
+        ak_hud_2d_quad(NULL, 171, 213, 303, 215, 0, 0, 1, 1, 0xFFFFFF00u);
+        txt(0, 171, 218, 0xFFFFFFFFu, 0x57, 0); num(0, 303, 218, 0xFFFFFF00u, s->income.total, 2, true);
+    }
+    if (s->phase == 4) txt(1, 240, 120, 0xFFFFFFFFu, s->g.winner == 0 ? 0x60 : 0x61, 1);
+    if (s->msg_t > 0) txt(1, 240, 225, 0xFFFF4040u, s->msg, 1);
     ak_hud_2d_end();
+}
+
+/* ---- the player's turn.  The rules are ak_gc's (traced); the controls are the original's button labels (GALACTICCONQUEST.ASR:
+ * cross Buy Troops / Select Source / Select Destination / Confirm, circle Cancel / Back, square Buy Tech/Comm or Auto-Resolve,
+ * triangle End Phase) [assumed: which button does what beyond the bar's labels; the count steps of 10 by up / down, as the AI's
+ * count presses 0x29 / 0x2A].  The cursor moves to the nearest planet within 0.39 rad of the pressed direction, else 0.79, else
+ * 1.57 (the debug values BFF_GC_GUI_13-15 "Next_Planet_0/1/2") [assumed: their use].  Battles are auto-resolved for now (the
+ * original offers Attack - a match - or Auto-Resolve). */
+static void say(ak_gc_screen *s, u32 id) { s->msg = id; s->msg_t = 2.0f; }
+static void move_cursor(ak_gc_screen *s, const ak_m4 *vp, f32 dx, f32 dy)
+{
+    f32 cx, cy; if (s->cursor < 0 || !project(vp, s->planet_pos[s->cursor], &cx, &cy)) { s->cursor = 0; return; }
+    static const f32 cone[3] = { 0.39f, 0.79f, 1.57f };
+    for (int c = 0; c < 3; c++) {
+        int best = -1; f32 bd = 1e30f;
+        for (int p = 0; p < AK_GC_PLANETS; p++) {
+            f32 x, y; if (p == s->cursor || !s->planet_known[p] || !project(vp, s->planet_pos[p], &x, &y)) continue;
+            f32 ex = x - cx, ey = y - cy, d = sqrtf(ex * ex + ey * ey); if (d < 1) continue;
+            f32 a = acosf((ex * dx + ey * dy) / d); if (a > cone[c]) continue;
+            if (d < bd) { bd = d; best = p; }
+        }
+        if (best >= 0) { s->cursor = best; return; }
+    }
+}
+static int autoresolve(void *ctx, ak_gc *g, int side, int to, int n, bool second, int surv[2])
+{
+    const ak_gc_rules *r = ctx; const char *lvl = ak_gc_battle_level(g, to, second);
+    surv[side] = n; surv[!side] = g->planet[to].troops;
+    return ak_gc_autoresolve(g, r, surv, !strncmp(lvl, "space", 5));
+}
+static void end_turn(ak_gc_screen *s)
+{
+    ak_gc *g = &s->g;
+    g->turn = 1; ak_gc_collect(g, &s->r, 1);
+    ak_gc_ai_report rp; ak_gc_ai_turn(&s->ai, g, &s->r, autoresolve, &s->r, &rp);
+    if (g->winner >= 0) { s->phase = 4; return; }
+    g->turn = 0; s->income = ak_gc_collect(g, &s->r, 0); ak_gc_turn_start(g);
+    s->phase = 0; s->sub = 0;
+}
+static void battle_now(ak_gc_screen *s)
+{
+    int surv[2], w = autoresolve(&s->r, &s->g, s->battle_side, s->battle_to, s->battle_n, s->battle_second, surv);
+    if (ak_gc_result(&s->g, &s->r, s->battle_side, s->battle_to, w, surv, s->battle_second)) { s->battle_second = true; return; }   /* a second battle */
+    s->sub = 0;
+    if (s->g.winner >= 0) { s->phase = 4; return; }
+    if (!ak_gc_after_move(&s->g)) { s->phase = 3; }
+}
+bool ak_gc_screen_update(ak_gc_screen *s, const ak_input *in, const ak_m4 *vp, f32 dt)
+{
+    if (!s->ready) return false;
+    if (s->msg_t > 0) s->msg_t -= dt;
+    s->clock += dt;
+    u32 pr = in->pressed; ak_gc *g = &s->g; int c = s->cursor;
+    if (s->phase == 4) return false;
+    bool browse = s->sub == 0 || s->sub == 2;
+    if (browse) {
+        if (pr & AK_BTN_LEFT) move_cursor(s, vp, -1, 0);
+        if (pr & AK_BTN_RIGHT) move_cursor(s, vp, 1, 0);
+        if (pr & AK_BTN_UP) move_cursor(s, vp, 0, -1);
+        if (pr & AK_BTN_DOWN) move_cursor(s, vp, 0, 1);
+        c = s->cursor;
+    } else if (s->sub == 1) {
+        if (pr & AK_BTN_UP) s->count = s->count + 10 <= s->count_max ? s->count + 10 : s->count_max;
+        if (pr & AK_BTN_DOWN) s->count = s->count - 10 >= 10 ? s->count - 10 : (s->count_max < 10 ? s->count_max : 10);
+    }
+    switch (s->phase) {
+    case 0:                                                      /* treasury: Continue */
+        if (pr & AK_BTN_CROSS) { s->phase = 1; s->sub = 0; }
+        break;
+    case 1:                                                      /* purchase */
+        if (s->sub == 0) {
+            if (pr & AK_BTN_TRIANGLE) { s->phase = 2; s->sub = 0; break; }
+            if (pr & AK_BTN_CROSS) {
+                if (c < 0 || g->planet[c].owner != 0) { say(s, 0x7B); break; }
+                int room = ak_gc_cap(g, &s->r, c) - g->planet[c].troops, cr = (int)g->side[0].credits, most = room < cr ? room : cr;
+                if (room <= 0) { say(s, 0x7A); break; }
+                if (most < 10) { say(s, 0x6D); break; }
+                s->sub = 1; s->count_max = most - most % 10; s->count = 10;
+            }
+        } else if (s->sub == 1) {
+            if (pr & AK_BTN_CIRCLE) s->sub = 0;
+            else if (pr & AK_BTN_CROSS) { ak_gc_buy_troops(g, &s->r, 0, c, s->count); s->sub = 0; }
+        }
+        break;
+    case 2:                                                      /* movement */
+        if (s->sub == 0) {
+            if (pr & AK_BTN_TRIANGLE) { s->phase = 3; s->sub = 0; break; }
+            if (pr & AK_BTN_CROSS) {
+                if (c < 0 || g->planet[c].owner != 0) { say(s, 0x7B); break; }
+                if (g->planet[c].troops < 20 || !ak_gc_move_source(g, 0, c)) { say(s, 0x6D); break; }
+                s->src = c; s->sub = 2;
+            }
+        } else if (s->sub == 2) {
+            if (pr & AK_BTN_CIRCLE) s->sub = 0;
+            else if (pr & AK_BTN_CROSS) {
+                int room = ak_gc_move_room(g, &s->r, 0, s->src, c);
+                if (room <= 0) { say(s, g->planet[c].owner == 0 ? 0x6E : 0x7C); break; }
+                s->dst = c; s->sub = 1; s->count_max = room; s->count = room;
+            }
+        } else if (s->sub == 1) {
+            if (pr & AK_BTN_CIRCLE) s->sub = 2;
+            else if (pr & AK_BTN_CROSS) {
+                int res = ak_gc_move(g, &s->r, 0, s->src, s->dst, s->count);
+                if (res == AK_GC_MOVE_BATTLE) { s->sub = 3; s->battle_side = 0; s->battle_to = s->dst; s->battle_n = s->count; s->battle_second = false; }
+                else { s->sub = 0; if (res != AK_GC_MOVE_BAD && !ak_gc_after_move(g)) s->phase = 3; }
+            }
+        } else if (s->sub == 3) {                                /* Attack (a match, not wired yet) or Auto-Resolve */
+            if (pr & (AK_BTN_CROSS | AK_BTN_SQUARE)) battle_now(s);
+        }
+        break;
+    case 3:                                                      /* reinforce */
+        if (s->sub == 0) {
+            if (pr & AK_BTN_TRIANGLE) { end_turn(s); break; }
+            if (pr & AK_BTN_CROSS) {
+                if (c < 0 || g->planet[c].owner != 0) { say(s, 0x7B); break; }
+                if (g->planet[c].troops < 11) { say(s, 0x7C); break; }
+                s->src = c; s->sub = 2;
+            }
+        } else if (s->sub == 2) {
+            if (pr & AK_BTN_CIRCLE) s->sub = 0;
+            else if (pr & AK_BTN_CROSS) {
+                if (g->planet[c].owner != 0) { say(s, 0x7B); break; }
+                int room = ak_gc_cap(g, &s->r, c) - g->planet[c].troops, avail = g->planet[s->src].troops - 10, m = room < avail ? room : avail;
+                if (room <= 0) { say(s, 0x6E); break; }
+                if (m <= 0) { say(s, 0x6D); break; }
+                s->dst = c; s->sub = 1; s->count_max = m; s->count = m;
+            }
+        } else if (s->sub == 1) {
+            if (pr & AK_BTN_CIRCLE) s->sub = 2;
+            else if (pr & AK_BTN_CROSS) { if (!ak_gc_reinforce(g, &s->r, 0, s->src, s->dst, s->count)) say(s, 0x7C); s->sub = 0; }
+        }
+        break;
+    }
+    return s->phase != 4;
 }

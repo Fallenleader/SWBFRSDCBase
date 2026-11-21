@@ -1161,6 +1161,12 @@ textures and how they are used. Section R lists only what must be in place so th
     blue (0,0,1) side 0, red (1,0,0) side 1, hidden on neutral; now additive camera-facing squares, half-size 1.5 world units
     [assumed]. Matches the original's screen (docs/gc_sectors_halos.png). Open: the cursor ring, the star field, planet brightness,
     the panel colour, phase panels, input and the turn flow.
+  - Part 16, 2026-11-21 - **a playable GC turn (first pass)**: ak_gc_screen_update drives treasury -> purchase -> movement ->
+    reinforce -> the AI's turn -> treasury on ak_gc's traced rules; battles auto-resolved for now; the cursor is the original's
+    pulsing size-2.0 flare (08A4B0DC, pulse 08A4D128). [assumed]: buttons beyond the bar labels, the count panel, the cursor cones.
+    Also found: GC.PSP's "yellow/green/blue/red_surround" RSCF type-0 resources are per-sector meshes keyed by the SHAP hashes (the
+    sector outlines' own meshes - names are not colours); not used yet. Next: the tech / commander page (MP_TechPurchase), battles as
+    matches (ak_gc_battle_tickets -> play -> gc_result -> ak_gc_result), the panel colour (CLUT), front-end entry.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
