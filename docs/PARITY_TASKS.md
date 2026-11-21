@@ -584,8 +584,9 @@ textures and how they are used. Section R lists only what must be in place so th
     - The same day, the advance: Hoth's level script sends the AT-AT's waiting nodes 0x3B when the Empire takes a post (18875 for
       187EE, 18877 for 187ED, 18879 for 187EF) and 0x51 when the Alliance does (5.4 part 5: the node sets / clears its flag 0x40,
       08855908). Aurek now keeps the whole route with its nodes; the walker stops at the first waiting node (flags bit 7) that is
-      not open, and moves on once the script opens it [assumed: 0x3B opens, 0x51 shuts; the walker's own handler is not found -
-      in the measured runs the Empire took no post and the AT-AT never moved on]. Hoth, 4 min with bots: stops at 18875, goes on
+      not open, and moves on once the script opens it - confirmed in the harness (playing the Empire, 3 min): post 187EE went
+      Alliance -> neutral at frame 2720 -> Empire at 3920, and the AT-AT left node 18875 then (at 196.2 / -11.8 until 3860,
+      189.0 / -7.7 at 4160). [assumed: 0x51 shuts it again; the walker's own handler is not found]. Hoth, 4 min with bots: stops at 18875, goes on
       at 71.5 s (the Empire took 187EE), stops at 18877, goes on at 169 s, and so on.
 - [ ] **3.5 Vehicle life cycle [assumed].**
   - Respawn time (AK_VEHICLE_RESPAWN 10).
