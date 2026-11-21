@@ -956,7 +956,7 @@ int main(int argc, char **argv)
                         hs.post_contested = ps->contest > 0; hs.post_time = at_t; hs.post_cross = play.cq.post[near].disabled;
                     }
                 }
-                if (fe_menu) ak_fe_draw(); else ak_hud_draw(&hs, w, h);
+                if (fe_menu) ak_fe_draw(); else if (!(play.ready && play.cut >= 0 && play.cuts[play.cut].camera)) ak_hud_draw(&hs, w, h);   /* (no HUD in a cut-scene, as the original) */
 
             }
             if (play.snd.sub && ak_setting_int("AK_SUBTITLES", 0))                 /* the narrator's line (the game's subtitle text) */

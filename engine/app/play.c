@@ -739,6 +739,39 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             }
         }
     }
+    {   /* cut-scenes (CUTS chunks, version 18): u32, u32, the origin (3 floats, game axes), the name (28 bytes), the sound's path (a
+           string, NUL-ended, padded to 4; empty in the silent ones), the length (f32 s), the actors and animations, then at the end
+           { .., flags, u32 group (0xFFFF none), 0, f32 1.0, 0, 0, 0x20 }.  A named object (ENTI type 3 {version, 0, 0, the name (16+)
+           ..}) of the same name plays it on message 3; at its end the group fires (sender 0x3E7).  Checked on the harness (route
+           cmpn, RS_FIRE_LOG): Yavin's cs_recondroid (7.0 s, group 30000) started 1 s after the jump step and its group fired 7.0 s
+           later.  [assumed: a zero word before the length is skipped (cs_yavin_door_open)] */
+        u32 pos = 8; ak_chunk c; p->ncuts = 0; p->nnamed = 0; p->cut = -1;
+        while (ak_asura_next(&l->file, &pos, &c)) {
+            if (ak_chunk_tag(&c) == AK_TAG('C', 'U', 'T', 'S') && c.size >= 96 && p->ncuts < 16) {
+                typeof(p->cuts[0]) *k = &p->cuts[p->ncuts]; memset(k, 0, sizeof *k);
+                memcpy(k->name, c.body + 20, 27); f32 g[3]; memcpy(g, c.body + 8, 12); ak_from_game(g, k->org);
+                u32 q = 48; while (q < c.size && c.body[q]) q++; q = (q + 4) & ~3u;
+                f32 len = 0; if (q + 4 <= c.size) memcpy(&len, c.body + q, 4); if (len == 0 && q + 8 <= c.size) memcpy(&len, c.body + q + 4, 4);
+                for (u32 z = 48; z + 4 <= c.size && !k->camera; z++) k->camera = !memcmp(c.body + z, "_cam", 4);   /* [assumed: the view is taken only by those] */
+                k->len = len > 0 && len < 600 ? len : 0; k->group = (s32)(ak_rd32(c.body + c.size - 24) & 0xFFFFu); if (k->group == 0xFFFF) k->group = -1;
+                p->ncuts++;
+            }
+        }
+        pos = 8; p->nlisten = 0;
+        while (ak_asura_next(&l->file, &pos, &c) && p->nlisten < 16) {   /* type 38 (0886E220): {3, 0, 0, 1, 2, 0, 2, groups 0xFFFF0040, 1,
+                                                                            hash, 0, hash, 0, 0}: the script's 0x14 {hash} - Yavin's 18c5e fired
+                                                                            group 0x40 on 0x14 {0x7E4B3609} (RS_FIRE_LOG) [assumed: either hash] */
+            if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 56 || ak_rd32(c.body + 4) != 38) continue;
+            typeof(p->listen[0]) *k = &p->listen[p->nlisten++]; k->id = ak_rd32(c.body); k->hash[0] = ak_rd32(c.body + 44); k->hash[1] = ak_rd32(c.body + 52);
+            k->group = (s32)(ak_rd32(c.body + 36) & 0xFFFFu); if (k->group == 0xFFFF) k->group = -1;
+        }
+        pos = 8;
+        while (ak_asura_next(&l->file, &pos, &c) && p->nnamed < 64) {
+            if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 24 || ak_rd32(c.body + 4) != 3) continue;
+            char nm[29] = { 0 }; memcpy(nm, c.body + 20, c.size - 20 < 28 ? c.size - 20 : 28);
+            for (u32 k = 0; k < p->ncuts; k++) if (!strcmp(nm, p->cuts[k].name)) { p->named[p->nnamed].id = ak_rd32(c.body); p->named[p->nnamed++].cut = (s32)k; break; }
+        }
+    }
     p->have_ctf = ak_ctf_load(l, ak_game_mode, &p->ctf_map);                  /* PARITY(5.4) */
     {   /* kill boxes (traced: the factory 0896F170 makes class 0x16 from ENTI type 0x16 (unflagged): the loader 0886D334 reads, after
            the version (4) and the base words, the box x min, x max, y min, y max, z min, z max (game axes), the damage a second (+0x34)
@@ -2914,7 +2947,25 @@ static void script_sink(void *user, const ak_script_msg *m)
            seconds (3.0), u32 1, STDTEXT id} [assumed: both shown in the tip box; the original's frame shows the first at the top
            of the screen - its handler not traced yet] */
         u32 id = ak_rd32(m->extra + (m->type == 0x801D ? 4 : 12)); f32 secs = 0; if (m->type == 0x8023) memcpy(&secs, m->extra + 4, 4);
-        ak_hud_tip(id, m->type == 0x801D ? 0.0f : secs); done = true;
+        if (m->type == 0x8023 && ak_rd32(m->extra + 8)) {
+            /* with its flag set: a page that stops the game until X (seen: the training's lock-on page with "Press X to continue"
+               (STDTEXT 0x1A5) under it, the world still while the stick was held) [assumed: the float = the seconds before X is
+               taken; the flag's other values] */
+            ak_hud_tip(id, 0.0f); ak_hud_tip_more(0x1A5); p->modal = true; p->modal_t = 0; p->modal_min = secs;
+        } else ak_hud_tip(id, m->type == 0x801D ? 0.0f : secs);
+        done = true;
+    }
+    else if (m->type == 0x14 && m->nextra >= 4 && p->nlisten) {
+        u32 h = ak_rd32(m->extra);
+        for (u32 k = 0; k < p->nlisten; k++) if (p->listen[k].id == m->target && h && (h == p->listen[k].hash[0] || h == p->listen[k].hash[1])) {
+            done = true; if (p->listen[k].group >= 0 && p->have_script) ak_script_fire(&p->script, p->listen[k].group, m->target, script_sink, p); break; }
+    }
+    else if (m->type == 3 && p->nnamed) {
+        for (u32 k = 0; k < p->nnamed; k++) if (p->named[k].id == m->target) {
+            p->cut = p->named[k].cut; p->cut_t = 0; done = true;
+            if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "cut-scene %s (%.1f s)", p->cuts[p->cut].name, p->cuts[p->cut].len);
+            break;
+        }
     }
     else if (m->type == 0x53 && m->nextra >= 4 && ak_rd32(m->extra) == 0x3E8) {
         for (u32 k = 0; k < p->nwarp; k++) if (p->warp[k].id == m->target) {
@@ -2952,6 +3003,11 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
 {
     if (!p->ready) return;
     p->clock += dt; p->frame_no++;
+    if (p->modal) {                                                        /* a page up: the world waits for X */
+        p->modal_t += dt; if ((in->pressed & AK_BTN_CROSS) && p->modal_t >= p->modal_min) { p->modal = false; ak_hud_tip_clear(); }
+        return;
+    }
+    static const ak_input still; if (p->cut >= 0 && p->cuts[p->cut].camera) in = &still;            /* a cut-scene: no control (seen: the player stands) */
     if (p->roll_nolock_t > 0) p->roll_nolock_t -= dt;                      /* (089DA874: +0x84 runs down by the frame's time) */
     if (ak_setting_int("AK_LOG_HITS", 0) && p->frame_no % 6 == 0)        /* (tests: each bot's position every 0.1 s, against the hits' shooters) */
         for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0) {
@@ -3623,6 +3679,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0 && p->bot[i].ch.pos[1] < -400.0f) {
         p->target[1 + i].alive = false; p->bot[i].alive = false; p->bot[i].dead_t = 0; if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, p->bot[i].team); }
     /* the level script (game/ak_script.h): its timers, its queue, what it sends to the game's objects */
+    if (p->have_script && p->cut >= 0 && (p->cut_t += dt) >= p->cuts[p->cut].len) {   /* the cut-scene's end: its group */
+        s32 g = p->cuts[p->cut].group; p->cut = -1; if (g >= 0) ak_script_fire(&p->script, g, 0x3E7, script_sink, p); }
     if (p->have_script) { ak_script_update(&p->script, dt, false, script_sink, p); ak_script_cond(&p->script, script_test, script_sink, p);
         f32 gp[3]; ak_from_game(p->ch.pos, gp); ak_script_regions(&p->script, p->alive && p->in_veh < 0 ? gp : NULL, script_sink, p); }   /* (ak_from_game is its own inverse: engine -> game) */
     /* conquest: the posts, the tickets, the spawn wave */

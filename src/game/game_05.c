@@ -5783,6 +5783,7 @@ rv_t func_08879DB8(u32 a0, u32 a1, u32 a2, float f12)
     u8 stack_[64] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 64);
 L_08879DB8:;
+    { extern void rs_fire_log(u32, u32); rs_fire_log(a1, a2); }   /* (harness: RS_FIRE_LOG) */
     sp = sp - 64;
     v0 = 0xffff;
     s4 = a2 + 0;

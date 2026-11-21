@@ -63,6 +63,7 @@ void ak_hud_messages_clear(void);
 /* the campaign's objective line (style 4's box, staying while set; NULL / 0 clears) [assumed: style 4 - its box sits where the
    original's frame shows it] */
 void ak_hud_tip(u32 id, f32 secs);          /* the campaign's tip: secs <= 0 stays until ak_hud_tip_clear */
+void ak_hud_tip_more(u32 id);                /* another box under the tip, kept until ak_hud_tip_clear */
 void ak_hud_tip_clear(void);
 void ak_hud_objective(const u16 *t, u32 n);
 const u16 *ak_hud_mission_text(u32 id, u32 *len);   /* TEXT/MISSIONOBJECTIVES.ASR entry */

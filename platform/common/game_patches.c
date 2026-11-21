@@ -999,6 +999,11 @@ void rs_slot_log(u32 tab, u32 k, u32 ctr, u32 hd){
 
 /* (5.4 campaign) RS_801C_LOG: each message to a 0x801C object (08A100A4): frame, object id, kind (+0x28), param (+0x2C), message
    type, its sender (msg +4 [assumed]) and the native call chain (resolve with addr2line -f) */
+/* the level script's group firing (08879DB8: a1 the group, a2 the sender): RS_FIRE_LOG */
+void rs_fire_log(u32 group, u32 sender){
+    static int on = -1; if (on < 0) on = getenv("RS_FIRE_LOG") != 0; if (!on) return;
+    fprintf(stderr, "[FIRE] fr %u group %d sender %x\n", probe_fr, (int)(short)group, sender);
+}
 void rs_801c_log(u32 obj, u32 msg){
     static int on = -1; if (on < 0) on = getenv("RS_801C_LOG") != 0; if (!on) return;
     void *bt[8]; int n = backtrace(bt, 8);

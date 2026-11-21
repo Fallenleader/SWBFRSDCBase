@@ -1205,6 +1205,11 @@ textures and how they are used. Section R lists only what must be in place so th
     0 (sprint) and 1 (in the air), the nodes' own tips, tips that stay, the objective line's 10 s repeat and its end on 0x8008 /
     0x8009. Next: cut-scenes (0x14 {hash} to type 38, CUTS), kind 10 (view mode 0x08C29B58), the lock-on page with Press X,
     the marker ring / chevrons (the type-7 model linked from 0x8013), no ticket counters in the campaign HUD [to check].
+  - Part 25, 2026-11-21 - **cut-scenes (timing), type-38 listeners, the X page**: done as in NATIVE_ENGINE. Next: the cut-scene
+    camera (the '_cam' animations: Characters\\Cutscenes\\<level>\\*_cam.ASR) and actors (the recon droid model and its path),
+    the speech (sounds\\speech\\en\\cutscene\\*.wav), the recon droid left in the courtyard (0x8010 {0, 2} to 189ac, a 0x8009
+    class), the lock-on step after the page, kind 10 (view mode 0x08C29B58 from 0x08C29394 via 089719A0 / 08979CA0 - a 1.1 s branch
+    to the tip 0x14D), the button glyphs in tips (\\ue809 drawn as a shield, the original 'R').
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

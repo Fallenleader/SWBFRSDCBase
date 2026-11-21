@@ -213,7 +213,12 @@ typedef struct {
     f32 scale;                         /* soldiers' size relative to the world (AK_SOLDIER_SCALE) */
     f32 clock;                         /* seconds of play (spinning logos) */
     s32 near_post;                     /* the post the soldier stands at (the HUD's capture bar), or -1 */
-    struct { u32 id; f32 pos[3], yaw, fade[2]; } warp[8]; u32 nwarp;   /* the campaign's player moves (ENTI type 68 -> its type 69 point) */
+    struct { u32 id; f32 pos[3], yaw, fade[2]; } warp[8]; u32 nwarp;
+    struct { char name[28]; f32 len, org[3]; s32 group; bool camera; } cuts[16]; u32 ncuts;   /* the level's cut-scenes (CUTS); camera: it has a camera animation */
+    struct { u32 id, hash[2]; s32 group; } listen[16]; u32 nlisten;      /* ENTI type 38: fire a group on message 0x14 with a hash */
+    struct { u32 id; s32 cut; } named[64]; u32 nnamed;                    /* the named objects (type 3) that are cut-scenes */
+    s32 cut; f32 cut_t;
+    bool modal; f32 modal_t, modal_min;                                    /* a campaign page waiting for X (0x8023 with its flag set) */                                                    /* the cut-scene playing (-1 none), its time */   /* the campaign's player moves (ENTI type 68 -> its type 69 point) */
     bool want_equipment;               /* d-pad up at an own post with no vehicle to board: open the customisation menu */
     struct {                           /* sound (app/play_sound.c) */
         const ak_level *lvl; const ak_bp_object *surf[10];   /* the Material blueprints by surface number (MTRL mode) */

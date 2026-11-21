@@ -515,6 +515,11 @@ void ak_hud_tip(u32 id, f32 secs)
     ak_hud_tip_clear();
     msg_slot *s = msg_push(3, stdtext[id], stdlen[id], NULL, 0); s->life = secs > 0 ? secs : 1e30f;
 }
+void ak_hud_tip_more(u32 id)
+{
+    if (!stdtext || id >= nstd || !stdtext[id]) return;
+    msg_slot *s = msg_push(3, stdtext[id], stdlen[id], NULL, 0); s->life = 1e30f;
+}
 void ak_hud_tip_clear(void) { for (u32 k = 0; k < 4; k++) msgs[3][k].on = false; }
 void ak_hud_objective(const u16 *t, u32 n)
 {
