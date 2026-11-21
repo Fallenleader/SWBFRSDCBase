@@ -1179,6 +1179,13 @@ textures and how they are used. Section R lists only what must be in place so th
     the harness frame shows green. In frame 1400 no draw binds 0x0A589230; 0x0A599AD0 (_03, all green) is bound once. Unresolved:
     which texture GC id 0x36 really is (08A4CD68 -> 0883A334 name lookup). New harness hooks: RS_CLUT_DUMP, RS_TEXBIND=frame
     (gu_native and ge paths), RS_SPRITE_ALL. Next: log the 2D sprite batch's texture address at its flush.
+  - Part 19, 2026-11-21 - **planet panel colour settled (blue)**: traced the sprite's texture end to end in a memory dump of the
+    running original (RS_MEMDUMP 1500): GC's table entry 10 = id 0x36 (08A4CD68 -> 0883A334 makes a name node per request, ids
+    handed out downwards: 0x40 corona .. 0x30 counter icons); 089072C8 -> 0890C3C0 -> 0890C53C binds the texture header
+    0x08BD394C[id]: id 0x36 -> header 0x0A589210 = pixels 0x0A589230 (GC_Tech_Elements_02), CLUT 0x0A599640; id 0x35 -> _03 at
+    0x0A599AD0. Those pixels with their CLUT are Aurek's texture (green left half, blue right), and the sprite's four corners
+    (RS_SPRITE_ALL) take u 0.457-0.918: the blue half. So the original draws the panel blue as Aurek does; the harness's green
+    frame is the harness renderer's doing (its texture cache, not the game) [the harness issue is not chased further].
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
