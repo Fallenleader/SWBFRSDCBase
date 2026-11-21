@@ -733,6 +733,10 @@ textures and how they are used. Section R lists only what must be in place so th
     (AK_BOT_FIGHT_DRIFT=0: full move speed, no strafe) - its shooters then never stand (4.1 / 4.5 / 4.8 / 5.0 / 6.4 m/s, 226
     hits); with it on 0.4 / 0.85 / 2.7 / 4.3 / 7.1 (155); the original 0 / 0.08 / 2.2 / 5.0 / 8.2 (176). Left on until what
     0x3F2 does on arriving (the standing) is ported.
+  - 2026-11-21, all the bots' speeds (not just at hits; 0.5 s samples): original 0 / 0.61 / 5.1 / 8.4 / 8.5 m/s, Aurek 0 / 2.7 /
+    5.4 / 8.2 / 8.4 (10 / 25 / 50 / 75 / 90 %). The original's bots stand still more: of its 1002 standing samples (under 0.3 m/s),
+    182 are within 10 m of a post, 607 within 10-30 m, 213 farther; the stops last a median 1 s, a few 6-18 s. Next: where in
+    0x3F2 / the squad's orders those stops come from (the order's end and the squad's next order - the 1 s ones).
 - [x] **4.5 Bot counts per mode and level [traced 2026-11-21].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source
