@@ -650,6 +650,11 @@ textures and how they are used. Section R lists only what must be in place so th
     board 20 craft in 110 s (13 before) and the flyers hit flyers 37 times (13). The placed craft fly from the first frame in
     the original (30d44 / 46 / 48 / 4a / 4c, 60-80 m/s); Aurek now starts a bot of the craft's side in each one that is in the
     air (who pilots them in the game: not traced) - 50 hits in 110 s. [ ] The pursuit's engagement distances.
+  - 2026-11-21: after the spawn-timer change (1.10c) Space Hoth reads 34 flyer hits in 110 s (the bots now come in over 5-15 s).
+    The flyers' blueprints give TargetRange 2500 / InitialLockOnRange 1000 (every craft); Aurek picks the nearest crewed enemy
+    craft within 1500 m every 0.5-0.7 s [assumed] and a role per craft (attack runs / landing / combat).  Next: read who feeds
+    08948A9C its target in GENERAL_COMBAT (the vehicle AI's sensor and range) and measure the original's flyer pairings
+    (harness state.log, class 0x8004, nearest-enemy distances over time).
 
 ## 5. Game rules and modes
 
