@@ -127,7 +127,7 @@ bool ak_gc_screen_init(ak_gc_screen *s, ak_vfs *vfs, const ak_level *l, const ak
     static const char *const tn[GCT_N] = { "\\graphics\\GUI\\GC_Elements\\GC_Tech_Elements.tga", "\\graphics\\GUI\\GC_Elements\\GC_Tech_Elements_02.tga",
         "\\graphics\\GUI\\PSP_Button_Icons\\button_square.tga", "\\graphics\\GUI\\PSP_Button_Icons\\button_triangle.tga",
         "\\graphics\\GUI\\PSP_Button_Icons\\button_x.tga", "\\graphics\\GUI\\PSP_Button_Icons\\button_select.tga",
-        "\\graphics\\gui\\psp_button_icons\\button_circle.tga" };
+        "\\graphics\\gui\\psp_button_icons\\button_circle.tga", "\\graphics\\GUI\\PSP_Button_Icons\\button_r1.tga" };
     for (int i = 0; i < GCT_N; i++) { s32 k = ak_level_find_texture(l, tn[i]); s->tex[i] = k >= 0 && sc->tex ? sc->tex[k] : NULL; }
     if (getenv("AK_DEBUG_GC_TEX")) for (int i = 0; i < GCT_N; i++) fprintf(stderr, "[gc] tex %d %s\n", i, s->tex[i] ? "ok" : "missing");
     for (int p = 0; p < AK_GC_PLANETS && s->cursor < 0; p++) if (s->g.planet[p].owner == 0) s->cursor = p;   /* [assumed] the first own planet */
@@ -218,6 +218,17 @@ void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp)
 {
     if (!s->ready) return;
     ak_hud_2d_begin();
+    if (s->tech_open) {
+        /* over the tech page: CREDITS and the side's credits (x 360 / 437..477, as the map's header) and the bar: circle Back, R1 View
+           Opponent's Tech/Comm (157, 32 wide), cross Buy at 404 (the original's frames; [assumed: Buy shown always - the original
+           shows it on a buyable item]) */
+        txt(1, 360, 0, 0xFFFFFFFFu, 0x35, 0); num(1, 477, 0, 0xFFFFFF00u, s->g.side[0].credits, 2, true);
+        ak_hud_2d_quad(NULL, 0, 249, 480, 272, 0, 0, 1, 1, 0x60000000u);
+        spr(s->tex[GCT_CIRCLE], 2, 252.5f, 18, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, 20, 252.5f, 0xFFFFFFFFu, 0x45, 0);
+        spr(s->tex[GCT_R1], 157, 252.5f, 189, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, 191, 252.5f, 0xFFFFFFFFu, 0x50, 0);
+        spr(s->tex[GCT_CROSS], 404, 252.5f, 420, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, 422, 252.5f, 0xFFFFFFFFu, 0x44, 0);
+        ak_hud_2d_end(); return;
+    }
     /* home planets: the badge over the planet (24 x 18) and the name tag under it (66 x 16, blue row for the player's, red row for
        the enemy's), the name centred */
     for (int p = 0; p < AK_GC_PLANETS; p++) {
@@ -293,8 +304,8 @@ void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp)
  * cross Buy Troops / Select Source / Select Destination / Confirm, circle Cancel / Back, square Buy Tech/Comm or Auto-Resolve,
  * triangle End Phase) [assumed: which button does what beyond the bar's labels; the count steps of 10 by up / down, as the AI's
  * count presses 0x29 / 0x2A].  The cursor moves to the nearest planet within 0.39 rad of the pressed direction, else 0.79, else
- * 1.57 (the debug values BFF_GC_GUI_13-15 "Next_Planet_0/1/2") [assumed: their use].  Battles are auto-resolved for now (the
- * original offers Attack - a match - or Auto-Resolve). */
+ * 1.57 (the debug values BFF_GC_GUI_13-15 "Next_Planet_0/1/2") [assumed: their use].  A battle: Attack plays it as a match
+ * (the viewer, ak_gc_screen_battle_setup / _done), Auto-Resolve settles it here. */
 static void say(ak_gc_screen *s, u32 id) { s->msg = id; s->msg_t = 2.0f; }
 static void move_cursor(ak_gc_screen *s, const ak_m4 *vp, f32 dx, f32 dy)
 {
@@ -326,13 +337,33 @@ static void end_turn(ak_gc_screen *s)
     g->turn = 0; s->income = ak_gc_collect(g, &s->r, 0); ak_gc_turn_start(g);
     s->phase = 0; s->sub = 0;
 }
-static void battle_now(ak_gc_screen *s)
+static void battle_over(ak_gc_screen *s, int w, int surv[2])
 {
-    int surv[2], w = autoresolve(&s->r, &s->g, s->battle_side, s->battle_to, s->battle_n, s->battle_second, surv);
     if (ak_gc_result(&s->g, &s->r, s->battle_side, s->battle_to, w, surv, s->battle_second)) { s->battle_second = true; return; }   /* a second battle */
     s->sub = 0;
     if (s->g.winner >= 0) { s->phase = 4; return; }
     if (!ak_gc_after_move(&s->g)) { s->phase = 3; }
+}
+static void battle_now(ak_gc_screen *s)
+{
+    int surv[2], w = autoresolve(&s->r, &s->g, s->battle_side, s->battle_to, s->battle_n, s->battle_second, surv);
+    battle_over(s, w, surv);
+}
+/* the match for a battle: the level the GC battle is fought on (08A3A2B8), each side's troops as its tickets (by faction class,
+   ak_gc_battle_tickets / 08A3A1D0), the player on their GC faction; at its end 08A3A5CC's rules (ak_gc_battle_winner - the
+   winning faction's side, 2 a draw -, the survivors from the tickets left, ak_gc_result) */
+const char *ak_gc_screen_battle_setup(ak_gc_screen *s, int tickets[2], int *player_faction)
+{
+    s->battle_launch = false; s->battle_live = true;
+    ak_gc_battle_tickets(&s->g, s->battle_side, s->battle_to, s->battle_n, tickets);
+    *player_faction = s->g.side[0].faction;
+    return ak_gc_battle_level(&s->g, s->battle_to, s->battle_second);
+}
+void ak_gc_screen_battle_done(ak_gc_screen *s, int winning_faction, const int left[2])
+{
+    s->battle_live = false;
+    int w = ak_gc_battle_winner(&s->g, winning_faction), surv[2]; ak_gc_battle_survivors(&s->g, left, surv);
+    battle_over(s, w, surv);
 }
 bool ak_gc_screen_update(ak_gc_screen *s, const ak_input *in, const ak_m4 *vp, f32 dt)
 {
@@ -359,6 +390,7 @@ bool ak_gc_screen_update(ak_gc_screen *s, const ak_input *in, const ak_m4 *vp, f
     case 1:                                                      /* purchase */
         if (s->sub == 0) {
             if (pr & AK_BTN_TRIANGLE) { s->phase = 2; s->sub = 0; break; }
+            if (pr & AK_BTN_SQUARE) { s->tech_open = true; break; }   /* Buy Tech/Comm: the page (the viewer opens it) */
             if (pr & AK_BTN_CROSS) {
                 if (c < 0 || g->planet[c].owner != 0) { say(s, 0x7B); break; }
                 int room = ak_gc_cap(g, &s->r, c) - g->planet[c].troops, cr = (int)g->side[0].credits, most = room < cr ? room : cr;
@@ -393,8 +425,10 @@ bool ak_gc_screen_update(ak_gc_screen *s, const ak_input *in, const ak_m4 *vp, f
                 if (res == AK_GC_MOVE_BATTLE) { s->sub = 3; s->battle_side = 0; s->battle_to = s->dst; s->battle_n = s->count; s->battle_second = false; }
                 else { s->sub = 0; if (res != AK_GC_MOVE_BAD && !ak_gc_after_move(g)) s->phase = 3; }
             }
-        } else if (s->sub == 3) {                                /* Attack (a match, not wired yet) or Auto-Resolve */
-            if (pr & (AK_BTN_CROSS | AK_BTN_SQUARE)) battle_now(s);
+        } else if (s->sub == 3) {                                /* Attack (a match: the viewer starts it) or Auto-Resolve */
+            if (s->battle_live || s->battle_launch) break;
+            if (pr & AK_BTN_CROSS) s->battle_launch = !ak_setting_int("AK_GC_AUTORESOLVE", 0);
+            if ((pr & AK_BTN_SQUARE) || ((pr & AK_BTN_CROSS) && !s->battle_launch)) battle_now(s);
         }
         break;
     case 3:                                                      /* reinforce */
@@ -421,4 +455,47 @@ bool ak_gc_screen_update(ak_gc_screen *s, const ak_input *in, const ak_m4 *vp, f
         break;
     }
     return s->phase != 4;
+}
+
+/* ---- the tech page's contents (08A44E40 the focused item's line; prices ak_gc_tech_price / ak_gc_cmdr_price).  The lines: logistics
+ * 0x20-0x22 with the troop cap (08A43494), infantry 0x23 / 0x24 ("Damage reduced by 20%") / 0x25, space 0x26-0x28 (Alliance) or
+ * 0x29-0x2B (Empire); commanders Alliance 0x1C-0x1F, Empire 0x18-0x1B: Han Solo's 10%, the planet bonus PlanetInSectorBonus
+ * (08A4356C), Leia / Tarkin TechCostBonus x 100 and CommanderCostBonus x 100 (08A43404 / 08A4344C x 0x08AEFC94 = 100); names
+ * 0x30-0x33 / 0x2C-0x2F. */
+static u16 tline[13][160]; static u32 tlen[13];
+static u32 fmt_line(u16 *o, u32 cap, u32 id, const int *v, int nv)
+{
+    u32 n; const u16 *t = ak_gc_text(id, &n); u32 k = 0; int vi = 0;
+    for (u32 i = 0; t && i < n && k + 12 < cap; i++) {
+        if (t[i] == '%' && i + 1 < n && t[i + 1] == 'd') { char b[12]; int m = snprintf(b, sizeof b, "%d", vi < nv ? v[vi] : 0); vi++; for (int j = 0; j < m; j++) o[k++] = (u16)b[j]; i++; }
+        else if (t[i] == '%' && i + 1 < n && t[i + 1] == '%') { o[k++] = '%'; i++; }
+        else o[k++] = t[i];
+    }
+    return k;
+}
+void ak_gc_screen_tech(const ak_gc_screen *s, ak_fe_gc *o)
+{
+    memset(o, 0, sizeof *o);
+    const ak_gc_side *sd = &s->g.side[0]; bool evil = (ak_gc_class(sd->faction) & 1) != 0;
+    for (int k = 0; k < 3; k++) { o->tech[k] = sd->tech[k]; for (int l = 0; l < 3; l++) o->tech_price[k][l] = ak_gc_tech_price(&s->g, &s->r, 0, k, l); }
+    for (int c = 0; c < 4; c++) {
+        o->cmdr_avail[c] = sd->cmdr_avail[c]; o->cmdr_bought[c] = sd->cmdr_bought[c]; o->cmdr_price[c] = ak_gc_cmdr_price(&s->g, &s->r, 0, c);
+        o->cmdr_name[c] = ak_gc_text((u32)((evil ? 0x2C : 0x30) + c), &o->cmdr_name_len[c]);
+    }
+    o->acquired = ak_gc_text(0x4F, &o->acquired_len);
+    for (int l = 0; l < 3; l++) { int v = s->r.troop_cap[l]; tlen[l] = fmt_line(tline[l], 160, (u32)(0x20 + l), &v, 1); }
+    { int v = 20; tlen[3] = fmt_line(tline[3], 160, 0x23, NULL, 0); tlen[4] = fmt_line(tline[4], 160, 0x24, &v, 1); tlen[5] = fmt_line(tline[5], 160, 0x25, NULL, 0); }
+    for (int l = 0; l < 3; l++) tlen[6 + l] = fmt_line(tline[6 + l], 160, (u32)((evil ? 0x29 : 0x26) + l), NULL, 0);
+    { int han = 10, pl = s->r.sector_planet_bonus, cb[2] = { (int)(s->r.tech_cost_bonus * 100.0f), (int)(s->r.cmdr_cost_bonus * 100.0f) };
+      u32 base = evil ? 0x18 : 0x1C;
+      tlen[9] = fmt_line(tline[9], 160, base, &han, 1); tlen[10] = fmt_line(tline[10], 160, base + 1, &pl, 1);
+      tlen[11] = fmt_line(tline[11], 160, base + 2, cb, 2); tlen[12] = fmt_line(tline[12], 160, base + 3, NULL, 0); }
+    for (int i = 0; i < 13; i++) { o->info[i] = tline[i]; o->info_len[i] = tlen[i]; }
+}
+/* the choice: 08A3B8xx records it (0x08C2D8CC = 1) and the purchase sub-state buys it: a tech level only as the next one, a
+   commander when available, each if the credits cover it (ak_gc_buy_tech / ak_gc_buy_cmdr) */
+void ak_gc_screen_tech_buy(ak_gc_screen *s, int kind, int index)
+{
+    if (kind >= 0 && kind < 3) { if (index == s->g.side[0].tech[kind] + 1) ak_gc_buy_tech(&s->g, &s->r, 0, kind); }
+    else if (kind == 3 && index >= 0 && index < 4) ak_gc_buy_cmdr(&s->g, &s->r, 0, index);
 }

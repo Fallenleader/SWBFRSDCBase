@@ -3600,6 +3600,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     droids_update(p, dt);
     pu_update(p, dt);
     kbox_update(p, dt);
+    { f32 te = ak_setting_float("AK_TEST_END_AT", 0);                  /* tests: the match ends at this time, the player's team winning with 7 tickets left */
+      if (te > 0 && p->have_cq && p->match.winner < 0 && p->clock >= te) { p->match.tickets[p->team] = 7; p->match.tickets[1 - p->team] = 0; p->match.winner = p->team; } }
     bool playing = !p->have_cq || p->match.winner < 0;
     if (p->have_cq && p->rules.gc && !playing && !p->gc_result.done) {   /* 08972658: the winner's faction and the tickets left, for 08A3A5CC */
         p->gc_result.done = true; int w = p->match.winner;

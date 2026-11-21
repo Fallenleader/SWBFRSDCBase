@@ -7,7 +7,7 @@
 #include "../core/ak_vfs.h"
 #include "../platform/plat.h"
 
-enum { AK_FE_NONE = 0, AK_FE_START = 1, AK_FE_QUIT = 2, AK_FE_TEAM = 3, AK_FE_SPAWN = 4, AK_FE_RESUME = 5, AK_FE_RESTART = 6, AK_FE_KILL = 7, AK_FE_LOADOUT = 8 };
+enum { AK_FE_NONE = 0, AK_FE_START = 1, AK_FE_QUIT = 2, AK_FE_TEAM = 3, AK_FE_SPAWN = 4, AK_FE_RESUME = 5, AK_FE_RESTART = 6, AK_FE_KILL = 7, AK_FE_LOADOUT = 8, AK_FE_GC_BUY = 9 };
 
 /* what the in-match pages show (team selection, the spawn map): the match as it is */
 #define AK_FE_MAX_POSTS 8
@@ -40,5 +40,19 @@ int ak_fe_loadout(int sel[8], const char *names[5]);
    `soldier` - in the rectangle (480 x 272 units) with the widget's camera */
 typedef void (*ak_fe_model_fn)(const void *weapon, bool soldier, const f32 rect[4], f32 fov, const f32 cam_off[3], const f32 rot[3]);
 void ak_fe_set_model_drawer(ak_fe_model_fn fn);
+/* Galactic Conquest's MP_TechPurchase (BFF_GALACTICCONQUEST.GUI): the side's technology and commanders as the page shows them;
+   after AK_FE_GC_BUY (GC_Purchase<Equipment|Infantry|Space>Tech n / GC_PurchaseCommander n) the choice: kind 0..2 tech (level n),
+   3 a commander (n) */
+typedef struct {
+    int tech[3];                                   /* the level held per kind (0 = level 1) */
+    u32 tech_price[3][3];
+    bool cmdr_avail[4], cmdr_bought[4]; u32 cmdr_price[4];
+    const u16 *acquired; u32 acquired_len;         /* "ACQUIRED" */
+    const u16 *cmdr_name[4]; u32 cmdr_name_len[4];
+    const u16 *info[13]; u32 info_len[13];         /* the focused item's line: tech kind x 3 + level, then 9 + commander */
+} ak_fe_gc;
+bool ak_fe_open_gc(const char *page, const ak_fe_gc *g);
+void ak_fe_set_gc(const ak_fe_gc *g);
+int ak_fe_gc_choice(int *index);               /* after AK_FE_GC_BUY: the kind (0..2 tech, 3 commander) */
 int ak_fe_spawn_post(void);                    /* after AK_FE_SPAWN: the post chosen (index), -1 none */           /* after AK_FE_START: the level ("CLASSIC TATOOINE") and the mode (0 CQST .. 3 HCTF) */
 #endif

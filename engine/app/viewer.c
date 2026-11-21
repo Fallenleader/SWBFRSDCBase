@@ -21,6 +21,7 @@
 #include "../audio/ak_speech.h"
 #include "../platform/plat.h"
 #include <stdio.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <math.h>
 
@@ -31,7 +32,9 @@
 typedef struct { char path[128]; char label[64]; } level_ref;
 static level_ref levels[96];
 static int nlevels;
-static ak_gc_screen *gc_screen;                 /* the Galactic Conquest map's state and overlay (the "GC" level) */
+static ak_gc_screen *gc_screen;
+static bool gc_back; static struct { int winner_faction, left[2]; } gc_back_res;   /* a GC battle's match is over: back to the map */
+static int gc_level = -1; static f32 gc_end_t;                 /* the Galactic Conquest map's state and overlay (the "GC" level) */
 
 static void find_levels(ak_vfs *v, ak_arena *tmp)
 {
@@ -224,8 +227,16 @@ int main(int argc, char **argv)
             fe_models = &models; fe_mscene = &mscene; fe_play = &play;
             ak_entities_load(&level, &models, &lvl, &ents);
             if (!strcmp(levels[cur].label, "GC")) {   /* the Galactic Conquest map: a new game, the player's first treasury */
-                static ak_gc_screen gcs_; ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, (u32)ak_setting_int("AK_SEED", 1));
-                gcs_.g.turn = 0; gcs_.income = ak_gc_collect(&gcs_.g, &gcs_.r, 0); gcs_.phase = ak_setting_int("AK_GC_PHASE", 0);   /* (tests: 1 purchase) */ gc_screen = &gcs_;
+                static ak_gc_screen gcs_;
+                if (gcs_.ready && gc_back) {                  /* back from a battle: the same conquest on the reloaded map */
+                    ak_gc_screen keep = gcs_; ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, 1);
+                    keep.corona = gcs_.corona; memcpy(keep.tex, gcs_.tex, sizeof keep.tex); memcpy(keep.shape, gcs_.shape, sizeof keep.shape); keep.nshape = gcs_.nshape;
+                    gcs_ = keep; ak_gc_screen_battle_done(&gcs_, gc_back_res.winner_faction, gc_back_res.left); gc_back = false;
+                } else {
+                    ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, (u32)ak_setting_int("AK_SEED", 1));
+                    gcs_.g.turn = 0; gcs_.income = ak_gc_collect(&gcs_.g, &gcs_.r, 0); gcs_.phase = ak_setting_int("AK_GC_PHASE", 0);   /* (tests: 1 purchase) */
+                }
+                gc_screen = &gcs_;
             } else gc_screen = NULL;
             if (ak_setting_int("AK_DUMP_SMSG", 0)) {   /* tests: the level script's messages (SMSG: groups of u16 type, u16 extra, u32 target, ...) */
                 u32 pos = 8; ak_chunk c;
@@ -608,6 +619,11 @@ int main(int argc, char **argv)
             if (!fe_paused) ak_play_update(&play, &models, &in, dt);
             ak_play_camera(&play, dt, &cam.pos, &cam.yaw, &cam.pitch, &fovy); if (getenv("AK_DEBUG_CAMPOS")) fprintf(stderr, "[campos] %.3f %.3f %.3f yaw %.4f pitch %.4f fovy %.3f\n", cam.pos.x, cam.pos.y, cam.pos.z, cam.yaw, cam.pitch, fovy);
             ak_play_sound_update(&play, dt);
+            if (play.gc_result.done && gc_level >= 0 && (gc_end_t += dt) > ak_setting_float("AK_GC_RETURN_S", 4.0f)) {   /* a GC battle over: back to the map [assumed: 4 s, the original shows its results pages] */
+                gc_back = true; gc_back_res.winner_faction = play.gc_result.winner_faction; gc_back_res.left[0] = play.gc_result.left[0]; gc_back_res.left[1] = play.gc_result.left[1];
+                AK_INFO("gc", "back to the map: winning faction %d, left %d / %d", gc_back_res.winner_faction, gc_back_res.left[0], gc_back_res.left[1]);
+                cur = gc_level; gc_level = -1; playing = false; loaded = false; play.ready = false; ak_setting_set("AK_GC_TICKETS", ""); continue;
+            }
             if (play.snd.music_req && have_mus) {                          /* the match is over: the level's victory / defeat music */
                 char mp[160]; ak_blob mb;
                 if (ak_audio_level_music(&b_level_keep, play.snd.music_req, 0, mp, sizeof mp)) { ak_arena_reset(&musmem); bool hb = ak_vfs_read_part(vfs, mp, 0, 4096, &musmem, &mb); ak_audio_music_play(mp, hb ? mb.data : NULL, hb ? (u32)(mb.size < 4096 ? mb.size : 4096) : 0, false); }
@@ -634,7 +650,28 @@ int main(int argc, char **argv)
             { const char *keys = ak_setting_str("AK_GC_KEYS", NULL);   /* tests: one button every 8 frames from frame 10, as AK_FE_KEYS */
               if (keys && frame >= 10) { int k = (frame - 10) / 8, ph = (frame - 10) % 8; const char *q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; }
                   if (*q && ph == 0) in.pressed |= *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : *q == 'S' ? AK_BTN_SQUARE : *q == 'T' ? AK_BTN_TRIANGLE : 0u; } }
-            ak_gc_screen_update(gc_screen, &in, &vp, dt);
+            if (gc_screen->tech_open) {                  /* Buy Tech/Comm: BFF_GALACTICCONQUEST's MP_TechPurchase over the map */
+                ak_fe_gc fg;
+                if (!ak_fe_page()) {
+                    ak_fe_init(vfs); ak_gc_screen_tech(gc_screen, &fg); if (!ak_fe_open_gc("MP_TechPurchase", &fg)) gc_screen->tech_open = false;
+                } else if (in.pressed & AK_BTN_CIRCLE) { ak_fe_close(); gc_screen->tech_open = false; }   /* Back */
+                else if (ak_fe_update(&in, dt) == AK_FE_GC_BUY) {
+                    int i, k = ak_fe_gc_choice(&i); ak_gc_screen_tech_buy(gc_screen, k, i); ak_gc_screen_tech(gc_screen, &fg); ak_fe_set_gc(&fg);
+                }
+            } else ak_gc_screen_update(gc_screen, &in, &vp, dt);
+            if (gc_screen->battle_launch) {              /* Attack: the battle as a Conquest match on its level, each side's troops as tickets */
+                int tk[2], pf; const char *lv = ak_gc_screen_battle_setup(gc_screen, tk, &pf);
+                char want[64]; snprintf(want, sizeof want, "CLASSIC %s", lv); for (char *c = want; *c; c++) *c = (char)toupper((unsigned char)*c);
+                int to = -1; for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, want)) to = i;
+                if (to < 0) { int surv[2] = { 0, 0 }; AK_WARN("gc", "no level %s: auto-resolved", want); gc_screen->battle_live = false; (void)surv; gc_screen->battle_launch = false; }
+                else {
+                    char v[32]; snprintf(v, sizeof v, "%d,%d", tk[0], tk[1]); ak_setting_set("AK_GC_TICKETS", v); ak_setting_set("AK_MODE", "CQST");
+                    static const char *trooper[4] = { "Clonetrooper", "Battle_Droid", "MediumRebel", "Stormtrooper" };
+                    snprintf(v, sizeof v, "%d", ak_faction_team(pf) + 1); ak_setting_set("AK_TEAM", v); ak_setting_set("AK_SOLDIER", trooper[pf & 3]);
+                    AK_INFO("gc", "battle on %s: tickets %d / %d, player faction %d", want, tk[0], tk[1], pf);
+                    gc_level = cur; cur = to; loaded = false; playing = true; gc_end_t = 0; continue;
+                }
+            }
         }
         ak_gfx_env env = { { 0.55f, 0.62f, 0.70f }, ak_setting_float("AK_FOG_START", 0), ak_setting_float("AK_FOG_END", 0),
                            ak_setting_float("AK_COLOUR_SCALE", 2.0f) };   /* PARITY(R.1) */
@@ -953,7 +990,7 @@ int main(int argc, char **argv)
 
             }
         }
-        if (gc_screen && !strcmp(levels[cur].label, "GC")) ak_gc_screen_draw(gc_screen, &vp);
+        if (gc_screen && !strcmp(levels[cur].label, "GC")) { if (gc_screen->tech_open && ak_fe_page()) ak_fe_draw(); ak_gc_screen_draw(gc_screen, &vp); }
         ak_gfx_end(&gs);
         {   f32 lp[3] = { cam.pos.x, cam.pos.y, cam.pos.z }; ak_audio_listener(lp, cam.yaw); }
         if (dumpf) {                                                          /* (tests: the mix, frame by frame, as a WAV file) */

@@ -1167,6 +1167,11 @@ textures and how they are used. Section R lists only what must be in place so th
     Also found: GC.PSP's "yellow/green/blue/red_surround" RSCF type-0 resources are per-sector meshes keyed by the SHAP hashes (the
     sector outlines' own meshes - names are not colours); not used yet. Next: the tech / commander page (MP_TechPurchase), battles as
     matches (ak_gc_battle_tickets -> play -> gc_result -> ak_gc_result), the panel colour (CLUT), front-end entry.
+  - Part 17, 2026-11-21 - **tech page and battles as matches**: MP_TechPurchase opened over the map with the GC state bound
+    (frontend.c gc_* overrides; the info line traced from 08A44E40 incl. its constants 20 / 10 / x100); purchases through
+    GC_Purchase*. Attack plays the battle as a CQST match with the troops as tickets and returns its result to the map
+    (ak_gc_result). Harness: drive.py program gc_tech (square at 9 s, then the d-pad / cross / circle). Open: Empire portraits,
+    greys, focus brackets, the opponent's page, results pages.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

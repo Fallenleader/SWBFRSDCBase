@@ -15,8 +15,9 @@
 #include "game/ak_gc.h"
 #include "game/ak_gc_ai.h"
 #include "platform/plat.h"
+#include "app/frontend.h"
 
-enum { GCT_TECH, GCT_TECH2, GCT_SQUARE, GCT_TRIANGLE, GCT_CROSS, GCT_SELECT, GCT_CIRCLE, GCT_N };
+enum { GCT_TECH, GCT_TECH2, GCT_SQUARE, GCT_TRIANGLE, GCT_CROSS, GCT_SELECT, GCT_CIRCLE, GCT_R1, GCT_N };
 typedef struct {
     bool ready;
     ak_gc g; ak_gc_rules r;
@@ -35,13 +36,24 @@ typedef struct {
     ak_gc_income income;               /* the last treasury */
     ak_gc_ai ai;                       /* the opponent */
     int battle_side, battle_to, battle_n; bool battle_second;   /* the pending battle (sub 3) */
+    bool battle_launch;                /* Attack chosen: the viewer starts the match (ak_gc_screen_battle_setup) and reports back */
+    bool tech_open;                    /* square: the viewer shows MP_TechPurchase */
+    bool battle_live;                  /* a match is being played for it */
 } ak_gc_screen;
 
 bool ak_gc_screen_init(ak_gc_screen *s, ak_vfs *vfs, const ak_level *l, const ak_scene_level *sc, const ak_model_set *ms,
                        const ak_entity_set *ents, const ak_blueprints *bp, u32 seed);
 void ak_gc_screen_draw_back(const ak_gc_screen *s, const ak_m4 *vp);   /* behind the models: the owner halos */
 void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp);        /* 2D, after the 3D */
+/* the tech page (MP_TechPurchase) as it stands for side 0; ak_gc_screen_tech_buy: a GC_Purchase* choice */
+void ak_gc_screen_tech(const ak_gc_screen *s, ak_fe_gc *o);
+void ak_gc_screen_tech_buy(ak_gc_screen *s, int kind, int index);
 /* the player's input (pressed buttons); returns true while it is the player's turn */
 bool ak_gc_screen_update(ak_gc_screen *s, const ak_input *in, const ak_m4 *vp, f32 dt);
+/* Attack: the level file stem (ak_gc_battle_level, e.g. "space_hoth"), the tickets by faction class (good, bad: ak_gc_battle_tickets)
+   and the player's faction for the match */
+const char *ak_gc_screen_battle_setup(ak_gc_screen *s, int tickets[2], int *player_faction);
+/* the match's end (play.gc_result): the winning faction (-1 none) and the tickets left by faction class */
+void ak_gc_screen_battle_done(ak_gc_screen *s, int winning_faction, const int left[2]);
 const u16 *ak_gc_text(u32 id, u32 *len);                          /* TEXT/GALACTICCONQUEST.ASR entry */
 #endif

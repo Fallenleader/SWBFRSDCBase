@@ -25,6 +25,7 @@ static int cur_file = -1; static ak_gui_file gf; static ak_gfx_tex **gtex; stati
 /* the main menu's file stays loaded: its pictures win over another file's copies of the same name (the game keeps one picture
  * per name - SINGLEPLAYER.GUI's own menu_logos.tga carries the Italian logo, and the original shows the main menu's) */
 static ak_arena basemem; static ak_gui_file base; static ak_gfx_tex **btex;
+static bool gc_on;                     /* (Galactic Conquest's tech page: below) */
 static const ak_gui_page *page; static u32 focus, active_widget; static f32 clock;   /* (active_widget: the page in use's focus - GUIMenu.ActiveWidget) */
 static u32 stack[16]; static int nstack; static bool focus_fix_pending;
 /* pages open together, drawn in order, one of them in use (`page`): the customisation's MP_CustomBackground, MP_Customisation, its
@@ -91,7 +92,7 @@ void ak_fe_set_match(const ak_fe_match *m)
 }
 int ak_fe_team(void) { return team_choice; }
 int ak_fe_spawn_post(void) { return spawn_choice; }
-void ak_fe_close(void) { page = NULL; nstack = 0; nlayer = 0; }
+void ak_fe_close(void) { page = NULL; nstack = 0; nlayer = 0; gc_on = false; }
 
 /* ---- text lists (2005): their rows, filled by their FE_List* function */
 #define MAXROWS 48
@@ -119,6 +120,7 @@ static void path_of(int f, char *out, size_t n) { snprintf(out, n, "PSP_GAME/USR
 
 bool ak_fe_init(ak_vfs *v)
 {
+    if (ready) return true;                                            /* (once: the GC map and the menus share it) */
     vfs = v; nidx = 0;
     if (!ak_arena_init(&rowmem, 256u << 10) || !ak_arena_init(&txt, 1u << 20) || !ak_arena_init(&mem, (size_t)ak_setting_int("AK_FE_MB", 24) << 20)) return false;
     ak_blob b;
@@ -221,6 +223,7 @@ static bool open_hash(u32 h, bool push)
 }
 bool ak_fe_open(const char *name) { return ready && open_hash(ak_gui_hash(name), false); }
 bool ak_fe_open_ingame(const char *name) { return ak_fe_open(name); }
+bool ak_fe_open_gc(const char *name, const ak_fe_gc *g) { if (!ak_fe_open(name)) return false; ak_fe_set_gc(g); return true; }
 
 const char *ak_fe_page(void) { return page ? page->root.name : NULL; }
 
@@ -302,8 +305,63 @@ static int focused_spawn(void)
     const ak_widget *f = page && focus ? find_id(&page->root, focus) : NULL;
     return f && f->name && !strncmp(f->name, "W_BU_SpawnPoint", 15) ? atoi(f->name + 15) : -1;
 }
+/* ---- Galactic Conquest's tech page (5.4): the widgets the game fills at run time (08A3B738 registers GC_Purchase*; the page's
+ * filling code not traced - what each widget shows is read off the original's screen, harness 2026-11-21 [assumed]):
+ * each W_BT_<Equipment|Infantry|Space>Level<n> row: E_IM_Active (the green row) and E_TX_Cost "ACQUIRED" when held, else the
+ * price (E_TX_Datari credit sign + E_TX_Cost); the kind's lock (E_IM_<kind>Lock) on a level beyond the next; each
+ * W_BT_Commander<n>: E_TX_Name, the price or ACQUIRED, E_IM_Lock while not available; E_TX_Info_Variable: the focused item's line. */
+static ak_fe_gc gc; static int gc_kind = -1, gc_index = -1;
+void ak_fe_set_gc(const ak_fe_gc *g) { gc = *g; gc_on = true; }
+int ak_fe_gc_choice(int *index) { *index = gc_index; return gc_kind; }
+static int gc_row(const char *pn, int *lvl)                          /* the tech row a widget is in: kind, level; -1 none */
+{
+    static const char *const k[3] = { "W_BT_EquipmentLevel", "W_BT_InfantryLevel", "W_BT_SpaceLevel" };
+    if (!pn) return -1;
+    for (int i = 0; i < 3; i++) { size_t l = strlen(k[i]); if (!strncmp(pn, k[i], l)) { *lvl = atoi(pn + l) - 1; return *lvl >= 0 && *lvl < 3 ? i : -1; } }
+    return -1;
+}
+static int gc_cmdr(const char *pn) { return pn && !strncmp(pn, "W_BT_Commander", 14) ? atoi(pn + 14) - 1 : -1; }
+static u16 gc_num[16];
+static const u16 *gc_number(u32 v, u32 *n) { char b[12]; int k = snprintf(b, sizeof b, "%u", v); gc_num[0] = 0xBC; for (int i = 0; i < k; i++) gc_num[i + 1] = (u16)b[i]; *n = (u32)k + 1; return gc_num; }   /* the credit sign (08AE58C8) and the price */
+/* -1 hide, 1 show, 0 as the page has it */
+static int gc_shows(const ak_widget *w)
+{
+    if (!gc_on || !w->name) return 0;
+    int lvl, kind = gc_row(parent_name, &lvl), c = gc_cmdr(parent_name);
+    if (kind >= 0) {
+        bool have = lvl <= gc.tech[kind];
+        if (!strcmp(w->name, "E_IM_Active")) return have ? 1 : -1;
+        if (!strcmp(w->name, "E_TX_Datari")) return -1;            /* [assumed: the sign drawn with the price instead, as the screen shows it] */
+        if (!strcmp(w->name, "E_TX_Cost")) return 1;
+        if (strstr(w->name, "Lock")) return lvl > gc.tech[kind] + 1 ? 1 : -1;
+    }
+    if (c >= 0 && c < 4) {
+        if (!strcmp(w->name, "E_IM_Lock")) return gc.cmdr_avail[c] && !gc.cmdr_bought[c] ? -1 : gc.cmdr_bought[c] ? -1 : 1;
+        if (!strcmp(w->name, "E_TX_Datari")) return -1;
+    }
+    return 0;
+}
+static const u16 *gc_text(const ak_widget *w, u32 *n)
+{
+    if (!gc_on || !w->name) return NULL;
+    int lvl, kind = gc_row(parent_name, &lvl), c = gc_cmdr(parent_name);
+    if (kind >= 0) {
+        if (!strcmp(w->name, "E_TX_Cost")) { if (lvl <= gc.tech[kind]) { *n = gc.acquired_len; return gc.acquired; } return gc_number(gc.tech_price[kind][lvl], n); }
+    }
+    if (c >= 0 && c < 4) {
+        if (!strcmp(w->name, "E_TX_Name")) { *n = gc.cmdr_name_len[c]; return gc.cmdr_name[c]; }
+        if (!strcmp(w->name, "E_TX_State")) { if (gc.cmdr_bought[c]) { *n = gc.acquired_len; return gc.acquired; } return gc_number(gc.cmdr_price[c], n); }
+    }
+    if (!strcmp(w->name, "E_TX_Info_Variable")) {
+        const ak_widget *f = page && focus ? find_id(&page->root, focus) : NULL; int fl, fk = f ? gc_row(f->name, &fl) : -1, fc = f ? gc_cmdr(f->name) : -1;
+        int i = fk >= 0 ? fk * 3 + fl : fc >= 0 && fc < 4 ? 9 + fc : -1;
+        if (i >= 0 && gc.info[i]) { *n = gc.info_len[i]; return gc.info[i]; }
+    }
+    return NULL;
+}
 static const u16 *override_text(const ak_widget *w, u32 *n)
 {
+    { const u16 *t = gc_text(w, n); if (t) return t; }
     if (!have_match || !w->name) return NULL;
     if (parent_name && !strcmp(parent_name, "W_TB_SpawnName")) {          /* the focused post's name */
         int k = focused_spawn(); if (k >= 0 && (u32)k < match.nposts && match.post_name[k] >= 0) return ak_hud_post_name(match.post_name[k], n);
@@ -473,10 +531,12 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
     if (have_match && w->name && !strcmp(w->name, "E_TX_StyleMenuTitle") && cur_file == 8) return;   /* (the campaign's title: none in a plain match) */
     if (w->is_template && lb_row < 0) return;                          /* (a list box's row: drawn by the list, once per row) */
     if (getenv("AK_FE_TRACE") && w->name && strstr(w->name, getenv("AK_FE_TRACE"))) AK_INFO("fe", "draw %s shows %d cond %d at %.0f,%.0f", w->name, shows(w, focused), cond_holds(w), x, y);
+    if (getenv("AK_FE_TRACE2") && w->name) { static int nd; if (nd++ < 400) { fprintf(stderr, "[W] %s bind=%s text=%u/%u", w->name, w->binding ? w->binding : "-", w->text_table, w->text_key); for (u32 i = 0; i < w->ncond; i++) fprintf(stderr, " cond(%s %u %s)", w->cond[i].var, w->cond[i].op, w->cond[i].val); for (u32 i = 0; i < w->nactions; i++) fprintf(stderr, " act(%s %s k%u)", w->actions[i].fn, w->actions[i].arg, w->actions[i].key); fprintf(stderr, "\n"); } }
     bool in_row = lb_row >= 0 && !w->is_template;
     if (in_row && (w->flags & 0x20) && !(w->flags & 0x400)) {          /* a row part for the chosen row only (flags bit 5) [assumed] */
         if (!lb_selected || !cond_holds(w)) return;
-    } else if (w->type != AK_GUI_PAGE && (!shows(w, focused) || !cond_holds(w))) return;
+    } else if (w->type != AK_GUI_PAGE && gc_shows(w) == -1) return;
+    else if (w->type != AK_GUI_PAGE && gc_shows(w) != 1 && (!shows(w, focused) || !cond_holds(w))) return;
     /* the Italian subtitle under the logo (menu_logos.tga's strip at v 0.445: "W_IM_ItalianLogo", or plain "Image 1") shows for
        the Italian language only - the original's English frames have none [assumed: the page scripts' doing] */
     if (w->type == AK_GUI_IMAGE && w->tex >= 0 && fabsf(w->uv[1] - 0.4453125f) < 1e-4f && gf.tex[w->tex].name && strstr(gf.tex[w->tex].name, "menu_logos")
@@ -735,6 +795,9 @@ static int run(const ak_gui_action *a, int row)
     else if (!strcmp(fn, "FE_EnterGameover")) {}                 /* (the button's page follows: the spawn map) */
     else if (!strcmp(fn, "FE_RequestMenuMode")) var_set("BFF.FE_MenuMode", atoi(a->arg));   /* (which of a dialogue's answers show) */
     else if (!strcmp(fn, "FE_ResumePlay")) { ak_fe_close(); return AK_FE_RESUME; }
+    else if (!strncmp(fn, "GC_Purchase", 11)) {                       /* 08A3B738's GC_Purchase*: the choice for the GC code (0x08C2D8CC = 1) */
+        gc_kind = strstr(fn, "Equipment") ? 0 : strstr(fn, "Infantry") ? 1 : strstr(fn, "Space") ? 2 : strstr(fn, "Commander") ? 3 : -1;
+        gc_index = atoi(a->arg); if (gc_kind >= 0) return AK_FE_GC_BUY; }
     else if (!strcmp(fn, "FE_QuitGame") || !strcmp(fn, "FE_ForfeitBattle")) { ak_fe_close(); return AK_FE_QUIT; }
     else if (!strcmp(fn, "FE_RestartMap")) { ak_fe_close(); return AK_FE_RESTART; }
     else if (!strcmp(fn, "FE_RespawnKillPlayer")) { ak_fe_close(); return AK_FE_KILL; }
