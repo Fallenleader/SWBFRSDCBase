@@ -94,7 +94,7 @@ static void body_update(ak_character *c, const ak_char_params *p, const ak_colli
        on a slope it could walk does not slide down it */
     if (c->on_ground && c->resting && c->vel[0] * c->vel[0] + c->vel[2] * c->vel[2] < 3.2e-7f && c->vel[1] <= 0) {
         c->vel[1] = 0; return; }
-    c->vel[1] -= p->gravity * dt;                                        /* physics gravity, always on */
+    if (!c->flying) c->vel[1] -= p->gravity * dt;                        /* physics gravity, always on (not under a jetpack's thrust) */
     f32 move[3] = { c->vel[0] * dt, c->vel[1] * dt, c->vel[2] * dt }, gn[3];
     bool rest = false, ground = body_slide(c, col, move, gn, &rest);
     if (!ground && c->vel[1] <= 0.01f) {                                 /* resting on the ground below the skin: a short probe keeps the state steady */
@@ -167,7 +167,9 @@ void ak_char_update(ak_character *c, const ak_char_params *p, const ak_collision
     if (c->on_ground) c->sprinting = in->sprint && my > 0.3f;                  /* (forward only; kept through a jump) */
     f32 vmax = c->sprinting ? p->sprint_speed : in->speed > 0 ? in->speed : p->run_speed;
     f32 want[2] = { (fwd[0] * my + right[0] * mx) * vmax, (fwd[1] * my + right[1] * mx) * vmax };
-    if (c->on_ground && in->root) {                                          /* the clips carry the body (ak_loco.h) */
+    c->flying = in->fly;
+    if (in->fly) { memcpy(c->vel, in->fly_vel, 12); c->on_ground = false; c->air_time += dt; }
+    else if (c->on_ground && in->root) {                                          /* the clips carry the body (ak_loco.h) */
         c->vel[0] = fwd[0] * in->root_vel[0] + right[0] * in->root_vel[1];
         c->vel[2] = fwd[1] * in->root_vel[0] + right[1] * in->root_vel[1];
         /* the jump adds its impulse to the velocity along the ground (measured: running 0.8 m/s downhill, the original leaves the
@@ -200,7 +202,7 @@ void ak_char_update(ak_character *c, const ak_char_params *p, const ak_collision
         c->vel[2] += (want[1] - c->vel[2]) * p->air_control * p->accel * dt / vmax;
         f32 hs = sqrtf(c->vel[0] * c->vel[0] + c->vel[2] * c->vel[2]), cap = p->air_speed > vmax ? p->air_speed : vmax;
         if (hs > cap) { c->vel[0] *= cap / hs; c->vel[2] *= cap / hs; }
-        if (!c->body_box) c->vel[1] -= p->gravity * dt;                 /* (the game's body adds it in body_update) */
+        if (!c->body_box && !c->flying) c->vel[1] -= p->gravity * dt;                 /* (the game's body adds it in body_update) */
         c->air_time += dt;
     }
     if (c->body_box) { body_update(c, p, col, dt); return; }

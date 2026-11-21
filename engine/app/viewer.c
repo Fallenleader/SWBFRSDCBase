@@ -622,7 +622,7 @@ int main(int argc, char **argv)
                     play.ready = false;
                 } else if (ev == AK_FE_LOADOUT) {                           /* the customisation menu's loadout: the next soldier's */
                     int sel[8]; const char *nm[5]; ak_fe_loadout(sel, nm); char v[8];
-                    ak_setting_set("AK_WEAPON", nm[0] ? nm[0] : ""); ak_setting_set("AK_EXPLOSIVE", nm[2] ? nm[2] : ""); ak_setting_set("AK_POWERUP", nm[4] ? nm[4] : "");
+                    ak_setting_set("AK_WEAPON", nm[0] ? nm[0] : ""); ak_setting_set("AK_EXPLOSIVE", nm[2] ? nm[2] : ""); ak_setting_set("AK_POWERUP", nm[4] ? nm[4] : ""); ak_setting_set("AK_SPECIAL", nm[3] ? nm[3] : "");
                     snprintf(v, sizeof v, "%d", sel[5]); ak_setting_set("AK_HEALTH_LEVEL", v);
                     snprintf(v, sizeof v, "%d", sel[6]); ak_setting_set("AK_SPEED_LEVEL", v);
                     /* [assumed: Capture Speed Level n is the rate table's n (None the 1.0 measured at the menu's default)] */

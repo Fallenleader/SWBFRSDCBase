@@ -1237,6 +1237,10 @@ textures and how they are used. Section R lists only what must be in place so th
     the Weapon blueprint Jetpack <- Packs: HORIZ_SPEED 10, VERT_SPEED 8, VERT_ACCEL 2, HORIZ_ACCEL 1, HORIZ_DRAG 16, VERT_UP_DRAG
     20, VERT_DOWN_DRAG 10, FUELDRAINRATE 15, FUELCOSTTOSTART 15, TURNRATE 5, WOBBLE 0.2 / 0.5, PFX BFF_Jetpack_Thrust_E, the
     soldier's rows 28 / 29) and its menu entry; the objective arrows (HUD picture 5 Arrow_NPC, 08A55C94).
+  - Part 31, 2026-11-21 - **the jetpack (first build) and the jetpack step.** Next: measure the original's flight (harness: after
+    the page's X, L tap in the air then hold the stick / triangle; RS_DRIVE_PLAYER=1 positions) and its power bar (the special
+    items' energy: drain, recharge, the HUD icon 0x1E + bar); the rest of 089A19CC (turn rate, the camera, wobble), the pack model
+    on the back, the soldier rows 28 / 29; then the training's next steps after the jetpack page (groups 82 / 13 onward).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

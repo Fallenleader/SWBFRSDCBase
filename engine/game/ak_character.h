@@ -30,7 +30,7 @@ typedef struct {
     f32 pos[3];                        /* feet */
     f32 vel[3];
     f32 yaw, pitch;                    /* facing (yaw 0 = -z, the camera's convention) and aim */
-    bool on_ground, jumped, sprinting;  /* sprinting: running at the sprint speed this step */
+    bool on_ground, jumped, sprinting, flying;  /* sprinting: running at the sprint speed this step */
     f32 ground_normal[3];
     f32 air_time;
     /* the game's body (set by the caller; kept through ak_char_spawn): an upright box (model space, engine axes, at the soldier's
@@ -46,6 +46,7 @@ typedef struct {
     bool root; f32 root_vel[2];        /* on the ground, move with this velocity (forward, right m/s: the clips' root motion, ak_loco.h)
                                         * instead of the stick at a fixed speed */
     f32 speed;                         /* > 0: the full stick's speed on the ground (the AI's wanted velocity), else the run speed */
+    bool fly; f32 fly_vel[3];          /* a jetpack: the body takes this velocity, no gravity (play.c's jetpack) */
 } ak_char_input;
 
 void ak_char_params_load(const ak_blueprints *bp, ak_char_params *out);
