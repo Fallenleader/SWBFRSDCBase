@@ -912,6 +912,10 @@ textures and how they are used. Section R lists only what must be in place so th
     (0x20001) and, once that has run out (vfunc +0x24), cone_of_light_Rest (0xDFA470A9, flags 0x10001). The logo's clip time is
     set from the cone's (08809AB8 with animCap's +0x44, or 1 - it when not reversed). Open: what +0x64 holds (the amount or a
     time) and the clip record's +0x14 (its length?) - to read live before porting; Aurek draws the cone in its bind pose.
+    2026-11-21, live (harness RS_DRIVE_POSTS): the animCap record's +0x14 reads 2.400 - the clip's length (cone_of_light_animCap
+    2.40 s). In 089E9A24 the same object's +0x54 is the owner (4 neutral), +0x60 / +0x64 the full and current amounts (the capture
+    sound's pitch 0.6 + 0.6 x amount / full); that object is reached through a virtual-base thunk (08AC91E4, vtable 0x08B086A0)
+    and is not the 0x8010 entity the report lists, so its amount's units (seconds or a fraction) are still not read.
 - [ ] **6.5 Heroes [missing].** Saber combos, blocking, force powers, saber throw. Blaster heroes' own tables.
   - 2026-11-19: a blaster hero played by the player now takes generic_male's set by its own weapon's AnimPose (the 6.1 rule),
     and the soldier's set comes back when the hero ends.  Open: everything else listed (saber combo timing, blocking, force
