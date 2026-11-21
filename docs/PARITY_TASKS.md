@@ -517,6 +517,15 @@ textures and how they are used. Section R lists only what must be in place so th
 ## 4. AI
 
 - [ ] **4.1 Bot vehicle use [assumed].** All Aurek's, including AK_BOT_VEHICLES 0.6.
+  - Traced so far (2026-11-21), the game's side: the squad AI (08925E98, run per side) walks the units (D_08C2A880); a unit whose
+    +0xC8 bit 5 is set ("wants a vehicle"), that is not busy (+0x149 0), has none reserved (+0xE0 999), is alive and of the
+    squad's team gets the nearest vehicle with a free seat for its team (089269AC: vehicles D_08C2B2A8 except turrets 0x801E and
+    those already reserved (+0xE4 bit 5); seats free vfunc +0xE8 >= +0xEC; in campaign two vehicle hashes are skipped; a
+    vehicle class match against the squad (+0x4C) when asked), then the order 0x8037 {vehicle id} (sent to its controller
+    +0xB0, 08922AA4), +0xE0 = the vehicle, the vehicle reserved.  With none found, bit 5 is cleared (single player).  Bit 5 is
+    set by the squad's member pass 0892CC00 (members whose flags +0x50 / +0x53 of the squad slot are clear - their meaning is not
+    read yet; Ghidra loses the flow there: read the decomp C) - this is where the timing comes from.  Next: 0892CFE0, 0892D1B8,
+    0898D7A8 and what sets the squad slot flags; then measure with the harness (when Hoth's bots first board) against Aurek.
 - [ ] **4.2 Target selection [traced for soldier bots 2026-11-19].** The AI sensor (vtable 0x08AF96F0; built by 08961784 on the
   base 0892538C; updated every frame by 08961A50; read by 08962DAC from the fire node 0893F364):
   - Sight: 55 m (+32) x a multiplier (+48, 1.0); a cone of +-45 degrees across and vertically (+36/+40/+44 = tan(pi/4),
