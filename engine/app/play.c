@@ -720,6 +720,25 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             o->nev = ak_script_events(l, o->id, 2, o->ev, 8);
         }
     }
+    {   /* the player's moves (traced from the data and checked on the harness, route cmpn): unflagged ENTI type 68 {version, 3, f32
+           0.25, f32 0.25, colour 0xFF000000, count 1, the type-69 point's id} and type 69 {version, x, y, z, quaternion x y z w} (game
+           axes); the script's 0x53 {0x3E8} to the type 68 puts the player at the point, facing the quaternion's forward - Yavin's
+           training starts there (the original's player at -48.29 -7.98 204.25, walking +x / +z).  [assumed: the two floats are a
+           fade out / in in black - not drawn] */
+        u32 pos = 8; ak_chunk c; p->nwarp = 0;
+        while (ak_asura_next(&l->file, &pos, &c) && p->nwarp < 8) {
+            if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 36 || ak_rd32(c.body + 4) != 68 || ak_rd32(c.body + 28) < 1) continue;
+            u32 pt = ak_rd32(c.body + 32), pos2 = 8; ak_chunk d;
+            while (ak_asura_next(&l->file, &pos2, &d)) {
+                if (ak_chunk_tag(&d) != AK_TAG('E', 'N', 'T', 'I') || d.size < 40 || ak_rd32(d.body) != pt || ak_rd32(d.body + 4) != 69) continue;
+                f32 g[7]; memcpy(g, d.body + 12, 28);
+                typeof(p->warp[0]) *w = &p->warp[p->nwarp++]; w->id = ak_rd32(c.body); ak_from_game(g, w->pos);
+                memcpy(w->fade, c.body + 16, 8);
+                f32 fx = 2 * (g[3] * g[5] + g[6] * g[4]), fz = 1 - 2 * (g[3] * g[3] + g[4] * g[4]);   /* the rotation's third column */
+                w->yaw = atan2f(-fx, fz); break;
+            }
+        }
+    }
     p->have_ctf = ak_ctf_load(l, ak_game_mode, &p->ctf_map);                  /* PARITY(5.4) */
     {   /* kill boxes (traced: the factory 0896F170 makes class 0x16 from ENTI type 0x16 (unflagged): the loader 0886D334 reads, after
            the version (4) and the base words, the box x min, x max, y min, y max, z min, z max (game axes), the damage a second (+0x34)
@@ -2868,13 +2887,16 @@ static bool vehicle_exit_spot(const ak_play *p, const ak_vehicle *vh, f32 out[3]
 /* what the level script sends to the game's objects: the ticket entity and the command posts; the music the level starts with is
  * the viewer's (ak_audio_level_music_start); the rest is logged (AK_DEBUG_SCRIPT) - not ported yet */
 /* the condition nodes' tests on the player (08A0E228 on foot; 08A0E3DC in a vehicle): ported kinds 7 (the player exists - alive),
-   1 (not on the ground), 2 (vfunc +0xC4 [assumed: the lock-on held]), 9 (+0xC4 byte [assumed: in a vehicle]); the others (the
-   soldier's +0x208 bits, items, the view mode, the clip, difficulty 2) are not yet - false */
+   1 (not on the ground - the training's "Tap L to jump" step, harness route cmpn), 0 (+0x208 bit 15, set by 08998828 when the
+   movement row is the sprint: the training's "Move forward and hold L to sprint" step), 2 (vfunc +0xC4 [assumed: the lock-on
+   held]), 9 (+0xC4 byte [assumed: in a vehicle]); the others (+0x208 bit 11, items, the view mode, the clip, difficulty 2) are
+   not yet - false */
 static bool script_test(void *user, u32 kind, u32 param)
 {
     ak_play *p = user; (void)param;
     switch (kind) {
     case 7: return p->alive;
+    case 0: return p->alive && p->in_veh < 0 && p->ch.sprinting;
     case 1: return p->alive && p->in_veh < 0 && !p->ch.on_ground;
     case 2: return p->alive && p->lock >= 0;
     case 9: return p->alive && p->in_veh >= 0;
@@ -2891,9 +2913,15 @@ static void script_sink(void *user, const ak_script_msg *m)
         /* the campaign's tips to the game: 0x801D {u32 0, STDTEXT id} (e.g. 0x8F "Use \ue817 to move and turn"), 0x8023 {u32, f32
            seconds (3.0), u32 1, STDTEXT id} [assumed: both shown in the tip box; the original's frame shows the first at the top
            of the screen - its handler not traced yet] */
-        u32 id = ak_rd32(m->extra + (m->type == 0x801D ? 4 : 12)); ak_hud_message(3, id, NULL, 0); done = true;
+        u32 id = ak_rd32(m->extra + (m->type == 0x801D ? 4 : 12)); f32 secs = 0; if (m->type == 0x8023) memcpy(&secs, m->extra + 4, 4);
+        ak_hud_tip(id, m->type == 0x801D ? 0.0f : secs); done = true;
     }
-    else if (m->target == 0x3E8 && m->type == 0x801E) { done = true; }   /* (clears the tip [assumed]) */
+    else if (m->type == 0x53 && m->nextra >= 4 && ak_rd32(m->extra) == 0x3E8) {
+        for (u32 k = 0; k < p->nwarp; k++) if (p->warp[k].id == m->target) {
+            f32 sp[3]; memcpy(sp, p->warp[k].pos, 12); f32 gy; if (ak_char_ground_below(&p->col, sp, 5.0f, &gy)) sp[1] = gy;
+            ak_char_spawn(&p->ch, sp, p->warp[k].yaw); done = true; }
+    }
+    else if (m->target == 0x3E8 && m->type == 0x801E) { ak_hud_tip_clear(); done = true; }   /* (clears the tip [assumed]) */
     else if ((m->type == 0x3B || m->type == 0x51) && p->nnode_open < 32) {   /* a path node opened (0x3B) or shut (0x51): 08855908's flag 0x40 */
         u32 q = 0; while (q < p->nnode_open && p->node_open_id[q] != m->target) q++;
         if (q == p->nnode_open) { p->node_open_id[q] = m->target; p->nnode_open++; }
@@ -2905,13 +2933,15 @@ static void script_sink(void *user, const ak_script_msg *m)
         if (!p->veh[v].alive && vehicle_make(p, v)) { p->vspawn[v].route_d = 0; if (p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 10007, p->vspawn[v].eid, script_sink, p); }
     }
     if (!done) for (u32 k = 0; k < p->nobj; k++) if (p->obj[k].id == m->target) {   /* an objective marker (089F05BC) */
-        if (m->type == 3 || m->type == 4) {
+        if (m->type == 3 || m->type == 4 || m->type == 0x8008 || m->type == 0x8009) {
+            /* 3 / 4 start / stop it; 0x8008 / 0x8009 end it [measured: the original's objective line stops after the training's
+               marker is reached] and raise its events 10009 / 10010 */
             p->obj[k].active = m->type == 3; if (m->type == 3) p->obj[k].order = ++p->obj_order;
+            if ((m->type == 0x8008 || m->type == 0x8009) && p->have_script) ak_script_raise(&p->script, p->obj[k].ev, p->obj[k].nev, m->type == 0x8008 ? 10009 : 10010, m->target, script_sink, p);
             /* the objective line: the latest active objective with a text [assumed: the HUD's pick - its reader not traced] */
             s32 best = -1; for (u32 q = 0; q < p->nobj; q++) if (p->obj[q].active && p->obj[q].text != 0xFFFu && (best < 0 || p->obj[q].order > p->obj[best].order)) best = (s32)q;
             u32 n = 0; const u16 *t = best >= 0 ? ak_hud_mission_text(p->obj[best].text, &n) : NULL; ak_hud_objective(t, n);
         }
-        else if ((m->type == 0x8008 || m->type == 0x8009) && p->have_script) ak_script_raise(&p->script, p->obj[k].ev, p->obj[k].nev, m->type == 0x8008 ? 10009 : 10010, m->target, script_sink, p);
         else break;
         done = true; break; }
     static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_SCRIPT", 0);

@@ -49,7 +49,7 @@ enum { AK_SN_TIMER = 1, AK_SN_SELECTOR = 11, AK_SN_COUNTER = 13, AK_SN_FMV = 28,
  * 0x10 the weapon's clip empty with ammo left, 0x11 the weapon 0xDA0CAE3B (-0x25F351C5), 0x12 difficulty 2; in a vehicle: 10, 0xB-0xF.
  * The game supplies the test (ak_script_cond). */
 typedef struct {
-    u32 id; u16 type; bool active, disabled, node; s16 group[5];
+    u32 id; u16 type; bool shown; bool active, disabled, node; s16 group[5];
     f32 time, left; u32 tflags;                                          /* timer */
     u32 sflags, n, next; u32 *ent; f32 *wait; f32 dmin, dmax;           /* selector: ent = { group | flags, weight } x n */
     s32 count; u32 *cnt;                                                 /* counter: cnt = { hash, threshold, group | flags << 16 } x n */

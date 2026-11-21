@@ -480,17 +480,14 @@ static const f32 msg_box[5][4] = { { 5, 5, 130, 272 }, { 5, 5, 130, 272 }, { 5, 
 static const u32 msg_colour[5] = { 0xBF7F2F2Fu, 0xFF00FF00u, 0xFFFF0000u, 0xFFFFFFFFu, 0xFFFFFFFFu };
 
 static u16 obj_text[MSG_LEN]; static u32 obj_n;
-void ak_hud_objective(const u16 *t, u32 n) { obj_n = 0; for (u32 i = 0; t && i < n && obj_n < MSG_LEN - 1; i++) obj_text[obj_n++] = t[i]; }
 void ak_hud_messages_clear(void) { memset(msgs, 0, sizeof msgs); memset(msg_head, 0, sizeof msg_head); }
 
-void ak_hud_message(int ch, u32 id, const u16 *arg, u32 an)
+static msg_slot *msg_push(int ch, const u16 *f, u32 fn, const u16 *arg, u32 an)
 {
-    if (ch < 0 || ch > 4 || !stdtext || id >= nstd || !stdtext[id]) return;
     msg_slot *s = NULL; u32 h = msg_head[ch];
     for (u32 k = 0; k < 4 && !s; k++) if (!msgs[ch][(h + k) & 3].on) s = &msgs[ch][(h + k) & 3];
     if (!s) { s = &msgs[ch][h]; msg_head[ch] = (h + 1) & 3; }                  /* all full: the oldest goes */
     memset(s, 0, sizeof *s);
-    const u16 *f = stdtext[id]; u32 fn = stdlen[id];
     for (u32 i = 0; i < fn && s->n < MSG_LEN - 1; i++) {                       /* the text, "%s" filled */
         if (f[i] == '%' && i + 1 < fn && f[i + 1] == 's') { for (u32 k = 0; arg && k < an && s->n < MSG_LEN - 1; k++) s->text[s->n++] = arg[k]; i++; }
         else s->text[s->n++] = f[i];
@@ -500,6 +497,35 @@ void ak_hud_message(int ch, u32 id, const u16 *arg, u32 an)
     s->life = (f32)l * 4.0f - 1.0f; s->on = true;
     if (ak_setting_int("AK_DEBUG_HUD", 0)) { char a[MSG_LEN]; u32 k = 0; for (; k < s->n && k < MSG_LEN - 1; k++) a[k] = s->text[k] < 128 ? (char)s->text[k] : '?'; a[k] = 0;
                                              AK_INFO("hud", "message %d (%.0f s): %s", ch, s->life, a); }
+    return s;
+}
+void ak_hud_message(int ch, u32 id, const u16 *arg, u32 an)
+{
+    if (ch < 0 || ch > 4 || !stdtext || id >= nstd || !stdtext[id]) return;
+    msg_push(ch, stdtext[id], stdlen[id], arg, an);
+}
+/* the campaign's objective line [measured, harness route cmpn: the original's training]: a style-4 message (its life 4 s a line
+ * less 1: 3 s) queued when the objective is set and again every 10 s while it stands - the queuing code is not traced */
+static f32 obj_clock = -1;
+/* the campaign script's tips (style 3): 0x801D's stays until 0x801E (seen: the training's "Use .. to move and turn" stood 40 s in
+ * the original), 0x8023's for its float's seconds [assumed: the float is the time] */
+void ak_hud_tip(u32 id, f32 secs)
+{
+    if (!stdtext || id >= nstd || !stdtext[id]) return;
+    ak_hud_tip_clear();
+    msg_slot *s = msg_push(3, stdtext[id], stdlen[id], NULL, 0); s->life = secs > 0 ? secs : 1e30f;
+}
+void ak_hud_tip_clear(void) { for (u32 k = 0; k < 4; k++) msgs[3][k].on = false; }
+void ak_hud_objective(const u16 *t, u32 n)
+{
+    obj_n = 0; for (u32 i = 0; t && i < n && obj_n < MSG_LEN - 1; i++) obj_text[obj_n++] = t[i];
+    obj_clock = obj_n ? 0.0f : -1.0f;
+}
+static void objective_tick(f32 dt)
+{
+    if (obj_clock < 0 || !obj_n) return;
+    if (obj_clock == 0.0f) msg_push(4, obj_text, obj_n, NULL, 0);
+    obj_clock += dt; if (obj_clock >= 10.0f) obj_clock = 0.0f;
 }
 
 /* the box behind styles 3 and 4 (func 08A50F44, called by 08A50E40 when the style's flag, 0x08AE59D4, is set): for text h high,
@@ -521,6 +547,7 @@ static void text_box(f32 y, f32 h, u32 argb)
 }
 static void messages(f32 dt, bool alive)
 {
+    objective_tick(dt);
     /* the walk (func 08A4F1FC): styles 0..2 share one queue (08A4EE08: 0x08C2E354) drawn from the top of their box; style 3 its own
      * (0x08C2EC04) from its top; style 4 its own (0x08C2F4B4) set at the bottom of its box: it starts (y1 - y0) - its lines'
      * height - 15 (0x08AF0218) down from y0 */
@@ -531,7 +558,6 @@ static void messages(f32 dt, bool alive)
         if (ch == 4) {
             f32 tot = 0;
             for (u32 k = 0; k < 4; k++) { msg_slot *s = &msgs[ch][(msg_head[ch] + k) & 3]; if (s->on && s->t + dt < s->life) tot += text16_box(msg_box[ch][0], 0, msg_box[ch][2], 0.75f, 0, s->text, s->n, false, true); }
-            if (obj_n) tot += text16_box(msg_box[ch][0], 0, msg_box[ch][2], 0.75f, 0, obj_text, obj_n, false, true);   /* the campaign's objective line, kept at the bottom of the stack */
             y = msg_box[ch][1] + (msg_box[ch][3] - msg_box[ch][1]) - tot - 15.0f;
         }
         for (u32 k = 0; k < 4; k++) {
@@ -540,10 +566,6 @@ static void messages(f32 dt, bool alive)
             if (s->t >= s->life) { s->on = false; if (((msg_head[ch] + k) & 3) == msg_head[ch]) msg_head[ch] = (msg_head[ch] + 1) & 3; continue; }
             if (ch >= 3) text_box(y, text16_box(msg_box[ch][0], y, msg_box[ch][2], 0.75f, 0, s->text, s->n, false, true), msg_colour[ch]);
             y += text16_box(msg_box[ch][0], y, msg_box[ch][2], 0.75f, msg_colour[ch], s->text, s->n, true, ch >= 3);   /* (0x182 / 0x184) */
-        }
-        if (ch == 4 && obj_n) {
-            text_box(y, text16_box(msg_box[ch][0], y, msg_box[ch][2], 0.75f, 0, obj_text, obj_n, false, true), msg_colour[ch]);
-            y += text16_box(msg_box[ch][0], y, msg_box[ch][2], 0.75f, msg_colour[ch], obj_text, obj_n, true, true);
         }
     }
 }

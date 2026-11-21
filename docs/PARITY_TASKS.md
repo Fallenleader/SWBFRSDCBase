@@ -1201,6 +1201,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - Part 23, 2026-11-21 - **campaign objective line**: 0x8013's flags word (089F0924) bits 5-16 = the MISSIONOBJECTIVES.ASR id
     (0xFFF = none); messages 3 / 4 activate / deactivate. The latest active objective's text is shown persistently in the bottom
     box of HUD style 4 (matches the original's training frame; 'latest activated wins' [assumed]).
+  - Part 24, 2026-11-21 - **training start**: the player's start / moves (type 68 -> type 69 point, message 0x53), condition kinds
+    0 (sprint) and 1 (in the air), the nodes' own tips, tips that stay, the objective line's 10 s repeat and its end on 0x8008 /
+    0x8009. Next: cut-scenes (0x14 {hash} to type 38, CUTS), kind 10 (view mode 0x08C29B58), the lock-on page with Press X,
+    the marker ring / chevrons (the type-7 model linked from 0x8013), no ticket counters in the campaign HUD [to check].
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

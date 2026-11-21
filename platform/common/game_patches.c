@@ -204,8 +204,10 @@ void rs_ai_bots(unsigned fr){
  * player = 1 for the soldier the pad drives (+92 = the input object).  (health: +0x28 reads 0 for these objects - not the field.) */
 u32 rs_input_object(void);
 static unsigned probe_fr;
+static int drive_player_pos(float out[3]);
 void rs_drive_report(FILE *f){
     fprintf(f, "pfr %u\n", probe_fr);
+    {   float pp[3]; if (getenv("RS_DRIVE_PLAYER") && drive_player_pos(pp)) fprintf(f, "player %.2f %.2f %.2f\n", pp[0], pp[1], pp[2]); }
     {   /* RS_DRIVE_PEEK=a,b,...: words (hex addresses) as int and float */
         const char *pk = getenv("RS_DRIVE_PEEK");
         if (pk) { char buf[512]; snprintf(buf, sizeof buf, "%s", pk); fprintf(f, "peek");
@@ -351,6 +353,14 @@ void rs_drive_health(float h){
         memcpy(GP(o + 0x25C), &h, 4); fprintf(stderr, "[DRIVE] health %.1f\n", h); return; } }
 /* tests: put the player's soldier at a point (game axes, feet): its physics body's position (+0xC0) and its box centre now and
  * before (+0xD0, +0xE0: 0.9 m up), velocity zeroed (+0x70) */
+/* the local player's body position (+0xC0 of its body, as the teleport writes), RS_DRIVE_PLAYER=1 in the state log */
+static int drive_player_pos(float out[3]){
+    u32 bk = GU32(IMG(0x08C2C200u)), nb = GU32(IMG(0x08C2C204u)), me = rs_input_object(); if (!gok(bk) || !me || nb > 4096) return 0;
+    for (u32 bi = 0; bi < nb; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
+        u32 o = GU32(nd); if (!gok(o) || GU32(o + 92) != me) continue;
+        u32 w = GU32(o + 40), b = gok(w) ? GU32(w + 12) : 0; if (!gok(b)) continue;
+        memcpy(out, GP(b + 0xC0), 12); return 1; }
+    return 0; }
 void rs_drive_teleport(float x, float y, float z){
     u32 bk = GU32(IMG(0x08C2C200u)), nb = GU32(IMG(0x08C2C204u)), me = rs_input_object(); if (!gok(bk) || !me) return;
     for (u32 bi = 0; bi < nb; bi++) for (u32 nd = GU32(bk + 4 * bi); gok(nd); nd = GU32(nd + 4)) {

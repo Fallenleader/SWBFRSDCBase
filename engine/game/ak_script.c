@@ -367,6 +367,15 @@ void ak_script_cond(ak_script *s, ak_script_test test, ak_script_sink sink, void
     for (u32 i = 0; i < s->nnodes; i++) {
         ak_snode *n = &s->node[i];
         if (n->type != AK_SN_COND || n->disabled) continue;
+        /* the node's tip [measured, harness route cmpn: while Yavin's training waits on node 18baf (param 0x88) the tip box shows
+           STDTEXT 0x88 "Move forward and hold L to sprint", then 0x89 "Tap L to jump" for 18bb0]: given to the game as 0x801D on the
+           node's start; it stays after the node succeeds (seen: the jump tip still up after the jump) until another tip or the script's
+           0x801E - the showing code is not traced */
+        if (n->active != n->shown) {
+            n->shown = n->active;
+            if (n->active && n->param != 0xFFFFFFFFu) { u8 ex[8]; u32 z = 0; memcpy(ex, &z, 4); memcpy(ex + 4, &n->param, 4);
+                ak_script_msg m = { 0x801D, 0x3E8, n->id, ex, 8, NULL }; sink(user, &m); }
+        }
         if (!n->active) { n->was = false; continue; }
         bool t = test(user, n->kind, n->param);
         if (t && !n->was) ak_script_send(s, 5, n->id, NULL, 0, sink, user);
