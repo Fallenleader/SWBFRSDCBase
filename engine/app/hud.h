@@ -19,6 +19,7 @@ typedef struct {
     f32 health, health_max;
     const char *weapon;                /* the weapon's picture (its blueprint's HUDIcon, "EMP_Blaster_Rifle.tga"), NULL = none */
     s32 ammo, spare;                   /* the clip and the rest; ammo < 0 = unlimited (the infinity mark) */
+    s32 weapon2_text;                  /* STDTEXT id drawn in the lower panel's count place (a power-up's "Ready!", 0x9F; -1 none) */
     const char *weapon2; s32 ammo2, spare2;   /* the second weapon (grenades): shown above when there is one */
     s32 weapon_name, weapon2_name; f32 weapon_name_t;   /* STDTEXT ids (the Weapon's Weapon_Name, -1 none) and seconds since they showed (08A5318C: 5 s) */
     bool prequel;                      /* the prequel era's weapon icons */

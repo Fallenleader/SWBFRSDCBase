@@ -596,6 +596,7 @@ static void weapon_panel(const char *name, s32 ammo, s32 spare, bool prequel, f3
         const char *nm = name;                                             /* (the weapon's HUDIcon) */
         const sprite *ic = find(h31(nm), wpn_first[prequel], wpn_n[prequel]);
         if (!ic) ic = find(h31(nm), wpn_first[!prequel], wpn_n[!prequel]);
+        if (!ic) ic = find(h31(nm), 0, nspr);                              /* (power-ups: their HUD_Icon_PU_* pictures are elsewhere) */
         pic(ic, 395, y, true, 0xFFFFFFFFu, 1);
     }
     pic(idx(S_AMMO_UNDERLAY), 460, y, true, 0xFFFFFFFFu, 1);
@@ -841,7 +842,9 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
         }
         if (s->weapon2) {
             weapon_panel(s->weapon, s->ammo, s->spare, s->prequel, 210, true);
-            weapon_panel(s->weapon2, s->ammo2, s->spare2, s->prequel, 240, s->weapon2_bar < 0);
+            weapon_panel(s->weapon2, s->ammo2, s->spare2, s->prequel, 240, s->weapon2_bar < 0 && s->weapon2_text < 0);
+            if (s->weapon2_text >= 0 && s->weapon2_bar < 0) { u32 n; const u16 *w = stdtext_get((u32)s->weapon2_text, &n);   /* (the original's frame: "Ready!" in black over the underlay) [assumed: placement] */
+                if (w) text16_box(430, 240.0f - font.line * 0.5f, 492, 1.0f, 0xFF000000u, w, n, true, true); }
             if (s->weapon2_bar >= 0) framed_bar(0x22, 0x23, 427, 237, s->weapon2_bar, 0xFF404040u, 0xFF404040u);
         } else if (s->weapon) weapon_panel(s->weapon, s->ammo, s->spare, s->prequel, 240, true);
     }

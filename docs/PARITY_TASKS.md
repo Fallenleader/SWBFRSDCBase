@@ -272,7 +272,7 @@ textures and how they are used. Section R lists only what must be in place so th
   pulse (refills at frames 541, 1081, 1681, 2221 - all on the same 60-frame beat), one clip per pulse, within the droid's
   EffectiveRadius (8). Aurek's droids already pulse that way (UtilityDroid PulseLength 1 s, one clip, radius 8). Health droids
   and explosive refills not measured yet.
-- [ ] **2.2b Dropped pickups [partly traced 2026-11-20].** A fallen soldier drops pickups (the Humanoid death 089A70FC): its
+- [x] **2.2b Dropped pickups [done 2026-11-21; the model's motion and fade left as measured].** A fallen soldier drops pickups (the Humanoid death 089A70FC): its
   SpawnPickupA then SpawnPickupB (Humanoid +300 / +302, read by 089A69E4), each made by 089F96C4 when a random 0..1 is at most
   SpawnPickupProbability (+304) - 75 in every Humanoid, so always; ids by 089F8FAC: 1000 Health, 1001 Ammo, 1002 Stamina, 1003
   HealthAmmo, 1004 "Random" (Health, Ammo or Stamina at 1/3 each, 089F97D4), 1005 "None" (every Humanoid: A Random, B None);
@@ -303,8 +303,11 @@ textures and how they are used. Section R lists only what must be in place so th
     [x] The amount (2026-11-21): the soldier's 0x8073 handler (08994C30) -> 089F5BA8: Ammo / HealthAmmo give N = Capacity +
     0.5 (Ammo's +0x94 = Capacity, HealthAmmo's +0x98 = SecondaryCapacity: 50) through 08985954 - to each weapon whole clips, one
     at a time while spare / clip < MaxClips (08A19C3C / 08A19BB4; not a weapon with +0x16C bit 4; bit 5 needed outside the
-    forced case), to each item min(its most, count + N); Stamina min(max, stamina + Capacity).  Ported.  [ ] 089F5858, the flag
-    bits' blueprint keys.
+    forced case), to each item min(its most, count + N); Stamina min(max, stamina + Capacity).  Ported.  089F5858, the flag
+    bits' blueprint keys - done 2026-11-21: 089F5858 lets any AI unit (+0xC3 set) take it, and a human one whose controller has
+    a player record (D_08C29F04) - everyone in play, as Aurek. The weapon flags (08A16FD8, by the keys' h31): bit 0 WillTrack,
+    2 LocksOnTarget, 3 OnlyLockOntoVehicles, 4 Special_Ability, 5 "Can be restocked" (default 1; false only on the Dispensers,
+    which Aurek does not have yet), 8 AttachedToLeftHand, 9 AlwaysAiming, 17 OnlyLockOntoHumanoids; +0x144 AllowHeadshots.
 - [ ] **2.3 Secondary items [partial].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
   incinerator, fusion cutter, shields, jetpack, jump pack, stealth. Trace each one's blueprint use.
   - [x] **2.3p Power-ups [traced and built 2026-11-21; VehicleAutoRepair and the HUD's "Ready!" open].** Weapons of class PowerUps (Rage, Rally, Regenerate,
@@ -337,7 +340,9 @@ textures and how they are used. Section R lists only what must be in place so th
       settings.txt Vita / 3DS; AK_TEST_SCRIPT 'r' = d-pad right; AK_DEBUG_POWERUP): use 0.6 s after square, the buff on every
       living team-mate within the radius, one buff a soldier, ended past its time or at death [assumed]; the lower slot shows the
       power-up's icon with the recharge as its bar. Tested: Regenerate held the player at full against 3 damage a second for its
-      20 s. Open: VehicleAutoRepair (Passive), the HUD's "Ready!" text, the FiringAnim / FiringPFX / EffectedPFX / "Use_Power_Up"
+      20 s. The lower panel (done the same day, against the original's frame): the power-up's HUD_Icon_PU_* picture (on the HUD
+      sheet, not the weapon sheets), its name below, "Ready!" (STDTEXT 159) in the count's place, the recharge bar while it
+      recharges. Open: VehicleAutoRepair (Passive), the FiringAnim / FiringPFX / EffectedPFX / "Use_Power_Up"
       sound, and whether a buff survives death.
   - Thermal detonator [measured and built 2026-11-16]: Weapon REP_Grenade (4, no spare clips, 2 s between throws), Projectile
     "Grenade" (Timer 3, 100 / 150 damage, radius 8). Measured (harness tracks the grenade object, class 0x8011): it appears in
