@@ -51,4 +51,18 @@ void ak_gc_ai_init(ak_gc_ai *ai);
 void ak_gc_ai_plan(ak_gc_ai *ai, const ak_gc *g, const ak_gc_rules *r);          /* g->turn plays (08A3E044) */
 void ak_gc_ai_reinforce_plan(ak_gc_ai *ai, const ak_gc *g, const ak_gc_rules *r); /* 08A3F708 */
 const ak_gc_plan *ak_gc_ai_best(const ak_gc_ai *ai);                             /* 08A3D1D8 */
+
+/* The AI player (08A42500, vtable 0x08B153A0) carries a turn out by pressing the menus' buttons; in rule terms (after the treasury):
+ *  - purchase (state 3): plans (08A3E044); commander 2 first if planned, then each tech one level at a time to its target, then
+ *    the other planned commanders; then troops, at the selected planet first (the home planet after the treasury) and then the
+ *    other own planets in order, each bought in tens from 10 up to the plan's amount;
+ *  - move (state 4): the plan's move from its source (20+ troops) with its troops counted up in tens, a battle when the target is
+ *    the enemy's; the second move when earned (Thrawn / Ackbar);
+ *  - reinforce (state 8): 08A3F708 on the board as it now is, then that move.
+ * Its quirk is kept: whenever a step cannot be done - a price above the credits, a count that cannot grow, a source not its own or
+ * with under 20 troops, fewer than 10 credits for a planned troop buy - it ends the whole turn (+0x33) on the spot.
+ * battle: resolves a battle (NULL: auto-resolve) - returns the winning side and fills the survivors. */
+typedef int (*ak_gc_battle_fn)(void *ctx, ak_gc *g, int side, int to, int n, bool second, int surv[2]);
+typedef struct { int bought_tech[3], bought_cmdr[4], troops[16]; int moved[2][3]; int battles; int reinf[3]; bool ended_early; } ak_gc_ai_report;
+void ak_gc_ai_turn(ak_gc_ai *ai, ak_gc *g, const ak_gc_rules *r, ak_gc_battle_fn battle, void *ctx, ak_gc_ai_report *rep);
 #endif

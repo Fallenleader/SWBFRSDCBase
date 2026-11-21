@@ -199,6 +199,8 @@ typedef struct {
     f32 sense_mult; u32 sense_every, frame_no;   /* the bots' sight: range multiplier, run every n frames (1: every frame) */
     ak_conquest_map cq; bool have_cq; int team;   /* command posts; the soldier's team (0 = team 1) */
     ak_cq_rules rules; ak_conquest match; int team_faction[2];
+    struct { bool done; int winner_faction; int left[2]; } gc_result;   /* a Galactic Conquest battle's end (5.4): the winning faction
+                                                                       (-1 a draw) and the tickets each faction class has left (08972658) */
     ak_script script; bool have_script;   /* the level script (game/ak_script.h) */
     f32 oob_min[3], oob_max[3]; bool have_oob, oob_out; f32 oob_msg_t;
     f32 pil_min[3], pil_max[3]; bool have_pil;   /* the AI pilots' box (ENTI 0x8021 with flags byte 1 = 1, 08A145E4(1)): the patrol's (0894B7D8) */   /* the battlefront's bounds (ENTI 0x8021, 089D4BDC): outside - the warning */

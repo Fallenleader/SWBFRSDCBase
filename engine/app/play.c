@@ -3601,6 +3601,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     pu_update(p, dt);
     kbox_update(p, dt);
     bool playing = !p->have_cq || p->match.winner < 0;
+    if (p->have_cq && p->rules.gc && !playing && !p->gc_result.done) {   /* 08972658: the winner's faction and the tickets left, for 08A3A5CC */
+        p->gc_result.done = true; int w = p->match.winner;
+        p->gc_result.winner_faction = w == 0 || w == 1 ? p->team_faction[w] : -1;
+        for (int t = 0; t < 2; t++) { s32 v = p->match.tickets[t]; p->gc_result.left[p->team_faction[t] & 1] = v > 0 ? v : 0; }   /* by faction class */
+        AK_INFO("gc", "battle over: winning faction %d, tickets left %d / %d", p->gc_result.winner_faction, p->gc_result.left[0], p->gc_result.left[1]);
+    }
     /* the player's respawn (measured in the original): no wave - three seconds of the death camera, then the score board and
        the spawn map, and the soldier is back as soon as the player confirms [PARITY(1.10b): Aurek has no spawn screen yet - the
        confirm (cross) respawns at the spawn point chosen as before; AK_RESPAWN_AUTO=1 respawns without it] */

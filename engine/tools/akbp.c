@@ -2,7 +2,7 @@
  *   akbp <COMMON.ASR> <Type> [Object|*] [prop ...]
  * "*" lists every object of the type; with props given, only those (one line per object).
  *   akbp <COMMON.ASR> -gc SEED [TURNS]: a Galactic Conquest test game (ak_gc rules; Aurek's port of the game's GC AI plays both
- *   sides, battles auto-resolved; the plan is carried out by a plain stand-in for the AI player 08A42500) printing the rules and every turn. */
+ *   sides, battles auto-resolved; the plan carried out as the AI player 08A42500 does) printing the rules and every turn. */
 #include "assets/blueprint.h"
 #include "game/ak_gc.h"
 #include "game/ak_gc_ai.h"
@@ -72,28 +72,15 @@ static int gc_test(const ak_blueprints *bp, u32 seed, int turns)
     for (int t = 0; t < turns && g.winner < 0; t++) {
         int s = g.turn = t & 1; ak_gc_income in = ak_gc_collect(&g, &r, s);
         printf("turn %d side %d: income %u (planets %u sectors %u commander %u)", t, s, in.total, in.planets, in.sectors, in.commander);
-        static ak_gc_ai ai; if (t < 2) ak_gc_ai_init(&ai);   /* one AI object per side would keep each side's last target; test only */
-        ak_gc_ai_plan(&ai, &g, &r); ak_gc_ai_reinforce_plan(&ai, &g, &r);
-        const ak_gc_plan *P = ak_gc_ai_best(&ai);
-        ak_gc_turn_start(&g);
-        for (int k = 0; k < 3; k++) while (g.side[s].tech[k] < P->tech[k] && ak_gc_buy_tech(&g, &r, s, k)) printf(" +tech%d", k);
-        for (int k = 0; k < 4; k++) if (P->cmdr[k] && ak_gc_buy_cmdr(&g, &r, s, k)) printf(" +cmdr%d", k);
-        for (int i = 0; i < AK_GC_PLANETS; i++) if (P->buy[i]) { int b = ak_gc_buy_troops(&g, &r, s, i, (int)P->buy[i]); if (b) printf(" +%d@%s", b, ak_gc_planet_keys[i]); }
-        for (int m = 0; m < 2; m++) {
-            int bf = P->src[m], bt = P->dst[m], bn = (int)P->n[m];
-            if (bf >= 16 || bt >= 16 || !ak_gc_move_source(&g, s, bf)) break;
-            int res = ak_gc_move(&g, &r, s, bf, bt, bn);
-            printf(" move %s->%s %d: %s", ak_gc_planet_keys[bf], ak_gc_planet_keys[bt], bn, res == AK_GC_MOVE_OCCUPIED ? "occupied" : res == AK_GC_MOVE_BATTLE ? "battle" : res == AK_GC_MOVE_MOVED ? "moved" : "refused");
-            for (bool second = false; res == AK_GC_MOVE_BATTLE; second = true) {
-                const char *lvl = ak_gc_battle_level(&g, bt, second); bool space = !strncmp(lvl, "space", 5);
-                int tr[2]; tr[s] = bn; tr[!s] = g.planet[bt].troops;
-                int w = ak_gc_autoresolve(&g, &r, tr, space);
-                printf(" [%s: side %d wins, left %d/%d]", lvl, w, tr[0], tr[1]);
-                if (!ak_gc_result(&g, &r, s, bt, w, tr, second)) break;
-            }
-            if (g.winner >= 0 || !ak_gc_after_move(&g)) break;
-        }
-        if (P->rf_a < 16 && P->rf_b < 16) { int n = ak_gc_reinforce(&g, &r, s, P->rf_a, P->rf_b, (int)P->rf_n); if (n) printf(" reinf %s->%s +%d", ak_gc_planet_keys[P->rf_a], ak_gc_planet_keys[P->rf_b], n); }
+        static ak_gc_ai ai[2]; if (t < 2) ak_gc_ai_init(&ai[s]);     /* one AI player per side */
+        ak_gc_ai_report rp; ak_gc_ai_turn(&ai[s], &g, &r, NULL, NULL, &rp);
+        for (int k = 0; k < 3; k++) if (rp.bought_tech[k]) printf(" +tech%d x%d", k, rp.bought_tech[k]);
+        for (int k = 0; k < 4; k++) if (rp.bought_cmdr[k]) printf(" +cmdr%d", k);
+        for (int i = 0; i < AK_GC_PLANETS; i++) if (rp.troops[i]) printf(" +%d@%s", rp.troops[i], ak_gc_planet_keys[i]);
+        for (int m = 0; m < 2; m++) if (rp.moved[m][0] >= 0) printf(" move %s->%s %d", ak_gc_planet_keys[rp.moved[m][0]], ak_gc_planet_keys[rp.moved[m][1]], rp.moved[m][2]);
+        if (rp.battles) printf(" (%d battle%s)", rp.battles, rp.battles > 1 ? "s" : "");
+        if (rp.reinf[0] >= 0) printf(" reinf %s->%s %d", ak_gc_planet_keys[rp.reinf[0]], ak_gc_planet_keys[rp.reinf[1]], rp.reinf[2]);
+        if (rp.ended_early) printf(" [turn ended early]");
         printf("\n");
     }
     gc_print(&g); printf("winner %d\n", g.winner);

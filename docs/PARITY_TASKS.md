@@ -1106,6 +1106,10 @@ textures and how they are used. Section R lists only what must be in place so th
     (AK_GC_TICKETS), survivors = tickets left. Open: the AI player's plan executor (08A42500: purchase sub-states, cursor moves,
     the reinforcement use of the plan's +0xB0 / +0xB4), the GC screens (map, purchase, tech pages - 08A44xxx-08A4Axxx, GUI
     BFF_GALACTICCONQUEST), wiring a GC battle into play (level from ak_gc_battle_level, faction, result back), saving.
+  - Part 9, 2026-11-21 - **AI player ported** (ak_gc_ai_turn, 08A42500) and play's GC battle result (play.gc_result). Open: when the AI
+    attacks the player, the player picks fight / auto-resolve (sub-state 3 waits on the pad); the GC screens; the GC game flow in
+    the front end (new game, turns, battles started from the map, results back, saving); [assumed] a planned troop buy on a full
+    planet is skipped (the game's press fails there - whether the AI then loops was not checked).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

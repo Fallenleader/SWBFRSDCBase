@@ -494,3 +494,96 @@ const ak_gc_plan *ak_gc_ai_best(const ak_gc_ai *ai)
     u32 i = ai->nplans - 1; if (ai->best <= i) i = ai->best;
     return i < AK_GC_AI_PLANS ? &ai->plans[i] : NULL;
 }
+
+/* ------------------------------------------------------------------ the AI player (08A42500) */
+static int count_to(u32 want, int most)           /* the count pressed up in tens from 10: -1 when it cannot reach want */
+{
+    int c = 10;
+    while ((u32)c < want) { if (c + 10 > most) return -1; c += 10; }
+    return c;
+}
+
+static int fight(ak_gc *g, const ak_gc_rules *r, ak_gc_battle_fn battle, void *ctx, int side, int to, int n, ak_gc_ai_report *rep)
+{
+    for (bool second = false;; second = true) {
+        int surv[2], w;
+        if (battle) w = battle(ctx, g, side, to, n, second, surv);
+        else {
+            const char *lvl = ak_gc_battle_level(g, to, second);
+            surv[side] = n; surv[!side] = g->planet[to].troops;
+            w = ak_gc_autoresolve(g, r, surv, !strncmp(lvl, "space", 5));
+        }
+        rep->battles++;
+        if (!ak_gc_result(g, r, side, to, w, surv, second)) return w;
+    }
+}
+
+void ak_gc_ai_turn(ak_gc_ai *ai, ak_gc *g, const ak_gc_rules *r, ak_gc_battle_fn battle, void *ctx, ak_gc_ai_report *rep)
+{
+    memset(rep, 0, sizeof *rep);
+    for (int i = 0; i < 2; i++) for (int k = 0; k < 3; k++) rep->moved[i][k] = -1;
+    rep->reinf[0] = rep->reinf[1] = -1;
+    int side = g->turn; ak_gc_side *sd = &g->side[side];
+    ak_gc_turn_start(g);
+    ak_gc_ai_plan(ai, g, r);
+    ak_gc_plan P = *ak_gc_ai_best(ai);
+    /* purchase: technology and commanders (sub-state 3) */
+    if (P.cmdr[2] && !sd->cmdr_bought[2]) {
+        if (!sd->cmdr_avail[2] || ak_gc_cmdr_price(g, r, side, 2) > sd->credits) { rep->ended_early = true; return; }
+        ak_gc_buy_cmdr(g, r, side, 2); rep->bought_cmdr[2] = 1;
+    }
+    for (;;) {
+        int k = 0;
+        for (; k < 7; k++) {
+            if (k < 3 && sd->tech[k] < P.tech[k]) break;
+            if (k >= 3 && P.cmdr[k - 3] && !sd->cmdr_bought[k - 3]) break;
+        }
+        if (k == 7) break;
+        if (k < 3) {
+            if (ak_gc_tech_price(g, r, side, k, sd->tech[k] + 1) > sd->credits) { rep->ended_early = true; return; }
+            ak_gc_buy_tech(g, r, side, k); rep->bought_tech[k]++;
+        } else {
+            if (!sd->cmdr_avail[k - 3] || ak_gc_cmdr_price(g, r, side, k - 3) > sd->credits) { rep->ended_early = true; return; }
+            ak_gc_buy_cmdr(g, r, side, k - 3); rep->bought_cmdr[k - 3] = 1;
+        }
+    }
+    /* purchase: troops (sub-states 0 / 1), the selected planet (home) first */
+    bool done[16] = { false }; int sel = ak_gc_home(g, side); if (sel < 0) sel = 0;
+    for (;;) {
+        if (!(g->planet[sel].owner == side && P.buy[sel] && !done[sel])) {
+            int n = -1; for (int i = 0; i < 16; i++) if (g->planet[i].owner == side && P.buy[i] && !done[i]) { n = i; break; }
+            if (n < 0) break;
+            sel = n;
+        }
+        if (sd->credits < 10) { rep->ended_early = true; return; }
+        int room = ak_gc_cap(g, r, sel) - g->planet[sel].troops;
+        if (room <= 0) { done[sel] = true; continue; }                  /* [assumed] the press fails on a full planet (08A3B3C8) */
+        int most = room < (int)sd->credits ? room : (int)sd->credits;
+        int c = count_to(P.buy[sel], most);
+        if (c < 0) { rep->ended_early = true; return; }
+        g->planet[sel].troops += c; sd->credits -= (u32)c; rep->troops[sel] += c; done[sel] = true;
+    }
+    /* moves (state 4), the second when earned */
+    for (int m = 0; m < 2; m++) {
+        int from = P.src[m], to = P.dst[m];
+        if (from > 15 || to > 15) break;
+        if (g->planet[from].owner != side || g->planet[from].troops < 20) { rep->ended_early = true; return; }
+        if (!ak_gc_move_source(g, side, from)) { rep->ended_early = true; return; }
+        int c = count_to(P.n[m], ak_gc_move_room(g, r, side, from, to));
+        if (c < 0) { rep->ended_early = true; return; }
+        int res = ak_gc_move(g, r, side, from, to, c);
+        rep->moved[m][0] = from; rep->moved[m][1] = to; rep->moved[m][2] = c;
+        if (res == AK_GC_MOVE_BATTLE) fight(g, r, battle, ctx, side, to, c, rep);
+        if (g->winner >= 0) return;
+        if (!ak_gc_after_move(g)) break;
+    }
+    /* reinforce (state 8): 08A3F708 on the board as it now is */
+    ak_gc_ai_reinforce_plan(ai, g, r);
+    const ak_gc_plan *B = ak_gc_ai_best(ai);
+    int a = B->rf_a, b = B->rf_b;
+    if (a > 15) return;
+    if (g->planet[a].owner != side || g->planet[a].troops < 20 || b > 15 || g->planet[b].owner != side) { rep->ended_early = true; return; }
+    int c = count_to(B->rf_n, ak_gc_move_room(g, r, side, a, b));
+    if (c < 0) { rep->ended_early = true; return; }
+    if (ak_gc_reinforce(g, r, side, a, b, c)) { rep->reinf[0] = a; rep->reinf[1] = b; rep->reinf[2] = c; }
+}
