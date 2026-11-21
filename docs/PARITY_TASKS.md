@@ -907,6 +907,11 @@ textures and how they are used. Section R lists only what must be in place so th
     0.332 m in the bind pose), and the logo's quad (10 indices) 1.60 m up - whatever the capture state. The logo model is a
     1 x 1 m quad standing on its origin; its clip logo_spin_move (one bone, 3.133 s a turn) only turns it, easing (24 degrees at
     0.26 s, 88 at 0.78 s, 181 at 1.57 s). Aurek now draws the logo 1.6 m up (was 1.25) and turns it by the clip.
+  - 2026-11-21 (089E9A24 read on): the cone's clip choice compares the post's +0x64 with the animCap clip record's +0x14 (record
+    0x0C95772C in the clip tree at 0x08B204FC): under it animCap plays forward (flags 1); at or over it animCap plays backwards
+    (0x20001) and, once that has run out (vfunc +0x24), cone_of_light_Rest (0xDFA470A9, flags 0x10001). The logo's clip time is
+    set from the cone's (08809AB8 with animCap's +0x44, or 1 - it when not reversed). Open: what +0x64 holds (the amount or a
+    time) and the clip record's +0x14 (its length?) - to read live before porting; Aurek draws the cone in its bind pose.
 - [ ] **6.5 Heroes [missing].** Saber combos, blocking, force powers, saber throw. Blaster heroes' own tables.
   - 2026-11-19: a blaster hero played by the player now takes generic_male's set by its own weapon's AnimPose (the 6.1 rule),
     and the soldier's set comes back when the hero ends.  Open: everything else listed (saber combo timing, blocking, force
