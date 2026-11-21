@@ -867,6 +867,9 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
         flush();
     }
     if (s->radar && s->alive) radar(s);
+    if (s->counter_total > 0 && s->alive) { char t[24]; snprintf(t, sizeof t, "%d/%d", s->counter_val, s->counter_total);   /* the script's counter: centred under the
+                                                                                    radar at y 101 (the original's training frame, ct25) [assumed: the font and its flags] */
+        text(430, 101, 0xFFFFFFFFu, 0x04 | 0x40, t); }
     if (elem_clock <= 2.0f) elem_clock += s->dt;
     if (elem_clock > 2.0f) elem_clock = 0;
     if (s->post && s->alive && !s->vehicle) capture_panel(s);

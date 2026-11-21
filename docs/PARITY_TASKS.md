@@ -1276,6 +1276,13 @@ textures and how they are used. Section R lists only what must be in place so th
     objective "Defeat 4 stormtroopers." (counters 18cc7-18cca, spawners 18be0-18be3 with Stormtrooper). Open: the reticle's green
     arc (Aurek shows only the panel), vehicles' RepairVehicle, the cutter's DamageToInfantry, the turret-use tip, the 0/4 counter.
     Next: the 0x800D spawners making humanoid units (Stormtrooper) and the kill counters, then the rocket launcher / tank.
+  - Part 37, 2026-11-21 - **the stormtroopers.** Spawners 18be0-18be3 (version 10: event table at word 2 - count, {group << 16 |
+    10006}; word 7 0xDACB8676 Stormtrooper; place, turn rows; 0x3E7 / 0x8005; word 23 0x200000 waits) and 18bf5 (Biker_Scout,
+    the scout). Harness ct26: troopers at their spawners by +4 s, uphill to the temple in ~12 s, then 20-25 m off; the player
+    (idle by the turret) 133 -> 75 health in ~45 s; the turret untouched. Counter 18beb: 31 >= 1 -> group 25 {1, 4, 1} ..., 34 >= 4 ->
+    group 28 (8009 to 18be4 after 2 s); 0x61F >= 10 -> 34. Next: the AI's engagement distance in this fight (the troopers' goal
+    with no posts - trace the AI's choice for spawner units, 0897E594 / the squad orders), the turret's use tip, then group 28 on
+    (18be4: the tank, rocket launcher).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

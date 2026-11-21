@@ -549,6 +549,11 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
        owned post, or the nearest to the bot half the time]. */
     bool mine = b->team == p->team && p->player_post >= 0 && (u32)p->player_post < p->cq.nposts && p->match.post[p->player_post].owner == p->team &&
                 ak_setting_int("AK_BOT_SPAWN_NEAR_PLAYER", 1);
+    if (b->uspawn >= 0 && (u32)b->uspawn < p->nuspawn) {                  /* a scripted spawner's soldier: at the spawner */
+        memcpy(pos, p->uspawn[b->uspawn].pos, 12); yaw = p->uspawn[b->uspawn].yaw;
+        f32 gy; if (ak_char_ground_below(&p->col, pos, 5.0f, &gy)) pos[1] = gy;
+        goto placed;
+    }
     const f32 *at = mine ? p->cq.post[p->player_post].pos : b->ch.pos; bool exact = mine;
     if (p->have_cq && !mine && ak_setting_int("AK_BOT_SPAWN_WEIGHTS", 1)) {   /* the manager's draw (0898B9F4: random x total, walking the weights) */
         f32 w[AK_MAX_POSTS], tot = ak_conquest_spawn_weights(&p->cq, &p->match, b->team, p->alive ? p->ch.pos : NULL, w);
@@ -560,6 +565,7 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
         u32 n = (u32)(rnd(&b->seed) * p->nav.nnode) % p->nav.nnode; memcpy(pos, p->nav.node[n].pos, 12);
         f32 gy; if (ak_char_ground_below(&p->col, pos, 5.0f, &gy)) pos[1] = gy;
     }
+placed:
     if (b->hero) { b->look = b->base_look; b->hero = false; }               /* a fallen hero comes back as its soldier */
     if (ak_setting_int("AK_DEBUG_SPAWN", 0)) AK_INFO("spawn", "%.1f s: bot %d (team %d) at %.0f %.0f %.0f (game axes %.0f %.0f %.0f)", p->clock, (int)(b - p->bot), b->team, pos[0], pos[1], pos[2], pos[0], -pos[1], -pos[2]);
     ak_char_spawn(&b->ch, pos, yaw);
@@ -1141,7 +1147,27 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     if (ak_game_mode == 5 && !ak_setting_str("AK_BOTS", NULL)) want = 0;   /* the campaign: no standing armies - its soldiers come from the script's spawners (the original's
                                                                          training courtyard had none) [the scripted soldier spawners: not yet] */
     if (!p->have_nav || !p->nav.nnode) want = 0;
-    if (want) {
+    {   /* scripted soldier spawners (class 0x800D, ENTI type 13 flagged, version 10: word 7 the unit blueprint's name hash, the place
+           (game axes) and turn rows, then 0x3E7 / 0x8005, word 23 bit 0x200000: waits for the script's 3; the event table at word 2:
+           10006 when its soldier falls - Yavin's 18be0-18be3 {10006 -> groups 24 / 23 / 22 / 8} feed the counter 18beb).  A spawner
+           whose blueprint is a Humanoid makes one soldier of that blueprint's side, once [assumed: no respawn - the training's four
+           each count one kill] */
+        ak_chunk c; u32 q = 8; p->nuspawn = 0; const ak_bp_type *ht = ak_bp_find_type(bp, "Humanoid");
+        while (ht && p->have_nav && ak_asura_next(&l->file, &q, &c) && p->nuspawn < 16) {
+            if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 30 * 4 || (ak_rd32(c.body + 4) & 0xFFFF) != 0x800D || ak_rd32(c.body + 8) != 10) continue;
+            u32 h = ak_rd32(c.body + 28); const ak_bp_object *o = NULL;
+            for (u32 k = 0; k < ht->nobjects && !o; k++) if (ak_hash31(ht->objects[k].name) == h) o = &ht->objects[k];
+            if (!o) continue;
+            typeof(p->uspawn[0]) *u = &p->uspawn[p->nuspawn]; memset(u, 0, sizeof *u); u->id = ak_rd32(c.body); u->bot = -1;
+            f32 g[3]; memcpy(g, c.body + 32, 12); ak_from_game(g, u->pos);
+            f32 r20 = ak_rdf32(c.body + 4 * 13), r22 = ak_rdf32(c.body + 4 * 19); u->yaw = atan2f(r20, r22) + 3.14159265f;   /* [assumed: the third column's x / z; soldiers face -z] */
+            u->waiting = (ak_rd32(c.body + 92) & 0x200000u) != 0;
+            u->nev = ak_script_events(l, u->id, 2, u->ev, 4);
+            p->nuspawn++;
+        }
+    }
+    u32 want_script = p->nuspawn;
+    if (want || want_script) {
         for (int k = 0; k < 2; k++) {   /* the bots' explosives (loadout slots 9 REP_Grenade and 12 Cluster_Grenades; Weapon_Name 127 and 130) */
             const ak_bp_object *gw = ak_bp_find(bp, "Weapon", k ? "Cluster_Grenades" : "REP_Grenade");
             p->ai_gren_ok[k] = gw && ak_setting_int("AK_BOT_GRENADES", 1) && ak_proj_def_load(bp, ak_bp_string(gw, "Projectile", k ? "cluster_grenade" : "Grenade"), &p->ai_gren_def[k]);
@@ -1164,16 +1190,16 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
                 p->team_bdef[t].bot_dmg = md; p->team_bdef[t].ai = true;
             }
         }
-        p->bot = AK_NEW(a, ak_play_bot, want);
+        p->bot = AK_NEW(a, ak_play_bot, want + want_script);
         size_t ss = (size_t)p->nav.nnode * 12 + (size_t)p->nav.nlink * 12 + 4096;
         p->scratch.base = (u8 *)ak_arena_alloc(a, ss, 16); p->scratch.size = ss;
-        if (!p->bot || !p->scratch.base) want = 0;
+        if (!p->bot || !p->scratch.base) want = want_script = 0;
     }
     for (u32 i = 0; i < want; i++) {
         /* sides: alternate, starting with the enemy, so the player's side has one fewer */
         int team = (i % 2 == 0) ? 1 - p->team : p->team;
         if (!p->nklass[team]) continue;
-        ak_play_bot *b = &p->bot[p->nbots]; memset(b, 0, sizeof *b);
+        ak_play_bot *b = &p->bot[p->nbots]; memset(b, 0, sizeof *b); b->uspawn = -1;
         b->seed = 0x9E3779B9u * (i + 7) + 0x85EBCA6Bu * (u32)(ak_setting_int("AK_SEED", 1) - 1);   /* (AK_SEED: tests' other runs) */
         const char *k = p->klass[team][(u32)(rnd(&b->seed) * p->nklass[team]) % p->nklass[team]];
         if (!ak_soldier_look_make(bp, m, k, (int)(rnd(&b->seed) * 3) % 3, -1, -1, &b->look) || !poseable(m, &b->look)) continue;
@@ -1190,6 +1216,24 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             b->alive = false; b->dead_t = 10.0f; p->target[1 + p->nbots].alive = false;
             b->respawn_t = 5.0f + rnd(&b->seed) * 10.0f; b->respawn_set = true;
         }
+        p->nbots++;
+    }
+    for (u32 k = 0; k < want_script; k++) {                                  /* the scripted spawners' soldiers */
+        typeof(p->uspawn[0]) *u = &p->uspawn[k]; ak_chunk c; u32 q = 8; const char *bn = NULL;
+        while (ak_asura_next(&l->file, &q, &c)) if (ak_chunk_tag(&c) == AK_TAG('E', 'N', 'T', 'I') && ak_rd32(c.body) == u->id) {
+            const ak_bp_type *ht = ak_bp_find_type(bp, "Humanoid"); u32 h = ak_rd32(c.body + 28);
+            for (u32 j = 0; ht && j < ht->nobjects && !bn; j++) if (ak_hash31(ht->objects[j].name) == h) bn = ht->objects[j].name;
+            break; }
+        ak_play_bot *b = &p->bot[p->nbots]; memset(b, 0, sizeof *b); b->uspawn = (s8)k; b->seed = 0x2545F491u * (k + 3);
+        if (!bn || !ak_soldier_look_make(bp, m, bn, 0, -1, -1, &b->look) || !poseable(m, &b->look)) { AK_WARN("play", "spawner %x: no body for %s", u->id, bn ? bn : "?"); continue; }
+        int fac = ak_bp_int(b->look.bp, "Faction", -1);
+        b->team = fac == p->team_faction[p->team] ? p->team : 1 - p->team;   /* [assumed: a faction not on the field is the enemy, as Faction 4 was] */
+        b->death_clip = p->death_clips[k % 4]; b->base_look = b->look; b->name = -1;
+        memcpy(b->ch.pos, u->pos, 12); u->bot = (s32)p->nbots;
+        bot_spawn(p, m, b, p->nbots);
+        if (u->waiting) { b->alive = false; b->dead_t = 10.0f; p->target[1 + p->nbots].alive = false; }
+        else u->used = true;
+        if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "spawner %x: %s (team %d)%s", u->id, bn, b->team, u->waiting ? ", waits" : "");
         p->nbots++;
     }
     {   /* squads (traced, 08926220): each side's soldiers are split into squads by the table 0x08AD9888 - its row for the side's
@@ -1482,6 +1526,8 @@ static void bot_sense(ak_play *p, ak_play_bot *b, f32 dt)
         const ak_target *t = &p->target[i];
         if (!t->alive || t->team == b->team) continue;
         if (i >= NS(p) && i < NV(p) && p->veh[i - NS(p)].driver < 0) continue;   /* empty vehicles are no threat */
+        if (i >= NV(p) && p->in_turret != (s32)(i - NV(p)) && p->turret[i - NV(p)].def->boardable) continue;   /* nor an empty turret
+            (one a soldier mans) - the original's training turret stood untouched among the stormtroopers (ct26) [assumed: the rule] */
         f32 aim[3]; if (!bot_can_see(p, b, eye, t, aim)) continue;
         u32 k = 0; while (k < b->nmem && b->mem[k].t != (s16)i) k++;
         if (k == b->nmem) { if (b->nmem == sizeof b->mem / sizeof b->mem[0]) continue; b->nmem++; b->mem[k].t = (s16)i; b->mem[k].age = 0; b->mem[k].aware = 1.0f; }
@@ -3242,6 +3288,13 @@ static void script_sink(void *user, const ak_script_msg *m)
             ak_char_spawn(&p->ch, sp, p->warp[k].yaw); done = true; }
     }
     else if (m->target == 0x3E8 && m->type == 0x801E) { ak_hud_tip_clear(); done = true; }   /* (clears the tip [assumed]) */
+    else if (m->target == 0x3E8 && m->type == 0x8017 && m->nextra >= 12) {
+        /* the counter under the radar: {u32 on, u32 total, u32 add}.  Yavin's training: group 21 {1, 4, 0} as the stormtroopers come
+           (the original then showed "0/4", ct25), each fall {1, 4, 1} (groups 25-28 from the counter 18beb), later {1, 5, 1} /
+           {1, 10, 1}, group 44 {0, 3, 0}.  [assumed: on = shown, add 0 starts it at 0, else it adds; the handler is not traced] */
+        u32 on = ak_rd32(m->extra), tot = ak_rd32(m->extra + 4), add = ak_rd32(m->extra + 8);
+        if (!on) p->counter_total = 0; else { p->counter_total = (s32)tot; if (add == 0) p->counter_val = 0; else p->counter_val += (s32)add; }
+        done = true; }
     else if ((m->type == 0x3B || m->type == 0x51) && p->nnode_open < 32) {   /* a path node opened (0x3B) or shut (0x51): 08855908's flag 0x40 */
         u32 q = 0; while (q < p->nnode_open && p->node_open_id[q] != m->target) q++;
         if (q == p->nnode_open) { p->node_open_id[q] = m->target; p->nnode_open++; }
@@ -3261,6 +3314,11 @@ static void script_sink(void *user, const ak_script_msg *m)
             e->t = secs > 0 ? secs : 0;
             if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "speech %08x (%.1f s)", e->speech, secs);
             break; }
+    }
+    if (!done && m->type == 3 && p->nuspawn) {                                /* a scripted soldier spawner started by the script */
+        for (u32 k = 0; k < p->nuspawn; k++) if (p->uspawn[k].id == m->target) { done = true;
+            typeof(p->uspawn[0]) *u = &p->uspawn[k];
+            if (!u->used && u->bot >= 0) { u->used = true; u->waiting = false; bot_spawn(p, p->mset, &p->bot[u->bot], (u32)u->bot); } break; }
     }
     if (!done && m->type == 3 && p->nveh) {                                   /* a waiting unit spawner started by the script */
         for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].fixed && p->vspawn[v].eid == m->target) {
@@ -4003,6 +4061,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         else {
             ak_play_bot *b = &p->bot[i - 1]; b->alive = false; b->dead_t = 0; b->state = PLAY_IDLE; b->death_clip = p->death_clips[(s32)(rnd(&b->seed) * 4.0f) & 3];
             if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, b->team);
+            if (b->uspawn >= 0 && p->have_script) { const typeof(p->uspawn[0]) *u = &p->uspawn[b->uspawn];   /* its spawner's 10006 */
+                ak_script_raise(&p->script, u->ev, u->nev, 10006, u->id, script_sink, p); }
         }
     }
     p->health = p->target[0].health;
@@ -4174,6 +4234,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         for (u32 i = 0; i < p->nbots; i++) {
             ak_play_bot *b = &p->bot[i];
             if (b->alive) { b->respawn_set = false; continue; }
+            if (b->uspawn >= 0) continue;                                     /* (a scripted spawner's: once) */
             if (p->have_cq && p->match.tickets[b->team] == 0) continue;
             if (!pace) { if (wave && b->dead_t >= 5.0f) bot_spawn(p, m, b, i); continue; }
             if (!b->respawn_set) { b->respawn_t = 5.0f + rnd(&b->seed) * 10.0f; b->respawn_set = true; }
