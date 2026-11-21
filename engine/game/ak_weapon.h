@@ -63,9 +63,9 @@ bool ak_ai_fire_update(ak_ai_fire *c, const ak_weapon_def *d, bool want, bool ok
  * (radians); flat: the angle across the ground only (the record's +24: soldiers and ground vehicles) */
 bool ak_ai_fire_ok(const f32 *fwd, const f32 *to, f32 range, f32 cone, bool flat);
 
-typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; ak_heat heat; bool heats; } ak_weapon;   /* team/owner: set after ak_weapon_give; heats: a player's (ak_heat) */
+typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; ak_heat heat; bool heats; s32 src; } ak_weapon;   /* team/owner: set after ak_weapon_give; heats: a player's (ak_heat); src: the target the shots leave from (a vehicle's or turret's own; -1: the owner's) */
 
-typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle, vs_local; bool ai; u32 colour; f32 dscale_max, dscale_dist; bool headshots; int team; s32 owner; const char *impact_pfx, *shield_pfx; } ak_bolt;
+typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle, vs_local; bool ai; u32 colour; f32 dscale_max, dscale_dist; bool headshots; int team; s32 owner, src; const char *impact_pfx, *shield_pfx; } ak_bolt;
 typedef struct { f32 pos[3], normal[3]; f32 age; u32 colour; u16 material; bool body; const char *pfx; } ak_impact;   /* pfx: the effect it plays (NULL none) */   /* material: the surface's (0xFFFF none) */
 #define AK_MAX_BOLTS 512
 #define AK_MAX_IMPACTS 64

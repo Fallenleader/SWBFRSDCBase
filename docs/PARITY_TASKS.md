@@ -405,6 +405,11 @@ textures and how they are used. Section R lists only what must be in place so th
     the sides, 76 from unknown attackers (turrets, vehicles) on either side, 6 on neutral objects, and the only 3 within a side
     were the victim's own explosive. No bolt hurt a team-mate - as Aurek (shots of the same team pass, no damage). Not settled:
     whether a friendly body stops the bolt in the original (Aurek's pass through).
+    2026-11-21: the soldiers' damage path has no team test before the hooked 089E1FDC (089A7310 reads the message and the
+    headshot only), so a bolt that touched a team-mate would have shown in the log: in the original bolts do not register
+    team-mates at all (where the test skips them is not found). Aurek keeps passing them (AK_FRIENDLY_BLOCK=1 makes them stop
+    shots harmlessly: Hoth 2 min 53 soldier / 13 vehicle hits against 59 / 53). Shots now remember the target they leave from
+    (ak_weapon.src: a vehicle's or turret's own), so a shooter's own vehicle never stops them.
 
 ## 3. Vehicles
 
@@ -645,6 +650,11 @@ textures and how they are used. Section R lists only what must be in place so th
       089BBD30, which dispatches on its mode +568 through a table at 0x08ADE5CC after finding its driver, 089D194C). The firing
       goes through the vehicle's driver like any other vehicle, so the AI side is the turret controller's input - not read. The
       lead's shot speed is 1000.0 (built).
+    - 2026-11-21, the target record: a turret is a vehicle, and every vehicle's AI pilot (08957080, vtable 0x08AF9390) makes the
+      vehicle sensor (0895FD14) at pilot +0x2C; the turret node 0x422 (built by 0894FF20; update 089502F0) reads its best record
+      (pilot +0x2C -> +0x18 -> +4, 089577A8) as GENERAL_COMBAT does. So turrets pick by the sensor's score (08960750, 4.6).
+      **Engine:** turrets score their candidates so (AK_TURRET_SCORE; 0: the nearest, as before) - on Hoth the picks did not
+      change in a 2 min run (one candidate at a time).
     - Who fires and which sensor fills the target record are not read (the sensor classes are built in 0895FD14..08961784;
       the soldiers' is 0x08AF96F0, see 4.2).  Aurek's turrets keep their own pick (nearest it can point at and see).
 - [ ] **4.4 Movement behaviour.** Path following, strafing, cover, objective choice, and retreat. Compare against the original's

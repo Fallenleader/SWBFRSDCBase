@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "game/ak_weapon.h"
+#include "core/ak_settings.h"
 #include "audio/ak_audio.h"
 
 #define SHOT_IGNORE 0          /* shots hit everything the level has (0x0004 surfaces stop shots and sight, not bodies) */
@@ -84,16 +85,20 @@ bool ak_weapon_def_bolt(const ak_blueprints *bp, const char *bolt, ak_weapon_def
 
 void ak_weapon_give(ak_weapon *w, const ak_weapon_def *d)
 {
-    memset(w, 0, sizeof *w); w->def = d; w->team = -1; w->owner = -1;
+    memset(w, 0, sizeof *w); w->def = d; w->team = -1; w->owner = -1; w->src = -1;
     w->ammo = d->clip; w->spare = d->clip > 0 ? d->clip * (d->clips > 0 ? d->clips - 1 : 0) : 0;
 }
 
-/* first target hit along o + t d, t in (0, max]: vertical capsule (the body) or the head sphere */
-static s32 ray_targets(ak_target *tg, u32 n, const f32 *o, const f32 *d, f32 max, f32 *t_out, bool *head, int team)
+/* first target hit along o + t d, t in (0, max]: vertical capsule (the body) or the head sphere.  Team-mates let shots through
+ * (2.7, measured: no hit message ever reached a team-mate in the original, and the soldiers' damage path 089A7310 -> 089E1FDC has
+ * no team test, so the bolt does not register them - where it skips them is not found; 089DD5B4 skips the shooter and objects
+ * flagged at +0x4D / +0xF7).  AK_FRIENDLY_BLOCK=1: team-mates stop shots without harm (a test switch) */
+static s32 ray_targets(ak_target *tg, u32 n, const f32 *o, const f32 *d, f32 max, f32 *t_out, bool *head, int team, s32 src)
 {
     s32 best = -1; f32 bt = max;
+    static int fb = -1; if (fb < 0) fb = ak_setting_int("AK_FRIENDLY_BLOCK", 0);
     for (u32 i = 0; i < n; i++) {
-        ak_target *T = &tg[i]; if (!T->alive || (team >= 0 && T->team == team)) continue;
+        ak_target *T = &tg[i]; if (!T->alive || (s32)i == src || (!fb && team >= 0 && T->team == team)) continue;
         if (T->nbb) {                                                      /* the bone boxes (08808B24): the nearest box hit, part 6 the head */
             for (u32 q = 0; q < T->nbb; q++) {
                 f32 lo = 0, hi = bt; bool in = true;
@@ -182,15 +187,15 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
         if (d->hitscan) {
             ak_col_hit h; f32 reach = d->distance, tt; bool head = false;
             bool wall = ak_col_raycast(col, muzzle, dd, reach, SHOT_IGNORE, &h); if (wall) reach = h.t;
-            s32 ti = ray_targets(tg, ntg, muzzle, dd, reach, &tt, &head, w->team);
-            if (ti >= 0) hurt(&tg[ti], d->dmg_infantry, d->dmg_vehicle, head, d->headshots, dd, w->owner);
+            s32 ti = ray_targets(tg, ntg, muzzle, dd, reach, &tt, &head, w->team, w->src >= 0 ? w->src : w->owner);
+            if (ti >= 0 && (w->team < 0 || tg[ti].team != w->team)) hurt(&tg[ti], d->dmg_infantry, d->dmg_vehicle, head, d->headshots, dd, w->owner);
             else if (wall) impact(b, &h, 0xFFFFFFFFu, false, d->impact_pfx);
             continue;
         }
         if (b->n >= AK_MAX_BOLTS) break;
         ak_bolt *o = &b->b[b->n++];
         memcpy(o->pos, muzzle, 12); memcpy(o->dir, dd, 12);
-        o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->vs_local = d->bot_dmg > 0 ? d->bot_dmg : 1.0f; o->ai = d->ai; o->headshots = d->headshots; o->colour = d->colour; o->dscale_max = d->dscale_max; o->dscale_dist = d->dscale_dist; o->team = w->team; o->owner = w->owner; o->impact_pfx = d->impact_pfx; o->shield_pfx = d->shield_pfx;
+        o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->vs_local = d->bot_dmg > 0 ? d->bot_dmg : 1.0f; o->ai = d->ai; o->headshots = d->headshots; o->colour = d->colour; o->dscale_max = d->dscale_max; o->dscale_dist = d->dscale_dist; o->team = w->team; o->owner = w->owner; o->src = w->src >= 0 ? w->src : w->owner; o->impact_pfx = d->impact_pfx; o->shield_pfx = d->shield_pfx;
     }
     b->fired++;
     if (d->muzzle_pfx) { ak_shot_fx *f = &b->shot[b->shots++ % AK_MAX_SHOT_FX]; memcpy(f->pos, muzzle, 12); memcpy(f->dir, dir, 12); f->pfx = d->muzzle_pfx; f->colour = d->colour; }
@@ -223,10 +228,12 @@ void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *tg, u32 nt
         if (o->travelled + step > o->range) { step = o->range - o->travelled; dead = true; }
         ak_col_hit h; f32 tt; bool head = false;
         bool wall = step > 0 && ak_col_raycast(col, o->pos, o->dir, step, SHOT_IGNORE, &h);
-        s32 ti = step > 0 ? ray_targets(tg, ntg, o->pos, o->dir, wall ? h.t : step, &tt, &head, o->team) : -1;
+        s32 ti = step > 0 ? ray_targets(tg, ntg, o->pos, o->dir, wall ? h.t : step, &tt, &head, o->team, o->src) : -1;
         if (ti >= 0) {
             {   f32 k = tg[ti].local && o->ai ? o->vs_local * (tg[ti].elite > 0 ? tg[ti].elite : 1.0f) : 1.0f;   /* (089E1FDC: an AI's shot at the local player takes Modifier_Bot_Damage) */
-                hurt(&tg[ti], o->damage * k, o->damage_vehicle * k, head, o->headshots, o->dir, o->owner); }
+                {   static int lgf = -1; if (lgf < 0) lgf = ak_setting_int("AK_DEBUG_FRIENDLY", 0);
+                    if (lgf && o->team >= 0 && tg[ti].team == o->team) AK_INFO("bolt", "stopped by team-mate %d (owner %d)", ti, o->owner); }
+                if (o->team < 0 || tg[ti].team != o->team) hurt(&tg[ti], o->damage * k, o->damage_vehicle * k, head, o->headshots, o->dir, o->owner); }
             {   static int lg = -1; if (lg < 0) lg = getenv("AK_LOG_VEH_HITS") != NULL;   /* tests: each hit on a vehicle, the shot's range */
                 if (lg && tg[ti].vehicle) AK_INFO("vhit", "owner %d target %d at %.0f m, %.1f", o->owner, ti, o->travelled + tt, o->damage_vehicle); }
             ak_col_hit fake; for (int k = 0; k < 3; k++) { fake.pos[k] = o->pos[k] + o->dir[k] * tt; fake.normal[k] = -o->dir[k]; }

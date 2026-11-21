@@ -1777,7 +1777,7 @@ static void vehicle_fire(ak_play *p, const ak_model_set *m, u32 v, const f32 *ta
     if (!d->armed || !d->nmuzzles) return;
     f32 prev = vh->volley_t; vh->volley_t += dt;
     if (all) prev = -1, vh->volley_t = 1e9f;   /* (every barrel once: a press the AI lets go of at once - each hardpoint's weapon gets its one shot, 089C7A00) */
-    ak_weapon w; ak_weapon_give(&w, bot ? &d->gun_bot : &d->gun); w.team = vh->team; w.owner = (s32)(vh->driver >= 0 ? vh->driver : -1);
+    ak_weapon w; ak_weapon_give(&w, bot ? &d->gun_bot : &d->gun); w.team = vh->team; w.owner = (s32)(vh->driver >= 0 ? vh->driver : -1); w.src = (s32)VT(p, v);
     for (u32 i = 0; i < d->nmuzzles; i++) {
         if (!(prev <= d->muzzle_time[i] && vh->volley_t > d->muzzle_time[i]) && !(prev == 0 && d->muzzle_time[i] == 0)) continue;
         if (vh->driver == 0 && !ak_heat_ready(&vh->heat[i])) continue;       /* the player's: that barrel's weapon overheated */
@@ -2459,7 +2459,7 @@ static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
             }
             if (p->turret_fire && d->armed && d->nmuzzles) {
                 f32 prev = t->volley_t; t->volley_t += dt;
-                ak_weapon w; ak_weapon_give(&w, &d->gun); w.team = t->team; w.owner = 0;
+                ak_weapon w; ak_weapon_give(&w, &d->gun); w.team = t->team; w.owner = 0; w.src = (s32)TT(p, (u32)(t - p->turret));
                 for (u32 k = 0; k < d->nmuzzles; k++) {
                     if (!(prev <= d->muzzle_time[k] && t->volley_t > d->muzzle_time[k]) && !(prev == 0 && d->muzzle_time[k] == 0)) continue;
                     if (!ak_heat_ready(&t->heat[k])) continue;
@@ -2476,17 +2476,32 @@ static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
         f32 piv[12]; ak_turret_pivot(t, m, piv); f32 eye[3] = { piv[3], piv[7] + 1.0f, piv[11] };
         if (t->think_t <= 0) {
             t->think_t = 0.3f + rnd(&p->seed) * 0.1f;
-            s32 best = -1; f32 bd = t->range * t->range;
+            s32 best = -1; f32 bd = t->range * t->range, bs = -1e30f;
+            /* the pick: a turret is a vehicle (class 0x801E) whose AI pilot (08957080) makes the vehicle sensor (0895FD14), so it
+               takes the sensor's best record like a flyer's GENERAL_COMBAT (0895FF18 / 08960750, 4.6): 0.5 x a distance score (0 to
+               40 m, 1 at 200 m, 0 at the range) + 0.25 x (1 + the cosine between the gun's line and the way to it) + 1 when no
+               other shooter has it [assumed, as the flyers'].  AK_TURRET_SCORE=0: the nearest, as before */
+            static int ts = -1; if (ts < 0) ts = ak_setting_int("AK_TURRET_SCORE", 1);
+            f32 gf[3] = { -sinf(t->yaw), 0, -cosf(t->yaw) };
+            { f32 B[12]; if (ak_turret_barrel(t, m, B)) { f32 F = t->def->face; gf[0] = F * B[2]; gf[1] = F * B[6]; gf[2] = F * B[10]; } }
             for (u32 k = 0; k < NV(p); k++) {
                 const ak_target *e = &p->target[k];
                 if (!e->alive || e->team == t->team || e->team == AK_CQ_NEUTRAL) continue;
                 if (k >= NS(p) && p->veh[k - NS(p)].driver < 0) continue;
                 f32 c[3] = { e->feet[0], e->feet[1] + e->height * 0.5f, e->feet[2] };
                 f32 dx = c[0] - eye[0], dy = c[1] - eye[1], dz = c[2] - eye[2], d2 = dx * dx + dy * dy + dz * dz;
-                if (d2 >= bd) continue;
+                if (d2 >= t->range * t->range || (!ts && d2 >= bd)) continue;
                 f32 y, pt; if (!ak_turret_aim_at(t, m, c, &y, &pt)) continue;
                 if (!in_sight(p, eye, c)) continue;
-                bd = d2; best = (s32)k;
+                if (!ts) { bd = d2; best = (s32)k; continue; }
+                f32 dd = sqrtf(d2), rg = fmaxf(t->range, 201.0f);
+                f32 dsc = dd > 200.0f ? 1.0f - (dd - 200.0f) / (rg - 200.0f) : dd > 40.0f ? (dd - 40.0f) * 0.00625f : 0;
+                f32 cs = dd > 1e-3f ? (gf[0] * dx + gf[1] * dy + gf[2] * dz) / dd : 1;
+                bool other = false;
+                for (u32 j = 0; j < p->nbots && !other; j++) other = p->bot[j].enemy == (s32)k;
+                for (u32 j = 0; j < p->nturret && !other; j++) other = j != i && p->turret[j].enemy == (s32)k;
+                f32 sc = dsc * 0.5f + (cs + 1.0f) * 0.25f + (other ? 0 : 1.0f);
+                if (sc > bs) { bs = sc; best = (s32)k; }
             }
             if (best != t->enemy) { t->enemy = best; t->aim_t = 0.6f + rnd(&p->seed) * 0.4f; }
         }
@@ -2520,7 +2535,7 @@ static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
         f32 tgt[3] = { c[0], c[1], c[2] };
         aim_cap(&p->seed, eye, tgt, p->bot_aim_set ? p->bot_aim : d->gun_bot.ai_acc[p->difficulty >= 2 ? 1 : 0] * 0.017453293f);   /* (as the soldiers) */
         f32 prev = t->volley_t; t->volley_t += dt;
-        ak_weapon w; ak_weapon_give(&w, &d->gun_bot); w.team = t->team; w.owner = -1;
+        ak_weapon w; ak_weapon_give(&w, &d->gun_bot); w.team = t->team; w.owner = -1; w.src = (s32)TT(p, (u32)(t - p->turret));
         for (u32 k = 0; k < d->nmuzzles; k++) {
             if (!(prev <= d->muzzle_time[k] && t->volley_t > d->muzzle_time[k]) && !(prev == 0 && d->muzzle_time[k] == 0)) continue;
             f32 muz[3]; if (!ak_turret_muzzle(t, m, k, muz)) continue;
