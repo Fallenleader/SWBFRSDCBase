@@ -91,6 +91,7 @@ typedef struct {                       /* a bot soldier */
     ak_soldier_look look, base_look; bool hero; f32 alert_t, shoot_t; ak_character ch; int team; ak_weapon weapon; bool alive;
     s8 loadout, held;                  /* its AI loadout this life (0..7, the game's table 0x08ADDC64), the slot in its hands */
     f32 bones[64][12]; int state; f32 clip_t, land_t, dead_t, pose_dt; s32 death_clip; bool was_ground;
+    f32 respawn_t; bool respawn_set;   /* its spawner's timer (0897F158: 5-15 s), set when it falls */
     s32 idle_var; f32 idle_t, idle_vt;   /* an idle variation playing (-1 none), the wait before the next, its time */
     /* the mind */
     s32 goal; s8 ctf_role; u32 path[128];   /* goal: a post, -1 none, -2 a CTF goal; ctf_role: 1 attack, 0 guard, -1 not chosen (each life) */ u32 npath, path_i; f32 hold[3]; bool holding;

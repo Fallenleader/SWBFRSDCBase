@@ -740,6 +740,10 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
                     if (!used) b->name = (s32)c; } } }
         memcpy(b->ch.pos, p->ch.pos, 12);
         bot_spawn(p, m, b, p->nbots);
+        if (ak_setting_int("AK_BOT_SPAWN_DELAY", 1)) {                        /* not in yet: its spawner's first timer (see the respawn below) */
+            b->alive = false; b->dead_t = 10.0f; p->target[1 + p->nbots].alive = false;
+            b->respawn_t = 5.0f + rnd(&b->seed) * 10.0f; b->respawn_set = true;
+        }
         p->nbots++;
     }
     if (ak_setting_int("AK_BOT_SENSE_EVERY", 0) <= 0 && p->nbots > 16) p->sense_every = (p->nbots + 15) / 16;   /* (performance) */
@@ -789,7 +793,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         if (!p->vspawn[v].fixed || !vh->alive || !vh->def || vh->def->kind != AK_VEH_FLYER || vh->driver >= 0) continue;
         f32 dn[3] = { 0, -1, 0 }; ak_col_hit hh; if (ak_col_raycast(&p->col, vh->pos, dn, 20.0f, AK_COL_FLYER_MASK, &hh)) continue;   /* (standing on something: parked) */
         for (u32 i = 0; i < p->nbots; i++) {
-            ak_play_bot *b = &p->bot[i]; if (!b->alive || b->veh >= 0 || b->team != vh->team || b->hero) continue;
+            ak_play_bot *b = &p->bot[i]; if (b->veh >= 0 || b->team != vh->team || b->hero) continue;
+            if (!b->alive) bot_spawn(p, m, b, i);   /* (a bot still waiting for its spawner: in now, as the craft's pilot) */
             bot_board(p, b, i, v);
             vh->flying = true; vh->takeoff = 0; vh->speed = vh->def->cruise > 0 ? vh->def->cruise : vh->def->stall_speed;
             vh->lvel[0] = vh->lvel[1] = 0; vh->lvel[2] = vh->speed; vh->r_tap_t = 99.0f;
@@ -3161,13 +3166,24 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 p->stamina = p->stamina_max; p->stamina_spent = false;   /* a new soldier */
             }
         }
+    }
+    if (playing) {
         /* the bots: with the wave, once their body has left (5 s).  The game's respawn delay - the time between spawn waves - is
            10 s (the option at 0x08B1BB48, read live in the harness; "Respawn delay is time between spawn waves"); fallen AI soldiers
            came back 5-15 s after dying in the original: the body's 5 s, then the next wave [PARITY(1.10c)] */
-        for (u32 i = 0; i < p->nbots && wave; i++) {
+        /* Each AI soldier has a unit spawner (class 0x800D family, 0897E594): its timer starts at a random 5-15 s (0897F158, single
+           player: 5 + random x 10) and is set again when its soldier falls (0897F230); at 0 the spawner makes a new one (0897E7B4).
+           Measured on Hoth (harness): the first bots appear one by one 4.3-14 s after the match starts.  [assumed: the timer runs
+           from the fall; the body's 5 s still has to pass] (AK_BOT_SPAWN_DELAY=0: the old way, with the spawn wave) */
+        static int pace = -1; if (pace < 0) pace = ak_setting_int("AK_BOT_SPAWN_DELAY", 1) != 0;
+        for (u32 i = 0; i < p->nbots; i++) {
             ak_play_bot *b = &p->bot[i];
-            if (b->alive || b->dead_t < 5.0f || (p->have_cq && p->match.tickets[b->team] <= 0)) continue;
-            bot_spawn(p, m, b, i);
+            if (b->alive) { b->respawn_set = false; continue; }
+            if (p->have_cq && p->match.tickets[b->team] <= 0) continue;
+            if (!pace) { if (wave && b->dead_t >= 5.0f) bot_spawn(p, m, b, i); continue; }
+            if (!b->respawn_set) { b->respawn_t = 5.0f + rnd(&b->seed) * 10.0f; b->respawn_set = true; }
+            b->respawn_t -= dt;
+            if (b->respawn_t <= 0 && b->dead_t >= 5.0f) bot_spawn(p, m, b, i);
         }
     }
 }

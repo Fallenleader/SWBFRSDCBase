@@ -545,6 +545,8 @@ textures and how they are used. Section R lists only what must be in place so th
     post (the manager's weights; the Empire's only weighted post was 187F0), and the first wave's trickle (the original's bots
     appear one by one from 4.3 s to 14 s, about every 0.6 s; Aurek's all at 0 s) - the AI spawn path is still not found
     (08974318 is the heroes', 08A0CF24 / 089826E8 a unit spawner's crew).
+    The trickle, found 2026-11-21: each AI soldier's unit spawner (0x800D family) times it at 5-15 s (0897F158) from the start
+    and from each fall - ported (AK_BOT_SPAWN_DELAY).  Still open: the other side's post.
 - [ ] **4.2 Target selection [traced for soldier bots 2026-11-19].** The AI sensor (vtable 0x08AF96F0; built by 08961784 on the
   base 0892538C; updated every frame by 08961A50; read by 08962DAC from the fire node 0893F364):
   - Sight: 55 m (+32) x a multiplier (+48, 1.0); a cone of +-45 degrees across and vertically (+36/+40/+44 = tan(pi/4),
