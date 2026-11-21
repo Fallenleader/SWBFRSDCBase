@@ -1222,6 +1222,9 @@ textures and how they are used. Section R lists only what must be in place so th
     NATIVE_ENGINE. Next: why the droid is not seen in front of the player (draw / place - compare with /tmp/ct8 frame 5000, the
     original's object 30d48 at -24.90 -8.67 199.57), its drift toward the player (its AI), the shield, then the kill -> group 20 ->
     group 58 (pages 0x195 / 0x196, 0x8010 / 0x800A / 0x800E), the chevron over the ring, the command-post step.
+  - Part 28, 2026-11-21 - **the recon droid's patrol path** (in NATIVE_ENGINE). Open: Aurek's droid is drawn in the frustum but
+    not seen (compare with the cut-scene's draw of the same model, which shows) and hits stop at 6 - check depth / draw order /
+    the level's visibility, then the kill -> group 20 -> group 58.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

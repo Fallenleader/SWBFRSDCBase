@@ -819,7 +819,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
                     e->anim = d.size >= 56 ? (u8)ak_rd32(d.body + 52) : 0;
                 }
             }
-            if (ak_setting_int("AK_DEBUG_CUT", 0)) AK_INFO("cut", "%s frame %.2f %.2f %.2f q %.4f %.4f %.4f %.4f actor model %d", cu->name, cu->sp[0], cu->sp[1], cu->sp[2], cu->sq.x, cu->sq.y, cu->sq.z, cu->sq.w, cu->act_model);
+            if (ak_setting_int("AK_DEBUG_CUT", 0)) AK_INFO("cut", "%s frame %.2f %.2f %.2f q %.4f %.4f %.4f %.4f actor model %d (%s %u parts)", cu->name, cu->sp[0], cu->sp[1], cu->sp[2], cu->sq.x, cu->sq.y, cu->sq.z, cu->sq.w, cu->act_model, cu->act_model >= 0 ? m->models[cu->act_model].name : "-", cu->act_model >= 0 ? m->models[cu->act_model].nparts : 0);
         }
         p->mset = m;
         {   /* effect places (unflagged ENTI type 33, version 9: 0, 0, the place (3 floats, game axes), a packed word, the effect's
@@ -1920,6 +1920,8 @@ static void vehicle_target(ak_play *p, u32 v)
 {
     const ak_vehicle *vh = &p->veh[v]; ak_target *t = &p->target[VT(p, v)];
     memcpy(t->feet, vh->pos, 12); t->height = vh->def->hover + vh->def->height; t->radius = vh->def->radius;
+    if (vh->def->hover > 1.5f) { t->feet[1] += vh->def->hover - vh->def->radius; t->height = 2.0f * vh->def->radius; }   /* a floating unit (the recon droid): the
+                                                                                     body only - aim and hits at its height, not over the ground under it */
     memcpy(t->head, vh->pos, 12); t->head[1] -= 100; t->head_radius = 0;   /* no head */
     t->team = vh->team; t->vehicle = true;
 }
@@ -1929,7 +1931,9 @@ static bool vehicle_make(ak_play *p, u32 v)
     ak_play_vspawn *sp = &p->vspawn[v]; int team = spawn_team(p, sp);
     if (team < 0 || sp->def[team] < 0) return false;
     ak_vehicle *vh = &p->veh[v]; vh->spawn = (s32)v;
-    ak_vehicle_spawn(vh, &p->vdef[sp->def[team]], sp->pos, sp->yaw, team);
+    {   f32 at[3], dir[3]; const ak_vehicle_def *dd = &p->vdef[sp->def[team]];   /* a hover unit with a patrol path is made on its first point */
+        if (sp->route && dd->kind != AK_VEH_WALKER && ak_route_at(sp->route, 0, at, dir)) { at[1] -= dd->hover; ak_vehicle_spawn(vh, dd, at, sp->yaw, team); sp->route_d = 0; }
+        else ak_vehicle_spawn(vh, dd, sp->pos, sp->yaw, team); }
     vh->free_flight = p->free_flight;          /* (flyers: +852 bit 0 - Aurek: every space map) */
     ak_target *t = &p->target[VT(p, v)]; memset(t, 0, sizeof *t);
     t->health = t->max_health = vh->def->health; t->alive = true; t->last_attacker = -1;
@@ -2061,7 +2065,7 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
         sp->mpost = -1; sp->route = NULL; sp->route_d = 0;
         if (sp->fixed && ak_setting_int("AK_WALKER_PATHS", 1)) {             /* a placed walker walks its path (the record's start node) */
             ak_route *r = (ak_route *)ak_arena_alloc(a, sizeof *r, 4);
-            if (r && ak_route_for_unit(l, e->id, r)) { sp->route = r; if (ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "walker %u: a path of %u points, %.0f m", p->nveh + 1, r->n, r->length); }
+            if (r && ak_route_for_unit(l, e->id, r)) { sp->route = r; if (ak_setting_int("AK_DEBUG_VEH", 0)) { AK_INFO("veh", "walker %u: a path of %u points, %.0f m", p->nveh + 1, r->n, r->length); for (u32 q = 0; q < r->n && ak_setting_int("AK_DEBUG_VEH", 0) > 1; q++) AK_INFO("veh", "  pt %u %.2f %.2f %.2f", q, r->pt[q][0], -r->pt[q][1], -r->pt[q][2]); } }
         }
         {   s32 dd = sp->def[0] >= 0 ? sp->def[0] : sp->def[1];               /* CarriesCommandPost: a post of its own (func 089D66C4) */
             if (any && dd >= 0 && p->vdef[dd].carries_cp && p->have_cq && p->cq.nposts < AK_MAX_POSTS) {
@@ -3577,6 +3581,18 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         } else if (vh->driver > 0) {                                          /* a bot drives (its controls are set in bot_drive) */
             ak_vehicle_update(vh, &p->col, p->cp.gravity, vehicle_boost(vh, p->bot[vh->driver - 1].boost, dt), dt);
             memcpy(p->bot[vh->driver - 1].ch.pos, vh->pos, 12);
+        } else if (p->vspawn[v].route && vh->def->kind != AK_VEH_WALKER && vh->alive) {
+            /* a placed hover unit on a patrol path (Yavin's training Recon_Droid: spawner 18bd8 -> path node 18bd9 -> AI points 18c3c /
+               18c3e / 18c3f, a loop): it starts on the path's first point and goes round at the original's pace - harness object 30d48,
+               -24.40 -8.68 199.35 at its making, then about 0.5 m/s toward -26.6 203 and -22.0 204.7 [measured; the unit AI's own
+               speed, turning and stops not traced] */
+            ak_play_vspawn *sp = &p->vspawn[v]; f32 at[3], dir[3];
+            sp->route_d += 0.5f * dt; if (sp->route_d > sp->route->length) sp->route_d = sp->route->length;
+            if (ak_route_at(sp->route, sp->route_d, at, dir)) {
+                vh->pos[0] = at[0]; vh->pos[1] = at[1] - vh->def->hover; vh->pos[2] = at[2];
+                if (dir[0] * dir[0] + dir[2] * dir[2] > 1e-6f) vh->yaw = atan2f(-dir[0], -dir[2]);
+                vh->vel[0] = dir[0] * 0.5f; vh->vel[1] = 0; vh->vel[2] = dir[2] * 0.5f;
+            }
         } else if (p->vspawn[v].route && vh->def->kind == AK_VEH_WALKER) {      /* a placed walker: along its path at its walking pace, then it stands */
             walker_route_step(p, v, dt);
             {   /* its guns: the nearest enemy in its range within the head's reach (the game's walker gunnery is not traced) */   /* PARITY(3.4) */
@@ -3623,6 +3639,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             static int sb = -1; if (sb < 0) sb = ak_setting_int("AK_SHOT_BOXES", 1);
             ak_target *t = &p->target[VT(p, v)]; t->boxed = false;
             if (sb && vh->def->model >= 0) { ak_box bx; vehicle_box(m, vh, &bx); t->boxed = true; memcpy(t->box_c, bx.c, 12); memcpy(t->box_ax, bx.ax, 36); memcpy(t->box_h, bx.h, 12); }
+            if (t->boxed && vh->def->hover > 1.5f) {   /* a floating unit (the recon droid): its model's box is a 0.18 x 1.4 x 0.2 m stick off its
+                                                          drawn place - the model's sphere where it is drawn instead [assumed: the game's shape for it not traced] */
+                f32 r = m->models[vh->def->model].radius; t->box_c[0] = vh->pos[0]; t->box_c[1] = vh->pos[1] + vh->def->hover; t->box_c[2] = vh->pos[2];
+                t->box_h[0] = t->box_h[1] = t->box_h[2] = r; }
         }
         if (vh->pos[1] < -400.0f) { p->target[VT(p, v)].alive = false; }
     }
@@ -3790,7 +3810,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         p->target[1 + i].alive = false; p->bot[i].alive = false; p->bot[i].dead_t = 0; if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, p->bot[i].team); }
     /* the level script (game/ak_script.h): its timers, its queue, what it sends to the game's objects */
     if (ak_setting_int("AK_LOG_VEH", 0) && p->frame_no % 30 == 0)          /* (tests: each live vehicle's place once a second) */
-        for (u32 v = 0; v < p->nveh; v++) if (p->veh[v].alive) AK_INFO("vpos", "%u %u %s %.2f %.2f %.2f", p->frame_no, v + 1, p->veh[v].def->name, p->veh[v].pos[0], p->veh[v].pos[1], p->veh[v].pos[2]);
+        for (u32 v = 0; v < p->nveh; v++) if (p->veh[v].alive) { const ak_target *tg = &p->target[VT(p, v)]; AK_INFO("vpos", "%u %u %s %.2f %.2f %.2f box %d %.2f %.2f %.2f h %.2f %.2f %.2f alive %d lock %d", p->frame_no, v + 1, p->veh[v].def->name, p->veh[v].pos[0], p->veh[v].pos[1], p->veh[v].pos[2], tg->boxed, tg->box_c[0], tg->box_c[1], tg->box_c[2], tg->box_h[0], tg->box_h[1], tg->box_h[2], tg->alive, p->lock); }
     for (u32 k = 0; k < p->nsfx; k++) {                                   /* the script's effect places */
         typeof(p->sfx[0]) *e = &p->sfx[k];
         if (!e->on) { if (e->h) { ak_pfx_follow(p->pfx, e->h, NULL, NULL, NULL, false); e->h = 0; } continue; }
@@ -4152,6 +4172,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         if (!vh->def || !(vh->alive || (vh->def->kind == AK_VEH_WALKER ? vh->dead_t < 8.0f : vh->dead_t < (vh->def->kind == AK_VEH_FLYER ? 4.98f : 4.75f)))) continue;   /* (wrecks: 4.75 s, flyers 4.98 s, measured) */
         f32 M[12]; ak_vehicle_matrix(vh, M);
         f32 r = m->models[vh->def->model].radius, mn[3] = { M[3] - r, M[7] - r, M[11] - r }, mx[3] = { M[3] + r, M[7] + r, M[11] + r };
+        if (ak_setting_int("AK_LOG_VEH", 0) > 1 && p->frame_no % 30 == 0) AK_INFO("vdraw", "%u %s model %d (%s, %u parts, skin %d) at %.2f %.2f %.2f in view %d posed %d", v + 1, vh->def->name, vh->def->model, m->models[vh->def->model].name, m->models[vh->def->model].nparts, m->models[vh->def->model].skin != NULL, M[3], M[7], M[11], ak_frustum_aabb(&fr, mn, mx), vh->posed);
         if (!ak_frustum_aabb(&fr, mn, mx)) continue;
         {   ak_m4 gw = { { M[0], M[4], M[8], 0,  M[1], M[5], M[9], 0,  M[2], M[6], M[10], 0,  M[3], M[7], M[11], 1 } };
             ak_scene_models_draw(ms, (u32)vh->def->model, vp, &gw, vh->posed ? (const f32 (*)[12])vh->bones : NULL, NULL, st); }
