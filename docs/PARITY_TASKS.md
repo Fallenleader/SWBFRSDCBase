@@ -20,8 +20,10 @@ textures and how they are used. Section R lists only what must be in place so th
 
 ## 0. Ground rules and tooling
 
-> **Milestone (2026-11-20):** parity minus networking (10.1) and the non-legacy rendering items (R.10-R.17) - the point at which
-> on-device testing and bug fixing starts. Work continues session to session automatically, with progress reported between sessions.
+> **Goal: full parity, networking and the updated graphics included.** Order (2026-11-21): everything except networking (10.1)
+> and the non-legacy rendering items (R.10-R.17) first - the checkpoint where on-device testing and bug fixing starts - then
+> 10.1 and R.10-R.17 after the user's bug testing. They are part of the goal, only scheduled later. Work continues session to
+> session automatically, with progress reported between sessions.
 
 - [x] **0.1 A side-by-side harness against the original.** *(Done 2026-11-16: `tools/harness` - the original runs headless in
   lock-step with a driver that reads its screens; `compare_walk.py` gives the report. See tools/harness/README.md.)*
@@ -1094,7 +1096,8 @@ textures and how they are used. Section R lists only what must be in place so th
     draws (08A3BE90 picks the side) [assumed: the attacker], the RNG seeds [assumed], saving (08A37D04 / 08A37E54), medals.
   - Part 7, 2026-11-21 - **GC AI ported** (game/ak_gc_ai.{h,c}), 798 / 800 random boards give the game's own plan (RS_GC_AI_TEST
     / RS_GC_AI_SEED / RS_GC_AI_TAKES in the harness, compare with `akbp COMMON.ASR -gcai LOG`). Left: 2 boards (seed 11, boards 94 /
-    648: the final re-pricing reuses the last try's troop list - the game buys at planet 2, Aurek at 10), the plan's executor
+    648: in both, 08A3E5E4 of a plan without attacks reads its "interior before" flags from stack left-overs - board 94 shows them
+    set where Aurek assumes 0; the spot is shared with 08A3FB1C's lose-both board (+192), but modelling that alone did not fix it), the plan's executor
     (AI player 08A42500), and rules corrections for ak_gc: troops are bought at the selected own planet (08A38C90 sets +0x3C from
     the cursor), reinforcing needs a source with 11+ troops and an own neighbour and an own, not full destination (08A3B36C-
     08A3B518) [assumed: adjacent]. Thrawn / Ackbar's second attack and the draw rule are still to trace.
