@@ -750,6 +750,12 @@ textures and how they are used. Section R lists only what must be in place so th
     original 10 / 38 / 50 / 72 / 100 / 125 at 10 / 25 / 50 / 75 / 90 / 99) and 14 vehicle hits (9). The patrol node does not call
     08959780, so RS_PILOT_LOG's two thirds leave its time out. Open: the patrol craft brake slowly (median 92 against the 70 asked);
     the runs' length; why the original's combat pilots spend less time at top speed.
+  - 2026-11-21: the objects 0x453 flies to are the attack-run objectives (ENTI 34), and their +0x40 is the run's end point at the
+    hull (18868: 1518 -116 593, Aurek's path[2]; AK_DEBUG_BOTVEH=3 lists the objectives). On arrival nothing follows in the node:
+    0x804F only tells the craft the point (089C7A00 keeps it at +0x2EC and sets +0x34C bit 10) and the node ends (state 2), so the
+    commander's next order follows. Aurek's legs: offset -> start -> end; [ ] whether the original's run also takes the first two
+    points (the command 2 handler, goal kind 2 -> 0x486, 0894C07C) is the next read. The braking: Aurek's brake is the flight
+    step's own (-1 throttle at MaxAcc); how the AI pilot reaches +0x88 (089B2DC8, VFPU) is not read.
 
 ## 5. Game rules and modes
 

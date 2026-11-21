@@ -608,7 +608,10 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->free_flight = ak_space_load(l, &p->space);                               /* (any space map: flyers may boost) */
     if (ak_setting_int("AK_DEBUG_BOTVEH", 0) && p->space.nobj) { u32 c[2][3] = { { 0 } };   /* (tests: the objectives by team and kind) */
         for (u32 i = 0; i < p->space.nobj; i++) { const ak_space_obj *o = &p->space.obj[i]; if (o->team >= 0 && o->team < 2 && o->kind >= 0 && o->kind < 3) c[o->team][o->kind]++; }
-        AK_INFO("botveh", "objectives: team 0 hangar %u run1 %u run2 %u, team 1 hangar %u run1 %u run2 %u", c[0][0], c[0][1], c[0][2], c[1][0], c[1][1], c[1][2]); }
+        AK_INFO("botveh", "objectives: team 0 hangar %u run1 %u run2 %u, team 1 hangar %u run1 %u run2 %u", c[0][0], c[0][1], c[0][2], c[1][0], c[1][1], c[1][2]);
+        if (ak_setting_int("AK_DEBUG_BOTVEH", 0) > 2) for (u32 i = 0; i < p->space.nobj; i++) { const ak_space_obj *o = &p->space.obj[i];
+            AK_INFO("botveh", "objective %x team %d kind %d: game %.0f %.0f %.0f / %.0f %.0f %.0f / %.0f %.0f %.0f", o->id, o->team, o->kind,
+                    o->path[0][0], -o->path[0][1], -o->path[0][2], o->path[1][0], -o->path[1][1], -o->path[1][2], o->path[2][0], -o->path[2][1], -o->path[2][2]); } }
     p->is_space = p->free_flight && p->space.nobj > p->space.nhangar;   /* space maps: attack runs on capital ships (Hoth has 2 hangar runs only) */
     for (u32 i = 0; i < AK_MAX_OBJECTIVES; i++) p->obj_unit[i] = -1;
     p->team = ak_setting_int("AK_TEAM", ak_faction_team(p->look.faction) + 1) == 2;
