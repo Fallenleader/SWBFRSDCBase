@@ -611,6 +611,9 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         }
     }
     p->have_cq = ak_conquest_load(l, &p->cq);
+    if (p->have_cq && p->have_nav && ak_setting_int("AK_DEBUG_POSTS", 0))       /* (tests: how far each post is from the navigation graph) */
+        for (u32 k = 0; k < p->cq.nposts; k++) { s32 n = ak_nav_nearest(&p->nav, p->cq.post[k].pos, 200.0f);
+            if (n >= 0) { const f32 *q = p->nav.node[n].pos, *c = p->cq.post[k].pos; AK_INFO("conquest", "post %u: nearest node %d %.1f m (radius %.1f)", k, n, sqrtf((q[0]-c[0])*(q[0]-c[0]) + (q[2]-c[2])*(q[2]-c[2])), p->nav.node[n].radius); } }
     p->difficulty = ak_setting_int("AK_DIFFICULTY", 1);                          /* 0 easy, 1 normal, 2 elite (the game's 08979DF4) */
     {   const ak_bp_object *wb = ak_bp_find(bp, "Weapon", "Base");               /* elite: an AI's damage to the local player x this too (089E1FDC) */
         p->elite_mul = wb ? ak_bp_float(wb, "Modifier_Bot_Damage_Elite_Global", 1.0f) : 1.0f; }
@@ -2749,7 +2752,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (!p->ready) return;
     p->clock += dt; p->frame_no++;
     if (ak_setting_int("AK_LOG_HITS", 0) && p->frame_no % 6 == 0)        /* (tests: each bot's position every 0.1 s, against the hits' shooters) */
-        for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0) AK_INFO("bpos", "%u %u %.2f %.2f %d %d %d", p->frame_no, 1 + i, p->bot[i].ch.pos[0], p->bot[i].ch.pos[2], p->bot[i].squad, p->bot[i].sq_slot, p->bot[i].enemy >= 0);
+        for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0) {
+            f32 pd = 1e9f; for (u32 k = 0; p->have_cq && k < p->cq.nposts; k++) { f32 dx = p->cq.post[k].pos[0] - p->bot[i].ch.pos[0], dz = p->cq.post[k].pos[2] - p->bot[i].ch.pos[2]; pd = fminf(pd, dx * dx + dz * dz); }
+            AK_INFO("bpos", "%u %u %.2f %.2f %d %d %d %.1f", p->frame_no, 1 + i, p->bot[i].ch.pos[0], p->bot[i].ch.pos[2], p->bot[i].squad, p->bot[i].sq_slot, p->bot[i].enemy >= 0, sqrtf(pd)); }
     if (ak_setting_int("AK_LOG_HITS", 0)) { static u32 lf; if (lf != p->frame_no) { lf = p->frame_no; AK_INFO("fr", "%u", p->frame_no); } }
     {   /* tests: AK_TEST_TP = "frame:x,y,z;frame:x,y,z..." - put the player there (game axes) on those frames */
         static const char *tp = (const char *)1; if (tp == (const char *)1) tp = ak_setting_str("AK_TEST_TP", NULL);

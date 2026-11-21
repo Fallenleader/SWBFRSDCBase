@@ -760,6 +760,19 @@ textures and how they are used. Section R lists only what must be in place so th
     8.4; original 0 / 0.61 / 5.1 / 8.4 / 8.5); shooters 0.22 / 0.87 / 2.6 / 3.9 / 5.9 (without 0.63 / 2.5 / 3.6 / 4.9 / 7.2;
     original 0 / 0.08 / 2.2 / 5.0 / 8.2). Fight drift off with squads: shooters 0.4 / 4.8 / 5.7 / 8.2 / 8.4 - it stays on.
     Still open: the original stands more (its 25 % is 0.61): what the leader does between goals (0x48A / 0x489 / 0x48B).
+  - 2026-11-21, the leaders' destinations read (RS_MOVE_LOG: a hand hook on 08931BAC, the 0x8035 message; Hoth 2.5 min, 101
+    leader messages): a squad's leader is sent either to a command post exactly (node id = the post's, 100443..100445) or, for a
+    frame or 25 before that, to a point with no node (999) 13-23 m from a post - the squad's own position as its order starts.
+    So the leaders walk to the post itself, as Aurek's do (Aurek: a spot within 3 m; the posts' nearest navigation nodes are
+    0.9-4.5 m from them). Standing in Aurek is mostly at posts (of its standing samples 53 % within 10 m of one, 10 % at 10-30 m,
+    36 % farther), the original's mostly 10-30 m out (18 / 61 / 21 %) - so the original's extra standing is not at the goal.
+    The nodes 0x48A / 0x489 / 0x48B are the three states of node 0x457 (built by 0895264C, vtable 0x08AF90A0, update
+    089526EC, switch 089528F8): state 1 runs 0x48A while there is no sensor record, 2 runs 0x489 when there is a record but no
+    target (controller +0x6C = 999), 3 runs 0x48B once there is a target - to a navigation point near it (08952CA0: the target's
+    node, three tries over a table at 0x08B204A0, the soldier's +0x120 radius) - and on leaving 3 the sensor is held off
+    (089601D4, D_08AEDCF0) and the target cleared. On Hoth 0x457 started once in 2.5 min (its states 29 times): a rare goal,
+    not the squads' standing. Next for 4.4: where the original's soldiers stand 10-30 m from posts - fights on the way
+    (whether a soldier under 0x3F2 stops to shoot; the 0x3F2 member's path node with a target) [open].
 - [x] **4.5 Bot counts per mode and level [traced 2026-11-21].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source

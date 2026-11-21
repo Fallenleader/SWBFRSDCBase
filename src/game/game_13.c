@@ -14942,6 +14942,7 @@ void func_08931BAC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
     u8 stack_[32] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 32);
 L_08931BAC:;
+    { extern void rs_move_log(u32, u32, u32, u32); rs_move_log(a0, a1, a2, t0); }   /* harness measurement (RS_MOVE_LOG, PARITY 4.4; hand-added) */
     sp = sp - 32;
     s4 = a3 & 0xff;
     s3 = t0 + 0;

@@ -828,6 +828,11 @@ void rs_order_log(u32 which, u32 owner, u32 id){
     static int on = -1; if (on < 0) on = getenv("RS_ORDER_LOG") != 0; if (!on) return;
     fprintf(stderr, "[ORDER] fr %u %s %08x id %x\n", probe_fr, which == 1 ? "order" : which == 2 ? "goalnode" : "child", owner, id);
 }
+/* (4.4) the squad move order's message to member k (08931BAC: a0 the order, a1 k, a2 -> the point, t0 the node id): RS_MOVE_LOG */
+void rs_move_log(u32 order, u32 k, u32 pt, u32 node){
+    static int on = -1; if (on < 0) on = getenv("RS_MOVE_LOG") != 0; if (!on || (k != 0 && getenv("RS_MOVE_LOG")[0] != '2')) return;
+    fprintf(stderr, "[MOVE] fr %u order %08x k %u node %u at %.1f %.1f %.1f\n", probe_fr, order, k, node, GF32(pt), GF32(pt + 4), GF32(pt + 8));
+}
 /* (4.4) a squad member's formation slot (08991E44: a0 the table, a1 the slot, a3 the centre, t0 -> the heading): RS_SLOT_LOG */
 void rs_slot_log(u32 tab, u32 k, u32 ctr, u32 hd){
     static int on = -1; if (on < 0) on = getenv("RS_SLOT_LOG") != 0; if (!on || k >= 5) return;
