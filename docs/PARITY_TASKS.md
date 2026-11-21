@@ -146,6 +146,11 @@ textures and how they are used. Section R lists only what must be in place so th
     side effect. Its vfunc +200 (089E3868) sends 0x8050 with the attacker's position, which the player controller keeps at
     +0x94 (08A09928): the HUD's hit-direction source (8.1).
   - The heavy-hit stops measured above are not a hit reaction; they are left with 4.4 (what stops a running soldier).
+  - 2026-11-21: the whole damage path was read for a movement effect - 089A7310, 089E1FDC, 08A069F8 (health / shield), 089E22BC
+    (the speech pick), 089E3868 (0x8050) - and has none; vehicles' collision damage (089CE510, weapon hash 0x9E500986 "Collision")
+    is a contact. A re-run in the harness (player running back and forth in the Rebel hangar, 40 s, every frame; drive.py
+    --fine, state.log now carries the game's frame count "pfr") took no hits, so the stops are not re-measured. [assumed: the
+    20-damage stops were vehicle contacts.]
 - [x] **1.12 Hit shapes [traced and ported 2026-11-21].**
   - Aurek: its own head/body shapes for bolts.
   - Trace how projectiles test soldiers (physics boxes, per-bone shapes, or the HSKN per-bone meshes) and how headshots are decided.
@@ -171,6 +176,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - **Engine:** the HSBB boxes are kept per bone (model.c, akinspect --hsbb); a soldier's target is its posed body boxes, its head
     model's box (part 6: the headshot) and its weapon's box (on the "gun" marker's bone); shots test the nearest box
     (AK_SHOT_BONES=0: the old capsule). Hoth, 2 min of play: 86 soldier hits, 5 in the head. Not built: the chest attachment.
+    Checked 2026-11-21: the boxes stay on the body (AK_DEBUG_BB: 17 boxes within 0.7 m of the feet, 0.1-1.6 m up), bots in
+    vehicles are not targets; Aurek's runs are repeatable (same counts twice), and the vehicle hits of a Hoth run (31 with bone
+    boxes, 121 without) follow the different course the match takes, not bolts stopped short.
 
 - [x] **1.13 Soldier against soldier and vehicle [done 2026-11-16].**
   - Done earlier: dynamic versus kinematic boxes.

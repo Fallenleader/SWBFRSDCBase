@@ -320,7 +320,12 @@ static void body_target(const ak_model_set *m, const ak_soldier_look *lk, const 
     if (lk->head >= 0) { m34_mul(W, h, F); target_model_boxes(t, m, lk->head, F, NULL, AK_HEAD_PART); }
     if (weapon_model >= 0 && weapon_world(m, lk, bones, pos, yaw, F)) {
         const ak_marker *g = ak_model_marker(body, "gun"); target_model_boxes(t, m, weapon_model, F, NULL, g ? (int)g->bone : 14); }
-    if (!t->nbb) return;                                                    /* (no HSBB: the capsule) */
+    if (ak_setting_int("AK_DEBUG_BB", 0)) { static u32 n; f32 far_ = 0, lo = 1e9f, hi = -1e9f;   /* (tests: the boxes stay on the body) */
+        for (u32 q = 0; q < t->nbb; q++) { f32 dx = t->bb_c[q][0] - pos[0], dz = t->bb_c[q][2] - pos[2], d = sqrtf(dx * dx + dz * dz);
+            if (d > far_) far_ = d;
+            if (t->bb_c[q][1] - pos[1] < lo) lo = t->bb_c[q][1] - pos[1];
+            if (t->bb_c[q][1] - pos[1] > hi) hi = t->bb_c[q][1] - pos[1]; }
+        if (n++ % 600 == 0 || far_ > 1.5f) AK_INFO("bb", "%u boxes: farthest %.2f m across, heights %.2f..%.2f", t->nbb, far_, lo, hi); }
 }
 
 /* the clip state from the body's motion */
