@@ -321,6 +321,8 @@ static ak_fe_gc gc; static int gc_kind = -1, gc_index = -1;
 void ak_fe_set_gc(const ak_fe_gc *g) { gc = *g; gc_on = true; }
 int ak_fe_gc_choice(int *index) { *index = gc_index; return gc_kind; }
 static int gc_new_req = 1; int ak_fe_gc_new(void) { return gc_new_req; }
+static int gc_quit_req; int ak_fe_gc_quit(void) { return gc_quit_req; }
+void ak_fe_var(const char *name, f32 v) { var_set(name, v); }
 static int gc_row(const char *pn, int *lvl)                          /* the tech row a widget is in: kind, level; -1 none */
 {
     static const char *const k[3] = { "W_BT_EquipmentLevel", "W_BT_InfantryLevel", "W_BT_SpaceLevel" };
@@ -548,6 +550,7 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
     if (in_row && (w->flags & 0x20) && !(w->flags & 0x400)) {          /* a row part for the chosen row only (flags bit 5) [assumed] */
         if (!lb_selected || !cond_holds(w)) return;
     } else if (w->type != AK_GUI_PAGE && gc_shows(w) == -1) return;
+    else if (w->name && !strncmp(w->name, "E_TX_GC_Win", 11)) { if (!cond_holds(w)) return; }   /* (MP_Win_*: by its condition alone - its flags hide it on a page without buttons) [assumed] */
     else if (w->type != AK_GUI_PAGE && gc_shows(w) != 1 && (!shows(w, focused) || !cond_holds(w))) return;
     /* the Italian subtitle under the logo (menu_logos.tga's strip at v 0.445: "W_IM_ItalianLogo", or plain "Image 1") shows for
        the Italian language only - the original's English frames have none [assumed: the page scripts' doing] */
@@ -819,6 +822,8 @@ static int run(const ak_gui_action *a, int row)
         /* 08A2EE38: 08A3C574(new) sets the conquest up (1 new, 0 the saved one), then the GC mode (08A27544(6)); FE_CheckConquestState
            (New) asks before replacing a saved conquest [assumed: Aurek has no saved conquest yet - New starts one] */
         gc_new_req = !strcmp(fn, "FE_CheckConquestState") ? 1 : atoi(a->arg); var_set("BFF.HasGalacticConquestBeenPlayed", 1); ak_fe_close(); return AK_FE_GC_START; }
+    else if (!strcmp(fn, "GC_SetQuitMenuState")) var_set("Menus.GCQuitMenuState", (f32)atoi(a->arg));   /* 08A3BAAC (0x08B1C304): which confirm */
+    else if (!strcmp(fn, "GC_SetQuitMenuRequest")) { gc_quit_req = atoi(a->arg); ak_fe_close(); return AK_FE_GC_QUIT; }   /* 08A3BAF4 (0x08B1C300), read by 08A382B0 */
     else if (!strncmp(fn, "GC_Purchase", 11)) {                       /* 08A3B738's GC_Purchase*: the choice for the GC code (0x08C2D8CC = 1) */
         gc_kind = strstr(fn, "Equipment") ? 0 : strstr(fn, "Infantry") ? 1 : strstr(fn, "Space") ? 2 : strstr(fn, "Commander") ? 3 : -1;
         gc_index = atoi(a->arg); if (gc_kind >= 0) return AK_FE_GC_BUY; }

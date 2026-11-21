@@ -189,6 +189,8 @@ int main(int argc, char **argv)
     ak_gfx_stats gs; memset(&gs, 0, sizeof gs);
     /* the front end (PARITY 8.2): the game's menus first (AK_FRONTEND=1; AK_FE_PAGE the first page), the level once launched */
     bool fe_on = ak_setting_int("AK_FRONTEND", 0) && ak_fe_init(vfs) && ak_fe_open(ak_setting_str("AK_FE_PAGE", "MP_MainMenu"));
+    { char sv[400]; snprintf(sv, sizeof sv, "%s/gc_conquest.sav", ak_plat_user_dir()); FILE *f = fopen(sv, "rb");   /* a saved conquest: New / Resume */
+      if (f) { fclose(f); if (fe_on) ak_fe_var("BFF.HasGalacticConquestBeenPlayed", 1); } }
     ak_fe_set_blueprints(&bps);
     fe_bps = &bps; ak_fe_set_model_drawer(fe_model_draw);                                         /* (the customisation menu: items, costs, descriptions) */
     bool fe_ingame = false, fe_after_team = false;                      /* the match's own pages (team selection, the spawn map) */
@@ -237,6 +239,11 @@ int main(int argc, char **argv)
                     ak_gc_screen keep = gcs_; ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, 1);
                     keep.corona = gcs_.corona; memcpy(keep.tex, gcs_.tex, sizeof keep.tex); memcpy(keep.shape, gcs_.shape, sizeof keep.shape); keep.nshape = gcs_.nshape;
                     gcs_ = keep; ak_gc_screen_battle_done(&gcs_, gc_back_res.winner_faction, gc_back_res.left); gc_back = false;
+                } else if (gc_keep && !gcs_.ready) {          /* resume: the saved conquest */
+                    char sv[400]; snprintf(sv, sizeof sv, "%s/gc_conquest.sav", ak_plat_user_dir());
+                    ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, (u32)ak_setting_int("AK_SEED", 1));
+                    if (!ak_gc_screen_load(&gcs_, sv)) { gcs_.g.turn = 0; gcs_.income = ak_gc_collect(&gcs_.g, &gcs_.r, 0); }
+                    gc_keep = false;
                 } else if (gcs_.ready && gc_keep) {           /* resume: the conquest in memory */
                     ak_gc_screen keep = gcs_; ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, 1);
                     keep.corona = gcs_.corona; memcpy(keep.tex, gcs_.tex, sizeof keep.tex); memcpy(keep.shape, gcs_.shape, sizeof keep.shape); keep.nshape = gcs_.nshape;
@@ -244,6 +251,7 @@ int main(int argc, char **argv)
                 } else {
                     ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, (u32)ak_setting_int("AK_SEED", 1));
                     gcs_.g.turn = 0; gcs_.income = ak_gc_collect(&gcs_.g, &gcs_.r, 0); gcs_.phase = ak_setting_int("AK_GC_PHASE", 0);   /* (tests: 1 purchase) */
+                    { int tw = ak_setting_int("AK_GC_TEST_OVER", -1); if (tw == 0 || tw == 1) { gcs_.g.winner = tw; gcs_.phase = 4; } }   /* (tests: the game over) */
                 }
                 gc_screen = &gcs_;
             } else gc_screen = NULL;
@@ -658,8 +666,29 @@ int main(int argc, char **argv)
         if (gc_map && gc_screen) {
             { const char *keys = ak_setting_str("AK_GC_KEYS", NULL);   /* tests: one button every 8 frames from frame 10, as AK_FE_KEYS */
               if (keys && frame >= 10) { int k = (frame - 10) / 8, ph = (frame - 10) % 8; const char *q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; }
-                  if (*q && ph == 0) in.pressed |= *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : *q == 'S' ? AK_BTN_SQUARE : *q == 'T' ? AK_BTN_TRIANGLE : *q == '1' ? AK_BTN_R : 0u; } }
-            if (gc_screen->tech_open) {                  /* Buy Tech/Comm: BFF_GALACTICCONQUEST's MP_TechPurchase over the map */
+                  if (*q && ph == 0) in.pressed |= *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : *q == 'S' ? AK_BTN_SQUARE : *q == 'T' ? AK_BTN_TRIANGLE : *q == '1' ? AK_BTN_R : *q == 'P' ? AK_BTN_START : 0u; } }
+            char gc_sav[400]; snprintf(gc_sav, sizeof gc_sav, "%s/gc_conquest.sav", ak_plat_user_dir());
+            if (gc_screen->phase == 4 && !gc_screen->win_open && ak_fe_init(vfs)) {   /* the game over: 08A3B09C opens the winner's page */
+                ak_fe_var("Menus.GCDisplayVictoryMedalText", 1);   /* (= no award yet, 0x08C29468 == 0) [assumed: the award is not recorded] */
+                /* 08A3B09C: the page by the player's side's faction (08A38508 +0x2C == 3: 0x8154D073, else 0xFC9D4FB7) - the victory
+                   pages; a defeat shows the map's "You've been defeated" (0x61) [assumed: 08A3B09C runs on the player's victory only] */
+                if (gc_screen->g.winner == 0) gc_screen->win_open = ak_fe_open(gc_screen->g.side[0].faction == 3 ? "MP_Win_Empire" : "MP_Win_Rebel");
+                else gc_screen->win_open = true;
+                remove(gc_sav);
+            }
+            if (gc_screen->win_open) {                   /* any button: the main menu [assumed] */
+                if (in.pressed & (AK_BTN_CROSS | AK_BTN_CIRCLE | AK_BTN_START)) { ak_fe_close(); gc_screen->win_open = false; gc_screen->ready = false; fe_on = ak_fe_open("MP_MainMenu"); continue; }
+            } else if (gc_screen->quit_open) {           /* START: MP_Quit (Resume / Quit Without Saving / Save and Quit, each confirmed) */
+                if (!ak_fe_page()) gc_screen->quit_open = false;
+                else { int ev = ak_fe_update(&in, dt);
+                    if (ev == AK_FE_GC_QUIT) {
+                        int q = ak_fe_gc_quit(); gc_screen->quit_open = false;
+                        if (q == 2) { bool ok = ak_gc_screen_save(gc_screen, gc_sav); AK_INFO("gc", "saved the conquest to %s: %s", gc_sav, ok ? "ok" : "failed"); }
+                        if (q == 1 || q == 2) { ak_fe_var("BFF.HasGalacticConquestBeenPlayed", q == 2); fe_on = ak_fe_open("MP_MainMenu"); continue; }
+                    } }
+            } else if (!gc_screen->tech_open && (in.pressed & AK_BTN_START) && ak_fe_init(vfs)) {
+                gc_screen->quit_open = ak_fe_open("MP_Quit");
+            } else if (gc_screen->tech_open) {           /* Buy Tech/Comm: BFF_GALACTICCONQUEST's MP_TechPurchase over the map */
                 ak_fe_gc fg;
                 if (!ak_fe_page()) {
                     ak_fe_init(vfs); ak_gc_screen_tech(gc_screen, &fg); if (!ak_fe_open_gc("MP_TechPurchase", &fg)) gc_screen->tech_open = false;
@@ -1002,7 +1031,7 @@ int main(int argc, char **argv)
 
             }
         }
-        if (gc_screen && !strcmp(levels[cur].label, "GC")) { if (gc_screen->tech_open && ak_fe_page()) ak_fe_draw(); ak_gc_screen_draw(gc_screen, &vp); }
+        if (gc_screen && !strcmp(levels[cur].label, "GC")) { if ((gc_screen->tech_open || gc_screen->quit_open || gc_screen->win_open) && ak_fe_page()) ak_fe_draw(); if (!gc_screen->quit_open && !(gc_screen->win_open && ak_fe_page())) ak_gc_screen_draw(gc_screen, &vp); }
         ak_gfx_end(&gs);
         {   f32 lp[3] = { cam.pos.x, cam.pos.y, cam.pos.z }; ak_audio_listener(lp, cam.yaw); }
         if (dumpf) {                                                          /* (tests: the mix, frame by frame, as a WAV file) */

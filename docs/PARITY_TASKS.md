@@ -1186,6 +1186,10 @@ textures and how they are used. Section R lists only what must be in place so th
     0x0A599AD0. Those pixels with their CLUT are Aurek's texture (green left half, blue right), and the sprite's four corners
     (RS_SPRITE_ALL) take u 0.457-0.918: the blue half. So the original draws the panel blue as Aurek does; the harness's green
     frame is the harness renderer's doing (its texture cache, not the game) [the harness issue is not chased further].
+  - Part 20, 2026-11-21 - **opponent's tech view, focus brackets, quit / save / resume, the win pages** (see NATIVE_ENGINE).
+    Open in 5.4: the battle results pages between a battle and the map (state 7 Results, 0x5C-0x5F texts), the AI turn's
+    on-screen report ("Your opponent is making his move" 0x07, its purchases 0x62..), the troops overview (select), the original's
+    profile save record and medal award; the harness's green panel (its renderer, not the game).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -503,3 +503,18 @@ void ak_gc_screen_tech_buy(ak_gc_screen *s, int kind, int index)
     if (kind >= 0 && kind < 3) { if (index == s->g.side[0].tech[kind] + 1) ak_gc_buy_tech(&s->g, &s->r, 0, kind); }
     else if (kind == 3 && index >= 0 && index < 4) ak_gc_buy_cmdr(&s->g, &s->r, 0, index);
 }
+
+typedef struct { u32 magic, size; ak_gc g; int phase; ak_gc_income income; ak_gc_ai ai; } gc_save;
+bool ak_gc_screen_save(const ak_gc_screen *s, const char *path)
+{
+    static gc_save v; v.magic = 0x31534347u; v.size = sizeof v; v.g = s->g; v.phase = s->phase == 4 ? 0 : s->phase; v.income = s->income; v.ai = s->ai;
+    FILE *f = fopen(path, "wb"); if (!f) return false;
+    bool ok = fwrite(&v, sizeof v, 1, f) == 1; fclose(f); return ok;
+}
+bool ak_gc_screen_load(ak_gc_screen *s, const char *path)
+{
+    static gc_save v; FILE *f = fopen(path, "rb"); if (!f) return false;
+    bool ok = fread(&v, sizeof v, 1, f) == 1 && v.magic == 0x31534347u && v.size == sizeof v; fclose(f);
+    if (!ok) return false;
+    s->g = v.g; s->phase = v.phase; s->income = v.income; s->ai = v.ai; s->sub = 0; return true;
+}

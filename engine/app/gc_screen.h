@@ -37,7 +37,8 @@ typedef struct {
     ak_gc_ai ai;                       /* the opponent */
     int battle_side, battle_to, battle_n; bool battle_second;   /* the pending battle (sub 3) */
     bool battle_launch;                /* Attack chosen: the viewer starts the match (ak_gc_screen_battle_setup) and reports back */
-    bool tech_open, tech_enemy;        /* (tech_enemy: R1 shows the opponent's) */                    /* square: the viewer shows MP_TechPurchase */
+    bool tech_open, tech_enemy;
+    bool quit_open, win_open;          /* MP_Quit (START) / MP_Win_* (the game over) shown by the viewer */        /* (tech_enemy: R1 shows the opponent's) */                    /* square: the viewer shows MP_TechPurchase */
     bool battle_live;                  /* a match is being played for it */
 } ak_gc_screen;
 
@@ -55,5 +56,9 @@ bool ak_gc_screen_update(ak_gc_screen *s, const ak_input *in, const ak_m4 *vp, f
 const char *ak_gc_screen_battle_setup(ak_gc_screen *s, int tickets[2], int *player_faction);
 /* the match's end (play.gc_result): the winning faction (-1 none) and the tickets left by faction class */
 void ak_gc_screen_battle_done(ak_gc_screen *s, int winning_faction, const int left[2]);
+/* Save and Quit: the conquest to a file of Aurek's own (the original writes a 0x144-byte record into the profile, 08A37D04 / 08A382B0
+   request 2) [assumed: Aurek's format - the state as it is]; load it for Resume */
+bool ak_gc_screen_save(const ak_gc_screen *s, const char *path);
+bool ak_gc_screen_load(ak_gc_screen *s, const char *path);
 const u16 *ak_gc_text(u32 id, u32 *len);                          /* TEXT/GALACTICCONQUEST.ASR entry */
 #endif
