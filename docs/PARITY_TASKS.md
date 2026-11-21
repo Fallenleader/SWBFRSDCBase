@@ -672,6 +672,7 @@ textures and how they are used. Section R lists only what must be in place so th
     50 m/s (10 / 38 / 50 / 72 / 100 / 125 at 10..99 %), not the cruise 100.  Tried: holding 50 m/s outside pursuits (AK test, not
     kept) - fewer hits (26).  The AI pilot (fly-to 08959780; the flyer's big VFPU update 089B2DC8 reads +0x88..+0x94) is still to
     read; 089B2DC8 is 1474 lines of VFPU code.
+  - 2026-11-21: steering gains x4 (AK_FLY_GAIN, a measured fit): nose 3-4 degrees median as the original's; 56 hits.
 
 ## 5. Game rules and modes
 

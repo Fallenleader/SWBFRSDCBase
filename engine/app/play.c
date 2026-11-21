@@ -2168,8 +2168,12 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
     } else if (b->feel) { want_yaw = b->feel_yaw; want_pitch = b->feel_pitch; vh->brake = b->near_wall; }
     else if (ground && vh->pos[1] - gy < 10.0f) want_pitch = fmaxf(want_pitch, 0.3f);   /* low over open ground: up a little */
     f32 dyaw = wrap(want_yaw - vh->yaw), dp = want_pitch - vh->pitch;
-    vh->steer = clampf(-dyaw * 2.0f, -1, 1);
-    vh->throttle = clampf(-dp * 3.0f, -1, 1);
+    /* the stick from the angle to the wanted way: the AI pilot's own rule is not traced (08959780 -> 089B2DC8); the gains are set to
+       the original's measured pursuit (harness, Space Hoth: the chaser's nose 1 / 3 degrees off its target at 25 / 50 %): x4 of the
+       old 2 / 3 gives 3 / 4 degrees [measured fit, PARITY(4.6)] (AK_FLY_GAIN scales it; 0.25: the old) */
+    {   static f32 g = -1; if (g < 0) g = ak_setting_float("AK_FLY_GAIN", 4.0f);
+        vh->steer = clampf(-dyaw * 2.0f * g, -1, 1);
+        vh->throttle = clampf(-dp * 3.0f * g, -1, 1); }
     b->boost = !landing && ((!chase && dist > 250.0f && !b->feel) || (chase && dist > 300.0f));
     if (craft && !b->circle && ak_setting_int("AK_FLY_LEAD", 1)) {
         /* FOLLOWING's speed (08949834): the target's speed + (distance - 250) x 0.004 x the top speed, between the pilot's least and
