@@ -408,7 +408,12 @@ static void ai_hold(ak_play *p, ak_play_bot *b, u32 idx, int slot)
 static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx)
 {
     f32 pos[3], yaw = 0;
-    if (!(p->have_cq && spawn_spot(p, b->team, b->ch.pos, &b->seed, pos, &yaw))) {
+    /* the post: on the player's side, the owned post nearest the player - measured on Hoth (harness: every Rebel bot of the first
+       waves spawned at the hangar post where the player stood; the team's spawn manager weights a post within 25 m of the player
+       +2.0, 0898ABFC, more than any post's own weight there) [assumed: the rule that picks it - the manager's draw 0898B9F4 was not
+       used for those bots]; the other side as before (random owned post, or the nearest to the bot half the time) [assumed] */
+    bool mine = b->team == p->team && ak_setting_int("AK_BOT_SPAWN_NEAR_PLAYER", 1);
+    if (!(p->have_cq && spawn_spot_at(p, b->team, mine ? p->ch.pos : b->ch.pos, mine, &b->seed, pos, &yaw))) {
         /* no post to spawn at: a navigation node near the player's start */
         if (!p->have_nav || !p->nav.nnode) return;
         u32 n = (u32)(rnd(&b->seed) * p->nav.nnode) % p->nav.nnode; memcpy(pos, p->nav.node[n].pos, 12);

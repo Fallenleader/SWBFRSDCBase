@@ -541,6 +541,10 @@ textures and how they are used. Section R lists only what must be in place so th
     picks the post.  089A7570 (a soldier) spawns at the owned, enabled post nearest its own position (089EDB40) - called from
     089826E8 (a walker spawner's crew); 089D4140 and the AI soldier respawn path are still to read (callers of 089A76EC: the
     soldier factory, 0895E9B4 / 08974318 / 089F7894 / 08A0CF24 / 08A61EEC).
+    Ported 2026-11-21 [assumed rule]: the player's side spawns at the owned post nearest the player.  Open: the other side's
+    post (the manager's weights; the Empire's only weighted post was 187F0), and the first wave's trickle (the original's bots
+    appear one by one from 4.3 s to 14 s, about every 0.6 s; Aurek's all at 0 s) - the AI spawn path is still not found
+    (08974318 is the heroes', 08A0CF24 / 089826E8 a unit spawner's crew).
 - [ ] **4.2 Target selection [traced for soldier bots 2026-11-19].** The AI sensor (vtable 0x08AF96F0; built by 08961784 on the
   base 0892538C; updated every frame by 08961A50; read by 08962DAC from the fire node 0893F364):
   - Sight: 55 m (+32) x a multiplier (+48, 1.0); a cone of +-45 degrees across and vertically (+36/+40/+44 = tan(pi/4),
