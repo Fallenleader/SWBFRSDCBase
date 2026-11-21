@@ -487,6 +487,7 @@ int main(int argc, char **argv)
                         if (frame == at && strchr(bt, 'c')) in.pressed |= AK_BTN_SQUARE;   /* c: the secondary (pressed on its first frame) */
                         if (frame == at && strchr(bt, 'r')) in.pressed |= AK_BTN_RIGHT;    /* r: d-pad right (the lower slot: explosive / power-up) */
                         if (frame == at && strchr(bt, 'x')) { in.pressed |= AK_BTN_CROSS; in.held |= AK_BTN_CROSS; }   /* x: a tap of cross (pages) */
+                        if (strchr(bt, 't')) in.held |= AK_BTN_TRIANGLE;            /* t: triangle held (the jetpack's rise) */
                     }
                     at += n; q += used; while (*q == ';' || *q == ' ') q++;
                 }

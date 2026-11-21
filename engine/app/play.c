@@ -3192,7 +3192,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
            and clears the page (08A5D3BC), the clock back) [assumed: control 6 = X on the PSP layout] */
         bool ready = p->modal_x; p->modal_t += dt;
         if (!p->modal_x && p->modal_t >= p->modal_min) { p->modal_x = true; ak_hud_tip_more(0x1A5); }
-        if (ready && (in->pressed & AK_BTN_CROSS)) { p->modal = false; ak_hud_tip_clear(); }
+        if (ready && ((in->pressed & AK_BTN_CROSS) || ak_setting_int("AK_TEST_AUTOX", 0))) { p->modal = false; ak_hud_tip_clear(); }   /* (AK_TEST_AUTOX: tests take each page) */
         return;
     }
     static const ak_input still; if (ak_play_cut_view(p)) in = &still;            /* a cut-scene: no control (seen: the player stands) */

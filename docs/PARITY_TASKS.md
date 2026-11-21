@@ -1248,6 +1248,12 @@ textures and how they are used. Section R lists only what must be in place so th
     Arrow_NPC over some (08A55914 / 08A55984 -> 08A55C94); the 0x8013 objectives' chevron is still not found (its handler 089F05BC ->
     08A25B18). The training after the jetpack: group 13 (page 0x198, objectives 18bc6 / 18bc9 / 18bca, the line 18bc4, 18d30), 15,
     86 (tip 0x94), 67 (0x14 to 18c6a), 16 / 17 / 18 ... - next: run Aurek through it and fix what stops it.
+  - Part 34, 2026-11-21 - **Aurek runs the training to the jetpack's flight step.** Test hooks: AK_TEST_AUTOX=1 (pages take X as
+    soon as it counts), AK_TEST_SCRIPT letter 't' (triangle held). With AK_SPECIAL=Jetpack, AK_TEST_TP 1500 to the post and the droid
+    killed by lock + fire, Aurek's script goes: post capture -> 18bdb line -> page 0x197 -> 18cbc (kind 8) -> page 0x198, 18bc6
+    (objective 0x4), 18bc9 (ring), 18bca (region, group 16 on entry), 18bc4 line -> 0x14 to 18c6a, the jetpack's start (kind 3) ->
+    group 15 -> tip 0x94, 3 to 18c2e (type 19, two points -26.29 -17.97 169.42 / -25.86 73.18 169.56, hash 0xB1C2C3FB - not known).
+    Next: fly into 18bca's box (the marker 18bc8 up high) and on (group 16 / 17: 18c6a's second hash 0x014A0B0A, 18bcb ..).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
