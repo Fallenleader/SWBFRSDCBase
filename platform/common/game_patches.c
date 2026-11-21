@@ -943,6 +943,28 @@ void rs_gc_ai_test(void){
         func_08A3D0E0(obj, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 }
+/* (5.4 GC) RS_SPRITE_LOG=F0-F1: the 2D sprites (088CF194: rect, uv, colour, texture - GC's picker table 0x08B1C85C index) and the
+ * text calls (088CC808) drawn in frames F0..F1 */
+static int sprlog_on(void){
+    static int f0 = -2, f1 = 0; if (f0 == -2) { const char *e = getenv("RS_SPRITE_LOG"); f0 = -1; if (e) sscanf(e, "%d-%d", &f0, &f1); }
+    return f0 >= 0 && (int)probe_fr >= f0 && (int)probe_fr <= f1;
+}
+void rs_sprite_log(u32 sp){
+    if (!sprlog_on()) return;
+    u32 tex = GU32(sp + 0x50); int pick = -1;
+    for (int i = 0; i < 17; i++) if (GU32(IMG(0x08B1C85Cu) + 4u * (u32)i) == tex) { pick = i; break; }
+    fprintf(stderr, "[SPR] fr %u tex %08x pick %d rect %.1f %.1f %.1f %.1f uv %.4f %.4f %.4f %.4f col %08x\n", probe_fr, tex, pick,
+        GF32(sp), GF32(sp + 16), GF32(sp + 4), GF32(sp + 24), GF32(sp + 32), GF32(sp + 48), GF32(sp + 36), GF32(sp + 56), GU32(sp + 64));
+}
+void rs_text_log(u32 a0, u32 a1, u32 a2, u32 a3, float f12, float f13, float f14, float f15){
+    if (!sprlog_on()) return;
+    char s[96]; int n = 0; u32 str = 0;
+    u32 cand[4] = { a0, a1, a2, a3 };
+    for (int k = 0; k < 4 && !str; k++) if (cand[k] >= 0x08800000u && cand[k] < 0x0A000000u) str = cand[k];
+    if (str) for (; n < 90; n++) { u16 c = GU16(str + 2u * (u32)n); if (!c) break; s[n] = c < 128 ? (char)c : '?'; }
+    s[n] = 0;
+    fprintf(stderr, "[TXT] fr %u a %08x %08x %08x %08x f %.2f %.2f %.2f %.2f \"%s\"\n", probe_fr, a0, a1, a2, a3, f12, f13, f14, f15, s);
+}
 /* (tests) who calls a hooked function: each distinct native return address once (RS_CALLER_LOG; resolve with addr2line -f) */
 void rs_caller_log(const char *fn, u32 a0){
     static int on = -1; if (on < 0) on = getenv("RS_CALLER_LOG") != 0; if (!on) return;

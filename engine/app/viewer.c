@@ -225,7 +225,7 @@ int main(int argc, char **argv)
             ak_entities_load(&level, &models, &lvl, &ents);
             if (!strcmp(levels[cur].label, "GC")) {   /* the Galactic Conquest map: a new game, the player's first treasury */
                 static ak_gc_screen gcs_; ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, (u32)ak_setting_int("AK_SEED", 1));
-                gcs_.g.turn = 0; ak_gc_collect(&gcs_.g, &gcs_.r, 0); gcs_.phase = 0; gc_screen = &gcs_;
+                gcs_.g.turn = 0; ak_gc_collect(&gcs_.g, &gcs_.r, 0); gcs_.phase = ak_setting_int("AK_GC_PHASE", 0);   /* (tests: 1 purchase) */ gc_screen = &gcs_;
             } else gc_screen = NULL;
             if (ak_setting_int("AK_DUMP_SMSG", 0)) {   /* tests: the level script's messages (SMSG: groups of u16 type, u16 extra, u32 target, ...) */
                 u32 pos = 8; ak_chunk c;

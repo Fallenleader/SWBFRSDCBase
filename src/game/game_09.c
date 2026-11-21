@@ -3031,6 +3031,7 @@ rv_t func_088CC808(u32 a0, u32 a1, u32 a2, u32 a3, float f12, float f13, float f
     u8 stack_[176] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 176);
 L_088CC808:;
+    { extern void rs_text_log(u32, u32, u32, u32, float, float, float, float); rs_text_log(a0, a1, a2, a3, f12, f13, f14, f15); }   /* harness test hook (RS_SPRITE_LOG, PARITY 5.4; hand-added) */
     sp = sp - 176;
     v0 = D_08B2BFE8 - (-16408);
     v1 = D_08B2C018 - (-16360);
@@ -7065,6 +7066,7 @@ u64 func_088CF194(u32 a0, u32 a1)
     u8 stack_[16] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 16);
 L_088CF194:;
+    { extern void rs_sprite_log(u32); rs_sprite_log(a0); }   /* harness test hook (RS_SPRITE_LOG, PARITY 5.4; hand-added) */
     sp = sp - 16;
     s0 = a1 & 0xff;
     s1 = a0 + 0;

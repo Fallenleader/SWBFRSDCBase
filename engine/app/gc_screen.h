@@ -14,11 +14,14 @@
 #include "render/ak_scene.h"
 #include "game/ak_gc.h"
 
+enum { GCT_TECH, GCT_TECH2, GCT_SQUARE, GCT_TRIANGLE, GCT_CROSS, GCT_SELECT, GCT_N };
 typedef struct {
     bool ready;
     ak_gc g; ak_gc_rules r;
     f32 planet_pos[AK_GC_PLANETS][3]; bool planet_known[AK_GC_PLANETS];
     ak_gfx_tex *corona;
+    ak_gfx_tex *tex[6];                /* GCT_*: the overlay's atlases and button icons */
+    int cursor;                        /* the selected planet */
     int phase;                         /* GALACTICCONQUEST.ASR 0 Treasury, 1 Purchase, 2 Movement, 3 Reinforce */
 } ak_gc_screen;
 

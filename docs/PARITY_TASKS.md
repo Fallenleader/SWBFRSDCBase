@@ -1144,6 +1144,17 @@ textures and how they are used. Section R lists only what must be in place so th
     "CREDITS n" from TEXT/GALACTICCONQUEST.ASR (0x37, 0x00-0x03, 0x35). The panel primitive 08A4A868 is a switch over ~40 panel
     kinds, each a UV rectangle of the gc_tech_elements atlases (constants 0x08AEFF14..0x08AF001C) - next to port, with the
     treasury panel 08A4656C, the sector shapes, name tags, home badges, the button bar and the phases' input.
+  - Part 14, 2026-11-21 - **the GC overlay from the original's own draw list** (harness RS_SPRITE_LOG=F0-F1: every 2D sprite
+    088CF194 - rect, uv, colour, texture, its index in GC's texture table 0x08B1C85C - and every text call 088CC808, on the GC
+    map). The table (08A4CBCC): 0 corona, 1 square, 2 triangle, 3 cross, 4 circle, 5 L1, 6 R1, 7 select, 8 start, 9-11
+    GC_Tech_Elements(/_02/_03), 12-15 the commanders (Alliance, greys, Empire, greys), 16 GC_Counter_Icons; fonts are textures
+    1 (small, 16 high) and 2 (big, 21). Ported in app/gc_screen (AK_GC_PHASE=1 shows purchase): the header bar (0..480 x 23,
+    0x60000000), PHASE / phase at x 5 / 60, CREDITS at 360, the credits (sign 0xBC) in yellow; the planet panel (5,25 - 123,114,
+    Tech_Elements_02 uv 0.457,0 - 0.918,0.348, 0x99FFFFFF; name big at 12,30; credit icon / bonus / CREDITS; troops icon / count /
+    TROOPS); home planets' badge (24 x 18 over the planet) and name tag (66 x 16 under it, row 0.5078 the player's, 0.6875 the
+    enemy's); the button bar (249..272, icons 16 x 16 at 2 / 157 / 296 with labels 0x7F / 0x40 / 0x41). Open: the panel shows
+    blue where the original's is green (texture colours or a faction choice); the treasury panel; where the cursor starts
+    [assumed: the first own planet]; the sector shapes and halos are not 2D sprites (3D) - next to find.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
