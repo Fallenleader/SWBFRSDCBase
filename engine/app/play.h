@@ -105,6 +105,9 @@ typedef struct {                       /* a bot soldier */
     int role, role_leg; s32 role_obj; f32 role_t; int fly_phase; f32 fly_pt[3], fly_t; bool circle; f32 circle_dir[3];
     /* its explosive (0893F1A8 -> 0893679C): the kind (0 thermal, 1 cluster, -1 none), left this life, the cooldown, a throw under way */
     s8 gren_kind; s32 gren_left; f32 gren_cool, gren_t; f32 gren_at[3];
+    /* its squad (4.4: 08926220's sizes, the 0x3F2 move order's wedge): the squad's number on its side (-1 none), its slot, the re-slot
+       timer; a leader's heading (game axes: atan2(dz, dx) of its way) */
+    s8 squad, sq_slot; f32 sq_t, sq_head;
 } ak_play_bot;
 
 typedef struct {

@@ -748,6 +748,18 @@ textures and how they are used. Section R lists only what must be in place so th
     the point, two 2.5 m out at the front corners, two behind (2.5 and 5 m). Game axes: + (r sin t, r cos t) on x / z with t =
     slot angle + the squad's heading. To port: Aurek has no squads (each bot picks its own post and hold point) - squads (sizes
     from 08926220's table 0x08AD9888, ten slots) are the next piece, then the formation on the squad's point.
+  - 2026-11-21, **squads ported** (AK_BOT_SQUADS=1). 08932300 read: on start the leader (slot 0) gets the move message 0x8035
+    to the squad's goal (0898D4F0, with the squad's node +80); every 1 s (D_08AED5F8) members 1.. get 0x8035 to the slot around
+    the squad's point +88 with the heading +84 (999: no node); the order restarts when, 2.5 s (D_08AED5FC) after it started, the goal
+    has moved more than 3 m (D_08AED600) - a moving goal (a carried flag) [Aurek: the leader re-picks its own way]. The point read live moves with the squad at 5-8.5 m/s and its
+    heading is atan2(dz, dx) of that motion (game axes) - so the slots' (r sin t, r cos t) mirror the wedge about 45 degrees.
+    Aurek: sides split by the table (row = the side's bots, clamped 16; the player not counted [assumed]); the first member alive
+    on foot leads (heroes and bots bound for a vehicle act alone [assumed]); members re-slot every 1 s around the leader's position
+    [assumed: +88 is the leader's position], route there when over 12 m away, and stand at it. Three seeds each (AK_SEED now seeds
+    the bots too; runs vary a lot by seed): all bots 0.28 / 2.6 / 6.2 / 8.3 / 8.4 m/s (without squads 0.27 / 3.0 / 6.9 / 8.3 /
+    8.4; original 0 / 0.61 / 5.1 / 8.4 / 8.5); shooters 0.22 / 0.87 / 2.6 / 3.9 / 5.9 (without 0.63 / 2.5 / 3.6 / 4.9 / 7.2;
+    original 0 / 0.08 / 2.2 / 5.0 / 8.2). Fight drift off with squads: shooters 0.4 / 4.8 / 5.7 / 8.2 / 8.4 - it stays on.
+    Still open: the original stands more (its 25 % is 0.61): what the leader does between goals (0x48A / 0x489 / 0x48B).
 - [x] **4.5 Bot counts per mode and level [traced 2026-11-21].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source

@@ -832,6 +832,6 @@ void rs_order_log(u32 which, u32 owner, u32 id){
 void rs_slot_log(u32 tab, u32 k, u32 ctr, u32 hd){
     static int on = -1; if (on < 0) on = getenv("RS_SLOT_LOG") != 0; if (!on || k >= 5) return;
     { static u32 seen[16]; int i = 0; for (; i < 16 && seen[i] && seen[i] != tab; i++) {} if (i < 16 && !seen[i]) { seen[i] = tab; fprintf(stderr, "[SLOTTAB] %08x", tab); for (u32 q = 0; q < 5; q++) fprintf(stderr, " (%.3f %.3f)", GF32(tab + 8 * q + 4), GF32(tab + 8 * q + 8)); fprintf(stderr, "\n"); } }
-    static unsigned n; if (n++ % 5) return;
+    static unsigned n; static int ev = -1; if (ev < 0) ev = getenv("RS_SLOT_EVERY") ? atoi(getenv("RS_SLOT_EVERY")) : 5; if (n++ % (unsigned)ev) return;
     fprintf(stderr, "[SLOT] fr %u tab %08x k %u r %.3f ang %.3f heading %.3f centre %.1f %.1f %.1f\n", probe_fr, tab, k, GF32(tab + 8 * k + 4), GF32(tab + 8 * k + 8), GF32(hd), GF32(ctr), GF32(ctr + 4), GF32(ctr + 8));
 }

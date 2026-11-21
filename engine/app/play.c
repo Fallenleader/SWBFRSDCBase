@@ -806,7 +806,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         int team = (i % 2 == 0) ? 1 - p->team : p->team;
         if (!p->nklass[team]) continue;
         ak_play_bot *b = &p->bot[p->nbots]; memset(b, 0, sizeof *b);
-        b->seed = 0x9E3779B9u * (i + 7);
+        b->seed = 0x9E3779B9u * (i + 7) + 0x85EBCA6Bu * (u32)(ak_setting_int("AK_SEED", 1) - 1);   /* (AK_SEED: tests' other runs) */
         const char *k = p->klass[team][(u32)(rnd(&b->seed) * p->nklass[team]) % p->nklass[team]];
         if (!ak_soldier_look_make(bp, m, k, (int)(rnd(&b->seed) * 3) % 3, -1, -1, &b->look) || !poseable(m, &b->look)) continue;
         b->team = team; b->death_clip = p->death_clips[i % 4]; b->base_look = b->look;
@@ -823,6 +823,24 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             b->respawn_t = 5.0f + rnd(&b->seed) * 10.0f; b->respawn_set = true;
         }
         p->nbots++;
+    }
+    {   /* squads (traced, 08926220): each side's soldiers are split into squads by the table 0x08AD9888 - its row for the side's
+           count (clamped to 16), up to five sizes; AK_BOT_SQUADS=0 leaves every bot on its own.  [assumed: the player is not counted
+           (bots only); past 16 a side's bots start the row again] */
+        static const u8 sizes[17][5] = { {0}, {1}, {2}, {2,1}, {2,1,1}, {2,2,1}, {2,2,1,1}, {2,2,2,1}, {2,2,2,1,1}, {3,2,2,1,1},
+            {2,2,2,2,2}, {3,2,2,2,2}, {3,3,2,2,2}, {3,3,3,2,2}, {3,3,3,3,2}, {3,3,3,2,1}, {4,3,3,3,3} };
+        bool on = ak_setting_int("AK_BOT_SQUADS", 1) != 0;
+        for (int t = 0; t < 2; t++) {
+            u32 n = 0; for (u32 i = 0; i < p->nbots; i++) n += p->bot[i].team == t;
+            const u8 *row = sizes[n > 16 ? 16 : n]; u32 sq = 0, left = row[0], made = 0;
+            for (u32 i = 0; i < p->nbots; i++) {
+                ak_play_bot *b = &p->bot[i]; if (b->team != t) continue;
+                b->squad = -1; b->sq_slot = 0; b->sq_t = 0; b->sq_head = 0;
+                if (!on) continue;
+                while (!left) { if (++sq >= 5 || !row[sq]) { sq = 0; made += 5; } left = row[sq]; }
+                b->squad = (s8)(made + sq); left--;
+            }
+        }
     }
     if (ak_setting_int("AK_BOT_SENSE_EVERY", 0) <= 0 && p->nbots > 16) p->sense_every = (p->nbots + 15) / 16;   /* (performance) */
     vehicles_init(p, l, m, bp, a);
@@ -990,6 +1008,15 @@ static bool bot_ctf_goal(ak_play *p, ak_play_bot *b, u32 idx)
     b->hold[0] = to[0] + cosf(a) * r; b->hold[1] = to[1]; b->hold[2] = to[2] + sinf(a) * r;
     bot_route(p, b, b->hold);
     return true;
+}
+
+/* the leader of a bot's squad: its first member alive, on foot, not bound for a vehicle and not a hero (-1: none, or no squad) */
+static s32 squad_leader(const ak_play *p, const ak_play_bot *b)
+{
+    if (b->squad < 0) return -1;
+    for (u32 i = 0; i < p->nbots; i++) { const ak_play_bot *o = &p->bot[i];
+        if (o->team == b->team && o->squad == b->squad && o->alive && o->veh < 0 && o->want_veh < 0 && !o->hero) return (s32)i; }
+    return -1;
 }
 
 static void bot_choose_goal(ak_play *p, ak_play_bot *b)
@@ -1380,10 +1407,38 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     b->enemy = p->bots_passive ? -1 : bot_find_enemy(p, b);
     /* think */
     b->think_t -= dt; b->goal_t -= dt;
+    /* the squad (4.4): the first of its squad on foot leads and chooses the goal; the others follow under the move order 0x3F2 - re-given
+       every ~0.5 s, its update 08932300 re-slots them every 1 s (D_08AED5F8): member k's point = the squad's point + (r sin t, 0,
+       r cos t) in game x / z, t = the slot's angle + the squad's heading (08991E44; the formation read live: slot 0 the point, 1 and
+       2 2.5 m at 0.785 / 5.498, 3 2.5 m at 3.142, 4 5.0 m at 3.142); a member at its point stands.  The squad's point read live moves
+       with the squad (~5 m a second on Hoth) and its heading is atan2(dz, dx) of that movement (game axes) - so the offsets' sin / cos
+       order mirrors the wedge about the 45-degree line, as the game does.  [assumed: the point is the leader's position; the slots
+       go to the members in their order; heroes and bots bound for a vehicle act alone] */
+    s32 lead = squad_leader(p, b); bool follow = lead >= 0 && lead != (s32)idx && b->want_veh < 0 && !b->hero;
+    if (!follow) {
+        b->sq_slot = 0; f32 vx = b->ch.vel[0], vz = b->ch.vel[2];
+        if (vx * vx + vz * vz > 0.25f * S * S) b->sq_head = atan2f(-vz, vx);
+    } else {
+        const ak_play_bot *L = &p->bot[lead];
+        b->goal = L->goal;
+        if ((b->sq_t -= dt) <= 0) {
+            static const f32 sr[5] = { 0, 2.5f, 2.5f, 2.5f, 5.0f }, sa[5] = { 0, 0.785398f, 5.497787f, 3.141593f, 3.141593f };
+            u32 k = 1;
+            for (u32 j = 0; j < idx; j++) { const ak_play_bot *o = &p->bot[j];
+                if ((s32)j != lead && o->team == b->team && o->squad == b->squad && o->alive && o->veh < 0 && o->want_veh < 0 && !o->hero) k++; }
+            if (k > 4) k = 4;
+            b->sq_t = 1.0f; b->sq_slot = (s8)k;
+            f32 t = sa[k] + L->sq_head;
+            b->hold[0] = L->ch.pos[0] + sr[k] * sinf(t) * S; b->hold[1] = L->ch.pos[1]; b->hold[2] = L->ch.pos[2] - sr[k] * cosf(t) * S;
+            b->holding = false;
+            f32 dx = b->hold[0] - b->ch.pos[0], dz = b->hold[2] - b->ch.pos[2];
+            if (dx * dx + dz * dz > 12.0f * S * 12.0f * S) bot_route(p, b, b->hold); else b->npath = b->path_i = 0;
+        }
+    }
     if (b->think_t <= 0) {
         b->think_t = 0.25f + rnd(&b->seed) * 0.1f;
         bool done = b->goal >= 0 && p->match.post[b->goal].owner == b->team && p->match.post[b->goal].progress >= p->cq.post[b->goal].amount;
-        if (b->want_veh < 0 && (b->goal == -1 || (b->goal == -2 && b->goal_t <= 0) || (done && b->goal_t <= 0) || (b->holding && b->goal_t <= -20.0f))) bot_choose_goal(p, b);
+        if (!follow && b->want_veh < 0 && (b->goal == -1 || (b->goal == -2 && b->goal_t <= 0) || (done && b->goal_t <= 0) || (b->holding && b->goal_t <= -20.0f))) bot_choose_goal(p, b);
     }
     if (b->enemy >= 0 && (!p->target[b->enemy].alive)) b->enemy = -1;
     /* where to go: along the route, then onto the post */
@@ -1496,7 +1551,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         if (moving && dx * dx + dz * dz < 0.6f * 0.6f) {
             ci.jump = true;
             if (b->path_i < b->npath) b->path_i++;
-            else if (rnd(&b->seed) < 0.3f) bot_choose_goal(p, b);
+            else if (!follow && rnd(&b->seed) < 0.3f) bot_choose_goal(p, b);
         }
         b->stuck_t = 0; memcpy(b->stuck_pos, b->ch.pos, 12);
     }
@@ -2694,7 +2749,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (!p->ready) return;
     p->clock += dt; p->frame_no++;
     if (ak_setting_int("AK_LOG_HITS", 0) && p->frame_no % 6 == 0)        /* (tests: each bot's position every 0.1 s, against the hits' shooters) */
-        for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0) AK_INFO("bpos", "%u %u %.2f %.2f", p->frame_no, 1 + i, p->bot[i].ch.pos[0], p->bot[i].ch.pos[2]);
+        for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0) AK_INFO("bpos", "%u %u %.2f %.2f %d %d %d", p->frame_no, 1 + i, p->bot[i].ch.pos[0], p->bot[i].ch.pos[2], p->bot[i].squad, p->bot[i].sq_slot, p->bot[i].enemy >= 0);
     if (ak_setting_int("AK_LOG_HITS", 0)) { static u32 lf; if (lf != p->frame_no) { lf = p->frame_no; AK_INFO("fr", "%u", p->frame_no); } }
     {   /* tests: AK_TEST_TP = "frame:x,y,z;frame:x,y,z..." - put the player there (game axes) on those frames */
         static const char *tp = (const char *)1; if (tp == (const char *)1) tp = ak_setting_str("AK_TEST_TP", NULL);

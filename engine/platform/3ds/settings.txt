@@ -130,6 +130,9 @@ AK_AUTO_LEVEL=1
 AK_DIFFICULTY=1
 # 1 = bots collide as the game's soldier box (0.6 x 1.8 x 0.6 m, as the player); 0 = Aurek's earlier capsule
 AK_BOT_BODY=1
+# 1 = bots move in squads as the game does (each side split by the game's size table; the others follow the first
+# in a wedge around it, re-placed each second); 0 = every bot picks its own post
+AK_BOT_SQUADS=1
 # ---- sound (1.9): the game's sounds and music.  Effects come from the game's SOUNDS/GMSND.ASR and the levels; music and speech
 # play from the converted DSP-ADPCM copies (sdmc:/3ds/SWBFRS/converted/...adp; WAV copies work too), never the original
 # ATRAC3plus files.  The mix runs at 32 kHz on the 3DS.  0 turns all sound off.
