@@ -655,6 +655,8 @@ textures and how they are used. Section R lists only what must be in place so th
     craft within 1500 m every 0.5-0.7 s [assumed] and a role per craft (attack runs / landing / combat).  Next: read who feeds
     08948A9C its target in GENERAL_COMBAT (the vehicle AI's sensor and range) and measure the original's flyer pairings
     (harness state.log, class 0x8004, nearest-enemy distances over time).
+  - 2026-11-21: GENERAL_COMBAT's target choice and timing ported (NATIVE_ENGINE row): 40 hits.  Open: what the patrol node 0x485
+    does (08945A68 family), the sensor's record +8, and the remaining gap to 160 (the original's pairings not measured yet).
 
 ## 5. Game rules and modes
 

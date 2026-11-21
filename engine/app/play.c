@@ -2005,10 +2005,37 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
         }
     }
     /* pick a target now and then */
-    b->think_t -= dt; b->run_t -= dt;
+    b->think_t -= dt; b->run_t -= dt; b->att_t += dt; b->tcool -= dt;
     if (b->think_t <= 0) {
         b->think_t = 0.5f + rnd(&b->seed) * 0.2f;
         s32 best = -1; f32 bd = 1500.0f * 1500.0f;                           /* (space battles are wide) */
+        static int gc = -1; if (gc < 0) gc = ak_setting_int("AK_FLY_TARGETS", 1);
+        if (gc && d->kind == AK_VEH_FLYER) {
+            /* GENERAL_COMBAT (08945DD8, the node 0x41D's update): the target is the vehicle sensor's best record (0895FF18: the
+               highest score, 08960750) - 0.5 x a distance score (0 to 40 m, rising to 1 at 200 m, falling to 0 at the sensor's
+               range: the craft's TargetRange, 2500) + 0.25 x (1 + the cosine between the nose and the way to it) + 1 for a record
+               whose +8 is 0 [assumed: no one else on it].  It keeps a target until it is gone or 45 s have passed (then 10 s
+               without one, 089601D4), and after each attack it patrols 15 s (D_08AEDA20) before the next */
+            const ak_target *cur = b->enemy >= (s32)NS(p) && b->enemy < (s32)NV(p) ? &p->target[b->enemy] : NULL;
+            bool ok = cur && cur->alive && cur->team != b->team && p->veh[b->enemy - NS(p)].driver >= 0;
+            if (ok && b->att_t > 45.0f) { ok = false; b->tcool = 15.0f; }
+            if (!ok && cur) b->tcool = fmaxf(b->tcool, 15.0f);
+            if (ok) best = b->enemy;
+            else if (b->tcool <= 0) {
+                f32 bs = -1e30f, cp = cosf(vh->pitch), fw[3] = { -sinf(vh->yaw) * cp, sinf(vh->pitch), -cosf(vh->yaw) * cp }, rg = fmaxf(d->target_range, 201.0f);
+                for (u32 i = NS(p); i < NV(p); i++) {
+                    const ak_target *t = &p->target[i]; if (!t->alive || t->team == b->team || p->veh[i - NS(p)].driver < 0) continue;
+                    f32 dx = t->feet[0] - vh->pos[0], dy = t->feet[1] - vh->pos[1], dz = t->feet[2] - vh->pos[2], dd = sqrtf(dx * dx + dy * dy + dz * dz);
+                    if (dd > rg) continue;
+                    f32 ds = dd > 200.0f ? 1.0f - (dd - 200.0f) / (rg - 200.0f) : dd > 40.0f ? (dd - 40.0f) * 0.00625f : 0;
+                    f32 cs = dd > 1e-3f ? (fw[0] * dx + fw[1] * dy + fw[2] * dz) / dd : 1;
+                    bool other = false; for (u32 j = 0; j < p->nbots && !other; j++) other = &p->bot[j] != b && p->bot[j].veh >= 0 && p->bot[j].enemy == (s32)i;
+                    f32 sc = ds * 0.5f + (cs + 1.0f) * 0.25f + (other ? 0 : 1.0f);
+                    if (sc > bs) { bs = sc; best = (s32)i; }
+                }
+                if (best >= 0) b->att_t = 0;
+            }
+        } else
         for (u32 i = NS(p); i < NV(p); i++) {                                 /* enemy vehicles with someone in them */
             const ak_target *t = &p->target[i]; if (!t->alive || t->team == b->team || p->veh[i - NS(p)].driver < 0) continue;
             f32 dx = t->feet[0] - vh->pos[0], dy = t->feet[1] - vh->pos[1], dz = t->feet[2] - vh->pos[2], d2 = dx * dx + dy * dy + dz * dz;
