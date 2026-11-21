@@ -529,6 +529,16 @@ textures and how they are used. Section R lists only what must be in place so th
   - Found 2026-11-21: bit 5 comes from the spawner (089800C8, its +0xEC chance, 100 by default); 0892CC00 is another squad kind's
     pass (a list at D_08C2BA28).  Ported; open: the 25 s give-up on a far vehicle (Aurek's), the order 0x8037's own handling, the
     spawn places that put Hoth's Rebels 190-350 m from the snowspeeders (the original boards them at 13-14 s).
+  - Spawn places, traced 2026-11-21 (open): in the original every first-wave Rebel on Hoth spawns at the hangar post 187EC
+    (-170, -2, 195; harness, 9 of 9 bots, at its linked points) and every Empire bot at 187F0 - Aurek picks a random owned post.
+    The team spawn managers (class 0x800C, ctor 0898A848, registry D_08C2A330) keep per-post { id +0x60, slots +0x80 (16),
+    weight +0xA0 } built by 0898ABFC (conquest): weight = 1.0 x the bits of (the post's byte D_08C25394[i] & the manager's +0x53)
+    when the manager's +0x54 has bit i, + 2.0 when the player's unit (entity 1000 +0x1C) is within 25 m of the post (single
+    player); 0898B9F4 draws a post by weight and spends a slot.  Read live (harness RS_DRIVE_SQUADS=1): Empire +0x53 0C, +0x54 01
+    -> 187F0 2.0; Rebels +0x53 01, +0x54 0C -> 187EC 2.0 (the player), 187ED 1.0, 187EE 1.0 - which would put half the Rebels
+    elsewhere, so the soldiers' own spawn is likely another path (0898B9F4 is reached from 0898383C only for 0x800D spawners).
+    Next: find what spawns conquest AI soldiers (who calls the post spawn 089ED36C: 0898383C, 089A7570, 089D4140) and how it
+    picks the post.
 - [ ] **4.2 Target selection [traced for soldier bots 2026-11-19].** The AI sensor (vtable 0x08AF96F0; built by 08961784 on the
   base 0892538C; updated every frame by 08961A50; read by 08962DAC from the fire node 0893F364):
   - Sight: 55 m (+32) x a multiplier (+48, 1.0); a cone of +-45 degrees across and vertically (+36/+40/+44 = tan(pi/4),

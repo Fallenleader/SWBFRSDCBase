@@ -217,6 +217,14 @@ void rs_drive_report(FILE *f){
                 if (w != (u32)a && fw != fa) continue;
                 for (u32 y = x - 64; y <= x + 64; y += 4) { if (y == x || !gok(y)) continue; u32 v = GU32(y); float fv; memcpy(&fv, &v, 4);
                     if (v == (u32)b || fv == fb) { fprintf(f, "memscan %08x=%s %08x=%s\n", x, w == (u32)a ? "int" : "float", y, v == (u32)b ? "int" : "float"); n++; } } } } }
+    if (getenv("RS_DRIVE_SQUADS")) {   /* the team spawn managers (class 0x800C, registry 0x08C2A330; 0898ABFC fills the post weights) */
+        u32 lb = GU32(IMG(0x08C2A330u)), ln = GU32(IMG(0x08C2A334u)), np = GU32(IMG(0x08C25390u));
+        fprintf(f, "posts %u:", np); for (u32 i = 0; i < np && i < 8; i++) fprintf(f, " %x/%02x", GU32(IMG(0x08B1B510u) + 4 * i), GU8(IMG(0x08C25394u) + i)); fprintf(f, "\n");
+        if (gok(lb) && ln && ln <= 4096) for (u32 bi = 0; bi < ln; bi++) for (u32 nd = GU32(lb + 4 * bi); gok(nd); nd = GU32(nd + 4)) {
+            u32 o = GU32(nd); if (!gok(o)) continue; u32 n = GU32(o + 0x58); if (n > 8) n = 8;
+            fprintf(f, "squad %08x team %u b50 %02x %02x %02x %02x b54 %02x n %u total %.2f:", o, GU32(o + 0x4C), GU8(o + 0x50), GU8(o + 0x51), GU8(o + 0x52), GU8(o + 0x53), GU8(o + 0x54), GU32(o + 0x58), GF32(o + 0x5C));
+            for (u32 i = 0; i < n; i++) fprintf(f, " %x:%u/%.2f", GU32(o + 0x60 + 4 * i), GU32(o + 0x80 + 4 * i), GF32(o + 0xA0 + 4 * i));
+            fprintf(f, "\n"); } }
     if (getenv("RS_DRIVE_LIST")) {   /* RS_DRIVE_LIST=addr: a registry like 0x08C2C200 (buckets, count): each entry's id and class */
         u32 la = (u32)strtoul(getenv("RS_DRIVE_LIST"), 0, 16), lb = GU32(IMG(la)), ln = GU32(IMG(la + 4));
         fprintf(f, "list %08x", la);
