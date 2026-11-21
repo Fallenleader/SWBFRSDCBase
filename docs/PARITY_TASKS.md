@@ -208,6 +208,9 @@ textures and how they are used. Section R lists only what must be in place so th
   0x08AEE3B8); Speed by level 0.85 / 1.0 / 1.15 / 1.3 (08978240) - level 1 is the 1.0 the run was measured at. AI soldiers have
   60. Aurek: AK_HEALTH_LEVEL / AK_SPEED_LEVEL (default 1) give the player 133 and a speed scale; bots 60.
   - [ ] **1.15b** How Speed scales (playback rate or distance - Aurek scales both), where the AI's 60 comes from, and the
+    2026-11-21: a soldier made for a unit (089826E8) takes its blueprint's health (0xB735025C, default D_08AEE53C 100) through
+    0886422C; the player's level table is D_08AEE3B8 (100 / 133 / 166 / 200, 08978170, sent with message 0x8027 / 0x802F). The 60
+    of the AI is not set on that path (and the 60.0 at D_08AEE3B4 is the time limit's default) - still open.
     other categories (Weapon 2, Special Item, Power Up, Capture Rate) and match-wide customisation options.
 
 ## 2. Weapons, items and projectiles
@@ -790,7 +793,8 @@ textures and how they are used. Section R lists only what must be in place so th
     0 online and in mode 5) to D_08C28F58; 08972964 ends the match once the time D_08C28F44 reaches it x 60 s: the side with the
     higher score (the score object 08988228 +0x24 / +0x28, 0 in conquest) wins, then the one with more tickets (+0x1C / +0x20:
     read live 100 / 125 on Hoth), else a draw (4). Aurek's conquest had none (CTF did): now AK_TIME_LIMIT (60 minutes; the Vita /
-    3DS settings.txt list it). Also found: the defaults block 0897782C (base 0x08C2933C) sets +392 / +396 / +400 to 60 and +404 /
+    3DS settings.txt list it). The option's own name confirms it (08978CEC registers D_08C294C4 as "BFF_TimeLimitSinglePlayer":
+    "Time limit for each round (in minutes)"; also BFF_MinPlayersSinglePlayer = D_08C294D0, the 16 units). Also found: the defaults block 0897782C (base 0x08C2933C) sets +392 / +396 / +400 to 60 and +404 /
     +408 to 16 (the unit count) - the "60" there is this time limit, not the AI soldiers' health (1.15b still open).
   - Found by a gdb watchpoint on the counts (harness RS_DRIVE_MEMSCAN found them at the conquest manager, class 0x8002,
     +0x48 / +0x4C, Rebels / Empire; RS_DRIVE_PEEK reads them): the starting count is the option BFF.InitialTickets (options
