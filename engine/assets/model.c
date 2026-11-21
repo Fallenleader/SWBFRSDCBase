@@ -78,7 +78,7 @@ static bool skel_parse(const ak_chunk *c, ak_arena *a, ak_skeleton *s)
 }
 
 /* HSBB v1: name (padded), u32 count, count x { f32 box[6] (bone space, game axes), u32 flags }: the box of what each bone carries */
-static void hsbb_parse(const ak_chunk *c, ak_model_set *out)
+static void hsbb_parse(const ak_chunk *c, ak_model_set *out, ak_arena *a)
 {
     const u8 *b = c->body; size_t nl = strnlen((const char *)b, c->size);
     u32 o = (u32)((nl + 1 + 3) & ~(size_t)3);
@@ -88,6 +88,13 @@ static void hsbb_parse(const ak_chunk *c, ak_model_set *out)
     for (u32 k = out->nskels; k-- > 0;) {
         ak_skeleton *s = &out->skels[k];
         if (s->name_hash != h || s->nbones != n) continue;
+        /* the boxes themselves, per bone (engine axes, bone space): shots test them (08808B24, PARITY 1.12) */
+        s->bb = (f32 (*)[6])ak_arena_alloc(a, 24u * n, 4); s->bbf = AK_NEW(a, u32, n);
+        if (s->bb && s->bbf) for (u32 i = 0; i < n; i++) {
+            const u8 *r = b + o + 28 * i; f32 g[6]; for (int q = 0; q < 6; q++) g[q] = ak_rdf32(r + 4 * q);
+            s->bb[i][0] = g[0]; s->bb[i][3] = g[1]; s->bb[i][1] = -g[3]; s->bb[i][4] = -g[2]; s->bb[i][2] = -g[5]; s->bb[i][5] = -g[4];
+            s->bbf[i] = ak_rd32(r + 24);
+        } else { s->bb = NULL; s->bbf = NULL; }
         if (s->col_from == 1) return;                                         /* its own box stands (flags 5: no update) */
         f32 lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
         for (u32 i = s->skip ? 1 : 0; i < n; i++) {
@@ -473,7 +480,7 @@ bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
         if (tag == AK_TAG('T', 'E', 'X', 'T')) ak_text_parse(&c, a, &text);
         else if (tag == AK_TAG('M', 'T', 'R', 'L')) { if (!ak_mtrl_parse(&c, a, &mats, &nmats)) { mats = NULL; nmats = 0; } }
         else if (tag == AK_TAG('H', 'S', 'K', 'N') && c.version == 8) { if (skel_parse(&c, a, &out->skels[out->nskels])) out->nskels++; }
-        else if (tag == AK_TAG('H', 'S', 'B', 'B') && c.version == 1) hsbb_parse(&c, out);
+        else if (tag == AK_TAG('H', 'S', 'B', 'B') && c.version == 1) hsbb_parse(&c, out, a);
         else if (tag == AK_TAG('H', 'C', 'A', 'N')) { if (clip_parse(&c, a, &out->clips[out->nclips])) out->nclips++; }
         else if (tag == AK_TAG('A', 'T', 'E', 'X') && c.size >= 16) {             /* animation tables: resolved after the clips (below) */
             u32 sets = ak_rd32(c.body + 4), rows = ak_rd32(c.body + 8), cols = ak_rd32(c.body + 12);

@@ -264,14 +264,63 @@ static void draw_weapon(ak_scene_models *ms, const ak_model_set *m, const ak_wea
     ak_scene_models_draw(ms, (u32)wd->model, vp, &gw, NULL, NULL, st);
 }
 
-/* a standing soldier's target shape from its pose: body capsule from the feet, head sphere at the head */
-static void body_target(const ak_model_set *m, const ak_soldier_look *lk, const f32 (*bones)[12], const f32 *pos, f32 yaw, ak_target *t)
+/* one posed HSBB box as a shot target: W is the frame it rides in (3x4 rows, world, scale included), B min xyz / max xyz in it */
+static void target_box(ak_target *t, const f32 W[12], const f32 B[6], u8 part)
+{
+    if (t->nbb >= AK_TGT_BB) return;
+    u8 q = t->nbb++;
+    f32 lc[3] = { (B[0] + B[3]) * 0.5f, (B[1] + B[4]) * 0.5f, (B[2] + B[5]) * 0.5f };
+    for (int r = 0; r < 3; r++) t->bb_c[q][r] = W[r * 4] * lc[0] + W[r * 4 + 1] * lc[1] + W[r * 4 + 2] * lc[2] + W[r * 4 + 3];
+    for (int k = 0; k < 3; k++) {
+        f32 ax = W[k], ay = W[4 + k], az = W[8 + k], l = sqrtf(ax * ax + ay * ay + az * az); if (l < 1e-9f) l = 1;
+        t->bb_ax[q][k][0] = ax / l; t->bb_ax[q][k][1] = ay / l; t->bb_ax[q][k][2] = az / l;
+        t->bb_h[q][k] = fabsf(B[3 + k] - B[k]) * 0.5f * l;
+    }
+    t->bb_bone[q] = part;
+}
+static void m34_mul(const f32 A[12], const f32 B[12], f32 out[12])
+{
+    for (int r = 0; r < 3; r++) {
+        for (int q = 0; q < 4; q++) out[r * 4 + q] = A[r * 4] * B[q] + A[r * 4 + 1] * B[4 + q] + A[r * 4 + 2] * B[8 + q];
+        out[r * 4 + 3] += A[r * 4 + 3];
+    }
+}
+/* a model's flagged HSBB boxes (bit 0 set, bit 1 clear), its bone i in the frame W * pose[i] (pose NULL: one-bone models), as part `part`
+   (-1: the bone's own index) */
+static void target_model_boxes(ak_target *t, const ak_model_set *m, s32 mi, const f32 W[12], const f32 (*pose)[12], int part)
+{
+    if (mi < 0 || m->models[mi].skeleton < 0) return;
+    const ak_skeleton *sk = &m->skels[m->models[mi].skeleton];
+    if (!sk->bb || !sk->bbf) return;
+    for (u32 i = 0; i < sk->nbones; i++) {
+        if ((sk->bbf[i] & 3) != 1) continue;
+        f32 F[12]; if (pose) m34_mul(W, pose[i], F); else memcpy(F, W, sizeof F);
+        target_box(t, F, sk->bb[i], (u8)(part < 0 ? (int)i : part));
+    }
+}
+
+/* a standing soldier's target shape from its pose: body capsule from the feet, head sphere at the head; and the shapes shots really
+   test (traced, PARITY 1.12): a bolt's ray (089DD5B4) tests every damageable's model (088D189C -> 08808B24): each part whose HSBB
+   flags have bit 0 and not bit 1, as a box in its posed frame, and the models attached to it.  The hit part goes in the hit message
+   +20 (the bone; an attached model: the bone it rides, with its name hash at +16 - the weapon 0xD0CDC21C on the hand, bone 14) and
+   part 6 or a part named "head" is a headshot (089A7508).  The body flags 13 of its 21 bones, not the head bone 6: the head model
+   (its own HSBB box) gives the headshots.  AK_SHOT_BONES=0: the old capsule and head sphere. */
+static void body_target(const ak_model_set *m, const ak_soldier_look *lk, const f32 (*bones)[12], const f32 *pos, f32 yaw, ak_target *t, s32 weapon_model)
 {
     memcpy(t->feet, pos, 12); t->height = 1.45f * S; t->radius = 0.35f * S; t->head_radius = 0.2f * S;
     f32 h[12]; const ak_model *body = &m->models[lk->body];
     ak_soldier_head_matrix(body, &m->skels[body->skeleton], lk->head_bone, bones, h);
     f32 s = sinf(yaw), c = cosf(yaw), lx = h[3] * S, ly = (h[7] + 0.1f) * S, lz = h[11] * S;
     t->head[0] = pos[0] + c * lx + s * lz; t->head[1] = pos[1] + ly; t->head[2] = pos[2] - s * lx + c * lz;
+    t->nbb = 0;
+    static int sb = -1; if (sb < 0) sb = ak_setting_int("AK_SHOT_BONES", 1);
+    if (!sb) return;
+    f32 W[12] = { c * S, 0, s * S, pos[0],  0, S, 0, pos[1],  -s * S, 0, c * S, pos[2] }, F[12];
+    target_model_boxes(t, m, lk->body, W, bones, -1);
+    if (lk->head >= 0) { m34_mul(W, h, F); target_model_boxes(t, m, lk->head, F, NULL, AK_HEAD_PART); }
+    if (weapon_model >= 0 && weapon_world(m, lk, bones, pos, yaw, F)) {
+        const ak_marker *g = ak_model_marker(body, "gun"); target_model_boxes(t, m, weapon_model, F, NULL, g ? (int)g->bone : 14); }
+    if (!t->nbb) return;                                                    /* (no HSBB: the capsule) */
 }
 
 /* the clip state from the body's motion */
@@ -446,7 +495,7 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
             for (int k = 0; k < 4; k++) { int kind = lo[k] == 9 ? 0 : lo[k] == 12 ? 1 : -1; if (kind >= 0 && p->ai_gren_ok[kind]) { b->gren_kind = (s8)kind; b->gren_left = p->ai_gren_ammo[kind]; } } }
     }
     if (b->held < 0 && p->team_armed[b->team]) { ak_weapon_give(&b->weapon, &p->team_bdef[b->team]); b->weapon.team = b->team; b->weapon.owner = (s32)(1 + idx); }
-    if (poseable(m, &b->look)) { pose(m, &b->look, p->idle_clip, b->clip_t, true, b->bones); body_target(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, t); }
+    if (poseable(m, &b->look)) { pose(m, &b->look, p->idle_clip, b->clip_t, true, b->bones); body_target(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, t, b->weapon.def ? b->weapon.def->model : -1); }
 }
 
 /* the classes a side fields: its faction's Humanoid units (no heroes) that this level has a body for */
@@ -1430,7 +1479,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         else if (b->idle_var >= 0) pose(m, &b->look, b->idle_var, b->idle_vt, false, b->bones);
         else pose(m, &b->look, bcl[b->state], b->clip_t, b->state != PLAY_JUMP && b->state != PLAY_LAND, b->bones);
     }
-    body_target(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, self);
+    body_target(m, &b->look, (const f32 (*)[12])b->bones, b->ch.pos, b->ch.yaw, self, b->weapon.def ? b->weapon.def->model : -1);
     /* fight: after the reaction time, in bursts, when facing the enemy (a saber hero strikes in reach) */
     if (b->hero && b->weapon.def && hero_of(p, (s32)(1 + idx)) && hero_of(p, (s32)(1 + idx))->saber) {
         ak_weapon_update(&b->weapon, dt, false);
@@ -2851,7 +2900,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             pose_mix(m, &p->look, p->loco.prev, p->loco.prev_t, p->loco.cur, p->loco.t, p->loco.w, p->state != PLAY_JUMP && p->state != PLAY_LAND,
                      rl ? p->reload_clip : !ph && p->alert_t > 0 && p->shoot_t < 0.3f ? p->shoot_clip : -1,
                      rl ? p->wdef.reload_time - p->weapon.reload_t : p->shoot_t, p->bones); }
-        if (p->in_veh < 0) body_target(m, &p->look, (const f32 (*)[12])p->bones, p->ch.pos, p->ch.yaw, &p->target[0]);
+        if (p->in_veh < 0) body_target(m, &p->look, (const f32 (*)[12])p->bones, p->ch.pos, p->ch.yaw, &p->target[0], p->armed ? p->wdef.model : -1);
     }
     /* where the centre of the view meets the level: shots go there unless locked on */
     if (p->aim_ok) {

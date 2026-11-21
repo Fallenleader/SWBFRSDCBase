@@ -340,6 +340,12 @@ int main(int argc, char **argv)
         }
     }
     for (int i = 2; i + 1 < argc; i += 2) {
+        if (!strcmp(argv[i], "--hsbb"))                                      /* a model's HSBB bone boxes (engine axes, bone space) and flags */
+            for (u32 k = 0; k < ms.nmodels; k++) if (!strcmp(argv[i + 1], ms.models[k].name) && ms.models[k].skeleton >= 0) {
+                const ak_skeleton *sk = &ms.skels[ms.models[k].skeleton]; if (!sk->bb) { printf("  no HSBB\n"); break; }
+                for (u32 b = 0; b < sk->nbones; b++) printf("  bone %2u flags %x  box %6.3f %6.3f %6.3f .. %6.3f %6.3f %6.3f\n", b, sk->bbf[b],
+                    sk->bb[b][0], sk->bb[b][1], sk->bb[b][2], sk->bb[b][3], sk->bb[b][4], sk->bb[b][5]);
+                break; }
         if (!strcmp(argv[i], "--parts"))
             for (u32 k = 0; k < ms.nmodels; k++) {
                 const ak_model *m = &ms.models[k];

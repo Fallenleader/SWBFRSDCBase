@@ -77,6 +77,9 @@ typedef struct { ak_bolt b[AK_MAX_BOLTS]; u32 n; ak_impact imp[AK_MAX_IMPACTS]; 
 /* Something a shot can hurt: a standing body (vertical capsule from its feet) with a head sphere.  Soldiers have 100 health (the
  * game's default for a Humanoid blueprint without "Health": func_089826E8 reads it with 100.0 from 0x08AEE53C; heroes say 600) and
  * take "Headshot multiplier" (4) times the damage in the head when the weapon has AllowHeadshots. */
+#define AK_TGT_BB 24                   /* bone boxes kept per target (a soldier flags 13 of its 21 bones) */
+/* the bone whose box makes a hit a headshot (089A7508: hit part 6, or a part named "head") */
+#define AK_HEAD_PART 6
 typedef struct {
     f32 feet[3], height, radius;
     f32 head[3], head_radius;
@@ -92,6 +95,8 @@ typedef struct {
     f32 last_hit_dir[3];
     bool boxed; f32 box_c[3], box_ax[3][3], box_h[3];   /* a body box (centre, unit axes, half extents): shots test it instead of the
                                         * capsule - vehicles, whose physics body is their model's box (ak_box.h) */
+    u8 nbb;                            /* soldiers: the posed HSBB bone boxes (nbb > 0: shots test these, not the capsule) */
+    u8 bb_bone[AK_TGT_BB]; f32 bb_c[AK_TGT_BB][3], bb_ax[AK_TGT_BB][3][3], bb_h[AK_TGT_BB][3];
 } ak_target;
 
 /* the weapon a soldier of `faction` gets for `name` (the faction rule above); false = no such weapon */

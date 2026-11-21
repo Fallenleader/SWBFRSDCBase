@@ -146,7 +146,7 @@ textures and how they are used. Section R lists only what must be in place so th
     side effect. Its vfunc +200 (089E3868) sends 0x8050 with the attacker's position, which the player controller keeps at
     +0x94 (08A09928): the HUD's hit-direction source (8.1).
   - The heavy-hit stops measured above are not a hit reaction; they are left with 4.4 (what stops a running soldier).
-- [ ] **1.12 Hit shapes [assumed].**
+- [x] **1.12 Hit shapes [traced and ported 2026-11-21].**
   - Aurek: its own head/body shapes for bolts.
   - Trace how projectiles test soldiers (physics boxes, per-bone shapes, or the HSKN per-bone meshes) and how headshots are decided.
   - Traced so far (2026-11-16): the Humanoid damage handler 089A7310 takes a 32-byte hit message (+4 attacker id, +12 damage,
@@ -160,6 +160,17 @@ textures and how they are used. Section R lists only what must be in place so th
     off an AI soldier per body hit, and some hits take 60 at once (a headshot: 15 x 4 - an instant kill against the AI's 60);
     two hits took 18 (not explained yet). The soldier object has one physics body (the 0.6 x 1.8 m box, soldier +0x28), so
     the head is not a second body; headshots need the hit part from somewhere else (bone boxes or the head model).
+  - Traced 2026-11-21: a bolt (089F9E8C) casts its step with 089DD5B4: the level first (08834F74), then every object of the
+    damageable registry 0x08C2B3A4 through its model (088D189C -> 08808B24): a coarse box, then each part whose HSBB flags have
+    bit 0 and not bit 1, as a box in the part's posed frame, and the models attached to it. The hit record (+4 object, +8 part,
+    +12 an attachment's name hash) becomes the damage message 0x8001 (089FA66C: DamageToInfantry for class 0x8005, else
+    DamageToVehicle). Measured (harness, new RS_DMG_LOG: each hit message and its call chain): soldier hits on parts 1, 3, 4,
+    8, 9, 12, 13, 18 (the body's bones), part 14 with "weapon" (0xD0CDC21C: the rifle in the right hand), part 4 with
+    0x0AE26E48 (an attachment on the chest, not named yet) and part 6 with "head" (0x30CDE0: the head model) - the headshot, 100.
+    The body model flags 13 of its 21 bones and not the head bone; the head models (EMP_Med_1 ...) and weapons have one box each.
+  - **Engine:** the HSBB boxes are kept per bone (model.c, akinspect --hsbb); a soldier's target is its posed body boxes, its head
+    model's box (part 6: the headshot) and its weapon's box (on the "gun" marker's bone); shots test the nearest box
+    (AK_SHOT_BONES=0: the old capsule). Hoth, 2 min of play: 86 soldier hits, 5 in the head. Not built: the chest attachment.
 
 - [x] **1.13 Soldier against soldier and vehicle [done 2026-11-16].**
   - Done earlier: dynamic versus kinematic boxes.

@@ -24,6 +24,8 @@ typedef struct {
     f32 col_min[3], col_max[3];
     u8 col_from;                       /* 0 the default, 1 HSKN's own box, 2 the bone boxes */
     u32 skip;                          /* HSKN word 0 */
+    f32 (*bb)[6]; u32 *bbf;            /* HSBB per bone: box min xyz, max xyz (engine axes, bone space) and flags (bit 0 a box to test,
+                                        * bit 1 skipped); NULL without HSBB */
 } ak_skeleton;
 
 typedef struct {

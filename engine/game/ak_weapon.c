@@ -94,6 +94,22 @@ static s32 ray_targets(ak_target *tg, u32 n, const f32 *o, const f32 *d, f32 max
     s32 best = -1; f32 bt = max;
     for (u32 i = 0; i < n; i++) {
         ak_target *T = &tg[i]; if (!T->alive || (team >= 0 && T->team == team)) continue;
+        if (T->nbb) {                                                      /* the bone boxes (08808B24): the nearest box hit, part 6 the head */
+            for (u32 q = 0; q < T->nbb; q++) {
+                f32 lo = 0, hi = bt; bool in = true;
+                for (int k = 0; k < 3 && in; k++) {
+                    f32 oc = (o[0] - T->bb_c[q][0]) * T->bb_ax[q][k][0] + (o[1] - T->bb_c[q][1]) * T->bb_ax[q][k][1] + (o[2] - T->bb_c[q][2]) * T->bb_ax[q][k][2];
+                    f32 dd = d[0] * T->bb_ax[q][k][0] + d[1] * T->bb_ax[q][k][1] + d[2] * T->bb_ax[q][k][2];
+                    if (fabsf(dd) < 1e-9f) { if (fabsf(oc) > T->bb_h[q][k]) in = false; continue; }
+                    f32 t1 = (-T->bb_h[q][k] - oc) / dd, t2 = (T->bb_h[q][k] - oc) / dd; if (t1 > t2) { f32 x = t1; t1 = t2; t2 = x; }
+                    if (t1 > lo) lo = t1;
+                    if (t2 < hi) hi = t2;
+                    if (lo > hi) in = false;
+                }
+                if (in && lo > 0 && lo < bt) { bt = lo; best = (s32)i; *head = T->bb_bone[q] == AK_HEAD_PART; }
+            }
+            continue;
+        }
         if (T->boxed) {                                                    /* the body box: a slab test in its frame */
             f32 lo = 0, hi = bt; bool in = true;
             for (int k = 0; k < 3 && in; k++) {

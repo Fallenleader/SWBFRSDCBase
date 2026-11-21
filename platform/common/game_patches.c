@@ -1,3 +1,4 @@
+#include <execinfo.h>
 /* Game option limits (Instant Action "Game Options"), offline games only.
  *
  * The game registers each option variable with its range (func_08978CEC -> func_08897814(name, variable, min, max, ...)); the menu
@@ -712,7 +713,11 @@ static struct rs_ai_evt evq[EVT_N]; static unsigned ev_w, ev_r; static float dmg
 static struct { u32 id, w; } fired[256];
 static float obj_health(u32 o){ if (!gok(o) || !gok(GU32(o))) return 0; u32 sub = o + GU32(GU32(o) - 12); return gok(sub) ? GF32(sub + 0x28) : 0; }
 static u32 fired_by(u32 id){ for (int i = 0; i < 256; i++) if (fired[i].id == id) return fired[i].w; return 0; }
-void rs_ai_dmg_pre(u32 o, u32 msg){ { extern u32 rs_cen_dmg; rs_cen_dmg++; } dmg_tgt = o; dmg_hp = obj_health(o); (void)msg; }
+void rs_ai_dmg_pre(u32 o, u32 msg){ { extern u32 rs_cen_dmg; rs_cen_dmg++; }
+    { static int dl = -1; if (dl < 0) dl = getenv("RS_DMG_LOG") != 0;   /* the hit message's words and the native call chain (finding the sender) */
+      if (dl && msg) { void *bt[8]; int n = backtrace(bt, 8); fprintf(stderr, "[DMG] o %08x msg", o);
+        for (int k = 0; k < 8; k++) fprintf(stderr, " %08x", GU32(msg + 4u * (u32)k));
+        fprintf(stderr, " bt"); for (int k = 1; k < n; k++) fprintf(stderr, " %p", bt[k]); fprintf(stderr, "\n"); } } dmg_tgt = o; dmg_hp = obj_health(o); (void)msg; }
 void rs_ai_dmg_post(u32 o, u32 msg){
     if (o != dmg_tgt || !msg || !gok(o) || !gok(GU32(o))) return;
     struct rs_ai_evt e = { obj_id(o), GU32(msg + 4), GF32(msg + 12), dmg_hp, obj_health(o), GU32(msg) };
