@@ -223,7 +223,14 @@ static bool open_hash(u32 h, bool push)
 }
 bool ak_fe_open(const char *name) { return ready && open_hash(ak_gui_hash(name), false); }
 bool ak_fe_open_ingame(const char *name) { return ak_fe_open(name); }
-bool ak_fe_open_gc(const char *name, const ak_fe_gc *g) { if (!ak_fe_open(name)) return false; ak_fe_set_gc(g); return true; }
+bool ak_fe_open_gc(const char *name, const ak_fe_gc *g)
+{
+    if (!ak_fe_open(name)) return false;
+    ak_fe_set_gc(g); var_set("Menus.GCDisplayingEnemyTech", 0);
+    u32 f0 = id_of("W_BT_EquipmentLevel1"); if (f0) focus = f0;          /* [assumed: the first row first, as the original's frame] */
+    return true;
+}
+void ak_fe_gc_enemy(bool on) { var_set("Menus.GCDisplayingEnemyTech", on ? 1 : 0); }
 
 const char *ak_fe_page(void) { return page ? page->root.name : NULL; }
 
@@ -329,6 +336,10 @@ static int gc_shows(const ak_widget *w)
 {
     if (!gc_on || !w->name) return 0;
     int lvl, kind = gc_row(parent_name, &lvl), c = gc_cmdr(parent_name);
+    if (!strncmp(w->name, "E_IM_Hilite", 11) && (kind >= 0 || c >= 0)) {   /* the brackets: on the focused item only (the original's frames) */
+        const ak_widget *f = page && focus ? find_id(&page->root, focus) : NULL;
+        return f && f->name && parent_name && !strcmp(f->name, parent_name) ? 1 : -1;
+    }
     if (kind >= 0) {
         bool have = lvl <= gc.tech[kind];
         if (!strcmp(w->name, "E_IM_Active")) return have ? 1 : -1;

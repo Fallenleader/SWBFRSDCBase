@@ -55,6 +55,7 @@ typedef struct {
 } ak_fe_gc;
 bool ak_fe_open_gc(const char *page, const ak_fe_gc *g);
 void ak_fe_set_gc(const ak_fe_gc *g);
+void ak_fe_gc_enemy(bool on);                  /* R1: the opponent's page (Menus.GCDisplayingEnemyTech: the red backgrounds) */
 int ak_fe_gc_choice(int *index);               /* after AK_FE_GC_BUY: the kind (0..2 tech, 3 commander) */
 int ak_fe_spawn_post(void);                    /* after AK_FE_SPAWN: the post chosen (index), -1 none */           /* after AK_FE_START: the level ("CLASSIC TATOOINE") and the mode (0 CQST .. 3 HCTF) */
 #endif

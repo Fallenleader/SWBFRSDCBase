@@ -37,7 +37,7 @@ typedef struct {
     ak_gc_ai ai;                       /* the opponent */
     int battle_side, battle_to, battle_n; bool battle_second;   /* the pending battle (sub 3) */
     bool battle_launch;                /* Attack chosen: the viewer starts the match (ak_gc_screen_battle_setup) and reports back */
-    bool tech_open;                    /* square: the viewer shows MP_TechPurchase */
+    bool tech_open, tech_enemy;        /* (tech_enemy: R1 shows the opponent's) */                    /* square: the viewer shows MP_TechPurchase */
     bool battle_live;                  /* a match is being played for it */
 } ak_gc_screen;
 

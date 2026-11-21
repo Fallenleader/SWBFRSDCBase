@@ -658,12 +658,15 @@ int main(int argc, char **argv)
         if (gc_map && gc_screen) {
             { const char *keys = ak_setting_str("AK_GC_KEYS", NULL);   /* tests: one button every 8 frames from frame 10, as AK_FE_KEYS */
               if (keys && frame >= 10) { int k = (frame - 10) / 8, ph = (frame - 10) % 8; const char *q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; }
-                  if (*q && ph == 0) in.pressed |= *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : *q == 'S' ? AK_BTN_SQUARE : *q == 'T' ? AK_BTN_TRIANGLE : 0u; } }
+                  if (*q && ph == 0) in.pressed |= *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : *q == 'S' ? AK_BTN_SQUARE : *q == 'T' ? AK_BTN_TRIANGLE : *q == '1' ? AK_BTN_R : 0u; } }
             if (gc_screen->tech_open) {                  /* Buy Tech/Comm: BFF_GALACTICCONQUEST's MP_TechPurchase over the map */
                 ak_fe_gc fg;
                 if (!ak_fe_page()) {
                     ak_fe_init(vfs); ak_gc_screen_tech(gc_screen, &fg); if (!ak_fe_open_gc("MP_TechPurchase", &fg)) gc_screen->tech_open = false;
-                } else if (in.pressed & AK_BTN_CIRCLE) { ak_fe_close(); gc_screen->tech_open = false; }   /* Back */
+                } else if (in.pressed & AK_BTN_CIRCLE) { ak_fe_close(); gc_screen->tech_open = gc_screen->tech_enemy = false; }   /* Back */
+                else if (in.pressed & AK_BTN_R) {           /* R1: the opponent's technology and commanders, and back */
+                    gc_screen->tech_enemy = !gc_screen->tech_enemy; ak_fe_gc_enemy(gc_screen->tech_enemy); ak_gc_screen_tech(gc_screen, &fg); ak_fe_set_gc(&fg);
+                }
                 else if (ak_fe_update(&in, dt) == AK_FE_GC_BUY) {
                     int i, k = ak_fe_gc_choice(&i); ak_gc_screen_tech_buy(gc_screen, k, i); ak_gc_screen_tech(gc_screen, &fg); ak_fe_set_gc(&fg);
                 }

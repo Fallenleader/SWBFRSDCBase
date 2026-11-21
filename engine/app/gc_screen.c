@@ -227,8 +227,8 @@ void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp)
         txt(1, 360, 0, 0xFFFFFFFFu, 0x35, 0); num(1, 477, 0, 0xFFFFFF00u, s->g.side[0].credits, 2, true);
         ak_hud_2d_quad(NULL, 0, 249, 480, 272, 0, 0, 1, 1, 0x60000000u);
         spr(s->tex[GCT_CIRCLE], 2, 252.5f, 18, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, 20, 252.5f, 0xFFFFFFFFu, 0x45, 0);
-        spr(s->tex[GCT_R1], 157, 252.5f, 189, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, 191, 252.5f, 0xFFFFFFFFu, 0x50, 0);
-        spr(s->tex[GCT_CROSS], 404, 252.5f, 420, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, 422, 252.5f, 0xFFFFFFFFu, 0x44, 0);
+        spr(s->tex[GCT_R1], 157, 252.5f, 189, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, 191, 252.5f, 0xFFFFFFFFu, s->tech_enemy ? 0x51 : 0x50, 0);   /* View Your / Opponent's Tech/Comm */
+        if (!s->tech_enemy) { spr(s->tex[GCT_CROSS], 404, 252.5f, 420, 268.5f, 0, 0, 1, 1, 0xFFFFFFFFu); txt(0, 422, 252.5f, 0xFFFFFFFFu, 0x44, 0); }
         ak_hud_2d_end(); return;
     }
     /* home planets: the badge over the planet (24 x 18) and the name tag under it (66 x 16, blue row for the player's, red row for
@@ -478,10 +478,10 @@ static u32 fmt_line(u16 *o, u32 cap, u32 id, const int *v, int nv)
 void ak_gc_screen_tech(const ak_gc_screen *s, ak_fe_gc *o)
 {
     memset(o, 0, sizeof *o);
-    const ak_gc_side *sd = &s->g.side[0]; bool evil = (ak_gc_class(sd->faction) & 1) != 0;
-    for (int k = 0; k < 3; k++) { o->tech[k] = sd->tech[k]; for (int l = 0; l < 3; l++) o->tech_price[k][l] = ak_gc_tech_price(&s->g, &s->r, 0, k, l); }
+    int side = s->tech_enemy ? 1 : 0; const ak_gc_side *sd = &s->g.side[side]; bool evil = (ak_gc_class(sd->faction) & 1) != 0;
+    for (int k = 0; k < 3; k++) { o->tech[k] = sd->tech[k]; for (int l = 0; l < 3; l++) o->tech_price[k][l] = ak_gc_tech_price(&s->g, &s->r, side, k, l); }
     for (int c = 0; c < 4; c++) {
-        o->cmdr_avail[c] = sd->cmdr_avail[c]; o->cmdr_bought[c] = sd->cmdr_bought[c]; o->cmdr_price[c] = ak_gc_cmdr_price(&s->g, &s->r, 0, c);
+        o->cmdr_avail[c] = sd->cmdr_avail[c]; o->cmdr_bought[c] = sd->cmdr_bought[c]; o->cmdr_price[c] = ak_gc_cmdr_price(&s->g, &s->r, side, c);
         o->cmdr_name[c] = ak_gc_text((u32)((evil ? 0x2C : 0x30) + c), &o->cmdr_name_len[c]);
     }
     o->acquired = ak_gc_text(0x4F, &o->acquired_len);
@@ -499,6 +499,7 @@ void ak_gc_screen_tech(const ak_gc_screen *s, ak_fe_gc *o)
    commander when available, each if the credits cover it (ak_gc_buy_tech / ak_gc_buy_cmdr) */
 void ak_gc_screen_tech_buy(ak_gc_screen *s, int kind, int index)
 {
+    if (s->tech_enemy) return;                                   /* (the opponent's page: nothing to buy) */
     if (kind >= 0 && kind < 3) { if (index == s->g.side[0].tech[kind] + 1) ak_gc_buy_tech(&s->g, &s->r, 0, kind); }
     else if (kind == 3 && index >= 0 && index < 4) ak_gc_buy_cmdr(&s->g, &s->r, 0, index);
 }
