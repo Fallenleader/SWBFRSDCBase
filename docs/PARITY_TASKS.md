@@ -1210,6 +1210,14 @@ textures and how they are used. Section R lists only what must be in place so th
     the speech (sounds\\speech\\en\\cutscene\\*.wav), the recon droid left in the courtyard (0x8010 {0, 2} to 189ac, a 0x8009
     class), the lock-on step after the page, kind 10 (view mode 0x08C29B58 from 0x08C29394 via 089719A0 / 08979CA0 - a 1.1 s branch
     to the tip 0x14D), the button glyphs in tips (\\ue809 drawn as a shield, the original 'R').
+  - Part 26, 2026-11-21 - **cut-scene camera / actor / width events, the objective ring, the X page traced, the lock-on step**:
+    in NATIVE_ENGINE. Found next (harness cmpn_train, RS_FIRE_LOG, /tmp/ct8): after X the node 18bbb (kind 2, tip 0x8A "Hold R to
+    lock onto a target") passed when R was held - kind 2 = the lock-on, as ported; then objective 18c46 and tip 0xBC "Press X to
+    shoot"; the recon droid is the unit of the 0x800D spawner 18bd8 (the script's 3 after the cut-scene starts it); its death
+    fires the spawner's group 20 -> 18c46 0x8009 -> group 58 (the pages 0x195 yellow arrows / 0x196 command posts, 0x8010 {0, 1}
+    to 189ac, 0x800A to 187f9, the capture step's tip 0xBD). Next: script-started 0x800D spawners with their death event, the
+    recon droid as a unit (its blueprint), 0x800E (to 18c48), 0x8010 (to the 0x8009 class 189ac), the chevron over the ring, the
+    cut-scene speech and multi-key tracks.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
