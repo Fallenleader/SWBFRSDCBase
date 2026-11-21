@@ -262,6 +262,7 @@ typedef struct { u32 buttons; u8 lx, ly, rx, ry; } rs_pad_t;
 static rs_pad_t drive_pad = { 0, 0x80, 0x80, 0x80, 0x80 };
 static int drive_on(void){ static int on = -1; if (on < 0) on = getenv("RS_DRIVE") != 0; return on; }
 static void dump_frame(const char *dir, int n);
+u32 rs_drive_frame(void);
 static void drive_step(int frame){
     static int every = -1; if (every < 0) { every = getenv("RS_DRIVE_EVERY") ? atoi(getenv("RS_DRIVE_EVERY")) : 10; if (every < 1) every = 1; }
     if (frame % every) return;
@@ -600,3 +601,5 @@ int rs_hang_report(char *b, int n){
 #undef HP
     return o; }
 
+
+u32 rs_drive_frame(void){ return (u32)g_frames; }   /* (tests: RS_FIRE_AT) */

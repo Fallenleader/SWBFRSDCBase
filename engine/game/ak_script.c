@@ -413,7 +413,7 @@ u32 ak_script_use(ak_script *s, const f32 *pos, bool use, ak_script_sink sink, v
         ak_snode *n = &s->node[i];
         if (n->type != AK_SN_USE || n->disabled || !n->active || !in_boxes(n, pos)) continue;
         prompt = n->use_text ? n->use_text : 0x47;
-        if (use) { ak_script_send(s, 5, n->id, NULL, 0, sink, user); use = false; }
+        if (use) { ak_script_send(s, 5, n->id, NULL, 0, sink, user); use = false; n->active = false; }   /* (used: off until started again [assumed]) */
     }
     return prompt;
 }

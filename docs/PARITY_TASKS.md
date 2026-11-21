@@ -1267,6 +1267,15 @@ textures and how they are used. Section R lists only what must be in place so th
     player was pushed out of the wall next to its point - its rule is open. Not done: the door's visible model (zigarat_door, a
     cut-scene actor with zigarat_door_rest_anim / _anim: Aurek draws cut-scene actors only while their scene runs), the objective
     chevrons.
+  - Part 36, 2026-11-21 - **weapon 2, the cutter, the turret.** Harness: RS_FIRE_AT=F:group:sender (fires a script group; the
+    terminal's group 5 since d-pad up does not use 18bb8 in the harness), CT_W2 in cmpn_train (page X, the post's menu: up opens it
+    on the last category, up x2 to Weapon 2, X, down to the Fusion Cutter, X, circle x2; d-pad left; cutter held beside the turret).
+    Found: group 12 (18c2b passed: cutter held) -> objective 18bcd "Repair the temple gun emplacement, and man it.", 18d18 (kind
+    0x11) -> 38 -> 18d19 (region at the turret) -> 92 -> 18d1a -> page 0x19B; the cutter -> 18bdc whole -> group 3 / 62 / 21 / 93:
+    the tip "\ue813 Use" (in the tip box), "Get in the turret, and defeat the stormtroopers..." with a 0/4 counter under the radar,
+    objective "Defeat 4 stormtroopers." (counters 18cc7-18cca, spawners 18be0-18be3 with Stormtrooper). Open: the reticle's green
+    arc (Aurek shows only the panel), vehicles' RepairVehicle, the cutter's DamageToInfantry, the turret-use tip, the 0/4 counter.
+    Next: the 0x800D spawners making humanoid units (Stormtrooper) and the kill counters, then the rocket launcher / tank.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

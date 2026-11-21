@@ -81,7 +81,8 @@ u32 ak_turrets_read(const ak_level *l, ak_turret_rec *out, u32 max)
             r->id = ak_rd32(b); ak_from_game(p, r->pos);
             r->rot.x = q[0]; r->rot.y = -q[1]; r->rot.z = -q[2]; r->rot.w = q[3];   /* to engine axes (model.c's rule) */
             r->health = wf(b + 4 * (j + 7)); r->model_hash = ak_rd32(b + 4 * (j + 9));
-            r->post_id = ak_rd32(b + 4 * (nw - 2)); r->range = wf(b + 4 * (nw - 1));
+            r->post_id = ak_rd32(b + 4 * (nw - 2)); r->range = wf(b + 4 * (nw - 1)); r->bp_hash = ak_rd32(b + 4 * (nw - 3)); r->text = ak_rd32(b + 4 * (nw - 11)); if (r->text > 0x1000) r->text = 0;
+            r->nev = 0; if (j > 9) { u32 ne = ak_rd32(b + 32); for (u32 k = 0; k < ne && k < 4 && 9 + k < j; k++) r->ev[r->nev++] = ak_rd32(b + 4 * (9 + k)); }
             if (!(r->range > 1 && r->range < 5000)) r->range = 100;
             break;
         }
@@ -92,7 +93,7 @@ u32 ak_turrets_read(const ak_level *l, ak_turret_rec *out, u32 max)
 void ak_turret_place(ak_turret *t, const ak_turret_def *d, const ak_turret_rec *r)
 {
     memset(t, 0, sizeof *t);
-    t->def = d; t->id = r->id; memcpy(t->pos, r->pos, 12); t->rot = r->rot;
+    t->def = d; t->id = r->id; memcpy(t->pos, r->pos, 12); t->rot = r->rot; memcpy(t->ev, r->ev, sizeof t->ev); t->nev = r->nev; t->text = r->text;
     t->health = r->health > 0 ? r->health : d->health; t->range = r->range; t->post_id = r->post_id;
     t->alive = true; t->team = -1; t->enemy = -1;
     f32 x = r->rot.x, y = r->rot.y, z = r->rot.z, w = r->rot.w;

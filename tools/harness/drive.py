@@ -249,6 +249,17 @@ def prog_cmpn_train(i, fr):                                                     
     if i in (8800, 8830): return (0x100, 128, 128)                           # L tap (jump), L tap in the air (the jetpack)
     if 8840 <= i < 8940: return (TRIANGLE, 128, 128)                         # rise 1.7 s, nothing 1 s (hold?), circle 1 s (descend), nothing
     if 9000 <= i < 9060: return (CIRCLE, 128, 128)
+    if os.environ.get('CT_W2'):                                              # (CT_W2=1, RS_FIRE_AT=<abs>:5:18bb8 for the terminal) weapon 2:
+        if i in range(11150, 11154) or i in range(11200, 11204): return (CROSS, 128, 128)   # the page's X (its 'Press X' shows ~3 s in),
+        if i in range(11350, 11354): return (UP, 128, 128)                    #  (--tp ..;11250:-23.74,-6.73,201.0) at the post: up (the menu),
+        if i in range(11450, 11454) or i in range(11500, 11504): return (UP, 128, 128)   #  up x2 (the menu opens on the last category:
+        if i in range(11560, 11564) or i in range(11680, 11684): return (CROSS, 128, 128)   #  Special Item) to Weapon 2, X, down, X, circle x2,
+        if i in range(11620, 11624): return (DOWN, 128, 128)
+        if i in range(11740, 11744) or i in range(11800, 11804): return (CIRCLE, 128, 128)
+        if i in range(11950, 11954): return (LEFT, 128, 128)                  #  then d-pad left (to weapon 2), cross held (the cutter)
+        if i in range(12300, 12304) or i in range(12360, 12364): return (CROSS, 128, 128)   # (--tp ..;12100:-27.5,-6.34,148.1 west of the
+        if 12450 <= i < 13050: return (CROSS, 128, 128)                       #  turret, facing it) the page's X, then the cutter held 10 s
+        return (0, 128, 128)
     if 10650 <= i < 10662 or 10800 <= i < 10806: return (0, 128, 255)       # (with --tp ..;10600:-38.8,-6.83,163.7, the use box's middle) a short step back
     if i in range(10700, 10704) or i in range(10850, 10854) or i in range(10900, 11000): return (UP, 128, 128)   #  (toward the console: the soldier turns
                                                                              #  to it), up tapped, again, then held

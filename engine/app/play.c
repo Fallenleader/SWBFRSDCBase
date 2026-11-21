@@ -653,6 +653,38 @@ static void loadout_items(ak_play *p, const ak_model_set *m, const ak_blueprints
     const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
     p->armed = wname[0] && ak_weapon_def_load(bp, m, wname, p->look.faction, &p->wdef);
     if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
+    const char *w2 = ak_setting_str("AK_WEAPON2", "BlasterPistol");           /* weapon 2 (the menu's second slot; "" none): the Blaster
+                                                                                 Pistol (cost 0, the list's first) unless chosen - the
+                                                                                 original's campaign soldier had it (harness ct22) */
+    p->armed2 = w2[0] && ak_weapon_def_load(bp, m, w2, p->look.faction, &p->wdef2); p->wsel = 0;
+    if (p->armed2) { ak_weapon_give(&p->weapon2, &p->wdef2); p->weapon2.team = p->team; p->weapon2.owner = 0; p->weapon2.heats = true; }
+    if (w2[0] && !p->armed2) AK_WARN("play", "weapon 2 '%s': no such weapon", w2);
+}
+/* a repair tool in the hands: its Projectile blueprint when that has RepairVehicle (the Fusion Cutter) */
+static const ak_bp_object *repair_tool(const ak_play *p)
+{
+    if (!p->armed || !p->wdef.bp || !p->bps) return NULL;
+    const ak_bp_object *pj = ak_bp_find(p->bps, "Projectile", ak_bp_string(p->wdef.bp, "Projectile", ""));
+    return pj && ak_bp_float(pj, "RepairVehicle", 0) > 0 ? pj : NULL;
+}
+/* weapon 1 <-> weapon 2 (both kept with their ammunition) */
+static void weapon_switch(ak_play *p)
+{
+    if (!p->armed2) return;
+    ak_weapon_def d = p->wdef; ak_weapon w = p->weapon; bool a = p->armed;
+    p->wdef = p->wdef2; p->weapon = p->weapon2; p->armed = p->armed2;
+    p->wdef2 = d; p->weapon2 = w; p->armed2 = a; p->wsel ^= 1;
+    p->weapon.def = &p->wdef; p->weapon2.def = &p->wdef2;                   /* (each weapon points at its own def's storage) */
+    if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("play", "weapon %d: %s", p->wsel + 1, p->armed ? p->wdef.name : "-");
+}
+/* the weapon in the player's hands is this blueprint (the script's items: kind 4 0xDA0CAE3B "Fusion Cutter", 5 0x87D168AB
+   "Rocket_Launcher", 6 0xDF19A556 "ALL_Sniper_Rifle" - 08A0E228 asks the soldier's inventory (+236) for its current weapon (+128)
+   and compares the name's hash, 08985AC8) */
+static bool holding(const ak_play *p, u32 hash)   /* (its name, or its parent's for a faction's version [assumed: either]) */
+{
+    if (!p->alive || !p->armed || !p->wdef.bp) return false;
+    const ak_bp_object *o = p->wdef.bp;
+    return ak_hash31(o->name) == hash || (o->parent && ak_hash31(o->parent->name) == hash);
 }
 void ak_play_loadout(ak_play *p, const ak_model_set *m, const ak_blueprints *bp)
 {
@@ -666,7 +698,7 @@ void ak_play_loadout(ak_play *p, const ak_model_set *m, const ak_blueprints *bp)
 
 bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a, const char *body, const f32 *start)
 {
-    memset(p, 0, sizeof *p);
+    memset(p, 0, sizeof *p); p->bps = bp; p->rep_turret = -1;
     if (!ak_collision_load(l, a, &p->col)) return false;
     p->have_nav = ak_nav_load(l, a, &p->nav);
     ak_char_params_load(bp, &p->cp);
@@ -2887,8 +2919,21 @@ static void turrets_init(ak_play *p, const ak_level *l, const ak_model_set *m, c
         s32 di = -1;
         for (u32 k = 0; k < p->ntdef; k++) if (!strcmp(p->tdef[k].name, m->models[mi].name) || p->tdef[k].base == mi) di = (s32)k;
         if (di < 0 && p->ntdef < 8 && ak_turret_def_load(bp, m, m->models[mi].name, &p->tdef[p->ntdef])) di = (s32)p->ntdef++;
+        bool wrecked = false;
+        if (di < 0 && rec[i].bp_hash) {                                     /* a record placing the wreck model (Yavin's training turret 18bdc:
+                                                                               small_turret_destroyed, blueprint Small_Turret): it starts destroyed -
+                                                                               the original drew the wreck until the fusion cutter repaired it (ct25) */
+            const ak_bp_type *tt = ak_bp_find_type(bp, "Turret");
+            for (u32 k = 0; tt && k < tt->nobjects; k++) if (ak_hash31(tt->objects[k].name) == rec[i].bp_hash) {
+                for (u32 q = 0; q < p->ntdef && di < 0; q++) if (!strcmp(p->tdef[q].name, tt->objects[k].name)) di = (s32)q;
+                if (di < 0 && p->ntdef < 8 && ak_turret_def_load(bp, m, tt->objects[k].name, &p->tdef[p->ntdef])) di = (s32)p->ntdef++;
+                break; }
+            wrecked = di >= 0 && p->tdef[di].wreck == mi;
+            if (di >= 0 && p->tdef[di].base >= 0) mi = p->tdef[di].base;
+        }
         if (di < 0) continue;
         ak_turret *t = &p->turret[p->nturret]; ak_turret_place(t, &p->tdef[di], &rec[i]); t->rad = m->models[mi].radius;
+        if (wrecked) { t->alive = false; t->health = 0; }
         t->team = turret_side(p, t);
         p->nturret++;
     }
@@ -3135,6 +3180,10 @@ static bool script_test(void *user, u32 kind, u32 param)
     case 1: return p->alive && p->in_veh < 0 && !p->ch.on_ground;
     case 2: return p->alive && p->lock >= 0;
     case 9: return p->alive && p->in_veh >= 0;
+    case 4: return holding(p, 0xDA0CAE3Bu);
+    case 5: return holding(p, 0x87D168ABu);
+    case 6: return holding(p, 0xDF19A556u);
+    case 0x11: return holding(p, 0xDA0CAE3Bu);   /* (08A0E228's 0x11: the weapon 0xDA0CAE3B - Yavin's 18d18 after the cutter's tip) */
     default: return false;
     }
 }
@@ -3304,6 +3353,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             f32 B[12]; if (ak_turret_barrel(&p->turret[best], m, B)) { f32 F = p->turret[best].def->face; p->ch.yaw = atan2f(-F * B[2], -F * B[10]); p->ch.pitch = 0; }   /* the view starts along the barrel */
         }
     }
+    if (p->alive && p->in_veh < 0 && p->in_turret < 0 && (vin->pressed & AK_BTN_LEFT)) weapon_switch(p);   /* d-pad left: weapon 1 <-> 2
+        (measured, harness ct22: the original's left took the soldier from the Blaster Rifle to the Blaster Pistol, its name under the
+        icon; STDTEXT 0xF9 "Cycle through primary weapons with \ue815") */
     if (tri) {                                                                /* triangle: get in / out of a vehicle */
         if (p->in_veh >= 0) {
             ak_vehicle *vh = &p->veh[p->in_veh]; f32 out[3], gy;
@@ -3650,6 +3702,29 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (p->armed && hero_of(p, 0) && hero_of(p, 0)->saber) {
         ak_weapon_update(&p->weapon, dt, false);
         hero_attack(p, m, hero_of(p, 0), (in->held & AK_BTN_R) && p->alive && p->in_veh < 0 && p->in_turret < 0, &p->weapon, p->ch.pos, p->ch.yaw, dt);
+    } else if (p->armed && repair_tool(p)) {
+        /* the fusion cutter (Projectile "Fusion Cutter": RepairVehicle 10, MaxRange 3; RateOfFire 0.25): held fire repairs.  Measured
+           (harness ct25, Yavin's training turret 18bdc, Small_Turret Health 300, starting destroyed): cross held beside it filled the
+           target panel ("Auto-Turret", STDTEXT 0xB1) and the reticle's green arc in about 7.4 s, then the turret stood whole again
+           and raised its event 10014 (group 3) - 10 a shot every 0.25 s is 7.5 s.  [assumed: the nearest turret within MaxRange of
+           the soldier (the turret's size added), any side; a turret only - vehicles' RepairVehicle not done; DamageToInfantry 5 not done] */
+        p->rep_show -= dt; p->rep_t -= dt;
+        if ((in->held & AK_BTN_R) && p->alive && p->in_turret < 0 && p->in_veh < 0) {
+            const ak_bp_object *pj = repair_tool(p); f32 rng = ak_bp_float(pj, "MaxRange", 3), amt = ak_bp_float(pj, "RepairVehicle", 10);
+            s32 best = -1; f32 bd = 1e30f;
+            for (u32 i = 0; i < p->nturret; i++) { const ak_turret *t = &p->turret[i]; if (t->alive && t->health >= t->def->health) continue;
+                f32 dx = t->pos[0] - p->ch.pos[0], dz = t->pos[2] - p->ch.pos[2], d2 = dx * dx + dz * dz, r = rng + t->rad;
+                if (d2 < r * r && d2 < bd && fabsf(t->pos[1] - p->ch.pos[1]) < 4.0f) { bd = d2; best = (s32)i; } }
+            if (best >= 0) { p->rep_turret = best; p->rep_show = 1.0f;
+                if (p->rep_t <= 0) { p->rep_t += p->wdef.rate_of_fire > 0 ? p->wdef.rate_of_fire : 0.25f; if (p->rep_t < 0) p->rep_t = 0;
+                    ak_turret *t = &p->turret[best]; ak_target *g = &p->target[TT(p, (u32)best)];
+                    t->health = fminf(t->def->health, t->health + amt); g->health = t->health; g->max_health = t->def->health;
+                    if (!t->alive && t->health >= t->def->health) {
+                        t->alive = true; g->alive = true; t->enemy = -1;
+                        if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("play", "turret %x repaired", t->id);
+                        if (p->have_script && t->nev) ak_script_raise(&p->script, t->ev, t->nev, 10014, t->id, script_sink, p);
+                    } } }
+        } else if (p->rep_t < 0) p->rep_t = 0;
     } else if (p->armed) {
         ak_weapon_update(&p->weapon, dt, false);
         f32 gun[12], muz[3];
@@ -4080,7 +4155,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                     for (u32 i = 0; i < p->cq.nposts; i++) { if (p->match.post[i].owner != p->team) continue; const f32 *q = p->cq.post[i].pos; f32 dx = q[0] - sp[0], dz = q[2] - sp[2];
                         if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; p->player_post = (s32)i; } } }
                 p->target[0].alive = true; p->target[0].health = p->max_health; p->target[0].last_attacker = -1;
+                if (p->wsel) weapon_switch(p);                                /* a new soldier holds weapon 1, both full [assumed] */
                 if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
+                if (p->armed2) { ak_weapon_give(&p->weapon2, &p->wdef2); p->weapon2.team = p->team; p->weapon2.owner = 0; p->weapon2.heats = true; }
                 p->stamina = p->stamina_max; p->stamina_spent = false;   /* a new soldier */
             }
         }

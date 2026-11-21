@@ -486,6 +486,7 @@ int main(int argc, char **argv)
                         if (frame == at && strchr(bt, 'z')) in.pressed |= AK_BTN_TRIANGLE; /* z: zoom */
                         if (frame == at && strchr(bt, 'c')) in.pressed |= AK_BTN_SQUARE;   /* c: the secondary (pressed on its first frame) */
                         if (frame == at && strchr(bt, 'r')) in.pressed |= AK_BTN_RIGHT;    /* r: d-pad right (the lower slot: explosive / power-up) */
+                        if (frame == at && strchr(bt, 'h')) in.pressed |= AK_BTN_LEFT;     /* h: d-pad left (weapon 1 <-> 2) */
                         if (frame == at && strchr(bt, 'x')) { in.pressed |= AK_BTN_CROSS; in.held |= AK_BTN_CROSS; }   /* x: a tap of cross (pages) */
                         if (strchr(bt, 't')) in.held |= AK_BTN_TRIANGLE;            /* t: triangle held (the jetpack's rise) */
                     }
@@ -623,7 +624,7 @@ int main(int argc, char **argv)
                     play.ready = false;
                 } else if (ev == AK_FE_LOADOUT) {                           /* the customisation menu's loadout: the next soldier's */
                     int sel[8]; const char *nm[5]; ak_fe_loadout(sel, nm); char v[8];
-                    ak_setting_set("AK_WEAPON", nm[0] ? nm[0] : ""); ak_setting_set("AK_EXPLOSIVE", nm[2] ? nm[2] : ""); ak_setting_set("AK_POWERUP", nm[4] ? nm[4] : ""); ak_setting_set("AK_SPECIAL", nm[3] ? nm[3] : "");
+                    ak_setting_set("AK_WEAPON", nm[0] ? nm[0] : ""); ak_setting_set("AK_WEAPON2", nm[1] ? nm[1] : ""); ak_setting_set("AK_EXPLOSIVE", nm[2] ? nm[2] : ""); ak_setting_set("AK_POWERUP", nm[4] ? nm[4] : ""); ak_setting_set("AK_SPECIAL", nm[3] ? nm[3] : "");
                     snprintf(v, sizeof v, "%d", sel[5]); ak_setting_set("AK_HEALTH_LEVEL", v);
                     snprintf(v, sizeof v, "%d", sel[6]); ak_setting_set("AK_SPEED_LEVEL", v);
                     /* [assumed: Capture Speed Level n is the rate table's n (None the 1.0 measured at the menu's default)] */
@@ -789,7 +790,10 @@ int main(int argc, char **argv)
                     if (play.pu_sel && play.pu_kind >= 0 && play.pu_icon) {        /* the power-up in the lower slot (d-pad right): its icon, the recharge as the bar [assumed: the original's "Ready!" text not drawn] */
                         hs.weapon2 = play.pu_icon; hs.ammo2 = -1; hs.spare2 = -1; hs.weapon2_name = play.pu_name; if (play.pu_cool <= 0 && play.pu_t < 0) hs.weapon2_text = 0x9F; }
                     static bool was_alive; static f32 name_t = -1;
-                    if (play.alive && !was_alive) name_t = 0; else if (name_t >= 0) name_t += dt;   /* (the names show for 5 s after a spawn) */
+                    static int was_wsel;
+                    if ((play.alive && !was_alive) || play.wsel != was_wsel) name_t = 0; else if (name_t >= 0) name_t += dt;   /* (the names show for 5 s after a spawn,
+                                                                                    and after a switch - the original showed "Blaster Pistol" 2-3 s, harness ct22 [assumed: the same timer]) */
+                    was_wsel = play.wsel;
                     was_alive = play.alive;
                     hs.weapon_name = play.wdef.bp ? ak_bp_int(play.wdef.bp, "Weapon_Name", -1) : -1; hs.weapon2_name = play.pu_sel && play.pu_kind >= 0 ? play.pu_name : play.gren_name; hs.weapon_name_t = name_t; }
                 hs.prequel = strstr(levels[cur].path, "PREQUEL") != NULL;
@@ -883,6 +887,10 @@ int main(int argc, char **argv)
                     if (tgt >= 0 && play.target[tgt].alive) { hs.target = true; hs.target_health = play.target[tgt].health; hs.target_max = play.target[tgt].max_health;
                         if (tgt >= 1 && (u32)(tgt - 1) < play.nbots) { const ak_play_bot *tb = &play.bot[tgt - 1];   /* a soldier: its name */
                             hs.target_name = ak_hud_bot_name(play.team_faction[tb->team], tb->name, &hs.target_name_len); } }
+                    if (play.rep_show > 0 && play.rep_turret >= 0 && (u32)play.rep_turret < play.nturret) {   /* the fusion cutter's work: the turret's
+                                                                                    panel ("Auto-Turret" and its health, harness ct25) */
+                        const ak_turret *rt = &play.turret[play.rep_turret]; hs.target = true; hs.target_health = rt->health; hs.target_max = rt->def->health;
+                        if (rt->text) hs.target_name = ak_hud_stdtext(rt->text, &hs.target_name_len); }
                     {   /* the hit-direction marks: the player hurt - his attacker's position (089E3868 sends the source's) */
                         static f32 prev_h = -1; f32 h0 = play.target[0].health; s32 a = play.target[0].last_attacker;
                         if (prev_h >= 0 && h0 < prev_h && a > 0 && (u32)(a - 1) < play.nbots) {

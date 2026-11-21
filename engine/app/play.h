@@ -160,6 +160,11 @@ typedef struct {
     s32 lock; f32 lock_t, lock_range, lock_turn, lock_head_time;
     /* weapon */
     ak_weapon_def wdef; ak_weapon weapon; bool armed; ak_bolts bolts; u32 seed;
+    const ak_blueprints *bps;                                               /* (the game's blueprints, for lookups in play)*/
+    s32 rep_turret; f32 rep_t, rep_show;                                    /* the fusion cutter: the turret it works on, its shot clock,
+                                                                               how long the target panel stays */
+    ak_weapon_def wdef2; ak_weapon weapon2; bool armed2; int wsel;            /* weapon 2 (the customisation menu's second slot): held in
+                                                                                 wdef / weapon when chosen, the other one kept here */
     u32 grng[2];                       /* the game's shared random (r = r * 0x10000 + (r >> 16) + s; s += r; value r >> 1): the space commanders' rolls */
     f32 bones[64][12]; bool posed;     /* the body's pose this frame (the weapon and the muzzle ride it) */
     ak_play_bot *bot; u32 nbots;       /* (from the level arena) */

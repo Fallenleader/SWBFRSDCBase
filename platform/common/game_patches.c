@@ -207,6 +207,13 @@ static unsigned probe_fr;
 static int drive_player_pos(float out[3]);
 void rs_drive_report(FILE *f){
     fprintf(f, "pfr %u\n", probe_fr);
+    {   /* RS_FIRE_AT="F:group:sender;...": tests - the script fires that group (08879DB8, the script context 0x08B29170 as 08A11798
+           passes it) at the first report at or after drive frame F */
+        static char done[16]; const char *fa = getenv("RS_FIRE_AT"); extern u32 rs_drive_frame(void) __attribute__((weak));
+        if (fa && rs_drive_frame) { char buf[256]; snprintf(buf, sizeof buf, "%s", fa); int k = 0;
+            for (char *t = strtok(buf, ";"); t && k < 16; t = strtok(NULL, ";"), k++) { unsigned fr_, g, snd = 0x3E7;
+                if (sscanf(t, "%u:%u:%x", &fr_, &g, &snd) >= 2 && !done[k] && rs_drive_frame() >= fr_) { done[k] = 1;
+                    func_08879DB8(IMG(0x08B29170u), g, snd, 0.0f); fprintf(stderr, "[DRIVE] fired group %u (sender %x)\n", g, snd); } } } }
     {   float pp[3]; if (getenv("RS_DRIVE_PLAYER") && drive_player_pos(pp)) fprintf(f, "player %.2f %.2f %.2f\n", pp[0], pp[1], pp[2]); }
     {   /* RS_DRIVE_PEEK=a,b,...: words (hex addresses) as int and float */
         const char *pk = getenv("RS_DRIVE_PEEK");

@@ -92,6 +92,8 @@ AK_COLOUR1=-1
 AK_COLOUR2=-1
 # weapon (the faction's own version is used): BlasterRifle, BlasterPistol, Sniper Rifle, ... (empty = none)
 AK_WEAPON=BlasterRifle
+# weapon 2 (the customisation menu's Weapon 2; d-pad left switches between the two): BlasterPistol, Fusion Cutter, ... (empty = none)
+AK_WEAPON2=BlasterPistol
 # the AI soldiers' loadouts: 1 the game's (each bot draws one of its eight loadouts per life and picks the weapon per
 # target), 0 every bot carries AK_BOT_WEAPON
 AK_BOT_LOADOUTS=1
