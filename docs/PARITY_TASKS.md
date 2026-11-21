@@ -400,6 +400,11 @@ textures and how they are used. Section R lists only what must be in place so th
     after the trigger, then every 18 frames (RateOfFire 0.3); 15 per body hit, 60 per headshot (1.12); the reload starts with
     the shot that empties the clip and takes ReloadTime (2.25 s). Aurek now starts the reload on that shot (was the next pull).
   - The thrower is hurt by its own explosive (2.5).
+  - 2026-11-21, friendly fire measured (harness, Hoth, 2.5 min idle; RS_DMG_LOG now prints the victim's id and team (object
+    +12), the attacker's id is the message's +4, teams from RS_AI_BOTS_ALL): of 253 hits on soldiers and vehicles, 168 were across
+    the sides, 76 from unknown attackers (turrets, vehicles) on either side, 6 on neutral objects, and the only 3 within a side
+    were the victim's own explosive. No bolt hurt a team-mate - as Aurek (shots of the same team pass, no damage). Not settled:
+    whether a friendly body stops the bolt in the original (Aurek's pass through).
 
 ## 3. Vehicles
 
