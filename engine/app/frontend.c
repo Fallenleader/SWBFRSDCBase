@@ -562,6 +562,13 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
     f32 uvo[4]; const f32 *uv = w->uv;
     if (have_match && w->type == AK_GUI_IMAGE && w->name && picture_override(w, uvo)) { if (uvo[2] <= uvo[0]) return; uv = uvo; }
     if (in_row && w->fill.fn && w->fill.fn[0] && w->type == AK_GUI_IMAGE && lb_picture(w->fill.fn, lb_row, uvo)) { if (uvo[2] == uvo[0]) return; uv = uvo; }
+    if (gc_on && w->type == AK_GUI_IMAGE && w->name && !strcmp(w->name, "E_IM_Commander") && gc_cmdr(parent_name) >= 0 && gc_cmdr(parent_name) < 4) {
+        /* the side's commander from GC's own sheets (texture table 12-15: Alliance, greys, Empire, greys; cells by 08A4xxxx's draws:
+           commander k at u (k / 2) x 0.4219, v (k % 2) x 0.375, 0.4219 x 0.375) - in colour while available or bought, else greyed
+           [assumed: which sheet when] */
+        int c = gc_cmdr(parent_name); bool col = gc.cmdr_avail[c] || gc.cmdr_bought[c]; ak_gfx_tex *t = gc.portrait[col ? 0 : 1];
+        if (t) { f32 u0 = (f32)(c / 2) * 0.4219f, v0 = (f32)(c % 2) * 0.375f; ak_hud_2d_quad(t, x, y, x + w->size[0], y + w->size[1], u0, v0, u0 + 0.4219f, v0 + 0.375f, argb_of(w->rgba, a)); goto children; }
+    }
     if (w->type == AK_GUI_IMAGE && w->tex >= 0 && (u32)w->tex < gf.ntex && gtex[w->tex]) {
         const f32 *c = w->rgba;
         if (spawn_owner >= 0 && w->name && !strncmp(w->name, "E_IM_SpawnPoint", 15)) c = spawn_rgba[spawn_owner][w->name[15] == 'H'];
@@ -608,6 +615,7 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
             lb_row = keep_row; lb_selected = keep_sel;
         }
     }
+children:;
     bool f2 = is_button(w->type) ? (w->id == focus) : focused;
     const list_rows *keep = scroll; int keep_shown = scroll_shown; const char *keep_parent = parent_name; u32 keep_tint = child_tint; const char *keep_check = check_var; int keep_owner = spawn_owner;
     if (w->type == AK_GUI_BUTTON2 && w->binding && w->binding[0]) check_var = w->binding;

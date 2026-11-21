@@ -51,6 +51,7 @@ typedef struct {
     const u16 *acquired; u32 acquired_len;         /* "ACQUIRED" */
     const u16 *cmdr_name[4]; u32 cmdr_name_len[4];
     const u16 *info[13]; u32 info_len[13];         /* the focused item's line: tech kind x 3 + level, then 9 + commander */
+    void *portrait[2];                             /* (ak_gfx_tex) the side's commanders: in colour, greyed */
 } ak_fe_gc;
 bool ak_fe_open_gc(const char *page, const ak_fe_gc *g);
 void ak_fe_set_gc(const ak_fe_gc *g);

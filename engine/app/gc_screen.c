@@ -127,7 +127,9 @@ bool ak_gc_screen_init(ak_gc_screen *s, ak_vfs *vfs, const ak_level *l, const ak
     static const char *const tn[GCT_N] = { "\\graphics\\GUI\\GC_Elements\\GC_Tech_Elements.tga", "\\graphics\\GUI\\GC_Elements\\GC_Tech_Elements_02.tga",
         "\\graphics\\GUI\\PSP_Button_Icons\\button_square.tga", "\\graphics\\GUI\\PSP_Button_Icons\\button_triangle.tga",
         "\\graphics\\GUI\\PSP_Button_Icons\\button_x.tga", "\\graphics\\GUI\\PSP_Button_Icons\\button_select.tga",
-        "\\graphics\\gui\\psp_button_icons\\button_circle.tga", "\\graphics\\GUI\\PSP_Button_Icons\\button_r1.tga" };
+        "\\graphics\\gui\\psp_button_icons\\button_circle.tga", "\\graphics\\GUI\\PSP_Button_Icons\\button_r1.tga",
+        "\\graphics\\gui\\gc_elements\\gc_alliance_commanders.tga", "\\graphics\\GUI\\GC_Elements\\GC_Alliance_Commanders_Greys.tga",
+        "\\graphics\\GUI\\GC_Elements\\GC_Empire_Commanders.tga", "\\graphics\\GUI\\GC_Elements\\GC_Empire_Commanders_Greys.tga" };
     for (int i = 0; i < GCT_N; i++) { s32 k = ak_level_find_texture(l, tn[i]); s->tex[i] = k >= 0 && sc->tex ? sc->tex[k] : NULL; }
     if (getenv("AK_DEBUG_GC_TEX")) for (int i = 0; i < GCT_N; i++) fprintf(stderr, "[gc] tex %d %s\n", i, s->tex[i] ? "ok" : "missing");
     for (int p = 0; p < AK_GC_PLANETS && s->cursor < 0; p++) if (s->g.planet[p].owner == 0) s->cursor = p;   /* [assumed] the first own planet */
@@ -483,6 +485,7 @@ void ak_gc_screen_tech(const ak_gc_screen *s, ak_fe_gc *o)
         o->cmdr_name[c] = ak_gc_text((u32)((evil ? 0x2C : 0x30) + c), &o->cmdr_name_len[c]);
     }
     o->acquired = ak_gc_text(0x4F, &o->acquired_len);
+    o->portrait[0] = s->tex[evil ? GCT_EMP : GCT_ALL]; o->portrait[1] = s->tex[evil ? GCT_EMP_GREY : GCT_ALL_GREY];
     for (int l = 0; l < 3; l++) { int v = s->r.troop_cap[l]; tlen[l] = fmt_line(tline[l], 160, (u32)(0x20 + l), &v, 1); }
     { int v = 20; tlen[3] = fmt_line(tline[3], 160, 0x23, NULL, 0); tlen[4] = fmt_line(tline[4], 160, 0x24, &v, 1); tlen[5] = fmt_line(tline[5], 160, 0x25, NULL, 0); }
     for (int l = 0; l < 3; l++) tlen[6 + l] = fmt_line(tline[6 + l], 160, (u32)((evil ? 0x29 : 0x26) + l), NULL, 0);

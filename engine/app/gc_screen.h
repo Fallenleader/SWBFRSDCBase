@@ -17,7 +17,7 @@
 #include "platform/plat.h"
 #include "app/frontend.h"
 
-enum { GCT_TECH, GCT_TECH2, GCT_SQUARE, GCT_TRIANGLE, GCT_CROSS, GCT_SELECT, GCT_CIRCLE, GCT_R1, GCT_N };
+enum { GCT_TECH, GCT_TECH2, GCT_SQUARE, GCT_TRIANGLE, GCT_CROSS, GCT_SELECT, GCT_CIRCLE, GCT_R1, GCT_ALL, GCT_ALL_GREY, GCT_EMP, GCT_EMP_GREY, GCT_N };
 typedef struct {
     bool ready;
     ak_gc g; ak_gc_rules r;
