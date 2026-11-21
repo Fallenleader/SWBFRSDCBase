@@ -1073,6 +1073,21 @@ textures and how they are used. Section R lists only what must be in place so th
     Tag (GTAG, mode 4), CTF in space (400 m pickup, flyers), Galactic Conquest and the campaign rules.  The modes' names come
     from STDTEXT (Conquest, 1-Flag CTF, 2-Flag CTF, Hero CTF, Gungan Tag, Galactic Conquest); CTF1's bases sit in the enemy's
     base area, which is how "take the neutral flag to the enemy base" matches the base-side rule.
+  - Part 6, 2026-11-21 - **Galactic Conquest rules, first slice** (game/ak_gc.{h,c}; test `akbp COMMON.ASR -gc SEED [TURNS]`).
+    Traced: the planet table 0x08B1C34C (16 x 44 bytes: STDTEXT name 74-89, sector, neighbours, credit bonus, space / ground
+    level), sectors 0x08B1C60C (STDTEXT 90-93, bonus; keys Expansion / Corporate / MidRim / OuterRim), the getters 08A43264-
+    08A436C0 (live values via RS_GC_PROBE: caps 50 / 80 / 100 - MaxLevel1-3 looked up in Costs -, costs 300 / 500, 500 / 1000,
+    500 / 700, commanders 700 / 500 / 300 / 500, credits 500, extra planets 3, homes 150, others 40, max home 150, the battle
+    bonuses), the new game 08A377D4, income 08A391D8, sectors and commanders 08A3B590, tech / commander buying 08A39AAC /
+    08A39BA0 (commander 2 halves both prices), troop buying (08A386C4 state 3: at home, 1 credit each, tens), the move 08A39FDC
+    (own planet: room cap; neutral: occupied; enemy: battle, the attackers leave at the confirm 08A3A1D0), the turn's states
+    (08A38138: 1 treasury, 2 next side, 3 purchase, 4 move, 5 battle, 6 battle sim, 7 results, 8 reinforce, 9 game over),
+    the auto-resolve 08A3A47C (tick 0.01 s, D_08B1C2D8), the battle level 08A3A2B8 and the results 08A3A5CC. Open: the menus and
+    map screen (GUIMENU/BFF_GALACTICCONQUEST.GUI pages MP_TechPurchase, MP_Quit, MP_Win_*, MP_ConfirmQuit; the map itself
+    is drawn by code 08A44xxx-08A4Axxx), the GC AI (08A3D8A0 / 08A3E044 / 08A3F708 / 08A3FB1C; tuning 0x08B1C308: optimism
+    0.62, min attack probability 0.45, treasury 0.25, planet / region credit 0.85, ...), played battles (troops become the
+    match's reinforcements DAT_08C29330 / 34; survivors from 0x08C28F88), Thrawn / Ackbar's second attack (+0x7F / +0x80),
+    draws (08A3BE90 picks the side) [assumed: the attacker], the RNG seeds [assumed], saving (08A37D04 / 08A37E54), medals.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

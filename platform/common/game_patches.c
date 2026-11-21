@@ -857,11 +857,27 @@ void rs_crash_log(u32 v, u32 other, float sp_){
     void *bt[4]; int n = backtrace(bt, 4);
     fprintf(stderr, "[CRASH] fr %u veh %08x other %x speed %.2f driver %08x f34c %08x f354 %08x f348 %x from %p\n", probe_fr, v, other, sp_, GU32(v + 0x1B4), GU32(v + 0x34C), GU32(v + 0x354), GU32(v + 0x348), n > 2 ? bt[2] : 0);
 }
+void rs_gc_probe(void);
 /* (6.5) tests: RS_HERO_FAST=N - each side's hero countdown (D_08C28FAC[side], 08974318) cut to N seconds once, at the match start */
 void rs_hero_fast(void){
+    rs_gc_probe();
     static int n = -2; if (n == -2) { const char *e = getenv("RS_HERO_FAST"); n = e ? atoi(e) : -1; } if (n < 0) return;
     static int done[2];
     for (int k = 0; k < 2; k++) { u32 a = IMG(0x08C28FACu) + 4u * (u32)k; if (!done[k] && GF32(a) > (float)n) { fprintf(stderr, "[HERO] side %d countdown %.1f -> %d\n", k, GF32(a), n); GF32(a) = (float)n; done[k] = 1; } }
+}
+/* (5.4 GC) RS_GC_PROBE=1: the Galactic Conquest blueprint getters' live values, once at the match start (08A43264 family) */
+void rs_gc_probe(void){
+    static int done = -1; if (done < 0) done = getenv("RS_GC_PROBE") ? 0 : 1; if (done) return; done = 1;
+    extern u64 func_08A4326C(u32, u32); extern u32 func_08A43360(u32), func_08A43494(u32), func_08A43528(void), func_08A4356C(void),
+        func_08A435B0(void), func_08A435F4(void), func_08A43638(void), func_08A4367C(void), func_08A436C0(u32, u32, u32, u32);
+    extern rv_t func_08A43404(void), func_08A4344C(void);
+    for (u32 t = 0; t < 3; t++) for (u32 l = 0; l < 3; l++) fprintf(stderr, "[GC] techcost %u %u = %u\n", t, l, (u32)func_08A4326C(t, l));
+    for (u32 c = 0; c < 4; c++) fprintf(stderr, "[GC] commandercost %u = %u\n", c, func_08A43360(c));
+    for (u32 l = 0; l < 3; l++) fprintf(stderr, "[GC] troopcap %u = %u\n", l, func_08A43494(l));
+    fprintf(stderr, "[GC] maxhome %u sectorbonus %u credits %u extra %u inithome %u initnonhome %u techbonus %.3f commbonus %.3f\n",
+        func_08A43528(), func_08A4356C(), func_08A435B0(), func_08A435F4(), func_08A43638(), func_08A4367C(), func_08A43404().f0, func_08A4344C().f0);
+    for (u32 i = 0; i < 3; i++) for (u32 s = 0; s < 3; s++) for (u32 c = 0; c < 2; c++) for (u32 sp = 0; sp < 2; sp++)
+        fprintf(stderr, "[GC] sim inf %u space %u comm %u spacebattle %u = %u\n", i, s, c, sp, func_08A436C0(i, s, c, sp));
 }
 /* (tests) who calls a hooked function: each distinct native return address once (RS_CALLER_LOG; resolve with addr2line -f) */
 void rs_caller_log(const char *fn, u32 a0){
