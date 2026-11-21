@@ -728,7 +728,7 @@ void rs_ai_dmg_pre(u32 o, u32 msg){ { extern u32 rs_cen_dmg; rs_cen_dmg++; }
     { static int dl = -1; if (dl < 0) dl = getenv("RS_DMG_LOG") != 0;   /* the hit message's words and the native call chain (finding the sender) */
       if (dl && msg) { void *bt[8]; int n = backtrace(bt, 8); fprintf(stderr, "[DMG] fr %u o %08x id %x team %u msg", probe_fr, o, gok(o) && gok(GU32(o)) ? obj_id(o) : 0, gok(o) ? GU32(o + 12) : 0);
         for (int k = 0; k < 8; k++) fprintf(stderr, " %08x", GU32(msg + 4u * (u32)k));
-        fprintf(stderr, " bt"); for (int k = 1; k < n; k++) fprintf(stderr, " %p", bt[k]); fprintf(stderr, "\n"); } } dmg_tgt = o; dmg_hp = obj_health(o); (void)msg; }
+        fprintf(stderr, " m128 %.3f", gok(o) ? GF32(o + 128) : 0.0f); fprintf(stderr, " bt"); for (int k = 1; k < n; k++) fprintf(stderr, " %p", bt[k]); fprintf(stderr, "\n"); } } dmg_tgt = o; dmg_hp = obj_health(o); (void)msg; }
 void rs_ai_dmg_post(u32 o, u32 msg){
     if (o != dmg_tgt || !msg || !gok(o) || !gok(GU32(o))) return;
     struct rs_ai_evt e = { obj_id(o), GU32(msg + 4), GF32(msg + 12), dmg_hp, obj_health(o), GU32(msg) };
