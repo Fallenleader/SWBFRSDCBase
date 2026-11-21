@@ -14233,6 +14233,7 @@ rv_t func_089A51A8(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u8 stack_[64] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 64);
 L_089A51A8:;
+    { extern void rs_animmsg_log(u32, u32); rs_animmsg_log(a0, a1); }   /* harness measurement (RS_ANIMMSG_LOG, PARITY 6.1; hand-added) */
     sp = sp - 64;
     s3 = a0 + 0;
     s2 = a1 + 0;

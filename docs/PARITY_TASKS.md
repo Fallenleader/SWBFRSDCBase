@@ -1016,6 +1016,12 @@ textures and how they are used. Section R lists only what must be in place so th
     jump 8, land 10, fall 12), the deaths (21-23) and rolls (24-27) from the set, the shoot layer from the alert set's column 1 and
     a reload layer from column 2 while reloading.  Pistols and launchers now hold their own poses.  Open: crouching (no crouch in
     Aurek), the idle variations (rows 18 / 19), hit reactions (13-16), death 20 (front), the layers' blend rules.
+  - 2026-11-21, hit reactions looked for: in the soldier code only three functions name table rows outright - the idle
+    variations (08998828: 18 / 19, and 16), the rolls (089A392C: rows 24-27 from the controls 12-15, or 33-36 for a 089DE500
+    body) and 089A51A8, a state that plays the row a message names (+0xC; it also sets the soldier's +0x208 bit 4 as the roll
+    does). In the harness (Hoth, the player among the enemy for 66 s, 99 hits on soldiers - RS_ANIMMSG_LOG, a hand hook on
+    089A51A8) that state never started. So hits play no reaction row in conquest [measured on Hoth]; who sends 089A51A8's message
+    is not found (scripted moments?). Left: the layers' blend rules.
 - [x] **6.2 Skinning [missing].** v2 meshes (Taun-Taun, Vader, the cone, flags) are drawn rigid in the bind pose.
   - Done 2026-11-19: the weighted meshes have been skinned since 1.8 (render/ak_scene.c draw_skinned); what was missing was their
     motion.  The CTF flags now flap (flag_Flapping, flag_Flapping_Backattch while carried).  Creatures (the Taun-Taun) play their
@@ -1125,8 +1131,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - Ticket logos: tinted by side (08A5B80C: ours ABGR 0xFFFF0000 blue, theirs 0xFF0000FF red) - done 2026-11-20.
   - Jetpack and shield bars.
   - The unmanned turret's hit source.
-  - Hit direction: message 0x8050 (089E3868) leaves the attacker's position at the player controller +0x94 (08A09928). The HUD
-    function that draws it from there is not traced; Aurek draws no hit-direction mark yet.
+  - Hit direction: message 0x8050 (089E3868) leaves the attacker's position at the player controller +0x94 (08A09928). Done
+    (the line was stale, checked 2026-11-21): the element is traced (NATIVE_ENGINE 1.10 row: 08A541E8 / 08A547B8 / 08A543C8 /
+    08A548C8 / 08A54E4C) and built (hud.c hit_marks, fed from viewer.c when the player loses health to a bot - its vehicle's
+    position when it drives). Open: hits from turrets and other non-bot sources make no mark (the unmanned turret's source, below).
   - World markers (08A55238) - traced 2026-11-15 (NATIVE_ENGINE 1.10 row, "World tags"): names over enemy human players,
     emblems over friendly ones, markers over carriers (+0x90); none apply against bots in conquest, so nothing is drawn. [ ] With
     the flag carriers of CTF (Aurek's CTF has no carrier marker yet).

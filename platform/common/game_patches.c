@@ -839,6 +839,12 @@ void rs_vspawn_tick(u32 sp_){
       if (fabsf(GF32(sp_ + 0x48) - x) > 1.0f) return; }
     fprintf(stderr, "[VTICK] fr %u clock %.4f near %u slots %u %u %u %u dt %.5f\n", probe_fr, GF32(sp_ + 0x74), GU8(sp_ + 0x90), GU32(sp_ + 0x60), GU32(sp_ + 0x64), GU32(sp_ + 0x68), GU32(sp_ + 0x6C), GF32(0x08B285A0));
 }
+/* (6.1) the soldier state that plays a table row named by a message (089A51A8: a1 -> the message, row at +0xC): RS_ANIMMSG_LOG */
+void rs_animmsg_log(u32 st, u32 msg){
+    static int on = -1; if (on < 0) on = getenv("RS_ANIMMSG_LOG") != 0; if (!on || !msg) return;
+    void *bt[4]; int n = backtrace(bt, 4);
+    fprintf(stderr, "[ANIMMSG] fr %u state %08x row %u w %08x %08x %08x %08x %08x %08x from %p %p\n", probe_fr, st, GU32(msg + 0xC), GU32(msg), GU32(msg + 4), GU32(msg + 8), GU32(msg + 0x10), GU32(msg + 0x14), GU32(msg + 0x18), n > 2 ? bt[2] : 0, n > 3 ? bt[3] : 0);
+}
 /* (tests) who calls a hooked function: each distinct native return address once (RS_CALLER_LOG; resolve with addr2line -f) */
 void rs_caller_log(const char *fn, u32 a0){
     static int on = -1; if (on < 0) on = getenv("RS_CALLER_LOG") != 0; if (!on) return;
