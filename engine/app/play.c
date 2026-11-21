@@ -715,7 +715,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 40 || (ak_rd32(c.body + 4) & 0xFFFFu) != 0x8013) continue;
             u32 nw = c.size / 4, cnt = ak_rd32(c.body + 16); if (cnt > 8 || 9 + cnt > nw) continue;
             typeof(p->obj[0]) *o = &p->obj[p->nobj++]; memset(o, 0, sizeof *o); o->id = ak_rd32(c.body);
-            o->link = ak_rd32(c.body + 4 * (5 + cnt));
+            o->link = ak_rd32(c.body + 4 * (5 + cnt)); o->text = 9 + cnt < nw ? (ak_rd32(c.body + 4 * (9 + cnt)) >> 5) & 0xFFFu : 0xFFFu;
             for (int k = 0; k < 3; k++) { u32 w = ak_rd32(c.body + 4 * (6 + cnt + k)); memcpy(&o->pos[k], &w, 4); }
             o->nev = ak_script_events(l, o->id, 2, o->ev, 8);
         }
@@ -2905,7 +2905,12 @@ static void script_sink(void *user, const ak_script_msg *m)
         if (!p->veh[v].alive && vehicle_make(p, v)) { p->vspawn[v].route_d = 0; if (p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 10007, p->vspawn[v].eid, script_sink, p); }
     }
     if (!done) for (u32 k = 0; k < p->nobj; k++) if (p->obj[k].id == m->target) {   /* an objective marker (089F05BC) */
-        if (m->type == 3) p->obj[k].active = true; else if (m->type == 4) p->obj[k].active = false;
+        if (m->type == 3 || m->type == 4) {
+            p->obj[k].active = m->type == 3; if (m->type == 3) p->obj[k].order = ++p->obj_order;
+            /* the objective line: the latest active objective with a text [assumed: the HUD's pick - its reader not traced] */
+            s32 best = -1; for (u32 q = 0; q < p->nobj; q++) if (p->obj[q].active && p->obj[q].text != 0xFFFu && (best < 0 || p->obj[q].order > p->obj[best].order)) best = (s32)q;
+            u32 n = 0; const u16 *t = best >= 0 ? ak_hud_mission_text(p->obj[best].text, &n) : NULL; ak_hud_objective(t, n);
+        }
         else if ((m->type == 0x8008 || m->type == 0x8009) && p->have_script) ak_script_raise(&p->script, p->obj[k].ev, p->obj[k].nev, m->type == 0x8008 ? 10009 : 10010, m->target, script_sink, p);
         else break;
         done = true; break; }

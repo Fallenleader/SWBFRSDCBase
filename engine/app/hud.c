@@ -140,6 +140,27 @@ static void load_stdtext(ak_vfs *vfs)
 }
 static const u16 *stdtext_get(u32 id, u32 *len) { if (!stdtext || id >= nstd || !stdtext[id]) { *len = 0; return NULL; } *len = stdlen[id]; return stdtext[id]; }
 const u16 *ak_hud_stdtext(u32 id, u32 *len) { return stdtext_get(id, len); }
+/* TEXT/MISSIONOBJECTIVES.ASR: PTXT per language - u32 hash, u32 n, u32 language, "MissionObjectives" (padded to 4), n x { u32 length
+   with the 0, UTF-16 } (103 entries; the objectives 0x00-0x27, the training's steps 0x60-0x64) */
+static u16 **mission; static u32 *mislen, nmis;
+static void load_mission(ak_vfs *vfs)
+{
+    ak_blob b; if (!ak_vfs_read(vfs, "PSP_GAME/USRDIR/TEXT/MISSIONOBJECTIVES.ASR", &mem, &b) || !ak_asura_check(&b)) return;
+    u32 pos = 8; ak_chunk c; int lang = ak_setting_int("AK_LANGUAGE", 0);
+    while (ak_asura_next(&b, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('P', 'T', 'X', 'T') || c.size < 16 || (int)ak_rd32(c.body + 8) != lang) continue;
+        u32 n = ak_rd32(c.body + 4), p = 12; p += ((u32)strnlen((const char *)c.body + p, c.size - p) + 1 + 3) & ~3u; if (n > 1024) break;
+        mission = ak_arena_alloc(&mem, n * sizeof *mission, 8); mislen = ak_arena_alloc(&mem, n * 4, 4); if (!mission || !mislen) break;
+        for (u32 i = 0; i < n && p + 4 <= c.size; i++) {
+            u32 len = ak_rd32(c.body + p); p += 4; if (p + len * 2 > c.size) break;
+            mission[i] = ak_arena_alloc(&mem, (len + 1) * 2, 2); mislen[i] = len ? len - 1 : 0;
+            if (mission[i]) for (u32 k = 0; k < len; k++) mission[i][k] = ak_rd16(c.body + p + k * 2);
+            p += len * 2; nmis = i + 1;
+        }
+        break;
+    }
+}
+const u16 *ak_hud_mission_text(u32 id, u32 *len) { if (!mission || id >= nmis || !mission[id]) { *len = 0; return NULL; } *len = mislen[id]; return mission[id]; }
 const u16 *ak_hud_post_name(s32 i, u32 *len) { if (i < 0 || (u32)i >= ncp) { *len = 0; return NULL; } *len = cplen[i]; return cpname[i]; }
 static void load_cpnames(ak_vfs *vfs)
 {
@@ -205,7 +226,7 @@ bool ak_hud_load(ak_vfs *vfs)
     scope_first = nspr; scope_n = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/SNIPER.ASR");   /* the zoom view's scope (CHUD_Zoom_Scope, 128 x 128) */
     fontp = &fonts[1]; load_font(vfs, "Cond_13"); fontp = &fonts[0];
     bool f = load_font(vfs, "Cond_9");
-    load_cpnames(vfs); load_stdtext(vfs); load_botnames(vfs);
+    load_cpnames(vfs); load_stdtext(vfs); load_mission(vfs); load_botnames(vfs);
     ready = n > 0;
     AK_INFO("hud", "%u HUD pictures, %u + %u weapon icons, font %s (%u glyphs), %u post names, %u texts", n, wpn_n[0], wpn_n[1], f ? "Franklin Gothic Medium Cond 9" : "missing", font.n, ncp, nstd);
     return ready;
@@ -458,6 +479,8 @@ static msg_slot msgs[5][4]; static u32 msg_head[5];
 static const f32 msg_box[5][4] = { { 5, 5, 130, 272 }, { 5, 5, 130, 272 }, { 5, 5, 130, 272 }, { 135, 65, 345, 272 }, { 135, 160, 345, 272 } };
 static const u32 msg_colour[5] = { 0xBF7F2F2Fu, 0xFF00FF00u, 0xFFFF0000u, 0xFFFFFFFFu, 0xFFFFFFFFu };
 
+static u16 obj_text[MSG_LEN]; static u32 obj_n;
+void ak_hud_objective(const u16 *t, u32 n) { obj_n = 0; for (u32 i = 0; t && i < n && obj_n < MSG_LEN - 1; i++) obj_text[obj_n++] = t[i]; }
 void ak_hud_messages_clear(void) { memset(msgs, 0, sizeof msgs); memset(msg_head, 0, sizeof msg_head); }
 
 void ak_hud_message(int ch, u32 id, const u16 *arg, u32 an)
@@ -508,6 +531,7 @@ static void messages(f32 dt, bool alive)
         if (ch == 4) {
             f32 tot = 0;
             for (u32 k = 0; k < 4; k++) { msg_slot *s = &msgs[ch][(msg_head[ch] + k) & 3]; if (s->on && s->t + dt < s->life) tot += text16_box(msg_box[ch][0], 0, msg_box[ch][2], 0.75f, 0, s->text, s->n, false, true); }
+            if (obj_n) tot += text16_box(msg_box[ch][0], 0, msg_box[ch][2], 0.75f, 0, obj_text, obj_n, false, true);   /* the campaign's objective line, kept at the bottom of the stack */
             y = msg_box[ch][1] + (msg_box[ch][3] - msg_box[ch][1]) - tot - 15.0f;
         }
         for (u32 k = 0; k < 4; k++) {
@@ -516,6 +540,10 @@ static void messages(f32 dt, bool alive)
             if (s->t >= s->life) { s->on = false; if (((msg_head[ch] + k) & 3) == msg_head[ch]) msg_head[ch] = (msg_head[ch] + 1) & 3; continue; }
             if (ch >= 3) text_box(y, text16_box(msg_box[ch][0], y, msg_box[ch][2], 0.75f, 0, s->text, s->n, false, true), msg_colour[ch]);
             y += text16_box(msg_box[ch][0], y, msg_box[ch][2], 0.75f, msg_colour[ch], s->text, s->n, true, ch >= 3);   /* (0x182 / 0x184) */
+        }
+        if (ch == 4 && obj_n) {
+            text_box(y, text16_box(msg_box[ch][0], y, msg_box[ch][2], 0.75f, 0, obj_text, obj_n, false, true), msg_colour[ch]);
+            y += text16_box(msg_box[ch][0], y, msg_box[ch][2], 0.75f, msg_colour[ch], obj_text, obj_n, true, true);
         }
     }
 }

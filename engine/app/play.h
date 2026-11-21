@@ -205,7 +205,7 @@ typedef struct {
     /* the campaign's objective markers (class 0x8013, 089F0424; record 089F0A10: base version, u32, count x {event, group}, link,
        position (game axes), ...): 3 / 4 show / hide [assumed: the display follows the active flag], 0x8008 / 0x8009 raise their
        events 10009 / 10010 (089F05BC) */
-    struct { u32 id, link; bool active; f32 pos[3]; u32 ev[8], nev; } obj[48]; u32 nobj;
+    struct { u32 id, link, text, order; bool active; f32 pos[3]; u32 ev[8], nev; } obj[48]; u32 nobj, obj_order;   /* text: 089F0924's bits 5-16 of the flags word, a MISSIONOBJECTIVES entry (0xFFF none) */
     f32 oob_min[3], oob_max[3]; bool have_oob, oob_out; f32 oob_msg_t;
     f32 pil_min[3], pil_max[3]; bool have_pil;   /* the AI pilots' box (ENTI 0x8021 with flags byte 1 = 1, 08A145E4(1)): the patrol's (0894B7D8) */   /* the battlefront's bounds (ENTI 0x8021, 089D4BDC): outside - the warning */
     ak_ctf_map ctf_map; ak_ctf ctf; bool have_ctf; s32 flag_model[AK_CTF_MAX], flag_clip[2];   /* flag_clip: flag_Flapping, flag_Flapping_Backattch */   /* capture the flag (AK_MODE CTF1 / CTF2 / HCTF) */

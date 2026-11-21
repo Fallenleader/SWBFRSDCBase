@@ -60,6 +60,10 @@ bool ak_hud_load(ak_vfs *vfs);
  * replaced by `arg` (UTF-16, e.g. a post's name; NULL none); it stays 4 s a line, less 1 */
 void ak_hud_message(int channel, u32 text, const u16 *arg, u32 arg_len);
 void ak_hud_messages_clear(void);
+/* the campaign's objective line (style 4's box, staying while set; NULL / 0 clears) [assumed: style 4 - its box sits where the
+   original's frame shows it] */
+void ak_hud_objective(const u16 *t, u32 n);
+const u16 *ak_hud_mission_text(u32 id, u32 *len);   /* TEXT/MISSIONOBJECTIVES.ASR entry */
 /* the player was hurt from `src` (engine space; the attacker's position: message 0x8050, 089E3868) - the hit-direction marks */
 void ak_hud_hit(const f32 src[3]);
 /* a post's name (TEXT/CPNAMES.ASR entry `i`) */

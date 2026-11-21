@@ -1198,6 +1198,9 @@ textures and how they are used. Section R lists only what must be in place so th
     0x8023 shown. Next: the objectives (MISSIONOBJECTIVES.ASR; which message sets the line), the 0x8013 markers (ring + chevrons),
     named objects (type 3) and cut-scenes (CUTS), 0x8017 / 0x8021, the level's end and the next level (0x08C29918 + 1), the HUD
     without tickets in the campaign [to check], the difficulty-gated ticket messages (08979DF4).
+  - Part 23, 2026-11-21 - **campaign objective line**: 0x8013's flags word (089F0924) bits 5-16 = the MISSIONOBJECTIVES.ASR id
+    (0xFFF = none); messages 3 / 4 activate / deactivate. The latest active objective's text is shown persistently in the bottom
+    box of HUD style 4 (matches the original's training frame; 'latest activated wins' [assumed]).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
