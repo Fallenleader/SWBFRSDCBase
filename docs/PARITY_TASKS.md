@@ -486,6 +486,16 @@ textures and how they are used. Section R lists only what must be in place so th
   building.  The candidate test (089CA734): the angle to the target (acos of the clamped dot) under LockAngle - as Aurek's choice.  Was: Verify HardpointW2 and the lock rules against the original. The docs list them as
   "not yet" (stale).
 - [ ] **3.7 Space [partial].** Capital ship turrets (ENTI type 30), the pilots' dogfight states, and hangar and shield rules.
+  - Traced 2026-11-21 - **how a space match ends** (the level script, game/ak_script.c; Space Alderaan's groups as the example):
+    a damageable object whose damage is relayed (08A069F8: shield first (+0x1C / +0x20), then, when 08A06E00 says so, the hit goes
+    on as 0x8053 {the 32-byte hit} to its linked object) feeds a class 0x800E object (ENTI type 14, 089F0FB0; one per capital
+    ship: 1896B / 1896C).  0x800E's handler (089F1298) takes the hit off its hull (+0x58, at most D_08ADEA7C) and raises event
+    10011 when the hull reaches 0; 0x800D / 0x800E set its +0x61.  Its table sends the group (Alderaan g10 / g100): counter 18768 /
+    18764 +1, 0x8020 {5, team} to the ticket entity, 5 to a 0x802B object.  At 6 the counter fires g8 / g7: 0x8009 to a 0x8013 object
+    (1892C / 1892A, ENTI type 19, 089F05BC: 0x8009 raises 10010, 0x8008 10009), whose table sends 0x8006 {1, team, 0, text hash
+    0x76ECF915} to the ticket entity (g88 now, g87 after 5 s) - 0897392C ends the match for that team.  Open: which objects relay
+    to the 0x800E (the ship's parts), why the counter needs 6 raises (does the hull refill?), and the ticket entity's 0x8020.
+    Aurek has no damageable capital ships yet, so none of this runs.
   - Harness: Space Hoth is planet row 17 (`--planet 17`); the space team and spawn screens are recognised
     (`team_select_space`, `spawn_map_space`), and `--spawn N` picks the spawn list's entry.  The Rebel player starts on foot
     in the hangar (1365.5, 18.8, 91.6); the starfighters stand at x 1352 (objects 30d4e..30d51); `--tp 60:1356,18.8,88`
@@ -673,7 +683,9 @@ textures and how they are used. Section R lists only what must be in place so th
     (089F05BC), 10011 0x800E (089F1298), 10012 flags (089F001C), 10013 / 10015 vehicle spawns (08A16BC0 / 08A16CA0),
     10014 turrets (089BC764), 5-10 AI hint points (08861204 / 08861948).
     Open: type 33 objects (Hoth's start activates four), what a walker does with its path nodes' 0x3B / 0x51 / 0x4C (the node
-    passes them on, 08855908), music after the start, space match end (0x800E 10011 -> 0x8013 10010 -> 0x8006 to the ticket
+    sets / clears its flag 0x40 and passes them to its link, 08855908; the walker spawner passes 0x1B-0x1C, 0x39-0x3C, 0x3E-0x40,
+    0x4C, 0x4E-0x4F, 0x51 to its walker, 0897F2B8; the walker's own handler is not found yet - Hoth sends 0x3B to nodes 18875 /
+    18877 / 18879 when the Empire takes posts 187EE / 187ED / 187EF and 0x51 when the Alliance does), music after the start, space match end (0x800E 10011 -> 0x8013 10010 -> 0x8006 to the ticket
     entity: 0897392C ends the match), campaign objects (0x3E8 game messages 0x8015-0x801F, spawn places 35 / 36, FMV).
   - Still open in 5.4 (left for later passes): HCTF's heroes as flag holders (the loading hints: kill the enemy hero to take
     the flag; mode 3 lets anyone carry and returns a side's own flag at its own base - who gets the flag is not traced), Gungan
