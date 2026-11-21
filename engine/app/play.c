@@ -569,6 +569,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         if (!ok) return false;
     }
     p->seed = 12345;
+    p->grng[0] = 0x2545F491u; p->grng[1] = 0x9E3779B9u;   /* [assumed] the game's seed is not traced */
     {   /* particle effects (R.6): the level's FXET / FXST / FXPT, drawn from its \specialfx\partclfx.tga sheet */
         p->pfx_on = ak_setting_int("AK_PFX", 1) != 0;
         p->pfx_tex_index = ak_level_find_texture(l, "\\specialfx\\partclfx.tga");
@@ -605,6 +606,9 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     {   const ak_bp_object *wb = ak_bp_find(bp, "Weapon", "Base");               /* elite: an AI's damage to the local player x this too (089E1FDC) */
         p->elite_mul = wb ? ak_bp_float(wb, "Modifier_Bot_Damage_Elite_Global", 1.0f) : 1.0f; }
     p->free_flight = ak_space_load(l, &p->space);                               /* (any space map: flyers may boost) */
+    if (ak_setting_int("AK_DEBUG_BOTVEH", 0) && p->space.nobj) { u32 c[2][3] = { { 0 } };   /* (tests: the objectives by team and kind) */
+        for (u32 i = 0; i < p->space.nobj; i++) { const ak_space_obj *o = &p->space.obj[i]; if (o->team >= 0 && o->team < 2 && o->kind >= 0 && o->kind < 3) c[o->team][o->kind]++; }
+        AK_INFO("botveh", "objectives: team 0 hangar %u run1 %u run2 %u, team 1 hangar %u run1 %u run2 %u", c[0][0], c[0][1], c[0][2], c[1][0], c[1][1], c[1][2]); }
     p->is_space = p->free_flight && p->space.nobj > p->space.nhangar;   /* space maps: attack runs on capital ships (Hoth has 2 hangar runs only) */
     for (u32 i = 0; i < AK_MAX_OBJECTIVES; i++) p->obj_unit[i] = -1;
     p->team = ak_setting_int("AK_TEAM", ak_faction_team(p->look.faction) + 1) == 2;
@@ -2001,6 +2005,12 @@ static s32 pick_obj(const ak_play *p, const ak_play_bot *b, int kind, const f32 
     }
     return best;
 }
+/* the game's shared random as the commander draws it (0899129C: (r >> 1) x 2^-31 x 100, a roll in 0..100) */
+static f32 game_roll(ak_play *p)
+{
+    p->grng[0] = p->grng[0] * 0x10000u + (u32)((s32)p->grng[0] >> 16) + p->grng[1]; p->grng[1] += p->grng[0];
+    return (f32)(p->grng[0] >> 1) * 4.656612873e-10f * 100.0f;
+}
 static void space_assign(ak_play *p, ak_play_bot *b, u32 idx)
 {
     const ak_vehicle *vh = &p->veh[b->veh];
@@ -2010,9 +2020,10 @@ static void space_assign(ak_play *p, ak_play_bot *b, u32 idx)
     switch (vh->def->flyer_type) {
     case AK_FLY_FIGHTER:
         o = pick_obj(p, b, AK_OBJ_RUN2, vh->pos);
-        if (o >= 0 && rnd(&b->seed) * 100.0f < 40.0f) { role = SPACE_RUN; break; }
+        /* (the rolls on the game's shared random, as the commander's: each bot's own stream gave runs to 2 of 9 fighters) */
+        if (o >= 0 && game_roll(p) < 40.0f) { role = SPACE_RUN; break; }
         o = pick_obj(p, b, AK_OBJ_RUN1, vh->pos);
-        if (o >= 0 && rnd(&b->seed) * 100.0f < 20.0f) role = SPACE_RUN;
+        if (o >= 0 && game_roll(p) < 20.0f) role = SPACE_RUN;
         break;
     case AK_FLY_BOMBER:
         o = pick_obj(p, b, AK_OBJ_RUN2, vh->pos); if (o < 0) o = pick_obj(p, b, AK_OBJ_RUN1, vh->pos);

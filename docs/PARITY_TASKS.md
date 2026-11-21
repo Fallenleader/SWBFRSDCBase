@@ -731,6 +731,14 @@ textures and how they are used. Section R lists only what must be in place so th
     0x455, 5 -> 0x450, 6 -> 0x451, 7 -> 0x452, 8 -> 0x453, 9 -> 0x454 (the vehicle classes' 08945AC0 / 08945C28 map kind 3 to
     0x44E first). Next: who hands out goal kind 8 and what the 0x08C2A204 objects are (attack-run points?), so Aurek's roles
     can be matched against the original's two thirds of flight time in 0x487.
+  - 2026-11-21, the commanders' orders measured (harness, new RS_NODE_LOG: hand hooks on 089919F4 - the order to a pilot - and on
+    the fly-to starts of 0x453 / 0x454; Space Hoth, 82 s): 11 attack runs (command 2), 11 general combat (1), 2 hangar landings
+    (8); every 0x453 start flies to an attack-run object (ids 0x18820.., at the capital ships, x +-1500-1700 m). So the fly-to
+    time is the runs, flown at 25-50 % of cruise. Aurek gave runs to 3 of 17 (2 of 9 fighters): each bot rolled on its own random
+    stream, whose first draws ran high (58.9 twice); the rolls now use the game's shared random as the commander does
+    (0899129C; `game_roll`, seed [assumed]): 14 runs, 46 combat, 3 landings in 110 s. The combat count is inflated by a
+    pre-existing loop: a Tie_Interceptor chasing a soldier into the enemy hangar lands, lifts off and is given its role again every
+    1.1 s (bot 9 from 51.9 s) - [ ] to fix. Still: Aurek's flyers have a target 87 % of the time (median 100 m/s).
 
 ## 5. Game rules and modes
 

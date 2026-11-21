@@ -152,6 +152,7 @@ typedef struct {
     s32 lock; f32 lock_t, lock_range, lock_turn, lock_head_time;
     /* weapon */
     ak_weapon_def wdef; ak_weapon weapon; bool armed; ak_bolts bolts; u32 seed;
+    u32 grng[2];                       /* the game's shared random (r = r * 0x10000 + (r >> 16) + s; s += r; value r >> 1): the space commanders' rolls */
     f32 bones[64][12]; bool posed;     /* the body's pose this frame (the weapon and the muzzle ride it) */
     ak_play_bot *bot; u32 nbots;       /* (from the level arena) */
     ak_target target[PLAY_MAX_TARGETS];    /* 0: the player, 1 + i: bot i, 1 + nbots + v: vehicle v, then the turrets */

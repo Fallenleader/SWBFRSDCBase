@@ -15914,6 +15914,7 @@ rv_t func_0894A074(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u8 stack_[48] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 48);
 L_0894A074:;
+    { extern void rs_node_log(u32, u32, u32); rs_node_log(0x453, a0, a1); }   /* harness measurement (RS_NODE_LOG, PARITY 4.6; hand-added) */
     sp = sp - 48;
     v0 = 1;
     s1 = a1 + 0;
@@ -17705,6 +17706,7 @@ rv_t func_0894B2C4(u32 a0, u32 a1, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3, float
     u8 stack_[96] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 96);
 L_0894B2C4:;
+    { extern void rs_node_log(u32, u32, u32); rs_node_log(0x454, a0, a1); }   /* harness measurement (RS_NODE_LOG, PARITY 4.6; hand-added) */
     sp = sp - 96;
     v0 = 1;
     s2 = a0 + 0;

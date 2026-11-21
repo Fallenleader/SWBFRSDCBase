@@ -798,3 +798,18 @@ void rs_pilot_log(u32 c, float spd){
     void *bt[3]; int nb = backtrace(bt, 3);
     fprintf(stderr, "[PILOT] fr %u c %08x ask %.2f max %.2f cur88 %.2f ra %p\n", probe_fr, c, spd, GF32(c + 0x7C), GF32(c + 0x88), nb > 2 ? bt[2] : 0);
 }
+/* (4.6) the flyers' fly-to orders starting their fly-to (0894A074 for 0x453, 0894B2C4 for 0x454, state 1): RS_NODE_LOG.  0x453's
+ * object: node +0x20, in the registry 0x08C2A204 (08ABE790), its class and its position +0x40 */
+void rs_node_log(u32 kind, u32 node, u32 st){
+    static int on = -1; if (on < 0) on = getenv("RS_NODE_LOG") != 0; if (!on || !gok(node)) return;
+    fprintf(stderr, "[NODE] fr %u %x state %u node %08x", probe_fr, kind, st, node);
+    if (kind == 0x453 && st == 1) { u32 id = GU32(node + 0x20); extern u64 func_08ABE790(u32, u32, u32); u32 o = (u32)func_08ABE790(0x08C2A204u, id, 1);
+        fprintf(stderr, " obj %x", id);
+        if (gok(o) && gok(GU32(o))) fprintf(stderr, " cls %x at %.1f %.1f %.1f", GU16(o + GU32(GU32(o) - 16) + 8), GF32(o + 0x40), GF32(o + 0x44), GF32(o + 0x48)); }
+    fprintf(stderr, "\n");
+}
+/* (4.6) the space commander's orders to a pilot (089919F4: a1 the unit, a2 -> { command, object }): RS_NODE_LOG */
+void rs_cmd_log(u32 cmdr, u32 unit, u32 c){
+    static int on = -1; if (on < 0) on = getenv("RS_NODE_LOG") != 0; if (!on || !c) return;
+    fprintf(stderr, "[CMD] fr %u cmdr %08x unit %08x command %u obj %x\n", probe_fr, cmdr, unit, GU32(c), GU32(c + 4));
+}

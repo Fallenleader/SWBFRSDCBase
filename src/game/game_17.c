@@ -19492,6 +19492,7 @@ rv_t func_089919F4(u32 a0, u32 a1, u32 a2, u32 t2, u32 t3)
     u8 stack_[16] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 16);
 L_089919F4:;
+    { extern void rs_cmd_log(u32, u32, u32); rs_cmd_log(a0, a1, a2); }   /* harness measurement (RS_NODE_LOG, PARITY 4.6; hand-added) */
     sp = sp - 16;
     a3 = 0 + 0;
     s2 = a0 + 0;
