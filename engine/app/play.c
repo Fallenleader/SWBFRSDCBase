@@ -824,7 +824,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
  * from the controller (08994C30 copies its bit 9): measured in the original, firing or holding the lock-on and 3 s after letting
  * go.  Rows: 0 idle, 1 / 2 walk, 3 / 4 run, 5 / 6 strafe, 7 sprint, 8 jump, 10 soft landing, 12 fall, 20-23 deaths (front, back,
  * left, right), 24 / 25 rolls left / right, 26 dive forward, 27 roll back; columns 1 shoot, 2 reload (layers over the body).  Not
- * ported: crouching (sets +2), the idle variations (rows 18 / 19: when the game plays them is not traced), hit reactions (13-16). */
+ * ported: crouching (sets +2), the idle variations (rows 18 / 19: when the game plays them is not traced), hit reactions (13-16: no state of the game plays them, PARITY 1.11). */
 static void anim_sets(ak_play *p, const ak_model_set *m)
 {
     const ak_anim_table *gt = ak_anim_table_find(m, "generic_male");

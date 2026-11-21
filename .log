@@ -1,0 +1,41 @@
+[settings] ./settings.txt not found: defaults
+[aurek] Aurek level viewer, build ecdda84+
+[aurek] game files: extracted files in /home/claude/gd/GAME
+[aurek] renderer: OpenGL 4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.4 (llvmpipe (LLVM 20.1.2, 256 bits))
+[aurek] blueprints: 16 types, 577 objects, 578 KB
+ALSA lib confmisc.c:855:(parse_card) cannot find card '0'
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_card_inum returned error: No such file or directory
+ALSA lib confmisc.c:422:(snd_func_concat) error evaluating strings
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_concat returned error: No such file or directory
+ALSA lib confmisc.c:1342:(snd_func_refer) error evaluating name
+ALSA lib conf.c:5208:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5731:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2721:(snd_pcm_open_noupdate) Unknown PCM default
+[plat] warning: audio: ALSA: Couldn't open audio device: No such file or directory
+[audio] warning: no audio output; running silent
+[hud] 60 HUD pictures, 37 + 35 weapon icons, font Franklin Gothic Medium Cond 9 (226 glyphs), 91 post names, 439 texts
+[audio] mixer: 9 groups, 3 snapshots
+[audio] SOUNDS/GMSND.ASR: 244 sounds and events
+[speech] 1072 lines, 1070 sounds in the bundle, 354 dialogue events
+[hud] radar map: Hoth_map.asr, origin 111.3 57.9, 748.1 x 655.8
+[audio] CLASSIC HOTH: 200 sounds and events
+[audio] music: OGM Music 1, state 4, file 0 (the level script's pick)
+[audio] music /home/claude/gd/converted/PSP_GAME/USRDIR/SOUNDS/MUSIC/MXALLHOT01_AMB02_LP.AT3.wav
+[aurek] CLASSIC HOTH: 25347 triangles, 407 batches, 92 textures, 236 models (129 in the gallery), 128 skeletons, 28 of 282 entities placed, loaded in 53 ms, 18.8 MB
+[play] pfx: 69 effects, 205 systems, 205 particle types, sheet 89
+[play] side 0 AI weapons: ALL_Blaster_Rifle ALL_Blaster_Pistol REP_Chaingun ALL_Incinerator ALL_Shotgun ALL_Rocket_Launcher Emp_Launcher
+[play] side 1 AI weapons: EMP_Blaster_Rifle EMP_Blaster_Pistol REP_Chaingun ALL_Incinerator EMP_Shotgun EMP_Rocket_Launcher Emp_Launcher
+[play] battlefront: game x -217..249, y -21..19, z -65..181
+[hero] Alliance: Luke (Lightsaber_Green, health 600, table Luke with 3 attacks), after 180 s
+[hero] Empire: DarthVader (Lightsaber, health 600, table Vader with 3 attacks), after 180 s
+[aurek] playing as Stormtrooper (Empire, head 1) at 276.2 -14.8 2.0; level memory 22.9 MB
+[test] frame 2: shots 0, soldiers hit 0 (head 0), kills 0, deaths 0, ammo 25/100, alive 8/8 and 8/8
+[test] conquest: tickets 100 / 125, posts 111122, captures 0, winner -1, player up (health 133, deaths 0) at 276.8 -14.7 2.0
+[test] hero 1: Luke, not in play (health 0), next in 180 s
+[test] hero 2: DarthVader, not in play (health 0), next in 180 s
+[test] vehicles: AT_AT:3500/3500 T_47Snowspeeder:200/200 TaunTaun:200/200 TaunTaun:200/200 TaunTaun:200/200 AT_ST:1000/1000 TaunTaun:200/200 T_47Snowspeeder:200/200
+[test] projectiles: 0 fired, 0 hits
+[test] pickups: 0 dropped, 0 taken
+[test] pfx: 0 played, 0 dropped (0 particles), 0 particles live
+[test] turrets: Dish_Turret:300(0 hits) Hoth_Turret_Defence:500(0 hits) Hoth_Turret_Defence:500(0 hits) Dish_Turret:300(0 hits) Hoth_Turret_Defence:500(0 hits) Hoth_Turret_Defence:500(0 hits) Dish_Turret:300(0 hits) Hoth_Turret_Defence:500(0 hits) Dish_Turret:300(0 hits) Hoth_Turret_Defence:500(0 hits)
+[aurek] screenshot at frame 3, play frame 3

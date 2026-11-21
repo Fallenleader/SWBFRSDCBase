@@ -1,0 +1,1 @@
+[file] error: cannot open /mnt/user-data/uploads/SWBFRSDecomp/builds/ConversionTool/GAME/PSP_GAME/USRDIR/MISC/*.PSP

@@ -131,11 +131,21 @@ textures and how they are used. Section R lists only what must be in place so th
     waves (in seconds)" is a float at 0x08B1BB48, 10.0 on every match (RS_DRIVE_PEEK; the warm-up beside it is 5.0); the match
     status (089883F8) counts the next wave from it. With the body's 5 s, the next 10 s wave gives the measured 5-15 s. Aurek
     kept the 10 s wave but let a bot back 1 s after dying; it now waits for its body to leave (5 s).
-- [ ] **1.11 Hit reactions and flinch [partly measured 2026-11-16].**
+- [x] **1.11 Hit reactions and flinch [traced 2026-11-21: none for soldiers].**
   - Harness (player teleported into the Rebel spawn, running back and forth 40 s, every frame): blaster hits of 4.5 (an AI's
     rifle: 15 x Modifier_Bot_Damage 0.3) do not change the player's speed at all - no flinch on movement. Aurek: the same.
   - Heavy hits (20 and 29.7) were followed by stops of a few frames at a time; not yet told apart from bumping into things.
     To do: trace who plays the hit rows 13-16 / Stunned1 (row 17) and when.
+  - Traced 2026-11-21: nothing does. A soldier's actions are state objects (base 0899F888, each with a name hash; vfunc +12
+    "can start", +16 start) that play the generic_male row at state +0x90 through 0899F93C. Every store to that field was
+    listed: rows 8 / 9 (jumps), 20-23 + random and 32 (deaths, 0899FF38), 24-27 (rolls, 089A392C; the jedi table's 33-36),
+    28 / 29 (jetpack). The states that take a row from a message (0x8032 "start state": the roll 089A3BC0, the force state
+    0x9d4a123c in 089A51A8) get 24-27 from the AI's dodge (0893915C) and 37 / 38 from the force powers (08A22D54, 08A23088).
+    No sender passes 13-17, and no data table holds them. So in RS a hit plays no flinch row, as measured; Aurek plays none.
+  - The damage path (089A7310 -> 089E1FDC -> 08A069F8 health / shield, message 0x8053 for a shielded unit) has no movement
+    side effect. Its vfunc +200 (089E3868) sends 0x8050 with the attacker's position, which the player controller keeps at
+    +0x94 (08A09928): the HUD's hit-direction source (8.1).
+  - The heavy-hit stops measured above are not a hit reaction; they are left with 4.4 (what stops a running soldier).
 - [ ] **1.12 Hit shapes [assumed].**
   - Aurek: its own head/body shapes for bolts.
   - Trace how projectiles test soldiers (physics boxes, per-bone shapes, or the HSKN per-bone meshes) and how headshots are decided.
@@ -886,6 +896,8 @@ textures and how they are used. Section R lists only what must be in place so th
   - Ticket logos: tinted by side (08A5B80C: ours ABGR 0xFFFF0000 blue, theirs 0xFF0000FF red) - done 2026-11-20.
   - Jetpack and shield bars.
   - The unmanned turret's hit source.
+  - Hit direction: message 0x8050 (089E3868) leaves the attacker's position at the player controller +0x94 (08A09928). The HUD
+    function that draws it from there is not traced; Aurek draws no hit-direction mark yet.
   - World markers (08A55238) - traced 2026-11-15 (NATIVE_ENGINE 1.10 row, "World tags"): names over enemy human players,
     emblems over friendly ones, markers over carriers (+0x90); none apply against bots in conquest, so nothing is drawn. [ ] With
     the flag carriers of CTF (Aurek's CTF has no carrier marker yet).
