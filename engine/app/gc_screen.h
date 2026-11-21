@@ -32,7 +32,10 @@ typedef struct {
     /* the player's turn (ak_gc_screen_update): sub 0 browsing, 1 choosing a count, 2 choosing a destination, 3 battle choice */
     int sub, src, dst, count, count_max;   /* (sub 4: the results panel - res_title, res_planet - until Continue) */
     u32 res_title; int res_planet, res_next_phase;
-    f32 clock;                         /* seconds (the cursor's pulse, 08A4D128's clock 0x08B285B4) */
+    f32 clock;
+    bool overview;                     /* select held: Troops Overview */
+    int zoom; f32 zoom_t;              /* R1: the cursor's sector close up (camera preset), L1 back; zoom_t 0..1 the move */
+    f32 cam_from[5], cam_to[5];                         /* seconds (the cursor's pulse, 08A4D128's clock 0x08B285B4) */
     u32 msg; f32 msg_t;                /* a notice (GALACTICCONQUEST.ASR id) shown for msg_t seconds */
     ak_gc_income income;               /* the last treasury */
     ak_gc_ai ai;                       /* the opponent */
@@ -64,5 +67,7 @@ void ak_gc_screen_battle_done(ak_gc_screen *s, int winning_faction, const int le
    request 2) [assumed: Aurek's format - the state as it is]; load it for Resume */
 bool ak_gc_screen_save(const ak_gc_screen *s, const char *path);
 bool ak_gc_screen_load(ak_gc_screen *s, const char *path);
+/* the map camera (engine axes): position, yaw, pitch - the sector close-ups' moves (08A4BE04's presets) */
+void ak_gc_screen_camera(const ak_gc_screen *s, f32 pos[3], f32 *yaw, f32 *pitch);
 const u16 *ak_gc_text(u32 id, u32 *len);                          /* TEXT/GALACTICCONQUEST.ASR entry */
 #endif

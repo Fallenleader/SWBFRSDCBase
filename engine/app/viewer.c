@@ -647,7 +647,9 @@ int main(int argc, char **argv)
                 play.snd.music_req = NULL;
             }
         } else if (gc_map && gc_screen) {
-            /* the GC map: a fixed camera; the pad drives the conquest (app/gc_screen) after the view is built below */
+            /* the GC map: its camera from the conquest (the map view or a sector close-up); the pad drives the conquest (app/gc_screen)
+               after the view is built below */
+            f32 cp[3]; ak_gc_screen_camera(gc_screen, cp, &cam.yaw, &cam.pitch); cam.pos = ak_v3_make(cp[0], cp[1], cp[2]);
         } else {
         /* free camera */
         cam.yaw -= in.rx * 2.0f * dt; cam.pitch += in.ry * 1.5f * dt;
@@ -699,7 +701,8 @@ int main(int argc, char **argv)
                 else if (ak_fe_update(&in, dt) == AK_FE_GC_BUY) {
                     int i, k = ak_fe_gc_choice(&i); ak_gc_screen_tech_buy(gc_screen, k, i); ak_gc_screen_tech(gc_screen, &fg); ak_fe_set_gc(&fg);
                 }
-            } else ak_gc_screen_update(gc_screen, &in, &vp, dt);
+            } else { if (ak_setting_int("AK_GC_TEST_SELECT", 0)) in.held |= AK_BTN_SELECT;   /* (tests: select held) */
+                ak_gc_screen_update(gc_screen, &in, &vp, dt); }
             if (gc_screen->battle_launch) {              /* Attack: the battle as a Conquest match on its level, each side's troops as tickets */
                 int tk[2], pf; const char *lv = ak_gc_screen_battle_setup(gc_screen, tk, &pf);
                 char want[64]; snprintf(want, sizeof want, "CLASSIC %s", lv); for (char *c = want; *c; c++) *c = (char)toupper((unsigned char)*c);

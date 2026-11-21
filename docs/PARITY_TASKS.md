@@ -1190,6 +1190,10 @@ textures and how they are used. Section R lists only what must be in place so th
     Open in 5.4: the battle results pages between a battle and the map (state 7 Results, 0x5C-0x5F texts), the AI turn's
     on-screen report ("Your opponent is making his move" 0x07, its purchases 0x62..), the troops overview (select), the original's
     profile save record and medal award; the harness's green panel (its renderer, not the game).
+  - Part 21, 2026-11-21 - **5.4 done (Galactic Conquest)**: map, rules, AI, player turn with the original's panels, tech page,
+    battles as matches, results, the opponent's turn on screen, Troops Overview, sector close-ups, quit / save / resume, win pages,
+    front-end entry. Remaining [assumed] details are listed in NATIVE_ENGINE's 5.4 rows (label places, paces, neutral panel
+    colour, 'CPU' text table, the save format).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

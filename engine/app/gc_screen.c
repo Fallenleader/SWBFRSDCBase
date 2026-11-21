@@ -36,6 +36,9 @@ const u16 *ak_gc_text(u32 id, u32 *len) { if (id >= ngtext || !gtext[id]) { *len
  * (4 x u16; the fourth 0xFFFF = a triangle): the fill joins inner vertices only, the rim joins the two outlines.  Each is placed by an
  * ENTI type 7 record naming the hash after its position and rotation quaternion (no mesh of that name: the entity loader leaves it
  * unplaced).  Which sector a shape is: the one whose planets lie nearest its centre. */
+static int sector_preset(int sec);
+static void zoom_to(ak_gc_screen *s, int preset);
+static const f32 presets_map0[5] = { 0.214f, -50.309f, 2.71f, -1.484f, -3.1416f };
 static void qrot(const ak_quat *q, const f32 *v, f32 *o)   /* v' = q v q* */
 {
     f32 tx = 2 * (q->y * v[2] - q->z * v[1]), ty = 2 * (q->z * v[0] - q->x * v[2]), tz = 2 * (q->x * v[1] - q->y * v[0]);
@@ -120,6 +123,7 @@ bool ak_gc_screen_init(ak_gc_screen *s, ak_vfs *vfs, const ak_level *l, const ak
     if (nast) { for (int k = 0; k < 3; k++) s->planet_pos[0][k] = ast[k] / (f32)nast; s->planet_known[0] = true; }   /* Alderaan */
     load_shapes(s, l);
     ak_gc_ai_init(&s->ai);
+    memcpy(s->cam_from, presets_map0, sizeof s->cam_from); memcpy(s->cam_to, presets_map0, sizeof s->cam_to); s->zoom_t = 1; s->zoom = -1;
     { int gs = ak_setting_int("AK_GC_GIVE_SECTOR", -1);           /* (tests: side 0 holds sector n) */
       if (gs >= 0 && gs < AK_GC_SECTORS) { for (int p = 0; p < AK_GC_PLANETS; p++) if (ak_gc_planet_defs[p].sector == gs && !s->g.planet[p].home) s->g.planet[p].owner = 0; ak_gc_update_sectors(&s->g); } }
     if (getenv("AK_GC_DEBUG")) for (int i = 0; i < AK_GC_SECTORS; i++) { fprintf(stderr, "[GC] sector %d owner %d:", i, s->g.sector_owner[i]); for (int p = 0; p < AK_GC_PLANETS; p++) if (ak_gc_planet_defs[p].sector == i) fprintf(stderr, " %d", s->g.planet[p].owner); fprintf(stderr, "\n"); }
@@ -256,7 +260,7 @@ void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp)
        the opponent works on (its home for the treasury and purchases). */
     int pp = s->cursor;
     if (s->ai_show) { const typeof(s->ai_step[0]) *st = &s->ai_step[s->ai_cur]; pp = st->kind == 3 || st->kind == 4 || st->kind == 5 ? st->a : ak_gc_home(&s->g, 1); }
-    if (pp >= 0 && s->sub != 2) {                               /* (hidden while a destination is chosen: the planets' labels instead) */
+    if (pp >= 0 && s->sub != 2 && s->zoom < 0) {                               /* (hidden while a destination is chosen: the planets' labels instead) */
         int p = pp, o = s->g.planet[p].owner, side = s->ai_show ? 1 : 0;
         static const f32 puv[3][4] = { { 0.4570f, 0.0f, 0.9180f, 0.3477f }, { 0.0f, 0.3477f, 0.4609f, 0.6953f }, { 0.0f, 0.0f, 0.4570f, 0.3477f } };
         static const u32 icol[3] = { 0xFFAAAAFFu, 0xFFFFAAAAu, 0xFFAAFFAAu };
@@ -271,6 +275,45 @@ void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp)
             spr(s->tex[GCT_TECH], 15, 83, 39, 104, 0.7461f, 0.0703f, 0.8398f, 0.1523f, icol[k]);
             num(0, 27, 84, 0xFFFFFFFFu, (u32)s->g.planet[p].troops, 1, false);
             txt(0, 55, 84, 0xFFFFFFFFu, 0x34, 0);                    /* TROOPS */
+        }
+    }
+    /* Troops Overview (select held, the original's frame): each held planet's shield (the troops icon) with its troops over the
+       planet, in its owner's colour; each sector's name at its planets' middle and its bonus under it [assumed: places from the frame] */
+    if (s->overview || (s->zoom >= 0 && s->zoom_t >= 1)) {
+        static const u32 icol[3] = { 0xFFAAAAFFu, 0xFFFFAAAAu, 0xFFAAFFAAu };
+        for (int p = 0; p < AK_GC_PLANETS; p++) {
+            f32 x, y; int o = s->g.planet[p].owner; if (!s->planet_known[p] || !project(vp, s->planet_pos[p], &x, &y)) continue;
+            if (s->zoom >= 0) {                                  /* the close-up: every planet of the sector labelled */
+                if (ak_gc_planet_defs[p].sector != s->zoom) continue;
+                u32 n; const u16 *nm = ak_hud_stdtext(ak_gc_planet_defs[p].name_id, &n);
+                if (nm && !s->g.planet[p].home) ak_hud_2d_text(0, x - 100, y + 18, x + 100, 1.0f, 0xFFFFFFFFu, nm, n, 1);
+                spr(s->tex[GCT_TECH], x + 16, y - 22, x + 40, y - 5, 0.7461f, 0.0f, 0.8398f, 0.0664f, 0xFFAACFAAu);
+                num(0, x + 33, y - 21, 0xFFFFFF00u, (u32)s->r.planet_bonus[p], 1, true);
+                if (o == 0) { spr(s->tex[GCT_TECH], x + 16, y - 4, x + 40, y + 17, 0.7461f, 0.0703f, 0.8398f, 0.1523f, icol[0]); num(0, x + 28, y - 3, 0xFFFFFFFFu, (u32)s->g.planet[p].troops, 1, false); }
+            } else if (o != AK_GC_NONE) {
+                spr(s->tex[GCT_TECH], x - 12, y - 32, x + 12, y - 11, 0.7461f, 0.0703f, 0.8398f, 0.1523f, icol[o]);
+                num(0, x, y - 31, 0xFFFFFFFFu, (u32)s->g.planet[p].troops, 1, false);
+            }
+        }
+        for (int sec = 0; sec < AK_GC_SECTORS; sec++) {
+            if (s->zoom >= 0 && sec != s->zoom) continue;
+            f32 mx = 0, my = 0; int np = 0;
+            for (int p = 0; p < AK_GC_PLANETS; p++) { f32 x, y; if (ak_gc_planet_defs[p].sector == sec && s->planet_known[p] && project(vp, s->planet_pos[p], &x, &y)) { mx += x; my += y; np++; } }
+            if (!np) { continue; } mx /= (f32)np; my /= (f32)np;
+            u32 n; const u16 *nm = ak_hud_stdtext(ak_gc_sector_defs[sec].name_id, &n); int big = s->zoom >= 0;
+            if (nm) ak_hud_2d_text(big, mx - 120, my, mx + 120, 1.0f, 0xFFFFFFFFu, nm, n, 1);
+            f32 by = my + (big ? 22.0f : 18.0f);
+            spr(s->tex[GCT_TECH], mx - 12, by, mx + 12, by + 17, 0.7461f, 0.0f, 0.8398f, 0.0664f, 0xFFAACFAAu);
+            num(0, mx + 5, by + 1, 0xFFFFFF00u, (u32)s->r.sector_bonus[sec], 1, true);
+        }
+        if (s->zoom >= 0) {                                      /* the sector's commander for the player's side (bottom left; locked until bought) */
+            int cls = ak_gc_class(s->g.side[0].faction) & 1, c = s->g.cmdr[s->zoom][cls]; bool evil = cls != 0;
+            spr(s->tex[GCT_TECH2], 8, 137, 123, 242, 0.0f, 0.0f, 0.4570f, 0.3477f, 0x99FFFFFFu);
+            bool col = s->g.side[0].cmdr_bought[c] || s->g.side[0].cmdr_avail[c];
+            f32 u0 = (f32)(c / 2) * 0.4219f, v0 = (f32)(c % 2) * 0.375f;
+            spr(s->tex[col ? (evil ? GCT_EMP : GCT_ALL) : (evil ? GCT_EMP_GREY : GCT_ALL_GREY)], 20, 141, 111, 225, u0, v0, u0 + 0.4219f, v0 + 0.375f, 0xFFFFFFFFu);
+            if (!s->g.side[0].cmdr_bought[c]) spr(s->tex[GCT_TECH], 49, 160, 82, 204, 0.8398f, 0.0547f, 0.9688f, 0.2266f, 0xFFFFFFFFu);   /* the lock (the tech page's cell 08A4xxxx draws) */
+            txt(0, 65, 226, 0xFFFFFFFFu, (u32)((evil ? 0x2C : 0x30) + c), 1);
         }
     }
     /* the header: a dark bar, "PHASE <phase>", "CREDITS" and the side's credits in yellow */
@@ -292,6 +335,7 @@ void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp)
     bb b[4]; int nb = 0;
     #define B(t, xx, i) do { b[nb].tex = t; b[nb].x = xx; b[nb].id = i; nb++; } while (0)
     if (s->ai_show) {}
+    else if (s->zoom >= 0) { B(GCT_SQUARE, 2, s->phase == 1 ? 0x40 : 0x52); B(GCT_TRIANGLE, 151, s->phase == 2 ? 0x47 : s->phase == 3 ? 0x4C : 0x41); }   /* [assumed: places, from the frame] */
     else if (s->phase == 0) B(GCT_CROSS, 404, 0x58);
     else if (s->phase == 4) {}
     else if (s->sub == 4) B(GCT_CROSS, 418, 0x58);
@@ -497,6 +541,13 @@ bool ak_gc_screen_update(ak_gc_screen *s, const ak_input *in, const ak_m4 *vp, f
         return true;
     }
     if (s->phase == 4) return false;
+    if (s->zoom_t < 1) { s->zoom_t += dt / 0.5f; if (s->zoom_t > 1) s->zoom_t = 1; }
+    /* 08A389D8's map keys: select held - Troops Overview; R1 the cursor's sector close up, L1 back (the original's frames) */
+    s->overview = (in->held & AK_BTN_SELECT) && s->sub == 0 && s->zoom < 0 && s->phase >= 1 && s->phase <= 3;
+    if (s->sub == 0 && s->phase >= 1 && s->phase <= 3) {
+        if ((pr & AK_BTN_R) && s->zoom < 0 && s->cursor >= 0) { s->zoom = ak_gc_planet_defs[s->cursor].sector; zoom_to(s, sector_preset(s->zoom)); return true; }
+        if ((pr & AK_BTN_L) && s->zoom >= 0) { s->zoom = -1; zoom_to(s, 0); return true; }
+    }
     bool browse = s->sub == 0 || s->sub == 2;
     if (s->sub == 4) browse = false;
     if (browse) {
@@ -647,4 +698,24 @@ bool ak_gc_screen_load(ak_gc_screen *s, const char *path)
     bool ok = fread(&v, sizeof v, 1, f) == 1 && v.magic == 0x31534347u && v.size == sizeof v; fclose(f);
     if (!ok) return false;
     s->g = v.g; s->phase = v.phase; s->income = v.income; s->ai = v.ai; s->sub = 0; return true;
+}
+
+/* ---- the camera presets (08A4D314 fills 0x08C2DFC8.., 6 words each: game position, pitch, yaw, roll; 08A4BE04 moves to one): 0 the
+ * map (0.214, -50.309, 2.71; -1.484, -3.1416), 1 (-7.4, -40.5, 1.5), 2 (-9.9, -39.1, -6.5), 3 (-0.1, -39.5, 4.8), 4 (10.1, -37.6,
+ * 5.1), these looking straight down (-1.5708, -3.1416).  08A46198 takes the cursor's sector s (0x08B1C350 [planet x 11]) to preset
+ * s == 1 ? 1 : s == 0 ? 2 : s == 2 ? 3 : 4.  [assumed: the move eases over 0.5 s - 08A4C204's pace not traced] */
+static const f32 presets[5][5] = { { 0.214f, -50.309f, 2.71f, -1.484f, -3.1416f }, { -7.4f, -40.5f, 1.5f, -1.5708f, -3.1416f },
+    { -9.9f, -39.1f, -6.5f, -1.5708f, -3.1416f }, { -0.1f, -39.5f, 4.8f, -1.5708f, -3.1416f }, { 10.1f, -37.6f, 5.1f, -1.5708f, -3.1416f } };
+static int sector_preset(int sec) { return sec == 1 ? 1 : sec == 0 ? 2 : sec == 2 ? 3 : 4; }
+void ak_gc_screen_camera(const ak_gc_screen *s, f32 pos[3], f32 *yaw, f32 *pitch)
+{
+    f32 t = s->zoom_t; t = t * t * (3 - 2 * t); f32 v[5];
+    for (int i = 0; i < 5; i++) v[i] = s->cam_from[i] + (s->cam_to[i] - s->cam_from[i]) * t;
+    pos[0] = v[0]; pos[1] = -v[1]; pos[2] = -v[2]; *pitch = v[3]; *yaw = -v[4];
+}
+static void zoom_to(ak_gc_screen *s, int preset)
+{
+    f32 p[3], y, pt; ak_gc_screen_camera(s, p, &y, &pt);
+    s->cam_from[0] = p[0]; s->cam_from[1] = -p[1]; s->cam_from[2] = -p[2]; s->cam_from[3] = pt; s->cam_from[4] = -y;
+    memcpy(s->cam_to, presets[preset], sizeof s->cam_to); s->zoom_t = 0;
 }
