@@ -297,6 +297,8 @@ void rs_drive_report(FILE *f){
                     for (u32 j = 0; j < 200; j += 4) { u32 x = GU32(w + j); if (x >> 24 == 0 && x > 0x01000000) {} }
                     fprintf(f, " h %08x %08x", GU32(w + 4), GU32(w + 8)); }
                 fprintf(f, "\n"); } }
+        if (getenv("RS_DRIVE_POSTS")) { u32 dv = 0; for (u32 k = 0; k < 0x800 && !dv; k += 4) if (GU32(o + k) == 0x08B086A0u) dv = o + k;   /* the post visual (089E9A24) */
+            if (dv) { u32 b = dv; fprintf(f, "postvis %x cls %x at +%x base +%x owner %d full %.3f amount %.3f\n", GU32(info + 4), cls, dv - o, b - o, (int)GU32(b + 0x54), GF32(b + 0x60), GF32(b + 0x64)); } }
         if (cls == 0x8010 && getenv("RS_DRIVE_POSTS")) {   /* a command post (089E9A24): owner +0x54, full +0x60, amount +0x64; the animCap clip record's +0x14 */
             static float capv = -1; if (capv < 0) { u32 n = GU32(IMG(0x08B204FCu)); int k = 0;
                 while (gok(n) && k++ < 64) { u32 h = GU32(n); if (h == 0x0C95772Cu) { capv = GF32(n + 4 + 20); break; } n = GU32(n + 4u * (h < 0x0C95772Du ? 0x1Eu : 0x1Du)); } }

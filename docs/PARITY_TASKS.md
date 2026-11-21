@@ -916,6 +916,12 @@ textures and how they are used. Section R lists only what must be in place so th
     2.40 s). In 089E9A24 the same object's +0x54 is the owner (4 neutral), +0x60 / +0x64 the full and current amounts (the capture
     sound's pitch 0.6 + 0.6 x amount / full); that object is reached through a virtual-base thunk (08AC91E4, vtable 0x08B086A0)
     and is not the 0x8010 entity the report lists, so its amount's units (seconds or a fraction) are still not read.
+    Read later the same day: the post itself is class 0x8008 (its main vtable 0x08B086A0 holds 089E9A24); live on Hoth +0x54 is
+    the owner (2 / 3), +0x60 the capture time (10 s; 30 s for the Empire's hangar post) and +0x64 the amount in seconds (10 at
+    full) - Aurek's progress. **Engine:** the cone plays cone_of_light_animCap forward while the amount is under 2.4 s, backwards
+    once it is not, then cone_of_light_rest (AK_CONE_ANIM; AK_DEBUG_CONE logs the switches; Hoth 2 min: the cone opens as a post
+    drains to neutral and folds back as it is retaken). [assumed] a switch keeps the clip's time. Open: the logo's value
+    (08809AB8 writes the logo instance's +0xF8 from the cone clip's +0x44 - its reader not found; scale or fade?).
 - [ ] **6.5 Heroes [missing].** Saber combos, blocking, force powers, saber throw. Blaster heroes' own tables.
   - 2026-11-19: a blaster hero played by the player now takes generic_male's set by its own weapon's AnimPose (the 6.1 rule),
     and the soldier's set comes back when the hero ends.  Open: everything else listed (saber combo timing, blocking, force
