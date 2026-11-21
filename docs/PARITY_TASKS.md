@@ -1088,6 +1088,12 @@ textures and how they are used. Section R lists only what must be in place so th
     0.62, min attack probability 0.45, treasury 0.25, planet / region credit 0.85, ...), played battles (troops become the
     match's reinforcements DAT_08C29330 / 34; survivors from 0x08C28F88), Thrawn / Ackbar's second attack (+0x7F / +0x80),
     draws (08A3BE90 picks the side) [assumed: the attacker], the RNG seeds [assumed], saving (08A37D04 / 08A37E54), medals.
+  - Part 7, 2026-11-21 - **GC AI ported** (game/ak_gc_ai.{h,c}), 798 / 800 random boards give the game's own plan (RS_GC_AI_TEST
+    / RS_GC_AI_SEED / RS_GC_AI_TAKES in the harness, compare with `akbp COMMON.ASR -gcai LOG`). Left: 2 boards (seed 11, boards 94 /
+    648: the final re-pricing reuses the last try's troop list - the game buys at planet 2, Aurek at 10), the plan's executor
+    (AI player 08A42500), and rules corrections for ak_gc: troops are bought at the selected own planet (08A38C90 sets +0x3C from
+    the cursor), reinforcing needs a source with 11+ troops and an own neighbour and an own, not full destination (08A3B36C-
+    08A3B518) [assumed: adjacent]. Thrawn / Ackbar's second attack and the draw rule are still to trace.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

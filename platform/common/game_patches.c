@@ -857,10 +857,10 @@ void rs_crash_log(u32 v, u32 other, float sp_){
     void *bt[4]; int n = backtrace(bt, 4);
     fprintf(stderr, "[CRASH] fr %u veh %08x other %x speed %.2f driver %08x f34c %08x f354 %08x f348 %x from %p\n", probe_fr, v, other, sp_, GU32(v + 0x1B4), GU32(v + 0x34C), GU32(v + 0x354), GU32(v + 0x348), n > 2 ? bt[2] : 0);
 }
-void rs_gc_probe(void);
+void rs_gc_probe(void); void rs_gc_ai_test(void);
 /* (6.5) tests: RS_HERO_FAST=N - each side's hero countdown (D_08C28FAC[side], 08974318) cut to N seconds once, at the match start */
 void rs_hero_fast(void){
-    rs_gc_probe();
+    rs_gc_probe(); rs_gc_ai_test();
     static int n = -2; if (n == -2) { const char *e = getenv("RS_HERO_FAST"); n = e ? atoi(e) : -1; } if (n < 0) return;
     static int done[2];
     for (int k = 0; k < 2; k++) { u32 a = IMG(0x08C28FACu) + 4u * (u32)k; if (!done[k] && GF32(a) > (float)n) { fprintf(stderr, "[HERO] side %d countdown %.1f -> %d\n", k, GF32(a), n); GF32(a) = (float)n; done[k] = 1; } }
@@ -878,6 +878,70 @@ void rs_gc_probe(void){
         func_08A43528(), func_08A4356C(), func_08A435B0(), func_08A435F4(), func_08A43638(), func_08A4367C(), func_08A43404().f0, func_08A4344C().f0);
     for (u32 i = 0; i < 3; i++) for (u32 s = 0; s < 3; s++) for (u32 c = 0; c < 2; c++) for (u32 sp = 0; sp < 2; sp++)
         fprintf(stderr, "[GC] sim inf %u space %u comm %u spacebattle %u = %u\n", i, s, c, sp, func_08A436C0(i, s, c, sp));
+}
+/* (5.4 GC) RS_GC_AI_TEST=N: N random Galactic Conquest boards run through the game's own GC AI (08A3D120 plan search ->
+ * 08A3E044, then 08A3D17C -> 08A3F708), printing each board and the chosen plan ([GCAI] lines) for akbp -gcai to compare */
+static u32 gcai_rng;
+void rs_gc_take(u32 ctx, u32 j, u32 pb, u32 score, u32 combo){
+    static int on = -1; if (on < 0) on = getenv("RS_GC_AI_TAKES") != 0; if (!on) return; (void)ctx;
+    fprintf(stderr, "[GCAI] take %u %d>%d %d>%d combo %x prio %u flag %u score %d (%u %u)\n", j, (int)GU32(pb + 0x90), (int)GU32(pb + 0x98), (int)GU32(pb + 0x94), (int)GU32(pb + 0x9c), combo, GU32(pb + 0xf8), GU8(pb + 0xfc), (int)score, GU32(pb + 0xec), GU32(pb + 0xf0));
+    fprintf(stderr, "[GCAI] eval"); for (u32 k = 0; k < 15; k++) fprintf(stderr, " %u", GU32(pb + 0xbc + 4 * k)); fprintf(stderr, " buy"); for (u32 k = 0; k < 16; k++) fprintf(stderr, " %u", GU32(pb + 4 * k)); fprintf(stderr, "\n");
+}
+static u32 gcai_r(u32 n) { gcai_rng = gcai_rng * 1103515245u + 12345u; return n ? (gcai_rng >> 8) % n : 0; }
+void rs_gc_ai_test(void){
+    static int n = -2; if (n == -2) { const char *e = getenv("RS_GC_AI_TEST"); n = e ? atoi(e) : -1; } if (n <= 0) return;
+    int count = n; n = 0; gcai_rng = getenv("RS_GC_AI_SEED") ? (u32)atoi(getenv("RS_GC_AI_SEED")) : 1;
+    extern rv_t func_08A94784(u32, u32, u32, u32); extern u64 func_08A3CF14(u32, u32); extern u32 func_08A3D1D8(u32);
+    extern void func_08A3D120(u32, u32, u32, u32), func_08A3D17C(u32, u32, u32, u32);
+    extern void func_08A3D0E0(u32, u32, u32, u32, u32, u32, u32, u32, float, float, float, float, float, float, float, float);
+    extern void func_08A3B590(u32); extern void func_08A430DC(void);
+    func_08A430DC();                                     /* the planet / sector bonuses from the blueprint (done once by the GC start) */
+    u32 game = func_08A94784(0x200, 0, 0, 0).v0, sides = func_08A94784(0x100, 0, 0, 0).v0, pl = func_08A94784(0xC0, 0, 0, 0).v0,
+        sec = func_08A94784(0x30, 0, 0, 0).v0, obj = func_08A94784(0x10, 0, 0, 0).v0;
+    for (int t = 0; t < count; t++) {
+        for (u32 a = 0; a < 0x200; a += 4) GU32(game + a) = 0;
+        for (u32 a = 0; a < 0x100; a += 4) GU32(sides + a) = 0;
+        GU32(game) = sides; GU32(game + 4) = pl; GU32(game + 8) = sec; GU32(game + 12) = gcai_r(2);
+        static const int homes[3] = { 4, 5, 15 }; int h0 = homes[gcai_r(3)], h1; do h1 = homes[gcai_r(3)]; while (h1 == h0);
+        for (u32 i = 0; i < 16; i++) {
+            u32 o = gcai_r(3), tr = 10 * (1 + gcai_r(8)), hm = 0;
+            if ((int)i == h0) { o = 0; hm = 1; tr = 10 * (5 + gcai_r(11)); } else if ((int)i == h1) { o = 1; hm = 1; tr = 10 * (5 + gcai_r(11)); }
+            if (o == 2) tr = 0;
+            GU32(pl + 12 * i) = hm; GU32(pl + 12 * i + 4) = o; GU32(pl + 12 * i + 8) = tr;
+        }
+        for (u32 k = 0; k < 2; k++) {                        /* each column a random order of 0..3 */
+            u32 v[4] = { 0, 1, 2, 3 }; for (u32 j = 3; j > 0; j--) { u32 q = gcai_r(j + 1), tmp = v[j]; v[j] = v[q]; v[q] = tmp; }
+            for (u32 s = 0; s < 4; s++) GU32(sec + 12 * s + 4 + 4 * k) = v[s];
+        }
+        u32 f0 = 2 + gcai_r(2);
+        for (u32 sd = 0; sd < 2; sd++) {
+            u32 b = sides + 0x4c * sd;
+            GU32(b + 0x2c) = sd ? (f0 == 2 ? 3 : 2) : f0; GU32(b + 0x30) = 10 * gcai_r(150);
+            for (u32 k = 0; k < 3; k++) GU32(b + 0x34 + 4 * k) = gcai_r(3);
+        }
+        func_08A3B590(game);                                 /* sector owners, commanders available */
+        for (u32 sd = 0; sd < 2; sd++) for (u32 k = 0; k < 4; k++) { u32 b = sides + 0x4c * sd; if (GU8(b + 0x40 + k) && gcai_r(2)) GU8(b + 0x44 + k) = 1; }
+        fprintf(stderr, "[GCAI] board %d turn %u planets", t, GU32(game + 12));
+        for (u32 i = 0; i < 16; i++) fprintf(stderr, " %u,%u,%u", GU32(pl + 12 * i), GU32(pl + 12 * i + 4), GU32(pl + 12 * i + 8));
+        fprintf(stderr, " sectors"); for (u32 s = 0; s < 4; s++) fprintf(stderr, " %u,%u", GU32(sec + 12 * s + 4), GU32(sec + 12 * s + 8));
+        for (u32 sd = 0; sd < 2; sd++) { u32 b = sides + 0x4c * sd;
+            fprintf(stderr, " side %u,%u,%u,%u,%u,%u%u%u%u,%u%u%u%u", GU32(b + 0x2c), GU32(b + 0x30), GU32(b + 0x34), GU32(b + 0x38), GU32(b + 0x3c),
+                GU8(b + 0x40), GU8(b + 0x41), GU8(b + 0x42), GU8(b + 0x43), GU8(b + 0x44), GU8(b + 0x45), GU8(b + 0x46), GU8(b + 0x47)); }
+        fprintf(stderr, "\n");
+        GU32(obj) = 0; GU32(obj + 4) = game; func_08A3CF14(obj, game);
+        func_08A3D120(obj, 0, 0, 0);
+        u32 ctx = GU32(obj), np = GU32(ctx + 0x170), best = GU32(ctx + 0x174);
+        u32 pb = func_08A3D1D8(obj);
+        func_08A3D17C(obj, 0, 0, 0);
+        fprintf(stderr, "[GCAI] plan %d of %u best %u buy", t, np, best);
+        for (u32 i = 0; i < 16; i++) fprintf(stderr, " %u", GU32(pb + 4 * i));
+        fprintf(stderr, " tech %u %u %u cmdr %u%u%u%u move %d>%d %d>%d n %u %u eval %d %d prio %u flag %u reinf %d>%d %u target %u %u\n",
+            GU32(pb + 0x80), GU32(pb + 0x84), GU32(pb + 0x88), GU8(pb + 0x8c), GU8(pb + 0x8d), GU8(pb + 0x8e), GU8(pb + 0x8f),
+            (int)GU32(pb + 0x90), (int)GU32(pb + 0x98), (int)GU32(pb + 0x94), (int)GU32(pb + 0x9c), GU32(pb + 0xa0), GU32(pb + 0xa4),
+            (int)GU32(pb + 0xec), (int)GU32(pb + 0xf0), GU32(pb + 0xf8), GU8(pb + 0xfc), (int)GU32(pb + 0xb4), (int)GU32(pb + 0xb0), GU32(pb + 0xb8),
+            GU32(ctx + 0x164), GU32(ctx + 0x168));
+        func_08A3D0E0(obj, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
 }
 /* (tests) who calls a hooked function: each distinct native return address once (RS_CALLER_LOG; resolve with addr2line -f) */
 void rs_caller_log(const char *fn, u32 a0){

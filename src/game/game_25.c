@@ -12724,6 +12724,7 @@ L_08A3E2F8:;
     ST32(s1+372, s4);
     goto L_08A3E2FC;
 L_08A3E2FC:;
+    { extern void rs_gc_take(u32, u32, u32, u32, u32); rs_gc_take(s1, s4, s2 + t1, t2, s3); }   /* harness test hook (RS_GC_AI_TEST, PARITY 5.4; hand-added) */
     v0 = s2 + t1;
     s7 = t2 + 0;
     s6 = LD_U8(v0+252);

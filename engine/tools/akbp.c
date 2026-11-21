@@ -5,6 +5,7 @@
  *   auto-resolved battles - not the game's AI) printing the rules and every turn. */
 #include "assets/blueprint.h"
 #include "game/ak_gc.h"
+#include "game/ak_gc_ai.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -100,6 +101,50 @@ static int gc_test(const ak_blueprints *bp, u32 seed, int turns)
     return 0;
 }
 
+/* akbp COMMON.ASR -gcai LOG: the boards of RS_GC_AI_TEST's [GCAI] lines through Aurek's GC AI, compared with the game's plans */
+static int gc_ai_compare(const ak_blueprints *bp, const char *path)
+{
+    ak_gc_rules r; ak_gc_rules_load(bp, &r);
+    FILE *f = fopen(path, "r"); if (!f) { fprintf(stderr, "cannot read %s\n", path); return 1; }
+    static ak_gc_ai ai; static ak_gc g; char line[4096]; int boards = 0, same = 0; bool have = false;
+    while (fgets(line, sizeof line, f)) {
+        char *b = strstr(line, "[GCAI] board "), *pp = strstr(line, "[GCAI] plan ");
+        if (b) {
+            memset(&g, 0, sizeof g); g.winner = -1; int id, turn, n = 0; char *q = b + 13;
+            if (sscanf(q, "%d turn %d planets%n", &id, &turn, &n) < 2) continue;
+            q += n; g.turn = turn;
+            for (int i = 0; i < 16; i++) { int h, o, t; sscanf(q, " %d,%d,%d%n", &h, &o, &t, &n); q += n; g.planet[i].home = h; g.planet[i].owner = o; g.planet[i].troops = t; }
+            sscanf(q, " sectors%n", &n); q += n;
+            for (int s = 0; s < 4; s++) { sscanf(q, " %d,%d%n", &g.cmdr[s][0], &g.cmdr[s][1], &n); q += n; }
+            for (int s = 0; s < 2; s++) {
+                int fa, cr, t0, t1, t2; char av[8], bo[8];
+                sscanf(q, " side %d,%d,%d,%d,%d,%4[01],%4[01]%n", &fa, &cr, &t0, &t1, &t2, av, bo, &n); q += n;
+                g.side[s].faction = fa; g.side[s].credits = (u32)cr; g.side[s].tech[0] = t0; g.side[s].tech[1] = t1; g.side[s].tech[2] = t2;
+                for (int k = 0; k < 4; k++) { g.side[s].cmdr_avail[k] = av[k] == '1'; g.side[s].cmdr_bought[k] = bo[k] == '1'; }
+            }
+            for (int s = 0; s < 4; s++) g.sector_owner[s] = ak_gc_sector_owner(&g, s);
+            ak_gc_ai_init(&ai); ak_gc_ai_plan(&ai, &g, &r); ak_gc_ai_reinforce_plan(&ai, &g, &r); have = true;
+        } else if (pp && have) {
+            const ak_gc_plan *P = ak_gc_ai_best(&ai); char mine[1024]; int o = 0;
+            o += snprintf(mine + o, sizeof mine - o, " buy");
+            for (int i = 0; i < 16; i++) o += snprintf(mine + o, sizeof mine - o, " %u", P->buy[i]);
+            o += snprintf(mine + o, sizeof mine - o, " tech %d %d %d cmdr %d%d%d%d move %d>%d %d>%d n %u %u", P->tech[0], P->tech[1], P->tech[2],
+                P->cmdr[0], P->cmdr[1], P->cmdr[2], P->cmdr[3], P->src[0], P->dst[0], P->src[1], P->dst[1], P->n[0], P->n[1]);
+            char *theirs = strstr(pp, " buy"), *te = theirs ? strstr(theirs, " eval") : NULL;
+            char *fl = strstr(pp, " flag "), *rf = strstr(pp, " reinf ");
+            int tflag = fl ? atoi(fl + 6) : -1; int ra = -9, rb = -9; unsigned rn = 0; if (rf) sscanf(rf, " reinf %d>%d %u", &rb, &ra, &rn);
+            bool eq = theirs && te && (size_t)(te - theirs) == strlen(mine) && !strncmp(theirs, mine, (size_t)(te - theirs))
+                      && tflag == P->flag && ra == P->rf_a && rb == P->rf_b && rn == P->rf_n;
+            boards++; same += eq;
+            if (!eq) printf("board %d differs (plans %u, best %u)\n  game :%.*s flag %d reinf %d>%d %u\n  aurek:%s flag %d reinf %d>%d %u\n", boards - 1,
+                ai.nplans, ai.best, te ? (int)(te - theirs) : 0, theirs ? theirs : "", tflag, rb, ra, rn, mine, P->flag, P->rf_b, P->rf_a, P->rf_n);
+            have = false;
+        }
+    }
+    fclose(f); printf("%d / %d boards the same\n", same, boards);
+    return same == boards ? 0 : 2;
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 3) { fprintf(stderr, "usage: akbp <COMMON.ASR> <Type> [Object|*] [prop ...]\n"); return 1; }
@@ -107,6 +152,7 @@ int main(int argc, char **argv)
     if (!read_file(argv[1], &file)) { fprintf(stderr, "cannot read %s\n", argv[1]); return 1; }
     if (!ak_arena_init(&a, 64u << 20) || !ak_blueprints_parse(&file, &a, &bp)) { fprintf(stderr, "cannot parse\n"); return 1; }
     if (!strcmp(argv[2], "-types")) { for (u32 i = 0; i < bp.ntypes; i++) printf("%s (%u)\n", bp.types[i].name, bp.types[i].nobjects); return 0; }   /* akbp FILE -types */
+    if (!strcmp(argv[2], "-gcai") && argc > 3) return gc_ai_compare(&bp, argv[3]);
     if (!strcmp(argv[2], "-gc")) return gc_test(&bp, argc > 3 ? (u32)strtoul(argv[3], 0, 0) : 1, argc > 4 ? atoi(argv[4]) : 60);
     const ak_bp_type *t = ak_bp_find_type(&bp, argv[2]);
     if (!t) { fprintf(stderr, "no type %s\n", argv[2]); return 1; }
