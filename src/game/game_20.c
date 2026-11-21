@@ -15260,6 +15260,7 @@ void func_089CE510(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u8 stack_[32] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 32);
 L_089CE510:;
+    { extern void rs_crash_log(u32, u32, float); rs_crash_log(a0, a1, f12); }   /* harness measurement (RS_CRASH_LOG, PARITY 3.3; hand-added) */
     sp = sp - 32;
     s2 = a0 + 0;
     s0 = a1 + 0;

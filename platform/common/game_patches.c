@@ -851,6 +851,12 @@ void rs_pu_log(int what, u32 o, u32 k){
     if (what == 0) fprintf(stderr, "[PU] fr %u use weapon %08x kind %u flags %08x clip %d recup %.2f\n", probe_fr, o, k, GU32(o + 0x16C), (int)GU32(o + 0x128), GF32(o + 0xB4));
     else fprintf(stderr, "[PU] fr %u buff unit %08x id %x kind %u team %u\n", probe_fr, o, gok(o) && gok(GU32(o)) ? obj_id(o) : 0, k, GU32(o + 12));
 }
+/* (3.3) a vehicle's collision (089CE510: a0 the vehicle, a1 the other object's id, f12 the impact speed): RS_CRASH_LOG */
+void rs_crash_log(u32 v, u32 other, float sp_){
+    static int on = -1; if (on < 0) on = getenv("RS_CRASH_LOG") != 0; if (!on) return;
+    void *bt[4]; int n = backtrace(bt, 4);
+    fprintf(stderr, "[CRASH] fr %u veh %08x other %x speed %.2f driver %08x f34c %08x f354 %08x f348 %x from %p\n", probe_fr, v, other, sp_, GU32(v + 0x1B4), GU32(v + 0x34C), GU32(v + 0x354), GU32(v + 0x348), n > 2 ? bt[2] : 0);
+}
 /* (tests) who calls a hooked function: each distinct native return address once (RS_CALLER_LOG; resolve with addr2line -f) */
 void rs_caller_log(const char *fn, u32 a0){
     static int on = -1; if (on < 0) on = getenv("RS_CALLER_LOG") != 0; if (!on) return;

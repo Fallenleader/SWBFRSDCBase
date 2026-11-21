@@ -552,11 +552,17 @@ textures and how they are used. Section R lists only what must be in place so th
     Tooling: the original's per-vehicle controls can be dumped with RS_DRIVE_VEHIN=1 (each frame's control values, the flags,
     and once the control scheme's binding chains) and RS_INPUT_DUMP=1 (the soldier's scheme).
   - [ ] Roll (craft with MaxTurnRoll > 0): no starfighter flies on a planet map. Measure it in space (3.7).
-  - [ ] Crash and skim rules: a ~10° dive into Hoth's snow skimmed once, then crashed (the pilot dies, the wreck stays).
+  - [x] Crash and skim rules [checked 2026-11-21]: a ~10° dive into Hoth's snow skimmed once, then crashed (the pilot dies, the wreck stays).
     2026-11-20: the crash is the collision damage of 7.2 (089CE510: 5 m/s or more into a surface costs max health x the
     impact speed x dt x 0.05 in free flight, built) - a skim is a short touch, a crash a long one. Landing (AnimLand) is not
     measured.
-  - [ ] Stunts (Immelmann, barrel roll: the EnergyStunt use).
+    2026-11-21, checked live (harness program fly_pitch from beside Hoth's snowspeeder; RS_CRASH_LOG, a hand hook on 089CE510,
+    with RS_DMG_LOG): the dive ends in 160 frames of ground contact at 15.0 m/s (the stall speed), each sending the craft damage
+    kind 0x9E500986 of 1.254 = 200 (Health) x 15 x dt x 0.025 (not free flight) until the 200 are gone - Aurek's rule, as built.
+    089CE510's other branch (vehicle +0x1B4 set and +0x354 bit 3 clear: one 0x8080 / 0x8081 pair, a crash event, then flag
+    +0x34C bit 19) never ran (+0x1B4 was 0 throughout) - not built.
+  - [ ] Stunts (Immelmann, barrel roll: the EnergyStunt use). [2026-11-21: no planet flyer has EnergyStunt; moved with roll to
+    space, 3.7]
 - [ ] **3.4 Walkers [partial].** Measured on Hoth's AT-ST (harness: `--team empire --tp 60:264,14.8,14 --program walker`;
   boarded from its side with d-pad up):
   - [x] Its controls act 0.47 s (28 frames) late, for turning and walking alike.  [PARITY(3.4a): the cause is not found.]
