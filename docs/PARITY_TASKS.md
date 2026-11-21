@@ -767,6 +767,10 @@ textures and how they are used. Section R lists only what must be in place so th
       record's range / 7.5 degrees). The want flag read (0895076C): +0x22 is set at once for any target that is not a flyer,
       walker or tank, and for those when the lead (the vehicle's vfunc +0x68 with the shot speed 1000) has a solution - so there
       is no aim delay; the gun's turn into the cone is the only wait. Aurek's 0.6-1.0 s aim time before firing is gone (play.c).
+- [ ] **4.3b Auto-gunners [not original; requested 2026-11-21].** An opt-in setting (AK_AUTO_GUNNERS, off by default so parity
+  builds stay faithful) that lets the AT-AT and every turret target and shoot enemies on their own, with no gunner. Note: the AT-AT
+  standing still for a whole match is original - it moves to the next waypoint only once the Empire holds the post near it
+  (Hoth's script opens the node; it never walks back), see 3.4.
 - [ ] **4.4 Movement behaviour.** Path following, strafing, cover, objective choice, and retreat. Compare against the original's
   decisions.
   - Measured (1.4): AI soldiers' speeds come from the AI controller (soldier +88 -> +72), not the clips: 5.0, 7.4, 8.5, 11.5
