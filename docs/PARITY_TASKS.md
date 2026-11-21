@@ -307,6 +307,22 @@ textures and how they are used. Section R lists only what must be in place so th
     bits' blueprint keys.
 - [ ] **2.3 Secondary items [partial].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
   incinerator, fusion cutter, shields, jetpack, jump pack, stealth. Trace each one's blueprint use.
+  - [ ] **2.3p Power-ups [traced in part 2026-11-21, not built].** Weapons of class PowerUps (Rage, Rally, Regenerate,
+    Stamina; VehicleAutoRepair is Passive): the weapon loader (08A16FD8) keeps Special_Ability (flags +0x16C bit 4),
+    RecuperationTime (+0xB4), FiringAnim (+0x110) and FiringPFX (+0xC0). The unit class (constructor 089A6004, vtable
+    0x08AFC2C8, the units' list D_08C2A880) reads from the four Weapons (by the name table 0x08ADE4C8: Rage, Rally,
+    Regenerate, Stamina) their <name>_Time (keys table 0x08ADE4B8) into +0x108 + 4k and <name>_Radius (0x08ADE4A8) into
+    +0x118 + 4k. A unit's message handler (089A6D64) turns messages 0x8067 / 0x8068 / 0x8069 / 0x806A into power-up k = 0..3
+    and calls 089A7988: every living unit of the same team (+12) within the radius (3-D, from the user, so the user too) gets
+    the buff - its +0xF4 mask set to 1 << k alone (one buff at a time; 089A816C), its timer +0xF8 + 4k to 0, and +0x128 the
+    user's id. Each frame (089A64F4) a buffed unit's timer runs by the frame time and the buff ends (089A8188) past its time,
+    or at once when [the unit's player record no longer has the power-up (089824B0 with 0x08ADC668[D_08ADE4D8[k]]), it is
+    the user itself and vfunc +0xA8 fails] (that test read loosely). The same update heals a living unit below full by a rate
+    (vfunc +0xA0, else D_08AEEA08, else a per-team rate 08A3CDF0) x dt - [assumed: the Regenerate effect / a general regen].
+    Stamina_Multiplier is read into the base unit's +0x94 (089E13B8). Not found yet: what sends 0x8067..0x806A (the power-up's
+    fire: which button), where Rage's x2 / Rally's 50 % act (the keys Damage_Multiplier / Damage_Reduction / Regenerate_Rate
+    have no hash in the code or data - possibly hard-coded or read by name elsewhere), the HUD's power-up icon and recharge,
+    whether bots use them.
   - Thermal detonator [measured and built 2026-11-16]: Weapon REP_Grenade (4, no spare clips, 2 s between throws), Projectile
     "Grenade" (Timer 3, 100 / 150 damage, radius 8). Measured (harness tracks the grenade object, class 0x8011): it appears in
     the hand 29 frames after square, leaves it 8 frames later 1.0 m ahead and 2.1 m up, at 20.4 m/s along the facing and 1.2
