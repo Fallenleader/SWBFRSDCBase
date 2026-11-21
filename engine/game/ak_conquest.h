@@ -70,10 +70,11 @@ typedef struct ak_conquest {
     int winner;                        /* -1 playing, 0 / 1, or AK_CQ_NEUTRAL for a draw */
     f32 respawn_t;                     /* the next spawn wave */
     u32 captures;                      /* owner changes (tests) */
+    f32 time;                          /* the match's time (08972964's D_08C28F44) */
     struct { u16 post, event; } ev[16]; u32 nev;   /* the script events the owner changes raised (089ECDE4), for the caller to send */
 } ak_conquest;
 
-typedef struct { s32 tickets; bool ticket_mode; f32 capture_radius, max_rate, contest_time, bleed_time, drain_time, loss_time, respawn_delay; } ak_cq_rules;
+typedef struct { s32 tickets; bool ticket_mode; f32 capture_radius, max_rate, contest_time, bleed_time, drain_time, loss_time, respawn_delay, time_limit; } ak_cq_rules;
 void ak_cq_rules_default(ak_cq_rules *r);   /* the game's numbers; AK_TICKETS sets the option */
 int ak_faction_team(int faction);
 void ak_conquest_start(const ak_conquest_map *m, const ak_cq_rules *r, ak_conquest *s);

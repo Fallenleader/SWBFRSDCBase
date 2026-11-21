@@ -179,6 +179,9 @@ void ak_cq_rules_default(ak_cq_rules *r)
     r->ticket_mode = ak_game_mode == 0 || ak_game_mode == 5;              /* 08973660; elsewhere the tickets are unlimited (08987414: -1) */   /* PARITY(5.4) */
     r->bleed_time = 4.0f; r->drain_time = 0.1f;
     r->loss_time = ak_setting_float("AK_TOTAL_LOSS_TIME", 60.0f); r->respawn_delay = ak_setting_float("AK_RESPAWN_DELAY", 10.0f);   /* PARITY(1.10 5.1) */
+    /* the match's time limit (089722C4: the option 08979DB4 - offline D_08C294C4, 60 - in minutes, x 60 by 08972964; read live on
+       Hoth: 60; 0 = none, as online and mode 5 set it) */
+    r->time_limit = ak_setting_float("AK_TIME_LIMIT", 60.0f) * 60.0f;
 }
 
 int ak_faction_team(int faction) { return faction & 1; }
@@ -254,6 +257,13 @@ void ak_conquest_killed(const ak_cq_rules *r, ak_conquest *s, int team) { (void)
 bool ak_conquest_update(const ak_conquest_map *m, const ak_cq_rules *r, ak_conquest *s, const ak_cq_soldier *sol, u32 n, f32 dt)
 {
     if (s->winner >= 0) return false;
+    /* the time limit (08972964): past it, the side with the higher score (the score object 08988228 +0x24, 0 in conquest) wins, then
+       the one with more tickets (+0x1C), else a draw (4) */
+    s->time += dt;
+    if (r->time_limit > 0 && s->time >= r->time_limit) {
+        s->winner = s->tickets[0] > s->tickets[1] ? 0 : s->tickets[1] > s->tickets[0] ? 1 : AK_CQ_NEUTRAL;
+        return false;
+    }
     s->living[0] = s->living[1] = 0;
     for (u32 k = 0; k < n; k++) if (sol[k].alive && sol[k].team >= 0 && sol[k].team < 2) s->living[sol[k].team]++;
     /* the posts */

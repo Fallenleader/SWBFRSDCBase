@@ -786,6 +786,12 @@ textures and how they are used. Section R lists only what must be in place so th
 ## 5. Game rules and modes
 
 - [ ] **5.1 Tickets [traced for conquest 2026-11-19].** Per mode and level (AK_TICKETS 100), ticket bleed, and AK_TOTAL_LOSS_TIME 60.
+  - 2026-11-21, the match time limit (traced, read live): 089722C4 copies the option 08979DB4 (offline D_08C294C4 = 60, minutes;
+    0 online and in mode 5) to D_08C28F58; 08972964 ends the match once the time D_08C28F44 reaches it x 60 s: the side with the
+    higher score (the score object 08988228 +0x24 / +0x28, 0 in conquest) wins, then the one with more tickets (+0x1C / +0x20:
+    read live 100 / 125 on Hoth), else a draw (4). Aurek's conquest had none (CTF did): now AK_TIME_LIMIT (60 minutes; the Vita /
+    3DS settings.txt list it). Also found: the defaults block 0897782C (base 0x08C2933C) sets +392 / +396 / +400 to 60 and +404 /
+    +408 to 16 (the unit count) - the "60" there is this time limit, not the AI soldiers' health (1.15b still open).
   - Found by a gdb watchpoint on the counts (harness RS_DRIVE_MEMSCAN found them at the conquest manager, class 0x8002,
     +0x48 / +0x4C, Rebels / Empire; RS_DRIVE_PEEK reads them): the starting count is the option BFF.InitialTickets (options
     +424, default 100).  The level script then sends the ticket entity (ENTI type 9, class 0x8009, handler 089875C8) its
