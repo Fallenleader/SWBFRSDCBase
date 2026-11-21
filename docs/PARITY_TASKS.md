@@ -725,6 +725,12 @@ textures and how they are used. Section R lists only what must be in place so th
     without). Aurek's flyers still chase 85 % of the time (AK_DEBUG_BOTVEH: 831 of 975 samples with a target, median 100 m/s;
     without one 55 m/s); the original's pilots spend two thirds of their calls in 0x487. Next: who gives node 0x487 its
     point and when (the patrol 0x485, 08945A68 family; objective legs), and why the original's attacks are shorter.
+  - 2026-11-21, who uses 0x487: only two nodes start it (08955410(.., 0x487)): 0x453 (built by 08949A8C; 0894A074: fly to an
+    object of the registry 0x08C2A204 - its +0x40 position - then message 0x804F) and 0x454 (0894AE58; 0894B2C4: the landing - on
+    arrival it sets the craft's flags and gets the pilot out, 089D1F3C). Goals become orders by 08942448: kind 2 -> 0x486, 4 ->
+    0x455, 5 -> 0x450, 6 -> 0x451, 7 -> 0x452, 8 -> 0x453, 9 -> 0x454 (the vehicle classes' 08945AC0 / 08945C28 map kind 3 to
+    0x44E first). Next: who hands out goal kind 8 and what the 0x08C2A204 objects are (attack-run points?), so Aurek's roles
+    can be matched against the original's two thirds of flight time in 0x487.
 
 ## 5. Game rules and modes
 
