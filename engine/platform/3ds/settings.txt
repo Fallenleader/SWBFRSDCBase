@@ -191,6 +191,8 @@ AK_TOTAL_LOSS_TIME=60
 AK_TIME_LIMIT=60
 # Galactic Conquest battle test: starting tickets "good side,bad side" (Republic/Alliance, CIS/Empire); empty = a normal match
 AK_GC_TICKETS=
+# Galactic Conquest: the player's faction for a new game (2 Alliance, 3 Empire, 4 random - the menu's choice)
+AK_GC_FACTION=4
 
 # Front end: 1 = start in the game's own menus (main menu; Instant Action > Launch starts the match), 0 = straight into AK_LEVEL
 AK_FRONTEND=0
