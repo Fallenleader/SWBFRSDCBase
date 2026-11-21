@@ -7,6 +7,8 @@ import java.io.*;
 public class Decomp extends GhidraScript {
   public void run() throws Exception {
     String list = System.getenv("DECOMP_LIST"); String out = System.getenv("DECOMP_OUT");
+    String rets = System.getenv("DECOMP_RETURNS");   // functions Ghidra wrongly takes as never returning
+    if (rets != null) for (String s : rets.split("[ ,]+")) { if (s.isEmpty()) continue; Function f = getFunctionAt(toAddr(Long.parseLong(s, 16))); if (f != null) f.setNoReturn(false); }
     DecompInterface d = new DecompInterface(); d.openProgram(currentProgram);
     for (String s : list.split("[ ,]+")) {
       if (s.isEmpty()) continue;

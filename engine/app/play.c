@@ -419,6 +419,7 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
     b->alive = true; b->dead_t = 0; b->state = PLAY_IDLE; b->clip_t = rnd(&b->seed); b->land_t = 0; b->was_ground = true; b->idle_var = -1; b->idle_t = (rnd(&b->seed) + 0.5f) * 2.5f;
     b->goal = -1; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
     b->stuck_t = 0; memcpy(b->stuck_pos, pos, 12); b->veh = b->want_veh = -1; b->rev_t = 0; b->vstucks = 0; b->veh_cool = 0;
+    b->wants_veh = p->bot_drive > 0 && rnd(&b->seed) < p->bot_drive;   /* the spawner's chance (089800C8: random % 100 < +0xEC, 100 by default - 0897E594) */
     ak_target *t = &p->target[1 + idx];
     t->health = t->max_health = ak_bp_float(b->look.bp, "Health", 60.0f); t->headshot_mult = ak_bp_float(b->look.bp, "Headshot multiplier", 4.0f);
     t->alive = true; t->team = b->team; t->last_attacker = -1;
@@ -739,6 +740,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     }
     if (ak_setting_int("AK_BOT_SENSE_EVERY", 0) <= 0 && p->nbots > 16) p->sense_every = (p->nbots + 15) / 16;   /* (performance) */
     vehicles_init(p, l, m, bp, a);
+    for (u32 i = 0; i < p->nbots; i++) p->bot[i].wants_veh = p->bot_drive > 0 && rnd(&p->bot[i].seed) < p->bot_drive;   /* (the first wave: spawned before the chance was read) */
     p->nturret = 0; p->ntdef = 0; turrets_init(p, l, m, bp);
     {   /* the battlefront's bounds: ENTI class 0x8021 records {1, 0, 0, x min, x max, y min, y max, z min, z max (game axes), flags};
          * flags byte 1 = 0 is the box soldiers and their vehicles are held to (089D4BDC asks 08A145E4(0)); 1 is the AI pilots' (089477A8) */
@@ -1272,6 +1274,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     }
     if (b->veh >= 0) { bot_drive(p, m, b, idx, dt); return; }
     b->veh_cool -= dt;
+    if (b->want_veh < 0 && b->wants_veh && p->ready) bot_take_vehicle(p, b);   /* (the squad's pass, every frame) */
     if (b->want_veh >= 0) {                                                  /* on its way to a vehicle: still free?  close enough to get in? */
         const ak_vehicle *vh = &p->veh[b->want_veh];
         f32 dx = vh->pos[0] - b->ch.pos[0], dz = vh->pos[2] - b->ch.pos[2], r = vh->def ? vh->def->radius + 2.5f : 0;
@@ -1579,7 +1582,7 @@ static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
 static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a)
 {
     p->in_veh = -1; p->in_turret = -1; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 10.0f);   /* (the spawn records say 10 s) */   /* PARITY(3.5) */
-    p->bot_drive = ak_setting_float("AK_BOT_VEHICLES", p->is_space ? 1.0f : 0.6f);   /* space: every bot that can flies */   /* PARITY(4.1) */
+    p->bot_drive = ak_setting_float("AK_BOT_VEHICLES", 1.0f);   /* the chance a spawned bot wants a vehicle (the spawner default 100 %, 0897E594) */
     if (!ak_setting_int("AK_VEHICLES", 1)) return;
     ak_entity_set es; size_t mark = a->used;
     if (!ak_entities_load(l, m, a, &es)) { a->used = mark; return; }
@@ -1784,28 +1787,29 @@ static void proj_boom(void *ctx, const f32 *pos, f32 radius, const ak_proj_def *
 #define FLY_RAYS AK_COL_FLYER_MASK
 static f32 clampf(f32 x, f32 lo, f32 hi) { return x < lo ? lo : x > hi ? hi : x; }
 
-/* a free vehicle of its side within 40 m that no other bot is walking to: walk there (by chance: AK_BOT_VEHICLES) */
+/* The squad AI's vehicle pass (08925E98, every frame): a soldier that wants a vehicle (+0xC8 bit 5: set when it spawns with the
+ * spawner's chance, 089800C8 - 100 % by default, 0897E594; measured on Hoth: the first eight bots all had it), is on foot, alive and
+ * has none reserved gets the nearest vehicle (squared distance, no limit in single player - 089269AC) that has a free seat for its
+ * side and that no other soldier has reserved (+0xE4 bit 5), turrets left out; the order 0x8037 sends it there.  When there is none
+ * the soldier stops wanting one.  [assumed: Aurek leaves out the placed walkers, as before; AK_BOT_VEHICLES scales the chance] */
 static bool bot_take_vehicle(ak_play *p, ak_play_bot *b)
 {
-    if (p->bot_drive <= 0 || b->veh_cool > 0 || rnd(&b->seed) >= p->bot_drive) return false;
-    for (u32 i = 0; p->have_cq && i < p->cq.nposts; i++) {                   /* a post to take right here: on foot (drivers cannot capture) */
-        const f32 *pp = p->cq.post[i].pos; f32 dx = pp[0] - b->ch.pos[0], dz = pp[2] - b->ch.pos[2];
-        if (!p->cq.post[i].disabled && p->match.post[i].owner != b->team && dx * dx + dz * dz < 30.0f * 30.0f) return false;
-    }
-    s32 best = -1; f32 bd = p->is_space ? 90.0f * 90.0f : 40.0f * 40.0f;   /* (a capital ship's hangar is wide) */
+    if (!b->wants_veh || b->veh_cool > 0) return false;
+    s32 best = -1; f32 bd = 1e30f;
     for (u32 v = 0; v < p->nveh; v++) {
         const ak_vehicle *vh = &p->veh[v];
         if (!vh->def || !vh->alive || vh->driver >= 0 || !vh->def->drivable || p->vspawn[v].fixed || (vh->team != b->team && !vh->open)) continue;
-        f32 dx = vh->pos[0] - b->ch.pos[0], dz = vh->pos[2] - b->ch.pos[2], d2 = dx * dx + dz * dz;
-        if (d2 >= bd || fabsf(vh->pos[1] - b->ch.pos[1]) > 8.0f) continue;
+        f32 dx = vh->pos[0] - b->ch.pos[0], dy = vh->pos[1] - b->ch.pos[1], dz = vh->pos[2] - b->ch.pos[2], d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 >= bd) continue;
         bool taken = false;
         for (u32 i = 0; i < p->nbots && !taken; i++) taken = &p->bot[i] != b && p->bot[i].alive && p->bot[i].want_veh == (s32)v;
         if (!taken) { bd = d2; best = (s32)v; }
     }
-    if (best < 0) return false;
+    if (best < 0) { b->wants_veh = false; return false; }
     b->want_veh = best; b->goal = -1; b->holding = false; b->goal_t = 0;
     memcpy(b->hold, p->veh[best].pos, 12);
     bot_route(p, b, b->hold);
+    if (ak_setting_int("AK_DEBUG_BOTVEH", 0)) AK_INFO("botveh", "%.1f s: bot %d (team %d) heads for vehicle %d, %.0f m", p->clock, (int)(b - p->bot), b->team, best, sqrtf(bd));
     return true;
 }
 
@@ -1832,7 +1836,7 @@ static void bot_exit(ak_play *p, ak_play_bot *b, u32 idx)
     }
     ak_char_spawn(&b->ch, out, vh->yaw);
     vh->driver = -1; vh->open = true; vh->throttle = vh->steer = vh->strafe = 0; vh->brake = false;
-    b->veh = -1; b->veh_cool = 20.0f; b->state = PLAY_IDLE; b->clip_t = 0; b->stuck_t = 0; memcpy(b->stuck_pos, out, 12);
+    b->veh = -1; b->veh_cool = 20.0f; b->wants_veh = true; b->state = PLAY_IDLE;   /* (out: wanting one again, 0894B2C4 case 4; the 20 s wait is Aurek's [assumed]) */ b->clip_t = 0; b->stuck_t = 0; memcpy(b->stuck_pos, out, 12);
     ak_target *t = &p->target[1 + idx]; t->alive = true; t->team = b->team;
     b->goal_t = 0; bot_choose_goal(p, b);                                      /* (keeps its goal post if still not held) */
     if (ak_setting_int("AK_DEBUG_BOTVEH", 0)) AK_INFO("botveh", "%.1f s: bot %u gets out of %s at %.0f %.0f %.0f (stucks %u)", p->clock, idx, vh->def->name, vh->pos[0], vh->pos[1], vh->pos[2], b->vstucks);
