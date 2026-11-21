@@ -2179,9 +2179,10 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
         /* FOLLOWING's speed (08949834): the target's speed + (distance - 250) x 0.004 x the top speed, between the pilot's least and
            most (+0x78 / +0x7C) - here the stall and cruising speeds [assumed] - reached by the throttle buttons */
         const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
-        f32 top = d->cruise > 0 ? d->cruise : 60.0f, ws = clampf(ev->speed + (dist - 250.0f) * 0.004f * top, d->stall_speed, top);
-        b->boost = false; vh->fast = false; vh->brake = false;   /* (tried: TopSpeed with the boost - faster, wider angles, no more hits) */
-        if (vh->speed < ws - 2.0f) vh->fast = true; else if (vh->speed > ws + 2.0f) vh->brake = true;
+        static int tsp = -1; if (tsp < 0) tsp = ak_setting_int("AK_FLY_PURSUIT_TOP", 0);
+        f32 top = tsp && d->top_speed > d->cruise ? d->top_speed : d->cruise > 0 ? d->cruise : 60.0f, ws = clampf(ev->speed + (dist - 250.0f) * 0.004f * top, d->stall_speed, top);
+        b->boost = false; vh->fast = false; vh->brake = false;   /* (AK_FLY_PURSUIT_TOP=1: TopSpeed as the most, past the cruise by the boost - 437 m median instead of 562, no more hits: 51 / 56) */
+        if (vh->speed < ws - 2.0f) b->boost = ws > d->cruise + 1.0f; else if (vh->speed > ws + 2.0f) vh->brake = true;
     } else if (craft && !b->circle && dist < 90.0f) {                        /* on its tail: no faster than it */
         const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
         if (ev->speed < vh->speed - 5.0f) vh->brake = true;
