@@ -249,17 +249,26 @@ void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp)
         u32 n; const u16 *nm = ak_hud_stdtext(ak_gc_planet_defs[p].name_id, &n);
         if (nm) ak_hud_2d_text(0, x - 33.0f, y + 10.5f, x + 33.0f, 1.0f, 0xFFFFFFFFu, nm, n, 1);
     }
-    /* the planet panel (top left): its name, credit bonus and troops */
-    if (s->cursor >= 0 && s->sub != 2) {                        /* (hidden while a destination is chosen: the planet's label instead) */
-        int p = s->cursor;
-        spr(s->tex[GCT_TECH2], 5, 25, 123, 114, 0.4570f, 0.0f, 0.9180f, 0.3477f, 0x99FFFFFFu);
+    /* the planet panel (top left): its name, credit bonus and troops.  Its picture and icons by the owner (the original's draws):
+       the player's GC_Tech_Elements_02 blue half (uv 0.457,0 - 0.918,0.3477, icons 0xFFAAAAFF), the opponent's brown one (uv
+       0,0.3477 - 0.4609,0.6953, icons 0xFFFFAAAA), a neutral planet's the green one (uv 0,0 - 0.457,0.3477) [assumed: from the screen,
+       not logged; its icons 0xFFAAFFAA]; TROOPS when the planet is the playing side's.  During the opponent's turn it shows the planet
+       the opponent works on (its home for the treasury and purchases). */
+    int pp = s->cursor;
+    if (s->ai_show) { const typeof(s->ai_step[0]) *st = &s->ai_step[s->ai_cur]; pp = st->kind == 3 || st->kind == 4 || st->kind == 5 ? st->a : ak_gc_home(&s->g, 1); }
+    if (pp >= 0 && s->sub != 2) {                               /* (hidden while a destination is chosen: the planets' labels instead) */
+        int p = pp, o = s->g.planet[p].owner, side = s->ai_show ? 1 : 0;
+        static const f32 puv[3][4] = { { 0.4570f, 0.0f, 0.9180f, 0.3477f }, { 0.0f, 0.3477f, 0.4609f, 0.6953f }, { 0.0f, 0.0f, 0.4570f, 0.3477f } };
+        static const u32 icol[3] = { 0xFFAAAAFFu, 0xFFFFAAAAu, 0xFFAAFFAAu };
+        int k = o == 0 ? 0 : o == 1 ? 1 : 2;
+        spr(s->tex[GCT_TECH2], 5, 25, 123, 114, puv[k][0], puv[k][1], puv[k][2], puv[k][3], 0x99FFFFFFu);
         u32 n; const u16 *nm = ak_hud_stdtext(ak_gc_planet_defs[p].name_id, &n);
         if (nm) ak_hud_2d_text(1, 12, 30, 123, 1.0f, 0xFFFFFFFFu, nm, n, 0);
-        spr(s->tex[GCT_TECH], 15, 55, 39, 72, 0.7461f, 0.0f, 0.8398f, 0.0664f, 0xFFAAAAFFu);
+        spr(s->tex[GCT_TECH], 15, 55, 39, 72, 0.7461f, 0.0f, 0.8398f, 0.0664f, icol[k]);
         num(0, 32, 56, 0xFFFFFF00u, (u32)s->r.planet_bonus[p], 1, true);
         txt(0, 55, 56, 0xFFFFFFFFu, 0x35, 0);                        /* CREDITS */
-        if (s->g.planet[p].owner == 0) {
-            spr(s->tex[GCT_TECH], 15, 83, 39, 104, 0.7461f, 0.0703f, 0.8398f, 0.1523f, 0xFFAAAAFFu);
+        if (o == side) {
+            spr(s->tex[GCT_TECH], 15, 83, 39, 104, 0.7461f, 0.0703f, 0.8398f, 0.1523f, icol[k]);
             num(0, 27, 84, 0xFFFFFFFFu, (u32)s->g.planet[p].troops, 1, false);
             txt(0, 55, 84, 0xFFFFFFFFu, 0x34, 0);                    /* TROOPS */
         }
@@ -298,6 +307,16 @@ void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp)
     }
     /* choosing a destination: the cursor planet's label - its name under it, the credit icon and its bonus over it (offsets from the
        original's frame over Alderaan) */
+    if (s->sub == 2 && s->src >= 0) {                           /* the source: credit + troops icons (uv 0.7461,0 - 0.8398,0.1523), bonus and troops */
+        f32 x, y; int p = s->src;
+        if (p != s->cursor && project(vp, s->planet_pos[p], &x, &y)) {
+            u32 n; const u16 *nm = ak_hud_stdtext(ak_gc_planet_defs[p].name_id, &n);
+            if (nm) ak_hud_2d_text(0, x - 0.5f - 100, y + 10.6f, x - 0.5f + 100, 1.0f, 0xFFFFFFFFu, nm, n, 1);
+            spr(s->tex[GCT_TECH], x + 9.5f, y - 22.0f, x + 33.5f, y + 17.0f, 0.7461f, 0.0f, 0.8398f, 0.1523f, 0xFFAAAAFFu);   /* [assumed: the player's icon colour - the frame's was the opponent's 0xFFFFAAAA] */
+            num(0, x + 26.5f, y - 21.0f, 0xFFFFFF00u, (u32)s->r.planet_bonus[p], 1, true);
+            num(0, x + 21.5f, y - 3.0f, 0xFFFFFFFFu, (u32)s->g.planet[p].troops, 1, false);
+        }
+    }
     if (s->sub == 2 && s->cursor >= 0) {
         f32 x, y; int p = s->cursor;
         if (project(vp, s->planet_pos[p], &x, &y)) {
