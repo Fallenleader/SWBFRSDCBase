@@ -3476,6 +3476,7 @@ rv_t func_089DCC94(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u8 stack_[16] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 16);
 L_089DCC94:;
+    { extern void rs_caller_log(const char *, u32); rs_caller_log("089DCC94", a0); }   /* harness measurement (RS_CALLER_LOG, PARITY 1.7b; hand-added) */
     sp = sp - 16;
     f0 = BITSF(0);
     s0 = a0 + 0;

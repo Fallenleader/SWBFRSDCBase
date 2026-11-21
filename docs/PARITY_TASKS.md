@@ -114,6 +114,14 @@ textures and how they are used. Section R lists only what must be in place so th
     "roll stamina cost" (0x578CBDA1, 089DCE7C - Aurek's stamina_pay); at the roll's end 089A3C44 writes "roll no lock on time"
     (0xBEF994D5) to the player controller +0x84 and clears its +0x208 bit 4 (set at the start, 089A3BC0). The reader of +0x84 is
     not found yet (the controller's lock-on), so Aurek does not block the lock after a roll.
+    2026-11-21, **the reader found**: +0x84 is a soldier field (the object found by the soldier's id in D_08C2A6C8), run down
+    by the frame's time in the soldier update 089DA874; it is read only by the soldier's vfunc +32, 089DCC94 ("can be locked":
+    +0x84 <= 0, and not riding unless the vehicle's +0x70 bit 18). Its caller (harness RS_CALLER_LOG, a hand hook printing the
+    native caller: 08961A50, the AI sensor) zeroes the sensor record's awareness (+24) whenever it returns 0 - so after a roll
+    the AI loses the roller for "roll no lock on time" (2 s), the awareness then growing back at 2/3 a second to the 0.99 the
+    target needs (the awareness-zeroing branch left open in 4.2). Not the player's own lock-on. Ported: play.c roll_nolock
+    (set at the roll's end, run down each frame), the bots' records carry the awareness and bot_find_enemy needs > 0.99.
+    Still open: the 0.05 s in the code.
 - [x] **1.8 Sprint and stamina [done 2026-11-16, measured].** Holding L while running (harness, 15 s): the sprint starts 0.1 s
   after L goes down (a 4-frame press is still a jump tap), crossfades over 0.2 s to the sprint clip's root motion (about 10.3
   m/s), ends when the stamina is gone (100 / "sprint cost" 15 a second: 6.7 s) and does not come back while L stays held - the

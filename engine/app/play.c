@@ -756,7 +756,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     }
     const ak_bp_object *ctl = ak_bp_find(bp, "Controls", "Humanoid");
     p->stamina = p->stamina_max = 100.0f; p->stamina_regen = 10.0f; p->stamina_spent = false;
-    p->sprint_cost = ak_bp_float(ctl, "sprint cost", 20.0f); p->roll_cost = ak_bp_float(ctl, "roll stamina cost", 0.0f);
+    p->sprint_cost = ak_bp_float(ctl, "sprint cost", 20.0f); p->roll_cost = ak_bp_float(ctl, "roll stamina cost", 0.0f); p->roll_nolock = ak_bp_float(ctl, "roll no lock on time", 2.0f); p->roll_nolock_t = 0;
     p->lock = -1; p->lock_range = ak_bp_float(ctl, "targeting range", 50.0f); p->lock_turn = ak_bp_float(ctl, "aim yaw speed", 3.5f);
     p->lock_head_time = ak_bp_float(ctl, "lock on to head time", 5.0f);
     loadout_items(p, m, bp);
@@ -1119,14 +1119,20 @@ static void bot_sense(ak_play *p, ak_play_bot *b, f32 dt)
         if (i >= NS(p) && i < NV(p) && p->veh[i - NS(p)].driver < 0) continue;   /* empty vehicles are no threat */
         f32 aim[3]; if (!bot_can_see(p, b, eye, t, aim)) continue;
         u32 k = 0; while (k < b->nmem && b->mem[k].t != (s16)i) k++;
-        if (k == b->nmem) { if (b->nmem == sizeof b->mem / sizeof b->mem[0]) continue; b->nmem++; b->mem[k].t = (s16)i; b->mem[k].age = 0; }
+        if (k == b->nmem) { if (b->nmem == sizeof b->mem / sizeof b->mem[0]) continue; b->nmem++; b->mem[k].t = (s16)i; b->mem[k].age = 0; b->mem[k].aware = 1.0f; }
         memcpy(b->mem[k].pos, t->feet, 12);
+        /* the soldier's "can be locked" (vfunc +32, 089DCC94: its +0x84 run out, and not riding - riders are not targets here): when
+           it cannot, the record's awareness is zeroed (08961A50) - so for "roll no lock on time" after a roll the bots lose the player
+           and the awareness grows back at 2/3 a second; the target needs it above 0.99 (1.7b) */
+        if (i == 0 && p->roll_nolock_t > 0) b->mem[k].aware = 0;
+        else if (b->mem[k].aware < 1.0f) b->mem[k].aware = fminf(1.0f, b->mem[k].aware + dt * (2.0f / 3.0f));
     }
 }
 static s32 bot_find_enemy(ak_play *p, ak_play_bot *b)
 {
     s32 best = -1; f32 bd = 1e30f;
     for (u32 k = 0; k < b->nmem; k++) {
+        if (b->mem[k].aware <= 0.99f) continue;                                   /* (08962DAC: awareness above 0.99) */
         f32 dx = b->mem[k].pos[0] - b->ch.pos[0], dy = b->mem[k].pos[1] - b->ch.pos[1], dz = b->mem[k].pos[2] - b->ch.pos[2], d2 = dx * dx + dy * dy + dz * dz;
         if (d2 < bd) { bd = d2; best = b->mem[k].t; }
     }
@@ -2751,6 +2757,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
 {
     if (!p->ready) return;
     p->clock += dt; p->frame_no++;
+    if (p->roll_nolock_t > 0) p->roll_nolock_t -= dt;                      /* (089DA874: +0x84 runs down by the frame's time) */
     if (ak_setting_int("AK_LOG_HITS", 0) && p->frame_no % 6 == 0)        /* (tests: each bot's position every 0.1 s, against the hits' shooters) */
         for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0) {
             f32 pd = 1e9f; for (u32 k = 0; p->have_cq && k < p->cq.nposts; k++) { f32 dx = p->cq.post[k].pos[0] - p->bot[i].ch.pos[0], dz = p->cq.post[k].pos[2] - p->bot[i].ch.pos[2]; pd = fminf(pd, dx * dx + dz * dz); }
@@ -2965,7 +2972,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (p->roots) ak_root_track_vel(&p->roots[p->roll_clip[p->roll_i]], p->roll_t, v);
         ci.root = true; ci.root_vel[0] = v[0] * S; ci.root_vel[1] = v[1] * S; ci.jump = ci.sprint = false;
         p->roll_t += dt;
-        if (p->roll_t >= p->roll_dur[p->roll_i] - 0.05f) { p->roll_i = -1; p->roll_end = true; }
+        if (p->roll_t >= p->roll_dur[p->roll_i] - 0.05f) {
+            p->roll_i = -1; p->roll_end = true;
+            p->roll_nolock_t = p->roll_nolock;   /* (089A3C44: the roll's end writes "roll no lock on time" to the soldier's +0x84) */
+        }
     }
     {   /* the player's body: the game's swept box (ak_character.h), the soldier's shape at the soldier's scale; AK_SOLDIER_BODY=0
          * selects the engine's spheres */

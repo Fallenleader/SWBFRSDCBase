@@ -98,7 +98,7 @@ typedef struct {                       /* a bot soldier */
     ak_ai_fire fire_ai;   /* the AI's trigger on foot (ak_weapon.h: 40 m, 7.5 degrees across the ground) */
     f32 think_t, goal_t, react_t, stuck_t, strafe_t; f32 stuck_pos[3]; s32 enemy; f32 strafe; s8 fstate; s32 fenemy; f32 fstate_t, faim_t, fpoint[3];   /* the attack node 0x47E's state (4.4) */ u32 seed; s32 name;   /* name: its entry in the side's BOTNAMES list (-1 none) */
     /* what it has seen (traced: the AI sensor 08961A50): an enemy, where it was last seen, how long the record has lived */
-    struct { s16 t; f32 age, pos[3]; } mem[16]; u32 nmem; f32 sense_dt;
+    struct { s16 t; f32 age, aware, pos[3]; } mem[16]; u32 nmem; f32 sense_dt;
     /* vehicles: the one it drives (-1 on foot), the one it walks to; getting unstuck; a flyer's attack run */
     s32 veh, want_veh; bool boost, wants_veh; f32 veh_cool, rev_t, vstuck_t, vstuck_pos[3]; u32 vstucks; f32 att_t, tcool; f32 fly_alt, run_t, feel_t, feel_yaw, feel_pitch; bool feel, near_wall; f32 pat_t, pat_dir[3]; bool patrol;
     /* space: the commander's role (SPACE_COMBAT, SPACE_RUN, SPACE_LAND) and its objective / leg; leaving the hangar */
@@ -137,6 +137,7 @@ typedef struct {
     f32 l_t;                           /* how long L has been held */
     s32 roll_clip[4]; f32 roll_len[4], roll_dur[4];   /* circle: the rolls (forward dive, left, right, back), their travel and time */
     s32 roll_i; f32 roll_t, roll_v[2]; bool roll_req;
+    f32 roll_nolock, roll_nolock_t;   /* Controls "roll no lock on time" (2 s) and its timer: the AI's sensors lose the soldier until it runs out (1.7b) */
     int zoom; bool zoom_req;           /* triangle: the weapon's zoom levels (NumberOfZoomLevels, WZoomMagnification1..4), 0 = none */
     ak_play_hero hero[2]; bool hero_declined; int hero_answer;
     struct { f32 heal, radius, pulse, ammo_radius, ammo_pulse, t, ammo_t; } droids;   /* the UtilityDroid blueprints (MedicalDroid, AmmunitionDroid) */

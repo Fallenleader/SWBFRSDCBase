@@ -828,6 +828,14 @@ void rs_order_log(u32 which, u32 owner, u32 id){
     static int on = -1; if (on < 0) on = getenv("RS_ORDER_LOG") != 0; if (!on) return;
     fprintf(stderr, "[ORDER] fr %u %s %08x id %x\n", probe_fr, which == 1 ? "order" : which == 2 ? "goalnode" : "child", owner, id);
 }
+/* (tests) who calls a hooked function: each distinct native return address once (RS_CALLER_LOG; resolve with addr2line -f) */
+void rs_caller_log(const char *fn, u32 a0){
+    static int on = -1; if (on < 0) on = getenv("RS_CALLER_LOG") != 0; if (!on) return;
+    void *bt[4]; int n = backtrace(bt, 4); static void *seen[64]; static int ns;
+    for (int i = 0; i < ns; i++) if (seen[i] == (n > 2 ? bt[2] : 0)) return;
+    if (ns < 64) seen[ns++] = n > 2 ? bt[2] : 0;
+    fprintf(stderr, "[CALLER] fr %u %s a0 %08x from %p %p\n", probe_fr, fn, a0, n > 2 ? bt[2] : 0, n > 3 ? bt[3] : 0);
+}
 /* (4.4) the squad move order's message to member k (08931BAC: a0 the order, a1 k, a2 -> the point, t0 the node id): RS_MOVE_LOG */
 void rs_move_log(u32 order, u32 k, u32 pt, u32 node){
     static int on = -1; if (on < 0) on = getenv("RS_MOVE_LOG") != 0; if (!on || (k != 0 && getenv("RS_MOVE_LOG")[0] != '2')) return;
