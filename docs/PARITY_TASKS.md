@@ -1229,6 +1229,14 @@ textures and how they are used. Section R lists only what must be in place so th
     listener; the training reaches the post capture and the jetpack line.** Next: the jetpack step (page 0x197, objective 18bc2,
     18cbc; the customisation menu at a blue post: the JETPACK in SPECIAL ITEM), the remaining tips / objectives, 0x800E / 0x800A /
     0x8010, the chevron over the ring, cs_tank_entry / cs_scout_entry (multi-key tracks), the droid's shield and size (1.5x?).
+  - Part 30, 2026-11-21 - **multi-key cut-scene tracks, the objective text table, the jetpack step reached in the harness.**
+    The customisation menu's Special Item list (harness /tmp/ct10, ct11): None in the middle, above it Wrist Rocket (20) and more
+    further up (the JETPACK, 30 by its Cost), below 10 (a med kit?) - one up from None is the Wrist Rocket. Node 18cbc (kind 8: the
+    held item's +0x7C byte) waits for the jetpack. Next: cmpn_train to go up to the JETPACK (two or more ups), see what passes kind 8
+    (choosing it or using it - page 0x8B "Double-tap L to activate jetpack", 0x94 / 0x164 rise / descend); build the jetpack (2.3:
+    the Weapon blueprint Jetpack <- Packs: HORIZ_SPEED 10, VERT_SPEED 8, VERT_ACCEL 2, HORIZ_ACCEL 1, HORIZ_DRAG 16, VERT_UP_DRAG
+    20, VERT_DOWN_DRAG 10, FUELDRAINRATE 15, FUELCOSTTOSTART 15, TURNRATE 5, WOBBLE 0.2 / 0.5, PFX BFF_Jetpack_Thrust_E, the
+    soldier's rows 28 / 29) and its menu entry; the objective arrows (HUD picture 5 Arrow_NPC, 08A55C94).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
