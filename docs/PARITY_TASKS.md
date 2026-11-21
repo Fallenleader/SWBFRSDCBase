@@ -179,6 +179,8 @@ textures and how they are used. Section R lists only what must be in place so th
     Checked 2026-11-21: the boxes stay on the body (AK_DEBUG_BB: 17 boxes within 0.7 m of the feet, 0.1-1.6 m up), bots in
     vehicles are not targets; Aurek's runs are repeatable (same counts twice), and the vehicle hits of a Hoth run (31 with bone
     boxes, 121 without) follow the different course the match takes, not bolts stopped short.
+  - Correction 2026-11-21: those runs stepped AK_FIXED_DT=1 (one second a frame). At 1/60 s, Hoth 2 min: bone boxes 59 soldier
+    hits (7 in the head) and 53 vehicle hits; the old capsule 49 (5) and 3. No sign of bolts stopped short.
 
 - [x] **1.13 Soldier against soldier and vehicle [done 2026-11-16].**
   - Done earlier: dynamic versus kinematic boxes.
@@ -712,6 +714,17 @@ textures and how they are used. Section R lists only what must be in place so th
     kept) - fewer hits (26).  The AI pilot (fly-to 08959780; the flyer's big VFPU update 089B2DC8 reads +0x88..+0x94) is still to
     read; 089B2DC8 is 1474 lines of VFPU code.
   - 2026-11-21: steering gains x4 (AK_FLY_GAIN, a measured fit): nose 3-4 degrees median as the original's; 56 hits.
+  - 2026-11-21, the speeds traced. Harness (new RS_PILOT_LOG: every 7th call of the pilot's fly-to 08959780 - the speed asked, the
+    pilot's most +0x7C, the caller), Space Hoth: two thirds of the calls come from 0894D570, the update of node 0x487 (built by
+    0894CCC4), asking 50 / 37.5 / 25 of a most of 100 (and 75 / 50 craft alike); the rest from the attack node 08948A9C (60-125).
+    0894D570 (decomp + Ghidra): speed = most x (0.25 + 0.25 c^4), c = max(0, cosine between the nose - the matrix's third column -
+    and the way to the point), clamped between the pilot's least and most (+0x78 / +0x7C, 0894E358); the node ends within 20 m
+    (|d|^2 <= 400, D_08AEDBF0). The most is the craft's CruisingSpeed (fighters 100, bombers 75, interceptors 125, transports
+    50), the least its StallSpeed (the 60 asked of interceptors). **Engine:** flying bots not chasing (and not landing or
+    feeling their way) take that speed, by the brake (AK_FLY_GOTO_SPEED, default 1). Space Hoth 110 s: 16 vehicle hits (20
+    without). Aurek's flyers still chase 85 % of the time (AK_DEBUG_BOTVEH: 831 of 975 samples with a target, median 100 m/s;
+    without one 55 m/s); the original's pilots spend two thirds of their calls in 0x487. Next: who gives node 0x487 its
+    point and when (the patrol 0x485, 08945A68 family; objective legs), and why the original's attacks are shorter.
 
 ## 5. Game rules and modes
 

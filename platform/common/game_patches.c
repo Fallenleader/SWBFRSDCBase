@@ -791,3 +791,10 @@ void rs_ai_ctl_pre(u32 ctl, u32 hum){
     fprintf(f, " | %x\n", GU32(ctl + 160)); fflush(f); }
 void rs_ai_frame_count(void){ ++probe_fr; }
 int rs_in_match(void){ return GU32(IMG(UL_COUNT)) > 0; }   /* soldiers in the game's list: a match is on (gfx_gxm.c menu / match scale) */
+/* (4.6) the AI pilot's wanted speed per call of 08959780 (a0 the pilot block, f12 the speed asked): RS_PILOT_LOG */
+void rs_pilot_log(u32 c, float spd){
+    static int on = -1; if (on < 0) on = getenv("RS_PILOT_LOG") != 0; if (!on || !gok(c)) return;
+    static unsigned n; if (n++ % 7) return;
+    void *bt[3]; int nb = backtrace(bt, 3);
+    fprintf(stderr, "[PILOT] fr %u c %08x ask %.2f max %.2f cur88 %.2f ra %p\n", probe_fr, c, spd, GF32(c + 0x7C), GF32(c + 0x88), nb > 2 ? bt[2] : 0);
+}

@@ -3683,6 +3683,7 @@ rv_t func_08959780(u32 a0, u32 a1, u32 a2, float f12)
     u8 stack_[64] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 64);
 L_08959780:;
+    { extern void rs_pilot_log(u32, float); rs_pilot_log(a0, f12); }   /* harness measurement (RS_PILOT_LOG, PARITY 4.6; hand-added, not from tools/dc/hooks.py) */
     sp = sp - 64;
     v0 = a0 + 124;
     s2 = a0 + 0;

@@ -2237,6 +2237,16 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
         f32 top = tsp && d->top_speed > d->cruise ? d->top_speed : d->cruise > 0 ? d->cruise : 60.0f, ws = clampf(ev->speed + (dist - 250.0f) * 0.004f * top, d->stall_speed, top);
         b->boost = false; vh->fast = false; vh->brake = false;   /* (AK_FLY_PURSUIT_TOP=1: TopSpeed as the most, past the cruise by the boost - 437 m median instead of 562, no more hits: 51 / 56) */
         if (vh->speed < ws - 2.0f) b->boost = ws > d->cruise + 1.0f; else if (vh->speed > ws + 2.0f) vh->brake = true;
+    } else if (!chase && !landing && !b->feel && d->kind == AK_VEH_FLYER && ak_setting_int("AK_FLY_GOTO_SPEED", 1)) {
+        /* flying to a point (the node 0x487's update 0894D570, measured in the original as the flyers' commonest call of the pilot's
+           08959780): the speed asked is the pilot's most (+0x7C: the craft's CruisingSpeed) x (0.25 + 0.25 c^4), c the cosine between
+           the nose and the way to the point (0 behind), between the pilot's least and most (0894E358); the node ends within 20 m
+           (400 = 20^2, D_08AEDBF0).  Harness, Space Hoth: asks of 50 / 37.5 / 25 for cruise 100 */
+        f32 cp = cosf(vh->pitch), mf[3] = { -sinf(vh->yaw) * cp, sinf(vh->pitch), -cosf(vh->yaw) * cp };
+        f32 c = dist > 1e-3f ? fmaxf(0.0f, (mf[0] * tx + mf[1] * ty + mf[2] * tz) / dist) : 1.0f, c4 = c * c * c * c;
+        f32 top = d->cruise > 0 ? d->cruise : 60.0f, ws = clampf(top * (0.25f + 0.25f * c4), fminf(d->stall_speed, top), top);
+        b->boost = false; vh->fast = false;
+        if (vh->speed > ws + 2.0f) vh->brake = true;
     } else if (craft && !b->circle && dist < 90.0f) {                        /* on its tail: no faster than it */
         const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
         if (ev->speed < vh->speed - 5.0f) vh->brake = true;
