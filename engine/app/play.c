@@ -171,7 +171,7 @@ static void droids_update(ak_play *p, f32 dt)
     for (u32 u = 0; u < NS(p); u++) {
         ak_target *t = &p->target[u];
         if (!t->alive || (u == 0 ? p->in_veh >= 0 : p->bot[u - 1].veh >= 0)) continue;
-        f32 maxh = u == 0 ? p->max_health : ak_bp_float(p->bot[u - 1].look.bp, "Health", 60.0f);
+        f32 maxh = u == 0 ? p->max_health : t->max_health;
         for (int t2 = 0; t2 < 2; t2++) if (p->hero[t2].unit == (s32)u) maxh = p->hero[t2].health;
         ak_weapon *w = u == 0 ? (p->armed ? &p->weapon : NULL) : (p->bot[u - 1].weapon.def ? &p->bot[u - 1].weapon : NULL);
         bool gave_h = false, gave_a = false;
@@ -458,6 +458,7 @@ static void ai_hold(ak_play *p, ak_play_bot *b, u32 idx, int slot)
     ak_weapon_give(&b->weapon, &p->ai_wdef[b->team][slot]); b->weapon.team = b->team; b->weapon.owner = (s32)(1 + idx); b->held = (s8)slot;
 }
 
+static f32 game_roll(ak_play *p);
 static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx)
 {
     f32 pos[3], yaw = 0;
@@ -486,7 +487,15 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
     b->stuck_t = 0; memcpy(b->stuck_pos, pos, 12); b->veh = b->want_veh = -1; b->rev_t = 0; b->vstucks = 0; b->veh_cool = 0;
     b->wants_veh = p->bot_drive > 0 && rnd(&b->seed) < p->bot_drive;   /* the spawner's chance (089800C8: random % 100 < +0xEC, 100 by default - 0897E594) */
     ak_target *t = &p->target[1 + idx];
-    t->health = t->max_health = ak_bp_float(b->look.bp, "Health", 60.0f); t->headshot_mult = ak_bp_float(b->look.bp, "Headshot multiplier", 4.0f);
+    /* an AI soldier's health (089826E8 then 089832B8): its blueprint's "Health" (100 when it has none) x a multiplier from the
+       table D_08ADDD84 { 0.6, 1.0, 1.3, 1.6, 2.0 } - entry 0, unless the difficulty (08979DF4) is 2 (elite): then a draw on the
+       game's random over the weights D_08ADDDAC { 0, 5, 2, 0.5, 0.15 } (1.0 65 %, 1.3 26 %, 1.6 6.5 %, 2.0 2 %); difficulty 1's
+       weights D_08ADDD98 are { 1, 0, 0, 0, 0 } - the 60 measured */
+    {   static const f32 mul[5] = { 0.6f, 1.0f, 1.3f, 1.6f, 2.0f }, wel[5] = { 0, 5, 2, 0.5f, 0.15f };
+        int k = 0;
+        if (p->difficulty >= 2) { f32 r = game_roll(p) * 0.01f * 7.65f, acc = 0; for (k = 0; k < 4; k++) { acc += wel[k]; if (r < acc) break; } }
+        t->health = t->max_health = ak_bp_float(b->look.bp, "Health", 100.0f) * mul[k]; }
+    t->headshot_mult = ak_bp_float(b->look.bp, "Headshot multiplier", 4.0f);
     t->alive = true; t->team = b->team; t->last_attacker = -1;
     b->held = -1;
     if (ak_setting_int("AK_BOT_LOADOUTS", 1) && p->ai_armed[b->team][2]) {   /* the game's AI loadouts: its first weapon in hand */
@@ -3270,7 +3279,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (!t->alive || t->health <= 0 || (u == 0 ? (p->in_veh >= 0 || p->in_turret >= 0) : p->bot[u - 1].veh >= 0)) continue;
             f32 dx = t->feet[0] - q->pos[0], dy = t->feet[1] - q->pos[1], dz = t->feet[2] - q->pos[2];
             if (dx * dx + dy * dy + dz * dz > d->radius * d->radius) continue;
-            f32 maxh = u == 0 ? p->max_health : ak_bp_float(p->bot[u - 1].look.bp, "Health", 60.0f);
+            f32 maxh = u == 0 ? p->max_health : t->max_health;
             for (int t2 = 0; t2 < 2; t2++) if (p->hero[t2].unit == (s32)u) maxh = p->hero[t2].health;
             bool heal = (q->kind == 0 || q->kind == 3) && look && t->health < maxh;
             ak_weapon *w = u == 0 ? (p->armed ? &p->weapon : NULL) : (p->bot[u - 1].weapon.def ? &p->bot[u - 1].weapon : NULL);

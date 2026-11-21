@@ -210,7 +210,12 @@ textures and how they are used. Section R lists only what must be in place so th
   - [ ] **1.15b** How Speed scales (playback rate or distance - Aurek scales both), where the AI's 60 comes from, and the
     2026-11-21: a soldier made for a unit (089826E8) takes its blueprint's health (0xB735025C, default D_08AEE53C 100) through
     0886422C; the player's level table is D_08AEE3B8 (100 / 133 / 166 / 200, 08978170, sent with message 0x8027 / 0x802F). The 60
-    of the AI is not set on that path (and the 60.0 at D_08AEE3B4 is the time limit's default) - still open.
+    of the AI is not set on that path (and the 60.0 at D_08AEE3B4 is the time limit's default).
+    Found the same day: 089832B8 (the unit's spawn) scales an AI soldier's (class 0x8005, not a player's) health by a table
+    D_08ADDD84 { 0.6, 1.0, 1.3, 1.6, 2.0 }: entry 0 unless the difficulty (08979DF4) is 2 - then a draw on the game's random over
+    the weights D_08ADDDAC { 0, 5, 2, 0.5, 0.15 } (difficulty 1's weights D_08ADDD98 are { 1, 0, 0, 0, 0 }). The units have no
+    "Health" (100) - hence 60. **Engine:** bots take blueprint Health (100) x that multiplier, rolled at elite (they read the
+    blueprint with a default of 60 before, so heroes' bodies stay their own path).
     other categories (Weapon 2, Special Item, Power Up, Capture Rate) and match-wide customisation options.
 
 ## 2. Weapons, items and projectiles
