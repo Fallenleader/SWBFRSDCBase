@@ -1,7 +1,9 @@
+#include <stdio.h>
 /* Aurek - the level's paths (see ak_path.h) */
 #include <math.h>
 #include <string.h>
 #include "game/ak_path.h"
+#include "core/ak_settings.h"
 
 static f32 wf(const u8 *p) { f32 f; memcpy(&f, p, 4); return f; }
 
@@ -27,7 +29,13 @@ bool ak_route_for_unit(const ak_level *l, u32 unit, ak_route *out)
     for (int hops = 0; hops < 64 && node != 999; hops++) {
         const u8 *nb = find_enti(l, node, 55, &sz);
         if (!nb || sz < 48) break;
+        if (ak_setting_int("AK_DEBUG_PATH", 0)) { fprintf(stderr, "[path] node %05x size %u:", node, sz); for (u32 w = 0; w * 4 + 4 <= sz; w++) { u32 v = ak_rd32(nb + 4 * w); f32 f = wf(nb + 4 * w);
+            if (fabsf(f) > 1e-3f && fabsf(f) < 1e5f) fprintf(stderr, " %u:%.2f", w, f); else fprintf(stderr, " %u:%x", w, v); } fprintf(stderr, "\n"); }
         if (!out->n) { f32 g[3] = { wf(nb + 32), wf(nb + 36), wf(nb + 40) }; ak_from_game(g, out->pt[out->n++]); }
+        /* a node whose flags word (8 words from the record's end: Hoth's start node 0, the rest 0x80) has bit 7: the walker stops there
+           (measured, harness: Hoth's AT-AT walks from its start node 18874 to the next, 18875 at 196.2, -11.8 (game axes), and stands
+           there for the rest of a 140 s match) [assumed: the flag's meaning - its reader is not found] */
+        if (hops > 0 && sz >= 32 && (ak_rd32(nb + sz - 32) & 0x80)) break;
         u32 seg = ak_rd32(nb + 44); if (seg == 999) break;
         const u8 *sb = find_enti(l, seg, 60, &sz);
         if (!sb || sz < 68) break;

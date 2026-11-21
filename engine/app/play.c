@@ -1919,7 +1919,9 @@ static void walker_route_step(ak_play *p, u32 v, f32 dt)
     f32 dy = wrap(want - vh->yaw);
     vh->steer = dy > 0.05f ? -1.0f : dy < -0.05f ? 1.0f : -dy * 20.0f; if (vh->steer > 1) vh->steer = 1; if (vh->steer < -1) vh->steer = -1;
     vh->throttle = going && fabsf(dy) < 0.8f ? (f32)ak_setting_float("AK_WALKER_THROTTLE", 1.0f) : 0.0f; vh->strafe = 0; vh->brake = false;   /* PARITY(3.4) */
+    if (!going) { vh->throttle = 0; vh->steer = 0; vh->vel[0] = vh->vel[2] = 0; vh->pos[0] = at[0]; vh->pos[2] = at[2]; }   /* (measured: Hoth's AT-AT stands exactly on its last node, to 0.01 m) */
     ak_vehicle_update(vh, &p->col, p->cp.gravity, false, dt);
+    if (ak_setting_int("AK_DEBUG_WALKER", 0) && p->frame_no % 60 == 0) AK_INFO("walker", "%.1f s: %s at game %.1f %.1f %.1f, path %.1f m, %s", p->clock, vh->def->name, vh->pos[0], -vh->pos[1], -vh->pos[2], sp->route_d, going ? "going" : "at the end");
     {   /* progress: the projection of the walker onto the path near where it was */
         f32 best = sp->route_d, bd = 1e30f;
         for (f32 s = sp->route_d - 2.0f; s <= sp->route_d + 4.0f; s += 0.25f) { f32 q[3], qd[3]; ak_route_at(sp->route, s, q, qd);

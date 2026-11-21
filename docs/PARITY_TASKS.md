@@ -568,6 +568,13 @@ textures and how they are used. Section R lists only what must be in place so th
   - [ ] Sprint (SprintingSpeedScale 1.5): the input is not found; Aurek's boost speeds the walk clips up.  Walking backwards
     is not measured.  Turning in place (turnL_30 / turnR_30) is not read; it is posed as before.
   - [ ] Gunnery, what a placed walker does at its path's end, and the ATBL animation chunks (not read).  AT-AT not measured.
+    - 2026-11-21, Hoth's AT-AT measured (harness state.log, class 0x8014 id 30d44, two 2.5 min runs): it walks from its start
+      node (18874, 226.99 / -9.10 game axes) to the next (18875) at about 2 m/s and stands exactly on it (196.18, -11.84) for the
+      rest of the match - never on to the following nodes. The nodes' flags word (8 words from the record's end) is 0 on the start
+      node and 0x80 on every other; [assumed: bit 7 = stop here - its reader not found]. No soldier rides it and no hit came from
+      it in four runs (it has no gunner in the original). Aurek: the route ends at the first flagged node after the start
+      (ak_path.c), the walker stands exactly on it (play.c walker_route_step; it had walked on past 196 along the next legs);
+      pace 2.0 m/s, as measured. AK_DEBUG_PATH prints the nodes, AK_DEBUG_WALKER the walk.
 - [ ] **3.5 Vehicle life cycle [assumed].**
   - Respawn time (AK_VEHICLE_RESPAWN 10).
   - How long a wreck stays and its effects (play.c:1528).
