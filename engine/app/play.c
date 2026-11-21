@@ -239,6 +239,19 @@ static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v);
 static f32 rnd(u32 *s) { *s = *s * 1664525u + 1013904223u; return (f32)(*s >> 8) / 16777216.0f; }
 static f32 wrap(f32 a) { while (a > 3.14159265f) a -= 6.2831853f; while (a < -3.14159265f) a += 6.2831853f; return a; }
 
+/* a marker's world matrix (3x4 rows) for a soldier posed with `bones` (false: the body has no such marker) */
+static bool marker_world(const ak_model_set *m, const ak_soldier_look *lk, const f32 (*bones)[12], const f32 *pos, f32 yaw, const char *name, f32 out[12])
+{
+    const ak_marker *g = ak_model_marker(&m->models[lk->body], name); if (!g) return false;
+    f32 local[12]; ak_marker_matrix(bones[g->bone], g, local);
+    f32 s = sinf(yaw) * S, c = cosf(yaw) * S, W[12] = { c, 0, s, pos[0],  0, S, 0, pos[1],  -s, 0, c, pos[2] };
+    for (int r = 0; r < 3; r++) {
+        for (int q = 0; q < 4; q++) out[r * 4 + q] = W[r * 4] * local[q] + W[r * 4 + 1] * local[4 + q] + W[r * 4 + 2] * local[8 + q];
+        out[r * 4 + 3] += W[r * 4 + 3];
+    }
+    return true;
+}
+
 /* the weapon's world matrix (3x4 rows) for a soldier posed with `bones` */
 static bool weapon_world(const ak_model_set *m, const ak_soldier_look *lk, const f32 (*bones)[12], const f32 *pos, f32 yaw, f32 out[12])
 {
@@ -690,6 +703,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             if (p->flag_model[f] >= 0) { const ak_model *fm = &m->models[p->flag_model[f]]; p->ctf_map.drop_raise = fm->bmax[1] - fm->bmin[1] + 0.1f; }
         }
         AK_INFO("ctf", "mode %d: %u flags, %u bases, captures to win %d", ak_game_mode, p->ctf_map.nflags, p->ctf_map.nbases, p->ctf.limit);
+        for (u32 f = 0; f < p->ctf_map.nflags; f++) AK_INFO("ctf", "flag %u side %d at game %.1f %.1f %.1f", f, p->ctf_map.flag[f].side, p->ctf_map.flag[f].home[0], -p->ctf_map.flag[f].home[1], -p->ctf_map.flag[f].home[2]);
     }
     /* the player's customisation (the spawn screen's "Customisation Menu", 200 credits): the default loadout is the blaster rifle
        (25), the thermal detonator (10), Health Level 1 (10) and Speed Level 1 (10) - read from the original's menu.  Health by level:
@@ -3803,7 +3817,13 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
     for (u32 f = 0; p->have_ctf && f < p->ctf_map.nflags; f++) {           /* the flags */
         const ak_ctf_flag *fl = &p->ctf.flag[f]; if (!fl->present || p->flag_model[f] < 0) continue;
         f32 M[12] = { 1, 0, 0, fl->pos[0],  0, 1, 0, fl->pos[1],  0, 0, 1, fl->pos[2] };
-        if (fl->carrier >= 0) M[7] += 1.0f;   /* [PARITY(5.4) assumed: the game hangs it on the carrier's bone 0x7E779B80, not mapped yet] */
+        if (fl->carrier >= 0) {   /* carried: on the carrier's marker hashing 0x7E779B80 - "BackPack" (h31 of the lower-cased name; the
+                                     flag's back-attached clip then hangs it); 1 m above the feet when the body has none */
+            s32 c = fl->carrier; bool ok = false;
+            if (c == 0) ok = marker_world(m, &p->look, (const f32 (*)[12])p->bones, p->ch.pos, p->ch.yaw, "BackPack", M);
+            else if ((u32)(c - 1) < p->nbots) { const ak_play_bot *cb = &p->bot[c - 1]; ok = marker_world(m, &cb->look, (const f32 (*)[12])cb->bones, cb->ch.pos, cb->ch.yaw, "BackPack", M); }
+            if (!ok) M[7] += 1.0f;
+        }
         /* skinned (v2, 4 bones), flapping: its own clip, the back-attached one while carried (PARITY 6.2) */
         const ak_model *fm = &m->models[p->flag_model[f]]; static f32 fb[8][12]; static ak_quat lq[8]; static f32 lt[8][3];
         s32 fc = p->flag_clip[fl->carrier >= 0 ? 1 : 0]; if (fc < 0) fc = p->flag_clip[0];
