@@ -51,6 +51,11 @@ textures and how they are used. Section R lists only what must be in place so th
   - Aurek: game/ak_loco.h (precomputed root slopes, two-clip crossfade), ak_char_input.root, play.c pose_mix.
   - Result: Hoth run 10 s within 0.23 m, walk within 0.21 m, run-and-stop within 0.14 m.
   - [ ] **1.1c** Find the two gait thresholds (0.35 / 0.56, measured to 0.01) in the soldier code.
+    - 2026-11-21, searched: no constant of 0.35 / 0.56 is read by soldier code - the data's 0.35s (0x08AECD00 unreferenced,
+      0x08AEE508 the spawner 089800C8) and 0.5608 (0x08AEE13C, 08968D74) are elsewhere; nor their squares (0.1225 / 0.3136)
+      or the values after the 0.25 dead zone's rescale ((x - 0.25) / 0.75: 0.133 / 0.413). So the thresholds are likely derived
+      (the stick x max run speed 6 against the clips' own speeds?) - next: the soldier's state choice behind vfuncs +456 / +488
+      of 0899984C [open, low priority: the measured values are ported].
   - [ ] **1.1d** On slopes the original is 0.5 % slower across the ground than the clip (Aurek keeps the horizontal speed).
 - [x] **1.2 The soldier's body box [done 2026-11-16 - corrected].**
   - Read from the running original (harness RS_DRIVE_BODY=1 dumps the player's physics body: soldier +40 -> +12, corners at
