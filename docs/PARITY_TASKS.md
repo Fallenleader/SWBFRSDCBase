@@ -691,7 +691,7 @@ textures and how they are used. Section R lists only what must be in place so th
   - Earlier tooling: RS_DRIVE_TGTSCAN=1 lists soldier fields (and their controller's) holding
   another soldier's object or id.  On Hoth only +5E0 turned up (one bot → another, likely its squad leader), so the target is
   not a soldier pointer or id field; the AI weapon record (2.6, +0 a target id) was the lead. Aurek took the nearest (play.c:1223).
-- [ ] **4.3 Turret AI [partly traced].** States NEUTRAL / SEARCHING / ORIENTATING (0x08B1B6AC) and who aims.
+- [x] **4.3 Turret AI [done 2026-11-21].** States NEUTRAL / SEARCHING / ORIENTATING (0x08B1B6AC) and who aims.
   - 2026-11-20, **the AI's trigger, traced and built** (every AI shooter: class 0x08AF97A8, built by 08965E64 over 08965930,
     updated by 08965A70 with the shooter's forward axis, the line to the target and whether it wants to fire): state 1 waits out
     its timer; then, wanting to fire with the target inside the range and the cone (08965B68 / 08965C58 / 08965C9C, the cone
@@ -730,6 +730,10 @@ textures and how they are used. Section R lists only what must be in place so th
       change in a 2 min run (one candidate at a time).
     - Who fires and which sensor fills the target record are not read (the sensor classes are built in 0895FD14..08961784;
       the soldiers' is 0x08AF96F0, see 4.2).  Aurek's turrets keep their own pick (nearest it can point at and see).
+    - 2026-11-21, closed: both answered above (the sensor: the pilot's vehicle sensor 0895FD14; the trigger: 0894FFF8 with the
+      record's range / 7.5 degrees). The want flag read (0895076C): +0x22 is set at once for any target that is not a flyer,
+      walker or tank, and for those when the lead (the vehicle's vfunc +0x68 with the shot speed 1000) has a solution - so there
+      is no aim delay; the gun's turn into the cone is the only wait. Aurek's 0.6-1.0 s aim time before firing is gone (play.c).
 - [ ] **4.4 Movement behaviour.** Path following, strafing, cover, objective choice, and retreat. Compare against the original's
   decisions.
   - Measured (1.4): AI soldiers' speeds come from the AI controller (soldier +88 -> +72), not the clips: 5.0, 7.4, 8.5, 11.5

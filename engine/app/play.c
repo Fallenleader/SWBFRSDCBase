@@ -2683,10 +2683,12 @@ static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
         t->yaw = wrap(t->yaw + clampf(dy, -step, step)); t->pitch += clampf(dp, -step, step);
         t->aim_t -= dt;
         /* the trigger (traced, 0894FFF8 -> 08965A70, ak_ai_fire): the record's range and 7.5 degrees around the gun's line, wanting
-           to fire once the aim has a solution (0895076C sets +34 when it has aimed) - here: after the aim time */
+           to fire whenever the aim has a solution - 0895076C sets +0x22 at once for anything but a flyer / walker / tank, and for those
+           when the lead (vfunc +0x68 with the shot speed) has one; the gun's turn into the 7.5-degree cone is the only wait (Aurek's
+           0.6-1.0 s aim time is gone) */
         {   f32 B[12], fwd[3] = { -sinf(t->yaw), 0, -cosf(t->yaw) }, to[3] = { c[0] - eye[0], c[1] - eye[1], c[2] - eye[2] };
             if (ak_turret_barrel(t, m, B)) { f32 F = t->def->face; fwd[0] = F * B[2]; fwd[1] = F * B[6]; fwd[2] = F * B[10]; }
-            if (!ak_ai_fire_update(&t->fire_ai, &d->gun_bot, t->aim_t <= 0, ak_ai_fire_ok(fwd, to, t->range, 7.5f * 0.017453293f, false), rnd(&p->seed), dt)) { t->volley_t = 0; continue; } }
+            if (!ak_ai_fire_update(&t->fire_ai, &d->gun_bot, true, ak_ai_fire_ok(fwd, to, t->range, 7.5f * 0.017453293f, false), rnd(&p->seed), dt)) { t->volley_t = 0; continue; } }
         /* fire: the volley over its muzzles, with the bot aim error */
         f32 tgt[3] = { c[0], c[1], c[2] };
         aim_cap(&p->seed, eye, tgt, p->bot_aim_set ? p->bot_aim : d->gun_bot.ai_acc[p->difficulty >= 2 ? 1 : 0] * 0.017453293f);   /* (as the soldiers) */
