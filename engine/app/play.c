@@ -306,7 +306,6 @@ static f32 clip_rate(int st, f32 hs, const ak_char_params *cp)
 /* a spot near the team's spawn at a post it owns (random among them; `near` biases toward the closest), jittered so a wave
  * does not stack its soldiers, on the ground and in sight of the spawn point */
 static bool spawn_spot_at(ak_play *p, int team, const f32 *near, bool exact, u32 *seed, f32 *pos, f32 *yaw);
-static bool spawn_spot(ak_play *p, int team, const f32 *near, u32 *seed, f32 *pos, f32 *yaw) { return spawn_spot_at(p, team, near, false, seed, pos, yaw); }
 /* exact: the post nearest `near` always (the spawn map's choice), else half the time */
 static bool spawn_spot_at(ak_play *p, int team, const f32 *near, bool exact, u32 *seed, f32 *pos, f32 *yaw)
 {
