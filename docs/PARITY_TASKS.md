@@ -662,6 +662,11 @@ textures and how they are used. Section R lists only what must be in place so th
     the time on target up.
   - 2026-11-21: FOLLOWING's aim point and speed ported (42 hits).  Next: how much time Aurek's flyers spend CIRCLING vs FOLLOWING
     against the original (the original hits from 0-577 m, median 391), the flyers' turn rates under AI control, the 5-degree cone.
+  - 2026-11-21, measured (AK_DEBUG_FLYSTATE): Aurek's chasing flyers FOLLOW 72 % of the time, at 345 / 626 / 1243 m (10 / 50 /
+    90 %) from their aim point with the nose 5 / 15 / 112 degrees off it, at 100 m/s (the cruise) - the target too, so the gap does
+    not close; with TopSpeed + boost as the pursuit's top the distance falls (593 m median) but the angle grows (19 / 68 degrees at
+    50 / 75 %) - no more hits, reverted.  So the limit is the steering: next, the AI pilot (08959780 sets +0x8C, the wanted
+    direction; the pilot's update that turns it into stick input) against bot_fly's proportional steer / pitch.
 
 ## 5. Game rules and modes
 

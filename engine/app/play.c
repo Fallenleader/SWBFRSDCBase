@@ -2115,6 +2115,10 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
                 b->circle = true; b->circle_dir[0] = cx / cl; b->circle_dir[1] = 0; b->circle_dir[2] = cz / cl;
             }
         } else if (dist > 500.0f) b->circle = false;
+        {   static int ds = -1; if (ds < 0) ds = ak_setting_int("AK_DEBUG_FLYSTATE", 0);
+            if (ds && fmodf(p->clock + idx * 0.037f, 0.5f) < dt) { f32 cp = cosf(vh->pitch), mf[3] = { -sinf(vh->yaw) * cp, sinf(vh->pitch), -cosf(vh->yaw) * cp };
+                f32 an = acosf(clampf((mf[0] * tx + mf[1] * ty + mf[2] * tz) / fmaxf(dist, 1e-3f), -1, 1)) * 57.29578f;
+                AK_INFO("flystate", "%.1f bot %u %s dist %.0f ang %.0f speed %.0f", p->clock, idx, b->circle ? "circle" : "follow", dist, an, vh->speed); } }
         if (b->circle) { want_yaw = atan2f(-b->circle_dir[0], -b->circle_dir[2]); want_pitch = 0; }
         else want_pitch = atan2f(ty, h);
         if (ground && !b->circle) want_pitch = fmaxf(want_pitch, atan2f(gy + 15.0f - vh->pos[1], fmaxf(h, 40.0f)));   /* (not into the ground) */
@@ -2172,7 +2176,7 @@ static void bot_fly(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, 
            most (+0x78 / +0x7C) - here the stall and cruising speeds [assumed] - reached by the throttle buttons */
         const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
         f32 top = d->cruise > 0 ? d->cruise : 60.0f, ws = clampf(ev->speed + (dist - 250.0f) * 0.004f * top, d->stall_speed, top);
-        b->boost = false; vh->fast = false; vh->brake = false;
+        b->boost = false; vh->fast = false; vh->brake = false;   /* (tried: TopSpeed with the boost - faster, wider angles, no more hits) */
         if (vh->speed < ws - 2.0f) vh->fast = true; else if (vh->speed > ws + 2.0f) vh->brake = true;
     } else if (craft && !b->circle && dist < 90.0f) {                        /* on its tail: no faster than it */
         const ak_vehicle *ev = &p->veh[b->enemy - NS(p)];
