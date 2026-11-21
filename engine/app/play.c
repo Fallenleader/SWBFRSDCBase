@@ -1295,7 +1295,10 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     if (b->want_veh >= 0) {                                                  /* on its way to a vehicle: still free?  close enough to get in? */
         const ak_vehicle *vh = &p->veh[b->want_veh];
         f32 dx = vh->pos[0] - b->ch.pos[0], dz = vh->pos[2] - b->ch.pos[2], r = vh->def ? vh->def->radius + 2.5f : 0;
-        if (!vh->alive || vh->driver >= 0 || (vh->team != b->team && !vh->open) || b->goal_t < -25.0f) { b->want_veh = -1; b->goal = -1; b->goal_t = 0; }
+        /* the order's node (0x8037, vtable 0x08AF8860; update 0893EA50): it goes on while the vehicle lives and has a free seat
+           for the soldier's side, and boards within 0.8 m of the vehicle's hull (a sweep test, 0884AC90) - no time limit (Aurek had
+           given up after 25 s) [assumed: Aurek keeps its own reach, the vehicle's radius + 2.5 m] */
+        if (!vh->alive || vh->driver >= 0 || (vh->team != b->team && !vh->open)) { b->want_veh = -1; b->goal = -1; b->goal_t = 0; }
         else if (dx * dx + dz * dz < r * r && fabsf(vh->pos[1] - b->ch.pos[1]) < 4.0f) { bot_board(p, b, idx, (u32)b->want_veh); return; }
     }
     /* sight and the target, every frame as the game does (AK_BOT_SENSE_EVERY > 1 spreads it over frames for large bot counts) */
