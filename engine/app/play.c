@@ -3490,7 +3490,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             f32 tgt[3]; memcpy(tgt, p->aim_point, 12);
             if (p->lock >= 0 && p->target[p->lock].alive) {                    /* locked on: the chest, then the head */
                 const ak_target *t = &p->target[p->lock];
-                if (p->lock_t >= p->lock_head_time) memcpy(tgt, t->head, 12); else { memcpy(tgt, t->feet, 12); tgt[1] += 1.1f * S; }
+                if (t->vehicle) { if (t->boxed) memcpy(tgt, t->box_c, 12); else { memcpy(tgt, t->feet, 12); tgt[1] += t->height * 0.5f; } }   /* a vehicle has no head
+                                                                                     (its head point is 100 m under it): its middle [assumed] */
+                else if (p->lock_t >= p->lock_head_time) memcpy(tgt, t->head, 12); else { memcpy(tgt, t->feet, 12); tgt[1] += 1.1f * S; }
             }
             {   int ta = ak_setting_int("AK_TEST_AIM", 0);                    /* tests: 1 = the nearest enemy's chest, 2 = its head */
                 if (ta) {
@@ -4172,8 +4174,9 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         if (!vh->def || !(vh->alive || (vh->def->kind == AK_VEH_WALKER ? vh->dead_t < 8.0f : vh->dead_t < (vh->def->kind == AK_VEH_FLYER ? 4.98f : 4.75f)))) continue;   /* (wrecks: 4.75 s, flyers 4.98 s, measured) */
         f32 M[12]; ak_vehicle_matrix(vh, M);
         f32 r = m->models[vh->def->model].radius, mn[3] = { M[3] - r, M[7] - r, M[11] - r }, mx[3] = { M[3] + r, M[7] + r, M[11] + r };
-        if (ak_setting_int("AK_LOG_VEH", 0) > 1 && p->frame_no % 30 == 0) AK_INFO("vdraw", "%u %s model %d (%s, %u parts, skin %d) at %.2f %.2f %.2f in view %d posed %d", v + 1, vh->def->name, vh->def->model, m->models[vh->def->model].name, m->models[vh->def->model].nparts, m->models[vh->def->model].skin != NULL, M[3], M[7], M[11], ak_frustum_aabb(&fr, mn, mx), vh->posed);
+        if (ak_setting_int("AK_LOG_VEH", 0) > 1 && p->frame_no % 30 == 0) AK_INFO("vdraw", "%u %s model %d (%s, %u parts, skin %d, box %.2f %.2f %.2f / %.2f %.2f %.2f, skel %d) at %.2f %.2f %.2f in view %d posed %d", v + 1, vh->def->name, vh->def->model, m->models[vh->def->model].name, m->models[vh->def->model].nparts, m->models[vh->def->model].skin != NULL, m->models[vh->def->model].bmin[0], m->models[vh->def->model].bmin[1], m->models[vh->def->model].bmin[2], m->models[vh->def->model].bmax[0], m->models[vh->def->model].bmax[1], m->models[vh->def->model].bmax[2], m->models[vh->def->model].skeleton, M[3], M[7], M[11], ak_frustum_aabb(&fr, mn, mx), vh->posed);
         if (!ak_frustum_aabb(&fr, mn, mx)) continue;
+        if (ak_setting_int("AK_TEST_VDRAW", 0)) draw_part(ms, vh->def->model, M, vp, st); else
         {   ak_m4 gw = { { M[0], M[4], M[8], 0,  M[1], M[5], M[9], 0,  M[2], M[6], M[10], 0,  M[3], M[7], M[11], 1 } };
             ak_scene_models_draw(ms, (u32)vh->def->model, vp, &gw, vh->posed ? (const f32 (*)[12])vh->bones : NULL, NULL, st); }
         f32 T[12];
