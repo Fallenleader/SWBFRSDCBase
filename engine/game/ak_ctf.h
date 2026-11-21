@@ -34,6 +34,7 @@ typedef struct {
     s32 score[2], limit; f32 time, time_limit; int winner;   /* winner: -1 playing, 0 / 1, 2 draw */
     u32 events;                                              /* the last update's AK_CTF_EV_* bits */
     int last_side;                                           /* the side of the last pickup / capture / drop */
+    s32 last_capturer;                                       /* the soldier whose capture it was (its index), -1 none */
 } ak_ctf;
 enum { AK_CTF_EV_PICKUP = 1, AK_CTF_EV_DROP = 2, AK_CTF_EV_RETURN = 4, AK_CTF_EV_CAPTURE = 8 };
 

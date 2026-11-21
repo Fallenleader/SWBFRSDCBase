@@ -258,6 +258,7 @@ static bool vehicle_make(ak_play *p, u32 v);
 static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v);
 static f32 rnd(u32 *s) { *s = *s * 1664525u + 1013904223u; return (f32)(*s >> 8) / 16777216.0f; }
 static f32 wrap(f32 a) { while (a > 3.14159265f) a -= 6.2831853f; while (a < -3.14159265f) a += 6.2831853f; return a; }
+static bool ctf_carrying(const ak_play *p, s32 unit) { for (u32 f = 0; f < p->ctf_map.nflags; f++) if (p->ctf.flag[f].present && p->ctf.flag[f].carrier == unit) return true; return false; }
 
 /* a marker's world matrix (3x4 rows) for a soldier posed with `bones` (false: the body has no such marker) */
 static bool marker_world(const ak_model_set *m, const ak_soldier_look *lk, const f32 (*bones)[12], const f32 *pos, f32 yaw, const char *name, f32 out[12])
@@ -2096,6 +2097,7 @@ static f32 clampf(f32 x, f32 lo, f32 hi) { return x < lo ? lo : x > hi ? hi : x;
 static bool bot_take_vehicle(ak_play *p, ak_play_bot *b)
 {
     if (!b->wants_veh || b->veh_cool > 0) return false;
+    if (p->have_ctf && ctf_carrying(p, (s32)(1 + (b - p->bot)))) return false;   /* (a flag carrier cannot board: 08A0AF14) */
     s32 best = -1; f32 bd = 1e30f;
     for (u32 v = 0; v < p->nveh; v++) {
         const ak_vehicle *vh = &p->veh[v];
@@ -2903,6 +2905,11 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (!p->alive) in = &none;                                               /* down: no control until the spawn wave */
     const ak_input *vin = in;                                                 /* the controls, for the vehicle when driving */
     bool tri = p->alive && (vin->pressed & AK_BTN_TRIANGLE);
+    if (tri && p->in_veh < 0 && p->in_turret < 0 && p->have_ctf && ctf_carrying(p, 0)) {
+        /* a flag carrier cannot board (08A0AF14: the boarding refusal's reason 2 - "You cannot use this while carrying a flag", STDTEXT
+           0x11D; 0x167 in the campaign) [assumed: refused on the press, the text in the tip box as the other refusals] */
+        ak_hud_message(3, ak_game_mode == 5 ? 0x167 : 0x11D, NULL, 0); tri = false;
+    }
     if (tri && p->in_turret >= 0) {                                           /* triangle: out of the turret, beside it */
         const ak_turret *t = &p->turret[p->in_turret]; f32 out[3] = { t->pos[0] + t->rad + 1.0f, t->pos[1] + 1.0f, t->pos[2] }, gy;
         if (ak_char_ground_below(&p->col, out, 8.0f, &gy)) out[1] = gy; else memcpy(out, p->ch.pos, 12);
@@ -3581,6 +3588,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         for (u32 f = 0; f < p->ctf_map.nflags; f++) { ak_ctf_flag *fl = &p->ctf.flag[f];
             if (fl->present && fl->carrier < 0 && fl->return_t > 0 && !p->is_space && in_kbox(p, fl->pos, NULL) && fl->return_t > p->ctf.time + 5.0f) fl->return_t = p->ctf.time + 5.0f; }
         if (p->ctf.events & AK_CTF_EV_CAPTURE) AK_INFO("ctf", "side %d captures (%d / %d)", p->ctf.last_side, p->ctf.score[0], p->ctf.score[1]);
+        if (ak_setting_int("AK_DEBUG_CTF", 0) && p->frame_no % 600 == 0) {
+            u32 g2 = 0, alive = 0, inv = 0; f32 best = 1e9f;
+            for (u32 i = 0; i < p->nbots; i++) { const ak_play_bot *b = &p->bot[i]; if (!b->alive) continue; alive++; if (b->veh >= 0) inv++; if (b->goal == -2) g2++;
+                for (u32 f = 0; f < p->ctf_map.nflags; f++) if (p->ctf_map.flag[f].side != b->team) { f32 dx = p->ctf.flag[f].pos[0] - b->ch.pos[0], dz = p->ctf.flag[f].pos[2] - b->ch.pos[2]; best = fminf(best, sqrtf(dx * dx + dz * dz)); } }
+            AK_INFO("ctf", "%.0f s: %u bots alive, %u in vehicles, %u with a CTF goal, nearest to an enemy flag %.0f m", p->clock, alive, inv, g2, best); }
+        if (ak_setting_int("AK_DEBUG_CTF", 0) && (p->ctf.events & (AK_CTF_EV_PICKUP | AK_CTF_EV_DROP | AK_CTF_EV_RETURN))) AK_INFO("ctf", "%.1f s: events %x (side %d)", p->clock, p->ctf.events, p->ctf.last_side);
         if (p->ctf.winner >= 0 && p->have_cq && p->match.winner < 0) p->match.winner = p->ctf.winner <= 1 ? p->ctf.winner : AK_CQ_NEUTRAL;
     }
     heroes_update(p, m, dt);
@@ -3599,7 +3612,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             f32 sp[3], syaw = p->ch.yaw;
             const f32 *near = p->ch.pos;                                  /* (the spawn map's post: spawn there) */
             if (p->spawn_post >= 0 && p->have_cq && (u32)p->spawn_post < p->cq.nposts) near = p->cq.post[p->spawn_post].pos;
-            bool ok = p->have_cq ? (p->match.tickets[p->team] > 0 && spawn_spot_at(p, p->team, near, near != p->ch.pos, &p->seed, sp, &syaw)) : false;
+            bool ok = p->have_cq ? (p->match.tickets[p->team] != 0 && spawn_spot_at(p, p->team, near, near != p->ch.pos, &p->seed, sp, &syaw)) : false;
             if (!p->have_cq) { memcpy(sp, p->ch.pos, 12); ok = true; }
             if (ok) {
                 hero_unmake_player(p, m);
@@ -3625,7 +3638,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         for (u32 i = 0; i < p->nbots; i++) {
             ak_play_bot *b = &p->bot[i];
             if (b->alive) { b->respawn_set = false; continue; }
-            if (p->have_cq && p->match.tickets[b->team] <= 0) continue;
+            if (p->have_cq && p->match.tickets[b->team] == 0) continue;
             if (!pace) { if (wave && b->dead_t >= 5.0f) bot_spawn(p, m, b, i); continue; }
             if (!b->respawn_set) { b->respawn_t = 5.0f + rnd(&b->seed) * 10.0f; b->respawn_set = true; }
             b->respawn_t -= dt;

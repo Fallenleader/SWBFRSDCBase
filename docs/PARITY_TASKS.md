@@ -1035,6 +1035,13 @@ textures and how they are used. Section R lists only what must be in place so th
     the carrier's own base, not the other.  Open: bots have no CTF orders yet (the squad AI 08929120 / 0892A9D0: own and enemy
     base and flag positions, an attack share of 0.7 - 0.4 in HCTF - per side), kill boxes (5 s return), the carried flag's bone
     (0x7E779B80; drawn 1 m above the carrier), flags carried in vehicles (089D0A8C), the flag messages, HCTF's hero flag bases.
+    2026-11-21, flag messages and vehicles: the only CTF text is "%s captured the flag" (STDTEXT 0x1B4), queued by 089EADD4 on
+    message 0x8082 (not in the campaign) with the carrier's name - green when the carrier is the player's side, red otherwise
+    (08A4EDDC channel 1 / 2); the player's own capture also gives award 0x2B. A flag carrier cannot board: the boarding refusal
+    08A0AF14 shows "You cannot use this while carrying a flag" (0x11D; 0x167 in the campaign) for its reason 2. Built: the capture
+    message (viewer.c, ak_ctf last_capturer) and the refusal for the player (tip box) and the bots (bot_take_vehicle). Found and
+    fixed on the way: bots never (re)spawned and the player could not respawn outside conquest - the spawn tests read the
+    unlimited tickets (-1) as none left; Endor CTF2 now has bots taking and capturing flags again (a capture at 91 s).
     2026-11-21: kill boxes done (1.9b): a dropped flag at rest in one returns after 5 s (089F6658, D_08ADEAA8; in space 0 s when
     outside every bound box - not built).
     2026-11-21: 0x7E779B80 is the h31 of "backpack" - the soldier models' HMPT marker "BackPack" (on Hoth's soldier models with

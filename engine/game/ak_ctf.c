@@ -67,7 +67,7 @@ void ak_ctf_start(const ak_ctf_map *m, ak_ctf *s)
     s32 lim = ak_setting_int("AK_CTF_CAPTURES", 5);                       /* option +428 (0897782C), its range 3..20 */
     s->limit = lim < 3 ? 3 : lim > 20 ? 20 : lim;
     s->time_limit = ak_setting_float("AK_TIME_LIMIT", 60.0f) * 60.0f;     /* option +392 (08979DB4), minutes */
-    s->winner = -1; s->last_side = -1;
+    s->winner = -1; s->last_side = -1; s->last_capturer = -1;
     for (u32 i = 0; i < m->nflags; i++) { s->flag[i].present = true; memcpy(s->flag[i].pos, m->flag[i].home, 12); s->flag[i].carrier = -1; }
 }
 
@@ -120,7 +120,7 @@ void ak_ctf_update(const ak_ctf_map *m, ak_ctf *s, int mode, bool space, const a
             if (mode == 3 && fs == bsd && fs == cs) { go_home(m, s, f); s->events |= AK_CTF_EV_RETURN; continue; }   /* 089F7894 */
             if ((fs == 2 || fs != bsd) && (mode != 1 || bsd == cs) && fs != cs) {
                 if (bsd == 0 || bsd == 1) s->score[bsd]++;                  /* 08973830 */
-                s->events |= AK_CTF_EV_CAPTURE; s->last_side = bsd;
+                s->events |= AK_CTF_EV_CAPTURE; s->last_side = bsd; s->last_capturer = fl->carrier;
                 go_home(m, s, f);
                 if (bsd <= 1 && s->limit > 0 && s->score[bsd] >= s->limit) { s->winner = bsd; return; }
             }

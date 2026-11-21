@@ -785,6 +785,15 @@ int main(int argc, char **argv)
                         lock_stage = st;
                     } else if (!hs.vehicle) lock_stage = 0;
                 }
+                if (play.have_ctf && (play.ctf.events & AK_CTF_EV_CAPTURE) && play.ctf.last_capturer >= 0 && ak_game_mode != 5) {
+                    /* a capture (089EADD4 on message 0x8082): "%s captured the flag" (STDTEXT 0x1B4) with the carrier's name, green when
+                       the carrier is of the player's side, else red (08A4EDDC channel 1 / 2) */
+                    s32 c = play.ctf.last_capturer; u32 nl = 0; const u16 *nm = NULL; static u16 me[16]; static u32 mel;
+                    if (c == 0) { if (!mel) { const char *pn = ak_setting_str("AK_PLAYER_NAME", "Player"); while (pn[mel] && mel < 15) { me[mel] = (u8)pn[mel]; mel++; } } nm = me; nl = mel; }
+                    else if ((u32)(c - 1) < play.nbots) nm = ak_hud_bot_name(play.team_faction[play.bot[c - 1].team], play.bot[c - 1].name, &nl);
+                    int side = c == 0 ? play.team : (u32)(c - 1) < play.nbots ? play.bot[c - 1].team : -1;
+                    ak_hud_message(side == play.team ? 1 : 2, 0x1B4, nm, nl);
+                }
                 if (play.have_cq) {                                            /* messages: captures and the bleed (func 089EA3D0) */
                     static int prev_owner[AK_MAX_POSTS], prev_bleed = -2; static const void *prev_level;
                     if (prev_level != levels[cur].path) { prev_level = levels[cur].path; ak_hud_messages_clear(); prev_bleed = -2;
