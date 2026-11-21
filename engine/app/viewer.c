@@ -592,7 +592,7 @@ int main(int argc, char **argv)
         bool fe_paused = fe_menu && ak_fe_page() && strcmp(ak_fe_page(), "MP_Team_Selection") && strcmp(ak_fe_page(), "MP_Spawn_Location");
         if (playing && play.ready) {
             if (!fe_paused) ak_play_update(&play, &models, &in, dt);
-            ak_play_camera(&play, dt, &cam.pos, &cam.yaw, &cam.pitch, &fovy); if (getenv("AK_DEBUG_CAMPOS")) fprintf(stderr, "[campos] %.3f %.3f %.3f yaw %.4f pitch %.4f\n", cam.pos.x, cam.pos.y, cam.pos.z, cam.yaw, cam.pitch);
+            ak_play_camera(&play, dt, &cam.pos, &cam.yaw, &cam.pitch, &fovy); if (getenv("AK_DEBUG_CAMPOS")) fprintf(stderr, "[campos] %.3f %.3f %.3f yaw %.4f pitch %.4f fovy %.3f\n", cam.pos.x, cam.pos.y, cam.pos.z, cam.yaw, cam.pitch, fovy);
             ak_play_sound_update(&play, dt);
             if (play.snd.music_req && have_mus) {                          /* the match is over: the level's victory / defeat music */
                 char mp[160]; ak_blob mb;

@@ -3021,7 +3021,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         }
     }
     /* zoom, traced (0x08997000): triangle enters the zoom view at the first level's magnification, each press steps to the next level,
-       and a press on the last level leaves it; NumberOfZoomLevels and WZoomMagnification1..4 are the weapon's (blasters: 1 level at
+       and a press on the last level leaves it; NumberOfZoomLevels and ZoomMagnification1..4 are the weapon's (blasters: 1 level at
        1.0 - the zoom view itself; the sniper rifle: 2 and 4) */
     if (p->zoom_req && p->armed && p->wdef.bp) {
         int nz = ak_bp_int(p->wdef.bp, "NumberOfZoomLevels", 0); if (nz > 4) nz = 4;
@@ -3670,7 +3670,7 @@ void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *f
     }
     camera_for(p, dt, eye, yaw, pitch, fovy);
     if (p->zoom > 0 && p->wdef.bp) {                                          /* zoomed: the view narrows by the level's magnification */
-        char k[24]; snprintf(k, sizeof k, "WZoomMagnification%d", p->zoom);
+        char k[24]; snprintf(k, sizeof k, "ZoomMagnification%d", p->zoom);
         f32 mag = ak_bp_float(p->wdef.bp, k, 1.0f);                         /* the game's camera: field of view / magnification (0x0896EC88) */
         if (mag > 1.0f) {   /* the game divides its "fov" (the angle across 480 x 272) and builds the projection from that:
                                the height follows through the tangent (func_0896EC88: camera +144 / +104) */

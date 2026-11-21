@@ -1306,7 +1306,7 @@ textures and how they are used. Section R lists only what must be in place so th
 
 ## 9. Camera and input
 
-- [ ] **9.1 Soldier camera [assumed].** FOV (AK_FOV 55) and near/far planes. Trace per mode, including zoom.
+- [x] **9.1 Soldier camera [done 2026-11-21].** FOV (AK_FOV 55) and near/far planes. Trace per mode, including zoom.
   - 2026-11-19, measured (RS_PROJ_LOG in the port's GU layer, Hoth on foot): the projection is 1.73209 across, 3.05663 up, an
     infinite far plane, near 0.25 m - the blueprint's "fov" 60 is the horizontal angle on the 480 x 272 screen (36.2 degrees
     high).  Aurek's classic camera took 60 as the vertical angle; it now uses 36.2 vertical (wider screens see more at the
@@ -1325,6 +1325,12 @@ textures and how they are used. Section R lists only what must be in place so th
   - 2026-11-21, vehicles (RS_PROJ_LOG): driving Hoth's AT-ST (program walker, 15 s) the projection stays 1.73209 / 3.05663 with
     near 0.25 - the soldier's 60 degrees across; no vehicle projection of its own (only the spawn screen's 1.4966). Aurek's vehicle
     cameras use the same p->fov: matches. A flyer in space not measured (the space run did not board).
+  - 2026-11-21, the sniper's zoom measured (new harness program `sniper`: the customisation's Weapon 1 -> Sniper Rifle, then
+    triangle at 800 / 900 / 1000 frames; RS_PROJ_LOG): the projection's height scale goes 3.05663 -> 6.58603 -> 13.40430 -> back
+    to 3.05663 - "fov" 60 across divided by the WEAPON's ZoomMagnification1 (2) and 2 (4), the third press leaving the zoom.
+    Found: Aurek read "WZoomMagnification%d" (the key's stored string carries a one-character prefix, as the other keys do), so
+    the sniper never magnified; now "ZoomMagnification%d" - Aurek's classic camera gives 0.632 / 0.301 / 0.149 rad high, the
+    same 3.06 / 6.59 / 13.40 scales. AK_DEBUG_CAMPOS also prints the field of view.
 - [ ] **9.2 Vehicle cameras [partial].** CameraVelocityWeight and the "Min" values.
   - 2026-11-19: measured in the AT-ST (harness, RS_PROJ_LOG): the same projection as on foot (60 degrees across at 480 x 272,
     near 0.25, no far plane), so vehicles share the soldier's field of view.
