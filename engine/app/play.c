@@ -413,13 +413,19 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
        owned post, or the nearest to the bot half the time]. */
     bool mine = b->team == p->team && p->player_post >= 0 && (u32)p->player_post < p->cq.nposts && p->match.post[p->player_post].owner == p->team &&
                 ak_setting_int("AK_BOT_SPAWN_NEAR_PLAYER", 1);
-    if (!(p->have_cq && spawn_spot_at(p, b->team, mine ? p->cq.post[p->player_post].pos : b->ch.pos, mine, &b->seed, pos, &yaw))) {
+    const f32 *at = mine ? p->cq.post[p->player_post].pos : b->ch.pos; bool exact = mine;
+    if (p->have_cq && !mine && ak_setting_int("AK_BOT_SPAWN_WEIGHTS", 1)) {   /* the manager's draw (0898B9F4: random x total, walking the weights) */
+        f32 w[AK_MAX_POSTS], tot = ak_conquest_spawn_weights(&p->cq, &p->match, b->team, p->alive ? p->ch.pos : NULL, w);
+        if (tot > 0) { f32 r = rnd(&b->seed) * tot; for (u32 i = 0; i < p->cq.nposts; i++) { if (w[i] <= 0) continue; r -= w[i]; if (r <= 0) { at = p->cq.post[i].pos; exact = true; break; } } }
+    }   /* (a total of 0: the spawner gets no post - Aurek takes a random owned one [assumed]) */
+    if (!(p->have_cq && spawn_spot_at(p, b->team, at, exact, &b->seed, pos, &yaw))) {
         /* no post to spawn at: a navigation node near the player's start */
         if (!p->have_nav || !p->nav.nnode) return;
         u32 n = (u32)(rnd(&b->seed) * p->nav.nnode) % p->nav.nnode; memcpy(pos, p->nav.node[n].pos, 12);
         f32 gy; if (ak_char_ground_below(&p->col, pos, 5.0f, &gy)) pos[1] = gy;
     }
     if (b->hero) { b->look = b->base_look; b->hero = false; }               /* a fallen hero comes back as its soldier */
+    if (ak_setting_int("AK_DEBUG_SPAWN", 0)) AK_INFO("spawn", "%.1f s: bot %d (team %d) at %.0f %.0f %.0f (game axes %.0f %.0f %.0f)", p->clock, (int)(b - p->bot), b->team, pos[0], pos[1], pos[2], pos[0], -pos[1], -pos[2]);
     ak_char_spawn(&b->ch, pos, yaw);
     b->alive = true; b->dead_t = 0; b->state = PLAY_IDLE; b->clip_t = rnd(&b->seed); b->land_t = 0; b->was_ground = true; b->idle_var = -1; b->idle_t = (rnd(&b->seed) + 0.5f) * 2.5f;
     b->goal = -1; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;

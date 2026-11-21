@@ -40,6 +40,7 @@ typedef struct {
     f32 amount; u32 flags; bool disabled;
     s32 name;                          /* its name: an entry of TEXT/CPNAMES.ASR (the record's index before the table's hash 0x3A6386FB), -1 none */
     u32 ev[4]; u32 nev;                /* its script event table (game/ak_script.h ak_script_events) */
+    u32 adj;                           /* the posts linked to it (bit = post index): the ground AI's post links, ENTI type 22 (class 0x8016) */
     bool mobile, absent;               /* mobile: carried by a vehicle (CarriesCommandPost); absent: its carrier is wrecked (not a post) */
 } ak_post;
 
@@ -53,11 +54,15 @@ typedef struct { ak_post post[AK_MAX_POSTS]; u32 nposts; u32 nregions; u32 post_
                  ak_vspawn_link vlink[AK_MAX_VSPAWN_LINKS]; u32 nvlink; ak_droid droid[AK_MAX_DROIDS]; u32 ndroid; } ak_conquest_map;
 
 bool ak_conquest_load(const ak_level *l, ak_conquest_map *out);
+/* the team spawn manager's post weights (class 0x800C; masks 08928170, weights 0898ABFC): own = the team's posts, targets = the
+ * posts linked to own ones that it does not own, front = own posts linked to a post of the other team.  A front post weighs the
+ * number of its linked targets; any own post within 25 m of the player (near, or NULL) weighs 2.0 more.  Returns the total. */
+struct ak_conquest; f32 ak_conquest_spawn_weights(const ak_conquest_map *m, const struct ak_conquest *s, int team, const f32 *near, f32 w[AK_MAX_POSTS]);
 
 /* the match */
 typedef struct { int owner, capturing; f32 progress, contest; } ak_post_state;
 typedef struct { f32 pos[3]; int team; bool alive; f32 weight; } ak_cq_soldier;
-typedef struct {
+typedef struct ak_conquest {
     ak_post_state post[AK_MAX_POSTS];
     s32 tickets[2]; u32 held[2]; u32 living[2]; u32 present;   /* present: posts that exist now (vehicle-carried ones come and go) */
     f32 bleed_t[2], drain_t[2];        /* the majority bleed and the fast drain, per losing team */

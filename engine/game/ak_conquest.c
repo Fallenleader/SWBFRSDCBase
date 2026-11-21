@@ -91,6 +91,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
     enum { MAXLOC = 512 }; static u32 lid[MAXLOC]; static f32 lpos[MAXLOC][4]; static bool lown[MAXLOC]; u32 nl = 0;
     static u32 link_id[AK_MAX_POSTS][AK_POST_LOCS]; static s32 link_w[AK_MAX_POSTS][AK_POST_LOCS]; u32 nlink[AK_MAX_POSTS];
     memset(nlink, 0, sizeof nlink);
+    static u32 link_a[128], link_b[128]; u32 nlinks = 0;
     ak_chunk c; u32 pos = 8;
     while (ak_asura_next(&l->file, &pos, &c)) {
         if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 12) continue;
@@ -127,6 +128,8 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
             lown[nl] = ver == 1 ? c.size >= 28 && (c.body[24] & 1) : ver > 1 && c.size >= 28 && (ak_rd32(c.body + 24) & 1);
             if (ver > 2 && c.size >= 64) { f32 m[9]; for (int k = 0; k < 9; k++) m[k] = wf(c.body + 28 + 4 * k); lpos[nl][3] = yaw_of_rows(m); }
             nl++;
+        } else if (type == 22 && c.size >= 22 * 4 && nlinks < 128) {         /* post-to-post links (words 20, 21: the two posts) */
+            link_a[nlinks] = ak_rd32(c.body + 80); link_b[nlinks] = ak_rd32(c.body + 84); nlinks++;
         } else if ((type == 15 || type == 16) && find_pos_quat(&c, gp, gq)) {
             int t = type == 16; if (nsp[t] < 64) { ak_from_game(gp, sp[t][nsp[t]]); sp[t][nsp[t]][3] = yaw_of(gq); nsp[t]++; }
             if (out->ndroid < AK_MAX_DROIDS) { ak_droid *dr = &out->droid[out->ndroid++]; ak_from_game(gp, dr->pos); dr->ammo = t == 1; }
@@ -159,6 +162,11 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
             if (dx * dx + dz * dz < 25.0f && !out->post[k].has_region) { memcpy(out->post[k].region, rg[i], 12); out->post[k].has_region = true; }
         }
     ticket_entity(l, out);
+    for (u32 k = 0; k < nlinks; k++) {                                       /* the links as each post's neighbour bits (D_08C25394) */
+        s32 a = -1, b = -1;
+        for (u32 i = 0; i < out->nposts; i++) { if (out->post_id[i] == link_a[k]) a = (s32)i; if (out->post_id[i] == link_b[k]) b = (s32)i; }
+        if (a >= 0 && b >= 0 && a < 32 && b < 32) { out->post[a].adj |= 1u << b; out->post[b].adj |= 1u << a; }
+    }
     return out->nposts > 0;
 }
 
@@ -330,4 +338,25 @@ bool ak_conquest_spawn(const ak_conquest_map *m, const ak_conquest *s, int team,
     if (best < 0) return false;
     ak_post_spawn(&m->post[best], team, 0x7FFFFFFFu, pos, yaw);
     return true;
+}
+
+f32 ak_conquest_spawn_weights(const ak_conquest_map *m, const ak_conquest *s, int team, const f32 *near, f32 w[AK_MAX_POSTS])
+{
+    u32 own = 0, own_adj = 0, foe_adj = 0, total_bits;
+    for (u32 i = 0; i < m->nposts; i++) {                                    /* 08928170: posts that are there and can be taken */
+        const ak_post *po = &m->post[i]; int o = s->post[i].owner;
+        if (po->absent || po->mobile || (po->flags & 4)) continue;
+        if (o == team) { own |= 1u << i; own_adj |= po->adj; }
+        else if (o != AK_CQ_NEUTRAL) foe_adj |= po->adj;
+    }
+    u32 targets = own_adj & ~own, front = foe_adj & own; f32 total = 0; (void)total_bits;
+    for (u32 i = 0; i < m->nposts; i++) {                                    /* 0898ABFC */
+        w[i] = 0;
+        if (!(own >> i & 1)) continue;
+        if (front >> i & 1) { u32 b = m->post[i].adj & targets; while (b) { w[i] += 1.0f; b &= b - 1; } }
+        if (near) { f32 dx = m->post[i].pos[0] - near[0], dy = m->post[i].pos[1] - near[1], dz = m->post[i].pos[2] - near[2];
+            if (dx * dx + dy * dy + dz * dz < 25.0f * 25.0f) w[i] += 2.0f; }
+        total += w[i];
+    }
+    return total;
 }

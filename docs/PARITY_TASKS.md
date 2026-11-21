@@ -549,6 +549,8 @@ textures and how they are used. Section R lists only what must be in place so th
     and from each fall - ported (AK_BOT_SPAWN_DELAY).  Still open: the other side's post.
     Spawners read live (RS_DRIVE_SPAWNERS): the player's side's take the player's spawn post (ported: p->player_post); the
     other side's draw from the manager (0898B9F4) - its +0x53 / +0x54 masks' source is the open part.
+    Done 2026-11-21: the masks (08928170) and the weights ported (ak_conquest_spawn_weights).  4.1 left open: the 25 s give-up on
+    far vehicles, the order 0x8037's handling, the slot counts.
 - [ ] **4.2 Target selection [traced for soldier bots 2026-11-19].** The AI sensor (vtable 0x08AF96F0; built by 08961784 on the
   base 0892538C; updated every frame by 08961A50; read by 08962DAC from the fire node 0893F364):
   - Sight: 55 m (+32) x a multiplier (+48, 1.0); a cone of +-45 degrees across and vertically (+36/+40/+44 = tan(pi/4),
