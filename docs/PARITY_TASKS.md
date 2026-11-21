@@ -1139,6 +1139,13 @@ textures and how they are used. Section R lists only what must be in place so th
   - 2026-11-19: a blaster hero played by the player now takes generic_male's set by its own weapon's AnimPose (the 6.1 rule),
     and the soldier's set comes back when the hero ends.  Open: everything else listed (saber combo timing, blocking, force
     powers, saber throw), bot heroes' sets (bots share one clip set).
+  - 2026-11-21, tooling for measuring heroes: RS_HERO_FAST=N (a hand hook on 08974318) cuts each side's hero countdown
+    (D_08C28FAC[side], 180 s) to N seconds at the start; the harness program `hero` accepts the offer (d-pad left at 400 frames
+    after the match starts) and presses cross (the saber) at 900 / 1000 and mashes it 1100-1250. Seen: the offer reads "You can
+    now play as Darth Vader / Accept or Decline (27 seconds)" ~5 s in; accepted, the player is Vader with the saber and a second
+    item (the force push / throw icon), both unlimited. Not yet: the strokes' timing and damage (no enemy was within reach in the
+    two runs; the message-row state 089A51A8 does not play them; the Lightsaber weapon's update 08968114 only runs the blade's
+    extend / retract) - next: log the hero's clips (the anim player 088155D0's layers) and teleport into a fight.
 
 ## 7. Audio
 

@@ -11109,6 +11109,7 @@ void func_08974318(u32 t1, u32 t2, u32 t3)
     u8 stack_[96] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 96);
 L_08974318:;
+    { extern void rs_hero_fast(void); rs_hero_fast(); }   /* harness test hook (RS_HERO_FAST, PARITY 6.5; hand-added) */
     sp = sp - 96;
     s7 = 999;
     s6 = 0 + 0;

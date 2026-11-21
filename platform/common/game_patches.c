@@ -857,6 +857,12 @@ void rs_crash_log(u32 v, u32 other, float sp_){
     void *bt[4]; int n = backtrace(bt, 4);
     fprintf(stderr, "[CRASH] fr %u veh %08x other %x speed %.2f driver %08x f34c %08x f354 %08x f348 %x from %p\n", probe_fr, v, other, sp_, GU32(v + 0x1B4), GU32(v + 0x34C), GU32(v + 0x354), GU32(v + 0x348), n > 2 ? bt[2] : 0);
 }
+/* (6.5) tests: RS_HERO_FAST=N - each side's hero countdown (D_08C28FAC[side], 08974318) cut to N seconds once, at the match start */
+void rs_hero_fast(void){
+    static int n = -2; if (n == -2) { const char *e = getenv("RS_HERO_FAST"); n = e ? atoi(e) : -1; } if (n < 0) return;
+    static int done[2];
+    for (int k = 0; k < 2; k++) { u32 a = IMG(0x08C28FACu) + 4u * (u32)k; if (!done[k] && GF32(a) > (float)n) { fprintf(stderr, "[HERO] side %d countdown %.1f -> %d\n", k, GF32(a), n); GF32(a) = (float)n; done[k] = 1; } }
+}
 /* (tests) who calls a hooked function: each distinct native return address once (RS_CALLER_LOG; resolve with addr2line -f) */
 void rs_caller_log(const char *fn, u32 a0){
     static int on = -1; if (on < 0) on = getenv("RS_CALLER_LOG") != 0; if (!on) return;
