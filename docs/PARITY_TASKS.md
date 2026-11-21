@@ -1101,6 +1101,11 @@ textures and how they are used. Section R lists only what must be in place so th
     (AI player 08A42500), and rules corrections for ak_gc: troops are bought at the selected own planet (08A38C90 sets +0x3C from
     the cursor), reinforcing needs a source with 11+ troops and an own neighbour and an own, not full destination (08A3B36C-
     08A3B518) [assumed: adjacent]. Thrawn / Ackbar's second attack and the draw rule are still to trace.
+  - Part 8, 2026-11-21 - **second attacks, draws, played battles** (see NATIVE_ENGINE 2026-11-21): the commander-3 sector rule,
+    draws to side 0 unless AI-played (10 troops), battle tickets = troops by faction class with the script's additions ignored
+    (AK_GC_TICKETS), survivors = tickets left. Open: the AI player's plan executor (08A42500: purchase sub-states, cursor moves,
+    the reinforcement use of the plan's +0xB0 / +0xB4), the GC screens (map, purchase, tech pages - 08A44xxx-08A4Axxx, GUI
+    BFF_GALACTICCONQUEST), wiring a GC battle into play (level from ak_gc_battle_level, faction, result back), saving.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

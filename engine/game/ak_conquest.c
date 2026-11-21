@@ -1,6 +1,7 @@
 /* Aurek - command posts, team spawns and capture regions (see ak_conquest.h) */
 #include <math.h>
 #include <string.h>
+#include <stdio.h>
 #include "assets/entity.h"
 #include "game/ak_conquest.h"
 #include "core/ak_settings.h"
@@ -74,10 +75,10 @@ bool ak_conquest_ticket_msg(const ak_conquest_map *m, const ak_cq_rules *r, ak_c
     s32 v = nx >= 12 ? (s32)ak_rd32(x + 8) : 0; f32 pc; u32 w = nx >= 12 ? ak_rd32(x + 8) : 0; memcpy(&pc, &w, 4);
     switch (type) {
     case 0x8002: if (v > 0) s->tickets[team] = v; break;
-    case 0x8003: s->tickets[team] += v; break;
+    case 0x8003: if (!r->gc) s->tickets[team] += v; break;
     case 0x8004: s->tickets[team] = s->tickets[team] > v ? s->tickets[team] - v : 0; break;
     case 0x8005: s->tickets[team] = 0; break;
-    case 0x8022: s->tickets[team] += (s32)lroundf((f32)r->tickets * pc * 0.01f); break;
+    case 0x8022: if (!r->gc) s->tickets[team] += (s32)lroundf((f32)r->tickets * pc * 0.01f); break;
     default: return false;
     }
     return true;
@@ -182,6 +183,12 @@ void ak_cq_rules_default(ak_cq_rules *r)
     /* the match's time limit (089722C4: the option 08979DB4 - offline D_08C294C4, 60 - in minutes, x 60 by 08972964; read live on
        Hoth: 60; 0 = none, as online and mode 5 set it) */
     r->time_limit = ak_setting_float("AK_TIME_LIMIT", 60.0f) * 60.0f;
+    /* a Galactic Conquest battle (5.4): the ticket entity (08987414) starts each side with its troops (0x08C29330 / 34, by faction
+       class = team) and, while IsPlayingGalacticConquest (0x08C2D904), ignores the script's 0x8003 / 0x8022 additions (089875C8).
+       AK_GC_TICKETS="good,bad" sets them for a test */
+    r->gc_tickets[0] = r->gc_tickets[1] = 0; r->gc = false;
+    const char *gt = ak_setting_str("AK_GC_TICKETS", "");
+    if (gt && *gt) { int a = 0, b = 0; if (sscanf(gt, "%d,%d", &a, &b) == 2 && a > 0 && b > 0) { r->gc_tickets[0] = a; r->gc_tickets[1] = b; r->gc = true; } }
 }
 
 int ak_faction_team(int faction) { return faction & 1; }
@@ -210,6 +217,7 @@ void ak_conquest_start(const ak_conquest_map *m, const ak_cq_rules *r, ak_conque
         p->owner = m->post[i].start_owner; p->capturing = AK_CQ_NEUTRAL; p->progress = m->post[i].amount;
     }
     s->tickets[0] = s->tickets[1] = r->ticket_mode ? r->tickets : -1;
+    if (r->ticket_mode) for (int t = 0; t < 2; t++) if (r->gc_tickets[t] > 0) s->tickets[t] = r->gc_tickets[t];
     s->all_team = AK_CQ_NEUTRAL; s->winner = -1; s->respawn_t = r->respawn_delay;
     recount(m, s);
 }

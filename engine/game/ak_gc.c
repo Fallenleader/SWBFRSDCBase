@@ -92,6 +92,7 @@ void ak_gc_new(ak_gc *g, const ak_gc_rules *r, int faction, u32 seed)
         }
     }
     for (int s = 0; s < 2; s++) { g->side[s].credits = (u32)r->init_credits; g->side[s].faction = 4; }   /* 08A3BD2C */
+    g->ai[0] = false; g->ai[1] = true;
     int f = faction;
     if (f != 2 && f != 3) f = ak_gc_rand(&g->rng_setup, 2) == 0 ? 3 : 2;
     g->side[0].faction = f; g->side[1].faction = ak_gc_enemy_faction(f);
@@ -172,13 +173,13 @@ bool ak_gc_buy_cmdr(ak_gc *g, const ak_gc_rules *r, int side, int k)
     u32 c = ak_gc_cmdr_price(g, r, side, k); if (c > sd->credits) return false;
     sd->cmdr_bought[k] = true; sd->credits -= c; return true;
 }
-int ak_gc_buy_troops(ak_gc *g, const ak_gc_rules *r, int side, int n)
+int ak_gc_buy_troops(ak_gc *g, const ak_gc_rules *r, int side, int p, int n)
 {
-    int h = ak_gc_home(g, side); if (h < 0) return 0;
-    int room = ak_gc_cap(g, r, h) - g->planet[h].troops; if ((u32)room > g->side[side].credits) room = (int)g->side[side].credits;
+    if (p < 0 || p >= AK_GC_PLANETS || g->planet[p].owner != side) return 0;
+    int room = ak_gc_cap(g, r, p) - g->planet[p].troops; if ((u32)room > g->side[side].credits) room = (int)g->side[side].credits;
     if (n > room) n = room;
     n -= n % 10; if (n <= 0) return 0;
-    g->planet[h].troops += n; g->side[side].credits -= (u32)n; return n;
+    g->planet[p].troops += n; g->side[side].credits -= (u32)n; return n;
 }
 
 int ak_gc_move_room(const ak_gc *g, const ak_gc_rules *r, int side, int from, int to)
@@ -203,14 +204,16 @@ int ak_gc_move(ak_gc *g, const ak_gc_rules *r, int side, int from, int to, int n
     return AK_GC_MOVE_BATTLE;
 }
 
-int ak_gc_reinforce(ak_gc *g, const ak_gc_rules *r, int side, int to, int n)
+int ak_gc_reinforce(ak_gc *g, const ak_gc_rules *r, int side, int from, int to, int n)
 {
-    int h = ak_gc_home(g, side); if (h < 0 || h == to || g->planet[to].owner != side) return 0;
-    int room = ak_gc_cap(g, r, to) - g->planet[to].troops, avail = g->planet[h].troops;
+    if (from == to || g->planet[from].owner != side || g->planet[from].troops < 11 || g->planet[to].owner != side || !adjacent(from, to)) return 0;
+    bool own_nb = false; for (int k = 0; k < ak_gc_planet_defs[from].nnb; k++) own_nb |= g->planet[ak_gc_planet_defs[from].nb[k]].owner == side;
+    if (!own_nb) return 0;
+    int room = ak_gc_cap(g, r, to) - g->planet[to].troops, avail = g->planet[from].troops - 10;
     if (n > room) n = room;
     if (n > avail) n = avail;
     if (n <= 0) return 0;
-    g->planet[h].troops -= n; g->planet[to].troops += n; return n;
+    g->planet[from].troops -= n; g->planet[to].troops += n; return n;
 }
 
 int ak_gc_sim_bonus(const ak_gc *g, const ak_gc_rules *r, int side, bool space)
@@ -242,8 +245,8 @@ bool ak_gc_result(ak_gc *g, const ak_gc_rules *r, int side, int to, int winner, 
 {
     (void)r;
     int surv[2]; for (int i = 0; i < 2; i++) surv[i] = (surv_in[i] + 9) / 10 * 10;
-    if (winner == 2) winner = side;                     /* [assumed] a draw: the choice by 08A3BE90 is not read */
-    if (surv[winner] < 10) surv[winner] = 10;
+    if (winner == 2) { winner = g->ai[0] ? 1 : 0; surv[winner] = 10; }   /* a draw: side 0 unless the AI plays it, with 10 (08A3A5CC) */
+    else if (surv[winner] < 10) surv[winner] = 10;
     ak_gc_world *d = &g->planet[to];
     if (winner == side) {
         if (d->home && !second) return true;            /* the space battle over a home planet: the ground battle next */
@@ -254,4 +257,46 @@ bool ak_gc_result(ak_gc *g, const ak_gc_rules *r, int side, int to, int winner, 
     }
     ak_gc_update_sectors(g);
     return false;
+}
+
+void ak_gc_turn_start(ak_gc *g) { g->second_ok = g->second_used = false; }
+
+static int cmdr3_sector(const ak_gc *g, int side)
+{
+    int cls = ak_gc_class(g->side[side].faction) & 1;
+    for (int s = 0; s < AK_GC_SECTORS; s++) if (g->cmdr[s][cls] == 3) return s;
+    return 4;
+}
+
+bool ak_gc_move_source(ak_gc *g, int side, int from)
+{
+    if (from < 0 || from >= AK_GC_PLANETS || g->planet[from].owner != side || g->planet[from].troops < 11) return false;
+    if (g->second_used && ak_gc_planet_defs[from].sector != cmdr3_sector(g, side)) return false;
+    int sec = ak_gc_planet_defs[from].sector, cls = ak_gc_class(g->side[side].faction) & 1;
+    g->second_ok = g->cmdr[sec][cls] == 3 && g->side[side].cmdr_bought[3];
+    return true;
+}
+
+bool ak_gc_after_move(ak_gc *g)
+{
+    if (g->second_used || !g->second_ok) return false;
+    g->second_used = true; return true;
+}
+
+void ak_gc_battle_tickets(const ak_gc *g, int side, int to, int n, int tickets[2])
+{
+    int def = g->planet[to].troops;
+    if (ak_gc_class(g->side[side].faction) == 0) { tickets[0] = n; tickets[1] = def; } else { tickets[0] = def; tickets[1] = n; }
+}
+
+int ak_gc_battle_winner(const ak_gc *g, int f)
+{
+    if (f == g->side[0].faction) return 0;
+    if (f == g->side[1].faction) return 1;
+    return 2;
+}
+
+void ak_gc_battle_survivors(const ak_gc *g, const int left[2], int surv[2])
+{
+    for (int s = 0; s < 2; s++) surv[s] = left[ak_gc_class(g->side[s].faction) & 1];
 }

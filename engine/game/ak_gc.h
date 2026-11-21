@@ -12,9 +12,9 @@
  *    each.  Both sides: Init Credits (500), tech levels 0, no commanders.  The player's faction is the menu's (2 Alliance /
  *    3 Empire; 4 = random), side 1 the other.
  *  - A turn (state machine 08A38138): treasury (income, 08A391D8), purchase (tech 08A39AAC, commanders 08A39BA0, troops at the
- *    home planet for 1 credit each, in tens, up to MaxHome), one move (08A39FDC: to an own planet - capped by its room -, onto a
+ *    selected own planet for 1 credit each, in tens, up to its cap), one move (08A39FDC: to an own planet - capped by its room -, onto a
  *    neutral planet - occupied -, or onto an enemy one - a battle, played or auto-resolved), results (08A3A5CC), reinforce (from
- *    the home planet to any own planet, in tens, capped by room), then the other side.  A move leaves 10 troops behind and moves
+ *    an own planet to a neighbouring own planet, capped by room), then the other side.  A move leaves 10 troops behind and moves
  *    in tens (08A386C4).  Thrawn / Ackbar give a second attacking move.
  *  - Income: the owned planets' bonuses + the bonus of every sector wholly owned + PlanetInSectorBonus (30) per owned planet in
  *    the sector of the side's commander 1 (Emperor / Mon Mothma) once bought; credits cap at 9999.
@@ -64,6 +64,8 @@ typedef struct {
     int sector_owner[AK_GC_SECTORS], cmdr[AK_GC_SECTORS][2];  /* cmdr[s][c]: the commander of faction class c (0 good, 1 bad) */
     ak_gc_rng rng_setup, rng_battle;
     int turn;                                                 /* the side to play */
+    bool ai[2];                                               /* a side the AI plays (08A3BE90: its controller's vfunc +0xC) */
+    bool second_ok, second_used;                              /* Thrawn / Ackbar's second move this turn (+0x7F / +0x80) */
     int winner;                                               /* -1 playing */
 } ak_gc;
 
@@ -84,14 +86,30 @@ u32  ak_gc_tech_price(const ak_gc *g, const ak_gc_rules *r, int side, int kind, 
 u32  ak_gc_cmdr_price(const ak_gc *g, const ak_gc_rules *r, int side, int k);
 bool ak_gc_buy_tech(ak_gc *g, const ak_gc_rules *r, int side, int kind);        /* the next level */
 bool ak_gc_buy_cmdr(ak_gc *g, const ak_gc_rules *r, int side, int k);
-int  ak_gc_buy_troops(ak_gc *g, const ak_gc_rules *r, int side, int n);         /* at the home planet; returns those bought */
+int  ak_gc_buy_troops(ak_gc *g, const ak_gc_rules *r, int side, int planet, int n);  /* at an own planet (the cursor's, 08A38C90): 1 credit
+                                                                                 each, in tens, up to its cap (08A386C4); returns those bought */
 int  ak_gc_move_room(const ak_gc *g, const ak_gc_rules *r, int side, int from, int to);   /* how many may go (08A386C4) */
 int  ak_gc_move(ak_gc *g, const ak_gc_rules *r, int side, int from, int to, int n);       /* AK_GC_MOVE_* */
-int  ak_gc_reinforce(ak_gc *g, const ak_gc_rules *r, int side, int to, int n);            /* from the home planet */
+int  ak_gc_reinforce(ak_gc *g, const ak_gc_rules *r, int side, int from, int to, int n);  /* 08A3ADA8: from an own planet with 11+
+    troops and an own neighbour (08A3B36C / 3A4 / 440) to an own planet not full (08A3B4E0 / 518), capped by its room [assumed:
+    a neighbour; the source keeps 10] */
 int  ak_gc_sim_bonus(const ak_gc *g, const ak_gc_rules *r, int side, bool space);         /* 08A436C0 */
 int  ak_gc_autoresolve(ak_gc *g, const ak_gc_rules *r, int troops[2], bool space);        /* the winning side; troops left */
 const char *ak_gc_battle_level(const ak_gc *g, int planet, bool second); /* the level file fought (08A3A2B8); "space_*" = space */
 /* a battle's result on planet `to` attacked by `side` with `n` troops: survivors per side; returns true when the planet must be
  * fought again (a home planet's ground battle after its space battle) */
 bool ak_gc_result(ak_gc *g, const ak_gc_rules *r, int side, int to, int winner, const int surv[2], bool second);
+/* the turn's move bookkeeping: ak_gc_turn_start at the treasury (08A39508); ak_gc_move_source checks a move's source (08A39E00: own,
+ * 11+ troops; on the second move, a planet in the side's commander-3 sector - 08A38CD0) and notes whether that move earns a second
+ * (its sector's commander for the side is 3 and bought); ak_gc_after_move says whether the results go on to a second move
+ * (08A3AD24) rather than the reinforcement */
+void ak_gc_turn_start(ak_gc *g);
+bool ak_gc_move_source(ak_gc *g, int side, int from);
+bool ak_gc_after_move(ak_gc *g);
+/* played battles (08A3A2B8 / 08A3A5CC): the match's starting tickets are the troops (per faction class: [0] the Republic /
+ * Alliance side, [1] the CIS / Empire side - read by the ticket entity 08987414), and its result is the winning faction (-1 a
+ * draw) and the tickets each class has left (08972658: 0x08C28F84 / 88 / 8C) */
+void ak_gc_battle_tickets(const ak_gc *g, int side, int to, int n, int tickets[2]);
+int  ak_gc_battle_winner(const ak_gc *g, int winning_faction);          /* the side, 2 = a draw */
+void ak_gc_battle_survivors(const ak_gc *g, const int class_left[2], int surv[2]);
 #endif
