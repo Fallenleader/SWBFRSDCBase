@@ -307,7 +307,7 @@ textures and how they are used. Section R lists only what must be in place so th
     bits' blueprint keys.
 - [ ] **2.3 Secondary items [partial].** Grenades, thermal detonators, detpacks, mines, cluster grenades, remote missiles,
   incinerator, fusion cutter, shields, jetpack, jump pack, stealth. Trace each one's blueprint use.
-  - [ ] **2.3p Power-ups [traced in part 2026-11-21, not built].** Weapons of class PowerUps (Rage, Rally, Regenerate,
+  - [x] **2.3p Power-ups [traced and built 2026-11-21; VehicleAutoRepair and the HUD's "Ready!" open].** Weapons of class PowerUps (Rage, Rally, Regenerate,
     Stamina; VehicleAutoRepair is Passive): the weapon loader (08A16FD8) keeps Special_Ability (flags +0x16C bit 4),
     RecuperationTime (+0xB4), FiringAnim (+0x110) and FiringPFX (+0xC0). The unit class (constructor 089A6004, vtable
     0x08AFC2C8, the units' list D_08C2A880) reads from the four Weapons (by the name table 0x08ADE4C8: Rage, Rally,
@@ -323,6 +323,22 @@ textures and how they are used. Section R lists only what must be in place so th
     fire: which button), where Rage's x2 / Rally's 50 % act (the keys Damage_Multiplier / Damage_Reduction / Regenerate_Rate
     have no hash in the code or data - possibly hard-coded or read by name elsewhere), the HUD's power-up icon and recharge,
     whether bots use them.
+    - 2026-11-21, part 2 (harness program 'powerup': the customisation buys Rage, the match starts; RS_PU_LOG hooks on 08A1F86C and
+      089A816C; RS_CALLER_LOG on the four buff tests): d-pad right turns the lower slot from the explosive to the power-up (its icon,
+      "Ready!"), square uses it - 08A1F86C (the Weapon's fire when +0x16C bit 6: FiringAnim, then message 0x8067 + kind to the
+      owner's unit) 36-40 game frames after the press; a second press 15 s later did nothing (RecuperationTime 60 is the weapon's
+      recharge). Two runs: the player alone, and the player and two team-mates within 10 m, all buffed (kind 0). The buff tests are
+      unit vfuncs +0x98 / +0x9C / +0xA0 / +0xA4 (08AC4970..08AC49AC: mask bit k): the soldier's damage handler 089A7310 doubles the
+      damage when the attacker's unit has Rage and halves it (D_08AEEA10 0.5) when its own has Rally - fixed factors, after the
+      headshot multiplier (whose default there is 2.0, D_08AEEA0C); the unit update 089A64F4 heals a living unit below full at 5 a
+      second (D_08AEEA08) while it has Regenerate (else a campaign per-team rate, 08A3CDF0); with Stamina 089E47DC multiplies the
+      unit's +0x68 by Stamina_Multiplier (+0x94, 2.5) [assumed: the stamina's regeneration]. Bots: no use seen in either run.
+      Built (play.c pu_use / pu_update, ak_target.rage / .rally in hurt() and explosions; AK_POWERUP from the customisation,
+      settings.txt Vita / 3DS; AK_TEST_SCRIPT 'r' = d-pad right; AK_DEBUG_POWERUP): use 0.6 s after square, the buff on every
+      living team-mate within the radius, one buff a soldier, ended past its time or at death [assumed]; the lower slot shows the
+      power-up's icon with the recharge as its bar. Tested: Regenerate held the player at full against 3 damage a second for its
+      20 s. Open: VehicleAutoRepair (Passive), the HUD's "Ready!" text, the FiringAnim / FiringPFX / EffectedPFX / "Use_Power_Up"
+      sound, and whether a buff survives death.
   - Thermal detonator [measured and built 2026-11-16]: Weapon REP_Grenade (4, no spare clips, 2 s between throws), Projectile
     "Grenade" (Timer 3, 100 / 150 damage, radius 8). Measured (harness tracks the grenade object, class 0x8011): it appears in
     the hand 29 frames after square, leaves it 8 frames later 1.0 m ahead and 2.1 m up, at 20.4 m/s along the facing and 1.2
