@@ -3149,11 +3149,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (!vh->alive) {                                                     /* wrecked: back after the respawn delay */
             vh->dead_t += dt;
             if (vh->def->kind == AK_VEH_WALKER && vh->dead_t < 8.0f) ak_vehicle_pose(vh, m, dt);   /* the death clip */
-            /* measured (harness: the debug command "Kills all tanks" on Hoth's Taun-Taun): the wreck stays 4.7-4.8 s, and a new one stands
-               at the spawn 10.9-11.0 s after the kill - the spawn record's 10 s from about a second after it [PARITY(3.5b)] */
-            /* flyers (measured: "Kills all flyers" on Hoth's parked snowspeeders, three runs): the wreck goes after 4.98 s and a new one
-               stands 12.0-13.0 s after the kill [PARITY(3.5b): the spread and the extra time's source are not found; 2.5 s taken] */
-            f32 extra = vh->def->kind == AK_VEH_FLYER ? 2.5f : 1.0f;
+            /* the spawner's clock (08A166A0: + the frame's time each update, reset while one of its vehicles lives within 25 m) makes a new
+               one once it passes the respawn time (+0x24; +0x1D, set at the start, spawns the first at once).  Read live (harness RS_VSPAWN_LOG:
+               Hoth's Taun-Taun and snowspeeder spawners, "Kills all tanks / flyers"): the slot frees on the kill and the clock passes 10.0 s of
+               game time 592 and 652 frames later - the 11-13 s measured before were frames, the harness's game clock running at 0.0153-0.0169 s
+               a frame; so no extra time.  [assumed: Aurek waits for the wreck (5 s) before reusing its slot - the game frees it at once] */
+            const f32 extra = 0;
             const ak_play_vspawn *sv = &p->vspawn[v]; const ak_play_vspawn *fs = &p->vspawn[sv->first];
             /* (the spawn's clock: how long its area has been clear - see the spawner above; a slot comes back once its wreck has gone) */
             if (!sv->fixed && vh->dead_t > 5.0f && fs->clear_t > sv->respawn + extra) {

@@ -533,6 +533,13 @@ textures and how they are used. Section R lists only what must be in place so th
     the AT-ST from 2 m to its side); up again leaves.
   - [ ] **3.5b** The extra time's source and the flyers' spread; the respawn-when-taken-away rule (traced 2026-11-20: up to 4
     vehicles a spawn, a new one when none stands within 25 m - built, NATIVE_ENGINE row); the boarding range (measured, below).
+    - 2026-11-21, **the extra time settled** (harness RS_VSPAWN_LOG: hand hooks on the spawner update 08A166A0 and the spawn
+      08A16320): the slot frees the frame the vehicle dies (08A15E64: health <= 0 -> 999), the clock (+0x74) runs from there by
+      the game's frame time and the spawn comes when it passes +0x24 (10 s): 10.0 s of game clock in 592 frames (Taun-Taun) and
+      652 frames (snowspeeder) - the harness's game clock runs at 0.0153-0.0169 s a frame, which made the frame-counted 11-13 s.
+      So there is no extra time in game time; Aurek's extra (1 s / 2.5 s) is gone. +0x1D (set at the start, cleared by the first
+      spawn) spawns the first vehicles at once - the contradiction noted on 2026-11-20. [assumed: Aurek still waits for the wreck
+      (5 s) before reusing its slot; the game frees the slot at once and the wreck is a separate object.]
   - 2026-11-20, boarding and leaving measured (harness program board_try: d-pad up every 0.5 s from 1.5 s, the player
     teleported around the vehicle; physics boxes from RS_DRIVE_BODYID):
     - Hoth's AT-ST (centre 261.98, 13.97; box x 259.54..264.08, z 12.28..15.66; it faces -x): boards from 3.0, 4.0, 4.5 and

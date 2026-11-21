@@ -21676,6 +21676,7 @@ rv_t func_08A16320(u32 a0)
     u8 stack_[96] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 96);
 L_08A16320:;
+    { extern void rs_vspawn_log(u32); rs_vspawn_log(a0); }   /* harness measurement (RS_VSPAWN_LOG, PARITY 3.5b; hand-added) */
     sp = sp - 96;
     s1 = a0 + 0;
     func_08A160A4(a0);
@@ -22015,6 +22016,7 @@ rv_t func_08A166A0(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u8 stack_[16] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 16);
 L_08A166A0:;
+    { extern void rs_vspawn_tick(u32); rs_vspawn_tick(a0); }   /* harness measurement (RS_VSPAWN_LOG=2, PARITY 3.5b; hand-added) */
     sp = sp - 16;
     v0 = LD_U8(a0+28);
     cnd_ = v0 == 0;

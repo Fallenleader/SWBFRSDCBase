@@ -828,6 +828,17 @@ void rs_order_log(u32 which, u32 owner, u32 id){
     static int on = -1; if (on < 0) on = getenv("RS_ORDER_LOG") != 0; if (!on) return;
     fprintf(stderr, "[ORDER] fr %u %s %08x id %x\n", probe_fr, which == 1 ? "order" : which == 2 ? "goalnode" : "child", owner, id);
 }
+/* (3.5b) a vehicle spawner's spawn call (08A16320): its clock +0x74, respawn time +0x24, flags +0x1C / +0x1D, the slot +0x70: RS_VSPAWN_LOG */
+void rs_vspawn_log(u32 sp_){
+    static int on = -1; if (on < 0) on = getenv("RS_VSPAWN_LOG") != 0; if (!on) return;
+    fprintf(stderr, "[VSPAWN] fr %u spawner %08x clock %.3f time %.3f f1c %u f1d %u slot %u at %.1f %.1f %.1f\n", probe_fr, sp_, GF32(sp_ + 0x74), GF32(sp_ + 0x24), GU8(sp_ + 0x1C), GU8(sp_ + 0x1D), GU32(sp_ + 0x70), GF32(sp_ + 0x48), GF32(sp_ + 0x4C), GF32(sp_ + 0x50));
+}
+void rs_vspawn_tick(u32 sp_){
+    static int on = -1; if (on < 0) on = getenv("RS_VSPAWN_LOG") && getenv("RS_VSPAWN_LOG")[0] == '2'; if (!on) return;
+    { static float x = -1e9f; if (x == -1e9f) x = getenv("RS_VSPAWN_X") ? (float)atof(getenv("RS_VSPAWN_X")) : 257.2f;   /* (one spawner, by its x: Hoth's Taun-Taun 257.2 by default) */
+      if (fabsf(GF32(sp_ + 0x48) - x) > 1.0f) return; }
+    fprintf(stderr, "[VTICK] fr %u clock %.4f near %u slots %u %u %u %u dt %.5f\n", probe_fr, GF32(sp_ + 0x74), GU8(sp_ + 0x90), GU32(sp_ + 0x60), GU32(sp_ + 0x64), GU32(sp_ + 0x68), GU32(sp_ + 0x6C), GF32(0x08B285A0));
+}
 /* (tests) who calls a hooked function: each distinct native return address once (RS_CALLER_LOG; resolve with addr2line -f) */
 void rs_caller_log(const char *fn, u32 a0){
     static int on = -1; if (on < 0) on = getenv("RS_CALLER_LOG") != 0; if (!on) return;
