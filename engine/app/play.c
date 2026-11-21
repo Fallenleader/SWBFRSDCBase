@@ -707,6 +707,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     p->team = ak_setting_int("AK_TEAM", ak_faction_team(p->look.faction) + 1) == 2;
     p->team_faction[p->team] = p->look.faction; p->team_faction[1 - p->team] = p->look.faction ^ 1;
     ak_cq_rules_default(&p->rules);
+    if (ak_game_mode == 5) { p->rules.no_bleed = true; p->rules.ticket_mode = false; }   /* the campaign: no ticket bleed or total loss - its end is the script's (the original's
+                                                                                             training showed no ticket counts) [assumed: none at all] */
     if (p->have_cq) ak_conquest_start(&p->cq, &p->rules, &p->match);
     p->have_script = ak_script_load(l, ak_game_mode, (u32)ak_setting_int("AK_SEED", 1), a, &p->script);   /* PARITY(5.4) */
     p->nobj = 0;
@@ -1019,6 +1021,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         p->bot_aim_set = ak_setting_str("AK_BOT_AIM", NULL) != NULL; }   /* (soldier bots: each weapon's own accuracy unless AK_BOT_AIM is set) */
     p->bots_passive = ak_setting_int("AK_BOT_PASSIVE", 0) != 0;
     u32 want = (u32)ak_setting_int("AK_BOTS", 15); if (want > PLAY_MAX_BOTS) want = PLAY_MAX_BOTS;   /* PARITY(4.5) */
+    if (ak_game_mode == 5 && !ak_setting_str("AK_BOTS", NULL)) want = 0;   /* the campaign: no standing armies - its soldiers come from the script's spawners (the original's
+                                                                         training courtyard had none) [the scripted soldier spawners: not yet] */
     if (!p->have_nav || !p->nav.nnode) want = 0;
     if (want) {
         for (int k = 0; k < 2; k++) {   /* the bots' explosives (loadout slots 9 REP_Grenade and 12 Cluster_Grenades; Weapon_Name 127 and 130) */
@@ -1127,7 +1131,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         p->droids.ammo_radius = ad ? ak_bp_float(ad, "EffectiveRadius", 8) : 8; p->droids.ammo_pulse = ad ? ak_bp_float(ad, "PulseLength", 1) : 1;
         p->droids.t = p->droids.pulse; p->droids.ammo_t = p->droids.ammo_pulse;
     }
-    for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].first != (s32)v || !vehicle_make(p, v)) {   /* (a spawn's further slots wait) */ p->veh[v].alive = false; p->veh[v].def = &p->vdef[p->vspawn[v].def[0] >= 0 ? p->vspawn[v].def[0] : p->vspawn[v].def[1]]; p->veh[v].dead_t = p->vspawn[v].respawn - 5.0f; p->target[VT(p, v)].alive = false; }
+    for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].first != (s32)v || p->vspawn[v].waiting || !vehicle_make(p, v)) {   /* (a spawn's further slots wait) */ p->veh[v].alive = false; p->veh[v].def = &p->vdef[p->vspawn[v].def[0] >= 0 ? p->vspawn[v].def[0] : p->vspawn[v].def[1]]; p->veh[v].dead_t = p->vspawn[v].respawn - 5.0f; p->target[VT(p, v)].alive = false; }
     if (ak_setting_int("AK_DEBUG_VEH", 0))
         for (u32 v = 0; v < p->nveh; v++) AK_INFO("veh", "vehicle %u: %s / %s, post %d, respawn %.1f s, %s%s", v + 1, p->vspawn[v].def[0] >= 0 ? p->vdef[p->vspawn[v].def[0]].name : "-",
                                                 p->vspawn[v].def[1] >= 0 ? p->vdef[p->vspawn[v].def[1]].name : "-", p->vspawn[v].post, p->vspawn[v].respawn, p->veh[v].alive ? "up" : "waiting", p->vspawn[v].fixed ? ", placed" : "");
@@ -1930,7 +1934,7 @@ static bool vehicle_make(ak_play *p, u32 v)
     ak_target *t = &p->target[VT(p, v)]; memset(t, 0, sizeof *t);
     t->health = t->max_health = vh->def->health; t->alive = true; t->last_attacker = -1;
     vehicle_target(p, v);
-    if (ak_setting_int("AK_DEBUG_VEH", 0) && p->ready) AK_INFO("veh", "vehicle %u (spawn %d) made: %s", v + 1, sp->first + 1, vh->def->name);
+    if (ak_setting_int("AK_DEBUG_VEH", 0) && p->ready) AK_INFO("veh", "vehicle %u (spawn %d) made: %s (model %s r %.2f) at %.2f %.2f %.2f team %d kind %d", v + 1, sp->first + 1, vh->def->name, p->mset ? p->mset->models[vh->def->model].name : "?", p->mset ? p->mset->models[vh->def->model].radius : 0.0f, vh->pos[0], vh->pos[1], vh->pos[2], team, (int)vh->def->kind);
     return true;
 }
 
@@ -2025,6 +2029,15 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
         ak_play_vspawn *sp = &p->vspawn[p->nveh]; bool any = false;
         memcpy(sp->pos, e->pos, 12); sp->yaw = quat_yaw(e->rot); sp->post = -1; sp->respawn = p->veh_respawn; sp->fixed = e->type == 13;
         sp->eid = e->id; sp->nev = sp->fixed ? ak_script_events(l, e->id, 2, sp->ev, 4) : 0;   /* (a walker spawner's events: 10006 its walker destroyed) */
+        sp->waiting = false;
+        if (sp->fixed) {   /* a unit spawner the script starts: word 23 of the record has 0x200000 (Yavin's campaign Recon_Droid 18bd8 and
+                              IFTT_Tank_Campaign 18bf1; Hoth's AT-AT has 0x10000 and is there from the start) - the original's recon
+                              droid appeared only after the script's 3 to its spawner (harness route cmpn) [assumed: that bit is the
+                              rule; the reader 089812C0's field not traced] */
+            u32 q = 8; ak_chunk c;
+            while (ak_asura_next(&l->file, &q, &c)) if (ak_chunk_tag(&c) == AK_TAG('E', 'N', 'T', 'I') && c.size >= 96 && ak_rd32(c.body) == e->id) {
+                sp->waiting = (ak_rd32(c.body + 92) & 0x200000u) != 0; break; }
+        }
         for (u32 k = 0; p->have_cq && k < p->cq.nvlink; k++)
             if (p->cq.vlink[k].id == e->id) { sp->post = p->cq.vlink[k].post; if (!ak_setting_int("AK_VEHICLE_RESPAWN", 0)) sp->respawn = p->cq.vlink[k].respawn; }
         for (int t = 0; t < 2; t++) {
@@ -2040,7 +2053,9 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
         if (sp->fixed && sp->def[0] >= 0) {                                  /* a placed walker (Hoth's AT-AT): its own faction's side */
             ak_vehicle_def *d = &p->vdef[sp->def[0]];   /* (not boardable: the spawn's fixed flag, not the def - the def is shared with
                                                             the hangars' craft of the same kind, which bots and the player take) */
-            int team = ak_faction_team(ak_bp_int(d->bp, "Faction", 3));
+            int fac = ak_bp_int(d->bp, "Faction", 3), team = ak_faction_team(fac);
+            if (fac >= 4) team = 1 - p->team;   /* Faction 4 (Recon_Droid - the training's target, which the original shows with the enemy's red
+                                                   lock mark and "Recon Droid (Shielded)"): the player's enemy [assumed: 4 = hostile to all] */
             if (team == 1) { sp->def[1] = sp->def[0]; sp->def[0] = -1; }
         }
         sp->mpost = -1; sp->route = NULL; sp->route_d = 0;
@@ -3066,6 +3081,13 @@ static void script_sink(void *user, const ak_script_msg *m)
         done = true;
         if (!p->veh[v].alive && vehicle_make(p, v)) { p->vspawn[v].route_d = 0; if (p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 10007, p->vspawn[v].eid, script_sink, p); }
     }
+    if (!done && m->type == 3 && p->nveh) {                                   /* a waiting unit spawner started by the script */
+        for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].fixed && p->vspawn[v].eid == m->target) {
+            done = true;
+            if (p->vspawn[v].waiting) { p->vspawn[v].waiting = false; if (!p->veh[v].alive && vehicle_make(p, v)) { p->vspawn[v].route_d = 0;
+                if (p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 10007, p->vspawn[v].eid, script_sink, p); } }
+            break; }
+    }
     if (!done) for (u32 k = 0; k < p->nobj; k++) if (p->obj[k].id == m->target) {   /* an objective marker (089F05BC) */
         if (m->type == 3 || m->type == 4 || m->type == 0x8008 || m->type == 0x8009) {
             /* 3 / 4 start / stop it; 0x8008 / 0x8009 end it [measured: the original's objective line stops after the training's
@@ -3767,6 +3789,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0 && p->bot[i].ch.pos[1] < -400.0f) {
         p->target[1 + i].alive = false; p->bot[i].alive = false; p->bot[i].dead_t = 0; if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, p->bot[i].team); }
     /* the level script (game/ak_script.h): its timers, its queue, what it sends to the game's objects */
+    if (ak_setting_int("AK_LOG_VEH", 0) && p->frame_no % 30 == 0)          /* (tests: each live vehicle's place once a second) */
+        for (u32 v = 0; v < p->nveh; v++) if (p->veh[v].alive) AK_INFO("vpos", "%u %u %s %.2f %.2f %.2f", p->frame_no, v + 1, p->veh[v].def->name, p->veh[v].pos[0], p->veh[v].pos[1], p->veh[v].pos[2]);
     for (u32 k = 0; k < p->nsfx; k++) {                                   /* the script's effect places */
         typeof(p->sfx[0]) *e = &p->sfx[k];
         if (!e->on) { if (e->h) { ak_pfx_follow(p->pfx, e->h, NULL, NULL, NULL, false); e->h = 0; } continue; }

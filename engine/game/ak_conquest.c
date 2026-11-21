@@ -308,7 +308,7 @@ bool ak_conquest_update(const ak_conquest_map *m, const ak_cq_rules *r, ak_conqu
         }
     }
     /* bleed */
-    for (int t = 0; t < 2; t++) {
+    for (int t = 0; t < 2 && !r->no_bleed; t++) {
         int o = 1 - t;
         if (s->held[t] == 0 && s->living[t] == 0) {                          /* nothing left: the fast drain */
             s->drain_t[t] += dt;

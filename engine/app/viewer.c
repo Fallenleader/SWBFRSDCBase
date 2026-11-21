@@ -486,6 +486,7 @@ int main(int argc, char **argv)
                         if (frame == at && strchr(bt, 'z')) in.pressed |= AK_BTN_TRIANGLE; /* z: zoom */
                         if (frame == at && strchr(bt, 'c')) in.pressed |= AK_BTN_SQUARE;   /* c: the secondary (pressed on its first frame) */
                         if (frame == at && strchr(bt, 'r')) in.pressed |= AK_BTN_RIGHT;    /* r: d-pad right (the lower slot: explosive / power-up) */
+                        if (frame == at && strchr(bt, 'x')) { in.pressed |= AK_BTN_CROSS; in.held |= AK_BTN_CROSS; }   /* x: a tap of cross (pages) */
                     }
                     at += n; q += used; while (*q == ';' || *q == ' ') q++;
                 }
@@ -791,7 +792,7 @@ int main(int argc, char **argv)
                     was_alive = play.alive;
                     hs.weapon_name = play.wdef.bp ? ak_bp_int(play.wdef.bp, "Weapon_Name", -1) : -1; hs.weapon2_name = play.pu_sel && play.pu_kind >= 0 ? play.pu_name : play.gren_name; hs.weapon_name_t = name_t; }
                 hs.prequel = strstr(levels[cur].path, "PREQUEL") != NULL;
-                if (play.have_cq) { hs.tickets = true; hs.tickets_own = play.match.tickets[play.team]; hs.tickets_enemy = play.match.tickets[1 - play.team];
+                if (play.have_cq && !play.rules.no_bleed) { hs.tickets = true; hs.tickets_own = play.match.tickets[play.team]; hs.tickets_enemy = play.match.tickets[1 - play.team];
                                     hs.faction_own = play.team_faction[play.team]; hs.faction_enemy = play.team_faction[1 - play.team]; }
                 if (play.have_ctf) { hs.tickets_own = play.ctf.score[play.team]; hs.tickets_enemy = play.ctf.score[1 - play.team]; }   /* CTF: the captures in their place (08A5B80C) */
                 static ak_hud_blip blips[256]; u32 nb = 0;                   /* the radar's blips */

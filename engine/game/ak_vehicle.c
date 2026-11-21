@@ -171,6 +171,8 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
        (Endor x2, Kashyyyk x2), Kashyyyk's IFT-T 1.01 m (another, on a slope, 0.35); driving not measured) */
     d->hover = d->kind == AK_VEH_HOVER ? 1.0f : d->kind == AK_VEH_SPEEDER ? 0.1f : 0.0f;
     if (flyer) d->hover = 0;                                             /* (flyers rest on their landing gear: the model origin) */
+    if (!strcmp(name, "Recon_Droid")) d->hover = 1.94f;                /* (Yavin's training droid, idle: 1.94 m over the courtyard floor - harness route cmpn, object
+                                                                            30d48 at y -8.667 over -6.73 [measured; the source of the height not traced]) */
     if (walker) {                                                        /* walkers: the speed from the legs, sharp turns */
         d->top_speed = d->walk_speed; d->stall_speed = -d->walk_speed * 0.5f; d->max_acc = d->walk_speed * 2; d->boost_acc = d->walk_speed * 2;
         d->strafe_acc = 0; d->vel_damp = 3; d->radius *= 0.6f;           /* (legs: a narrower body than the box) */
