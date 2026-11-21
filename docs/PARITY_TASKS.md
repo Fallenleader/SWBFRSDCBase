@@ -132,6 +132,14 @@ textures and how they are used. Section R lists only what must be in place so th
   and lands with its health untouched (133 of 133) - no fall damage. Aurek has none either. No "return to the battlefield"
   text exists in the game's TEXT files.
   - [ ] **1.9b** Water and bottomless drops (kill volumes?) are not tested yet.
+    - 2026-11-21, kill boxes traced and built: ENTI type 0x16 (unflagged; the factory 0896F170 -> 08A11428 -> class 0x16, loader
+      0886D334: version 4, base words, then x min / max, y min / max, z min / max in game axes, the damage a second (+0x34) and the
+      flags (+0x40)). While flag bit 1 is set, each frame (08A11124) every living damageable object whose position is inside takes
+      (08A11398) its whole health with bit 0, else +0x34 x dt. In the levels: Korriban 24 (50 or 15 a second, small boxes), Yavin IV
+      6, Mustafar 4, Mygeeto 3, Sullust and Hoth Ion Cannon 1 (the big ones, flags 0x4B: outright). Aurek loads them (play.c, "N kill
+      boxes" in the log) and applies them to every target's position (feet for soldiers); a dropped CTF flag resting in one goes home
+      in 5 s. Tested: a soldier dropped through a Korriban box took 31 on the way through. Water is not a kill box (none on
+      Kamino-like levels checked) - still open.
 - [x] **1.10 Respawn [measured 2026-11-16].**
   - The harness can kill the player (drive.py --hp F:-1 calls the game's "Kills yourself" command, 08A61BE0: message 0x8001)
     and set its health (--hp F:H).
@@ -1027,6 +1035,8 @@ textures and how they are used. Section R lists only what must be in place so th
     the carrier's own base, not the other.  Open: bots have no CTF orders yet (the squad AI 08929120 / 0892A9D0: own and enemy
     base and flag positions, an attack share of 0.7 - 0.4 in HCTF - per side), kill boxes (5 s return), the carried flag's bone
     (0x7E779B80; drawn 1 m above the carrier), flags carried in vehicles (089D0A8C), the flag messages, HCTF's hero flag bases.
+    2026-11-21: kill boxes done (1.9b): a dropped flag at rest in one returns after 5 s (089F6658, D_08ADEAA8; in space 0 s when
+    outside every bound box - not built).
     2026-11-21: 0x7E779B80 is the h31 of "backpack" - the soldier models' HMPT marker "BackPack" (on Hoth's soldier models with
     Chest, Head, LeftHand, gun, ...). Aurek now hangs the carried flag on the carrier's BackPack marker, playing its
     flag_Flapping_Backattch clip (Endor CTF2 frame: the flag on the trooper's back). [assumed: the marker's own orientation as is -

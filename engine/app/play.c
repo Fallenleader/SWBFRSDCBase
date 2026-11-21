@@ -197,6 +197,26 @@ static void pu_use(ak_play *p)
     if (ak_setting_int("AK_DEBUG_POWERUP", 0)) AK_INFO("play", "power-up %d used", k);
 }
 
+/* kill boxes (08A11124 each frame, with flags bit 1): every living target whose position is inside takes, with bit 0, its whole health,
+ * else the box's damage a second x dt (08A11398) */
+static bool in_kbox(const ak_play *p, const f32 *q, u32 *k)
+{
+    for (u32 i = 0; i < p->nkbox; i++) { const f32 *a = p->kbox[i].mn, *b = p->kbox[i].mx;
+        if (q[0] >= a[0] && q[0] <= b[0] && q[1] >= a[1] && q[1] <= b[1] && q[2] >= a[2] && q[2] <= b[2]) { if (k) *k = i; return true; } }
+    return false;
+}
+static void kbox_update(ak_play *p, f32 dt)
+{
+    if (!p->nkbox) return;
+    for (u32 u = 0; u < NT(p); u++) {
+        ak_target *t = &p->target[u]; u32 k;
+        if (!t->alive || t->health <= 0 || !in_kbox(p, t->feet, &k)) continue;
+        f32 d = (p->kbox[k].flags & 1) ? t->health : p->kbox[k].rate * dt;
+        t->health -= d; t->last_attacker = -1; t->last_quiet = false;
+        if (t->health <= 0) { t->health = 0; t->alive = false; }
+    }
+}
+
 static void droids_update(ak_play *p, f32 dt)
 {
     if (!p->have_cq || !p->cq.ndroid) return;
@@ -689,6 +709,22 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     if (p->have_cq) ak_conquest_start(&p->cq, &p->rules, &p->match);
     p->have_script = ak_script_load(l, ak_game_mode, (u32)ak_setting_int("AK_SEED", 1), a, &p->script);   /* PARITY(5.4) */
     p->have_ctf = ak_ctf_load(l, ak_game_mode, &p->ctf_map);                  /* PARITY(5.4) */
+    {   /* kill boxes (traced: the factory 0896F170 makes class 0x16 from ENTI type 0x16 (unflagged): the loader 0886D334 reads, after
+           the version (4) and the base words, the box x min, x max, y min, y max, z min, z max (game axes), the damage a second (+0x34)
+           and the flags (+0x40); found on Korriban (24), Yavin IV (6), Mustafar (4), Mygeeto (3), Sullust and Hoth Ion Cannon (1) -
+           the big ones kill outright (0x4B), the small ones hurt at 15 or 50 a second (0x4A)) */
+        ak_chunk c; u32 pos = 8; p->nkbox = 0;
+        while (ak_asura_next(&l->file, &pos, &c) && p->nkbox < 32) {
+            if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 13 * 4 || (ak_rd32(c.body + 4) & 0xFFFF) != 0x16 || ak_rd32(c.body + 8) != 4) continue;
+            f32 v[7]; for (int k = 0; k < 7; k++) memcpy(&v[k], c.body + 20 + 4 * k, 4);
+            u32 fl = ak_rd32(c.body + 48);
+            if (!(fl & 2)) continue;
+            f32 a[3] = { v[0], v[2], v[4] }, b[3] = { v[1], v[3], v[5] }, ea[3], eb[3]; ak_from_game(a, ea); ak_from_game(b, eb);
+            for (int k = 0; k < 3; k++) { p->kbox[p->nkbox].mn[k] = fminf(ea[k], eb[k]); p->kbox[p->nkbox].mx[k] = fmaxf(ea[k], eb[k]); }
+            p->kbox[p->nkbox].rate = v[6]; p->kbox[p->nkbox].flags = fl; p->nkbox++;
+        }
+        if (p->nkbox) AK_INFO("play", "%u kill boxes", p->nkbox);
+    }
     if (p->have_ctf) {
         ak_ctf_start(&p->ctf_map, &p->ctf);
         /* each flag's model (089F84D4): its side's faction, blue when it is the player's side, red otherwise; neutral_flag */
@@ -3540,12 +3576,17 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             cs[i].alive = i ? p->bot[i - 1].alive : p->alive; cs[i].on_foot = i ? p->bot[i - 1].veh < 0 : p->in_veh < 0 && p->in_turret < 0;
         }
         ak_ctf_update(&p->ctf_map, &p->ctf, ak_game_mode, p->is_space, cs, NS(p), dt);
+        /* a dropped flag at rest in a kill box goes home 5 s after it settled (089F6658: on a planet, min(its timer, now + 5),
+           D_08ADEAA8) [assumed: Aurek's dropped flag is at rest as dropped] */
+        for (u32 f = 0; f < p->ctf_map.nflags; f++) { ak_ctf_flag *fl = &p->ctf.flag[f];
+            if (fl->present && fl->carrier < 0 && fl->return_t > 0 && !p->is_space && in_kbox(p, fl->pos, NULL) && fl->return_t > p->ctf.time + 5.0f) fl->return_t = p->ctf.time + 5.0f; }
         if (p->ctf.events & AK_CTF_EV_CAPTURE) AK_INFO("ctf", "side %d captures (%d / %d)", p->ctf.last_side, p->ctf.score[0], p->ctf.score[1]);
         if (p->ctf.winner >= 0 && p->have_cq && p->match.winner < 0) p->match.winner = p->ctf.winner <= 1 ? p->ctf.winner : AK_CQ_NEUTRAL;
     }
     heroes_update(p, m, dt);
     droids_update(p, dt);
     pu_update(p, dt);
+    kbox_update(p, dt);
     bool playing = !p->have_cq || p->match.winner < 0;
     /* the player's respawn (measured in the original): no wave - three seconds of the death camera, then the score board and
        the spawn map, and the soldier is back as soon as the player confirms [PARITY(1.10b): Aurek has no spawn screen yet - the

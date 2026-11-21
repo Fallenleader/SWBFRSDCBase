@@ -171,6 +171,9 @@ typedef struct {
        is passive, not built), its Weapon's icon / name, its recharge (RecuperationTime) left, the use under way (-1 none), whether the
        lower slot shows it rather than the explosive; each soldier's buff (target index: -1 none) and its time; the four kinds'
        times and radii (the Weapons' <name>_Time / _Radius) */
+    /* kill boxes (ENTI type 0x16, class 0x16; 0886D334 / 08A11124): an axis box in engine axes, its damage a second, flags (bit 0 kill
+       outright, bit 1 active) */
+    struct { f32 mn[3], mx[3], rate; u32 flags; } kbox[32]; u32 nkbox;
     u32 node_open_id[32]; bool node_open[32]; u32 nnode_open;   /* path nodes the level script opened (0x3B) or shut (0x51) */
     s8 pu_kind; const char *pu_icon; s32 pu_name; f32 pu_cool, pu_recup, pu_t; bool pu_sel;
     s8 buff_k[1 + PLAY_MAX_BOTS]; f32 buff_t[1 + PLAY_MAX_BOTS]; f32 pu_time[4], pu_radius[4], pu_stamina_mul;
