@@ -748,15 +748,78 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         u32 pos = 8; ak_chunk c; p->ncuts = 0; p->nnamed = 0; p->cut = -1;
         while (ak_asura_next(&l->file, &pos, &c)) {
             if (ak_chunk_tag(&c) == AK_TAG('C', 'U', 'T', 'S') && c.size >= 96 && p->ncuts < 16) {
-                typeof(p->cuts[0]) *k = &p->cuts[p->ncuts]; memset(k, 0, sizeof *k);
+                typeof(p->cuts[0]) *k = &p->cuts[p->ncuts]; memset(k, 0, sizeof *k); k->off = (u32)(c.body - l->file.data); k->size = c.size;
                 memcpy(k->name, c.body + 20, 27); f32 g[3]; memcpy(g, c.body + 8, 12); ak_from_game(g, k->org);
                 u32 q = 48; while (q < c.size && c.body[q]) q++; q = (q + 4) & ~3u;
                 f32 len = 0; if (q + 4 <= c.size) memcpy(&len, c.body + q, 4); if (len == 0 && q + 8 <= c.size) memcpy(&len, c.body + q + 4, 4);
                 for (u32 z = 48; z + 4 <= c.size && !k->camera; z++) k->camera = !memcmp(c.body + z, "_cam", 4);   /* [assumed: the view is taken only by those] */
-                k->len = len > 0 && len < 600 ? len : 0; k->group = (s32)(ak_rd32(c.body + c.size - 24) & 0xFFFFu); if (k->group == 0xFFFF) k->group = -1;
+                k->len = len > 0 && len < 600 ? len : 0;
+                k->cam_clip = k->cam2_clip = k->act_clip = -1;
+                {   /* the scene's animation list, in its order (the events name them by place) */
+                    u32 at[6]; k->nanim = 0;
+                    for (u32 ci = 0; ci < m->nclips; ci++) {
+                        const char *cn = m->clips[ci].name; size_t cl = cn ? strlen(cn) : 0; if (cl < 4) continue;
+                        for (u32 z = 96; z + cl < c.size; z++) if (c.body[z - 1] == 0 && !memcmp(c.body + z, cn, cl) && c.body[z + cl] == 0) {
+                            if (k->nanim < 6) { u32 j = k->nanim++; while (j > 0 && at[j - 1] > z) { at[j] = at[j - 1]; k->anim[j] = k->anim[j - 1]; j--; } at[j] = z; k->anim[j] = (s32)ci; }
+                            break; }
+                    }
+                }
+                for (u32 ci = 0; ci < m->nclips; ci++) {             /* the scene's animations, by name (the level's HCAN clips) */
+                    const char *cn = m->clips[ci].name; size_t cl = cn ? strlen(cn) : 0; if (cl < 4) continue;
+                    bool in = false; for (u32 z = 96; z + cl < c.size && !in; z++) in = !memcmp(c.body + z, cn, cl) && c.body[z + cl] == 0;
+                    if (!in) continue;
+                    if (cl > 5 && !strcmp(cn + cl - 5, "_cam2")) k->cam2_clip = (s32)ci;
+                    else if (cl > 4 && !strcmp(cn + cl - 4, "_cam")) k->cam_clip = (s32)ci;
+                    else if (k->act_clip < 0) k->act_clip = (s32)ci;
+                }
+                for (u32 z = 96; z + 8 < c.size; z++) if (!memcmp(c.body + z, "Objects\\", 8)) { snprintf(k->model, sizeof k->model, "%s", (const char *)c.body + z); break; }
+                if (ak_setting_int("AK_DEBUG_CUT", 0)) {
+                    AK_INFO("cut", "%s %.2f s group %d cam %d cam2 %d actor %d model %s org %.2f %.2f %.2f", k->name, len, k->group, k->cam_clip, k->cam2_clip, k->act_clip, k->model, k->org[0], k->org[1], k->org[2]);
+                    s32 cc[3] = { k->cam_clip, k->cam2_clip, k->act_clip };
+                    for (int w = 0; w < 3; w++) if (cc[w] >= 0) { const ak_anim_clip *ac = &m->clips[cc[w]];
+                        AK_INFO("cut", "  clip %s: %u bones %u ch dur %.3f flags %x", ac->name, ac->nbones, ac->nchannels, ac->duration, ac->flags);
+                        for (u32 ch = 0; ch < ac->nchannels && ch < 3; ch++) { const ak_anim_channel *an = &ac->chan[ch];
+                            for (u32 q = 0; q < an->rot_count; q += (an->rot_count > 6 ? an->rot_count / 6 : 1)) {
+                                ak_quat r = ac->rot[an->rot_first + q]; const f32 *pp = an->pos_count == an->rot_count ? ac->pos[an->pos_first + q] : an->pos_count ? ac->pos[an->pos_first] : (f32[3]){0,0,0};
+                                AK_INFO("cut", "    ch %u key %u t %.3f q %.3f %.3f %.3f %.3f pos %.2f %.2f %.2f", ch, q, ac->rtime[an->rot_first + q] / 65535.0f * ac->duration, r.x, r.y, r.z, r.w, pp[0], pp[1], pp[2]); } } }
+                } k->group = (s32)(ak_rd32(c.body + c.size - 24) & 0xFFFFu); if (k->group == 0xFFFF) k->group = -1;
                 p->ncuts++;
             }
         }
+        /* the scene's frame: the CTTR chunk named like the scene without "cs_" (version 7: u32 1, u32 7, u32 1, the name (12 bytes),
+           the place (3 floats, game axes), 4 floats, the turn (quaternion x y z w, game axes)).  Checked against the original's
+           view matrices (RS_VIEW_LOG) through cs_recondroid: the camera = this frame applied to the '_cam' clip's single channel
+           (place and turn, the camera looking down its -z), within 0.01 m [measured] */
+        for (u32 k = 0; k < p->ncuts; k++) { typeof(p->cuts[0]) *cu = &p->cuts[k];
+            memcpy(cu->sp, cu->org, 12); cu->sq = (ak_quat){ 0, 0, 0, 1 }; cu->act_model = -1;
+            if (cu->model[0]) { char bn[64]; const char *b = strrchr(cu->model, '\\'); snprintf(bn, sizeof bn, "%s", b ? b + 1 : cu->model);
+                char *dot = strrchr(bn, '.'); if (dot) *dot = 0; cu->act_model = ak_models_find(m, bn); }
+            /* the chunks after the CUTS, up to the next CUTS: CTAC actors (version 16: u32 kind - 0 a camera, 1 its target, 2 an
+               object -, u32, the name (12 bytes), the entity id, 0x3E7 / 0x3E8, ..; a camera's width at word 9: 0.8727 rad, the
+               original's projection 50 degrees across [measured]), each followed by its CTTR track (one key: the place, the time,
+               3 words, the turn), CTEV events (version 12: u32 type, f32 time, the actor's name (12 bytes), .., word 11 / 12 / 13:
+               type 0 plays the list's clip word 13 on the actor; type 2 turns the camera's width to word 12 degrees over word 11
+               seconds - 50 to 25 over 3.0 s, straight in degrees [measured]; type 10 not known) */
+            cu->hfov = 0.8727f; cu->nev = 0;
+            u32 pq = cu->off + cu->size;                                       /* (the next chunk) */
+            int kind = -1; ak_chunk d;
+            while (ak_asura_next(&l->file, &pq, &d)) {
+                u32 tg = ak_chunk_tag(&d);
+                if (tg == AK_TAG('C', 'U', 'T', 'S')) break;
+                if (tg == AK_TAG('C', 'T', 'A', 'C') && d.size >= 36) { kind = (int)ak_rd32(d.body); if (kind == 0 && d.size >= 40) cu->hfov = ak_rdf32(d.body + 36); }
+                else if (tg == AK_TAG('C', 'T', 'T', 'R') && d.size >= 68 && ak_rd32(d.body) == 1 && (kind == 0 || kind == 2)) {
+                    f32 g[3], q[4]; memcpy(g, d.body + 24, 12); memcpy(q, d.body + 52, 16);
+                    ak_from_game(g, cu->sp); cu->sq = (ak_quat){ q[0], -q[1], -q[2], q[3] };   /* [assumed: one frame for the scene] */
+                }
+                else if (tg == AK_TAG('C', 'T', 'E', 'V') && d.size >= 52 && cu->nev < 8) {
+                    typeof(cu->ev[0]) *e = &cu->ev[cu->nev++]; e->type = (u8)ak_rd32(d.body); e->t = ak_rdf32(d.body + 4);
+                    e->cam = !strncmp((const char *)d.body + 8, "Camera", 6); e->a = ak_rdf32(d.body + 44); e->b = d.size >= 52 ? ak_rdf32(d.body + 48) : 0;
+                    e->anim = d.size >= 56 ? (u8)ak_rd32(d.body + 52) : 0;
+                }
+            }
+            if (ak_setting_int("AK_DEBUG_CUT", 0)) AK_INFO("cut", "%s frame %.2f %.2f %.2f q %.4f %.4f %.4f %.4f actor model %d", cu->name, cu->sp[0], cu->sp[1], cu->sp[2], cu->sq.x, cu->sq.y, cu->sq.z, cu->sq.w, cu->act_model);
+        }
+        p->mset = m;
         pos = 8; p->nlisten = 0;
         while (ak_asura_next(&l->file, &pos, &c) && p->nlisten < 16) {   /* type 38 (0886E220): {3, 0, 0, 1, 2, 0, 2, groups 0xFFFF0040, 1,
                                                                             hash, 0, hash, 0, 0}: the script's 0x14 {hash} - Yavin's 18c5e fired
@@ -3007,7 +3070,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         p->modal_t += dt; if ((in->pressed & AK_BTN_CROSS) && p->modal_t >= p->modal_min) { p->modal = false; ak_hud_tip_clear(); }
         return;
     }
-    static const ak_input still; if (p->cut >= 0 && p->cuts[p->cut].camera) in = &still;            /* a cut-scene: no control (seen: the player stands) */
+    static const ak_input still; if (ak_play_cut_view(p)) in = &still;            /* a cut-scene: no control (seen: the player stands) */
     if (p->roll_nolock_t > 0) p->roll_nolock_t -= dt;                      /* (089DA874: +0x84 runs down by the frame's time) */
     if (ak_setting_int("AK_LOG_HITS", 0) && p->frame_no % 6 == 0)        /* (tests: each bot's position every 0.1 s, against the hits' shooters) */
         for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0) {
@@ -3822,8 +3885,46 @@ bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12])
 }
 
 static void camera_for(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy);
+
+/* ------------------------------------------------------------------ cut-scenes */
+bool ak_play_cut_view(const ak_play *p) { return p->ready && p->cut >= 0 && p->cuts[p->cut].camera && p->cut_t >= 1.53f; }
+static ak_quat cq_mul(ak_quat a, ak_quat b) { return (ak_quat){ a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y, a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+                                                                a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z }; }
+static void cq_rot(ak_quat q, const f32 *v, f32 *o)
+{
+    f32 tx = 2 * (q.y * v[2] - q.z * v[1]), ty = 2 * (q.z * v[0] - q.x * v[2]), tz = 2 * (q.x * v[1] - q.y * v[0]);
+    o[0] = v[0] + q.w * tx + q.y * tz - q.z * ty; o[1] = v[1] + q.w * ty + q.z * tx - q.x * tz; o[2] = v[2] + q.w * tz + q.x * ty - q.y * tx;
+}
+/* the time on the scene's clips: the camera took the view 1.53 s after the scene began in the original (the 7.0 s to its group
+   counted from the begin) [measured on cs_recondroid; the cause of the wait not traced] */
+#define CUT_WAIT 1.53f
+/* a scene clip's channel 0 at the scene's time, placed in the scene's frame: world place and turn (engine axes); false before the wait */
+static bool cut_track(const ak_play *p, s32 clip, f32 t0, f32 out_pos[3], ak_quat *out_q)
+{
+    if (p->cut < 0 || clip < 0 || !p->mset || p->cut_t < CUT_WAIT) return false;
+    const ak_anim_clip *c = &p->mset->clips[clip]; if (!c->nbones) return false;
+    s16 par = -1; f32 bt[1][3] = { { 0, 0, 0 } }; ak_quat bq = { 0, 0, 0, 1 }; ak_skeleton sk; memset(&sk, 0, sizeof sk);
+    sk.nbones = 1; sk.parent = &par; sk.bind_t = bt; sk.bind_q = &bq;
+    ak_quat lq; f32 lt[1][3]; ak_anim_sample(c, &sk, p->cut_t - CUT_WAIT - t0, false, &lq, lt);
+    const typeof(p->cuts[0]) *cu = &p->cuts[p->cut]; f32 r[3]; cq_rot(cu->sq, lt[0], r);
+    for (int k = 0; k < 3; k++) out_pos[k] = cu->sp[k] + r[k];
+    *out_q = cq_mul(cu->sq, lq); return true;
+}
 void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy)
 {
+    if (p->cut >= 0 && p->cuts[p->cut].camera) {                          /* a cut-scene's camera (its '_cam' clip) */
+        const typeof(p->cuts[0]) *cu = &p->cuts[p->cut]; f32 st = p->cut_t - CUT_WAIT;
+        s32 clip = cu->cam_clip; f32 hf = cu->hfov * 57.29578f, t0 = 0;   /* the events so far: the camera's clip and its width */
+        for (u32 e = 0; e < cu->nev; e++) { const typeof(cu->ev[0]) *v = &cu->ev[e]; if (!v->cam || v->t > st) continue;
+            if (v->type == 0 && v->anim < cu->nanim && v->t >= t0) { clip = cu->anim[v->anim]; t0 = v->t; }
+            if (v->type == 2) { f32 u = v->a > 0 ? (st - v->t) / v->a : 1; if (u > 1) u = 1; hf = hf + (v->b - hf) * u; } }
+        f32 cp[3]; ak_quat cq;
+        if (cut_track(p, clip, t0, cp, &cq)) {
+            f32 f[3]; cq_rot(cq, (f32[3]){ 0, 0, -1 }, f);
+            eye->x = cp[0]; eye->y = cp[1]; eye->z = cp[2]; *yaw = atan2f(-f[0], -f[2]); *pitch = atan2f(f[1], sqrtf(f[0] * f[0] + f[2] * f[2]));
+            *fovy = 2.0f * atanf(tanf(hf * 0.5f / 57.29578f) * (272.0f / 480.0f)); p->aim_ok = false; return;   /* (the width across the PSP's 480 x 272) */
+        }
+    }
     {   const char *fc = ak_setting_str("AK_DEBUG_CAM_AT", NULL);              /* tests: a fixed camera "x,y,z,yaw,pitch" over the match */
         if (fc && sscanf(fc, "%f,%f,%f,%f,%f", &eye->x, &eye->y, &eye->z, yaw, pitch) == 5) { *fovy = p->fov; p->aim_ok = false; return; } }
     {   int fv = ak_setting_int("AK_DEBUG_FOLLOW_VEH", 0);                  /* tests: ride behind vehicle N (whoever drives) */
@@ -3974,6 +4075,16 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
 {
     if (!p->ready || !p->posed) return;
     memcpy(g_eye, p->eye, sizeof g_eye);
+    if (p->cut >= 0 && p->cuts[p->cut].act_model >= 0) {                  /* the cut-scene's actor on its clip */
+        f32 ap[3]; ak_quat aq;
+        if (cut_track(p, p->cuts[p->cut].act_clip, 0, ap, &aq)) {
+            f32 M[12], x = aq.x, y = aq.y, z = aq.z, w = aq.w;
+            M[0] = 1 - 2 * (y * y + z * z); M[1] = 2 * (x * y - z * w); M[2] = 2 * (x * z + y * w); M[3] = ap[0];
+            M[4] = 2 * (x * y + z * w); M[5] = 1 - 2 * (x * x + z * z); M[6] = 2 * (y * z - x * w); M[7] = ap[1];
+            M[8] = 2 * (x * z - y * w); M[9] = 2 * (y * z + x * w); M[10] = 1 - 2 * (x * x + y * y); M[11] = ap[2];
+            draw_part(ms, p->cuts[p->cut].act_model, M, vp, st);
+        }
+    }
     static f32 gun[12];
     ak_frustum fr = ak_frustum_from(vp);
     if (p->in_veh < 0 && p->in_turret < 0 && p->zoom == 0) {                  /* (zoomed: the view is the soldier's own) */

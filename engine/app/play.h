@@ -214,10 +214,12 @@ typedef struct {
     f32 clock;                         /* seconds of play (spinning logos) */
     s32 near_post;                     /* the post the soldier stands at (the HUD's capture bar), or -1 */
     struct { u32 id; f32 pos[3], yaw, fade[2]; } warp[8]; u32 nwarp;
-    struct { char name[28]; f32 len, org[3]; s32 group; bool camera; } cuts[16]; u32 ncuts;   /* the level's cut-scenes (CUTS); camera: it has a camera animation */
+    struct { char name[28]; f32 len, org[3]; s32 group; bool camera; u32 off, size; s32 cam_clip, cam2_clip, act_clip, act_model; char model[96]; f32 sp[3]; ak_quat sq;
+                 s32 anim[6]; u32 nanim; f32 hfov;                           /* the scene's clips in its list order; the camera's width (rad) */
+                 struct { u8 type, anim; bool cam; f32 t, a, b; } ev[8]; u32 nev; } cuts[16]; u32 ncuts;   /* the level's cut-scenes (CUTS); camera: it has a camera animation */
     struct { u32 id, hash[2]; s32 group; } listen[16]; u32 nlisten;      /* ENTI type 38: fire a group on message 0x14 with a hash */
     struct { u32 id; s32 cut; } named[64]; u32 nnamed;                    /* the named objects (type 3) that are cut-scenes */
-    s32 cut; f32 cut_t;
+    s32 cut; f32 cut_t; const ak_model_set *mset;
     bool modal; f32 modal_t, modal_min;                                    /* a campaign page waiting for X (0x8023 with its flag set) */                                                    /* the cut-scene playing (-1 none), its time */   /* the campaign's player moves (ENTI type 68 -> its type 69 point) */
     bool want_equipment;               /* d-pad up at an own post with no vehicle to board: open the customisation menu */
     struct {                           /* sound (app/play_sound.c) */
@@ -236,6 +238,7 @@ typedef struct {
 bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a, const char *body, const f32 *start);
 /* a placed object the campaign's objectives keep hidden: the marker an objective links to while it is not active [assumed] */
 bool ak_play_entity_hidden(const ak_play *p, u32 id);
+bool ak_play_cut_view(const ak_play *p);    /* a cut-scene has the view: no control, no HUD */
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt);
 /* the loadout settings again (the customisation menu's choice; the soldier is down - it takes them at the respawn) */
 void ak_play_loadout(ak_play *p, const ak_model_set *m, const ak_blueprints *bp);

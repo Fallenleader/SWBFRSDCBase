@@ -292,6 +292,12 @@ static const sprite *button_mark(u16 c)
     /* \ue813 (button_x) marks the "use" action, which the PSP controls put on the d-pad's up: the original draws its "Press \ue813
        to change equipment" with d_pad_up_Small (place 23) */
     if (c == 0xE813 && btn_n > 23) c = 0xE817;
+    /* the campaign tips (seen in the original's training frames, harness route cmpn): \ue808 is drawn as the L button ("Tap L to
+       jump", "hold L to sprint"), \ue809 as R ("Lock onto enemies by holding down R"), \ue817 as the small analog stick ("Use .. to
+       move and turn") - the game's table from the code to the picture is not traced; the others keep the sheet's place */
+    else if (c == 0xE808) return find(h31("button_l1.tga"), btn_first, btn_n);
+    else if (c == 0xE809) return find(h31("button_r1.tga"), btn_first, btn_n);
+    else if (c == 0xE817) return find(h31("analog_Small.tga"), btn_first, btn_n);
     return &spr[btn_first + (c - 0xE800)];
 }
 static const glyph *glyph_of(u16 c) { for (u32 i = 0; i < font.n; i++) if (font.g[i].ch == c) return &font.g[i]; return NULL; }
