@@ -167,6 +167,12 @@ typedef struct {
     ak_space_map space; bool is_space, free_flight, bot_aim_set; int difficulty; f32 elite_mul; s32 obj_unit[AK_MAX_OBJECTIVES];   /* space maps: AI objectives, the bot on each */
     ak_projs projs;                    /* torpedoes, missiles, bombs in flight */
     ak_proj_def ai_gren_def[2]; bool ai_gren_ok[2]; s32 ai_gren_ammo[2]; f32 ai_gren_rate[2], ai_gren_ps[2], ai_gren_vts[2];   /* the bots' explosives: REP_Grenade (thermal), Cluster_Grenades */
+    /* the power-up (2.3p; the customisation's AK_POWERUP): kind 0 Rage, 1 Rally, 2 Regenerate, 3 Stamina (-1 none; VehicleAutoRepair
+       is passive, not built), its Weapon's icon / name, its recharge (RecuperationTime) left, the use under way (-1 none), whether the
+       lower slot shows it rather than the explosive; each soldier's buff (target index: -1 none) and its time; the four kinds'
+       times and radii (the Weapons' <name>_Time / _Radius) */
+    s8 pu_kind; const char *pu_icon; s32 pu_name; f32 pu_cool, pu_recup, pu_t; bool pu_sel;
+    s8 buff_k[1 + PLAY_MAX_BOTS]; f32 buff_t[1 + PLAY_MAX_BOTS]; f32 pu_time[4], pu_radius[4], pu_stamina_mul;
     ak_proj_def gren_def; const char *gren_icon; s32 gren_name, gren_limit; bool gren_ok; s32 gren_left, gren_max; f32 det_t; f32 gren_t, gren_cool, gren_rate, gren_ps, gren_vts;   /* the player's explosive (customisation: the thermal
                                           detonator): grenades left, time since the throw began (-1: none), time to the next */
     ak_turret_def tdef[8]; u32 ntdef; ak_turret turret[PLAY_MAX_TURRETS]; u32 nturret;   /* level turrets (ENTI type 30) */

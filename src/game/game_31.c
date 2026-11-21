@@ -624,6 +624,7 @@ rv_t func_08AC4970(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
 L_08AC4970:;
+    { extern void rs_caller_log(const char *, u32); rs_caller_log("HASBUFF0", a0); }   /* harness measurement (RS_CALLER_LOG, PARITY 2.3p; hand-added) */
     v1 = LD32(a0+244);
     v0 = v1 | 0x1;
     v0 = v0 ^ v1;
@@ -637,6 +638,7 @@ rv_t func_08AC4984(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
 L_08AC4984:;
+    { extern void rs_caller_log(const char *, u32); rs_caller_log("HASBUFF1", a0); }   /* harness measurement (RS_CALLER_LOG, PARITY 2.3p; hand-added) */
     v1 = LD32(a0+244);
     v0 = v1 | 0x2;
     v0 = v0 ^ v1;
@@ -650,6 +652,7 @@ rv_t func_08AC4998(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
 L_08AC4998:;
+    { extern void rs_caller_log(const char *, u32); rs_caller_log("HASBUFF2", a0); }   /* harness measurement (RS_CALLER_LOG, PARITY 2.3p; hand-added) */
     v1 = LD32(a0+244);
     v0 = v1 | 0x4;
     v0 = v0 ^ v1;
@@ -663,6 +666,7 @@ rv_t func_08AC49AC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t
     u32 v0 = 0, v1 = 0;
     float f0 = 0;
 L_08AC49AC:;
+    { extern void rs_caller_log(const char *, u32); rs_caller_log("HASBUFF3", a0); }   /* harness measurement (RS_CALLER_LOG, PARITY 2.3p; hand-added) */
     v1 = LD32(a0+244);
     v0 = v1 | 0x8;
     v0 = v0 ^ v1;

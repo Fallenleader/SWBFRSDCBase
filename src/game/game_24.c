@@ -331,6 +331,7 @@ void func_08A1F86C(u32 a0, u32 a1)
     u8 stack_[16] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 16);
 L_08A1F86C:;
+    { extern void rs_pu_log(int, u32, u32); rs_pu_log(0, a0, a1); }   /* harness measurement (RS_PU_LOG, PARITY 2.3p; hand-added) */
     sp = sp - 16;
     f0 = BITSF(0);
     a2 = LD32(a0+304);

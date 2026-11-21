@@ -413,7 +413,7 @@ int main(int argc, char **argv)
         }
 
         {   /* scripted input timeline (tests, recordings): AK_TEST_SCRIPT = "frames:lx,ly,rx,ry,buttons; ..." - buttons (actions on the PSP layout):
-             * j jump (a tap of L on the segment's first frame), f fire, l lock on, s sprint, c secondary (held), g get in / out (d-pad up), o roll (circle), z zoom (triangle) */
+             * j jump (a tap of L on the segment's first frame), f fire, l lock on, s sprint, c secondary (held), g get in / out (d-pad up), o roll (circle), z zoom (triangle), r d-pad right */
             const char *sc = ak_setting_str("AK_TEST_SCRIPT", NULL);
             if (sc) {
                 int at = 0; const char *q = sc;
@@ -435,6 +435,7 @@ int main(int argc, char **argv)
                         if (frame == at && strchr(bt, 'o')) in.pressed |= AK_BTN_CIRCLE;   /* o: roll */
                         if (frame == at && strchr(bt, 'z')) in.pressed |= AK_BTN_TRIANGLE; /* z: zoom */
                         if (frame == at && strchr(bt, 'c')) in.pressed |= AK_BTN_SQUARE;   /* c: the secondary (pressed on its first frame) */
+                        if (frame == at && strchr(bt, 'r')) in.pressed |= AK_BTN_RIGHT;    /* r: d-pad right (the lower slot: explosive / power-up) */
                     }
                     at += n; q += used; while (*q == ';' || *q == ' ') q++;
                 }
@@ -570,7 +571,7 @@ int main(int argc, char **argv)
                     play.ready = false;
                 } else if (ev == AK_FE_LOADOUT) {                           /* the customisation menu's loadout: the next soldier's */
                     int sel[8]; const char *nm[5]; ak_fe_loadout(sel, nm); char v[8];
-                    ak_setting_set("AK_WEAPON", nm[0] ? nm[0] : ""); ak_setting_set("AK_EXPLOSIVE", nm[2] ? nm[2] : "");
+                    ak_setting_set("AK_WEAPON", nm[0] ? nm[0] : ""); ak_setting_set("AK_EXPLOSIVE", nm[2] ? nm[2] : ""); ak_setting_set("AK_POWERUP", nm[4] ? nm[4] : "");
                     snprintf(v, sizeof v, "%d", sel[5]); ak_setting_set("AK_HEALTH_LEVEL", v);
                     snprintf(v, sizeof v, "%d", sel[6]); ak_setting_set("AK_SPEED_LEVEL", v);
                     /* [assumed: Capture Speed Level n is the rate table's n (None the 1.0 measured at the menu's default)] */
@@ -665,6 +666,8 @@ int main(int argc, char **argv)
                     /* the rest as whole clips (the original: Blaster Rifle 25 a clip, MaxClips 5 -> "25  4") */
                     hs.spare = play.weapon.def->clip > 0 && play.weapon.spare >= 0 ? (play.weapon.spare + play.weapon.def->clip - 1) / play.weapon.def->clip : play.weapon.spare;
                     if (play.gren_ok && play.gren_icon) { hs.weapon2 = play.gren_icon; hs.ammo2 = play.gren_left; hs.spare2 = -1; }   /* the explosive slot below it */
+                    if (play.pu_sel && play.pu_kind >= 0 && play.pu_icon) {        /* the power-up in the lower slot (d-pad right): its icon, the recharge as the bar [assumed: the original's "Ready!" text not drawn] */
+                        hs.weapon2 = play.pu_icon; hs.ammo2 = -1; hs.spare2 = -1; }
                     static bool was_alive; static f32 name_t = -1;
                     if (play.alive && !was_alive) name_t = 0; else if (name_t >= 0) name_t += dt;   /* (the names show for 5 s after a spawn) */
                     was_alive = play.alive;
@@ -723,7 +726,7 @@ int main(int argc, char **argv)
                 {   /* the level's colour (HUD +0x1C, 08A5D0A0: HOTH and HOTH_ION_CANNON black); the zoom view; the ring, bars and target */
                     const char *ln = strrchr(levels[cur].path, '/'); ln = ln ? ln + 1 : levels[cur].path;
                     hs.dark = !strcasecmp(ln, "HOTH.PSP") || !strcasecmp(ln, "HOTH_ION_CANNON.PSP");
-                    hs.zoomed = false; hs.weapon2_bar = -1; hs.scope = play.zoom > 0 && play.in_veh < 0 && play.in_turret < 0;   /* (the camera mode 089DD9AC tests never comes up: its overlay picture, table
+                    hs.zoomed = false; hs.weapon2_bar = -1; if (play.pu_sel && play.pu_kind >= 0 && play.pu_cool > 0 && play.pu_recup > 0) hs.weapon2_bar = 1.0f - play.pu_cool / play.pu_recup; hs.scope = play.zoom > 0 && play.in_veh < 0 && play.in_turret < 0;   /* (the camera mode 089DD9AC tests never comes up: its overlay picture, table
                                                                                 index 0x26, is on no disc file, and the game would read through a null picture
                                                                                 (08A51AA0 -> 08A5D6D0) - the sniper zoom is not that mode) */
                     static f32 bar_full_t; f32 bar_fill = -1; s32 tgt = -1;

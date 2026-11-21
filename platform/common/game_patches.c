@@ -845,6 +845,12 @@ void rs_animmsg_log(u32 st, u32 msg){
     void *bt[4]; int n = backtrace(bt, 4);
     fprintf(stderr, "[ANIMMSG] fr %u state %08x row %u w %08x %08x %08x %08x %08x %08x from %p %p\n", probe_fr, st, GU32(msg + 0xC), GU32(msg), GU32(msg + 4), GU32(msg + 8), GU32(msg + 0x10), GU32(msg + 0x14), GU32(msg + 0x18), n > 2 ? bt[2] : 0, n > 3 ? bt[3] : 0);
 }
+/* (2.3p) power-ups: 0 the weapon's use (08A1F86C: a0 the weapon, a1 the kind), 1 a unit buffed (089A816C: a0 the unit, a1 the kind): RS_PU_LOG */
+void rs_pu_log(int what, u32 o, u32 k){
+    static int on = -1; if (on < 0) on = getenv("RS_PU_LOG") != 0; if (!on) return;
+    if (what == 0) fprintf(stderr, "[PU] fr %u use weapon %08x kind %u flags %08x clip %d recup %.2f\n", probe_fr, o, k, GU32(o + 0x16C), (int)GU32(o + 0x128), GF32(o + 0xB4));
+    else fprintf(stderr, "[PU] fr %u buff unit %08x id %x kind %u team %u\n", probe_fr, o, gok(o) && gok(GU32(o)) ? obj_id(o) : 0, k, GU32(o + 12));
+}
 /* (tests) who calls a hooked function: each distinct native return address once (RS_CALLER_LOG; resolve with addr2line -f) */
 void rs_caller_log(const char *fn, u32 a0){
     static int on = -1; if (on < 0) on = getenv("RS_CALLER_LOG") != 0; if (!on) return;

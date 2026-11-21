@@ -18939,6 +18939,7 @@ void func_089A816C(u32 a0, u32 a1)
 {
     u32 v0 = 0, v1 = 0;
 L_089A816C:;
+    { extern void rs_pu_log(int, u32, u32); rs_pu_log(1, a0, a1); }   /* harness measurement (RS_PU_LOG, PARITY 2.3p; hand-added) */
     v1 = a1 << 2;
     v0 = 1;
     v1 = v1 + a0;

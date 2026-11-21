@@ -146,12 +146,16 @@ static s32 ray_targets(ak_target *tg, u32 n, const f32 *o, const f32 *d, f32 max
     return best;
 }
 
-static void hurt(ak_target *T, f32 dmg_inf, f32 dmg_veh, bool head, bool allow_head, const f32 *dir, s32 owner)
+static void hurt(ak_target *T, f32 dmg_inf, f32 dmg_veh, bool head, bool allow_head, const f32 *dir, s32 owner, bool rage)
 {
     T->last_attacker = owner; T->last_quiet = false;
     {   static int lh = -1; if (lh < 0) lh = ak_setting_int("AK_LOG_HITS", 0); if (lh) AK_INFO("hit", "owner %d", owner); }   /* (tests: who hits, for the shooters' movement) */
     f32 d = T->vehicle ? dmg_veh : dmg_inf;
     if (head && allow_head && !T->vehicle) { d *= T->headshot_mult; T->headshots++; }
+    /* a soldier's damage handler (089A7310): after the headshot, x2 when the attacker's unit has Rage (vfunc +0x98, 08AC4970),
+       x0.5 (D_08AEEA10) when its own has Rally (vfunc +0x9C) - fixed factors, the Weapons' Damage_Multiplier / Damage_Reduction
+       are not read (2.3p) */
+    if (!T->vehicle) { if (rage) d *= 2.0f; if (T->rally) d *= 0.5f; }
     T->health -= d; T->hits++;
     memcpy(T->last_hit_dir, dir, 12);
     if (T->health <= 0) { T->health = 0; T->alive = false; }
@@ -189,7 +193,7 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
             ak_col_hit h; f32 reach = d->distance, tt; bool head = false;
             bool wall = ak_col_raycast(col, muzzle, dd, reach, SHOT_IGNORE, &h); if (wall) reach = h.t;
             s32 ti = ray_targets(tg, ntg, muzzle, dd, reach, &tt, &head, w->team, w->src >= 0 ? w->src : w->owner);
-            if (ti >= 0 && (w->team < 0 || tg[ti].team != w->team)) hurt(&tg[ti], d->dmg_infantry, d->dmg_vehicle, head, d->headshots, dd, w->owner);
+            if (ti >= 0 && (w->team < 0 || tg[ti].team != w->team)) hurt(&tg[ti], d->dmg_infantry, d->dmg_vehicle, head, d->headshots, dd, w->owner, w->owner >= 0 && (u32)w->owner < ntg && tg[w->owner].rage);
             else if (wall) impact(b, &h, 0xFFFFFFFFu, false, d->impact_pfx);
             continue;
         }
@@ -234,7 +238,7 @@ void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *tg, u32 nt
             {   f32 k = tg[ti].local && o->ai ? o->vs_local * (tg[ti].elite > 0 ? tg[ti].elite : 1.0f) : 1.0f;   /* (089E1FDC: an AI's shot at the local player takes Modifier_Bot_Damage) */
                 {   static int lgf = -1; if (lgf < 0) lgf = ak_setting_int("AK_DEBUG_FRIENDLY", 0);
                     if (lgf && o->team >= 0 && tg[ti].team == o->team) AK_INFO("bolt", "stopped by team-mate %d (owner %d)", ti, o->owner); }
-                if (o->team < 0 || tg[ti].team != o->team) hurt(&tg[ti], o->damage * k, o->damage_vehicle * k, head, o->headshots, o->dir, o->owner); }
+                if (o->team < 0 || tg[ti].team != o->team) hurt(&tg[ti], o->damage * k, o->damage_vehicle * k, head, o->headshots, o->dir, o->owner, o->owner >= 0 && (u32)o->owner < ntg && tg[o->owner].rage); }
             {   static int lg = -1; if (lg < 0) lg = getenv("AK_LOG_VEH_HITS") != NULL;   /* tests: each hit on a vehicle, the shot's range */
                 if (lg && tg[ti].vehicle) AK_INFO("vhit", "owner %d target %d at %.0f m, %.1f", o->owner, ti, o->travelled + tt, o->damage_vehicle); }
             ak_col_hit fake; for (int k = 0; k < 3; k++) { fake.pos[k] = o->pos[k] + o->dir[k] * tt; fake.normal[k] = -o->dir[k]; }

@@ -90,6 +90,7 @@ typedef struct {
     f32 elite;                         /* and at the elite difficulty Weapon "Base" Modifier_Bot_Damage_Elite_Global (1.35; 1 below) */
     int team;                          /* shots of the same team pass through (friendly fire off, the game's default) */
     s32 last_attacker;                 /* the owner of the last shot that hurt it (-1 none) */
+    bool rage, rally;                  /* power-up buffs (2.3p, the soldier's damage handler 089A7310): its shots on soldiers x2 / shots on it x0.5 */
     bool last_quiet;                   /* that hurt came from a kind the soldiers' Sniper / Friendly calls ignore (func 089E22BC's list) */
     u32 hits, headshots;
     f32 last_hit_dir[3];

@@ -161,6 +161,42 @@ static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set 
 static void droids_update(ak_play *p, f32 dt);
 /* each soldier near a droid: health (the traced pulse, above) and ammo (the ammo droid, class 0x8010: its pulse - AmmunitionDroid
    PulseLength 1 s, EffectiveRadius 8 m - is not traced: here it gives back one clip a pulse, up to a full load) */   /* PARITY(2.2) */
+/* power-up buffs (2.3p).  Each soldier holds one buff at a time (089A816C sets its mask to the kind alone); its timer runs by the frame's
+ * time and the buff ends past the kind's <name>_Time (089A64F4 / 089A6BC0 / 089A8188).  Effects: Rage and Rally in the damage (hurt(),
+ * 089A7310); Regenerate heals a living soldier below full at 5 a second (089A64F4: vfunc +0xA0, D_08AEEA08 - the Weapon's
+ * Regenerate_Rate 10 is not read); Stamina multiplies the stamina's regeneration by Weapon Stamina's Stamina_Multiplier (2.5, read into
+ * the unit's +0x94 by 089E13B8; 089E47DC applies it to +0x68 [assumed: the regeneration rate]).  [assumed: a buff ends when its
+ * soldier dies] */
+static void pu_update(ak_play *p, f32 dt)
+{
+    {   static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_POWERUP", 0);
+        if (dbg > 1 && p->frame_no % 60 == 0) AK_INFO("play", "frame %u: player buff %d %.1f s, health %.1f, stamina %.1f", p->frame_no, p->buff_k[0], p->buff_t[0], p->target[0].health, p->stamina); }
+    for (u32 u = 0; u < NS(p); u++) {
+        ak_target *t = &p->target[u]; s8 k = p->buff_k[u];
+        if (k >= 0 && (!t->alive || (p->buff_t[u] += dt) > p->pu_time[k])) { p->buff_k[u] = -1; p->buff_t[u] = 0; k = -1; }
+        t->rage = k == 0; t->rally = k == 1;
+        if (k == 2) {
+            f32 maxh = u == 0 ? p->max_health : t->max_health;
+            for (int t2 = 0; t2 < 2; t2++) if (p->hero[t2].unit == (s32)u) maxh = p->hero[t2].health;
+            if (t->health > 0 && t->health < maxh) { t->health += 5.0f * dt; if (t->health > maxh) t->health = maxh; if (u == 0) p->health = t->health; }
+        }
+    }
+}
+/* the player uses his power-up (08A1F86C: the FiringAnim, then message 0x8067 + kind to his unit; 089A6D64 -> 089A7988): every living
+ * soldier of his side within the kind's radius (3-D, from him; him too) gets the buff, its timer from 0 */
+static void pu_use(ak_play *p)
+{
+    s8 k = p->pu_kind; if (k < 0) return;
+    for (u32 u = 0; u < NS(p); u++) {
+        const ak_target *t = &p->target[u];
+        if (!t->alive || t->team != p->target[0].team) continue;
+        if (u > 0 && p->bot[u - 1].veh >= 0) continue;                       /* [assumed: riders' units are counted from their soldier] */
+        f32 dx = t->feet[0] - p->ch.pos[0], dy = t->feet[1] - p->ch.pos[1], dz = t->feet[2] - p->ch.pos[2];
+        if (dx * dx + dy * dy + dz * dz < p->pu_radius[k] * p->pu_radius[k] * S * S) { p->buff_k[u] = k; p->buff_t[u] = 0; }
+    }
+    if (ak_setting_int("AK_DEBUG_POWERUP", 0)) AK_INFO("play", "power-up %d used", k);
+}
+
 static void droids_update(ak_play *p, f32 dt)
 {
     if (!p->have_cq || !p->cq.ndroid) return;
@@ -547,6 +583,14 @@ static void loadout_items(ak_play *p, const ak_model_set *m, const ak_blueprints
             const ak_bp_object *pj = gw ? ak_bp_find(bp, "Projectile", ak_bp_string(gw, "Projectile", "Grenade")) : NULL;
             p->gren_ps = pj ? ak_bp_float(pj, "ProjectileSpeed", 10.0f) : 10.0f; p->gren_vts = pj ? ak_bp_float(pj, "VerticalThrowSpeed", 0.0f) : 0.0f; } p->gren_icon = gw ? ak_bp_string(gw, "HUDIcon", NULL) : NULL; p->gren_name = gw ? ak_bp_int(gw, "Weapon_Name", -1) : -1;
         p->gren_limit = gw ? ak_bp_int(gw, "GlobalAmmoLimit", 0) : 0; }
+    {   /* the power-up (customisation: AK_POWERUP, a Weapon of class PowerUps) */
+        static const char *const kn[4] = { "Rage", "Rally", "Regenerate", "Stamina" };
+        const char *pn = ak_setting_str("AK_POWERUP", ""); p->pu_kind = -1; p->pu_icon = NULL; p->pu_name = -1;
+        for (int k = 0; k < 4; k++) if (pn[0] && !strcmp(pn, kn[k])) p->pu_kind = (s8)k;
+        const ak_bp_object *pw = p->pu_kind >= 0 ? ak_bp_find(bp, "Weapon", pn) : NULL;
+        if (!pw) p->pu_kind = -1;
+        else { p->pu_icon = ak_bp_string(pw, "HUDIcon", NULL); p->pu_name = ak_bp_int(pw, "Weapon_Name", -1); p->pu_recup = ak_bp_float(pw, "RecuperationTime", 60.0f); }
+        p->pu_cool = 0; p->pu_t = -1; p->pu_sel = false; }
     const char *wname = ak_setting_str("AK_WEAPON", "BlasterRifle");
     p->armed = wname[0] && ak_weapon_def_load(bp, m, wname, p->look.faction, &p->wdef);
     if (p->armed) { ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; }
@@ -756,6 +800,14 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     }
     const ak_bp_object *ctl = ak_bp_find(bp, "Controls", "Humanoid");
     p->stamina = p->stamina_max = 100.0f; p->stamina_regen = 10.0f; p->stamina_spent = false;
+    {   /* the power-ups' times and radii (the unit's constructor 089A6004: by the name table 0x08ADE4C8 from each Weapon's <name>_Time /
+           <name>_Radius, keys 0x08ADE4B8 / 0x08ADE4A8) */
+        static const char *const kn[4] = { "Rage", "Rally", "Regenerate", "Stamina" }; char key[32];
+        for (int k = 0; k < 4; k++) { const ak_bp_object *pw = ak_bp_find(bp, "Weapon", kn[k]);
+            snprintf(key, sizeof key, "%s_Time", kn[k]); p->pu_time[k] = pw ? ak_bp_float(pw, key, 0) : 0;
+            snprintf(key, sizeof key, "%s_Radius", kn[k]); p->pu_radius[k] = pw ? ak_bp_float(pw, key, 0) : 0; }
+        { const ak_bp_object *sw = ak_bp_find(bp, "Weapon", "Stamina"); p->pu_stamina_mul = sw ? ak_bp_float(sw, "Stamina_Multiplier", 1.0f) : 1.0f; }
+        for (u32 i = 0; i <= PLAY_MAX_BOTS; i++) { p->buff_k[i] = -1; p->buff_t[i] = 0; } }
     p->sprint_cost = ak_bp_float(ctl, "sprint cost", 20.0f); p->roll_cost = ak_bp_float(ctl, "roll stamina cost", 0.0f); p->roll_nolock = ak_bp_float(ctl, "roll no lock on time", 2.0f); p->roll_nolock_t = 0;
     p->lock = -1; p->lock_range = ak_bp_float(ctl, "targeting range", 50.0f); p->lock_turn = ak_bp_float(ctl, "aim yaw speed", 3.5f);
     p->lock_head_time = ak_bp_float(ctl, "lock on to head time", 5.0f);
@@ -2934,6 +2986,16 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
        code, and whether the frame follows the camera's pitch, are open; the timings are measured] */
     p->gren_cool -= dt;
     bool gren_press = (in->pressed & AK_BTN_CIRCLE) && p->alive && p->in_veh < 0 && p->in_turret < 0 && p->roll_i < 0 && !hero_of(p, 0);
+    /* the lower slot (measured, harness program 'powerup': d-pad right turned it from the explosive to the power-up, "Ready!"; square
+       then used it - its message 0.6 s after the press (36-40 frames, the FiringAnim) - and again 15 s later did nothing: the
+       RecuperationTime, 60 s) */
+    if ((in->pressed & AK_BTN_RIGHT) && p->pu_kind >= 0 && p->alive) p->pu_sel = !p->pu_sel;
+    p->pu_cool -= dt;
+    if (p->pu_sel && p->pu_kind >= 0) {
+        if (gren_press && p->pu_cool <= 0 && p->pu_t < 0) { p->pu_t = 0; p->pu_cool = p->pu_recup; }
+        gren_press = false;
+    }
+    if (p->pu_t >= 0 && (p->pu_t += dt) >= 0.6f) { p->pu_t = -1; if (p->alive) pu_use(p); }
     if (gren_press && p->gren_ok && p->gren_def.remote && ak_projs_count(&p->projs, &p->gren_def, 0) > 0) {
         /* det packs out: the button sets them off, 29 frames after the press, and throws no new one (measured, harness program
            'detpack': the pack thrown at the first press went 29 frames after the second; 08A106E0 checks for a Det_Pack out) */
@@ -3038,7 +3100,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             AK_INFO("body", "player at %.2f %.2f %.2f vel %.2f %.2f %.2f %s", p->ch.pos[0], p->ch.pos[1], p->ch.pos[2], p->ch.vel[0], p->ch.vel[1], p->ch.vel[2], p->ch.on_ground ? "ground" : "air"); }
     if (p->ch.sprinting && !stamina_pay(p, p->sprint_cost * dt)) { p->stamina = 0; p->sprint_spent = true; p->ch.sprinting = false; }   /* the sprint's cost (08993D38) */
     if (p->stamina < p->stamina_max) {                                         /* regeneration (089DA874, 08AC3D40) */
-        if (!p->stamina_spent) { if (!p->ch.sprinting) p->stamina += dt * p->stamina_regen; }
+        if (!p->stamina_spent) { if (!p->ch.sprinting) p->stamina += dt * p->stamina_regen * (p->buff_k[0] == 3 ? p->pu_stamina_mul : 1.0f); }
         else p->stamina_spent = false;
         if (p->stamina > p->stamina_max) p->stamina = p->stamina_max;
     } else p->stamina_spent = false;
@@ -3451,6 +3513,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     }
     heroes_update(p, m, dt);
     droids_update(p, dt);
+    pu_update(p, dt);
     bool playing = !p->have_cq || p->match.winner < 0;
     /* the player's respawn (measured in the original): no wave - three seconds of the death camera, then the score board and
        the spawn map, and the soldier is back as soon as the player confirms [PARITY(1.10b): Aurek has no spawn screen yet - the
