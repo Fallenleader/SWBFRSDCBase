@@ -19879,6 +19879,7 @@ void func_08991E44(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0)
     u8 stack_[16] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 16);
 L_08991E44:;
+    { extern void rs_slot_log(u32, u32, u32, u32); rs_slot_log(a0, a1, a3, t0); }   /* harness measurement (RS_SLOT_LOG, PARITY 4.4; hand-added) */
     v0 = a1 << 3;
     a1 = a1 < 0x5u;
     sp = sp - 16;

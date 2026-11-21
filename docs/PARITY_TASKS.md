@@ -743,6 +743,11 @@ textures and how they are used. Section R lists only what must be in place so th
     8-byte table) - sent as message 0x8035 (08931BAC); every 2.5 s (D_08AED5FC) 0898D4F0. So members walk to formation slots
     around a moving point and stop when there - the original's short stops. The formation table's live values were not found
     yet (the peeked squad block +100 held a pointer; its words read +-0.3 / -1.8 pairs - likely the slots, layout unsettled).
+    Read live the same day (RS_SLOT_LOG: a hand hook on 08991E44; Hoth, every squad alike): slot 0 the point itself (0, 0); 1:
+    2.5 m at 0.785 (45 degrees); 2: 2.5 m at 5.498 (-45); 3: 2.5 m at 3.142 (behind); 4: 5.0 m at 3.142 - a wedge: the leader at
+    the point, two 2.5 m out at the front corners, two behind (2.5 and 5 m). Game axes: + (r sin t, r cos t) on x / z with t =
+    slot angle + the squad's heading. To port: Aurek has no squads (each bot picks its own post and hold point) - squads (sizes
+    from 08926220's table 0x08AD9888, ten slots) are the next piece, then the formation on the squad's point.
 - [x] **4.5 Bot counts per mode and level [traced 2026-11-21].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source
