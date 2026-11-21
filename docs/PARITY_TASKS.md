@@ -737,6 +737,12 @@ textures and how they are used. Section R lists only what must be in place so th
     5.4 / 8.2 / 8.4 (10 / 25 / 50 / 75 / 90 %). The original's bots stand still more: of its 1002 standing samples (under 0.3 m/s),
     182 are within 10 m of a post, 607 within 10-30 m, 213 farther; the stops last a median 1 s, a few 6-18 s. Next: where in
     0x3F2 / the squad's orders those stops come from (the order's end and the squad's next order - the 1 s ones).
+  - 2026-11-21, the squad move: 0x3F2 is re-given to a squad's members every ~0.5 s (RS_ORDER_LOG: gaps 0.1-0.5 s, a quarter
+    ~20 s). Its update 08932300 re-slots the members every 1 s (D_08AED5F8): member k's point = the squad's destination +
+    (r sin t, 0, r cos t), t = the slot's angle + the squad's heading (08991E44, the formation entry k: radius +4, angle +8 of an
+    8-byte table) - sent as message 0x8035 (08931BAC); every 2.5 s (D_08AED5FC) 0898D4F0. So members walk to formation slots
+    around a moving point and stop when there - the original's short stops. The formation table's live values were not found
+    yet (the peeked squad block +100 held a pointer; its words read +-0.3 / -1.8 pairs - likely the slots, layout unsettled).
 - [x] **4.5 Bot counts per mode and level [traced 2026-11-21].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source
