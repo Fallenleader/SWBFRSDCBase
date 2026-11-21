@@ -105,6 +105,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - Aurek: play.c rolls move by the roll clip's root track and end 0.05 s early, with an instant switch back; zoomed = standing.
     Harness run_roll within 0.5 m (Aurek 2 frames earlier: the original's press latency plus one still frame as the roll begins).
   - [ ] **1.7b** Find the 0.05 s in the code; "roll no lock on time" (2 s) and the roll stamina gate are not tested yet.
+    2026-11-21: the roll state (vtable 0x08AFBFA8; can-start 089A392C, start 089A3BC0, end 089A3C44): the stamina gate is
+    "roll stamina cost" (0x578CBDA1, 089DCE7C - Aurek's stamina_pay); at the roll's end 089A3C44 writes "roll no lock on time"
+    (0xBEF994D5) to the player controller +0x84 and clears its +0x208 bit 4 (set at the start, 089A3BC0). The reader of +0x84 is
+    not found yet (the controller's lock-on), so Aurek does not block the lock after a roll.
 - [x] **1.8 Sprint and stamina [done 2026-11-16, measured].** Holding L while running (harness, 15 s): the sprint starts 0.1 s
   after L goes down (a 4-frame press is still a jump tap), crossfades over 0.2 s to the sprint clip's root motion (about 10.3
   m/s), ends when the stamina is gone (100 / "sprint cost" 15 a second: 6.7 s) and does not come back while L stays held - the
