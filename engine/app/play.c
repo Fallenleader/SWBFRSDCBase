@@ -3632,6 +3632,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
             const f32 *pp = p->cq.post[i].pos;
             ak_gfx_set_tint(col);
             ak_scene_force_pipe(AK_PIPE_ADD);                                  /* the hologram is light: additive, unlit */
+            f32 logo_a = 1.0f;
             if (cone >= 0) {
                 /* the cone's clip (089E9A24): cone_of_light_animCap (2.4 s) plays forward while the post's amount (seconds of capture,
                    the full being its capture time) is under the clip's length (the clip record's +0x14, read live: 2.400), else
@@ -3648,8 +3649,13 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
                 static int ca = -1; if (ca < 0) ca = ak_setting_int("AK_CONE_ANIM", 1);
                 if (ca && capc >= 0 && cmod->skeleton >= 0 && m->skels[cmod->skeleton].nbones <= 16) {
                     f32 dur = m->clips[capc].duration;
-                    if (ps->progress < dur) { cap_dir[i] = 1; cap_t[i] = fminf(cap_t[i] + step_here, dur); }
-                    else if (cap_dir[i] != 0) { cap_dir[i] = -1; cap_t[i] -= step_here; if (cap_t[i] <= 0) { cap_t[i] = 0; cap_dir[i] = 0; } }
+                    /* [assumed] a change of direction starts the clip over from its end (089E9930 plays it anew with the new flags) */
+                    if (ps->progress < dur) { if (cap_dir[i] != 1) { cap_dir[i] = 1; cap_t[i] = 0; } cap_t[i] = fminf(cap_t[i] + step_here, dur); }
+                    else if (cap_dir[i] != 0) { if (cap_dir[i] != -1) { cap_dir[i] = -1; cap_t[i] = dur; } cap_t[i] -= step_here; if (cap_t[i] <= 0) { cap_t[i] = 0; cap_dir[i] = 0; } }
+                    /* the logo's alpha (08809AB8 -> the instance's +0xF8, beside its colour at +0xEC..F4, 08809B24): the capture clip's
+                       progress when it runs backwards, 1 - it when forwards, 1 without the clip - it fades out as the cone opens, back in
+                       as it folds */
+                    logo_a = cap_dir[i] > 0 ? 1.0f - cap_t[i] / dur : cap_dir[i] < 0 ? 1.0f - cap_t[i] / dur : 1.0f;
                     {   static s8 seen[AK_MAX_POSTS]; if (ak_setting_int("AK_DEBUG_CONE", 0) && seen[i] != cap_dir[i] + 2) { seen[i] = (s8)(cap_dir[i] + 2);
                             AK_INFO("cone", "%.1f s: post %u amount %.2f -> %s at %.2f", p->clock, i, ps->progress, cap_dir[i] > 0 ? "capture clip forward" : cap_dir[i] < 0 ? "capture clip backwards" : "rest", cap_t[i]); } }
                     const ak_skeleton *sk = &m->skels[cmod->skeleton];
@@ -3660,6 +3666,7 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
                 ak_m4 w; world_of(pp, p->cq.post[i].yaw, &w); ak_scene_models_draw(ms, (u32)cone, vp, &w, posed ? (const f32 (*)[12])cb : NULL, NULL, st); }
             if (ps->owner < 2) {
                 s32 lg = ak_models_find(m, logo[p->team_faction[ps->owner] & 3]);
+                if (lg >= 0 && logo_a < 1.0f) { f32 lc[4] = { col[0] * logo_a, col[1] * logo_a, col[2] * logo_a, col[3] * logo_a }; ak_gfx_set_tint(lc); }   /* (additive: the alpha scales the light) */
                 if (lg >= 0) { f32 lp[3] = { pp[0], pp[1] + 1.6f, pp[2] };   /* 1.60 m over the post (the original's draws, harness RS_DRAW_ALL) */ ak_m4 w; world_of(lp, spin + (f32)i, &w); ak_scene_models_draw(ms, (u32)lg, vp, &w, NULL, NULL, st); }
             }
             ak_scene_force_pipe(-1);

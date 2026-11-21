@@ -920,8 +920,11 @@ textures and how they are used. Section R lists only what must be in place so th
     the owner (2 / 3), +0x60 the capture time (10 s; 30 s for the Empire's hangar post) and +0x64 the amount in seconds (10 at
     full) - Aurek's progress. **Engine:** the cone plays cone_of_light_animCap forward while the amount is under 2.4 s, backwards
     once it is not, then cone_of_light_rest (AK_CONE_ANIM; AK_DEBUG_CONE logs the switches; Hoth 2 min: the cone opens as a post
-    drains to neutral and folds back as it is retaken). [assumed] a switch keeps the clip's time. Open: the logo's value
-    (08809AB8 writes the logo instance's +0xF8 from the cone clip's +0x44 - its reader not found; scale or fade?).
+    drains to neutral and folds back as it is retaken). The logo's value: 08809B24 writes an instance's colour at +0xEC..+0xF4
+    and 08809AB8 the word after it, +0xF8 - its alpha; 089E9A24 sets the logo's alpha to the capture clip's progress (+0x44) when
+    the clip runs backwards, 1 - it when forwards, and 1 without the clip: the logo fades out as the cone opens and back in as it
+    folds. Ported (the additive logo's tint scaled by it). [assumed] a change of direction plays the clip anew from its start
+    (forwards) or end (backwards) - 089E9930 starts it with the new flags.
 - [ ] **6.5 Heroes [missing].** Saber combos, blocking, force powers, saber throw. Blaster heroes' own tables.
   - 2026-11-19: a blaster hero played by the player now takes generic_male's set by its own weapon's AnimPose (the 6.1 rule),
     and the soldier's set comes back when the hero ends.  Open: everything else listed (saber combo timing, blocking, force
