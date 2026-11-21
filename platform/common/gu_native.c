@@ -484,6 +484,10 @@ static void build_state(gfx_state_t *s, int through, int clear){
         key.addr = gfx_vram(X.lv[0].addr & 0x1FFFFFFFu); key.bufw = X.lv[0].bufw; if (!key.bufw) key.bufw = key.w;
         u32 c5 = (u32)X.cpsm | ((u32)X.cshift << 2) | ((u32)X.cmask << 8) | ((u32)X.cstart << 16);
         key.clut = (key.fmt >= 4 && key.fmt <= 7) ? (X.clut_hash ^ (c5 * 2654435761u)) : 0;
+        { static const char *cd = (const char *)-1; if (cd == (const char *)-1) cd = getenv("RS_CLUT_DUMP");   /* (5.4) each new CLUT of an 8-bit 256 x 256 texture */
+          static u32 seen[512]; static int ns; if (cd && key.fmt == 5 && key.w == 256 && key.h == 256 && ns < 512) { int have = 0; for (int i = 0; i < ns; i++) have |= seen[i] == key.clut;
+            if (!have) { seen[ns++] = key.clut; FILE *f = fopen(cd, "a"); if (f) { fprintf(f, "tex %08x cpsm %d shift %d mask %d start %d pal", key.addr, X.cpsm, X.cshift, X.cmask, X.cstart); for (int i = 0; i < 256; i++) fprintf(f, " %08x", clut_entry(i)); fprintf(f, "\n"); fclose(f); } } } }
+        { const char *tb = getenv("RS_TEXBIND"); extern volatile int g_frames; int f0 = tb ? atoi(tb) : -1; if (tb && (int)g_frames == f0) fprintf(stderr, "[TEXBIND] fr %d addr %08x fmt %d %dx%d clut %08x\n", g_frames, key.addr, key.fmt, key.w, key.h, key.clut); }
         gtex_src_t src = {tex_hash_cb, tex_decode_cb, &key};
         s->texid = gfx_tex_acquire(&key, &src, s->uvs); s->tex = s->texid != 0; tex_skip = !s->tex && s->uvs[0] < 0;
         if (s->tex) gfx_tex_maps(&s->texmr, &s->texn, &s->texhd);

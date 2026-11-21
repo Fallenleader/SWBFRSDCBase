@@ -231,6 +231,7 @@ static void build_state(gfx_state_t *s, int through, int clear){
         key.fmt = R[0xC3] & 15; key.w = 1 << (R[0xB8] & 15); key.h = 1 << ((R[0xB8] >> 8) & 15); key.swz = R[0xC2] & 1;
         key.addr = vram_addr((R[0xA0] & 0xFFFFFF) | ((R[0xA8] & 0xFF0000) << 8)); key.bufw = R[0xA8] & 0xFFFF; if (!key.bufw) key.bufw = key.w;
         key.clut = (key.fmt >= 4 && key.fmt <= 7) ? (clut_hash ^ (R[0xC5] * 2654435761u)) : 0;
+        { const char *tb = getenv("RS_TEXBIND"); extern volatile int g_frames; if (tb && g_frames == atoi(tb)) fprintf(stderr, "[TEXBIND-GE] fr %d addr %08x fmt %d %dx%d clut %08x\n", g_frames, key.addr, key.fmt, key.w, key.h, key.clut); }
         gtex_src_t src = {tex_hash_cb, tex_decode_cb, &key};
         s->texid = gfx_tex_acquire(&key, &src, s->uvs);
         s->tex = s->texid != 0;

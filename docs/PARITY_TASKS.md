@@ -1172,6 +1172,13 @@ textures and how they are used. Section R lists only what must be in place so th
     GC_Purchase*. Attack plays the battle as a CQST match with the troops as tickets and returns its result to the map
     (ak_gc_result). Harness: drive.py program gc_tech (square at 9 s, then the d-pad / cross / circle). Open: Empire portraits,
     greys, focus brackets, the opponent's page, results pages.
+  - Part 18, 2026-11-21 - **GC entry + panel colour investigation**: MP_GalacticConquest -> FE_StartGalacticConquest (08A2EE38)
+    opens the map (auto-click on no saved conquest). Panel colour: the planet panel sprite (088CF194, all 4 corners logged with
+    RS_SPRITE_ALL) uses GC texture 10 at u 0.457-0.918, v 0-0.348; the GC_Tech_Elements_02 in VRAM (0x0A589230, decoded from a
+    RS_MEMDUMP heap with its CLUT from RS_CLUT_DUMP) is identical to Aurek's (green left, blue right) - so that region is blue, yet
+    the harness frame shows green. In frame 1400 no draw binds 0x0A589230; 0x0A599AD0 (_03, all green) is bound once. Unresolved:
+    which texture GC id 0x36 really is (08A4CD68 -> 0883A334 name lookup). New harness hooks: RS_CLUT_DUMP, RS_TEXBIND=frame
+    (gu_native and ge paths), RS_SPRITE_ALL. Next: log the 2D sprite batch's texture address at its flush.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

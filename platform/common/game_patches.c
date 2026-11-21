@@ -955,6 +955,7 @@ void rs_sprite_log(u32 sp){
     for (int i = 0; i < 17; i++) if (GU32(IMG(0x08B1C85Cu) + 4u * (u32)i) == tex) { pick = i; break; }
     fprintf(stderr, "[SPR] fr %u tex %08x pick %d rect %.1f %.1f %.1f %.1f uv %.4f %.4f %.4f %.4f col %08x\n", probe_fr, tex, pick,
         GF32(sp), GF32(sp + 16), GF32(sp + 4), GF32(sp + 24), GF32(sp + 32), GF32(sp + 48), GF32(sp + 36), GF32(sp + 56), GU32(sp + 64));
+    if (getenv("RS_SPRITE_ALL")) { fprintf(stderr, "[SPRALL]"); for (int i = 0; i < 24; i++) fprintf(stderr, " %.4f", GF32(sp + 4u * (u32)i)); fprintf(stderr, " | %02x %02x %02x\n", GU8(sp + 0x5c), GU8(sp + 0x5d), GU8(sp + 0x5c + 4)); }
 }
 void rs_text_log(u32 a0, u32 a1, u32 a2, u32 a3, float f12, float f13, float f14, float f15){
     if (!sprlog_on()) return;
