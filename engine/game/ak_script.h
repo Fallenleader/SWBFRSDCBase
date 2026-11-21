@@ -50,7 +50,7 @@ typedef struct {
     struct { ak_smsg *msg; u32 *first; u8 *count; u32 ngroups; } side[2];
     ak_snode *node; u32 nnodes;
     struct { u16 group, msg; f32 t; u32 sender; } q[AK_SCRIPT_QUEUE]; u32 nq;
-    struct { const ak_smsg *m; u32 sender; } now[256]; u32 nnow;        /* sent this frame, not yet handled */
+    struct { const ak_smsg *m; u32 sender; } now[256]; u32 nnow, head, depth;        /* sent this frame, not yet handled */
     u32 rng[2];                                                          /* the game's random numbers (D_08B25AC0 / C4) */
     u32 sent, dropped;                                                   /* tests */
 } ak_script;
@@ -68,5 +68,13 @@ void ak_script_update(ak_script *s, f32 dt, bool paused, ak_script_sink sink, vo
 void ak_script_fire(ak_script *s, s32 group, u32 sender, ak_script_sink sink, void *user);
 /* send one message to a node (as the game does to script objects) */
 void ak_script_send(ak_script *s, u16 type, u32 target, const u8 *extra, u32 nextra, ak_script_sink sink, void *user);
+/* An object's event table (08874D30, read by every script-aware object's base: version; version > 2: u32, count, count x
+ * { u16 event, u16 group }; the record's base sits at word `at` - posts 4, placed walkers 2): when the game raises an event on the
+ * object (0887514C) every entry with that event fires its group.  Events found (the raisers): 10000 a post is captured, 10001 it
+ * goes neutral, 10002 / 10003 captured by team 1 / 2 (089ECDE4); 10005 - 10007 a walker spawner (0897E7B4, 0897F230: its walker
+ * is destroyed, 0897FDE0: a new one made); 10004 a CTF capture, 10009 / 10010 / 10012 objectives, 10011, 10013 / 10015 vehicle
+ * spawns, 10014 turrets.  Reads the record with that id; returns the entries (event | group << 16). */
+u32 ak_script_events(const ak_level *l, u32 id, u32 at, u32 *out, u32 max);
+void ak_script_raise(ak_script *s, const u32 *ev, u32 nev, u32 event, u32 sender, ak_script_sink sink, void *user);
 const ak_snode *ak_script_node(const ak_script *s, u32 id);
 #endif

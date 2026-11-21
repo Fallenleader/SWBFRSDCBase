@@ -1556,9 +1556,14 @@ static void boom(ak_play *p, const f32 *pos, const ak_bp_object *bp)
 }
 
 static void player_down(ak_play *p);
+static void script_sink(void *user, const ak_script_msg *m);
 static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
 {
     ak_vehicle *vh = &p->veh[v]; (void)m;
+    /* a placed walker's spawner: 0897F230 (its walker gone: a new respawn time, the link cleared, its own respawn off - 08982530)
+       raises 10006 [assumed: 0897F230 is the destroyed callback, from what it does]; Hoth's and Boz Pity's tables send it 0x8007
+       120 s later, which makes a new walker when the old one is dead (0897F950 -> +0x74 = 0897FDE0) */
+    if (p->vspawn[v].fixed && p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 10006, p->vspawn[v].eid, script_sink, p);
     if (p->target[VT(p, v)].last_attacker == 0 && vh->driver != 0) p->kills++;
     vh->alive = false; vh->dead_t = 0; boom(p, vh->pos, vh->def->bp);
     if (vh->driver == 0) { p->in_veh = -1; vh->driver = -1; if (p->alive) { p->target[0].alive = true; p->target[0].health = 0; player_down(p); } }
@@ -1583,6 +1588,7 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
         if (!e->flagged || (e->type != 27 && e->type != 13) || !e->placed || !((e->modes >> ak_game_mode) & 1)) continue;
         ak_play_vspawn *sp = &p->vspawn[p->nveh]; bool any = false;
         memcpy(sp->pos, e->pos, 12); sp->yaw = quat_yaw(e->rot); sp->post = -1; sp->respawn = p->veh_respawn; sp->fixed = e->type == 13;
+        sp->eid = e->id; sp->nev = sp->fixed ? ak_script_events(l, e->id, 2, sp->ev, 4) : 0;   /* (a walker spawner's events: 10006 its walker destroyed) */
         for (u32 k = 0; p->have_cq && k < p->cq.nvlink; k++)
             if (p->cq.vlink[k].id == e->id) { sp->post = p->cq.vlink[k].post; if (!ak_setting_int("AK_VEHICLE_RESPAWN", 0)) sp->respawn = p->cq.vlink[k].respawn; }
         for (int t = 0; t < 2; t++) {
@@ -2433,8 +2439,13 @@ static void script_sink(void *user, const ak_script_msg *m)
 {
     ak_play *p = user; bool done = false;
     if (m->node) done = m->node->type == AK_SN_MUSIC;   /* (the start music is the viewer's; a later change is not played [not ported]) */
-    else if (p->have_cq) done = ak_conquest_ticket_msg(&p->cq, &p->rules, &p->match, m->target, m->type, m->extra, m->nextra) ||
-                                ak_conquest_post_msg(&p->cq, &p->match, m->target, m->type, m->extra, m->nextra);
+    else if (p->have_cq && (ak_conquest_ticket_msg(&p->cq, &p->rules, &p->match, m->target, m->type, m->extra, m->nextra) ||
+                            ak_conquest_post_msg(&p->cq, &p->match, m->target, m->type, m->extra, m->nextra))) done = true;
+    else if (m->type == 0x8007) for (u32 v = 0; v < p->nveh; v++) {          /* a walker spawner: a new walker if its own is dead (0897F950) */
+        if (!p->vspawn[v].fixed || p->vspawn[v].eid != m->target) continue;
+        done = true;
+        if (!p->veh[v].alive && vehicle_make(p, v)) { p->vspawn[v].route_d = 0; if (p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 10007, p->vspawn[v].eid, script_sink, p); }
+    }
     static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_SCRIPT", 0);
     if (dbg) AK_INFO("script", "%.2f s: %x -> %x from %x%s%s", p->clock, m->type, m->target, m->sender, m->node ? " (a node's play)" : "", done ? "" : " - not handled");
 }
@@ -2821,6 +2832,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (vh->energy > vh->def->energy_max) vh->energy = vh->def->energy_max;
         } else vh->energy_spent = false;
         vh->boost_held = false;
+        {   static f32 kt = -2; if (kt == -2) kt = ak_setting_float("AK_TEST_KILL_WALKER", -1);   /* tests: placed walkers destroyed at this time */
+            if (kt >= 0 && p->vspawn[v].fixed && vh->alive && p->clock >= kt && p->clock - dt < kt) { p->target[VT(p, v)].alive = false; vehicle_destroyed(p, m, v); } }
         if (!vh->alive) {                                                     /* wrecked: back after the respawn delay */
             vh->dead_t += dt;
             if (vh->def->kind == AK_VEH_WALKER && vh->dead_t < 8.0f) ak_vehicle_pose(vh, m, dt);   /* the death clip */
@@ -3092,6 +3105,11 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         }
         sol[0].alive = p->alive; sol[0].weight = p->capture_rate; if (p->in_veh >= 0) { memcpy(sol[0].pos, p->veh[p->in_veh].pos, 12); sol[0].weight = 0; }   /* drivers do not capture */
         wave = ak_conquest_update(&p->cq, &p->rules, &p->match, sol, NS(p), dt);
+        for (u32 k = 0; k < p->match.nev; k++) {                              /* the posts' script events (captures) */
+            const ak_post *po = &p->cq.post[p->match.ev[k].post];
+            if (p->have_script) ak_script_raise(&p->script, po->ev, po->nev, p->match.ev[k].event, p->cq.post_id[p->match.ev[k].post], script_sink, p);
+        }
+        p->match.nev = 0;
         p->near_post = -1;
         for (u32 i = 0; i < p->cq.nposts && p->alive; i++) {
             f32 dx = p->ch.pos[0] - p->cq.post[i].pos[0], dy = p->ch.pos[1] - p->cq.post[i].pos[1], dz = p->ch.pos[2] - p->cq.post[i].pos[2];

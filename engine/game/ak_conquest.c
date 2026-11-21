@@ -4,6 +4,7 @@
 #include "assets/entity.h"
 #include "game/ak_conquest.h"
 #include "core/ak_settings.h"
+#include "game/ak_script.h"
 
 static f32 wf(const u8 *p) { f32 f; memcpy(&f, p, 4); return f; }
 static bool finite_small(f32 v) { return v == v && fabsf(v) < 1e5f; }
@@ -100,6 +101,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
         if (type == 8 && out->nposts < AK_MAX_POSTS && find_pos_quat(&c, gp, gq)) {
             out->post_id[out->nposts] = ak_rd32(c.body);
             ak_post *p = &out->post[out->nposts++]; ak_from_game(gp, p->pos); p->yaw = yaw_of(gq);
+            p->nev = ak_script_events(l, out->post_id[out->nposts - 1], 4, p->ev, 4);
             p->name = -1;                                                  /* the name (func 08A050C0: text index, table hash) */
             for (u32 q = 8; q + 4 <= c.size; q += 4) if (ak_rd32(c.body + q) == 0x3A6386FBu) { p->name = (s32)ak_rd32(c.body + q - 4); break; }
             if (ak_setting_int("AK_DEBUG_POSTS", 0)) AK_INFO("conquest", "post %u at game %.1f %.1f %.1f", out->nposts - 1, gp[0], gp[1], gp[2]);
@@ -206,6 +208,10 @@ static void set_owner(const ak_conquest_map *m, ak_conquest *s, u32 i, int team)
     ak_post_state *p = &s->post[i];
     p->owner = team; p->progress = m->post[i].amount; p->capturing = AK_CQ_NEUTRAL; s->captures++;
     recount(m, s);
+    /* the events (089ECDE4): neutral 10001; else 10000, then 10002 for team 1 or 10003 for team 2 */
+    u16 e[2]; u32 ne = 0;
+    if (team == AK_CQ_NEUTRAL) e[ne++] = 10001; else { e[ne++] = 10000; e[ne++] = team == 0 ? 10002 : 10003; }
+    for (u32 k = 0; k < ne && s->nev < 16; k++) { s->ev[s->nev].post = (u16)i; s->ev[s->nev].event = e[k]; s->nev++; }
 }
 
 /* A command post's script messages (handler 089ECC48, flags at +0xC0): 0x800B locks it (bit 0: it cannot be captured - the

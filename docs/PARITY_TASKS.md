@@ -667,9 +667,14 @@ textures and how they are used. Section R lists only what must be in place so th
     level has a start timer for every mode but campaign (music) and one for its CTF modes (mask 0xC or 0xA) that locks some posts
     (0x800B to the posts, 089ECC48 - now ported, with 0x800A / 0x800C / 3 / 4); Hoth and Boz Pity have a conquest-only one (the
     ticket change).  Everything else in the CLASSIC files' scripts is campaign (its targets are campaign-file entities).
-    Open: type 33 objects (Hoth's start activates four), AI path node messages (0x3B / 0x51 / 0x4C to type 55), the walker's 0x8007,
-    music after the start, the objects that fire groups (AI hint points 56 carry groups), campaign objects (0x3E8 game messages
-    0x8015-0x801F, spawn places 35 / 36, FMV).
+  - Part 5, 2026-11-20 - **objects' events** (ak_script_events / ak_script_raise): posts raise 10000-10003 on owner changes,
+    placed walkers' spawners 10006 / 10007; the walker comes back 120 s after it falls on Hoth and Boz Pity (0x8007, 0897F950).
+    Events raised by the game (0887514C callers): 10004 CTF score (089EF7C8), 10009 / 10010 a 0x8013 object's 0x8008 / 0x8009
+    (089F05BC), 10011 0x800E (089F1298), 10012 flags (089F001C), 10013 / 10015 vehicle spawns (08A16BC0 / 08A16CA0),
+    10014 turrets (089BC764), 5-10 AI hint points (08861204 / 08861948).
+    Open: type 33 objects (Hoth's start activates four), what a walker does with its path nodes' 0x3B / 0x51 / 0x4C (the node
+    passes them on, 08855908), music after the start, space match end (0x800E 10011 -> 0x8013 10010 -> 0x8006 to the ticket
+    entity: 0897392C ends the match), campaign objects (0x3E8 game messages 0x8015-0x801F, spawn places 35 / 36, FMV).
   - Still open in 5.4 (left for later passes): HCTF's heroes as flag holders (the loading hints: kill the enemy hero to take
     the flag; mode 3 lets anyone carry and returns a side's own flag at its own base - who gets the flag is not traced), Gungan
     Tag (GTAG, mode 4), CTF in space (400 m pickup, flyers), Galactic Conquest and the campaign rules.  The modes' names come

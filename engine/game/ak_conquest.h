@@ -39,6 +39,7 @@ typedef struct {
     int start_owner;                   /* 0, 1 or AK_CQ_NEUTRAL */
     f32 amount; u32 flags; bool disabled;
     s32 name;                          /* its name: an entry of TEXT/CPNAMES.ASR (the record's index before the table's hash 0x3A6386FB), -1 none */
+    u32 ev[4]; u32 nev;                /* its script event table (game/ak_script.h ak_script_events) */
     bool mobile, absent;               /* mobile: carried by a vehicle (CarriesCommandPost); absent: its carrier is wrecked (not a post) */
 } ak_post;
 
@@ -64,6 +65,7 @@ typedef struct {
     int winner;                        /* -1 playing, 0 / 1, or AK_CQ_NEUTRAL for a draw */
     f32 respawn_t;                     /* the next spawn wave */
     u32 captures;                      /* owner changes (tests) */
+    struct { u16 post, event; } ev[16]; u32 nev;   /* the script events the owner changes raised (089ECDE4), for the caller to send */
 } ak_conquest;
 
 typedef struct { s32 tickets; bool ticket_mode; f32 capture_radius, max_rate, contest_time, bleed_time, drain_time, loss_time, respawn_delay; } ak_cq_rules;

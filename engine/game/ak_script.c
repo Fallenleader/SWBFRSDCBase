@@ -288,8 +288,9 @@ static void deliver(ak_script *s, const ak_smsg *m, u32 sender, ak_script_sink s
 
 static void drain(ak_script *s, ak_script_sink sink, void *user)
 {
-    for (u32 i = 0; i < s->nnow && i < 4096; i++) deliver(s, s->now[i].m, s->now[i].sender, sink, user);
-    s->nnow = 0;
+    if (s->depth++) { s->depth--; return; }                              /* (sent from a handler: the outer loop takes it) */
+    while (s->head < s->nnow) { u32 i = s->head++; deliver(s, s->now[i].m, s->now[i].sender, sink, user); }
+    s->head = s->nnow = 0; s->depth = 0;
 }
 
 void ak_script_fire(ak_script *s, s32 group, u32 sender, ak_script_sink sink, void *user) { fire(s, group, sender); drain(s, sink, user); }
@@ -297,7 +298,7 @@ void ak_script_fire(ak_script *s, s32 group, u32 sender, ak_script_sink sink, vo
 void ak_script_send(ak_script *s, u16 type, u32 target, const u8 *extra, u32 nextra, ak_script_sink sink, void *user)
 {
     ak_smsg m = { type, (u16)nextra, target, 0, 1.0f, extra };
-    drain(s, sink, user); deliver(s, &m, 0, sink, user); drain(s, sink, user);
+    drain(s, sink, user); s->depth++; deliver(s, &m, 0, sink, user); s->depth--; drain(s, sink, user);
 }
 
 static int cmp_due(const void *x, const void *y) { f32 a = *(const f32 *)x, b = *(const f32 *)y; return a < b ? -1 : a > b; }
@@ -327,5 +328,26 @@ void ak_script_update(ak_script *s, f32 dt, bool paused, ak_script_sink sink, vo
     }
     if (nd > 1) qsort(due, nd, sizeof due[0], cmp_due);
     for (u32 i = 0; i < nd; i++) { u32 nm; const ak_smsg *m = group_msg(s, due[i].group, due[i].msg, &nm); if (m) post(s, m, due[i].sender); }
+    drain(s, sink, user);
+}
+
+u32 ak_script_events(const ak_level *l, u32 id, u32 at, u32 *out, u32 max)
+{
+    u32 pos = 8; ak_chunk c;
+    while (ak_asura_next(&l->file, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 8 || ak_rd32(c.body) != id) continue;
+        u32 nw = c.size / 4, n = 0;
+        if (at + 3 > nw || wd(c.body, nw, at) <= 2) return 0;
+        u32 cnt = wd(c.body, nw, at + 2);
+        if (cnt > 64 || at + 3 + cnt > nw) return 0;
+        for (u32 i = 0; i < cnt && n < max; i++) out[n++] = wd(c.body, nw, at + 3 + i);
+        return n;
+    }
+    return 0;
+}
+
+void ak_script_raise(ak_script *s, const u32 *ev, u32 nev, u32 event, u32 sender, ak_script_sink sink, void *user)   /* 0887514C */
+{
+    for (u32 i = 0; i < nev; i++) if ((ev[i] & 0xFFFFu) == event && (ev[i] >> 16) != 0xFFFFu) fire(s, (s32)(ev[i] >> 16), sender);
     drain(s, sink, user);
 }
