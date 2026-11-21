@@ -1130,6 +1130,13 @@ textures and how they are used. Section R lists only what must be in place so th
     [assumed: the original's picture shows none]. Open: the map camera's field of view (the original is about 1.5 x closer /
     narrower), the black clear and star background (stars_4.tga), the halos, sector shapes and every 2D element (08A44xxx-
     08A4Axxx, gc_elements textures), then the flow.
+  - Part 12, 2026-11-21 - **GC map camera measured** (harness RS_PROJ_LOG / RS_VIEW_LOG on the GC map): projection x 1.30326,
+    y 2.29986 (47 degrees high, 75 across, the PSP's 480 x 272), near 0.25; view: eye at game (0.214, -50.31, 2.71), looking down
+    +y tilted 5 degrees (forward (0, 0.9962, -0.0867)), up -z - not the level's ENTI 41 (3.11, -47.45, 3.39). Aurek's viewer uses
+    them for the GC level with a black clear; the planets now sit where the original's do (docs/gc_aurek_vs_original.png).
+    Textures for the overlay in GC.PSP: GC_Planet_Corona.bmp (the halos), GC_Counter_Icons, GC_Tech_Elements(_02/_03),
+    GC_Alliance / Empire_Commanders (+ _Greys), the PSP button icons; stars_4.tga for the star field. Open: the sector shapes
+    (no texture - drawn by code), halos, the 2D panels and text, the stars.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

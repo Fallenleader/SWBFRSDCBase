@@ -279,6 +279,10 @@ int main(int argc, char **argv)
                 cam.pos = ak_v3_make(cx, (top > -1e29f ? top : 0.0f) + 6.0f, cz);
             }
             cam.yaw = 0; cam.pitch = -0.15f;
+            if (!strcmp(levels[cur].label, "GC")) {   /* the GC map's view, read from the original (harness RS_VIEW_LOG): eye at game
+                                                         (0.214, -50.31, 2.71), looking down +y tilted 5 degrees, up = -z */
+                cam.pos = ak_v3_make(0.214f, 50.31f, -2.71f); cam.yaw = 3.14159265f; cam.pitch = -1.4840f;
+            }
             if (camset) sscanf(camset, "%f,%f,%f,%f,%f", &cam.pos.x, &cam.pos.y, &cam.pos.z, &cam.yaw, &cam.pitch);
             play.ready = false;
             loaded = true;
@@ -591,6 +595,8 @@ int main(int argc, char **argv)
             }
         }
         f32 fovy = 1.05f;
+        bool gc_map = !strcmp(levels[cur].label, "GC");
+        if (gc_map) fovy = 0.8204f;   /* the GC map's projection (harness RS_PROJ_LOG: 1.30326 x, 2.29986 y - 47 degrees high) */
         bool fe_paused = fe_menu && ak_fe_page() && strcmp(ak_fe_page(), "MP_Team_Selection") && strcmp(ak_fe_page(), "MP_Spawn_Location");
         if (playing && play.ready) {
             if (!fe_paused) ak_play_update(&play, &models, &in, dt);
@@ -628,7 +634,7 @@ int main(int argc, char **argv)
                 memcpy(env.fog_rgb, lf.rgb, 12); env.fog_start = 0; env.fog_end = lf.end * k;
             }
         }
-        ak_gfx_begin(0x6B5A4Cu | 0xFF000000u, &vp, &env);
+        ak_gfx_begin(gc_map ? 0xFF000000u : (0x6B5A4Cu | 0xFF000000u), &vp, &env);
         if (ak_setting_int("AK_SKY", 1)) ak_scene_sky_draw(&scene, &proj, &view, ak_setting_float("AK_FAR", 8000.0f) * 0.45f);
         {   static f32 clock_; clock_ += dt; ak_scene_set_time(clock_); }   /* (the scrolling textures' clock) */
         ak_scene_stats ss; memset(&ss, 0, sizeof ss);
