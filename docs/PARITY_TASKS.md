@@ -1081,6 +1081,9 @@ textures and how they are used. Section R lists only what must be in place so th
     divided its vertical angle; it now divides the horizontal one and converts (2x zoom: 30 degrees across, 17.1 high, not
     18.1). The harness's default rifle has one zoom level at 1.0 (program `zoom`: the projection is unchanged), so a
     sniper's magnified projection is not measured. Aurek's debug `AK_DEBUG_CAMPOS` logs the camera each frame.
+  - 2026-11-21, vehicles (RS_PROJ_LOG): driving Hoth's AT-ST (program walker, 15 s) the projection stays 1.73209 / 3.05663 with
+    near 0.25 - the soldier's 60 degrees across; no vehicle projection of its own (only the spawn screen's 1.4966). Aurek's vehicle
+    cameras use the same p->fov: matches. A flyer in space not measured (the space run did not board).
 - [ ] **9.2 Vehicle cameras [partial].** CameraVelocityWeight and the "Min" values.
   - 2026-11-19: measured in the AT-ST (harness, RS_PROJ_LOG): the same projection as on foot (60 degrees across at 480 x 272,
     near 0.25, no far plane), so vehicles share the soldier's field of view.
