@@ -149,6 +149,7 @@ static s32 ray_targets(ak_target *tg, u32 n, const f32 *o, const f32 *d, f32 max
 static void hurt(ak_target *T, f32 dmg_inf, f32 dmg_veh, bool head, bool allow_head, const f32 *dir, s32 owner)
 {
     T->last_attacker = owner; T->last_quiet = false;
+    {   static int lh = -1; if (lh < 0) lh = ak_setting_int("AK_LOG_HITS", 0); if (lh) AK_INFO("hit", "owner %d", owner); }   /* (tests: who hits, for the shooters' movement) */
     f32 d = T->vehicle ? dmg_veh : dmg_inf;
     if (head && allow_head && !T->vehicle) { d *= T->headshot_mult; T->headshots++; }
     T->health -= d; T->hits++;

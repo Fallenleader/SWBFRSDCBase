@@ -696,6 +696,12 @@ textures and how they are used. Section R lists only what must be in place so th
     in 0899530C) is never set; every 11.4-11.7 m/s stretch is a bot riding a vehicle (its position 1.9 m from a class 0x801D
     object, bobbing +-2 m/s vertically at the mount's gait). On foot bots move at 8.5 or 5.0 m/s (7.4-8.3 is 8.5 along a slope:
     the path vector is horizontal); +520 bit 1 (0x2) is set in most 5.0 m/s samples.
+  - 2026-11-21, the shooters' movement measured. Original (harness, Hoth 2.5 min, RS_DMG_LOG hits against the shooters' positions in
+    state.log, +-3 report steps): the shooter's ground speed at the moment of each hit (176 hits) is 0 / 0.08 / 2.24 / 5.0 / 8.2 m/s
+    (10 / 25 / 50 / 75 / 90 %) - a quarter stand still, others walk at the 5.0 mode or run at 8.5. Aurek (AK_LOG_HITS, its bots'
+    positions every 0.1 s, 2.5 min, 154 hits): 0.42 / 0.85 / 2.7 / 4.3 / 7.1 - the same middle, but Aurek's fighters never stand
+    fully still (its own 0.55 strafe drift) and run a little slower at the top. Next: trace what the original's fight node does
+    with the move vector (stand while shooting?).
 - [x] **4.5 Bot counts per mode and level [traced 2026-11-21].** AK_BOTS is 15.  Measured 2026-11-17 (harness, soldier objects
   0x8005 per frame): Hoth conquest peaks at 16 soldiers including the player (15 bots, as AK_BOTS); Space Hoth shows up to 11 on
   foot at once, but pilots in their craft are not soldier objects there, so the space count is not settled.  The game's source
@@ -917,12 +923,14 @@ textures and how they are used. Section R lists only what must be in place so th
     blueprint's clips by the game's rule (089B4898 / 089B47F8): forward speed above 10 runs, above 1 walks, below -10 / -1 runs /
     walks back, else a turn faster than 0.05 rad/s plays the turn clip, else AnimLanded; the clip runs at speed x 0.11 (turns:
     rate x 0.75).  Open: the 1 s blend between creature clips, AnimFidget, the creature deaths; the cone's capture clip is 6.4.
-- [ ] **6.3 Death animations and ragdoll.** The death clips. After death the body has gravity on (08993D38): trace what it does next.
+- [x] **6.3 Death animations and ragdoll [done 2026-11-21: no ragdoll].** The death clips. After death the body has gravity on (08993D38): trace what it does next.
   - 2026-11-19: measured in the harness (Hoth, killed while running): the body stops where it falls - no slide - and stays
     there; gravity stays on.  Aurek: the player's body no longer slides on, and bots' bodies (frozen in the air until now) fall
     to the ground.  The death clips now come from the animation table (rows 20-23, 6.1).  2026-11-20, the pick traced (0899FF38):
     20 + (the game's random >> 1 & 3) - one of the four at random each death, not by the hit's direction (unless the soldier's
     +196 is set: row 32 for a 089DE500 body; not seen in play). Aurek picks the same way for the player and the bots.
+  - 2026-11-21, closed: what follows the fall is measured - the body stays where it lands (gravity on, no slide, no ragdoll) and
+    is removed 4.8-5.0 s after the death (1.10); Aurek does both. Nothing else happens to it.
 - [ ] **6.4 Command post cone [assumed].** Its capture animation and the logo height (1.25 m is an estimate).
   - 2026-11-19 (089E9A24, the post's draw update): the cone (model 0xB9F3824A) and the owner's logo (table 0x08ADE9DC: republic /
     cis / alliance / empire _logo_blue, clip logo_spin_move 0x8417BC1A) are tinted by the owner - ours (0.314, 0.424, 0.702),

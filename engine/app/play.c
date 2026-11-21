@@ -2662,6 +2662,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
 {
     if (!p->ready) return;
     p->clock += dt; p->frame_no++;
+    if (ak_setting_int("AK_LOG_HITS", 0) && p->frame_no % 6 == 0)        /* (tests: each bot's position every 0.1 s, against the hits' shooters) */
+        for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0) AK_INFO("bpos", "%u %u %.2f %.2f", p->frame_no, 1 + i, p->bot[i].ch.pos[0], p->bot[i].ch.pos[2]);
+    if (ak_setting_int("AK_LOG_HITS", 0)) { static u32 lf; if (lf != p->frame_no) { lf = p->frame_no; AK_INFO("fr", "%u", p->frame_no); } }
     {   /* tests: AK_TEST_TP = "frame:x,y,z;frame:x,y,z..." - put the player there (game axes) on those frames */
         static const char *tp = (const char *)1; if (tp == (const char *)1) tp = ak_setting_str("AK_TEST_TP", NULL);
         for (const char *s = tp; s && *s; ) {
