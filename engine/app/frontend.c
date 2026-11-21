@@ -313,6 +313,7 @@ static int focused_spawn(void)
 static ak_fe_gc gc; static int gc_kind = -1, gc_index = -1;
 void ak_fe_set_gc(const ak_fe_gc *g) { gc = *g; gc_on = true; }
 int ak_fe_gc_choice(int *index) { *index = gc_index; return gc_kind; }
+static int gc_new_req = 1; int ak_fe_gc_new(void) { return gc_new_req; }
 static int gc_row(const char *pn, int *lvl)                          /* the tech row a widget is in: kind, level; -1 none */
 {
     static const char *const k[3] = { "W_BT_EquipmentLevel", "W_BT_InfantryLevel", "W_BT_SpaceLevel" };
@@ -795,6 +796,10 @@ static int run(const ak_gui_action *a, int row)
     else if (!strcmp(fn, "FE_EnterGameover")) {}                 /* (the button's page follows: the spawn map) */
     else if (!strcmp(fn, "FE_RequestMenuMode")) var_set("BFF.FE_MenuMode", atoi(a->arg));   /* (which of a dialogue's answers show) */
     else if (!strcmp(fn, "FE_ResumePlay")) { ak_fe_close(); return AK_FE_RESUME; }
+    else if (!strcmp(fn, "FE_StartGalacticConquest") || !strcmp(fn, "FE_CheckConquestState")) {
+        /* 08A2EE38: 08A3C574(new) sets the conquest up (1 new, 0 the saved one), then the GC mode (08A27544(6)); FE_CheckConquestState
+           (New) asks before replacing a saved conquest [assumed: Aurek has no saved conquest yet - New starts one] */
+        gc_new_req = !strcmp(fn, "FE_CheckConquestState") ? 1 : atoi(a->arg); var_set("BFF.HasGalacticConquestBeenPlayed", 1); ak_fe_close(); return AK_FE_GC_START; }
     else if (!strncmp(fn, "GC_Purchase", 11)) {                       /* 08A3B738's GC_Purchase*: the choice for the GC code (0x08C2D8CC = 1) */
         gc_kind = strstr(fn, "Equipment") ? 0 : strstr(fn, "Infantry") ? 1 : strstr(fn, "Space") ? 2 : strstr(fn, "Commander") ? 3 : -1;
         gc_index = atoi(a->arg); if (gc_kind >= 0) return AK_FE_GC_BUY; }
@@ -872,6 +877,12 @@ int ak_fe_update(const ak_input *in, f32 dt)
         focus_fix_pending = false;
         const ak_widget *f0 = focus ? find_visible(&page->root, focus) : NULL;
         if (!f0 || (f0->type == AK_GUI_BUTTON && !f0->nactions && !f0->target)) { const ak_widget *c = first_control(&page->root); if (c) focus = c->id; }
+    }
+    {   /* a page's W_BU_AutoClick* button runs at once while its conditions hold (MP_GalacticConquest's
+           W_BU_AutoClickWhenNoSavedConquest: no conquest played - a new one) [assumed: by its name; not traced] */
+        static const ak_gui_page *auto_done;
+        if (auto_done != page) { auto_done = page; const ak_widget *ac = find_named(&page->root, "W_BU_AutoClick");
+            if (ac && cond_holds(ac) && ac->nactions) { int e = run(&ac->actions[0], -1); if (e) return e; if (!page) return AK_FE_NONE; } }
     }
     var_set("GUIMenu.ActiveWidget", (s32)focus); active_widget = focus;
     if (in_cust()) { int e = cust_event(in); if (e >= 0) return e; }

@@ -34,7 +34,7 @@ static level_ref levels[96];
 static int nlevels;
 static ak_gc_screen *gc_screen;
 static bool gc_back; static struct { int winner_faction, left[2]; } gc_back_res;   /* a GC battle's match is over: back to the map */
-static int gc_level = -1; static f32 gc_end_t;                 /* the Galactic Conquest map's state and overlay (the "GC" level) */
+static int gc_level = -1; static f32 gc_end_t; static bool gc_keep;                 /* the Galactic Conquest map's state and overlay (the "GC" level) */
 
 static void find_levels(ak_vfs *v, ak_arena *tmp)
 {
@@ -207,6 +207,11 @@ int main(int argc, char **argv)
             ak_gfx_begin(0xFF000000u, &id, &env); ak_fe_draw(); ak_gfx_end(&gs);
             frame++;
             if (shot && frame == shot_frame) { ak_gfx_screenshot(shot); break; }
+            if (ev == AK_FE_GC_START) {                                    /* Galactic Conquest: the map (a new conquest, or the one in memory) */
+                for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, "GC")) cur = i;
+                gc_keep = !ak_fe_gc_new(); fe_on = false; playing = false; loaded = false; AK_INFO("fe", "galactic conquest (%s)", gc_keep ? "resume" : "new");
+                continue;
+            }
             if (ev == AK_FE_START) {                                       /* FE_HostGame: the play list's first map, its mode */
                 int md = 0; const char *lv = ak_fe_launch(&md);
                 static const char *codes[4] = { "CQST", "CTF1", "CTF2", "HCTF" }; ak_setting_set("AK_MODE", codes[md & 3]);
@@ -232,6 +237,10 @@ int main(int argc, char **argv)
                     ak_gc_screen keep = gcs_; ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, 1);
                     keep.corona = gcs_.corona; memcpy(keep.tex, gcs_.tex, sizeof keep.tex); memcpy(keep.shape, gcs_.shape, sizeof keep.shape); keep.nshape = gcs_.nshape;
                     gcs_ = keep; ak_gc_screen_battle_done(&gcs_, gc_back_res.winner_faction, gc_back_res.left); gc_back = false;
+                } else if (gcs_.ready && gc_keep) {           /* resume: the conquest in memory */
+                    ak_gc_screen keep = gcs_; ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, 1);
+                    keep.corona = gcs_.corona; memcpy(keep.tex, gcs_.tex, sizeof keep.tex); memcpy(keep.shape, gcs_.shape, sizeof keep.shape); keep.nshape = gcs_.nshape;
+                    gcs_ = keep; gc_keep = false;
                 } else {
                     ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, (u32)ak_setting_int("AK_SEED", 1));
                     gcs_.g.turn = 0; gcs_.income = ak_gc_collect(&gcs_.g, &gcs_.r, 0); gcs_.phase = ak_setting_int("AK_GC_PHASE", 0);   /* (tests: 1 purchase) */

@@ -7,7 +7,8 @@
 #include "../core/ak_vfs.h"
 #include "../platform/plat.h"
 
-enum { AK_FE_NONE = 0, AK_FE_START = 1, AK_FE_QUIT = 2, AK_FE_TEAM = 3, AK_FE_SPAWN = 4, AK_FE_RESUME = 5, AK_FE_RESTART = 6, AK_FE_KILL = 7, AK_FE_LOADOUT = 8, AK_FE_GC_BUY = 9 };
+enum { AK_FE_NONE = 0, AK_FE_START = 1, AK_FE_QUIT = 2, AK_FE_TEAM = 3, AK_FE_SPAWN = 4, AK_FE_RESUME = 5, AK_FE_RESTART = 6, AK_FE_KILL = 7, AK_FE_LOADOUT = 8, AK_FE_GC_BUY = 9, AK_FE_GC_START = 10 };   /* GC_START: FE_StartGalacticConquest (ak_fe_gc_new: 1 a new conquest, 0 resume) */
+int ak_fe_gc_new(void);
 
 /* what the in-match pages show (team selection, the spawn map): the match as it is */
 #define AK_FE_MAX_POSTS 8
