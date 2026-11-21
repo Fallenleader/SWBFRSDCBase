@@ -88,7 +88,7 @@ def prog_sniper(i, fr):                                                         
 def prog_hero(i, fr):                                                            # (with RS_HERO_FAST=5) accept the hero offer (d-pad left) at 400, then cross (the saber) single at 900 and 1000, mashed 1100-1250
     if 400 <= i < 404: return (LEFT, 128, 128)
     if 900 <= i < 904 or 1000 <= i < 1004: return (CROSS, 128, 128)
-    if 1100 <= i < 1250 and (i - 1100) % 10 < 4: return (CROSS, 128, 128)
+    if 1100 <= i < int(os.environ.get("RS_HERO_MASH_END", "1250")) and (i - 1100) % 10 < 4: return (CROSS, 128, 128)
     return (0, 128, 128)
 def prog_respawn(i, fr):                                                         # (with --hp 30:-1) back in at the next wave, standing still
     for at in (220, 260, 300, 340, 380, 420, 460, 500, 540):

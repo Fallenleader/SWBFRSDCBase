@@ -1146,6 +1146,10 @@ textures and how they are used. Section R lists only what must be in place so th
     item (the force push / throw icon), both unlimited. Not yet: the strokes' timing and damage (no enemy was within reach in the
     two runs; the message-row state 089A51A8 does not play them; the Lightsaber weapon's update 08968114 only runs the blade's
     extend / retract) - next: log the hero's clips (the anim player 088155D0's layers) and teleport into a fight.
+    2026-11-21 (later): a run teleporting the accepted hero to the Rebel base (-160, -1.5, 185) and mashing cross for 17 s logged
+    no hit of a saber kind (RS_DMG_LOG; the teleport may not move a hero - not checked). The anim player (088155D0) keeps its
+    layers at +0x84 (param +0x21 words), each with a vtable update at +0x14 and flag +0x10 bit 0; which field names the clip is
+    not read. Left for a later session: a per-layer clip log, a working way into melee range.
 
 ## 7. Audio
 
