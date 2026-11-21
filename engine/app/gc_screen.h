@@ -36,6 +36,9 @@ typedef struct {
     u32 msg; f32 msg_t;                /* a notice (GALACTICCONQUEST.ASR id) shown for msg_t seconds */
     ak_gc_income income;               /* the last treasury */
     ak_gc_ai ai;                       /* the opponent */
+    /* the opponent's turn shown (the original plays it through the same screens, one press per AI_Wait 1.0 s): its steps after the
+       turn is decided - 1 treasury, 2 a purchase, 3 troops bought, 4 a move, 5 its result, 6 the reinforcement */
+    struct { int kind, a, b, c; u32 id; } ai_step[24]; int ai_nsteps, ai_cur; f32 ai_t; ak_gc_income ai_income; bool ai_show;
     int battle_side, battle_to, battle_n; bool battle_second;   /* the pending battle (sub 3) */
     bool battle_launch;                /* Attack chosen: the viewer starts the match (ak_gc_screen_battle_setup) and reports back */
     bool tech_open, tech_enemy;

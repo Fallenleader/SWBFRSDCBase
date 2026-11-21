@@ -1,6 +1,7 @@
 /* Aurek - the Galactic Conquest map screen (see gc_screen.h; PARITY 5.4) */
 #include "app/gc_screen.h"
 #include "app/hud.h"
+#include "game/ak_soldier.h"
 #include "core/ak_settings.h"
 #include <string.h>
 #include <stdlib.h>
@@ -200,11 +201,15 @@ void ak_gc_screen_draw_back(const ak_gc_screen *s, const ak_m4 *vp)
     if (n) { ak_gfx_set_transform(&id); ak_gfx_draw_immediate(AK_PIPE_ADD, s->corona, v, n); ak_gfx_set_transform(NULL); }
 }
 
-static void txt(int big, f32 x, f32 y, u32 col, u32 id, int align)
+static void txtn(int big, f32 x, f32 y, u32 col, const u16 *t, u32 n, int align)   /* (lines split at '\n', a line height apart) */
 {
-    u32 n; const u16 *t = ak_gc_text(id, &n);
-    if (t) ak_hud_2d_text(big, align == 1 ? x - 200 : align == 2 ? x - 400 : x, y, align == 1 ? x + 200 : align == 2 ? x : 480, 1.0f, col, t, n, align);
+    f32 lh = ak_hud_2d_line(big); u32 a = 0;
+    for (u32 i = 0; t && i <= n; i++) if (i == n || t[i] == '\n') {
+        ak_hud_2d_text(big, align == 1 ? x - 200 : align == 2 ? x - 400 : x, y, align == 1 ? x + 200 : align == 2 ? x : 480, 1.0f, col, t + a, i - a, align);
+        y += lh; a = i + 1;
+    }
 }
+static void txt(int big, f32 x, f32 y, u32 col, u32 id, int align) { u32 n; const u16 *t = ak_gc_text(id, &n); txtn(big, x, y, col, t, n, align); }
 static void num(int big, f32 x, f32 y, u32 col, u32 v, int align, bool credit)
 {
     u16 w[16]; char b[12]; int k = snprintf(b, sizeof b, "%u", v), o = 0;
@@ -262,9 +267,11 @@ void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp)
     /* the header: a dark bar, "PHASE <phase>", "CREDITS" and the side's credits in yellow */
     ak_hud_2d_quad(NULL, 0, 0, 480, 23, 0, 0, 1, 1, 0x60000000u);
     txt(1, 5, 0, 0xFFFFFFFFu, 0x37, 0);
-    txt(1, 60, 0, 0xFFFFFFFFu, s->sub == 4 ? 6u : (u32)s->phase, 0);   /* (6 Results) */
+    { u32 ph = s->sub == 4 ? 6u : (u32)s->phase;
+      if (s->ai_show) { int k = s->ai_step[s->ai_cur].kind; ph = k == 1 ? 0 : k <= 3 ? 1 : k == 5 ? 6 : 2; }   /* (the opponent's phase) */
+      txt(1, 60, 0, 0xFFFFFFFFu, ph, 0); }
     txt(1, 360, 0, 0xFFFFFFFFu, 0x35, 0);
-    num(1, 477, 0, 0xFFFFFF00u, s->g.side[0].credits, 2, true);
+    num(1, 477, 0, 0xFFFFFF00u, s->g.side[s->ai_show ? 1 : 0].credits, 2, true);   /* (the side playing: the opponent's during its turn) */
     /* the button bar: a dark bar, 16 x 16 icons with their labels (purchase: select Troops Overview, square Buy Tech/Comm,
        triangle End Phase; treasury: cross Continue) */
     ak_hud_2d_quad(NULL, 0, 249, 480, 272, 0, 0, 1, 1, 0x60000000u);
@@ -275,7 +282,8 @@ void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp)
     typedef struct { int tex; f32 x; u32 id; } bb;
     bb b[4]; int nb = 0;
     #define B(t, xx, i) do { b[nb].tex = t; b[nb].x = xx; b[nb].id = i; nb++; } while (0)
-    if (s->phase == 0) B(GCT_CROSS, 404, 0x58);
+    if (s->ai_show) {}
+    else if (s->phase == 0) B(GCT_CROSS, 404, 0x58);
     else if (s->phase == 4) {}
     else if (s->sub == 4) B(GCT_CROSS, 418, 0x58);
     else if (s->sub == 0 && s->phase == 1) { B(GCT_SELECT, 2, 0x7F); B(GCT_SQUARE, 157, 0x40); B(GCT_TRIANGLE, 296, 0x41); }
@@ -327,14 +335,52 @@ void ak_gc_screen_draw(const ak_gc_screen *s, const ak_m4 *vp)
         u32 n; const u16 *nm = ak_hud_stdtext(ak_gc_planet_defs[s->res_planet].name_id, &n);
         if (nm) ak_hud_2d_text(0, 140, 186, 340, 1.0f, 0xFFFFFF00u, nm, n, 1);
     }
-    /* the treasury: Player, Credits Received, Planets / Sector(s) / Total (the original's panel; [assumed: sizes]) */
-    if (s->phase == 0) {
-        spr(s->tex[GCT_TECH2], 163, 123, 311, 238, 0.4570f, 0.0f, 0.9180f, 0.3477f, 0x99FFFFFFu);
-        txt(0, 237, 128, 0xFFFFFF00u, 0x59, 1); txt(0, 237, 146, 0xFFFFFFFFu, 0x54, 1);
-        txt(0, 171, 164, 0xFFFFFFFFu, 0x55, 0); num(0, 303, 164, 0xFFFFFF00u, s->income.planets, 2, true);
-        txt(0, 171, 180, 0xFFFFFFFFu, 0x56, 0); num(0, 303, 180, 0xFFFFFF00u, s->income.sectors + s->income.commander, 2, true);
-        ak_hud_2d_quad(NULL, 171, 213, 303, 215, 0, 0, 1, 1, 0xFFFFFF00u);
-        txt(0, 171, 218, 0xFFFFFFFFu, 0x57, 0); num(0, 303, 218, 0xFFFFFF00u, s->income.total, 2, true);
+    /* the treasury (the original's draws): GC_Tech_Elements_03's panel (alpha 0xAF), the side ("Player" 0x59 / the opponent "CPU")
+       in yellow at 240,128, Credits Received at 146, Planets / Sector(s) at 173 with the amounts right at 307 (rows 164 / 178), a
+       yellow line (texture 9 uv 0.5742,0.3867 - 0.9727,0.3984, 169,215 - 311,218) and Total at 218 */
+    bool ai_tr = s->ai_show && s->ai_step[s->ai_cur].kind == 1;
+    if ((s->phase == 0 && !s->ai_show) || ai_tr) {
+        const ak_gc_income *in = ai_tr ? &s->ai_income : &s->income;
+        spr(s->tex[GCT_TECH3], 162, 121, 318, 242, 0, 0, 0.6094f, 0.4727f, 0xAFFFFFFFu);
+        if (ai_tr) { static const u16 cpu[3] = { 'C', 'P', 'U' }; ak_hud_2d_text(0, 140, 128, 340, 1.0f, 0xFFFFFF00u, cpu, 3, 1); }   /* [the frame's text; its table not found yet] */
+        else txt(0, 240, 128, 0xFFFFFF00u, 0x59, 1);
+        txt(0, 240, 146, 0xFFFFFFFFu, 0x54, 1);
+        txt(0, 173, 164, 0xFFFFFFFFu, 0x55, 0); num(0, 307, 164, 0xFFFFFF00u, in->planets, 2, true);
+        if (in->sectors + in->commander) { txt(0, 173, 178, 0xFFFFFFFFu, 0x56, 0); num(0, 307, 178, 0xFFFFFF00u, in->sectors + in->commander, 2, true); }
+        spr(s->tex[GCT_TECH], 169, 215, 311, 218, 0.5742f, 0.3867f, 0.9727f, 0.3984f, 0xFFFFFF00u);
+        txt(0, 173, 218, 0xFFFFFFFFu, 0x57, 0); num(0, 307, 218, 0xFFFFFF00u, in->total, 2, true);
+    }
+    if (s->ai_show) {
+        const typeof(s->ai_step[0]) *st = &s->ai_step[s->ai_cur];
+        if (st->kind >= 2) spr(s->tex[GCT_TECH3], 162, 121, 318, 242, 0, 0, 0.6094f, 0.4727f, st->kind == 5 ? 0x99FFFFFFu : 0xAFFFFFFFu);
+        if (st->kind == 2) {                                     /* "The <faction> has purchased:", the item in yellow, (See Tech Page) */
+            u32 n; const u16 *t = ak_gc_text(0x62, &n); u16 b[96]; u32 k = 0; const char *fn = ak_faction_name(s->g.side[1].faction);
+            for (u32 i = 0; t && i < n && k < 90; i++) { if (t[i] == '%' && i + 1 < n && t[i + 1] == 's') { for (const char *c = fn; *c && k < 90; c++) b[k++] = (u16)*c; i++; } else b[k++] = t[i]; }
+            txtn(0, 240, 127, 0xFFFFFFFFu, b, k, 1);
+            txt(0, 240, 164, 0xFFFFFF00u, st->id, 1);
+            if (st->a < 3) txt(0, 170, 219, 0xFFFFFFFFu, 0x6C, 0);
+        } else if (st->kind == 3) {                              /* BUY TROOPS: the planet, the enemy's icon (0xFFF02828), its troops, the count */
+            txt(0, 240, 126, 0xFFFFFF00u, 0x38, 1);
+            u32 n; const u16 *nm = ak_hud_stdtext(ak_gc_planet_defs[st->a].name_id, &n); if (nm) ak_hud_2d_text(0, 140, 145, 340, 1.0f, 0xFFFFFFFFu, nm, n, 1);
+            spr(s->tex[GCT_TECH], 225, 166, 255, 188, 0.5039f, 0.168f, 0.6133f, 0.2539f, 0xFFF02828u);
+            num(0, 240, 168, 0xFFFFFFFFu, (u32)s->g.planet[st->a].troops, 1, false); num(1, 240, 199, 0xFFFFFFFFu, (u32)st->b, 1, false);
+            spr(s->tex[GCT_TECH], 202, 191, 225, 228, 0.7070f, 0.0039f, 0.6172f, 0.2266f, 0xFFFFFFFFu); spr(s->tex[GCT_TECH], 255, 191, 278, 228, 0.6172f, 0.0039f, 0.7070f, 0.2266f, 0xFFFFFFFFu);
+        } else if (st->kind == 4) {                              /* a move: the title, both planets, the count */
+            txt(0, 240, 126, 0xFFFFFF00u, st->id, 1);
+            for (int k = 0; k < 2; k++) {
+                int p = k ? st->b : st->a; f32 cx = k ? 279.0f : 201.0f; u32 n; const u16 *nm = ak_hud_stdtext(ak_gc_planet_defs[p].name_id, &n);
+                if (nm) ak_hud_2d_text(0, cx - 60, 145, cx + 60, 1.0f, 0xFFFFFFFFu, nm, n, 1);
+                int o = s->g.planet[p].owner; spr(s->tex[GCT_TECH], cx - 15, 166, cx + 15, 188, 0.5039f, 0.168f, 0.6133f, 0.2539f, o == 0 ? 0xFF3080FFu : o == 1 ? 0xFFF02828u : 0xFFCCCCCCu);
+                num(0, cx, 168, 0xFFFFFFFFu, (u32)s->g.planet[p].troops, 1, false);
+            }
+            num(1, 240, 199, 0xFFFFFFFFu, (u32)st->c, 1, false);
+        } else if (st->kind == 5) {                              /* its result */
+            txt(1, 240, 141, 0xFFFFFFFFu, st->id, 1);
+            u32 n; const u16 *nm = ak_hud_stdtext(ak_gc_planet_defs[st->a].name_id, &n); if (nm) ak_hud_2d_text(0, 140, 186, 340, 1.0f, 0xFFFFFF00u, nm, n, 1);
+        }
+        /* "Your opponent is making his move" (0x07) in yellow at 240,250, its alpha pulsing (0xFD .. 0x01 in the frames) [assumed: 1 s cycle] */
+        f32 a = 0.5f + 0.5f * cosf(s->clock * 6.2831853f); u32 al = (u32)(a * 253.0f) + 1;
+        txt(0, 240, 250, (al << 24) | 0x00FFFF00u, 0x07, 1);
     }
     if (s->phase == 4) txt(1, 240, 120, 0xFFFFFFFFu, s->g.winner == 0 ? 0x60 : 0x61, 1);
     if (s->msg_t > 0) txt(1, 240, 225, 0xFFFF4040u, s->msg, 1);
@@ -369,14 +415,29 @@ static int autoresolve(void *ctx, ak_gc *g, int side, int to, int n, bool second
     surv[side] = n; surv[!side] = g->planet[to].troops;
     return ak_gc_autoresolve(g, r, surv, !strncmp(lvl, "space", 5));
 }
+static void ai_add(ak_gc_screen *s, int kind, int a, int b, int c, u32 id)
+{ if (s->ai_nsteps < 24) { s->ai_step[s->ai_nsteps].kind = kind; s->ai_step[s->ai_nsteps].a = a; s->ai_step[s->ai_nsteps].b = b; s->ai_step[s->ai_nsteps].c = c; s->ai_step[s->ai_nsteps].id = id; s->ai_nsteps++; } }
 static void end_turn(ak_gc_screen *s)
 {
-    ak_gc *g = &s->g;
-    g->turn = 1; ak_gc_collect(g, &s->r, 1);
+    ak_gc *g = &s->g; ak_gc before = *g;
+    g->turn = 1; s->ai_income = ak_gc_collect(g, &s->r, 1);
     ak_gc_ai_report rp; ak_gc_ai_turn(&s->ai, g, &s->r, autoresolve, &s->r, &rp);
-    if (g->winner >= 0) { s->phase = 4; return; }
+    /* the steps to show [assumed: the board is shown as it ends, the panels tell the steps in the AI player's order: treasury,
+       technology / commanders, troops, moves (with their results), the reinforcement] */
+    s->ai_nsteps = 0; s->ai_cur = 0; s->ai_t = 0; ai_add(s, 1, 0, 0, 0, 0);
+    bool evil = (ak_gc_class(g->side[1].faction) & 1) != 0;
+    for (int k = 0; k < 3; k++) for (int n = 0; n < rp.bought_tech[k]; n++) { int lvl = g->side[1].tech[k] - rp.bought_tech[k] + 1 + n; ai_add(s, 2, k, lvl, 0, (u32)(0x63 + 3 * k + lvl)); }
+    for (int c = 0; c < 4; c++) if (rp.bought_cmdr[c]) ai_add(s, 2, 3, c, 0, (u32)((evil ? 0x72 : 0x76) + c));
+    for (int p = 0; p < AK_GC_PLANETS; p++) if (rp.troops[p]) ai_add(s, 3, p, rp.troops[p], 0, 0x38);
+    for (int m = 0; m < 2; m++) if (rp.moved[m][0] >= 0) {
+        int to = rp.moved[m][1], was = before.planet[to].owner;
+        ai_add(s, 4, rp.moved[m][0], to, rp.moved[m][2], was == AK_GC_NONE ? 0x70 : was == 1 ? 0x3A : 0x39);
+        if (was != 1) ai_add(s, 5, to, 0, 0, was == AK_GC_NONE ? 0x70 : g->planet[to].owner == 1 ? 0x3B : 0x3C);
+    }
+    if (rp.reinf[0] >= 0) ai_add(s, 4, rp.reinf[0], rp.reinf[1], rp.reinf[2], 0x3A);
+    s->ai_show = true; s->phase = 0; s->sub = 0;
+    if (g->winner >= 0) return;
     g->turn = 0; s->income = ak_gc_collect(g, &s->r, 0); ak_gc_turn_start(g);
-    s->phase = 0; s->sub = 0;
 }
 static void battle_over(ak_gc_screen *s, int w, int surv[2])
 {
@@ -412,6 +473,10 @@ bool ak_gc_screen_update(ak_gc_screen *s, const ak_input *in, const ak_m4 *vp, f
     if (s->msg_t > 0) s->msg_t -= dt;
     s->clock += dt;
     u32 pr = in->pressed; ak_gc *g = &s->g; int c = s->cursor;
+    if (s->ai_show) {                                            /* the opponent's turn on screen: a step each 1.5 s [assumed: pace] */
+        s->ai_t += dt; if (s->ai_t >= 1.5f) { s->ai_t = 0; if (++s->ai_cur >= s->ai_nsteps) { s->ai_show = false; if (s->g.winner >= 0) s->phase = 4; } }
+        return true;
+    }
     if (s->phase == 4) return false;
     bool browse = s->sub == 0 || s->sub == 2;
     if (s->sub == 4) browse = false;
