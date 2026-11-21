@@ -1244,6 +1244,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - Part 32, 2026-11-21 - **the jetpack measured (flight, bar), kind 3 = running.** Next: the height limit (10.4 m over the floor in
     the courtyard - ceiling or rule), descent, the bar's recharge and HUD (icon 0x1E + bar), the rest of 089A19CC; then the
     training after group 67 (18bc4's line, the next steps) - extend cmpn_train past i 9100.
+  - Part 33, 2026-11-21 - **the jetpack's descent, cap, bar and HUD.** The objective arrows: 08A55238 walks units and draws
+    Arrow_NPC over some (08A55914 / 08A55984 -> 08A55C94); the 0x8013 objectives' chevron is still not found (its handler 089F05BC ->
+    08A25B18). The training after the jetpack: group 13 (page 0x198, objectives 18bc6 / 18bc9 / 18bca, the line 18bc4, 18d30), 15,
+    86 (tip 0x94), 67 (0x14 to 18c6a), 16 / 17 / 18 ... - next: run Aurek through it and fix what stops it.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

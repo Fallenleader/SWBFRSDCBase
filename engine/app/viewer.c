@@ -877,6 +877,8 @@ int main(int argc, char **argv)
                     }
                     if (ak_setting_int("AK_DEBUG_HUD", 0) > 2) AK_INFO("hud", "ring %d %.2f at %.0f %.0f, bar %.2f, target %d", hs.ring_type, hs.ring_value, hs.ring_x, hs.ring_y, bar_fill, tgt);
                     if (bar_fill >= 0) { hs.bar_fill = bar_fill; if (bar_fill < 1.0f) bar_full_t = 0; else bar_full_t += dt; hs.bar_full_t = bar_full_t; }
+                    if (play.jet_ok) { static f32 jet_full_t; hs.jet = true; hs.jet_pack = true; hs.jet_using = play.jet_on; hs.jet_fill = play.jet_fuel / 100.0f;   /* (the jetpack's bar, 08A5AE84) */
+                        if (hs.jet_fill < 1.0f || play.jet_on) jet_full_t = 0; else jet_full_t += dt; hs.jet_full_t = jet_full_t; }
                     if (tgt >= 0 && play.target[tgt].alive) { hs.target = true; hs.target_health = play.target[tgt].health; hs.target_max = play.target[tgt].max_health;
                         if (tgt >= 1 && (u32)(tgt - 1) < play.nbots) { const ak_play_bot *tb = &play.bot[tgt - 1];   /* a soldier: its name */
                             hs.target_name = ak_hud_bot_name(play.team_faction[tb->team], tb->name, &hs.target_name_len); } }

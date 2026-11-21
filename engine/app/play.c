@@ -3025,7 +3025,7 @@ static ak_input psp_layout(ak_play *p, const ak_input *raw, f32 dt)
         else if (p->l_was && p->l_t < 0.1f) {                               /* a tap: jump - or, with the jetpack, a tap in the air starts it
                                                                                   (the menu's text: "Tap Jump while already in the air"; tip
                                                                                   0x8B: "Double-tap L") [assumed: a tap while it runs stops it] */
-            if (p->jet_ok && (p->jet_on || !p->ch.on_ground)) { if (p->jet_on) p->jet_on = false; else if (p->jet_fuel >= p->jet_start) { p->jet_fuel -= p->jet_start; p->jet_on = true; } }
+            if (p->jet_ok && (p->jet_on || !p->ch.on_ground)) { if (p->jet_on) p->jet_on = false; else if (p->jet_fuel >= p->jet_start) { p->jet_fuel -= p->jet_start; p->jet_on = true; p->jet_top = p->ch.pos[1] + 10.4f; } }
             else g.pressed |= AK_BTN_CROSS; }
         p->l_was = (H & AK_BTN_L) != 0;
         /* held: sprint (not while firing or locked on).  Measured: the sprint starts 0.1 s after L goes down (4 frames is still a
@@ -3461,9 +3461,11 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         } }
     if (!p->alive) { p->ch.vel[0] = p->ch.vel[2] = 0; ci.root = false; }    /* PARITY(6.3): a body stops where it falls (measured: no slide), gravity stays on (08993D38) */
     if (p->jet_on) { p->jet_fuel -= p->jet_drain * dt; if (p->jet_fuel <= 0 || !p->alive || p->in_veh >= 0 || p->in_turret >= 0) { p->jet_fuel = p->jet_fuel > 0 ? p->jet_fuel : 0; p->jet_on = false; } }
-    else if (p->jet_fuel < 100.0f) { p->jet_fuel += 5.0f * dt; if (p->jet_fuel > 100.0f) p->jet_fuel = 100.0f; }
+    else if (p->jet_fuel < 100.0f) { p->jet_fuel += 9.0f * dt; if (p->jet_fuel > 100.0f) p->jet_fuel = 100.0f; }
     /* (the special items' power bar, 0899EA24: 100, FUELDRAINRATE a second while it runs, out it stops - measured 6.1 s; it had not
        come back 8 s later [assumed: 5 a second back]) */
+    /* (re-measured, /tmp/ct15 - the HUD bar's length frame by frame: it fills about 9 a second while not in use, and a start takes 15
+       from what is there - the tries after the first flight did start, they only hovered at the jump's top with no rise held) */
     if (p->jet_on) {
         /* the flight.  Measured (harness route cmpn, /tmp/ct14: jump, L tapped in the air, stick forward and triangle held): the
            horizontal speed the soldier had at the start stays (7.26 m/s running) and the thrust adds to it at 6.1 m/s^2 - HORIZ_ACCEL x 8
@@ -3476,8 +3478,13 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         f32 want[2] = { (-sy * my + cy * mx) * p->jet_hspeed, (-cy * my - sy * mx) * p->jet_hspeed };
         for (int k = 0; k < 2; k++) { f32 a = p->jet_hacc * dt, d = want[k] - p->jet_thrust[k * 2];
             p->jet_thrust[k * 2] += d > a ? a : d < -a ? -a : d; ci.fly_vel[k * 2] = p->jet_ext[k * 2] + p->jet_thrust[k * 2]; }
-        {   f32 vw = p->jet_rise * 13.3f, a = 40.0f * dt, d = vw - p->jet_thrust[1];
-            p->jet_thrust[1] += d > a ? a : d < -a ? -a : d; ci.fly_vel[1] = p->jet_thrust[1]; }
+        {   /* rising 13.3 m/s, descending 15.3 m/s (measured, circle held: /tmp/ct15), nothing held: the height kept (measured: 1 s at
+               the top); no higher than 10.4 m over where it started (both harness flights stopped at y -17.10 from -6.71) [assumed: the
+               limit is from the start - the original's rule not found] */
+            f32 vw = p->jet_rise > 0 ? p->jet_rise * 13.3f : p->jet_rise * 15.3f, a = 40.0f * dt, d = vw - p->jet_thrust[1];
+            if (vw > 0 && p->ch.pos[1] >= p->jet_top) vw = 0, d = -p->jet_thrust[1];
+            p->jet_thrust[1] += d > a ? a : d < -a ? -a : d; ci.fly_vel[1] = p->jet_thrust[1];
+            if (p->ch.pos[1] + ci.fly_vel[1] * dt > p->jet_top) { ci.fly_vel[1] = (p->jet_top - p->ch.pos[1]) / dt; p->jet_thrust[1] = 0; } }
         ci.fly = true; ci.root = false; ci.jump = false; p->jet_t += dt;
         if (ak_setting_int("AK_DEBUG_JET", 0) && p->frame_no % 10 == 0) AK_INFO("jet", "%.2f s: at %.2f %.2f %.2f vel %.2f %.2f %.2f fuel %.1f", p->clock, p->ch.pos[0], p->ch.pos[1], p->ch.pos[2], ci.fly_vel[0], ci.fly_vel[1], ci.fly_vel[2], p->jet_fuel);
         if (p->pfx && p->jet_fx >= 0) {                                    /* the thrust (PFXEffect BFF_Jetpack_Thrust_E) at the back, down
