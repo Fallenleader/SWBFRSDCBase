@@ -667,6 +667,11 @@ textures and how they are used. Section R lists only what must be in place so th
     not close; with TopSpeed + boost as the pursuit's top the distance falls (593 m median) but the angle grows (19 / 68 degrees at
     50 / 75 %) - no more hits, reverted.  So the limit is the steering: next, the AI pilot (08959780 sets +0x8C, the wanted
     direction; the pilot's update that turns it into stick input) against bot_fly's proportional steer / pitch.
+  - 2026-11-21, the original measured the same way (harness state.log around each pair's hits, +-3 s): the pursuer's nose is 0 / 1 / 3
+    / 93 / 152 degrees (10 / 25 / 50 / 75 / 90 %) off its target, at 167 / 229 / 321 / 521 / 649 m; its flyers move at a median
+    50 m/s (10 / 38 / 50 / 72 / 100 / 125 at 10..99 %), not the cruise 100.  Tried: holding 50 m/s outside pursuits (AK test, not
+    kept) - fewer hits (26).  The AI pilot (fly-to 08959780; the flyer's big VFPU update 089B2DC8 reads +0x88..+0x94) is still to
+    read; 089B2DC8 is 1474 lines of VFPU code.
 
 ## 5. Game rules and modes
 
