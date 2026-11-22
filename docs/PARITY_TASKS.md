@@ -1400,6 +1400,18 @@ textures and how they are used. Section R lists only what must be in place so th
     health) -> his fall 10006 -> 1 -> 18832 -> 11 -> 0x8006: winner 0. Skips used: AK_TEST_FIRE 5 / 25 / 6 / 1, AK_TEST_BREAK,
     teleports. Still unported there: the team spawn places 0x8023 / 0x8024 (3 / 4), 0x1C / 0x1D to type-7 objects, 0x8025 regions'
     3. Next: SPACE_KESSEL.
+  - Part 51, 2026-11-22 - **Space Kessel (campaign 4): the first three stages.** Original (harness sk_h1, reached by RS_FIRE_AT
+    49 / 65 / 11): the player stands in a hangar, "Destroy the communications array on the Star Destroyer", a 1:30 countdown (the
+    timer 1896c, 90 s; at 0 -> 50 -> 8008 to 1882f -> 51 -> 0x8006 the Empire's). Aurek runs the same start (18 -> unit count 16,
+    28, 84, 49 with the countdown). The array 18877 (type-7 SHAP prop, side 1) broken -> 81 -> 1882f -> 23 (objectives 18831-4 on
+    the turrets 188c9-cc) - turrets now raise event 3 when destroyed -> 102 / 103 / 25 / 26 -> counter 1883a at 4 -> 24 -> 18830
+    -> 41 (six TIEs 1883c / 18848-4c, counter 0/6) -> their falls 43-48 -> 1883d at 6 -> 42 -> 1883b -> 63 (the craft 1888f
+    back - 0x8004 craft now follow 3 / 4 [assumed: 4 takes an empty one away], objective 18852, region 1886c -> 80). Fixed on the
+    way: a craft below y -400 counted as fallen out of the level on space maps (Kessel's TIEs start at -420..-500) - only on
+    ground maps now; kill boxes set the target dead after the frame's fall pass, so such deaths were never counted (soldiers or
+    craft) - they now leave it to the next pass; the vehicle list holds 64 (the hangar slot copies still stop at 32). AK_TEST_BREAK
+    also takes turrets, a spawner's craft or soldier. Next: 1886c / 18855 regions -> 11 -> 18852 -> 67 -> 18895 -> 89 (Ackbar 1885b
+    on his route, 0x4C to path node 1885d) -> ... -> 79 (0x8006 the Alliance's).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

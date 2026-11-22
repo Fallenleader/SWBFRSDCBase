@@ -228,7 +228,8 @@ static void kbox_update(ak_play *p, f32 dt)
         if (!t->alive || t->health <= 0 || !in_kbox(p, t->feet, &k)) continue;
         f32 d = (p->kbox[k].flags & 1) ? t->health : p->kbox[k].rate * dt;
         t->health -= d; t->last_attacker = -1; t->last_quiet = false;
-        if (t->health <= 0) { t->health = 0; t->alive = false; }
+        if (t->health <= 0) t->health = 0;                                    /* (the next frame's fall pass takes it: set dead here, after that pass, the
+                                                                                 fall was never counted - Space Kessel's TIEs made under the station) */
     }
 }
 
@@ -1350,7 +1351,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     }
     for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].first != (s32)v || p->vspawn[v].waiting || !vehicle_make(p, v)) {   /* (a spawn's further slots wait) */ p->veh[v].alive = false; p->veh[v].def = &p->vdef[p->vspawn[v].def[0] >= 0 ? p->vspawn[v].def[0] : p->vspawn[v].def[1]]; p->veh[v].dead_t = p->vspawn[v].respawn - 5.0f; p->target[VT(p, v)].alive = false; }
     if (ak_setting_int("AK_DEBUG_VEH", 0))
-        for (u32 v = 0; v < p->nveh; v++) AK_INFO("veh", "vehicle %u: %s / %s, post %d, respawn %.1f s, %s%s", v + 1, p->vspawn[v].def[0] >= 0 ? p->vdef[p->vspawn[v].def[0]].name : "-",
+        for (u32 v = 0; v < p->nveh; v++) AK_INFO("veh", "vehicle %u (%x): %s / %s, post %d, respawn %.1f s, %s%s", v + 1, p->vspawn[v].eid, p->vspawn[v].def[0] >= 0 ? p->vdef[p->vspawn[v].def[0]].name : "-",
                                                 p->vspawn[v].def[1] >= 0 ? p->vdef[p->vspawn[v].def[1]].name : "-", p->vspawn[v].post, p->vspawn[v].respawn, p->veh[v].alive ? "up" : "waiting", p->vspawn[v].fixed ? ", placed" : "");
     /* placed craft in flight (space levels' type 13 flyers): in the original they fly from the first frame (harness state.log,
        Space Hoth: 30d44 / 30d46 / 30d48 / 30d4a / 30d4c move at 60-80 m/s from the start) - here a bot of the craft's side starts
@@ -2329,7 +2330,7 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
        round by round while there is room (PLAY_MAX_VEH) */
     {   u32 base = p->nveh;
         for (int x = 0; x < 3 && ak_setting_int("AK_VEHICLE_SLOTS", 1); x++)
-            for (u32 v = 0; v < base && p->nveh < PLAY_MAX_VEH; v++) {
+            for (u32 v = 0; v < base && p->nveh < PLAY_VEH_SLOTS; v++) {
                 const ak_play_vspawn *sp = &p->vspawn[v]; if (sp->fixed || sp->lone || sp->route || sp->mpost >= 0) continue;
                 p->vspawn[p->nveh] = *sp; p->vspawn[p->nveh].first = (s32)v; p->nveh++;
             }
@@ -3130,6 +3131,7 @@ static void turret_destroyed(ak_play *p, u32 i)
 {
     ak_turret *t = &p->turret[i]; if (!t->alive) return;
     t->alive = false; t->health = 0; boom(p, t->pos, t->def->bp);
+    if (p->have_script) ak_script_raise(&p->script, t->ev, t->nev, 3, t->id, script_sink, p);   /* (destroyed: event 3 - Space Kessel's turrets 188c9-cc {3 -> 102 / 103 / 25 / 26}, as the craft's and props') */
     if (p->target[TT(p, i)].last_attacker == 0) p->kills++;
     if (p->in_turret == (s32)i) { p->in_turret = -1; if (p->alive) { p->target[0].alive = true; p->target[0].health = 0; player_down(p); } }   /* the gunner goes with it */
 }
@@ -3605,6 +3607,13 @@ static void script_sink(void *user, const ak_script_msg *m)
                                                                          original's radar showed no craft there before and three friendly ones after
                                                                          (sa_h8) [assumed: 4 takes away an empty craft standing there and stops the
                                                                          spawn; 3 makes one at once and lets it respawn] */
+        for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].lone && p->vspawn[v].eid == m->target) {   /* a placed craft (0x8004) out / back: Space Kessel's
+                                                                         28 sends 4 to 1888f / 18891 at the start, 63 3 to 1888f [assumed: 4 takes an
+                                                                         empty one away without a wreck or event, 3 puts it back] */
+            done = true; ak_vehicle *vh = &p->veh[v];
+            if (m->type == 4) { if (vh->alive && vh->driver < 0) { vh->alive = false; vh->dead_t = 100.0f; p->target[VT(p, v)].alive = false; } }
+            else if (!vh->alive) vehicle_make(p, v);
+        }
         for (u32 v = 0; v < p->nveh; v++) if (!p->vspawn[v].fixed && !p->vspawn[v].lone && p->vspawn[v].eid == m->target) {
             done = true; ak_play_vspawn *sp = &p->vspawn[v]; ak_vehicle *vh = &p->veh[v];
             if (m->type == 4) { sp->waiting = true; if (vh->alive && vh->driver < 0) { vh->alive = false; vh->dead_t = 100.0f; p->target[VT(p, v)].alive = false; }   /* (gone, no wreck) */ }
@@ -4107,7 +4116,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     {   const char *tb = ak_setting_str("AK_TEST_BREAK", NULL);             /* tests: "frame:prop id hex[;...]" - a prop's health to 0 (it breaks as if shot) */
         if (tb) { char buf[256]; snprintf(buf, sizeof buf, "%s", tb);
             for (char *t = strtok(buf, ";"); t; t = strtok(NULL, ";")) { unsigned f_, id; if (sscanf(t, "%u:%x", &f_, &id) == 2 && f_ == p->frame_no)
-                for (u32 i = 0; i < p->nprop; i++) if (p->prop[i].id == id && p->target[NP(p) + i].alive) { p->target[NP(p) + i].health = 0; p->target[NP(p) + i].last_attacker = 0; } } } }
+                { for (u32 i = 0; i < p->nprop; i++) if (p->prop[i].id == id && p->target[NP(p) + i].alive) { p->target[NP(p) + i].health = 0; p->target[NP(p) + i].last_attacker = 0; }
+                  for (u32 i = 0; i < p->nturret; i++) if (p->turret[i].id == id && p->target[TT(p, i)].alive) { p->target[TT(p, i)].health = -1e6f; p->target[TT(p, i)].last_attacker = 0; }
+                  for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].eid == id && p->target[VT(p, v)].alive) { p->target[VT(p, v)].health = -1e6f; p->target[VT(p, v)].last_attacker = 0; }
+                  for (u32 k = 0; k < p->nuspawn; k++) if (p->uspawn[k].id == id && p->uspawn[k].bot >= 0 && p->target[1 + p->uspawn[k].bot].alive) { p->target[1 + p->uspawn[k].bot].health = -1e6f; p->target[1 + p->uspawn[k].bot].last_attacker = 0; } } } } }   /* (and turrets, a spawner's vehicle or soldier) */
     {   static int dbb = -1; if (dbb < 0) dbb = ak_setting_int("AK_DEBUG_BOTS", 0);   /* tests: each live bot once a second */
         if (dbb && p->frame_no % 30 == 0) { for (u32 i = 0; i < p->nbots; i++) { const ak_play_bot *b = &p->bot[i]; if (!b->alive) continue;
             f32 dx = b->ch.pos[0] - p->ch.pos[0], dz = b->ch.pos[2] - p->ch.pos[2];
@@ -4254,7 +4266,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 f32 r = m->models[vh->def->model].radius; t->box_c[0] = vh->pos[0]; t->box_c[1] = vh->pos[1] + vh->def->hover; t->box_c[2] = vh->pos[2];
                 t->box_h[0] = t->box_h[1] = t->box_h[2] = r; }
         }
-        if (vh->pos[1] < -400.0f) { p->target[VT(p, v)].alive = false; }
+        if (vh->pos[1] < -400.0f && !p->is_space) { p->target[VT(p, v)].alive = false; }   /* (fallen out of a ground level; space levels go below -400 - Space Kessel's TIEs 18848-4b start at -420..-500) */
     }
     for (u32 i = 0; i < p->nboom; i++) p->boom[i].t += dt;
     /* bodies (ak_box.h, traced): the one the local player controls is pushed out of every other soldier's, vehicle's and turret's

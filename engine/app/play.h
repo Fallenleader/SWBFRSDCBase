@@ -68,7 +68,8 @@ enum { PLAY_IDLE, PLAY_RUN, PLAY_BACK, PLAY_LEFT, PLAY_RIGHT, PLAY_JUMP, PLAY_FA
 
 #define PLAY_MAX_BOTS 127
 #define PLAY_MAX_CLASSES 8
-#define PLAY_MAX_VEH 32
+#define PLAY_MAX_VEH 64                /* (campaign levels place more: Space Kessel has 32 spawns before its scripted TIEs) */
+#define PLAY_VEH_SLOTS 32              /* the hangar slot copies stop here, as before (the conquest maps keep their count) */
 #define PLAY_MAX_DEFS 12
 #define PLAY_MAX_TURRETS 32
 #define PLAY_MAX_PROPS 16
