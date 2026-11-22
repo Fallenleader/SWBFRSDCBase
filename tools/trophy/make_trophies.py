@@ -11,7 +11,7 @@ it is there).  The pack is not kept in the repository: its names, descriptions a
 - Names: the medal's Name (STDTEXT); details: its row's description on the medals page (MISC/MENU/MENU_AM.ASR), with the target.
   The two date medals say what Aurek asks for (a match won on that day - by request, the original wanted an online game).
 - Pictures: the medal's own cell of Medals_01.tga / Medals_02.tga (BFF_OPTIONS.GUI; the cells of 08A35158), 240 x 240 on black.
-- The platinum: "Renegade Legend" until its picture is supplied (--platinum).
+- The platinum: "Renegade Legend", its picture engine/platform/vita/sce_sys/trophy/platinum.png (the user's; --platinum another).
 Needs Pillow.  The TRP layout (unsigned: the NoTrpDrm plugin lets the system take it): a 0x40 header (magic DCA24D00, version 2,
 the file's size, the entry count, 0x40 per entry, a SHA-1 of the whole file at 0x1C with that field zeroed), 0x40-byte entries
 (name 32, offset u64, size u64, flags u32, 12 zero) and the files, each but the last padded to 16 (big-endian throughout).
@@ -99,6 +99,9 @@ def main():
     root = args[0]; plat = None; out = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'engine', 'platform', 'vita')
     if '--platinum' in args: plat = args[args.index('--platinum') + 1]
     if '--out' in args: out = args[args.index('--out') + 1]
+    if not plat:                                                        # (the user's picture, kept beside the pack - not in the repository)
+        cand = os.path.join(out, 'sce_sys', 'trophy', 'platinum.png')
+        if os.path.exists(cand): plat = cand
     usr = os.path.join(root, 'GAME', 'PSP_GAME', 'USRDIR') if os.path.isdir(os.path.join(root, 'GAME')) else os.path.join(root, 'PSP_GAME', 'USRDIR')
     std = stdtext(os.path.join(usr, 'TEXT', 'STDTEXT.ASR'))
     menu = menutext(os.path.join(usr, 'MISC', 'MENU', 'MENU_AM.ASR'))
