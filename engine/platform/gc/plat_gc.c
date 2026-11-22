@@ -171,6 +171,78 @@ void ak_plat_audio_close(void)
     arun = false; LWP_ThreadSignal(aq); LWP_JoinThread(athread, NULL); LWP_CloseQueue(aq);
 }
 
+/* ---- the memory card (slot A, else slot B): saves never go to the SD card or the disc.  A file "aurek_<key>": the two comment lines
+ * the console's memory card screen shows (32 characters each), "AKSV", the data's length, the data; whole 8 KB sectors.  A card that
+ * reads as broken or of the other region's encoding is left alone (never formatted).  [untested on a console: Dolphin's card only] */
+#define CARD_GAME "AURE"
+#define CARD_MAKER "01"
+static u8 card_work[CARD_WORKAREA_SIZE] __attribute__((aligned(32))); static s32 card_chan = -1; static u32 card_sector;
+static void card_detached(s32 chan, s32 result) { (void)result; if (chan == card_chan) card_chan = -1; }
+static bool card_ready(void)
+{
+    static bool inited; if (!inited) { CARD_Init(CARD_GAME, CARD_MAKER); inited = true; }
+    if (card_chan >= 0) return true;
+    for (s32 ch = 0; ch < 2; ch++) {
+        s32 mem = 0, sect = 0, r = CARD_ProbeEx(ch, &mem, &sect);
+        if (r < 0 && r != CARD_ERROR_BUSY) continue;               /* (nothing there, or not a card: an SD Gecko) */
+        r = CARD_Mount(ch, card_work, card_detached);
+        if (r == CARD_ERROR_READY) { card_chan = ch; CARD_GetSectorSize(ch, &card_sector); AK_INFO("gc", "memory card in slot %c (%d KB sectors)", 'A' + ch, (int)(card_sector >> 10)); return true; }
+        AK_WARN("gc", "the memory card in slot %c cannot be used (%d%s)", 'A' + ch, (int)r, r == CARD_ERROR_BROKEN || r == CARD_ERROR_ENCODING ? ": it needs formatting in the console's memory card screen" : "");
+        CARD_Unmount(ch);
+    }
+    return false;
+}
+static void card_name(char *out, const char *key) { snprintf(out, CARD_FILENAMELEN, "aurek_%s", key); }
+bool ak_plat_memcard_write(const char *key, const char *title, const void *data, u32 n)
+{
+    if (!card_ready()) { AK_WARN("gc", "no memory card: %s not saved", key); return false; }
+    char nm[CARD_FILENAMELEN + 1]; card_name(nm, key);
+    u32 size = (72 + n + card_sector - 1) / card_sector * card_sector;
+    u8 *buf = (u8 *)memalign(32, size); if (!buf) { AK_WARN("gc", "no memory to save %s", key); return false; }
+    memset(buf, 0, size);
+    snprintf((char *)buf, 32, "Aurek: SW Battlefront RS"); snprintf((char *)buf + 32, 32, "%s", title ? title : key);
+    memcpy(buf + 64, "AKSV", 4); buf[68] = (u8)(n >> 24); buf[69] = (u8)(n >> 16); buf[70] = (u8)(n >> 8); buf[71] = (u8)n;
+    memcpy(buf + 72, data, n); DCFlushRange(buf, size);
+    card_file f; s32 r = CARD_Open(card_chan, nm, &f);
+    if (r == CARD_ERROR_READY && f.len < size) { CARD_Close(&f); CARD_Delete(card_chan, nm); r = CARD_ERROR_NOFILE; }   /* (grown: made anew) */
+    if (r == CARD_ERROR_NOFILE) r = CARD_Create(card_chan, nm, size, &f);
+    if (r != CARD_ERROR_READY) { AK_WARN("gc", "%s: the memory card refused it (%d%s)", key, (int)r, r == CARD_ERROR_INSSPACE || r == CARD_ERROR_NOENT ? ": not enough free blocks" : ""); free(buf); return false; }
+    /* one sector per call: libogc's CARD_Write writes only the first sector of what it is given (card.c __write_callback) */
+    for (u32 o = 0; o < size && r == CARD_ERROR_READY; o += card_sector) r = CARD_Write(&f, buf + o, card_sector, o);
+    if (r == CARD_ERROR_READY) {                                    /* the comment lines for the memory card screen; no icon */
+        card_stat st; if (CARD_GetStatus(card_chan, f.filenum, &st) == CARD_ERROR_READY) {
+            st.comment_addr = 0; st.icon_addr = 0xFFFFFFFFu; st.banner_fmt = 0; st.icon_fmt = 0; st.icon_speed = 0;
+            CARD_SetStatus(card_chan, f.filenum, &st);
+        }
+    }
+    CARD_Close(&f); free(buf);
+    if (r != CARD_ERROR_READY) { AK_WARN("gc", "%s: the memory card write failed (%d)", key, (int)r); return false; }
+    AK_INFO("gc", "saved %s to the memory card in slot %c (%u blocks)", key, 'A' + card_chan, size / 8192);
+    return true;
+}
+s32 ak_plat_memcard_read(const char *key, void *out, u32 cap)
+{
+    if (!card_ready()) return -1;
+    char nm[CARD_FILENAMELEN + 1]; card_name(nm, key);
+    card_file f; if (CARD_Open(card_chan, nm, &f) != CARD_ERROR_READY) return -1;
+    u32 flen = (u32)f.len; u8 *buf = (u8 *)memalign(32, flen); s32 got = -1;   /* (f.len: CARD_Read changes it) */
+    s32 r = buf ? CARD_ERROR_READY : CARD_ERROR_FATAL_ERROR;
+    if (buf) DCInvalidateRange(buf, flen);
+    for (u32 o = 0; o < flen && r == CARD_ERROR_READY; o += card_sector) r = CARD_Read(&f, buf + o, card_sector, o);   /* (sector by sector, as the writes) */
+    if (r == CARD_ERROR_READY && !memcmp(buf + 64, "AKSV", 4)) {
+        u32 n = (u32)buf[68] << 24 | (u32)buf[69] << 16 | (u32)buf[70] << 8 | buf[71];
+        if (n <= flen - 72) { got = (s32)(n < cap ? n : cap); memcpy(out, buf + 72, (size_t)got); }
+    }
+    CARD_Close(&f); free(buf);
+    return got;
+}
+bool ak_plat_memcard_delete(const char *key)
+{
+    if (!card_ready()) return false;
+    char nm[CARD_FILENAMELEN + 1]; card_name(nm, key);
+    return CARD_Delete(card_chan, nm) == CARD_ERROR_READY;
+}
+
 /* ---- ARAM (16 MB beside the 24): the sounds' ADPCM, read back by DMA as voices play them.  A bump allocator; marks free back. */
 static u32 aram_base, aram_end, aram_top; static u8 aram_bounce[4096] __attribute__((aligned(32)));
 static void aram_dma(u32 dir, void *mram, u32 aram, u32 n)   /* (32-byte aligned, n a multiple of 32; interrupts off: one user at a time) */

@@ -59,6 +59,12 @@ static inline void ak_arena_top_release(ak_arena *a, size_t mark) { a->top = mar
 /* gives back the end of the arena's last allocation p (asked as `size`): it keeps `keep` bytes; nothing if p is not the last */
 static inline void ak_arena_trim(ak_arena *a, void *p, size_t size, size_t keep) { if ((u8 *)p + size == a->base + a->used && keep <= size) a->used -= size - keep; }
 char *ak_strndup(ak_arena *a, const char *s, size_t n);      /* up to n chars, 0-ended */
+/* saved data (the profile, a galactic conquest): a file at `path` where the device has a writable file system; on the GameCube
+ * (AK_HAS_MEMCARD) a file on the memory card in slot A or B named by `key` (up to 24 characters), `title` its description in the
+ * console's memory card screen.  read: the bytes found (up to cap), -1 none. */
+bool ak_save_write(const char *key, const char *path, const char *title, const void *data, u32 n);
+s32  ak_save_read(const char *key, const char *path, void *buf, u32 cap);
+bool ak_save_delete(const char *key, const char *path);
 #define AK_NEW(a, T, n) ((T *)ak_arena_zalloc((a), sizeof(T) * (size_t)(n), _Alignof(T)))
 
 /* ---- files: whole-file reads into an arena (level files are 8-12 MB; read once, parsed in place) */
@@ -73,6 +79,7 @@ u32 ak_hash_name(const char *s);    /* FNV-1a over lower-cased bytes, '/' == '\\
 #if defined(__GAMECUBE__)
 #define AK_SMALL_MEMORY 1
 #define AK_HAS_ARAM 1                  /* sounds kept in the GameCube's audio memory */
+#define AK_HAS_MEMCARD 1               /* saves on the memory card: no writable file system assumed (a disc, an SD card) */
 #else
 #define AK_SMALL_MEMORY 0
 #ifdef AK_ARAM_TEST

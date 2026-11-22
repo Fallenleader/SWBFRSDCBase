@@ -689,13 +689,12 @@ typedef struct { u32 magic, size; ak_gc g; int phase; ak_gc_income income; ak_gc
 bool ak_gc_screen_save(const ak_gc_screen *s, const char *path)
 {
     static gc_save v; v.magic = 0x31534347u; v.size = sizeof v; v.g = s->g; v.phase = s->phase == 4 ? 0 : s->phase; v.income = s->income; v.ai = s->ai;
-    FILE *f = fopen(path, "wb"); if (!f) return false;
-    bool ok = fwrite(&v, sizeof v, 1, f) == 1; fclose(f); return ok;
+    return ak_save_write("conquest", path, "Galactic Conquest", &v, sizeof v);
 }
 bool ak_gc_screen_load(ak_gc_screen *s, const char *path)
 {
-    static gc_save v; FILE *f = fopen(path, "rb"); if (!f) return false;
-    bool ok = fread(&v, sizeof v, 1, f) == 1 && v.magic == 0x31534347u && v.size == sizeof v; fclose(f);
+    static gc_save v;
+    bool ok = ak_save_read("conquest", path, &v, sizeof v) == (s32)sizeof v && v.magic == 0x31534347u && v.size == sizeof v;
     if (!ok) return false;
     s->g = v.g; s->phase = v.phase; s->income = v.income; s->ai = v.ai; s->sub = 0; return true;
 }

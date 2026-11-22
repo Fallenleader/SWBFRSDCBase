@@ -54,6 +54,24 @@ void *ak_arena_alloc_top(ak_arena *a, size_t size, size_t align)
     a->top = a->size - start; if (a->used + a->top > a->peak) a->peak = a->used + a->top;
     return a->base + start;
 }
+#ifdef AK_HAS_MEMCARD
+bool ak_save_write(const char *key, const char *path, const char *title, const void *data, u32 n) { (void)path; return ak_plat_memcard_write(key, title, data, n); }
+s32 ak_save_read(const char *key, const char *path, void *buf, u32 cap) { (void)path; return ak_plat_memcard_read(key, buf, cap); }
+bool ak_save_delete(const char *key, const char *path) { (void)path; return ak_plat_memcard_delete(key); }
+#else
+bool ak_save_write(const char *key, const char *path, const char *title, const void *data, u32 n)
+{
+    (void)key; (void)title;
+    FILE *f = fopen(path, "wb"); if (!f) return false;
+    bool ok = fwrite(data, 1, n, f) == n; return fclose(f) == 0 && ok;
+}
+s32 ak_save_read(const char *key, const char *path, void *buf, u32 cap)
+{
+    (void)key; FILE *f = fopen(path, "rb"); if (!f) return -1;
+    size_t got = fread(buf, 1, cap, f); fclose(f); return (s32)got;
+}
+bool ak_save_delete(const char *key, const char *path) { (void)key; return remove(path) == 0; }
+#endif
 char *ak_strndup(ak_arena *a, const char *s, size_t n)
 {
     size_t l = strnlen(s, n); char *d = (char *)ak_arena_alloc(a, l + 1, 1);

@@ -103,6 +103,9 @@ static void enc_frame(const int16_t *x, int n, const int16_t coef[16], int *h1, 
     for (int i = 0; i < n; i++) out[1 + i / 2] |= (uint8_t)((bn[i] & 15) << (i & 1 ? 0 : 4));
     *h1 = bh1; *h2 = bh2; }
 
+/* the encoder's parts, for other containers (the GameCube's THP movies) */
+int rs_adp_wav_coefs(const char *wav_path, int c, int16_t coef[16]){ wav_in_t w; if (wav_open(&w, wav_path)) return -1; if (c >= w.ch) c = w.ch - 1; choose_coefs(&w, c, coef); fclose(w.f); return 0; }
+void rs_adp_encode_frame(const int16_t *x, int n, const int16_t coef[16], int *h1, int *h2, uint8_t out[8]){ enc_frame(x, n, coef, h1, h2, out); }
 int rs_adp_from_wav(const char *wav_path, const char *out_path, uint64_t *out_size){
     wav_in_t w; if (wav_open(&w, wav_path)) return -1;
     int16_t coef[2][16]; for (int c = 0; c < w.ch; c++) choose_coefs(&w, c, coef[c]); if (w.ch == 1) memcpy(coef[1], coef[0], sizeof coef[0]);

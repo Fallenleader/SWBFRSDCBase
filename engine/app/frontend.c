@@ -8,6 +8,9 @@
 #include "../assets/blueprint.h"
 #include "../game/ak_soldier.h"
 #include "../platform/plat.h"
+#include <math.h>
+#include <stdio.h>
+static bool osk_wait;                                                  /* (FE_SetProfileName opened the keyboard: the button's list waits) */
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
@@ -132,9 +135,9 @@ static void prof_from_vars(void)
 }
 bool ak_fe_profile_load(void)
 {
-    char p[512]; prof_path(p, sizeof p); FILE *f = fopen(p, "rb"); if (!f) return false;
-    u8 buf[16 + PROF_SIZE], sum[16]; size_t n = fread(buf, 1, sizeof buf, f); fclose(f);
-    if (n < sizeof buf) return false;
+    char p[512], key[40]; prof_path(p, sizeof p); snprintf(key, sizeof key, "ULUS10292%s", ak_setting_str("AK_SAVE_SLOT", "0000"));
+    static u8 buf[16 + PROF_SIZE]; u8 sum[16]; s32 n = ak_save_read(key, p, buf, sizeof buf);
+    if (n < (s32)sizeof buf) return false;
     ak_md5(buf + 16, PROF_SIZE, sum);
     if (memcmp(sum, buf, 16)) { AK_WARN("fe", "%s: the profile's checksum does not match - not loaded", p); return false; }
     memcpy(prof, buf + 16, PROF_SIZE); prof_have = true; prof_to_vars();
@@ -147,10 +150,14 @@ bool ak_fe_profile_save(void)
     if (!prof_have) prof_new();
     prof_from_vars();
     static u8 out[0x4000]; memset(out, 0, sizeof out); ak_md5(prof, PROF_SIZE, out); memcpy(out + 16, prof, PROF_SIZE);
-    mkdir(prof_dir(), 0777); snprintf(d, sizeof d, "%s/ULUS10292%s", prof_dir(), ak_setting_str("AK_SAVE_SLOT", "0000")); mkdir(d, 0777);
-    FILE *f = fopen(p, "wb"); if (!f) { AK_WARN("fe", "%s: cannot write the profile", p); return false; }
-    bool ok = fwrite(out, 1, sizeof out, f) == sizeof out; fclose(f);
-    AK_INFO("fe", "profile saved (%s)", p);
+    char key[40]; snprintf(key, sizeof key, "ULUS10292%s", ak_setting_str("AK_SAVE_SLOT", "0000"));
+#ifndef AK_HAS_MEMCARD
+    mkdir(prof_dir(), 0777); snprintf(d, sizeof d, "%s/%s", prof_dir(), key); mkdir(d, 0777);
+#else
+    (void)d;
+#endif
+    bool ok = ak_save_write(key, p, "Player profile", out, sizeof out);
+    if (ok) AK_INFO("fe", "profile saved (%s)", p); else AK_WARN("fe", "%s: cannot write the profile", p);
     return ok;
 }
 /* a won campaign mission (08972EB0 at the match's end, when the player's side won: 08973468): the profile's campaign level + 1, back to
@@ -790,7 +797,13 @@ children:;
     scroll = keep; scroll_shown = keep_shown; parent_name = keep_parent; child_tint = keep_tint; check_var = keep_check; spawn_owner = keep_owner;
 }
 
+static void fe_draw_page(void);
 void ak_fe_draw(void)
+{
+    fe_draw_page();
+    ak_osk_draw();                                                     /* (over the page) */
+}
+static void fe_draw_page(void)
 {
     if (!page) return;
     ak_hud_2d_begin();
@@ -1437,13 +1450,14 @@ static int run(const ak_gui_action *a, int row)
     else if (!strcmp(fn, "FE_SetProfileName")) {                       /* 08A2EA04 -> 089783BC: the name typed in (08A2E9A0's buffer, 0x20
                                                                          characters) - Aurek has no on-screen keyboard: AK_PLAYER_NAME is the
                                                                          typed name [assumed] */
-        const char *nm = ak_setting_str("AK_PLAYER_NAME", NULL);
-        if (nm) { if (!prof_have) prof_new(); memset(prof + PROF_NAME, 0, 42); for (u32 i = 0; nm[i] && i < 20; i++) ak_wr16(prof + PROF_NAME + 2 * i, (u8)nm[i]); prof[6] = 1; } }
+        const char *nm = ak_setting_str("AK_PLAYER_NAME", NULL);          /* (a name in the settings: taken, no keyboard) */
+        if (nm) { if (!prof_have) prof_new(); memset(prof + PROF_NAME, 0, 42); for (u32 i = 0; nm[i] && i < 20; i++) ak_wr16(prof + PROF_NAME + 2 * i, (u8)nm[i]); prof[6] = 1; }
+        else { u32 n0; const u16 *cur = ak_fe_profile_name(&n0); ak_osk_open("Enter your name", cur, cur ? n0 : 0, 20); osk_wait = true; } }
     else if (!strcmp(fn, "FE_OpenProfileMenu")) open_hash(0x5B53EB0Du, true);   /* 08A2E8B4: the profile page */
     else if (!strcmp(fn, "FE_ExitAutoSaveMenu") || !strcmp(fn, "FE_ForceProfileChangeState") || !strcmp(fn, "FE_ProfileNameOnInit")) {}   /* (flags of the game's save state: 08A2F624 / 08A2EB50 / 08A2E9A0) */
     else if (!strcmp(fn, "FE_SavePlayerProfile")) ak_fe_profile_save();   /* 08A2EA54 -> 08A62208: the profile to its save (above) */
     else if (!strcmp(fn, "FE_LoadPlayerProfile")) ak_fe_profile_load();   /* 08A2EAC8 -> 08A62274 */
-    else if (!strcmp(fn, "FE_DeletePlayerProfile")) { char pp[512]; prof_path(pp, sizeof pp); remove(pp); prof_have = false; }
+    else if (!strcmp(fn, "FE_DeletePlayerProfile")) { char pp[512], key[40]; prof_path(pp, sizeof pp); snprintf(key, sizeof key, "ULUS10292%s", ak_setting_str("AK_SAVE_SLOT", "0000")); ak_save_delete(key, pp); prof_have = false; }
     else if (!strcmp(fn, "FE_RequestMenuMode")) var_set("BFF.FE_MenuMode", atoi(a->arg));   /* (which of a dialogue's answers show) */
     else if (!strcmp(fn, "FE_ResumePlay")) { ak_fe_close(); return AK_FE_RESUME; }
     else if (!strcmp(fn, "FE_StartGalacticConquest") || !strcmp(fn, "FE_CheckConquestState")) {
@@ -1484,10 +1498,121 @@ static int run(const ak_gui_action *a, int row)
     return AK_FE_NONE;
 }
 const char *ak_fe_launch(int *mode) { if (mode) *mode = launch_mode; return launch_level; }
+
+/* ---- the on-screen keyboard (Aurek's own: the PSP game used the system's, which the GameCube and the other consoles without a
+ * keyboard in reach lack).  A grid of keys in the 480 x 272 menu space: the d-pad or the stick moves, the confirm button types, the
+ * other face buttons delete / switch case / cancel, START finishes.  Up to `max` characters (the profile's name: 20). */
+static const char *const osk_rows[2][4] = { { "1234567890", "QWERTYUIOP", "ASDFGHJKL-", "ZXCVBNM_.!" },
+                                            { "1234567890", "qwertyuiop", "asdfghjkl-", "zxcvbnm_.!" } };
+enum { OSK_COLS = 10, OSK_ROWS = 5 };                                   /* (row 4: case, space, delete, done - 2, 4, 2, 2 columns) */
+static struct { bool on; u16 text[32]; u32 n, max; int col, row, lower; f32 rep, blink; const char *title; } osk;
+static int osk_special(int col) { return col < 2 ? 0 : col < 6 ? 1 : col < 8 ? 2 : 3; }   /* row 4's key under a column */
+void ak_osk_open(const char *title, const u16 *init, u32 n, u32 max)
+{
+    memset(&osk, 0, sizeof osk); osk.on = true; osk.title = title; osk.max = max > 31 ? 31 : max;
+    for (u32 i = 0; i < n && i < osk.max; i++) osk.text[osk.n++] = init[i];
+    osk.row = 1;
+}
+bool ak_osk_active(void) { return osk.on; }
+const u16 *ak_osk_text(u32 *n) { *n = osk.n; return osk.text; }
+static void osk_type(int row, int col)
+{
+    if (row < 4) { if (osk.n < osk.max) osk.text[osk.n++] = (u8)osk_rows[osk.lower][row][col]; if (row == 1 && osk.n == 1) {} return; }
+    switch (osk_special(col)) {
+    case 0: osk.lower ^= 1; break;
+    case 1: if (osk.n < osk.max && osk.n) osk.text[osk.n++] = ' '; break;   /* (no leading space) */
+    case 2: if (osk.n) osk.n--; break;
+    }
+}
+int ak_osk_update(const ak_input *in, f32 dt)                            /* 0 still open, 1 done, -1 cancelled */
+{
+    if (!osk.on) return -1;
+    osk.blink += dt;
+    const u32 D = AK_BTN_LEFT | AK_BTN_RIGHT | AK_BTN_UP | AK_BTN_DOWN;
+    static u32 stick_was;                                               /* the stick as four buttons, pressed on a new push */
+    u32 st = (in->lx < -0.6f ? AK_BTN_LEFT : 0) | (in->lx > 0.6f ? AK_BTN_RIGHT : 0) | (in->ly > 0.6f ? AK_BTN_UP : 0) | (in->ly < -0.6f ? AK_BTN_DOWN : 0);
+    u32 held = (in->held & D) | st, dirs = (in->pressed & D) | (st & ~stick_was); stick_was = st;
+    if (!held) osk.rep = 0;                                             /* held: again after 0.35 s, then every 0.12 s */
+    else if (dirs) osk.rep = -0.23f;
+    else if ((osk.rep += dt) >= 0.12f) { osk.rep = 0; dirs = held; }
+    if (dirs & AK_BTN_LEFT) { if (osk.row == 4) { int k = osk_special(osk.col); static const int start[4] = { 0, 2, 6, 8 }; osk.col = start[(k + 3) % 4]; } else osk.col = (osk.col + OSK_COLS - 1) % OSK_COLS; }
+    if (dirs & AK_BTN_RIGHT) { if (osk.row == 4) { int k = osk_special(osk.col); static const int start[4] = { 0, 2, 6, 8 }; osk.col = start[(k + 1) % 4]; } else osk.col = (osk.col + 1) % OSK_COLS; }
+    if (dirs & AK_BTN_UP) osk.row = (osk.row + OSK_ROWS - 1) % OSK_ROWS;
+    if (dirs & AK_BTN_DOWN) osk.row = (osk.row + 1) % OSK_ROWS;
+    if (dirs) osk.blink = 0;
+    if (in->pressed & AK_BTN_CROSS) {
+        if (osk.row == 4 && osk_special(osk.col) == 3) { osk.on = false; return 1; }
+        osk_type(osk.row, osk.col); osk.blink = 0;
+    }
+    if (in->pressed & AK_BTN_SQUARE) { if (osk.n) osk.n--; osk.blink = 0; }
+    if (in->pressed & AK_BTN_TRIANGLE) osk.lower ^= 1;
+    if (in->pressed & AK_BTN_START) { osk.on = false; return 1; }
+    if (in->pressed & AK_BTN_CIRCLE) { osk.on = false; return -1; }
+    return 0;
+}
+static void osk_str(int big, f32 x0, f32 y, f32 x1, u32 argb, const char *s, int align)
+{
+    u16 w[96]; u32 n = 0; for (; s[n] && n < 95; n++) w[n] = (u8)s[n];
+    ak_hud_2d_text(big, x0, y, x1, 1.0f, argb, w, n, align);
+}
+void ak_osk_draw(void)
+{
+    if (!osk.on) return;
+    ak_hud_2d_begin();
+    ak_hud_2d_quad(NULL, 0, 0, 480, 272, 0, 0, 1, 1, 0xA0000000u);                 /* the menu dimmed */
+    const f32 X0 = 70, X1 = 410, Y0 = 34;
+    ak_hud_2d_quad(NULL, X0, Y0, X1, 246, 0, 0, 1, 1, 0xE8101820u);
+    ak_hud_2d_quad(NULL, X0, Y0, X1, Y0 + 2, 0, 0, 1, 1, 0xFF4A90E0u);
+    osk_str(1, X0, Y0 + 8, X1, 0xFFFFFFFFu, osk.title ? osk.title : "Enter text", 1);
+    /* the field: the text, a caret, the room left */
+    ak_hud_2d_quad(NULL, X0 + 20, Y0 + 30, X1 - 20, Y0 + 52, 0, 0, 1, 1, 0xFF000000u);
+    ak_hud_2d_quad(NULL, X0 + 20, Y0 + 51, X1 - 20, Y0 + 52, 0, 0, 1, 1, 0xFF4A90E0u);
+    u16 line[40]; u32 n = 0; for (u32 i = 0; i < osk.n; i++) line[n++] = osk.text[i];
+    if (fmodf(osk.blink, 1.0f) < 0.6f && osk.n < osk.max) line[n++] = '_';
+    ak_hud_2d_text(1, X0 + 26, Y0 + 34, X1 - 26, 1.0f, 0xFFFFFFFFu, line, n, 0);
+    { char c[16]; snprintf(c, sizeof c, "%u / %u", osk.n, osk.max); osk_str(0, X0 + 20, Y0 + 54, X1 - 20, 0xFF8090A0u, c, 2); }
+    /* the keys */
+    const f32 kw = 30, kh = 22, gx = X0 + (X1 - X0 - OSK_COLS * kw) * 0.5f, gy = Y0 + 70;
+    for (int r = 0; r < OSK_ROWS; r++) {
+        if (r < 4) for (int c = 0; c < OSK_COLS; c++) {
+            bool sel = osk.row == r && osk.col == c; f32 x = gx + c * kw, y = gy + r * kh;
+            ak_hud_2d_quad(NULL, x + 1, y + 1, x + kw - 1, y + kh - 1, 0, 0, 1, 1, sel ? 0xFF4A90E0u : 0xFF2A3440u);
+            char k[2] = { osk_rows[osk.lower][r][c], 0 }; osk_str(1, x, y + 4, x + kw, sel ? 0xFF000000u : 0xFFE0E8F0u, k, 1);
+        } else {
+            static const int start[4] = { 0, 2, 6, 8 }, width[4] = { 2, 4, 2, 2 };
+            const char *lab[4] = { osk.lower ? "ABC" : "abc", "Space", "Delete", "Done" };
+            for (int k = 0; k < 4; k++) {
+                bool sel = osk.row == 4 && osk_special(osk.col) == k; f32 x = gx + start[k] * kw, y = gy + r * kh;
+                ak_hud_2d_quad(NULL, x + 1, y + 1, x + width[k] * kw - 1, y + kh - 1, 0, 0, 1, 1, sel ? 0xFF4A90E0u : k == 3 ? 0xFF2F5A3Au : 0xFF2A3440u);
+                osk_str(0, x, y + 6, x + width[k] * kw, sel ? 0xFF000000u : 0xFFE0E8F0u, lab[k], 1);
+            }
+        }
+    }
+    /* what the buttons do: the device's own names on the GameCube, the game's button marks elsewhere */
+#ifdef __GAMECUBE__
+    osk_str(0, X0, 228, X1, 0xFFB0C0D0u, "A type   B delete   Y caps   X cancel   START done", 1);
+#else
+    static const u16 leg[] = { 0xE800, ' ', 't', 'y', 'p', 'e', ' ', ' ', ' ', 0xE801, ' ', 'd', 'e', 'l', 'e', 't', 'e', ' ', ' ', ' ',
+                               0xE803, ' ', 'c', 'a', 'p', 's', ' ', ' ', ' ', 0xE802, ' ', 'c', 'a', 'n', 'c', 'e', 'l', ' ', ' ', ' ',
+                               'S', 'T', 'A', 'R', 'T', ' ', 'd', 'o', 'n', 'e' };
+    ak_hud_2d_text(0, X0, 228, X1, 1.0f, 0xFFB0C0D0u, leg, (u32)(sizeof leg / sizeof leg[0]), 1);
+#endif
+    ak_hud_2d_end();
+}
+
+static const ak_widget *osk_widget; static u32 osk_next;           /* the button whose actions wait for the keyboard: from osk_next */
+static int activate_from(const ak_widget *b, u32 from);
 static int activate(const ak_widget *b)
 {
+    return activate_from(b, 0);
+}
+static int activate_from(const ak_widget *b, u32 from)
+{
     int r = AK_FE_NONE;
-    for (u32 i = 0; i < b->nactions; i++) if (b->actions[i].key == 16 || !b->actions[i].key) { int k = run(&b->actions[i], -1); if (k) r = k; if (!page) return r; }
+    for (u32 i = from; i < b->nactions; i++) if (b->actions[i].key == 16 || !b->actions[i].key) {
+        int k = run(&b->actions[i], -1); if (k) r = k; if (!page) return r;
+        if (osk_wait) { osk_wait = false; osk_widget = b; osk_next = i + 1; return r; }   /* (the keyboard first, as the PSP's held the list) */
+    }
     if (r) return r;
     if (b->target) open_hash(b->target, true);
     return AK_FE_NONE;
@@ -1531,6 +1656,19 @@ static int cust_event(const ak_input *in)
 int ak_fe_update(const ak_input *in, f32 dt)
 {
     if (!page) return AK_FE_NONE;
+    if (osk.on) {                                                      /* the keyboard has the pad until it closes */
+        int k = ak_osk_update(in, dt);
+        if (k == 0) return AK_FE_NONE;
+        const ak_widget *w = osk_widget; osk_widget = NULL;
+        if (k < 0) return AK_FE_NONE;                                  /* cancelled: the name and the page stay [assumed: as the PSP's] */
+        u32 n; const u16 *t = ak_osk_text(&n);
+        while (n && t[n - 1] == ' ') n--;                              /* (no trailing spaces) */
+        if (!n) return AK_FE_NONE;                                     /* (an empty name is not taken) */
+        if (!prof_have) prof_new();
+        memset(prof + PROF_NAME, 0, 42); for (u32 i = 0; i < n && i < 20; i++) ak_wr16(prof + PROF_NAME + 2 * i, t[i]); prof[6] = 1;
+        AK_INFO("fe", "profile name set (%u characters)", n);
+        return w ? activate_from(w, osk_next) : AK_FE_NONE;            /* the button's other actions, then its page */
+    }
     fe_clock += dt; clock_total += dt;
     if (focus_fix_pending) {                                           /* the page's focus hidden or a title: its first shown control */
         focus_fix_pending = false;

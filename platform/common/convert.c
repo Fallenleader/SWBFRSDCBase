@@ -43,17 +43,21 @@ void *rs_at3p_alloc(int ch, int ba); int rs_at3p_decode(void *c, float *l, float
 void *rs_at3_alloc(int ch, int ba, const unsigned char *extra, int extra_size); int rs_at3_decode(void *c, float *l, float *r, int *ns, const unsigned char *buf, int size); void rs_at3_free(void *c);
 
 #ifdef RS_CONV_ADPCM
-#define MANIFEST_VERSION "rsconv 3a"   /* (ADPCM: never mixed with a WAV manifest) */
+#define MANIFEST_VERSION (rs_conv_thp ? "rsconv 3g" : "rsconv 3a")   /* (ADPCM: never mixed with a WAV manifest; 3g: the GameCube's, with THP movies) */
 #else
 #define MANIFEST_VERSION "rsconv 3"
 #endif   /* 3: sound bundles (.AM) -> one WAV per sound; 2: videos in the Vita movie format (AAC 160 kbps, moov first); older manifests keep their audio */
 #define MAXJOB 512
+/* the GameCube (set by the conversion tool's "gc" target, ADPCM builds): the movies too, PMF -> THP (tools/conversion_tool/thp.c) */
+int rs_conv_thp;
+int rs_conv_thp_file(const char *src, const char *tmp, uint64_t *out_size, void (*work)(uint64_t)) __attribute__((weak));
 typedef struct { char rel[256]; char src[1100]; int kind; unsigned size; uint32_t sig; uint64_t out_size; int state; } job_t;   /* kind 0 audio, 1 video, 2 sound bundle; state 0 ok, 1 todo, 2 done, 3 failed */
 static job_t jobs[MAXJOB]; static int njobs, next_job;
 static char g_root[1024], g_out[1024], g_iso[1024];
 static int g_workers; static uint64_t g_free;
 static pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER, dec_mx = PTHREAD_MUTEX_INITIALIZER;
 static rs_conv_status_t st;
+void rs_conv_dec_lock(int on){ if (on) pthread_mutex_lock(&dec_mx); else pthread_mutex_unlock(&dec_mx); }   /* the ATRAC decoders' set-up is not thread-safe (thp.c) */
 static volatile int active;
 
 static void set_failed(const char *fmt, const char *a){ pthread_mutex_lock(&mx); st.phase = RS_CONV_FAILED; snprintf(st.message, sizeof st.message, fmt, a); pthread_mutex_unlock(&mx); }
@@ -65,7 +69,7 @@ static void mkdirs(const char *path){            /* mkdir -p of the folder part 
     char t[1400]; snprintf(t, sizeof t, "%s", path); char *s = strrchr(t, '/'); if (!s) return; *s = 0;
     for (char *p = t + 1; *p; p++) if (*p == '/') { *p = 0; mkdir(t, 0777); *p = '/'; }
     mkdir(t, 0777); }
-static const char *kind_ext(int kind){ return kind == 1 ? ".mp4" : (kind == 2 ? ".idx" : AUDIO_EXT); }
+static const char *kind_ext(int kind){ return kind == 1 ? (rs_conv_thp ? ".thp" : ".mp4") : (kind == 2 ? ".idx" : AUDIO_EXT); }
 static void out_path(char *o, size_t cap, const char *rel, int kind){ snprintf(o, cap, "%s/%s%s", g_out, rel, kind_ext(kind)); }
 /* a bundle's sounds: <out>/<bundle>.d/<offset of the sound's RIFF header in the bundle, 8 hex digits>.wav */
 static void bundle_wav_path(char *o, size_t cap, const char *rel, uint32_t off){ snprintf(o, cap, "%s/%s.d/%08X" AUDIO_EXT, g_out, rel, off); }
@@ -111,7 +115,7 @@ static void scan(const char *full, const char *rel, int depth){
         int isdir = 0; unsigned size = 0; if (vfs_stat(sub, &isdir, &size)) continue;
         if (isdir) { if (depth < 8) scan(sub, r, depth + 1); continue; }
         size_t l = strlen(r); int kind = -1;
-        if (l > 4 && !strcmp(r + l - 4, ".AT3")) kind = 0; else if (l > 4 && !strcmp(r + l - 4, ".PMF")) kind = VIDEO_KIND; else if (l > 3 && !strcmp(r + l - 3, ".AM")) kind = 2;
+        if (l > 4 && !strcmp(r + l - 4, ".AT3")) kind = 0; else if (l > 4 && !strcmp(r + l - 4, ".PMF")) kind = rs_conv_thp ? 1 : VIDEO_KIND; else if (l > 3 && !strcmp(r + l - 3, ".AM")) kind = 2;
         if (kind < 0 || njobs >= MAXJOB) continue;
         job_t *j = &jobs[njobs++]; memset(j, 0, sizeof *j); snprintf(j->rel, sizeof j->rel, "%s", r); snprintf(j->src, sizeof j->src, "%s", sub); j->kind = kind; j->size = size; }
     vfs_closedir(d); }
@@ -462,7 +466,7 @@ static void *worker(void *arg){
 #ifdef RS_CONV_ADPCM
         if (j->kind == 0) { char tw[1340]; snprintf(tw, sizeof tw, "%s.wav", t); rc = conv_audio(j, tw, &sz); if (!rc) rc = rs_adp_from_wav(tw, t, &sz) ? -6 : 0; remove(tw); } else
 #endif
-        rc = j->kind == 1 ? conv_video(j, t, &sz) : (j->kind == 2 ? conv_bundle(j, t, &sz) : conv_audio(j, t, &sz));
+        rc = j->kind == 1 ? (rs_conv_thp ? rs_conv_thp_file(j->src, t, &sz, add_work) : conv_video(j, t, &sz)) : (j->kind == 2 ? conv_bundle(j, t, &sz) : conv_audio(j, t, &sz));
         if (rc == 0) { remove(o); if (rename(t, o)) rc = -11; }
         if (rc) { remove(t); fprintf(stderr, "[CONV] %s failed (%d)\n", j->rel, rc); }
         else fprintf(stderr, "[CONV] %s -> %llu bytes\n", j->rel, (unsigned long long)sz);

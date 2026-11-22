@@ -4,8 +4,9 @@
 # Two ways to run it:
 #  - an SD card (SD2SP2, or an SD Gecko in slot A / B): this file and the game (game.iso or GAME/PSP_GAME/...) in sd:/aurek; start
 #    aurek.dol with Swiss.  Log: sd:/aurek/log.txt.
-#  - a disc image with the game inside, for Dolphin or Swiss: platform/gc/make_gcm.py --dol aurek.dol --data <the folder above>
-#    --out aurek_gc.iso.  A disc cannot be written, so there is no log file: AK_GC_CONSOLE=1 (below) shows the last log lines on
+#  - a disc image with the game inside, for Dolphin, Swiss or a disc: make_gcm.py next to aurek.dol, this file and the game (and
+#    "converted", the SWBFRS Conversion Tool's GameCube media), run with no arguments -> Aurek_GC.iso.  Saves go to the memory card
+#    (slot A, else B: never formatted).  A disc cannot be written, so there is no log file: AK_GC_CONSOLE=1 (below) shows the last log lines on
 #    the screen instead (AK_GC_CONSOLE_FILTER=word|word keeps only lines with those words).
 #
 # Controls (the GameCube pad; the PSP game's buttons [assumed, by feel - the pad's face buttons are not a diamond]: CROSS = A,

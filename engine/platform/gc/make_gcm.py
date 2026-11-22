@@ -6,14 +6,23 @@ Put this script in a folder with:
     settings.txt         its settings (optional: without it the build's defaults)
     the game, one of:    GAME/PSP_GAME/...  (the UMD's files, as extracted)
                          PSP_GAME/...       (the same without the GAME folder)
-                         game.iso           (or any other PSP .iso: the UMD image; it is put in the disc whole)
-    converted/           (optional) the converted music and speech, as the media conversion wrote it
+                         game.iso           (or any other PSP .iso: the UMD image; its files are unpacked onto the disc)
+    converted/           (optional) the game's media in the GameCube's own formats, as the SWBFRS Conversion Tool's "gc" target
+                         writes it (SWBFRS_ConversionTool.exe next to aurek.dol: music, voices and effects as DSP-ADPCM .adp,
+                         the movies as THP)
 and run it with no arguments:
 
     python make_gcm.py                       ->  Aurek_GC.iso next to it
 
-What goes on the disc is what aurek.dol looks for when no SD card has an "aurek" folder: /aurek/settings.txt and /aurek/GAME/PSP_GAME
-(or /aurek/game.iso) and /aurek/converted.  The PSP's own firmware update (PSP_GAME/SYSDIR/UPDATE) is left out: it is never read.
+What goes on the disc is what aurek.dol looks for when no SD card has an "aurek" folder: /aurek/settings.txt, /aurek/GAME/PSP_GAME
+and /aurek/converted.  A PSP .iso is unpacked onto the disc (its files read straight out of the image).  The PSP's own firmware update
+(PSP_GAME/SYSDIR/UPDATE) is left out: it is never read.  With converted/ present, what it replaces is left out too:
+    X.PMF        when converted/.../X.PMF.thp exists (the engine never reads the original movie)
+    X.AT3        cut to its first 4 KB when converted/.../X.AT3.adp exists (the engine reads only the RIFF header: the encoder
+                 delay and the loop points)
+    GMSND.AM     cut to its first 256 KB when converted/.../GMSND.AM.d exists (the engine reads only its index: the lines and the
+                 bundle's table)
+The converter's manifest.txt is left out as well (only the converter reads it).
 The boot program is Aurek's own small apploader (platform/gc/apploader); no Nintendo code is used.
 
 Options: --dir <folder> (default: this script's folder), --dol, --settings, --game (a GAME / PSP_GAME folder or a PSP .iso),
@@ -74,8 +83,35 @@ def tree_of(host, disc, skip_update=False):
             dns[:] = [d for d in dns if d.upper() not in SKIP_DIRS]
         for f in fns:
             r = os.path.normpath(os.path.join(rel, f)).replace('\\', '/')
-            out.append((disc + '/' + r if r != '.' else disc, os.path.join(dp, f)))
+            hp = os.path.join(dp, f)
+            out.append((disc + '/' + r if r != '.' else disc, hp, 0, os.path.getsize(hp)))
     return out
+
+def iso_tree(iso, disc, skip_update=False):
+    """(disc path, iso path, offset, size) for every file under PSP_GAME in a PSP UMD image (ISO 9660, 2 KB sectors)"""
+    out = []
+    with open(iso, 'rb') as f:
+        def sector(n, count=1):
+            f.seek(n * 2048); return f.read(2048 * count)
+        pvd = sector(16); root = pvd[156:156 + 34]
+        def walk(lba, size, rel):
+            data = sector(lba, (size + 2047) // 2048); p = 0
+            while p < size:
+                l = data[p]
+                if l == 0: p = (p // 2048 + 1) * 2048; continue
+                r = data[p:p + l]; p += l
+                ext, ln, fl, nl = struct.unpack_from('<I', r, 2)[0], struct.unpack_from('<I', r, 10)[0], r[25], r[32]
+                name = r[33:33 + nl]
+                if name in (b'\0', b'\1'): continue
+                n = name.decode('ascii', 'replace').split(';')[0]
+                path = rel + '/' + n if rel else n
+                if fl & 2:
+                    if skip_update and rel.upper() == 'PSP_GAME/SYSDIR' and n.upper() in SKIP_DIRS: continue
+                    walk(ext, ln, path)
+                else:
+                    out.append((path, ext * 2048, ln))
+        walk(struct.unpack_from('<I', root, 2)[0], struct.unpack_from('<I', root, 10)[0], '')
+    return [(disc + '/' + p[len('PSP_GAME/'):], iso, o, n) for p, o, n in out if p.upper().startswith('PSP_GAME/')]
 
 def find_ci(folder, name):
     """a file or folder in folder by name, any letter case"""
@@ -111,7 +147,7 @@ def main():
     settings = a.settings or find_ci(d, 'settings.txt')
     if settings and not os.path.isfile(settings): sys.exit('%s: not found' % settings)
 
-    files = []                                  # (disc path under /aurek, host path)
+    files = []                                  # (disc path under /aurek, host path, offset in it, size)
     game = a.game
     if not game:
         g = find_ci(d, 'GAME')
@@ -126,7 +162,7 @@ def main():
     game = os.path.abspath(game)
     if os.path.isfile(game):
         if not is_psp_iso(game): sys.exit('%s is not a PSP UMD image' % game)
-        files.append(('game.iso', game)); what = 'the UMD image %s' % os.path.basename(game)
+        files += iso_tree(game, 'GAME/PSP_GAME', skip_update=True); psp = game; what = 'the UMD image %s (unpacked)' % os.path.basename(game)
     else:
         if os.path.basename(game).upper() == 'PSP_GAME': psp = game
         else:
@@ -134,16 +170,32 @@ def main():
             if not psp: sys.exit('%s has no PSP_GAME folder' % game)
         files += tree_of(psp, 'GAME/PSP_GAME', skip_update=True)
         umd = find_ci(os.path.dirname(psp), 'UMD_DATA.BIN')
-        if umd and os.path.basename(os.path.dirname(psp)).upper() == 'GAME': files.append(('GAME/UMD_DATA.BIN', umd))
-        need = ['USRDIR/MISC/COMMON.ASR', 'USRDIR/SOUNDS/GMSND.ASR', 'USRDIR/ENVS']
-        have = {p.upper() for p, _ in files}
-        missing = [n for n in need if not any(h.startswith(('GAME/PSP_GAME/' + n).upper()) for h in have)]
-        if missing: sys.exit('the game folder %s lacks %s: is it the whole UMD?' % (psp, ', '.join(missing)))
+        if umd and os.path.basename(os.path.dirname(psp)).upper() == 'GAME': files.append(('GAME/UMD_DATA.BIN', umd, 0, os.path.getsize(umd)))
         what = 'the game folder %s' % psp
+    need = ['USRDIR/MISC/COMMON.ASR', 'USRDIR/SOUNDS/GMSND.ASR', 'USRDIR/ENVS']
+    have = {t[0].upper() for t in files}
+    missing = [n for n in need if not any(h.startswith(('GAME/PSP_GAME/' + n).upper()) for h in have)]
+    if missing: sys.exit('the game %s lacks %s: is it the whole UMD?' % (psp, ', '.join(missing)))
     conv = a.converted or find_ci(d, 'converted')
-    if conv and os.path.isdir(conv): files += tree_of(conv, 'converted')
+    saved = 0; replaced = 0
+    if conv and os.path.isdir(conv):
+        cfiles = [t for t in tree_of(conv, 'converted') if t[0].upper() != 'CONVERTED/MANIFEST.TXT' and not t[0].upper().endswith('.PART')]
+        cset = {t[0].upper() for t in cfiles}
+        cdirs = {t[0].upper().rsplit('/', 1)[0] for t in cfiles}
+        kept = []
+        for dp, hp, off, size in files:
+            u = dp.upper()
+            c = u.startswith('GAME/') and 'CONVERTED/' + u[len('GAME/'):] or None
+            if c and u.endswith('.PMF') and c + '.THP' in cset:
+                saved += size; replaced += 1; continue
+            if c and u.endswith('.AT3') and c + '.ADP' in cset and size > 4096:
+                saved += size - 4096; replaced += 1; kept.append((dp, hp, off, 4096)); continue
+            if c and u.endswith('/GMSND.AM') and c + '.D' in cdirs and size > (256 << 10):
+                saved += size - (256 << 10); replaced += 1; kept.append((dp, hp, off, 256 << 10)); continue
+            kept.append((dp, hp, off, size))
+        files = kept + cfiles
     else: conv = None
-    if settings: files.append(('settings.txt', settings))
+    if settings: files.append(('settings.txt', settings, 0, os.path.getsize(settings)))
     files.sort(key=lambda t: t[0].upper())
 
     apl, apl_entry = build_apploader(here) if a.rebuild_apploader else (APPLOADER_BIN, APPLOADER_ENTRY)
@@ -151,10 +203,10 @@ def main():
 
     # ---- the FST: / -> aurek -> the files' folders (each folder's entries sorted by name, any case, as the format expects)
     root = {}
-    for dp, hp in files:
+    for dp, hp, off, size in files:
         node = root; parts = dp.split('/')
         for q in parts[:-1]: node = node.setdefault(q, {})
-        node[parts[-1]] = hp
+        node[parts[-1]] = (hp, off, size)
     tree = {'aurek': root}
     entries = []; names = bytearray(); placed = []     # entries: [flags, name offset, offset / parent, size / next]
     def add(node, parent):
@@ -164,7 +216,7 @@ def main():
             if isinstance(v, dict):
                 i = len(entries); entries.append([1, no, parent, 0]); add(v, i); entries[i][3] = len(entries)
             else:
-                entries.append([0, no, 0, os.path.getsize(v)]); placed.append((len(entries) - 1, v))
+                entries.append([0, no, 0, v[2]]); placed.append((len(entries) - 1, v))
     entries.append([1, 0, 0, 0]); add(tree, 0); entries[0][3] = len(entries)
 
     # ---- layout: boot.bin 0x0, bi2.bin 0x440, the apploader 0x2440, the DOL, the FST, then the files
@@ -176,7 +228,19 @@ def main():
     for i, p in placed:
         entries[i][2] = pos; pos = (pos + entries[i][3] + ALIGN - 1) & ~(ALIGN - 1)
     total = pos
-    if total > DISC_MAX: sys.exit('the image would be %.0f MB: more than a GameCube disc holds (1392 MB)' % (total / 1048576))
+    if total > DISC_MAX:
+        hint = ''
+        thps = [hp for dp, hp, off, size in files if dp.upper().endswith('.THP')]
+        if thps:                                   # the movies' picture rate that would fit: their length from the THP headers
+            secs = 0.0; tb = 0
+            for t in thps:
+                with open(t, 'rb') as f: h = f.read(24)
+                fps = struct.unpack('>f', h[16:20])[0]; secs += struct.unpack('>I', h[20:24])[0] / fps if fps > 0 else 0; tb += os.path.getsize(t)
+            if secs > 0:
+                now = tb * 8 / secs / 1000 - 293        # (the sound: 32 kHz stereo DSP-ADPCM, 293 kbit/s)
+                fit = int((now - (total - DISC_MAX + (16 << 20)) * 8 / secs / 1000) / 50) * 50
+                hint = '; the movies run at about %d kbit/s: convert them again at %d or less (delete converted/PSP_GAME/USRDIR/FMV, then SWBFRS_ConversionTool gc --video-kbps %d)' % (now, fit, fit)
+        sys.exit('the image would be %.0f MB: more than a GameCube disc holds (1392 MB)%s' % (total / 1048576, hint))
 
     region, rc = REGIONS[a.region]
     gid = (a.id.upper() + '000000')[:6]; gid = gid[:3] + rc + gid[4:]
@@ -194,19 +258,21 @@ def main():
         o.write(boot); o.write(bi2); o.write(apl_hdr); o.write(apl)
         o.seek(dol_off); o.write(dol)
         o.seek(fst_off); o.write(fst)
-        for n, (i, p) in enumerate(placed):
+        for n, (i, (p, off, size)) in enumerate(placed):
             o.seek(entries[i][2])
             with open(p, 'rb') as f:
-                while True:
-                    b = f.read(4 << 20)
-                    if not b: break
-                    o.write(b)
+                f.seek(off); left = size
+                while left > 0:
+                    b = f.read(min(left, 4 << 20))
+                    if not b: sys.exit('%s: shorter than expected' % p)
+                    o.write(b); left -= len(b)
             if n % 200 == 0: print('  %d / %d files' % (n, len(placed)), end='\r', flush=True)
         o.truncate(total)
     os.replace(tmp, out)
     print('%s: %.1f MB (%s, ID %s)' % (out, total / 1048576, a.region, gid))
     print('  in it: %s, %s%s; %d files under /aurek' % (os.path.basename(dol_path), what,
           (', settings.txt' if settings else ', no settings.txt (the defaults)') + (', converted/' if conv else ''), len(placed)))
+    if conv: print('  %d originals left out or cut to what the engine reads (their converted copies are on the disc): %.1f MB saved' % (replaced, saved / 1048576))
 
 if __name__ == '__main__':
     main()

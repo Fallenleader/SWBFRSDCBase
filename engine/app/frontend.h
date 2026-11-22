@@ -41,6 +41,12 @@ void ak_fe_campaign_won(void);                 /* a won campaign mission: the pr
 bool ak_fe_open(const char *page);             /* "MP_MainMenu" */
 int ak_fe_update(const ak_input *in, f32 dt);  /* AK_FE_START: a match was launched (FE_HostGame) */
 void ak_fe_draw(void);                         /* between ak_gfx_begin and ak_gfx_end */
+/* the on-screen keyboard (the profile's name; drawn by ak_fe_draw while open, or alone with ak_osk_draw) */
+void ak_osk_open(const char *title, const u16 *init, u32 n, u32 max);
+int  ak_osk_update(const ak_input *in, f32 dt);   /* 0 open, 1 done, -1 cancelled */
+void ak_osk_draw(void);
+bool ak_osk_active(void);
+const u16 *ak_osk_text(u32 *n);
 const char *ak_fe_page(void);                  /* the page shown (its name), NULL none */
 const char *ak_fe_launch(int *mode);
 /* the in-match pages (GUIMENU/BFF_GUIMENU_INGAMESP.GUI): open one over the match, the match's state each frame, close */

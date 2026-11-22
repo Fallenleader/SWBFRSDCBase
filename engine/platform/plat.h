@@ -46,6 +46,12 @@ void ak_plat_trophy_unlock(int id);
 typedef void (*ak_audio_fn)(s16 *out, u32 frames, void *user);
 bool ak_plat_audio_open(u32 rate, ak_audio_fn fn, void *user);
 void ak_plat_audio_close(void);
+#ifdef AK_HAS_MEMCARD
+/* the GameCube's memory card (slot A, else B): whole files by name; read gives the bytes found (up to cap), -1 none */
+bool ak_plat_memcard_write(const char *key, const char *title, const void *data, u32 n);
+s32  ak_plat_memcard_read(const char *key, void *buf, u32 cap);
+bool ak_plat_memcard_delete(const char *key);
+#endif
 #ifdef AK_HAS_ARAM
 /* the GameCube's ARAM: a store returns its address (0 = full; 512 bytes after each may be read); reads are 32-byte aligned both
  * sides, n a multiple of 32 */

@@ -214,13 +214,20 @@ int main(int argc, char **argv)
     static ak_play play; bool playing = ak_setting_int("AK_PLAY", 0) != 0;
     ak_entity_set ents; f32 (*bindm)[12] = NULL; u32 *bind_first = NULL; bool show_ents = ak_setting_int("AK_ENTITIES", 1) != 0;
     ak_input in; memset(&in, 0, sizeof in);
+#ifdef AK_HAS_MEMCARD
+    if (ak_setting_int("AK_MEMCARD_TEST", 0)) {                        /* a check of the memory card: a 16 KB file written, read back, compared */
+        static u8 w[0x4000], r[0x4000]; for (u32 i = 0; i < sizeof w; i++) w[i] = (u8)(i * 7 + 3);
+        bool wok = ak_save_write("selftest", "", "Memory card check", w, sizeof w); s32 got = ak_save_read("selftest", "", r, sizeof r);
+        AK_INFO("aurek", "memory card check: write %s, read %d bytes, %s", wok ? "ok" : "FAILED", (int)got, got == (s32)sizeof r && !memcmp(w, r, sizeof r) ? "the same" : "DIFFERENT");
+    }
+#endif
     u64 last = ak_plat_time_us(), fps_t0 = last; int fps_frames = 0; f32 fps = 0, frame_ms = 0, load_ms = 0;
     ak_gfx_stats gs; memset(&gs, 0, sizeof gs);
     /* the front end (PARITY 8.2): the game's menus first (AK_FRONTEND=1; AK_FE_PAGE the first page), the level once launched */
     bool fe_on = ak_setting_int("AK_FRONTEND", 0) && ak_fe_init(vfs) && ak_fe_open(ak_setting_str("AK_FE_PAGE", "MP_MainMenu"));
     if (ak_setting_int("AK_TEST_PROFILE_SAVE", 0) && ak_fe_init(vfs)) ak_fe_profile_save();   /* tests: the profile written back at once */
-    { char sv[400]; snprintf(sv, sizeof sv, "%s/gc_conquest.sav", ak_plat_user_dir()); FILE *f = fopen(sv, "rb");   /* a saved conquest: New / Resume */
-      if (f) { fclose(f); if (fe_on) ak_fe_var("BFF.HasGalacticConquestBeenPlayed", 1); } }
+    { char sv[400]; snprintf(sv, sizeof sv, "%s/gc_conquest.sav", ak_plat_user_dir()); u32 m = 0;   /* a saved conquest: New / Resume */
+      if (ak_save_read("conquest", sv, &m, 4) == 4 && fe_on) ak_fe_var("BFF.HasGalacticConquestBeenPlayed", 1); }
     ak_fe_set_blueprints(&bps);
     fe_bps = &bps; ak_fe_set_model_drawer(fe_model_draw);                                         /* (the customisation menu: items, costs, descriptions) */
     bool fe_ingame = false, fe_after_team = false;                      /* the match's own pages (team selection, the spawn map) */
@@ -794,7 +801,7 @@ int main(int argc, char **argv)
                    pages; a defeat shows the map's "You've been defeated" (0x61) [assumed: 08A3B09C runs on the player's victory only] */
                 if (gc_screen->g.winner == 0) gc_screen->win_open = ak_fe_open(gc_screen->g.side[0].faction == 3 ? "MP_Win_Empire" : "MP_Win_Rebel");
                 else gc_screen->win_open = true;
-                remove(gc_sav);
+                ak_save_delete("conquest", gc_sav);
             }
             if (gc_screen->win_open) {                   /* any button: the main menu [assumed] */
                 if (in.pressed & (AK_BTN_CROSS | AK_BTN_CIRCLE | AK_BTN_START)) { ak_fe_close(); gc_screen->win_open = false; gc_screen->ready = false; fe_on = ak_fe_open("MP_MainMenu"); continue; }
@@ -1088,6 +1095,11 @@ int main(int argc, char **argv)
                     }
                 }
                 if (fe_menu) ak_fe_draw(); else if (!ak_play_cut_view(&play)) ak_hud_draw(&hs, w, h);   /* (no HUD in a cut-scene, as the original) */
+                {   /* AK_OSK_TEST=<text>: the on-screen keyboard over the match (a check of it where the front end is off: the GameCube) */
+                    static int t = -1; if (t < 0) { const char *x = ak_setting_str("AK_OSK_TEST", NULL); t = x != NULL;
+                        if (t) { u16 w0[32]; u32 n0 = 0; for (; x[n0] && n0 < 20; n0++) w0[n0] = (u8)x[n0]; ak_osk_open("Enter your name", w0, n0, 20); } }
+                    if (t && ak_osk_active()) { ak_osk_update(&in, dt); ak_osk_draw(); }
+                }
 
             }
             if (play.snd.sub && ak_setting_int("AK_SUBTITLES", 0))                 /* the narrator's line (the game's subtitle text) */
