@@ -226,6 +226,9 @@ void ak_scene_force_pipe(int pipe) { g_force_pipe = pipe; }
 /* the light at a point: the game keeps its samples packed and lights each object from them (the per-object light set 0889C91C, GE
  * lights 0890452C: ambient plus one directional light per colour channel, |dir| its strength, clamped to 1), weighing the six
  * nearest samples (0889B6B0, below) */
+static f32 g_dyn[64 * 7]; static u32 g_ndyn;
+void ak_scene_set_dyn_lights(const f32 *lights7, u32 n) { if (n > 64) n = 64; g_ndyn = n; if (n) memcpy(g_dyn, lights7, n * 7 * sizeof *g_dyn); }
+
 bool ak_scene_light_at(const ak_scene_models *s, const f32 *pos, f32 out[12])
 {
     if (!s->nlight || !ak_setting_int("AK_LIGHT", 1)) return false;
@@ -245,6 +248,17 @@ bool ak_scene_light_at(const ak_scene_models *s, const f32 *pos, f32 out[12])
     }
     if (wsum <= 0) return false;
     for (int i = 0; i < 12; i++) out[i] /= wsum;
+    /* the dynamic lights (0889B9E4): each within its radius adds its colour x (1 - d / r) - x 0.235 to the ambient and x 0.47
+       along the direction to it, per channel */
+    for (u32 i = 0; i < g_ndyn; i++) {
+        const f32 *L = &g_dyn[i * 7]; f32 dx = L[0] - pos[0], dy = L[1] - pos[1], dz = L[2] - pos[2], d = sqrtf(dx * dx + dy * dy + dz * dz);
+        if (L[6] <= 0 || d >= L[6]) continue;
+        f32 a = 1.0f - d / L[6], inv = d > 1e-4f ? 1.0f / d : 0;
+        for (int c = 0; c < 3; c++) {
+            out[c] += L[3 + c] * a * 0.235f;
+            out[3 + c * 3] += dx * inv * L[3 + c] * a * 0.47f; out[4 + c * 3] += dy * inv * L[3 + c] * a * 0.47f; out[5 + c * 3] += dz * inv * L[3 + c] * a * 0.47f;
+        }
+    }
     for (int c = 0; c < 3; c++) {                                  /* (0890452C: each strength clamped to 1) */
         f32 *d = &out[3 + c * 3]; f32 len = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
         if (len > 1.0f) { d[0] /= len; d[1] /= len; d[2] /= len; }

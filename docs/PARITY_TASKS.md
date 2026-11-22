@@ -1583,6 +1583,7 @@ textures and how they are used. Section R lists only what must be in place so th
   - Part 78 (2026-11-22): 7.2 - no reverb in the game (only RevVON is imported); the voice pitch path found for the Doppler check.
   - Part 79 (2026-11-22): 7.2 closed - no Doppler, no occlusion in the game; the 3D distance gain is linear (Aurek's was squared).
   - Part 80 (2026-11-22): R.1 dynamic lights traced (effects' light curves, the flag bits, the per-frame update); building them is next.
+  - Part 81 (2026-11-22): R.1 closed - effect lights built (curves, duration, flags; added to the model light as the game does).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
@@ -1947,7 +1948,7 @@ groundwork below is needed before the parity work starts. The tiers come later.
 
 ### Original look, traced first
 
-- [ ] **R.1 Level lighting.** Today it is approximated as vertex colour × 2. Read the game's own level lighting data.
+- [x] **R.1 Level lighting.** Today it is approximated as vertex colour × 2. Read the game's own level lighting data.
   - 2026-11-20, measured (harness RS_STATE_LOG: each new GE lighting / texture-function state with its lights): level geometry
     draws with lighting on, its vertex colour as the material ambient, the scene ambient white and no lights, texture modulate
     and colour doubling - so texture x vertex colour x 2 is the game's own rule, not an approximation. Models (no vertex colour)
@@ -1974,6 +1975,11 @@ groundwork below is needed before the parity work starts. The tiers come later.
     space explosions, the EMP launcher's, some smoke vents and space battle backdrops. Placed lights are a separate object
     (messages 108 / 90, 0885ACE0: colour x intensity / 510, radius +68). To build: read the curves and flags, keep a light per
     flagged effect, and add them in ak_scene_light_at as 0889B9E4 does (1 - d / r; ambient x 0.235, direction x 0.47).
+  - 2026-11-22, built: the loader keeps the light curves, the duration (the first word after the emitters, def +52 - 0882ACE0
+    reads it there) and the flags [assumed: the tenth word, version 14]; ak_pfx_lights gives one light per flagged live effect
+    (or per particle with bit 8) and play.c hands them to the scene, which adds them to each model's light as 0889B9E4 does.
+    Seen on Space Yavin: explosion lights of r 5.2 / 1.5 m (AK_DEBUG_DYN_LIGHTS); none on Hoth (no flagged effect there).
+    Placed light objects (0885ACE0) are not built.
 - [x] **R.2 Fog.** The FOG values are read but not understood (Tatooine 11–75 m). Trace them.
   - Done 2026-11-19: the FOG chunk (loader 08825C9C) is flags (bit 0 on; space levels off), r, g, b, -, start, end, strength,
     sky strength, 2 more.  The game sets the GU fog from near 0 to far = end (08903470 - logged in the harness: Tatooine

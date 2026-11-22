@@ -46,6 +46,8 @@ void ak_scene_models_free(ak_scene_models *s);
 void ak_scene_force_pipe(int pipe);
 /* the game's object light at a point (engine axes): out = ambient rgb, then per channel a direction scaled by its strength (world) */
 bool ak_scene_light_at(const ak_scene_models *s, const f32 *pos, f32 out[12]);
+/* this frame's dynamic point lights (engine axes): n x { x, y, z, r, g, b, radius }; added to the object light (0889B9E4) */
+void ak_scene_set_dyn_lights(const f32 *lights7, u32 n);
 void ak_scene_models_draw(ak_scene_models *s, u32 model, const ak_m4 *view_proj, const ak_m4 *world, const f32 (*bones)[12],
                           const ak_model_colours *colours, ak_scene_stats *st);
 #endif

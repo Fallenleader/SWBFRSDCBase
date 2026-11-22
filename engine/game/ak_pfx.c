@@ -81,7 +81,7 @@ bool ak_pfx_lib_load(const ak_blob *level, ak_arena *a, ak_pfx_lib *out)
         } else if (t == AK_TAG('F', 'X', 'E', 'T')) {               /* 0882A3C0 -> 0882ACE0 */
             ak_pfx_effect *e = &out->fx[out->nfx];
             e->hash = r32(&r); e->name = rstr(&r);
-            rcurve(&r, 4); rcurve(&r, 1);                            /* the effect's light: colour and radius (not drawn yet) */
+            e->lcol = rcurve(&r, 4); e->lrad = rcurve(&r, 1);        /* the effect's light: colour and radius (088E5B50) */
             if (c.version >= 13) r32(&r);
             u32 n = r32(&r); if (n > 64) { r.bad = true; n = 0; }
             e->em = AK_NEW(a, ak_pfx_emitter_def, n ? n : 1);
@@ -99,6 +99,11 @@ bool ak_pfx_lib_load(const ak_blob *level, ak_arena *a, ak_pfx_lib *out)
                 d->sys = NULL;
                 for (u32 k = 0; k < out->nsys; k++) if (out->sys[k].hash == sh) { d->sys = &out->sys[k]; break; }
                 if (d->sys) e->nem++;
+            }
+            {   /* after the emitters (0882ACE0's order): the duration (def +52), then version-dependent words, then the flags (+64)
+                   [assumed: the flags are the tenth word after the emitters in the shipped version 14 - values like 0x414 / 0x4B2] */
+                const u8 *q = r.p; e->duration = 0; e->flags = 0;
+                if (!r.bad && q + 40 <= r.e) { e->duration = ak_rdf32(q); if (c.version >= 14) e->flags = ak_rd32(q + 36); }
             }
             if (!r.bad && e->nem) out->nfx++;
         }
@@ -314,6 +319,7 @@ void ak_pfx_update(ak_pfx_world *w, f32 dt)
     /* effects end when every emitter is done and has no particles left */
     for (u32 f = 0; f < AK_PFX_MAX_EFFECTS; f++) {
         ak_pfx_instance *in = &w->fx[f]; if (!in->alive) continue;
+        in->age += dt;
         bool done = true;
         for (u32 k = 0; k < in->nem; k++) { const ak_pfx_emitter *m = &w->em[in->first_em + k]; if (m->t < 1 || m->nlive || in->held) { done = false; break; } }
         if (done) { for (u32 k = 0; k < in->nem; k++) w->em[in->first_em + k].effect = -1; in->alive = false; }
@@ -321,6 +327,34 @@ void ak_pfx_update(ak_pfx_world *w, f32 dt)
 }
 
 u32 ak_pfx_live(const ak_pfx_world *w) { return w->np; }
+
+/* the effects' lights (088E5398 / 088E59C8 make them, 088E5B50 sets them each frame): an effect whose flags have bit 0 lights the
+ * models near it - one light at the effect with the colour and radius curves at its time (age / duration), or with bit 8 one per
+ * particle at the particle's age */
+u32 ak_pfx_lights(const ak_pfx_world *w, ak_pfx_light *out, u32 cap)
+{
+    u32 n = 0;
+    if (!w->lib) return 0;
+    for (u32 f = 0; f < AK_PFX_MAX_EFFECTS && n < cap; f++) {
+        const ak_pfx_instance *in = &w->fx[f]; if (!in->alive) continue;
+        const ak_pfx_effect *e = in->fx;
+        if (!(e->flags & 1) || !e->lcol.n || !e->lrad.n) continue;
+        if (e->flags & 0x100) {
+            for (u32 i = 0; i < w->np && n < cap; i++) {
+                const ak_pfx_particle *p = &w->p[i]; if (w->em[p->em].effect != (s16)f) continue;
+                f32 c[4]; sample(&e->lcol, p->age, c); f32 r = sample1(&e->lrad, p->age); if (r <= 0) continue;
+                ak_pfx_light *L = &out[n++]; L->pos[0] = p->pos[0]; L->pos[1] = -p->pos[1]; L->pos[2] = -p->pos[2];
+                for (int k = 0; k < 3; k++) L->rgb[k] = c[k]; L->radius = r;
+            }
+        } else {
+            f32 t = e->duration > 0 ? in->age / e->duration : 1; if (t > 1) t = 1;
+            f32 c[4]; sample(&e->lcol, t, c); f32 r = sample1(&e->lrad, t); if (r <= 0) continue;
+            ak_pfx_light *L = &out[n++]; L->pos[0] = in->M[3]; L->pos[1] = -in->M[7]; L->pos[2] = -in->M[11];
+            for (int k = 0; k < 3; k++) L->rgb[k] = c[k]; L->radius = r;
+        }
+    }
+    return n;
+}
 
 static u32 particle_quad(const ak_pfx_world *w, const ak_pfx_particle *p, const ak_pfx_type *y, const f32 *right, const f32 *up, ak_vtx *out)
 {

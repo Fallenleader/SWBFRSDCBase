@@ -39,7 +39,11 @@ typedef struct {
     u32 shape, shape_flags; f32 sh[6];            /* 1 box (min/max per axis), 2 sphere (radius), 3 ellipsoid (radii); flags 1 = on the surface */
 } ak_pfx_emitter_def;
 
-typedef struct { u32 hash; const char *name; ak_pfx_emitter_def *em; u32 nem; } ak_pfx_effect;
+typedef struct {
+    u32 hash; const char *name; ak_pfx_emitter_def *em; u32 nem;
+    ak_pfx_curve lcol, lrad;                      /* its light: RGBA and radius over the effect's time (R.1) */
+    f32 duration; u32 flags;                      /* def +52; def +64 (bit 0 a light, bit 8 one per particle) */
+} ak_pfx_effect;
 
 typedef struct {
     ak_pfx_effect *fx; u32 nfx;
@@ -64,6 +68,7 @@ typedef struct {
     f32 vel[3]; f32 scale;
     u16 first_em, nem;
     u16 gen; bool held;                           /* held: its emitters start over instead of ending (an effect on a moving object) */
+    f32 age;                                      /* seconds since played (the light's time is age / duration) */
     f32 tint[3];                                  /* multiplies its particles' colour (the draw's colour argument, 088E6CD4: a weapon's muzzle flash takes its bolt's colour) */
 } ak_pfx_instance;
 typedef struct {
@@ -91,5 +96,8 @@ void ak_pfx_tint(ak_pfx_world *w, s32 handle, const f32 *rgb);
 typedef struct { u32 first, count; bool additive; } ak_pfx_run;
 u32  ak_pfx_vertices(const ak_pfx_world *w, const f32 *right, const f32 *up, ak_vtx *out, u32 cap, ak_pfx_run *run, u32 max_runs, u32 *nruns);
 u32  ak_pfx_live(const ak_pfx_world *w);
+/* the effects' lights this frame (engine axes): position, colour (0..1) and radius each; returns how many (at most cap) */
+typedef struct { f32 pos[3], rgb[3], radius; } ak_pfx_light;
+u32  ak_pfx_lights(const ak_pfx_world *w, ak_pfx_light *out, u32 cap);
 
 #endif

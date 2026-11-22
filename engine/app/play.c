@@ -4500,6 +4500,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (pt && p->frame_no == 60) { f32 f[3] = { p->aim[0], 0, p->aim[2] }, fl = sqrtf(f[0] * f[0] + f[2] * f[2]) + 1e-6f;
                 f32 q[3] = { p->ch.pos[0] + f[0] / fl * 4, p->ch.pos[1], p->ch.pos[2] + f[2] / fl * 4 }; drop_pickups(p, p->look.bp, q, -1); drop_pickups(p, p->look.bp, q, -1); } }
         ak_pfx_update(p->pfx, dt);
+        {   static ak_pfx_light pl[64]; static f32 l7[64 * 7]; u32 n = ak_pfx_lights(p->pfx, pl, 64);   /* the effects' lights on the models (R.1) */
+            for (u32 i = 0; i < n; i++) { memcpy(&l7[i * 7], pl[i].pos, 12); memcpy(&l7[i * 7 + 3], pl[i].rgb, 12); l7[i * 7 + 6] = pl[i].radius; }
+            ak_scene_set_dyn_lights(l7, n);
+            if (ak_setting_int("AK_DEBUG_DYN_LIGHTS", 0) && n && p->frame_no % 10 == 0) AK_INFO("light", "%u effect lights; first at %.1f %.1f %.1f rgb %.2f %.2f %.2f r %.1f", n, pl[0].pos[0], pl[0].pos[1], pl[0].pos[2], pl[0].rgb[0], pl[0].rgb[1], pl[0].rgb[2], pl[0].radius); }
         {   static int dump = -2; if (dump == -2) dump = ak_setting_int("AK_PFX_DUMP", -1);   /* tests: the live particles by type, every 6 frames from that frame */
             if (dump >= 0 && (s32)p->frame_no >= dump && (s32)p->frame_no < dump + 60 && (p->frame_no - (u32)dump) % 6 == 0)
                 for (u32 t = 0; t < p->pfx_lib.ntype; t++) {
