@@ -1584,6 +1584,8 @@ textures and how they are used. Section R lists only what must be in place so th
   - Part 79 (2026-11-22): 7.2 closed - no Doppler, no occlusion in the game; the 3D distance gain is linear (Aurek's was squared).
   - Part 80 (2026-11-22): R.1 dynamic lights traced (effects' light curves, the flag bits, the per-frame update); building them is next.
   - Part 81 (2026-11-22): R.1 closed - effect lights built (curves, duration, flags; added to the model light as the game does).
+  - Part 82 (2026-11-22): R.4 - the level draw's material states traced (blend / alpha test / depth write per flag, their order);
+    Aurek's pipeline order fixed.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
@@ -2015,6 +2017,15 @@ groundwork below is needed before the parity work starts. The tiers come later.
     every level starts in state 0. What fires those groups (entity events: a post taken, an object destroyed) needs the level
     script's event side, which Aurek does not have (only start timers - ak_audio.c / ak_conquest.c). Engine: asura.c reads kind 1 (ak_level_tex_anims), the scene offsets the UVs of
     those materials' draws, level and models (ak_gfx_set_uv_offset; GL; Vita / 3DS keep them still for now).
+  - 2026-11-22, the level draw's material states traced (089092FC; the material record: six texture words, the flags +24, the
+    mode +28, the extra +32, loader 088292E0): flags 0x20000 -> blend mode 1 (alpha), alpha test on, depth writes off; else 0x2 ->
+    no blending, alpha test on, depth writes on; else 0x1000 -> blend mode 5 (additive), alpha test on, depth writes off; else
+    no blending and no alpha test (blend 1 when flag 0x1 is clear and the object is faded); the alpha test reference is 10
+    (+44) [the compare function not read yet]. 0x80 skips a depth bias, 0x400 sets a texture offset / scale (08A98E9C), the
+    extra (+32) is read for the animated materials. Aurek had additive first: ten materials in the shipped levels carry 0x1000
+    with 0x20000 or 0x2 (Yavin IV 0x61002 x6, Sullust 0x61001 x3, the space maps' 0x21000) and now draw as the game does
+    (render/ak_scene.c; models the same [assumed]). Open: the compare function and reference (Aurek cuts at 0.5), the 0x80
+    bias, 0x400's texture transform, and slots 1-5 beyond the second layer.
 - [ ] **R.5 LOD distances.** AK_LOD_SCALE 12 is Aurek's own; trace the real ones.
   - 2026-11-19, looked for and not found: no blueprint key, level chunk or string names a LOD distance (the lower details are
     the "L1#" / "L2#" meshes); the switch is somewhere in the model draw.  Next: watch the GE vertex counts of one prop in

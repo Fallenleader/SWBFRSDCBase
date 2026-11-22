@@ -138,9 +138,9 @@ void ak_scene_level_draw(ak_scene_level *s, const ak_m4 *vp, ak_scene_stats *st)
         s32 ti = m ? (bt->layer && m->texture2 >= 0 ? m->texture2 : m->texture) : -1;
         u32 pipe = bt->layer ? AK_PIPE_LAYER
                  : bt->overlay && !(m && (m->flags & (AK_MAT_ADDITIVE | AK_MAT_BLENDED))) ? AK_PIPE_OVERLAY
-                 : m && (m->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD
-                 : m && (m->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
-                 : (m && (m->flags & AK_MAT_ALPHA_TEST)) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
+                 : m && (m->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND                      /* the game's order (the level draw 089092FC): */
+                 : m && (m->flags & AK_MAT_ALPHA_TEST) ? AK_PIPE_CUTOUT                  /* 0x20000 blended, else 0x2 alpha-tested */
+                 : m && (m->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : AK_PIPE_OPAQUE;     /* opaque, else 0x1000 additive */
         /* key: pipeline (3 bits) | texture (13 bits).  Blended pipelines keep the game's order (the batch index breaks ties). */
         u32 key = (pipe << 29) | (pipe >= AK_PIPE_OVERLAY ? 0 : ((u32)(ti + 1) & 0x1FFF) << 16);
         s->items[n].key = key; s->items[n].batch = i; n++;
@@ -317,8 +317,8 @@ static void draw_skinned(ak_scene_models *s, const ak_model *m, const ak_m4 *vw,
         for (u32 p = 0; p < m->nparts; p++) {
             const ak_model_part *pt = &m->parts[p];
             if (!pt->count || tex_hidden(s->level, pt->flags, (u32)pt->extra)) continue;
-            ak_pipe pipe = g_force_pipe >= 0 ? (ak_pipe)g_force_pipe : (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
-                         : ((pt->flags & AK_MAT_ALPHA_TEST)) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
+            ak_pipe pipe = g_force_pipe >= 0 ? (ak_pipe)g_force_pipe : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND : (pt->flags & AK_MAT_ALPHA_TEST) ? AK_PIPE_CUTOUT
+                         : (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : AK_PIPE_OPAQUE;   /* (089092FC's order [assumed: models the same]) */
             if ((pipe >= AK_PIPE_LAYER) != (pass == 1)) continue;
             for (u32 k = 0; k < pt->count; k++) tri[k] = sv[m->idx[pt->first + k]];
             ak_gfx_tex *gt = pt->texture < 0 ? NULL : colours && s->masked[pt->texture] ? coloured(s, pt->texture, colours) : s->level->tex[pt->texture];
@@ -342,8 +342,8 @@ void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_
         for (u32 p = 0; p < m->nparts; p++) {
             const ak_model_part *pt = &m->parts[p];
             if (!pt->count || tex_hidden(s->level, pt->flags, (u32)pt->extra)) continue;
-            ak_pipe pipe = g_force_pipe >= 0 ? (ak_pipe)g_force_pipe : (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND
-                         : ((pt->flags & AK_MAT_ALPHA_TEST)) ? AK_PIPE_CUTOUT : AK_PIPE_OPAQUE;
+            ak_pipe pipe = g_force_pipe >= 0 ? (ak_pipe)g_force_pipe : (pt->flags & AK_MAT_BLENDED) ? AK_PIPE_BLEND : (pt->flags & AK_MAT_ALPHA_TEST) ? AK_PIPE_CUTOUT
+                         : (pt->flags & AK_MAT_ADDITIVE) ? AK_PIPE_ADD : AK_PIPE_OPAQUE;   /* (089092FC's order [assumed: models the same]) */
             if ((pipe >= AK_PIPE_LAYER) != (pass == 1)) continue;
             ak_m4 bm;
             if (bones) {
