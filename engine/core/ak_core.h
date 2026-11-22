@@ -55,4 +55,7 @@ static inline u16 ak_rd16(const u8 *p) { u16 v; memcpy(&v, p, 2); return v; }
 static inline u32 ak_rd32(const u8 *p) { u32 v; memcpy(&v, p, 4); return v; }
 static inline f32 ak_rdf32(const u8 *p) { f32 v; memcpy(&v, p, 4); return v; }
 
+/* MD5 (RFC 1321): the game's profile save carries one over its data (08831CE8) */
+void ak_md5(const void *data, size_t n, u8 out[16]);
+
 #endif

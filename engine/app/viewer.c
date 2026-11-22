@@ -189,6 +189,7 @@ int main(int argc, char **argv)
     ak_gfx_stats gs; memset(&gs, 0, sizeof gs);
     /* the front end (PARITY 8.2): the game's menus first (AK_FRONTEND=1; AK_FE_PAGE the first page), the level once launched */
     bool fe_on = ak_setting_int("AK_FRONTEND", 0) && ak_fe_init(vfs) && ak_fe_open(ak_setting_str("AK_FE_PAGE", "MP_MainMenu"));
+    if (ak_setting_int("AK_TEST_PROFILE_SAVE", 0) && ak_fe_init(vfs)) ak_fe_profile_save();   /* tests: the profile written back at once */
     { char sv[400]; snprintf(sv, sizeof sv, "%s/gc_conquest.sav", ak_plat_user_dir()); FILE *f = fopen(sv, "rb");   /* a saved conquest: New / Resume */
       if (f) { fclose(f); if (fe_on) ak_fe_var("BFF.HasGalacticConquestBeenPlayed", 1); } }
     ak_fe_set_blueprints(&bps);
@@ -571,7 +572,9 @@ int main(int argc, char **argv)
                 memcpy(fm.post_pos[fm.nposts], play.cq.post[i].pos, 12); fm.post_owner[fm.nposts] = play.match.post[i].owner; fm.post_name[fm.nposts] = play.cq.post[i].name;
                 fm.nposts++;
             }
-            {   static u16 me[16]; static u32 mel; if (!mel) { const char *pn = ak_setting_str("AK_PLAYER_NAME", "Player"); while (pn[mel] && mel < 15) { me[mel] = (u8)pn[mel]; mel++; } }
+            {   static u16 me[16]; static u32 mel; if (!mel) { u32 pl; const u16 *pf = ak_setting_str("AK_PLAYER_NAME", NULL) ? NULL : ak_fe_profile_name(&pl);   /* (the profile's name, else AK_PLAYER_NAME) */
+                if (pf) { while (mel < pl && mel < 15) { me[mel] = pf[mel]; mel++; } }
+                else { const char *pn = ak_setting_str("AK_PLAYER_NAME", "Player"); while (pn[mel] && mel < 15) { me[mel] = (u8)pn[mel]; mel++; } } }
                 /* on the team page, before the side is chosen, the original lists the good side as friendly and the player in
                    neither list (its frame: the Alliance on the left, 8 + 8 AI soldiers) */
                 bool choosing = ak_fe_page() && !strcmp(ak_fe_page(), "MP_Team_Selection");
@@ -637,6 +640,7 @@ int main(int argc, char **argv)
                     static const char *const camp[11] = { "YAVIN_IV", "SPACE_ALDERAAN", "ORD_MANTELL", "SPACE_KESSEL", "TATOOINE", "BOZ_PITY",
                                                           "HOTH_ION_CANNON", "SPACE_HOTH", "KORRIBAN", "SULLUST", "ENDOR" };
                     int li = 0; for (int k = 0; k < 11; k++) if (!strcmp(levels[cur].label + 9, camp[k])) li = k;
+                    ak_fe_campaign_won();
                     if (li < 10) { li++; char want[64]; snprintf(want, sizeof want, "CAMPAIGN %s", camp[li]);
                         for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, want)) cur = i;
                         AK_INFO("fe", "campaign: next mission %s", want); ak_fe_close(); loaded = false; play.ready = false; }
@@ -956,7 +960,9 @@ int main(int argc, char **argv)
                     /* a capture (089EADD4 on message 0x8082): "%s captured the flag" (STDTEXT 0x1B4) with the carrier's name, green when
                        the carrier is of the player's side, else red (08A4EDDC channel 1 / 2) */
                     s32 c = play.ctf.last_capturer; u32 nl = 0; const u16 *nm = NULL; static u16 me[16]; static u32 mel;
-                    if (c == 0) { if (!mel) { const char *pn = ak_setting_str("AK_PLAYER_NAME", "Player"); while (pn[mel] && mel < 15) { me[mel] = (u8)pn[mel]; mel++; } } nm = me; nl = mel; }
+                    if (c == 0) { if (!mel) { u32 pl; const u16 *pf = ak_setting_str("AK_PLAYER_NAME", NULL) ? NULL : ak_fe_profile_name(&pl);   /* (the profile's name, else AK_PLAYER_NAME) */
+                if (pf) { while (mel < pl && mel < 15) { me[mel] = pf[mel]; mel++; } }
+                else { const char *pn = ak_setting_str("AK_PLAYER_NAME", "Player"); while (pn[mel] && mel < 15) { me[mel] = (u8)pn[mel]; mel++; } } } nm = me; nl = mel; }
                     else if ((u32)(c - 1) < play.nbots) nm = ak_hud_bot_name(play.team_faction[play.bot[c - 1].team], play.bot[c - 1].name, &nl);
                     int side = c == 0 ? play.team : (u32)(c - 1) < play.nbots ? play.bot[c - 1].team : -1;
                     ak_hud_message(side == play.team ? 1 : 2, 0x1B4, nm, nl);

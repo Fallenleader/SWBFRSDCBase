@@ -6,9 +6,11 @@
 #include "../core/ak_settings.h"
 #include "../audio/ak_audio.h"
 #include "../assets/blueprint.h"
+#include "../platform/plat.h"
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 
 static void fill_all(const struct ak_widget *w);
@@ -57,6 +59,103 @@ static f32 var_get(const char *name)
     if (!strcmp(name, "GUIMenu.ActiveWidget")) return (f32)(s32)focus;
     if (!strcmp(name, "Asura.CurrentLanguage")) return 0;              /* (English) [assumed numbering] */
     return *var_ref(name);
+}
+
+/* ---- the player profile (PARITY 8.2): the game keeps it at 0x08C2933C, 0x80C bytes, and saves it as ULUS10292<slot>/DATA.BIN -
+ * 16 bytes of MD5 over the profile (08831CE8 from 0890D59C) then the profile, 16 KB in all (08A6A1DC: FUN_0890E50C(5, profile,
+ * 0x80C, 0x4000)); checked against the recompiled build's own saves (the MD5 of their 0x80C bytes is their first 16).  The script
+ * values point into it (registered by 08978CEC): the table below.  Aurek keeps the whole block, so the parts it does not read go
+ * back out as they came.  [assumed: the load checks the MD5 (its checker not read); the slot "0000"; loaded when the menus start] */
+#define PROF_SIZE 0x80C
+static u8 prof[PROF_SIZE]; static bool prof_have;
+static const struct { const char *name; u16 off; u8 kind; } prof_map[] = {   /* kind: 0 u8, 1 s32, 2 f32 */
+    { "BFF.Subtitles", 0x3F, 0 }, { "BFF.InfantryControlAimPitchSensitivity", 0x40, 2 }, { "BFF.InfantryControlAimYawSensitivity", 0x44, 2 },
+    { "BFF.InfantryControlPitchSensitivity", 0x48, 2 }, { "BFF.InfantryControlYawSensitivity", 0x4C, 2 },
+    { "BFF.InfantryControlInvertYAxis", 0x51, 0 }, { "BFF.VehicleControlInvertYAxis", 0x6D, 0 }, { "BFF.SpacecraftControlInvertYAxis", 0x89, 0 },
+    { "BFF.SpacecraftControlAutoLevelling", 0x8A, 0 }, { "BFF.VolumeMaster", 0x94, 2 }, { "BFF.VolumeMusic", 0x98, 2 }, { "BFF.VolumeSFX", 0x9C, 2 },
+    { "BFF.ProfileCampaignLevel", 0x5DC, 1 }, { "BFF.CutscenesUnlocked", 0x5E0, 1 }, { "BFF.HasGalacticConquestBeenPlayed", 0x6C8, 0 },
+};
+#define PROF_NAME 0x08                                                     /* the profile's name, UTF-16, 21 characters (089783BC) */
+static const char *prof_dir(void) { static char d[400]; const char *s = ak_setting_str("AK_SAVE_DIR", NULL);
+    if (s) snprintf(d, sizeof d, "%s", s); else snprintf(d, sizeof d, "%s/savedata", ak_plat_user_dir()); return d; }   /* (the PSP's PSP/SAVEDATA) */
+static void prof_path(char *out, size_t n) { snprintf(out, n, "%s/ULUS10292%s/DATA.BIN", prof_dir(), ak_setting_str("AK_SAVE_SLOT", "0000")); }
+static void pw8(u32 o, u8 v) { prof[o] = v; }
+static void pw32(u32 o, u32 v) { memcpy(prof + o, &v, 4); }
+static void pwf(u32 o, f32 v) { memcpy(prof + o, &v, 4); }
+/* a new profile: the game's constructor 089776BC with its parts 08977764 / 08977784 / 08977808 / 0897782C / 08977ED8 / 08977F80 /
+   08977878 (0.5 at 0x08AEE3AC, 1.0 at 0x08AEE3B0, 60.0 at 0x08AEE3B4) - the name "Player" (21 characters) */
+static void prof_new(void)
+{
+    memset(prof, 0, sizeof prof); prof[4] = 2;
+    { const char *nm = "Player"; for (u32 i = 0; nm[i]; i++) { u16 c = (u8)nm[i]; memcpy(prof + PROF_NAME + 2 * i, &c, 2); } }
+    pw8(0x38, 1); pw32(0x34, 1);
+    pw8(0x3C, 0x32); pw8(0x3D, 0); pw8(0x3F, 0); pw8(0x3E, 1);                                        /* 08977764 */
+    pwf(0x84, 0.5f); pw8(0x8A, 1); pw8(0x50, 0); pw8(0x51, 0); pwf(0x40, 0.5f); pwf(0x44, 0.5f); pwf(0x48, 0.5f); pwf(0x4C, 0.5f);   /* 08977784 */
+    pw32(0x54, 1); pw32(0x58, 0); pw8(0x52, 1); pw8(0x6C, 0); pw8(0x6D, 0); pwf(0x5C, 0.5f); pwf(0x60, 0.5f); pwf(0x64, 0.5f); pwf(0x68, 0.5f);
+    pw32(0x70, 1); pw32(0x74, 0); pw8(0x6E, 1); pw8(0x88, 0); pw8(0x89, 1); pwf(0x78, 0.5f); pwf(0x7C, 0.5f); pwf(0x80, 0.5f); pw32(0x8C, 1); pw32(0x90, 0);
+    pwf(0x94, 1.0f); pwf(0x98, 1.0f); pwf(0x9C, 1.0f); pwf(0xA0, 1.0f);                                 /* 08977808 */
+    pw32(0x1A4, 3); pwf(0x190, 60.0f); pw32(0x19C, 0x10); pw32(0x1A8, 100); pw32(0x1AC, 5); pwf(0x188, 60.0f); pwf(0x18C, 60.0f);   /* 0897782C */
+    pw32(0x194, 0x10); pw32(0x198, 0x10); pw32(0x1A0, 1);
+    { static const u32 t[10] = { 0, 1, 0, 1, 0, 0, 1, 1, 0, 0 }; for (u32 i = 0; i < 10; i++) pw32(0x1B4 + 4 * i, t[i]); pw8(0x1B0, 1); }   /* 08977ED8 */
+    pw8(0x5C8, 0x0B); pw8(0x5D4, 3); pw8(0x5D5, 0x0F); pw8(0x5B0, 6); pw8(0x5B1, 9); pw8(0x5BC, 5); pw8(0x5BD, 2); pw8(0x5C9, 2);   /* 08977F80 */
+    for (u32 i = 0; i < 4; i++) { pw32(0x7C4 + 12 * i, 2); pw32(0x7C8 + 12 * i, 0); pw32(0x7CC + 12 * i, 0); }   /* 08977878 (the rest zero) */
+    for (u32 i = 0; i < 16; i++) { pw8(0x704 + 12 * i, 0); pw32(0x708 + 12 * i, 2); pw32(0x70C + 12 * i, 0); }
+    pw8(6, 1); pw32(0x5DC, 0); pw32(0x5E0, 0);
+    prof_have = true;
+}
+static void prof_to_vars(void)
+{
+    for (size_t i = 0; i < sizeof prof_map / sizeof prof_map[0]; i++) {
+        const u8 *q = prof + prof_map[i].off; f32 v;
+        v = prof_map[i].kind == 0 ? (f32)q[0] : prof_map[i].kind == 1 ? (f32)(s32)ak_rd32(q) : ak_rdf32(q);
+        var_set(prof_map[i].name, v);
+    }
+    ak_setting_set("AK_SUBTITLES", var_get("BFF.Subtitles") != 0 ? "1" : "0");
+    ak_audio_set_volumes(var_get("BFF.VolumeMaster"), var_get("BFF.VolumeMusic"), var_get("BFF.VolumeSFX"));
+}
+static void prof_from_vars(void)
+{
+    for (size_t i = 0; i < sizeof prof_map / sizeof prof_map[0]; i++) {
+        u8 *q = prof + prof_map[i].off; f32 v = var_get(prof_map[i].name);
+        if (prof_map[i].kind == 0) q[0] = (u8)(v != 0); else if (prof_map[i].kind == 1) { s32 x = (s32)v; memcpy(q, &x, 4); } else memcpy(q, &v, 4);
+    }
+}
+bool ak_fe_profile_load(void)
+{
+    char p[512]; prof_path(p, sizeof p); FILE *f = fopen(p, "rb"); if (!f) return false;
+    u8 buf[16 + PROF_SIZE], sum[16]; size_t n = fread(buf, 1, sizeof buf, f); fclose(f);
+    if (n < sizeof buf) return false;
+    ak_md5(buf + 16, PROF_SIZE, sum);
+    if (memcmp(sum, buf, 16)) { AK_WARN("fe", "%s: the profile's checksum does not match - not loaded", p); return false; }
+    memcpy(prof, buf + 16, PROF_SIZE); prof_have = true; prof_to_vars();
+    AK_INFO("fe", "profile loaded (%s)", p);
+    return true;
+}
+bool ak_fe_profile_save(void)
+{
+    char p[512], d[512]; prof_path(p, sizeof p);
+    if (!prof_have) prof_new();
+    prof_from_vars();
+    static u8 out[0x4000]; memset(out, 0, sizeof out); ak_md5(prof, PROF_SIZE, out); memcpy(out + 16, prof, PROF_SIZE);
+    mkdir(prof_dir(), 0777); snprintf(d, sizeof d, "%s/ULUS10292%s", prof_dir(), ak_setting_str("AK_SAVE_SLOT", "0000")); mkdir(d, 0777);
+    FILE *f = fopen(p, "wb"); if (!f) { AK_WARN("fe", "%s: cannot write the profile", p); return false; }
+    bool ok = fwrite(out, 1, sizeof out, f) == sizeof out; fclose(f);
+    AK_INFO("fe", "profile saved (%s)", p);
+    return ok;
+}
+/* a won campaign mission (08972EB0 at the match's end, when the player's side won: 08973468): the profile's campaign level + 1, back to
+   0 past 10, the profile marked changed */
+void ak_fe_campaign_won(void)
+{
+    s32 l = (s32)var_get("BFF.ProfileCampaignLevel") + 1; if (l > 10 || l < 0) l = 0;
+    var_set("BFF.ProfileCampaignLevel", (f32)l); var_set("BFF.CampaignModeLevel", (f32)l);
+    if (ak_setting_int("AK_AUTOSAVE", 1)) ak_fe_profile_save();      /* [assumed: the autosave on - the game's autosave pages not traced] */
+}
+const u16 *ak_fe_profile_name(u32 *len)
+{
+    static u16 nm[22]; u32 n = 0;
+    if (prof_have) while (n < 21) { u16 c; memcpy(&c, prof + PROF_NAME + 2 * n, 2); if (!c) break; nm[n++] = c; }
+    *len = n; return n ? nm : NULL;
 }
 
 /* ---- the instant-action map table (0x08B1B980: 22 entries of 20 bytes, read in the original executable; the port's custom_maps.c
@@ -144,6 +243,7 @@ bool ak_fe_init(ak_vfs *v)
             for (u32 i = 0; i < base.ntex; i++) btex[i] = ak_gfx_texture(&base.tex[i]);
     }
     ready = nidx > 0;
+    if (ready && !ak_fe_profile_load()) { prof_new(); prof_to_vars(); }   /* (the profile if there is one: its options and campaign level; else the game's new one) */
     AK_INFO("fe", "%u menu pages in %d files, %u menu texts", nidx, NFILES, texts.n);
     return ready;
 }
@@ -817,6 +917,9 @@ static int run(const ak_gui_action *a, int row)
         ak_fe_close(); return AK_FE_QUIT;
     }
     else if (!strcmp(fn, "FE_EnterGameover")) {}                 /* (the button's page follows: the spawn map) */
+    else if (!strcmp(fn, "FE_SavePlayerProfile")) ak_fe_profile_save();   /* 08A2EA54 -> 08A62208: the profile to its save (above) */
+    else if (!strcmp(fn, "FE_LoadPlayerProfile")) ak_fe_profile_load();   /* 08A2EAC8 -> 08A62274 */
+    else if (!strcmp(fn, "FE_DeletePlayerProfile")) { char pp[512]; prof_path(pp, sizeof pp); remove(pp); prof_have = false; }
     else if (!strcmp(fn, "FE_RequestMenuMode")) var_set("BFF.FE_MenuMode", atoi(a->arg));   /* (which of a dialogue's answers show) */
     else if (!strcmp(fn, "FE_ResumePlay")) { ak_fe_close(); return AK_FE_RESUME; }
     else if (!strcmp(fn, "FE_StartGalacticConquest") || !strcmp(fn, "FE_CheckConquestState")) {

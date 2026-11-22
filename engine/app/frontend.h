@@ -24,7 +24,11 @@ typedef struct {
     u16 kills[2][32], deaths[2][32]; bool alive[2][32];          /* (the score boards) */
 } ak_fe_match;
 
-bool ak_fe_init(ak_vfs *vfs);                  /* the page index and the menu texts; false = no GUIMENU files */
+bool ak_fe_init(ak_vfs *vfs);
+bool ak_fe_profile_load(void);                 /* the player profile (savedata/ULUS10292<slot>/DATA.BIN, the game's format) */
+bool ak_fe_profile_save(void);
+const u16 *ak_fe_profile_name(u32 *len);       /* its name, NULL none */
+void ak_fe_campaign_won(void);                 /* a won campaign mission: the profile's level on (08973468), saved */                  /* the page index and the menu texts; false = no GUIMENU files */
 bool ak_fe_open(const char *page);             /* "MP_MainMenu" */
 int ak_fe_update(const ak_input *in, f32 dt);  /* AK_FE_START: a match was launched (FE_HostGame) */
 void ak_fe_draw(void);                         /* between ak_gfx_begin and ak_gfx_end */

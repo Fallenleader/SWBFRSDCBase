@@ -182,6 +182,13 @@ AK_TIME_LIMIT=60
 AK_GC_TICKETS=
 # Galactic Conquest: the player's faction for a new game (2 Alliance, 3 Empire, 4 random - the menu's choice)
 AK_GC_FACTION=4
+# ---- the player profile (8.2): the game's own save (ULUS10292<slot>/DATA.BIN: an MD5 and the 0x80C-byte profile), so a save from
+# the PSP or the recompiled build loads here and back.  It holds the options (volumes, subtitles, sticks), the name and the campaign
+# level.  Default folder: savedata/ in the user folder.
+#AK_SAVE_DIR=savedata
+AK_SAVE_SLOT=0000
+# 1 saves the profile after each won campaign mission (the game's autosave pages are not traced)
+AK_AUTOSAVE=1
 
 # Front end: 1 = start in the game's own menus (main menu; Instant Action > Launch starts the match), 0 = straight into AK_LEVEL
 AK_FRONTEND=0

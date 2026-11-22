@@ -1486,6 +1486,14 @@ textures and how they are used. Section R lists only what must be in place so th
     that the map table (0x08B1B980, 22 entries x 20 bytes: two level names, the name's STDTEXT id, four mode flags, the space
     flag) marks - no map offers mode 4 - and no placed object's mode mask holds GTAG without conquest (masks over all 45 levels:
     0x3F 711, 0x0C 78, 0x20 55, 0x21 54, 0x02 45, 0x08 24, 0x01 17, 0x0B 8, 0x1F 6, 0x2B 3, 0x2D 2). Next: the 8.2 leftovers.
+  - Part 61, 2026-11-22 - **8.2: the player profile and its save** (see NATIVE_ENGINE). Traced: the save path (08A2EA54 / 08A2EAC8 /
+    08A2EB0C -> 08A62208 / 08A62274 / 08A62294 -> 08A6A05C / 08A6A1DC -> 0890E50C / 0890E61C -> 0890D59C: MD5 + data), the profile's
+    constructor (089776BC: 08977764 / 08977784 / 08977808 / 0897782C / 08977ED8 / 08977F80 / 08977878), the name setter 089783BC
+    (FE_SetProfileName), the campaign level step 08973468 (from 08972EB0 at a won match's end; 08972F90 also counts the profile's
+    stats and medals: 0897300C / 08973070 / 08973218 / 089775E0 - not ported). Open: the profile's other fields (the stats at
+    +0xA4.., the 20 x 0x2C records at +0x1B0, the customisation bytes +0x5A8-0x5D8, GC at +0x6C8.., the 16 records at +0x704,
+    the 4 at +0x7C4), the name entry (the OSK), the autosave pages, the controls pages, the spawn map's zoom, the customisation
+    menu's open points.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
