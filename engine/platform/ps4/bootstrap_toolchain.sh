@@ -25,7 +25,7 @@ if [ ! -d oollvm ]; then
 fi
 
 # stubs and crt from the last commit that had their sources
-mkdir -p ootc && (cd oo && git archive c946047^ src/lib src/crt | tar -x -C ../ootc)
+mkdir -p ootc && (cd oo && git archive c946047^ src/lib src/crt bin/data | tar -x -C ../ootc)
 (cd ootc/src/lib && mkdir -p build/lib && make -j"$(nproc)" -k >/dev/null 2>&1 || true)
 cp ootc/src/lib/build/lib/*.so "$TC/lib/"
 as ootc/src/crt/crt1.S -o "$TC/lib/crt1.o"; as ootc/src/crt/crtlib.S -o "$TC/lib/crtlib.o"
@@ -55,5 +55,11 @@ cmake -S libcxx -B b-cxx $COMMON -DCMAKE_C_FLAGS="$CF" -DCMAKE_CXX_FLAGS="$CF" -
 make -C b-cxx -j"$(nproc)" >/dev/null
 cmake --install b-cxx --prefix "$W/cxxinst" >/dev/null
 mkdir -p "$TC/include/c++"; cp -r "$W/cxxinst/include/c++/v1" "$TC/include/c++/"
-cp b-cxx/lib/libc++.a b-abi/lib/libc++abi.a b-unw/lib/libunwind.a "$TC/lib/"
+cp b-cxx/lib/libc++.a "$TC/lib/libc++_only.a"; cp b-abi/lib/libc++abi.a b-unw/lib/libunwind.a "$TC/lib/"
+# one libc++.a with libc++abi and libunwind inside, as the release's (PS4GL_GNM and the samples link -lc++ alone)
+(cd "$TC/lib" && printf 'create libc++.a\naddlib libc++_only.a\naddlib libc++abi.a\naddlib libunwind.a\nsave\nend\n' | llvm-ar -M)
+# the sample folders mkpkg-style packagers take sce_module/ and right.sprx from
+cp -r oo/samples "$TC/"; H=$TC/samples/hello_world; mkdir -p "$H/sce_module" "$H/sce_sys/about"
+cp oo/samples/piglet/sce_module/libc.prx oo/samples/piglet/sce_module/libSceFios2.prx "$H/sce_module/"
+cp oo/samples/piglet/sce_sys/about/right.sprx "$H/sce_sys/about/" 2>/dev/null || cp ootc/bin/data/right.sprx "$H/sce_sys/about/"
 echo "OO_PS4_TOOLCHAIN=$TC"

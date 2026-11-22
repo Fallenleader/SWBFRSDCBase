@@ -48,7 +48,7 @@ void ak_plat_trophy_init(void) {}                  /* (PS5 trophies: not in this
 void ak_plat_trophy_unlock(int id) { (void)id; }
 void ak_plat_first_frame(void) { int r = sceSystemServiceHideSplashScreen(); AK_INFO("plat", "launch splash hidden (0x%08x)", (unsigned)r); }
 
-static f32 stick(u8 v) { int d = (int)v - 128; if (d > -20 && d < 20) return 0.0f; f32 f = d / 127.0f; return f > 1 ? 1 : f < -1 ? -1 : f; }
+static f32 pad_axis(u8 v) { int d = (int)v - 128; if (d > -20 && d < 20) return 0.0f; f32 f = d / 127.0f; return f > 1 ? 1 : f < -1 ? -1 : f; }
 
 /* the DualSense in the Vita's twin-stick layout: face buttons and d-pad as named, L1 or L2 = L, R1 or R2 = R, OPTIONS = START,
  * CREATE or the touch pad = SELECT; left stick moves, right stick aims */
@@ -72,7 +72,7 @@ bool ak_plat_poll(ak_input *in)
         if (s & 0x00004000u) h |= AK_BTN_CROSS;
         if (s & 0x00008000u) h |= AK_BTN_SQUARE;
         in->held = h;
-        in->lx = stick(d[4]); in->ly = -stick(d[5]); in->rx = stick(d[6]); in->ry = -stick(d[7]);
+        in->lx = pad_axis(d[4]); in->ly = -pad_axis(d[5]); in->rx = pad_axis(d[6]); in->ry = -pad_axis(d[7]);
     }
     in->pressed = in->held & ~prev;
     return true;                                         /* (the system's PS button suspends or closes the title) */
