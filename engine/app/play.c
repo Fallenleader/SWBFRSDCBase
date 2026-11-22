@@ -3124,7 +3124,7 @@ static void props_init(ak_play *p, const ak_level *l, const ak_model_set *m, ak_
         u32 at = 16 + ak_rd32(b + 60); if (at + 9 > nw) continue;
         f32 g[3] = { ak_rdf32(b + 4 * at), ak_rdf32(b + 4 * (at + 1)), ak_rdf32(b + 4 * (at + 2)) }, hp = ak_rdf32(b + 4 * (at + 7));
         ak_quat r = { ak_rdf32(b + 4 * (at + 3)), -ak_rdf32(b + 4 * (at + 4)), -ak_rdf32(b + 4 * (at + 5)), ak_rdf32(b + 4 * (at + 6)) };   /* (engine axes, as the movers') */
-        u32 h = ak_rd32(b + 4 * (at + 8));
+        u32 h = ak_rd32(b + 4 * (at + 8)), side = at + 14 < nw ? ak_rd32(b + 4 * (at + 14)) : 2;
         if (!(hp > 0 && hp < 100000) || fabsf(r.x * r.x + r.y * r.y + r.z * r.z + r.w * r.w - 1) > 0.01f) continue;
         f32 mn[3], mx[3]; bool got = false; ak_chunk d; u32 q = 8;
         while (!got && ak_asura_next(&l->file, &q, &d)) {
@@ -3143,7 +3143,11 @@ static void props_init(ak_play *p, const ak_level *l, const ak_model_set *m, ak_
         for (int j = 0; j < 3; j++) { mc[j] = 0.5f * (mn[j] + mx[j]); t->box_h[j] = fmaxf(0.1f, 0.5f * (mx[j] - mn[j])); }
         for (int j = 0; j < 3; j++) { t->box_c[j] = ep[j] + mc[0] * R[0][j] + mc[1] * R[1][j] + mc[2] * R[2][j]; for (int k2 = 0; k2 < 3; k2++) t->box_ax[j][k2] = R[j][k2]; }
         t->boxed = true; memcpy(t->feet, ep, 12); t->height = 2 * t->box_h[1]; t->radius = fmaxf(t->box_h[0], t->box_h[2]);
-        t->health = t->max_health = hp; t->alive = false; t->team = AK_CQ_NEUTRAL; t->last_attacker = -1; t->elite = 1.0f; t->headshot_mult = 1.0f;
+        /* the side after the hull hash (+0 0 0, a flag, -1, side): Yavin's consoles 2 - live after the script's 0x26 / 0x8019 {1};
+           Space Alderaan's critical systems 1883c-f / 188fc-f / 18709-a 1 (the Empire's; the script sends them no 0x26) - live from
+           the start [assumed: that the side decides it] */
+        bool own = side <= 1;
+        t->health = t->max_health = hp; t->alive = own; p->prop[k].armed = own; t->team = own ? (int)side : AK_CQ_NEUTRAL; t->last_attacker = -1; t->elite = 1.0f; t->headshot_mult = 1.0f;
         AK_INFO("play", "prop %x: health %.0f, %u events, hull %08x %.2f x %.2f x %.2f at %.2f %.2f %.2f", id, hp, nev, h, 2 * t->box_h[0], 2 * t->box_h[1], 2 * t->box_h[2], t->box_c[0], t->box_c[1], t->box_c[2]);
     }
 }
@@ -3450,14 +3454,13 @@ static void script_sink(void *user, const ak_script_msg *m)
     }
     else if (m->target == 0x3E8 && m->type == 0x801E) { ak_hud_tip_clear(); done = true; }   /* (clears the tip [assumed]) */
     else if (m->target == 0x3E8 && m->type == 0x8017 && m->nextra >= 12) {
-        /* the counter under the radar: {u32 how, u32 total, u32 n}.  Yavin's training: group 21 {1, 4, 0} as the stormtroopers come
-           (the original then showed "0/4", ct25), each fall {1, 4, 1} (groups 25-28 from the counter 18beb), later {1, 5, 1} /
-           {1, 10, 1}; group 44 {0, 3, 0} ("0/3", ct37), each control room bank {0, 3, 1} (groups 52-54).  Measured: four {1, 4, 1} in
-           one frame showed "1/4" (ct27) - set; {0, 3, 1} twice showed "1/3" then "2/3" (ct38) - added.  [assumed: the first word picks
-           set (1) or add (0), the second is the total; the handler is not traced] */
-        u32 how = ak_rd32(m->extra), tot = ak_rd32(m->extra + 4), n = ak_rd32(m->extra + 8);
-        p->counter_val = how || (s32)tot != p->counter_total ? (s32)n : p->counter_val + (s32)n;   /* [assumed: a new total starts it again -
-                                                                         otherwise the troopers' count would run on into the control room's 0/3] */
+        /* the counter under the radar: {u32, u32 total, u32 n} - n added.  Yavin's training: group 21 {1, 4, 0} as the stormtroopers
+           come ("0/4", ct25), each fall {1, 4, 1}, group 44 {0, 3, 0} ("0/3", ct37), each control room bank {0, 3, 1} ("1/3", "2/3",
+           ct38); Space Alderaan: 115 {1, 5, 0} ("0/5"), 54 / 55 / 56 {1, 5, 1} each ("1/5", "2/5", "3/5", sa_h14) - so added whatever
+           the first word.  [assumed: a new total starts it again (the troopers' count would otherwise run into the 0/3); the first
+           word's meaning is open; ct27's four {1, 4, 1} in one frame showed "1/4" - not explained] */
+        u32 tot = ak_rd32(m->extra + 4), n = ak_rd32(m->extra + 8);
+        p->counter_val = (s32)tot != p->counter_total ? (s32)n : p->counter_val + (s32)n;
         p->counter_total = (s32)tot;
         done = true; }
     else if ((m->type == 0x3B || m->type == 0x51) && p->nnode_open < 32) {   /* a path node opened (0x3B) or shut (0x51): 08855908's flag 0x40 */
@@ -3483,6 +3486,10 @@ static void script_sink(void *user, const ak_script_msg *m)
     if (!done && (m->type == 0x26 || m->type == 0x8019))                     /* a breakable prop made live (0x26 / 0x8019 {1}) [assumed] */
         for (u32 i = 0; i < p->nprop; i++) if (p->prop[i].id == m->target) { done = true;
             if (m->nextra >= 4 && ak_rd32(m->extra) == 1 && !p->prop[i].down) { p->prop[i].armed = true; p->target[NP(p) + i].alive = true; } }
+    if (!done && m->type == 4)                                               /* 4: a prop off (Space Alderaan's 27 / 47 / 70 / 82 send it 2 s after
+                                                                         one of a pair of critical systems breaks, to the other) [assumed: no
+                                                                         longer hurt, no event] */
+        for (u32 i = 0; i < p->nprop; i++) if (p->prop[i].id == m->target) { done = true; p->prop[i].armed = false; p->target[NP(p) + i].alive = false; }
     if (!done && (m->type == 3 || m->type == 4) && p->have_ctf && ak_game_mode == 5) {   /* the campaign's carried object / its base on (3), off (4) */
         for (u32 i = 0; i < p->ctf_map.nflags && !done; i++) if (p->ctf_map.flag[i].id == m->target) { done = true;
             ak_ctf_flag *fl = &p->ctf.flag[i]; fl->off = m->type == 4;

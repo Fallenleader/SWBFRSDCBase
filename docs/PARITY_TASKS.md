@@ -1346,6 +1346,15 @@ textures and how they are used. Section R lists only what must be in place so th
     part-41 rule (first word 1 = set) that shows 1/5 after every kill; check in the harness. The rest of the mission is long:
     the five TIEs (-> 24), the critical systems (type 7 props 1883c-f / 188fc-f, events 3), a data carry (188c5 / 18875) and
     the end (0x8006 from 41 / 68 / 88). Yavin's training still wins (its Recon_Droid is not a flyer: no pilot).
+  - Part 45, 2026-11-22 - **the radar counter adds; Space Alderaan's critical systems are targets.** Harness sa_h14 (RS_FIRE_AT
+    115, 54, 55, 56 after boarding): "0/5" then "1/5", "2/5", "3/5" from three {1, 5, 1} - the third word is added whatever the
+    first (part 41's set / add split was wrong; ct27's "1/4" after four {1, 4, 1} in one frame stays unexplained). Rule now: add,
+    a new total starts again [assumed]. The critical systems are type-7 records with SHAP hulls (1883c-f / 188fc-f: hull
+    a9cdd4e9, a 220 x 345 x 255 m bipyramid, health 250; 18709 / 1870a: b2a2c2c9, 39 x 53 x 39 m, health 100) and side 1, where
+    Yavin's consoles have side 2 and wait for the script's 0x26 / 0x8019 {1} (Space Alderaan sends them 0x8019 {0x100} and no
+    0x26): props of side 0 / 1 are live from the start as that side's [assumed: the side decides it]; the script's 4 turns one
+    off (2 s after its pair breaks - groups 27 / 47 / 70 / 82) [assumed]. The five-TIE wave (115) now flies with pilots. Open:
+    a prop's box is the hull's box (the bipyramid's corners stop shots too), the data carry 188c5 / 18875, the end; then ORD_MANTELL.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
