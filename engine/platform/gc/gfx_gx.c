@@ -7,7 +7,7 @@
  *  - fog: GX's linear fog; cutouts: the alpha compare; blending: the blend unit; the beam: a precomputed glow texture
  *  - textures stay 4 / 8-bit palette images (CI4 / CI8, tiled), palettes as RGB5A3 TLUTs; personalised palettes share the pixels
  *  - geometry: the engine's vertices as arrays (stride 28), drawn with 16-bit indices from the CPU
- * No polygon offset on GX: decals / overlays are drawn without one (possible z-fighting) [open].  Normals are signed 8-bit with
+ * No polygon offset on GX: overlays and blended decals are pulled toward the eye instead (transform).  Normals are signed 8-bit with
  * 6 fraction bits on GX (x2 against the engine's /127), so the lights' colours are halved. */
 #include "../../render/ak_gfx.h"
 #include "../../render/ak_font.h"
@@ -309,7 +309,11 @@ static void transform(ak_pipe p)
 {
     Mtx mv; bool persp = have_proj && p != AK_PIPE_HUD;
     ak_m4 m = persp ? mul4(&proj_inv, &cur_mvp) : cur_mvp;
-    for (int r = 0; r < 3; r++) for (int c = 0; c < 4; c++) mv[r][c] = el(&m, r, c);
+    /* GX has no polygon offset: the GL back end's glPolygonOffset(-1, -2) for overlays and blended decals becomes a pull toward the
+     * eye - the model-view scaled by 1 - 1/2048 about it: the same place on screen, the depth a 2048th nearer (enough for 24-bit depth
+     * from the 0.25 m near plane out to the far one; also at grazing angles, where a fixed offset is not) */
+    f32 pull = persp && (p == AK_PIPE_OVERLAY || p == AK_PIPE_BLEND) ? 1.0f - 1.0f / 2048.0f : 1.0f;
+    for (int r = 0; r < 3; r++) for (int c = 0; c < 4; c++) mv[r][c] = el(&m, r, c) * pull;
     GX_LoadPosMtxImm(mv, GX_PNMTX0);
     GX_LoadProjectionMtx(persp ? gx_persp : gx_ortho, persp ? GX_PERSPECTIVE : GX_ORTHOGRAPHIC);
     Mtx tm; guMtxIdentity(tm);

@@ -270,13 +270,15 @@ static int tri_cmp(const void *x, const void *y)
  * walls).  The PSP draws them after their base and lets equal depth pass; with draws reordered for the GPU they fight for the
  * same depth.  A triangle that lies in the plane of an earlier triangle (the game's order) of another material and overlaps it with
  * real area (not just a shared edge) is marked as an overlay: it is drawn after the base surfaces with a small depth bias. */
-typedef struct { s32 k[4]; u32 tri; } plane_rec;
+typedef struct { s32 k[4]; u32 tri; f32 d; } plane_rec;
 static int plane_cmp(const void *x, const void *y)
 {
     const plane_rec *p = (const plane_rec *)x, *q = (const plane_rec *)y;
     for (int i = 0; i < 4; i++) if (p->k[i] != q->k[i]) return p->k[i] < q->k[i] ? -1 : 1;
     return p->tri < q->tri ? -1 : p->tri > q->tri ? 1 : 0;
 }
+static const plane_rec *g_pr;
+static int by_tri(const void *x, const void *y) { u32 a = g_pr[*(const u32 *)x].tri, b = g_pr[*(const u32 *)y].tri; return a < b ? -1 : a > b; }
 static void proj2(const f32 *p, int ax, f32 *o) { o[0] = p[ax == 0 ? 1 : 0]; o[1] = p[ax == 2 ? 1 : 2]; }
 static bool sep_axis(const f32 (*a)[2], const f32 (*b)[2], f32 eps)
 {
@@ -299,10 +301,14 @@ static bool sep_axis(const f32 (*a)[2], const f32 (*b)[2], f32 eps)
 static ak_arena *tmp_a;
 static void *tmp_alloc(size_t n) { return ak_arena_alloc_top(tmp_a, n ? n : 1, 16); }
 static void *tmp_zalloc(size_t n) { void *q = tmp_alloc(n); if (q) memset(q, 0, n ? n : 1); return q; }
+/* Each triangle against the earlier ones (the game's order) facing the same way whose planes are within 2 cm (plane keys 4 cm apart,
+ * so the neighbouring keys are looked at too: two faces on either side of a key's edge were missed before) - of another material,
+ * or of the same one (Space Kessel's hangar ceiling: one material's panels laid over its own base, fighting on every GPU) */
 static u32 mark_overlays(const ak_vtx *V, const u32 (*tri)[3], const u32 *mat, const u8 *lay, u8 *overlay, u32 nt)
 {
     plane_rec *pr = (plane_rec *)tmp_alloc(sizeof *pr * (nt ? nt : 1)); u32 np = 0, marked = 0;
-    if (!pr) return 0;
+    u32 *ord = (u32 *)tmp_alloc(4u * (nt ? nt : 1));
+    if (!pr || !ord) return 0;
     for (u32 i = 0; i < nt; i++) {
         if (lay[i]) continue;
         const f32 *p0 = V[tri[i][0]].pos, *p1 = V[tri[i][1]].pos, *p2 = V[tri[i][2]].pos;
@@ -312,22 +318,29 @@ static u32 mark_overlays(const ak_vtx *V, const u32 (*tri)[3], const u32 *mat, c
         if (l < 1e-6f) continue;
         n[0] /= l; n[1] /= l; n[2] /= l;
         pr[np].k[0] = (s32)lrintf(n[0] * 50); pr[np].k[1] = (s32)lrintf(n[1] * 50); pr[np].k[2] = (s32)lrintf(n[2] * 50);
-        pr[np].k[3] = (s32)lrintf((n[0] * p0[0] + n[1] * p0[1] + n[2] * p0[2]) * 25);      /* 4 cm planes */
+        pr[np].d = n[0] * p0[0] + n[1] * p0[1] + n[2] * p0[2];
+        pr[np].k[3] = (s32)lrintf(pr[np].d * 25);                                     /* 4 cm planes */
         pr[np].tri = i; np++;
     }
     qsort(pr, np, sizeof *pr, plane_cmp);
-    for (u32 g0 = 0; g0 < np;) {
+    for (u32 g0 = 0; g0 < np;) {                       /* a group: one facing (k[0..2]), sorted by plane key, then the game's order */
         u32 g1 = g0 + 1;
-        while (g1 < np && !memcmp(pr[g1].k, pr[g0].k, sizeof pr[g0].k)) g1++;
-        if (g1 - g0 > 1 && g1 - g0 < 4096) {
-            for (u32 j = g0 + 1; j < g1; j++) {               /* later triangle j over an earlier triangle i of another material */
-                u32 tj = pr[j].tri;
-                f32 nrm[3] = { (f32)pr[j].k[0], (f32)pr[j].k[1], (f32)pr[j].k[2] };
-                int ax = fabsf(nrm[0]) > fabsf(nrm[1]) ? (fabsf(nrm[0]) > fabsf(nrm[2]) ? 0 : 2) : (fabsf(nrm[1]) > fabsf(nrm[2]) ? 1 : 2);
-                f32 B[3][2]; for (int k = 0; k < 3; k++) proj2(V[tri[tj][k]].pos, ax, B[k]);
-                for (u32 i = g0; i < j && !overlay[tj]; i++) {
+        while (g1 < np && !memcmp(pr[g1].k, pr[g0].k, 3 * sizeof(s32))) g1++;
+        u32 n = g1 - g0;
+        if (n > 1) {
+            for (u32 q = 0; q < n; q++) ord[q] = g0 + q;
+            g_pr = pr; qsort(ord, n, 4, by_tri);         /* (the triangles taken in the game's order: earlier ones are final) */
+            f32 nrm[3] = { (f32)pr[g0].k[0], (f32)pr[g0].k[1], (f32)pr[g0].k[2] };
+            int ax = fabsf(nrm[0]) > fabsf(nrm[1]) ? (fabsf(nrm[0]) > fabsf(nrm[2]) ? 0 : 2) : (fabsf(nrm[1]) > fabsf(nrm[2]) ? 1 : 2);
+            for (u32 q = 0; q < n; q++) {
+                u32 j = ord[q], tj = pr[j].tri; s32 kj = pr[j].k[3];
+                u32 lo = j; while (lo > g0 && pr[lo - 1].k[3] >= kj - 1) lo--;
+                f32 B[3][2]; bool have_b = false; u32 looked = 0;
+                for (u32 i = lo; i < g1 && pr[i].k[3] <= kj + 1 && !overlay[tj] && looked < 4096; i++) {
                     u32 ti = pr[i].tri;
-                    if (mat[ti] == mat[tj] || overlay[ti]) continue;
+                    if (ti >= tj || overlay[ti] || fabsf(pr[i].d - pr[j].d) > 0.02f) continue;
+                    looked++;
+                    if (!have_b) { for (int k = 0; k < 3; k++) proj2(V[tri[tj][k]].pos, ax, B[k]); have_b = true; }
                     f32 A[3][2]; for (int k = 0; k < 3; k++) proj2(V[tri[ti][k]].pos, ax, A[k]);
                     if (!sep_axis((const f32 (*)[2])A, (const f32 (*)[2])B, 0.01f)) { overlay[tj] = 1; marked++; }
                 }
@@ -335,7 +348,8 @@ static u32 mark_overlays(const ak_vtx *V, const u32 (*tri)[3], const u32 *mat, c
         }
         g0 = g1;
     }
-        return marked;
+    (void)mat;
+    return marked;
 }
 
 static s8 snorm8(s16 v) { int r = (v * 127 + (v >= 0 ? 16384 : -16384)) / 32768; return (s8)(r < -127 ? -127 : r > 127 ? 127 : r); }
