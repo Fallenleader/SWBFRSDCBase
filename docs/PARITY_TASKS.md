@@ -1447,6 +1447,14 @@ textures and how they are used. Section R lists only what must be in place so th
     region 18795 -> 40 -> 41 -> 0x8006 winner 0. Skips used: AK_TEST_FIRE 5 / 3 / 25 / 37, AK_TEST_BREAK 18770 / 18772,
     teleports. Still open there: 0x51 / 0x3B to path nodes (the AT-AT's route switches), 0x801F to the spawners, 0x8022 to the
     ticket entity, 0x6 / 0x7 to selectors 1889e / 188d3 [handled], 0x39 to 1888e. Next: HOTH_ION_CANNON.
+  - Part 55, 2026-11-22 - **Hoth Ion Cannon runs to its win in Aurek** (with test skips; nothing to fix in the engine). The chain is
+    in NATIVE_ENGINE.md's row. Skips used: AK_TEST_FIRE 24 (the post capture), 27 (the second console - the teleport put the
+    player 5 cm under its floor, so he fell 8 m: a test artifact), 16 (the 60 s timer); AK_TEST_BREAK the three generators, the
+    AT-AT 1878f and Vader's spawner 186f4; teleports and the use button. Seen: a region fires again each time its "who" enters
+    it (187a9 -> 15 twice, 187b0 -> 44 three times after repeated teleports) - the script node's success (vtable +0x50 ->
+    088725B8 -> 08872620: the group, the node stays active) is traced for timers; the region class (unflagged type 20, its
+    loader not traced) may differ [assumed: stays active, as now]. Still open there: 0x1A to type 43, 0x800E to 1872a / 1873d,
+    0x1B / 0x1C, 0x8018 / 0x8002 to the ticket entity. Next: SPACE_HOTH.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
