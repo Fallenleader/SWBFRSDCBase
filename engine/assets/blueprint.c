@@ -11,7 +11,7 @@ u32 ak_bp_hash(const char *s)
 }
 
 typedef struct { const u8 *p; u32 pos, size; bool bad; } rd;
-static u32 r32(rd *r) { if (r->pos + 4 > r->size) { r->bad = true; return 0; } u32 v; memcpy(&v, r->p + r->pos, 4); r->pos += 4; return v; }
+static u32 r32(rd *r) { if (r->pos + 4 > r->size) { r->bad = true; return 0; } u32 v = ak_rd32(r->p + r->pos); r->pos += 4; return v; }
 static u8  r8(rd *r)  { if (r->pos + 1 > r->size) { r->bad = true; return 0; } return r->p[r->pos++]; }
 /* a zero-terminated name padded to 4 (from its own start), copied into the arena */
 static const char *rstr(rd *r, ak_arena *a)

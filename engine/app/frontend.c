@@ -87,14 +87,14 @@ static const char *prof_dir(void) { static char d[400]; const char *s = ak_setti
     if (s) snprintf(d, sizeof d, "%s", s); else snprintf(d, sizeof d, "%s/savedata", ak_plat_user_dir()); return d; }   /* (the PSP's PSP/SAVEDATA) */
 static void prof_path(char *out, size_t n) { snprintf(out, n, "%s/ULUS10292%s/DATA.BIN", prof_dir(), ak_setting_str("AK_SAVE_SLOT", "0000")); }
 static void pw8(u32 o, u8 v) { prof[o] = v; }
-static void pw32(u32 o, u32 v) { memcpy(prof + o, &v, 4); }
-static void pwf(u32 o, f32 v) { memcpy(prof + o, &v, 4); }
+static void pw32(u32 o, u32 v) { ak_wr32(prof + o, v); }
+static void pwf(u32 o, f32 v) { u32 w; memcpy(&w, &v, 4); ak_wr32(prof + o, w); }
 /* a new profile: the game's constructor 089776BC with its parts 08977764 / 08977784 / 08977808 / 0897782C / 08977ED8 / 08977F80 /
    08977878 (0.5 at 0x08AEE3AC, 1.0 at 0x08AEE3B0, 60.0 at 0x08AEE3B4) - the name "Player" (21 characters) */
 static void prof_new(void)
 {
     memset(prof, 0, sizeof prof); prof[4] = 2;
-    { const char *nm = "Player"; for (u32 i = 0; nm[i]; i++) { u16 c = (u8)nm[i]; memcpy(prof + PROF_NAME + 2 * i, &c, 2); } }
+    { const char *nm = "Player"; for (u32 i = 0; nm[i]; i++) { ak_wr16(prof + PROF_NAME + 2 * i, (u8)nm[i]); } }
     pw8(0x38, 1); pw32(0x34, 1);
     pw8(0x3C, 0x32); pw8(0x3D, 0); pw8(0x3F, 0); pw8(0x3E, 1);                                        /* 08977764 */
     pwf(0x84, 0.5f); pw8(0x8A, 1); pw8(0x50, 0); pw8(0x51, 0); pwf(0x40, 0.5f); pwf(0x44, 0.5f); pwf(0x48, 0.5f); pwf(0x4C, 0.5f);   /* 08977784 */
@@ -164,7 +164,7 @@ void ak_fe_campaign_won(void)
 const u16 *ak_fe_profile_name(u32 *len)
 {
     static u16 nm[22]; u32 n = 0;
-    if (prof_have) while (n < 21) { u16 c; memcpy(&c, prof + PROF_NAME + 2 * n, 2); if (!c) break; nm[n++] = c; }
+    if (prof_have) while (n < 21) { u16 c = ak_rd16(prof + PROF_NAME + 2 * n); if (!c) break; nm[n++] = c; }
     *len = n; return n ? nm : NULL;
 }
 
@@ -972,7 +972,7 @@ static void medals_check(void)                                         /* 089775
 {
     if (!prof_have) prof_new();
     u32 all = 1; for (int i = 0; i < 22; i++) if (!stat_get(i)) all = 0;
-    memcpy(prof + 0xA4 + 4 * 45, &all, 4);
+    ak_wr32(prof + 0xA4 + 4 * 45, all);
     for (int k = 0; k < 29; k++) {
         if (prof[0x168 + k]) continue;
         const ak_bp_object *o = medal_obj(k); if (!o) continue;
@@ -992,7 +992,7 @@ static void medals_check(void)                                         /* 089775
 void ak_fe_stat(int i)                                                 /* 089775E0 */
 {
     if (i < 0 || i >= NSTATS) return;
-    u32 v = stat_get(i) + 1; memcpy(prof + 0xA4 + 4 * i, &v, 4); prof[6] = 1; medals_check();
+    u32 v = stat_get(i) + 1; ak_wr32(prof + 0xA4 + 4 * i, v); prof[6] = 1; medals_check();
 }
 u32 ak_fe_stat_value(int i) { return stat_get(i); }
 bool ak_fe_has_profile(void) { return prof_have; }
@@ -1420,7 +1420,7 @@ static int run(const ak_gui_action *a, int row)
     else if (!strcmp(fn, "FE_Personalisation_AcceptTeamColour")) { pers_rec()[8] = (u8)atoi(a->arg); pers_back(); }   /* 08A3619C */
     else if (!strcmp(fn, "FE_Personalisation_AcceptUniformColour")) { pers_rec()[9] = (u8)atoi(a->arg); pers_back(); }   /* 08A3624C */
     else if (!strcmp(fn, "FE_Personalisation_AcceptInsignia")) {       /* 08A362FC: one for every faction */
-        u32 v = (u32)atoi(a->arg); if (!prof_have) prof_new(); memcpy(prof + 0x5D8, &v, 4); pers_back(); }
+        u32 v = (u32)atoi(a->arg); if (!prof_have) prof_new(); ak_wr32(prof + 0x5D8, v); pers_back(); }
     else if (!strcmp(fn, "FE_Personalisation_ConfirmCancel")) open_layer(ak_gui_hash("MP_PersonCancel"));   /* 08A35FE4 */
     else if (!strcmp(fn, "FE_Personalisation_Cancel")) { pers_close(); return AK_FE_NONE; }   /* 08A35F70 */
     else if (!strcmp(fn, "FE_RespawnOrTeamSelect")) {}
@@ -1438,7 +1438,7 @@ static int run(const ak_gui_action *a, int row)
                                                                          characters) - Aurek has no on-screen keyboard: AK_PLAYER_NAME is the
                                                                          typed name [assumed] */
         const char *nm = ak_setting_str("AK_PLAYER_NAME", NULL);
-        if (nm) { if (!prof_have) prof_new(); memset(prof + PROF_NAME, 0, 42); for (u32 i = 0; nm[i] && i < 20; i++) { u16 c = (u8)nm[i]; memcpy(prof + PROF_NAME + 2 * i, &c, 2); } prof[6] = 1; } }
+        if (nm) { if (!prof_have) prof_new(); memset(prof + PROF_NAME, 0, 42); for (u32 i = 0; nm[i] && i < 20; i++) ak_wr16(prof + PROF_NAME + 2 * i, (u8)nm[i]); prof[6] = 1; } }
     else if (!strcmp(fn, "FE_OpenProfileMenu")) open_hash(0x5B53EB0Du, true);   /* 08A2E8B4: the profile page */
     else if (!strcmp(fn, "FE_ExitAutoSaveMenu") || !strcmp(fn, "FE_ForceProfileChangeState") || !strcmp(fn, "FE_ProfileNameOnInit")) {}   /* (flags of the game's save state: 08A2F624 / 08A2EB50 / 08A2E9A0) */
     else if (!strcmp(fn, "FE_SavePlayerProfile")) ak_fe_profile_save();   /* 08A2EA54 -> 08A62208: the profile to its save (above) */

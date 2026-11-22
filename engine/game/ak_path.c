@@ -5,7 +5,7 @@
 #include "game/ak_path.h"
 #include "core/ak_settings.h"
 
-static f32 wf(const u8 *p) { f32 f; memcpy(&f, p, 4); return f; }
+static f32 wf(const u8 *p) { return ak_rdf32(p); }
 
 /* the ENTI record with this id and type (its body and size), or NULL */
 static const u8 *find_enti(const ak_level *l, u32 id, u32 type, u32 *size)

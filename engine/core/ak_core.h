@@ -57,10 +57,23 @@ bool ak_file_read(const char *path, ak_arena *a, ak_blob *out);
 /* ---- hashing (the game's resource names are matched case-insensitively) */
 u32 ak_hash_name(const char *s);    /* FNV-1a over lower-cased bytes, '/' == '\\' */
 
-/* ---- little-endian reads from unaligned data (all game files are little endian) */
-static inline u16 ak_rd16(const u8 *p) { u16 v; memcpy(&v, p, 2); return v; }
-static inline u32 ak_rd32(const u8 *p) { u32 v; memcpy(&v, p, 4); return v; }
-static inline f32 ak_rdf32(const u8 *p) { f32 v; memcpy(&v, p, 4); return v; }
+/* ---- little-endian reads from unaligned data (all game files are little endian).  Big-endian devices (Wii U, GameCube) swap;
+ * the little-endian ones compile these to plain loads.  AK_BIG_ENDIAN: values in memory read from the files must be swapped. */
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define AK_BIG_ENDIAN 1
+static inline u16 ak_le16(u16 v) { return __builtin_bswap16(v); }
+static inline u32 ak_le32(u32 v) { return __builtin_bswap32(v); }
+#else
+#define AK_BIG_ENDIAN 0
+static inline u16 ak_le16(u16 v) { return v; }
+static inline u32 ak_le32(u32 v) { return v; }
+#endif
+static inline u16 ak_rd16(const u8 *p) { u16 v; memcpy(&v, p, 2); return ak_le16(v); }
+static inline u32 ak_rd32(const u8 *p) { u32 v; memcpy(&v, p, 4); return ak_le32(v); }
+static inline f32 ak_rdf32(const u8 *p) { u32 v; memcpy(&v, p, 4); v = ak_le32(v); f32 f; memcpy(&f, &v, 4); return f; }
+/* little-endian writes (the profile save, written back in the game's own layout) */
+static inline void ak_wr16(u8 *p, u16 v) { v = ak_le16(v); memcpy(p, &v, 2); }
+static inline void ak_wr32(u8 *p, u32 v) { v = ak_le32(v); memcpy(p, &v, 4); }
 
 /* MD5 (RFC 1321): the game's profile save carries one over its data (08831CE8) */
 void ak_local_date(int *month, int *day);   /* today on the device's clock: month 1..12, day 1..31 (0 0 unknown) */

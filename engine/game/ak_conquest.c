@@ -7,7 +7,7 @@
 #include "core/ak_settings.h"
 #include "game/ak_script.h"
 
-static f32 wf(const u8 *p) { f32 f; memcpy(&f, p, 4); return f; }
+static f32 wf(const u8 *p) { return ak_rdf32(p); }
 static bool finite_small(f32 v) { return v == v && fabsf(v) < 1e5f; }
 
 /* position + unit quaternion followed by 100.0 (posts and spawns) */

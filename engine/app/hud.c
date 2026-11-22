@@ -28,7 +28,7 @@ static ak_arena mem; static bool ready;
 static u32 wpn_first[2], wpn_n[2];                 /* the weapon icons: classic, prequel */
 
 static u32 h31(const char *s) { u32 h = 0; for (; *s; s++) { u8 c = (u8)*s; if (c >= 'A' && c <= 'Z') c += 32; h = h * 31 + c; } return h; }
-static f32 rdf(const u8 *b) { f32 f; memcpy(&f, b, 4); return f; }
+static f32 rdf(const u8 *b) { return ak_rdf32(b); }
 static int ieq(const char *a, const char *b) { for (; *a && *b; a++, b++) { int x = *a, y = *b; if (x >= 'A' && x <= 'Z') x += 32; if (y >= 'A' && y <= 'Z') y += 32; if (x != y) return 1; } return *a != *b; }
 
 /* the game's table, in its order (index = what the HUD code passes): h31 of "HUD_....tga", 0x08B1C8A4 (8 bytes each).

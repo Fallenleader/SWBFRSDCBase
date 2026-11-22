@@ -257,8 +257,9 @@ static const snd_sample *file_sample(const char *path)
     u32 frames = dlen / (2 * ch); s16 *pcm = ak_plat_alloc((size_t)frames * 2 + 2, 16), *tmp = ch == 2 ? ak_plat_alloc((size_t)frames * 4, 16) : NULL;
     if (!pcm || (ch == 2 && !tmp)) { fclose(f); if (pcm) ak_plat_free(pcm); if (tmp) ak_plat_free(tmp); return NULL; }
     fseek(f, (long)doff, SEEK_SET);
-    if (ch == 1) frames = (u32)fread(pcm, 2, frames, f);
-    else { frames = (u32)fread(tmp, 4, frames, f); for (u32 i = 0; i < frames; i++) pcm[i] = (s16)((tmp[2 * i] + tmp[2 * i + 1]) / 2); ak_plat_free(tmp); }
+    if (ch == 1) { frames = (u32)fread(pcm, 2, frames, f); if (AK_BIG_ENDIAN) for (u32 i = 0; i < frames; i++) pcm[i] = (s16)ak_le16((u16)pcm[i]); }
+    else { frames = (u32)fread(tmp, 4, frames, f);
+           for (u32 i = 0; i < frames; i++) pcm[i] = (s16)(((s16)ak_le16((u16)tmp[2 * i]) + (s16)ak_le16((u16)tmp[2 * i + 1])) / 2); ak_plat_free(tmp); }
     fclose(f);
     return file_add(path, pcm, frames, rate);
 }

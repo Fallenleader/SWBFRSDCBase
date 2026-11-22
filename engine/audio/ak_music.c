@@ -80,6 +80,7 @@ static void refill(void)                               /* (called with the lock 
         }
         u32 want = 8192 - m.have; if (want > end - m.next) want = end - m.next;
         size_t got = m.adp ? ak_adp_read_stereo(m.adp, m.next, want, m.buf + 2 * m.have) : fread(m.buf + 2 * m.have, 4, want, m.f);
+        if (AK_BIG_ENDIAN && !m.adp) { u16 *w = (u16 *)(m.buf + 2 * m.have); for (size_t i = 0; i < got * 2; i++) w[i] = ak_le16(w[i]); }   /* (WAV samples are little endian) */
         if (!got) { m.next = end; if (!m.loop) { if (m.have < 2) m.on = false; return; } continue; }
         m.have += (u32)got; m.next += (u32)got;
     }

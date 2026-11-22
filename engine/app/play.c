@@ -3736,8 +3736,9 @@ static void script_sink(void *user, const ak_script_msg *m)
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt)
 {
     if (AK_UNLIKELY(ak_log_level_now() >= 2)) {                              /* AK_LOG=2: a snapshot every second */
-        static u64 next; u64 now_us = ak_plat_time_us();
-        if (now_us >= next) { next = now_us + 1000000;
+        static u64 next; static f32 next_clock; static int fixed = -1; u64 now_us = ak_plat_time_us();
+        if (fixed < 0) fixed = ak_setting_float("AK_FIXED_DT", 0) > 0;          /* (fixed-step test runs: every game second, so runs compare) */
+        if (fixed ? p->clock >= next_clock : now_us >= next) { next = now_us + 1000000; next_clock = p->clock + 1.0f;
             AK_VERBOSE("state", "t %.1f: player %s at %.1f %.1f %.1f health %.0f/%.0f, veh %d turret %d, kills %d deaths %d, ammo %d", p->clock, p->alive ? "up" : "down",
                        p->ch.pos[0], p->ch.pos[1], p->ch.pos[2], p->health, p->max_health, p->in_veh, p->in_turret, p->kills, p->deaths, p->weapon.ammo);
             if (p->have_cq) AK_VERBOSE("state", "tickets %d / %d", p->match.tickets[0], p->match.tickets[1]);
