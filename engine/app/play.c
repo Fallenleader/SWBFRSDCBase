@@ -825,19 +825,23 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             }
         }
     }
-    {   /* cut-scenes (CUTS chunks, version 18): u32, u32, the origin (3 floats, game axes), the name (28 bytes), the sound's path (a
-           string, NUL-ended, padded to 4; empty in the silent ones), the length (f32 s), the actors and animations, then at the end
+    {   /* cut-scenes (CUTS chunks, version 18): u32, u32, the origin (3 floats, game axes), the name (NUL-ended, padded to 4), 3 words,
+           the sound's path (NUL-ended, padded to 4; one zero word in the silent ones), the length (f32 s), the actors and animations, then at the end
            { .., flags, u32 group (0xFFFF none), 0, f32 1.0, 0, 0, 0x20 }.  A named object (ENTI type 3 {version, 0, 0, the name (16+)
            ..}) of the same name plays it on message 3; at its end the group fires (sender 0x3E7).  Checked on the harness (route
            cmpn, RS_FIRE_LOG): Yavin's cs_recondroid (7.0 s, group 30000) started 1 s after the jump step and its group fired 7.0 s
-           later.  [assumed: a zero word before the length is skipped (cs_yavin_door_open)] */
+           later.  Measured over all 50 campaign cut-scenes (the path starts 12 bytes after the padded name: 48, 52, 56..). */
         u32 pos = 8; ak_chunk c; p->ncuts = 0; p->nnamed = 0; p->cut = -1;
         while (ak_asura_next(&l->file, &pos, &c)) {
             if (ak_chunk_tag(&c) == AK_TAG('C', 'U', 'T', 'S') && c.size >= 96 && p->ncuts < 16) {
                 typeof(p->cuts[0]) *k = &p->cuts[p->ncuts]; memset(k, 0, sizeof *k); k->off = (u32)(c.body - l->file.data); k->size = c.size;
                 memcpy(k->name, c.body + 20, 27); f32 g[3]; memcpy(g, c.body + 8, 12); ak_from_game(g, k->org);
-                u32 q = 48; while (q < c.size && c.body[q]) q++; q = (q + 4) & ~3u;
-                f32 len = 0; if (q + 4 <= c.size) memcpy(&len, c.body + q, 4); if (len == 0 && q + 8 <= c.size) memcpy(&len, c.body + q + 4, 4);
+                u32 q = 20;
+                while (q < c.size && c.body[q]) q++;
+                q = ((q + 4) & ~3u) + 12;                                    /* the name, padded to 4, then 3 words */
+                while (q < c.size && c.body[q]) q++;
+                q = (q + 4) & ~3u;                                           /* the sound's path, padded to 4 */
+                f32 len = 0; if (q + 4 <= c.size) memcpy(&len, c.body + q, 4);
                 for (u32 z = 48; z + 4 <= c.size && !k->camera; z++) k->camera = !memcmp(c.body + z, "_cam", 4);   /* [assumed: the view is taken only by those] */
                 k->len = len > 0 && len < 600 ? len : 0;
                 k->cam_clip = k->cam2_clip = k->act_clip = -1;
@@ -885,8 +889,11 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
                original's projection 50 degrees across [measured]), each followed by its CTTR track (one key: the place, the time,
                3 words, the turn), CTEV events (version 12: u32 type, f32 time, the actor's name (12 bytes), .., word 11 / 12 / 13:
                type 0 plays the list's clip word 13 on the actor; type 2 turns the camera's width to word 12 degrees over word 11
-               seconds - 50 to 25 over 3.0 s, straight in degrees [measured]; type 10 not known) */
-            cu->hfov = 0.8727f; cu->nev = 0;
+               seconds - 50 to 25 over 3.0 s, straight in degrees [measured]; type 4 fires word 9's group at its time (sender 0x3E7,
+               like the end's): Space Kessel's ackbar_arrive_in_laat has no end group, its 30000 is a type 4 at 14.3 s of 14.33 - the
+               campaign's scenes hold 0-21 of them, besides the end group [measured in the data; the clock assumed the end's];
+               type 10 not known) */
+            cu->hfov = 0.8727f; cu->nev = 0; cu->ngev = 0;
             u32 pq = cu->off + cu->size;                                       /* (the next chunk) */
             int kind = -1; ak_chunk d;
             while (ak_asura_next(&l->file, &pq, &d)) {
@@ -911,13 +918,18 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
                     }
                     if (kind == 0) cu->camera = true;
                 }
+                else if (tg == AK_TAG('C', 'T', 'E', 'V') && d.size >= 40 && ak_rd32(d.body) == 4) {   /* type 4: fire word 9's group (0xFFFF none) */
+                    u32 g = ak_rd32(d.body + 36) & 0xFFFFu; f32 t = ak_rdf32(d.body + 4);
+                    if (g != 0xFFFF && cu->ngev < 32) { u32 j = cu->ngev++; while (j > 0 && cu->gev[j - 1].t > t) { cu->gev[j] = cu->gev[j - 1]; j--; } cu->gev[j].t = t; cu->gev[j].g = (s32)g; }
+                }
                 else if (tg == AK_TAG('C', 'T', 'E', 'V') && d.size >= 52 && cu->nev < 8) {
                     typeof(cu->ev[0]) *e = &cu->ev[cu->nev++]; e->type = (u8)ak_rd32(d.body); e->t = ak_rdf32(d.body + 4);
                     e->cam = !strncmp((const char *)d.body + 8, "Camera", 6); e->a = ak_rdf32(d.body + 44); e->b = d.size >= 52 ? ak_rdf32(d.body + 48) : 0;
                     e->anim = d.size >= 56 ? (u8)ak_rd32(d.body + 52) : 0;
                 }
             }
-            if (ak_setting_int("AK_DEBUG_CUT", 0)) AK_INFO("cut", "%s frame %.2f %.2f %.2f q %.4f %.4f %.4f %.4f actor model %d (%s %u parts)", cu->name, cu->sp[0], cu->sp[1], cu->sp[2], cu->sq.x, cu->sq.y, cu->sq.z, cu->sq.w, cu->act_model, cu->act_model >= 0 ? m->models[cu->act_model].name : "-", cu->act_model >= 0 ? m->models[cu->act_model].nparts : 0);
+            if (cu->len == 0 && cu->ngev) cu->len = cu->gev[cu->ngev - 1].t;   /* [assumed: a scene of length 0 (Boz Pity's Laat coming in, 8.5 s of groups) runs to its last group] */
+            if (ak_setting_int("AK_DEBUG_CUT", 0)) AK_INFO("cut", "%s %u timed groups; frame %.2f %.2f %.2f q %.4f %.4f %.4f %.4f actor model %d (%s %u parts)", cu->name, cu->ngev, cu->sp[0], cu->sp[1], cu->sp[2], cu->sq.x, cu->sq.y, cu->sq.z, cu->sq.w, cu->act_model, cu->act_model >= 0 ? m->models[cu->act_model].name : "-", cu->act_model >= 0 ? m->models[cu->act_model].nparts : 0);
         }
         p->mset = m;
         {   /* effect places (unflagged ENTI type 33, version 9: 0, 0, the place (3 floats, game axes), a packed word, the effect's
@@ -3468,6 +3480,16 @@ static bool script_test(void *user, u32 kind, u32 param)
     default: return false;
     }
 }
+/* a region's "who" (the record's word after the two u32s): 999 / 1000 the player (on foot or in a craft) [assumed: 1000 the same],
+   else an object - Space Kessel's 18855 / 18966 name the craft 1888f, 1886b / 18967 the craft 18891 (the landing zones) */
+static bool region_who(void *user, u32 who, f32 out[3])
+{
+    ak_play *p = user;
+    if (who == 999 || who == 1000) { if (!p->alive) return false; ak_from_game(p->in_veh >= 0 ? p->veh[p->in_veh].pos : p->ch.pos, out); return true; }
+    for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].eid == who && p->veh[v].alive) { ak_from_game(p->veh[v].pos, out); return true; }
+    return false;
+}
+
 static void script_sink(void *user, const ak_script_msg *m)
 {
     ak_play *p = user; bool done = false;
@@ -3515,7 +3537,7 @@ static void script_sink(void *user, const ak_script_msg *m)
     }
     else if (m->type == 3 && p->nnamed) {
         for (u32 k = 0; k < p->nnamed; k++) if (p->named[k].id == m->target) {
-            p->cut = p->named[k].cut; p->cut_t = 0; done = true;
+            p->cut = p->named[k].cut; p->cut_t = 0; p->cut_gev = 0; done = true;
             if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "cut-scene %s (%.1f s)", p->cuts[p->cut].name, p->cuts[p->cut].len);
             break;
         }
@@ -3716,6 +3738,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             }
             ak_char_spawn(&p->ch, out, vh->yaw); vh->driver = -1; vh->open = true; vh->throttle = vh->steer = vh->strafe = 0;
             if (ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "get out at %.2f %.2f %.2f (vehicle at %.2f %.2f %.2f, yaw %.2f)", out[0], out[1], out[2], vh->pos[0], vh->pos[1], vh->pos[2], vh->yaw);
+            {   u32 lv = (u32)p->in_veh;                                         /* a placed craft left: 10015 [assumed - Space Kessel's 1888f {10013 (in) -> 90:
+                                                                         0x15 to the scene 18996, 10015 -> 27: 0x14 to it} pair "in" with "out"] */
+                if (p->vspawn[lv].lone && p->have_script) ak_script_raise(&p->script, p->vspawn[lv].ev, p->vspawn[lv].nev, 10015, p->vspawn[lv].eid, script_sink, p); }
             p->in_veh = -1; p->target[0].alive = true; p->cam_dist = p->cam_back;
         } else {
             s32 best = -1; f32 bd = 1e30f;
@@ -4451,13 +4476,20 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (e->h && ak_pfx_follow(p->pfx, e->h, e->pos, NULL, zero, true)) continue;
         e->h = ak_pfx_play(p->pfx, e->fx, e->pos, NULL); if (e->h < 0) e->h = 0; else ak_pfx_follow(p->pfx, e->h, e->pos, NULL, zero, true);
     }
+    if (p->have_script && p->cut >= 0) {                                   /* the cut-scene's timed groups (CTEV type 4) */
+        const typeof(p->cuts[0]) *cu = &p->cuts[p->cut]; f32 nt = p->cut_t + dt;
+        while (p->cut_gev < cu->ngev && (cu->gev[p->cut_gev].t <= nt || nt >= cu->len)) {
+            s32 g = cu->gev[p->cut_gev++].g; if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "cut-scene %s: group %d", cu->name, g);
+            ak_script_fire(&p->script, g, 0x3E7, script_sink, p);
+            if (p->cut < 0 || &p->cuts[p->cut] != cu) break; }             /* (a group that stopped or changed the scene) */
+    }
     if (p->have_script && p->cut >= 0 && (p->cut_t += dt) >= p->cuts[p->cut].len) {   /* the cut-scene's end: its group */
         s32 g = p->cuts[p->cut].group; p->cut = -1; if (g >= 0) ak_script_fire(&p->script, g, 0x3E7, script_sink, p); }
     if (p->hud_timer_on && p->hud_timer > 0) p->hud_timer -= dt;            /* [assumed: it stops at 0 and stays until 0x8016] */
     if (p->have_script) { ak_script_update(&p->script, dt, false, script_sink, p); ak_script_cond(&p->script, script_test, script_sink, p);
-        f32 gp[3]; ak_from_game(p->in_veh >= 0 ? p->veh[p->in_veh].pos : p->ch.pos, gp);   /* (ak_from_game is its own inverse: engine -> game) */
-        ak_script_regions(&p->script, p->alive ? gp : NULL, script_sink, p);   /* (the player's craft counts: Space Alderaan's 18963 at the hangar's
+        ak_script_regions_who(&p->script, region_who, script_sink, p);   /* (the player's craft counts: Space Alderaan's 18963 at the hangar's
                                                                          mouth fired as the original's player flew the X-Wing out, sa_h9) */
+        f32 gp[3]; ak_from_game(p->in_veh >= 0 ? p->veh[p->in_veh].pos : p->ch.pos, gp);
         f32 eye[3] = { gp[0], gp[1] - 1.6f, gp[2] }, fw[3] = { -sinf(p->ch.yaw), 0, cosf(p->ch.yaw) };   /* (game axes: the body's facing) */
         ak_script_look(&p->script, dt, p->alive && p->in_veh < 0 ? eye : NULL, fw, look_clear, script_sink, p); }
     /* conquest: the posts, the tickets, the spawn wave */

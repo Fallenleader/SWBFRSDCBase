@@ -231,7 +231,8 @@ typedef struct {
     struct { char name[28]; f32 len, org[3]; s32 group; bool camera; u32 off, size; s32 cam_clip, cam2_clip, act_clip, act_model; char model[96]; f32 sp[3]; ak_quat sq;
                  s32 anim[6]; u32 nanim; f32 hfov;                           /* the scene's clips in its list order; the camera's width (rad) */
                  struct { u8 type, anim; bool cam; f32 t, a, b; } ev[8]; u32 nev;
-                 struct { u32 n; f32 t[8], pos[8][3]; ak_quat q[8]; } ctr[4]; u32 nctr; } cuts[16];   /* ctr: the camera's CTTR tracks (engine axes) */ u32 ncuts;   /* the level's cut-scenes (CUTS); camera: it has a camera animation */
+                 struct { f32 t; s32 g; } gev[32]; u32 ngev;                  /* CTEV type 4: a group fired at its time, in time order */
+                 struct { u32 n; f32 t[8], pos[8][3]; ak_quat q[8]; } ctr[4]; u32 nctr; } cuts[16];   /* ctr: the camera's CTTR tracks (engine axes) */ u32 ncuts, cut_gev;   /* cut_gev: the playing scene's next group event */   /* the level's cut-scenes (CUTS); camera: it has a camera animation */
     struct { u32 id, hash[2]; s32 group; bool got[2]; } listen[16]; u32 nlisten;
     struct { u32 id; s32 fx, h; f32 pos[3], dir[3]; bool on; } sfx[48]; u32 nsfx;
     struct { u32 id, ev[4], nev, speech; f32 t; } t62[32]; u32 nt62;    /* ENTI type 62: a speech line (the script's 5 says it; event 12 at its end) */   /* ENTI type 33 effect places the script turns on / off */      /* ENTI type 38: fire a group on message 0x14 with a hash */

@@ -1399,7 +1399,7 @@ textures and how they are used. Section R lists only what must be in place so th
     16.3 6.1 -126.8 -> 41) -> 42 (the 100 s timer 186f8 with the countdown, 18 / 13) -> 6 -> 30002 (IG-88's spawner 18786, 600
     health) -> his fall 10006 -> 1 -> 18832 -> 11 -> 0x8006: winner 0. Skips used: AK_TEST_FIRE 5 / 25 / 6 / 1, AK_TEST_BREAK,
     teleports. Still unported there: the team spawn places 0x8023 / 0x8024 (3 / 4), 0x1C / 0x1D to type-7 objects, 0x8025 regions'
-    3. Next: SPACE_KESSEL.
+    3. Next: SPACE_KESSEL (done, part 52); then TATOOINE.
   - Part 51, 2026-11-22 - **Space Kessel (campaign 4): the first three stages.** Original (harness sk_h1, reached by RS_FIRE_AT
     49 / 65 / 11): the player stands in a hangar, "Destroy the communications array on the Star Destroyer", a 1:30 countdown (the
     timer 1896c, 90 s; at 0 -> 50 -> 8008 to 1882f -> 51 -> 0x8006 the Empire's). Aurek runs the same start (18 -> unit count 16,
@@ -1412,6 +1412,15 @@ textures and how they are used. Section R lists only what must be in place so th
     craft) - they now leave it to the next pass; the vehicle list holds 64 (the hangar slot copies still stop at 32). AK_TEST_BREAK
     also takes turrets, a spawner's craft or soldier. Next: 1886c / 18855 regions -> 11 -> 18852 -> 67 -> 18895 -> 89 (Ackbar 1885b
     on his route, 0x4C to path node 1885d) -> ... -> 79 (0x8006 the Alliance's).
+  - Part 52, 2026-11-22 - **Space Kessel runs to its win in Aurek** (with test skips). The rest of the chain: region 1886c (who
+    1000: the player's craft - regions now test their own "who", ak_script_regions_who) -> 80 -> boarding 1888f (10013) -> 90 ->
+    11 -> 65 -> 89 -> 68 -> 75 -> the prop 18867 -> 76 -> 77 -> 78 -> the cut-scene ackbar_arrive_in_laat (message 3 to 18990)
+    -> at 14.3 s its timed group 30000 -> 8009 to 1886a -> 79 -> 0x8006, winner 0 (the Alliance). Cut-scene events (CTEV type 4:
+    a group at a time, word 9) were not read before; the scene's end group (CUTS tail) is a separate one - this scene has none.
+    The CUTS length read is fixed (the path starts 12 bytes after the name padded to 4; was garbage for Kessel's two scenes).
+    Leaving a lone craft raises 10015 [assumed]; a length-0 scene with timed groups runs to its last [assumed]. Skips used:
+    AK_TEST_BREAK 18877, AK_TEST_FIRE 77 / 78. Still open there: 0x53 to the fade 18998 (type 0x44 {3, 0.25, 0.25, black, 1,
+    next 18999}), 800d / 800e to 18954, the AI's fire at non-player units. Next: TATOOINE.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

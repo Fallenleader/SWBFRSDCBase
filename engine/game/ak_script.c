@@ -439,6 +439,19 @@ void ak_script_look(ak_script *s, f32 dt, const f32 *pos, const f32 *fwd, bool (
         ak_script_send(s, 5, n->id, NULL, 0, sink, user);
     }
 }
+void ak_script_regions_who(ak_script *s, ak_script_where where, ak_script_sink sink, void *user)
+{
+    for (u32 i = 0; i < s->nnodes; i++) {
+        ak_snode *n = &s->node[i];
+        if (n->type != AK_SN_REGION || n->disabled) continue;
+        f32 pos[3];
+        if (!n->active || !where(user, n->who, pos)) { n->was = false; continue; }
+        bool in = in_boxes(n, pos);
+        if (in && !n->was) ak_script_send(s, 5, n->id, NULL, 0, sink, user);
+        n->was = in;
+    }
+}
+
 void ak_script_regions(ak_script *s, const f32 *pos, ak_script_sink sink, void *user)
 {
     for (u32 i = 0; i < s->nnodes; i++) {

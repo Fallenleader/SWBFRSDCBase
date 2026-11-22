@@ -97,6 +97,9 @@ typedef bool (*ak_script_test)(void *user, u32 kind, u32 param);
 void ak_script_cond(ak_script *s, ak_script_test test, ak_script_sink sink, void *user);
 /* the region nodes against the player's position (game axes; NULL: no player) */
 void ak_script_regions(ak_script *s, const f32 *pos, ak_script_sink sink, void *user);
+/* the same with each region's own "who": `where(user, who, out)` gives that object's place (game axes), false when it is not there */
+typedef bool (*ak_script_where)(void *user, u32 who, f32 out[3]);
+void ak_script_regions_who(ak_script *s, ak_script_where where, ak_script_sink sink, void *user);
 /* The use zones (flagged type 31, class 0x801F, 08A12620): a region's record (the node family's groups, version 4, u32, u32, who, n
  * boxes) then { 1, the user's spot (game axes), its turn (3 x 3 rows), 999, 0, 0, 999, u32, the prompt (STDTEXT: 0x47 "\ue813 Use"),
  * 0, 0, mode mask }.  Yavin's 18bb8 (the training's terminal, the console 18bb6 beside it).  Active, with the player in a box: the
