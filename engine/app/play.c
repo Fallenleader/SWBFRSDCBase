@@ -1166,8 +1166,12 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         p->bot_aim_set = ak_setting_str("AK_BOT_AIM", NULL) != NULL; }   /* (soldier bots: each weapon's own accuracy unless AK_BOT_AIM is set) */
     p->bots_passive = ak_setting_int("AK_BOT_PASSIVE", 0) != 0;
     u32 want = (u32)ak_setting_int("AK_BOTS", 15); if (want > PLAY_MAX_BOTS) want = PLAY_MAX_BOTS;   /* PARITY(4.5) */
-    if (ak_game_mode == 5 && !ak_setting_str("AK_BOTS", NULL)) want = 0;   /* the campaign: no standing armies - its soldiers come from the script's spawners (the original's
-                                                                         training courtyard had none) [the scripted soldier spawners: not yet] */
+    p->campaign_army = ak_game_mode == 5 && !ak_setting_str("AK_BOTS", NULL); p->unit_count = 1;
+    /* the campaign: the standing army is as big as the script's unit count allows - 0x8010 {u32, n} to the ticket entity (089875C8 ->
+       08979CD4: the match's unit count D_08C294D0, which 089809B8 fills with AI spawners less the player's and the placed units'):
+       measured, Yavin's group 44 {8}: 1 soldier, then 7 more 10-15 s later (ct39); Ord Mantell's 23 {12}: the player and 11 AI
+       soldiers (om_h2).  Before any 0x8010 none (the training's courtyard had none).  [assumed: the placed units counted while they
+       live; fallen soldiers past the count are not replaced] */
     if (!p->have_nav || !p->nav.nnode) want = 0;
     {   /* scripted soldier spawners (class 0x800D, ENTI type 13 flagged, version 10: word 7 the unit blueprint's name hash, the place
            (game axes) and turn rows, then 0x3E7 / 0x8005, word 23 bit 0x200000: waits for the script's 3; the event table at word 2:
@@ -1176,14 +1180,17 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
            each count one kill] */
         ak_chunk c; u32 q = 8; p->nuspawn = 0; const ak_bp_type *ht = ak_bp_find_type(bp, "Humanoid");
         while (ht && p->have_nav && ak_asura_next(&l->file, &q, &c) && p->nuspawn < 16) {
-            if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 30 * 4 || (ak_rd32(c.body + 4) & 0xFFFF) != 0x800D || ak_rd32(c.body + 8) != 10) continue;
-            u32 h = ak_rd32(c.body + 28); const ak_bp_object *o = NULL;
+            if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 23 * 4 || (ak_rd32(c.body + 4) & 0xFFFF) != 0x800D || ak_rd32(c.body + 8) != 10) continue;
+            /* the layout after the version: u32, the event count, the events, a u32, then the blueprint (word 7 with one event -
+               Yavin's; word 6 with none - Ord Mantell's squads 18838-b / 18843-5 / 18849-b) */
+            u32 bw = 6 + ak_rd32(c.body + 16); if (bw > 12 || 4 * (bw + 17) > c.size) continue;
+            u32 h = ak_rd32(c.body + 4 * bw); const ak_bp_object *o = NULL;
             for (u32 k = 0; k < ht->nobjects && !o; k++) if (ak_hash31(ht->objects[k].name) == h) o = &ht->objects[k];
             if (!o) continue;
             typeof(p->uspawn[0]) *u = &p->uspawn[p->nuspawn]; memset(u, 0, sizeof *u); u->id = ak_rd32(c.body); u->bot = -1;
-            f32 g[3]; memcpy(g, c.body + 32, 12); ak_from_game(g, u->pos);
-            f32 r20 = ak_rdf32(c.body + 4 * 13), r22 = ak_rdf32(c.body + 4 * 19); u->yaw = atan2f(r20, r22) + 3.14159265f;   /* [assumed: the third column's x / z; soldiers face -z] */
-            u->waiting = (ak_rd32(c.body + 92) & 0x200000u) != 0;
+            f32 g[3]; memcpy(g, c.body + 4 * (bw + 1), 12); ak_from_game(g, u->pos);
+            f32 r20 = ak_rdf32(c.body + 4 * (bw + 6)), r22 = ak_rdf32(c.body + 4 * (bw + 12)); u->yaw = atan2f(r20, r22) + 3.14159265f;   /* [assumed: the third column's x / z; soldiers face -z] */
+            u->waiting = (ak_rd32(c.body + 4 * (bw + 16)) & 0x200000u) != 0;
             u->nev = ak_script_events(l, u->id, 2, u->ev, 4);
             p->nuspawn++;
         }
@@ -1195,7 +1202,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         ak_chunk c; u32 q = 8; const ak_bp_type *ht = ak_bp_find_type(bp, "Humanoid");
         while (ak_asura_next(&l->file, &q, &c) && want_pilot < 16) {
             if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 30 * 4 || (ak_rd32(c.body + 4) & 0xFFFF) != 0x800D) continue;
-            u32 h = ak_rd32(c.body + 28); bool hum = false;
+            u32 bw = 6 + ak_rd32(c.body + 16); if (bw > 12) continue; u32 h = ak_rd32(c.body + 4 * bw); bool hum = false;
             for (u32 k = 0; ht && k < ht->nobjects && !hum; k++) hum = ak_hash31(ht->objects[k].name) == h;
             if (!hum) want_pilot++;
         }
@@ -1228,6 +1235,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         p->scratch.base = (u8 *)ak_arena_alloc(a, ss, 16); p->scratch.size = ss;
         if (!p->bot || !p->scratch.base) want = want_script = want_pilot = 0;
     }
+    p->narmy = 0;
     for (u32 i = 0; i < want; i++) {
         /* sides: alternate, starting with the enemy, so the player's side has one fewer */
         int team = (i % 2 == 0) ? 1 - p->team : p->team;
@@ -1245,16 +1253,16 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
                     if (!used) b->name = (s32)c; } } }
         memcpy(b->ch.pos, p->ch.pos, 12);
         bot_spawn(p, m, b, p->nbots);
-        if (ak_setting_int("AK_BOT_SPAWN_DELAY", 1)) {                        /* not in yet: its spawner's first timer (see the respawn below) */
+        if (ak_setting_int("AK_BOT_SPAWN_DELAY", 1) || p->campaign_army) {   /* not in yet: its spawner's first timer (see the respawn below) */
             b->alive = false; b->dead_t = 10.0f; p->target[1 + p->nbots].alive = false;
-            b->respawn_t = 5.0f + rnd(&b->seed) * 10.0f; b->respawn_set = true;
+            b->respawn_t = 5.0f + rnd(&b->seed) * 10.0f; b->respawn_set = !p->campaign_army;
         }
-        p->nbots++;
+        p->nbots++; p->narmy = p->nbots;
     }
     for (u32 k = 0; k < want_script; k++) {                                  /* the scripted spawners' soldiers */
         typeof(p->uspawn[0]) *u = &p->uspawn[k]; ak_chunk c; u32 q = 8; const char *bn = NULL;
         while (ak_asura_next(&l->file, &q, &c)) if (ak_chunk_tag(&c) == AK_TAG('E', 'N', 'T', 'I') && ak_rd32(c.body) == u->id) {
-            const ak_bp_type *ht = ak_bp_find_type(bp, "Humanoid"); u32 h = ak_rd32(c.body + 28);
+            const ak_bp_type *ht = ak_bp_find_type(bp, "Humanoid"); u32 h = ak_rd32(c.body + 4 * (6 + ak_rd32(c.body + 16)));
             for (u32 j = 0; ht && j < ht->nobjects && !bn; j++) if (ak_hash31(ht->objects[j].name) == h) bn = ht->objects[j].name;
             break; }
         ak_play_bot *b = &p->bot[p->nbots]; memset(b, 0, sizeof *b); b->uspawn = (s8)k; b->seed = 0x2545F491u * (k + 3);
@@ -3427,6 +3435,9 @@ static void script_sink(void *user, const ak_script_msg *m)
 {
     ak_play *p = user; bool done = false;
     if (m->node) done = m->node->type == AK_SN_MUSIC;   /* (the start music is the viewer's; a later change is not played [not ported]) */
+    else if (m->type == 0x8010 && m->nextra >= 8 && p->have_cq && m->target == p->cq.ticket_id) {   /* the match's unit count (above) */
+        p->unit_count = (s32)ak_rd32(m->extra + 4); done = true;
+        if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "unit count %d", p->unit_count); }
     else if (p->have_cq && (ak_conquest_ticket_msg(&p->cq, &p->rules, &p->match, m->target, m->type, m->extra, m->nextra) ||
                             ak_conquest_post_msg(&p->cq, &p->match, m->target, m->type, m->extra, m->nextra))) done = true;
     else if (m->target == 0x3E8 && (m->type == 0x801D || m->type == 0x8023) && m->nextra >= (m->type == 0x801D ? 8u : 16u)) {
@@ -4493,10 +4504,17 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
            Measured on Hoth (harness): the first bots appear one by one 4.3-14 s after the match starts.  [assumed: the timer runs
            from the fall; the body's 5 s still has to pass] (AK_BOT_SPAWN_DELAY=0: the old way, with the spawn wave) */
         static int pace = -1; if (pace < 0) pace = ak_setting_int("AK_BOT_SPAWN_DELAY", 1) != 0;
+        s32 army_cap = 0;
+        if (p->campaign_army) {                                               /* the unit count less the player and the placed units in play */
+            s32 live = 0; for (u32 i = p->narmy; i < p->nbots; i++) live += p->bot[i].alive;
+            for (u32 v = 0; v < p->nveh; v++) live += p->vspawn[v].fixed && p->veh[v].alive && p->veh[v].driver < 0;
+            army_cap = p->unit_count - 1 - live; if (army_cap < 0) army_cap = 0;
+        }
         for (u32 i = 0; i < p->nbots; i++) {
             ak_play_bot *b = &p->bot[i];
             if (b->alive) { b->respawn_set = false; continue; }
             if (b->uspawn >= 0 || b->pilot) continue;                         /* (a scripted spawner's: once; a pilot only with its craft) */
+            if (p->campaign_army && i < p->narmy && (s32)i >= army_cap) { b->respawn_set = false; continue; }   /* (the campaign: past the unit count) */
             if (p->have_cq && p->match.tickets[b->team] == 0) continue;
             if (!pace) { if (wave && b->dead_t >= 5.0f) bot_spawn(p, m, b, i); continue; }
             if (!b->respawn_set) { b->respawn_t = 5.0f + rnd(&b->seed) * 10.0f; b->respawn_set = true; }

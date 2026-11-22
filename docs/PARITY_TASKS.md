@@ -1364,6 +1364,14 @@ textures and how they are used. Section R lists only what must be in place so th
     counter 18879 at 4 -> 53 -> 1887a -> 65 -> 0x8006: winner 0 (the Alliance). Skips used: AK_TEST_FIRE 28 / 46, teleports to
     the data and base, AK_TEST_BREAK (new: "frame:prop id" breaks a prop as if shot). Not checked against the harness: the
     interior's walk, Boba's fight, the systems under fire. ORD_MANTELL loads and runs (groups 23, 9 in its first minute).
+  - Part 47, 2026-11-22 - **the campaign's armies; Ord Mantell starts.** 0x8010 {u32, n} to the ticket entity sets the match's
+    unit count (089875C8 -> 08979CD4: D_08C294D0, the number 089809B8 fills with AI spawners). Measured: Yavin's group 44 {8} - one
+    soldier, then 7 more over 10-15 s (ct39, RS_DRIVE_ALL); Ord Mantell's 23 {12} - the player and 11 AI soldiers (om_h2, all at
+    60 health). Aurek: in the campaign the standing army (15 bots made, dormant) fills to the unit count less the player and the
+    placed units in play [assumed: that subtraction - it keeps Yavin's troopers stage {4} free of extra soldiers], each through
+    the spawner's 5-15 s timer; none before the first 0x8010. Also fixed: 0x800D spawners with no events (Ord Mantell's squads
+    18838-b, 18843-5, 18849-b) were skipped - the blueprint is at word 6 + the event count, not word 7 (and those records are 26
+    words). Ord Mantell (campaign 3): the original waits after 23 / 9 for "Secure the Junkyard command post" (om_h1).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
