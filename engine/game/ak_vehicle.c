@@ -146,7 +146,9 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
             fprintf(stderr, "[veh] %s foot-slide speed %.2f\n", name, d->walk_speed);
         }
         if (d->walk_speed < 0.5f) d->walk_speed = 4.0f;
-        d->sprint_scale = ak_bp_float(o, "SprintingSpeedScale", 1);
+        /* the walk clips' speed (089BD028 setup: WalkingSpeedScale +884, SprintingSpeedScale +888, defaults 1.0 at 0x08AEECBC / B8;
+         * 089BF92C plays them at +888 while sprinting, else +884) */
+        d->sprint_scale = ak_bp_float(o, "SprintingSpeedScale", 1); d->walk_scale = ak_bp_float(o, "WalkingSpeedScale", 1);
     }
     d->top_speed = ak_bp_float(o, "TopSpeed", 25); d->stall_speed = ak_bp_float(o, "StallSpeed", -10);
     d->energy_max = ak_bp_float(o, "EnergyMax", 100); d->energy_boost = ak_bp_float(o, "EnergyBoost", 10);
@@ -501,7 +503,7 @@ static bool walker_step(ak_vehicle *v, f32 dt, bool boost, f32 *fwd)
     v->yaw_rate = r; v->yaw += r * dt;
     if (d->wtrack[0].n < 2 || d->wtrack[1].n < 2 || d->wtrack[2].dur <= 0) { v->throttle = thr; v->steer = st; return false; }
     bool go = thr > 0.25f;
-    f32 rate = boost ? d->sprint_scale : 1.0f;            /* PARITY(3.4b): the sprint (SprintingSpeedScale) is not measured */
+    f32 rate = boost ? d->sprint_scale : d->walk_scale;   /* (089BF92C) */
     f32 t0 = v->walk_t, t1 = t0 + dt * rate, half = d->wtrack[1].dur * 0.5f;
     switch (v->walk_state) {
     case 0: if (go) { v->walk_state = 1; v->walk_t = 0; t1 = dt * rate; } else { *fwd = 0; return true; }

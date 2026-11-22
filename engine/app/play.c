@@ -2525,6 +2525,9 @@ static void vehicle_lock(ak_play *p, ak_vehicle *vh, const f32 *eye, const f32 *
 static bool vehicle_boost(ak_vehicle *vh, bool held, f32 dt)
 {
     const ak_vehicle_def *d = vh->def; bool boost = false;
+    /* a walker sprints only when its SprintingSpeedScale is above 1.0 and the boost control is past 0.5 (089BF9E0, also needing
+     * its control 9: [assumed] held while it walks); then it pays EnergyBoost x dt as the others do */
+    if (d->kind == AK_VEH_WALKER && d->sprint_scale <= 1.0f) held = false;
     if (held && vh->energy > dt * d->energy_boost) {
         f32 cost = dt * d->energy_boost;
         if (cost > 0) vh->energy_spent = true;

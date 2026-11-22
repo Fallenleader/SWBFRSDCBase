@@ -599,8 +599,13 @@ textures and how they are used. Section R lists only what must be in place so th
     middle = right foot), then leftfoot_ / rightfoot_to_idle.  Aurek's path is within 1 % over a 15 s run.
   - [x] Turn: starts at 0.083 rad/s, spins up at 1 rad/s² to MaxTurnYaw (0.5 rad/s), stops at 4 rad/s²; walking or standing.
     Aurek is within 1° (one frame) over a 140° turn.
-  - [ ] Sprint (SprintingSpeedScale 1.5): the input is not found; Aurek's boost speeds the walk clips up.  Walking backwards
-    is not measured.  Turning in place (turnL_30 / turnR_30) is not read; it is posed as before.
+  - [x] Sprint, traced 2026-11-22 (089BF9E0 / 089BF92C; setup 089BD028: WalkingSpeedScale +884, SprintingSpeedScale +888, both
+    default 1.0): only when SprintingSpeedScale is above 1.0 (AT-ST 1.5, AT-RT 1.75, spider walker 1.5; not the AT-AT / AT-TE),
+    with the boost control (channel 3) past 0.5 and channel 9 set (+1008 bit 0, 089BD694) [assumed: held while walking], paying
+    EnergyBoost x dt (089DCE7C); the walk clips then play at SprintingSpeedScale, else at WalkingSpeedScale. Aurek: the same
+    (play.c vehicle_boost, ak_vehicle.c walk_scale).  Walking backwards
+    is not measured.  Turning in place (ATST_turnL_30 / ATST_turnR_30, and leftfoot_ / rightfoot_to_lturn / _rturn: names found in
+    HOTH.PSP) is not read - their choice lives in the walker's clip table (ATBL, not read); it is posed as before.
   - [ ] Gunnery, what a placed walker does at its path's end, and the ATBL animation chunks (not read).  AT-AT not measured.
     - 2026-11-21, Hoth's AT-AT measured (harness state.log, class 0x8014 id 30d44, two 2.5 min runs): it walks from its start
       node (18874, 226.99 / -9.10 game axes) to the next (18875) at about 2 m/s and stands exactly on it (196.18, -11.84) for the
@@ -1568,6 +1573,8 @@ textures and how they are used. Section R lists only what must be in place so th
   - Part 74 (2026-11-22): 3.1b rider - open vehicles (Enclosed false) show their driver on the Seat marker in the AnimSit pose.
   - Part 75 (2026-11-22): 3.1b turret aim - the gunner's turning rates (Damp / InputDamp / MaxTurn) and the pivot limits traced and
     ported; the limits' defaults are 0 (none).
+  - Part 76 (2026-11-22): 3.4 walker sprint traced and ported (SprintingSpeedScale above 1, the boost control, EnergyBoost x dt;
+    WalkingSpeedScale otherwise).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
