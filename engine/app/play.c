@@ -698,7 +698,10 @@ static bool holding(const ak_play *p, u32 hash) { return p->alive && p->armed &&
 static bool carrying(const ak_play *p, u32 hash) { return p->alive && ((p->armed && def_is(&p->wdef, hash)) || (p->armed2 && def_is(&p->wdef2, hash))); }
 void ak_play_loadout(ak_play *p, const ak_model_set *m, const ak_blueprints *bp)
 {
+    int held = p->wsel;
     loadout_levels(p); loadout_items(p, m, bp);
+    if (held && p->armed2) weapon_switch(p);   /* (the slot in the hands stays: the original's soldier kept the fusion cutter in hand after
+                                                  taking the rocket launcher as weapon 1 at the post, ct30) */
     p->base_wdef = p->wdef; p->base_armed = p->armed; p->base_max_health = p->max_health;   /* (what the soldier goes back to after a hero) */
     AK_INFO("play", "loadout: %s (%s), explosive %s, health %.0f, speed x%.2f, capture %.1f", p->armed ? p->wdef.name : "unarmed",
             p->armed && p->wdef.model >= 0 ? "model" : "no model", p->gren_ok ? "yes" : "none", p->max_health, p->speed_scale, p->capture_rate);
@@ -3384,8 +3387,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     {   /* tests: AK_TEST_TP = "frame:x,y,z;frame:x,y,z..." - put the player there (game axes) on those frames */
         static const char *tp = (const char *)1; if (tp == (const char *)1) tp = ak_setting_str("AK_TEST_TP", NULL);
         for (const char *s = tp; s && *s; ) {
-            u32 fr; f32 g[3]; if (sscanf(s, "%u:%f,%f,%f", &fr, &g[0], &g[1], &g[2]) != 4) break;
-            if (fr == p->frame_no && p->alive) { f32 q[3]; ak_from_game(g, q); ak_char_spawn(&p->ch, q, p->ch.yaw); }
+            u32 fr; f32 g[3], yd = 1e9f; int n = sscanf(s, "%u:%f,%f,%f,%f", &fr, &g[0], &g[1], &g[2], &yd); if (n < 4) break;   /* (a fifth number: the yaw, degrees) */
+            if (fr == p->frame_no && p->alive) { f32 q[3]; ak_from_game(g, q); ak_char_spawn(&p->ch, q, n == 5 ? yd * 0.0174533f : p->ch.yaw); if (n == 5) p->view_yaw = p->ch.yaw; }
             s = strchr(s, ';'); if (s) s++;
         }
     }

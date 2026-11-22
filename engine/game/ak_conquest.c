@@ -71,7 +71,12 @@ static void ticket_entity(const ak_level *l, ak_conquest_map *out)
 bool ak_conquest_ticket_msg(const ak_conquest_map *m, const ak_cq_rules *r, ak_conquest *s, u32 target, u16 type, const u8 *x, u32 nx)
 {
     if (!m->ticket_id || target != m->ticket_id || nx < 8 || !x) return false;
-    u32 team = ak_rd32(x + 4); if (team > 1 || !r->ticket_mode) return true;
+    u32 team = ak_rd32(x + 4);
+    if (type == 0x8006) {   /* the match ends (089875C8 -> 0897392C: the game state 4 with the side from 08A26FF4(word 1)); Yavin's training ends
+                               with group 49 {1, 0, -1, 0} 2 s after its last objective [assumed: word 1 is the winning side, 0 the
+                               Alliance - the player's side there] */
+        s->winner = team < 2 ? (int)team : AK_CQ_NEUTRAL; return true; }
+    if (team > 1 || !r->ticket_mode) return true;
     s32 v = nx >= 12 ? (s32)ak_rd32(x + 8) : 0; f32 pc; u32 w = nx >= 12 ? ak_rd32(x + 8) : 0; memcpy(&pc, &w, 4);
     switch (type) {
     case 0x8002: if (v > 0) s->tickets[team] = v; break;

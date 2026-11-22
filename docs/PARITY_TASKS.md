@@ -1293,6 +1293,11 @@ textures and how they are used. Section R lists only what must be in place so th
     18be5 + 5 to 18c2c; 37 on (the Pyramid post 18cc1 800a / 8014, objective 18be6, tip 0x1A2...). Next: the harness walks / teleports
     to ~25 m of the tank facing it, R (lock) + X (fire): rockets to kill, the tank's reply; then 37-44 (the post, the blaster rifle,
     the scout). Aurek's player rocket test (ak31) fired every rocket without a lock (the tank behind the player).
+  - Part 40, 2026-11-22 - **the training runs to its end in Aurek** (with test skips: the terminal by AK_TEST_FIRE-free use, the
+    troopers by AK_TEST_FIRE 4700:28, the weapons by AK_TEST_WEAPON_AT, teleports): tank (2 rockets) -> Pyramid post -> cs_scout_entry
+    -> the scout; killing it (18bf5's 10006 -> 41 -> 18be7 -> 49) ends the match (0x8006) and the next mission loads. Still to
+    check in the harness: the scout's kill and 49 in the original (RS_FIRE_AT 41 / 49), the game-over / mission-complete pages of
+    the campaign, the next mission's start. Then: SPACE_ALDERAAN (the campaign's second mission).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

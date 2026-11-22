@@ -263,6 +263,11 @@ def prog_cmpn_train(i, fr):                                                     
             if i in range(14620 + o, 14624 + o) or i in range(15160 + o, 15164 + o): return (CROSS, 128, 128)   #  down x8 (BlasterRifle -> Rocket_Launcher), X,
             if any(i in range(k + o, k + o + 4) for k in range(14680, 15160, 60)): return (DOWN, 128, 128)   #  circle x2
             if i in range(15220 + o, 15224 + o) or i in range(15280 + o, 15284 + o): return (CIRCLE, 128, 128)
+        if os.environ.get('CT_TANK') and i in range(16450, 16454): return (LEFT, 128, 128)   # (the cutter is still in hand: to weapon 1)
+        if os.environ.get('CT_TANK') and 16500 <= i < 18100:                  # (CT_TANK=1, --tp ..;16500:E;16900:N;17300:W;17700:S of the tank) R held,
+            k = (i - 16500) % 400                                             #  X tapped every second from 1 s in, 4 s a side
+            if k < 20: return (0, 128, 128)
+            return (0x200 | (CROSS if k % 60 < 4 else 0), 128, 128)
         if i in range(11950, 11954): return (LEFT, 128, 128)                  #  then d-pad left (to weapon 2), cross held (the cutter)
         if i in range(12300, 12304) or i in range(12360, 12364): return (CROSS, 128, 128)   # (--tp ..;12100:-27.5,-6.34,148.1 west of the
         if 12450 <= i < 13050: return (CROSS, 128, 128)                       #  turret, facing it) the page's X, then the cutter held 10 s

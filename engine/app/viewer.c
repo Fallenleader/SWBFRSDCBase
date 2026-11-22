@@ -624,8 +624,28 @@ int main(int argc, char **argv)
                             play.ready = false; fe_after_team = true;
                         }
                     }
+                } else if (ev == AK_FE_QUIT && ak_game_mode == 5 && !strncmp(levels[cur].label, "CAMPAIGN ", 9) && play.have_cq && play.match.winner == play.team) {
+                    /* the campaign's won mission: its game-over page goes on to the next mission (0x08C29918 + 1 of 0x08B1C060's list)
+                       [assumed: FE_ProcessGameover's campaign path not traced; the mission's FMV, load screen and the campaign save not done] */
+                    static const char *const camp[11] = { "YAVIN_IV", "SPACE_ALDERAAN", "ORD_MANTELL", "SPACE_KESSEL", "TATOOINE", "BOZ_PITY",
+                                                          "HOTH_ION_CANNON", "SPACE_HOTH", "KORRIBAN", "SULLUST", "ENDOR" };
+                    int li = 0; for (int k = 0; k < 11; k++) if (!strcmp(levels[cur].label + 9, camp[k])) li = k;
+                    if (li < 10) { li++; char want[64]; snprintf(want, sizeof want, "CAMPAIGN %s", camp[li]);
+                        for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, want)) cur = i;
+                        AK_INFO("fe", "campaign: next mission %s", want); ak_fe_close(); loaded = false; play.ready = false; }
+                    else { playing = false; fe_ingame = false; fe_on = ak_fe_open("MP_MainMenu"); play.ready = false; }
                 } else if (ev == AK_FE_QUIT) {                              /* back to the main menu */
                     playing = false; fe_ingame = false; fe_on = ak_fe_open("MP_MainMenu"); play.ready = false;
+                } else if (ev == AK_FE_START && ak_game_mode == 5 && !strncmp(levels[cur].label, "CAMPAIGN ", 9)) {
+                    /* the campaign: a won mission goes on to the next in the list (0x08C29918 + 1, 0x08B1C060), a lost one again
+                       [assumed: the list's order; the mission's FMV and load screen between them not done] */
+                    static const char *const camp[11] = { "YAVIN_IV", "SPACE_ALDERAAN", "ORD_MANTELL", "SPACE_KESSEL", "TATOOINE", "BOZ_PITY",
+                                                          "HOTH_ION_CANNON", "SPACE_HOTH", "KORRIBAN", "SULLUST", "ENDOR" };
+                    int li = 0; for (int k = 0; k < 11; k++) if (!strcmp(levels[cur].label + 9, camp[k])) li = k;
+                    if (play.have_cq && play.match.winner == play.team && li < 10) li++;
+                    char want[64]; snprintf(want, sizeof want, "CAMPAIGN %s", camp[li]);
+                    for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, want)) cur = i;
+                    AK_INFO("fe", "campaign: %s", want); loaded = false; play.ready = false;
                 } else if (ev == AK_FE_START) {                             /* the game-over page's Continue: the play list's next map */
                     int md = 0; const char *lv = ak_fe_launch(&md); static const char *codes[4] = { "CQST", "CTF1", "CTF2", "HCTF" };
                     ak_setting_set("AK_MODE", codes[md & 3]); for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, lv)) cur = i;
