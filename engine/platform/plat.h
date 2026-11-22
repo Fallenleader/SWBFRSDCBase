@@ -46,6 +46,14 @@ void ak_plat_trophy_unlock(int id);
 typedef void (*ak_audio_fn)(s16 *out, u32 frames, void *user);
 bool ak_plat_audio_open(u32 rate, ak_audio_fn fn, void *user);
 void ak_plat_audio_close(void);
+#ifdef AK_HAS_ARAM
+/* the GameCube's ARAM: a store returns its address (0 = full; 512 bytes after each may be read); reads are 32-byte aligned both
+ * sides, n a multiple of 32 */
+u32  ak_plat_aram_store(const void *src, u32 n);
+void ak_plat_aram_read(void *dst, u32 aram, u32 n);
+u32  ak_plat_aram_mark(void);
+void ak_plat_aram_release(u32 mark);
+#endif
 
 /* log output (the core formats; the device writes: stdout + log.txt, ux0:data/SWBFRS/log.txt, sdmc:/3ds/SWBFRS/log.txt) */
 void ak_plat_log_write(const char *line);

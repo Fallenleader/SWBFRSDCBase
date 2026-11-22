@@ -872,7 +872,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
                         AK_INFO("cut", "  clip %s: %u bones %u ch dur %.3f flags %x", ac->name, ac->nbones, ac->nchannels, ac->duration, ac->flags);
                         for (u32 ch = 0; ch < ac->nchannels && ch < 3; ch++) { const ak_anim_channel *an = &ac->chan[ch];
                             for (u32 q = 0; q < an->rot_count; q += (an->rot_count > 6 ? an->rot_count / 6 : 1)) {
-                                ak_quat r = ac->rot[an->rot_first + q]; const f32 *pp = an->pos_count == an->rot_count ? ac->pos[an->pos_first + q] : an->pos_count ? ac->pos[an->pos_first] : (f32[3]){0,0,0};
+                                ak_quat r = ak_clip_rot(ac, an->rot_first + q); const f32 *pp = an->pos_count == an->rot_count ? ac->pos[an->pos_first + q] : an->pos_count ? ac->pos[an->pos_first] : (f32[3]){0,0,0};
                                 AK_INFO("cut", "    ch %u key %u t %.3f q %.3f %.3f %.3f %.3f pos %.2f %.2f %.2f", ch, q, ac->rtime[an->rot_first + q] / 65535.0f * ac->duration, r.x, r.y, r.z, r.w, pp[0], pp[1], pp[2]); } } }
                 } k->group = (s32)(ak_rd32(c.body + c.size - 24) & 0xFFFFu); if (k->group == 0xFFFF) k->group = -1;
                 p->ncuts++;

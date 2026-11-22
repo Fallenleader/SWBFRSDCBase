@@ -18,7 +18,10 @@ u32 ak_hash31(const char *s)
 }
 
 /* ------------------------------------------------------------------ the bank */
-typedef struct { u32 hash; const char *path; s16 *pcm; u32 len, rate; bool level; } snd_sample;   /* path: the RSCF name */
+typedef struct { u32 hash; const char *path; s16 *pcm; u32 len, rate; bool level; const u8 *vag; s16 first; u32 aram; } snd_sample;   /* path: the RSCF name */
+/* vag (AK_AUDIO_ADPCM, the small-memory consoles' default): no pcm; the voice decodes the VAG frames as it plays them (the same
+ * values as the whole-sample decode), from the bank file, which stays loaded.  first: sample 0 (a loop's wrap reads it).
+ * aram (AK_HAS_ARAM): the frames are in the GameCube's audio memory instead (vag NULL), read back a block at a time. */
 typedef struct {
     u32 hash; bool level; const char *name;
     f32 vol_min, vol_max, pitch_min, pitch_max, dmin, dmax;
@@ -35,30 +38,43 @@ static s32 group_of(u32 h) { for (u32 i = 0; i < ngroups; i++) if (groups[i].has
 #define MAX_SAMPLES 1024
 #define MAX_EVENTS  1024
 static snd_sample samples[MAX_SAMPLES]; static u32 nsamples;
+#ifdef AK_HAS_ARAM
+static u32 aram_shared;                                 /* ARAM's top after the shared bank: a level's sounds start there */
+#endif
 static snd_event  events[MAX_EVENTS];   static u32 nevents;
 
 /* PSP VAG ADPCM -> s16 (a 48-byte big-endian header: data size at 12, rate at 16; 16-byte frames: predictor / shift, flags,
  * 14 bytes of 4-bit samples; flag 7 ends the data) */
-static s16 *vag_decode(const u8 *b, u32 size, u32 *len, u32 *rate)
+static void vag_frame(const u8 *d, s16 *out, s32 *h1, s32 *h2)   /* one 16-byte frame: 28 samples */
+{
+    static const int F[5][2] = { { 0, 0 }, { 60, 0 }, { 115, -52 }, { 98, -55 }, { 122, -60 } };
+    int pr = d[0] >> 4, sh = d[0] & 15; s32 s1 = *h1, s2 = *h2;
+    if (pr > 4) pr = 0;
+    for (int i = 0; i < 14; i++) for (int k = 0; k < 2; k++) {
+        int nib = k ? d[2 + i] >> 4 : d[2 + i] & 15;
+        int s = (s16)(nib << 12); s >>= sh; s += (s1 * F[pr][0] + s2 * F[pr][1]) >> 6;
+        if (s > 32767) s = 32767; else if (s < -32768) s = -32768;
+        *out++ = (s16)s; s2 = s1; s1 = s;
+    }
+    *h1 = s1; *h2 = s2;
+}
+static s16 *vag_decode(const u8 *b, u32 size, u32 *len, u32 *rate, const u8 **out_frames)
 {
     if (size < 64 || memcmp(b, "VAGp", 4)) return NULL;
     u32 dsz = ((u32)b[12] << 24) | ((u32)b[13] << 16) | ((u32)b[14] << 8) | b[15];
     *rate = ((u32)b[16] << 24) | ((u32)b[17] << 16) | ((u32)b[18] << 8) | b[19];
     if (dsz > size - 48) dsz = size - 48;
     if (*rate < 4000 || *rate > 96000) *rate = 22050;
-    u32 frames = dsz / 16; s16 *out = ak_plat_alloc(frames * 28 * sizeof(s16) + 2, 16); if (!out) return NULL;
-    static const int F[5][2] = { { 0, 0 }, { 60, 0 }, { 115, -52 }, { 98, -55 }, { 122, -60 } };
-    int s1 = 0, s2 = 0; u32 n = 0; const u8 *d = b + 48;
+    u32 frames = dsz / 16;
+    if (out_frames) {                                   /* (decode as it plays: the frames up to the end flag) */
+        u32 n = 0; while (n < frames && b[48 + 16 * n + 1] != 7) n++;
+        *out_frames = b + 48; *len = n * 28; return NULL;
+    }
+    s16 *out = ak_plat_alloc(frames * 28 * sizeof(s16) + 2, 16); if (!out) return NULL;
+    s32 s1 = 0, s2 = 0; u32 n = 0; const u8 *d = b + 48;
     for (u32 f = 0; f < frames; f++, d += 16) {
-        int pr = d[0] >> 4, sh = d[0] & 15, fl = d[1];
-        if (fl == 7) break;
-        if (pr > 4) pr = 0;
-        for (int i = 0; i < 14; i++) for (int k = 0; k < 2; k++) {
-            int nib = k ? d[2 + i] >> 4 : d[2 + i] & 15;
-            int s = (s16)(nib << 12); s >>= sh; s += (s1 * F[pr][0] + s2 * F[pr][1]) >> 6;
-            if (s > 32767) s = 32767; else if (s < -32768) s = -32768;
-            out[n++] = (s16)s; s2 = s1; s1 = s;
-        }
+        if (d[1] == 7) break;
+        vag_frame(d, out + n, &s1, &s2); n += 28;
     }
     *len = n; return out;
 }
@@ -78,14 +94,16 @@ u32 ak_audio_bank_add(const ak_blob *f, bool level)
 {
     if (!ak_asura_check(f)) return 0;
     /* the RSCF sounds first (by name), then the samples that name them, then the events */
-    typedef struct { const char *name; const u8 *data; u32 size; } res;
-    static res rs[1024]; u32 nr = 0, added = 0;
+    static ak_rscf rs[1024]; u32 nr = 0, added = 0;   /* (the data read when used: a streamed bank's are on the disc) */
     u32 pos = 8; ak_chunk c;
     while (ak_asura_next(f, &pos, &c)) {
         if (ak_chunk_tag(&c) == AK_TAG('R', 'S', 'C', 'F')) {
-            ak_rscf r; if (ak_rscf_parse(&c, &r) && r.type == AK_RSCF_SOUND && nr < 1024) rs[nr++] = (res){ r.name, r.data, r.size };
+            ak_rscf r; if (ak_rscf_parse(&c, &r) && r.type == AK_RSCF_SOUND && nr < 1024) rs[nr++] = r;
         }
     }
+#ifdef AK_HAS_ARAM
+    if (!level) aram_shared = 0; else if (!aram_shared) aram_shared = ak_plat_aram_mark();   /* (a level's go back at its reset) */
+#endif
     pos = 8;                                            /* the mixer first: the events name its groups */
     while (ak_asura_next(f, &pos, &c)) {
         if (ak_chunk_tag(&c) != AK_TAG('S', 'D', 'M', 'X') || c.size < 8) continue;
@@ -123,8 +141,16 @@ u32 ak_audio_bank_add(const ak_blob *f, bool level)
             if (!nm || !path) continue;
             for (u32 i = 0; i < nr; i++) if (!strcmp(rs[i].name, path)) {
                 snd_sample *s = &samples[nsamples]; memset(s, 0, sizeof *s);
-                s->pcm = vag_decode(rs[i].data, rs[i].size, &s->len, &s->rate);
-                if (s->pcm && s->len) { s->hash = ak_hash31(nm); s->path = path; s->level = level; nsamples++; added++; }
+                static int adpcm = -1; if (adpcm < 0) adpcm = ak_setting_int("AK_AUDIO_ADPCM", AK_SMALL_MEMORY);
+                const u8 *vb = ak_rscf_bytes(&rs[i]); if (!vb) break;
+                s->pcm = vag_decode(vb, rs[i].size, &s->len, &s->rate, adpcm ? &s->vag : NULL);
+                if (s->vag && s->len) { s16 f0[28]; s32 h1 = 0, h2 = 0; vag_frame(s->vag, f0, &h1, &h2); s->first = f0[0]; }
+#ifdef AK_HAS_ARAM
+                static int to_aram = -1; if (to_aram < 0) to_aram = ak_setting_int("AK_AUDIO_ARAM", 1);
+                if (to_aram && s->vag && s->len && (s->aram = ak_plat_aram_store(s->vag, (s->len / 28) * 16))) s->vag = NULL;
+                else if (s->vag && !rs[i].data) { s->vag = NULL; s->len = 0; }          /* (ARAM full: a streamed one's bytes do not stay) */
+#endif
+                if ((s->pcm || s->vag || s->aram) && s->len) { s->hash = ak_hash31(nm); s->path = path; s->level = level; nsamples++; added++; }
                 break;
             }
         } else if (tag == AK_TAG('S', 'D', 'E', 'V') && nevents < MAX_EVENTS) {
@@ -156,7 +182,34 @@ typedef struct {
     u32 id; const snd_sample *s; u64 pos, step;        /* 32.32 fixed point */
     f32 gain, pan, user_gain, dmin, dmax, gl, gr;
     f32 p[3]; bool pos3d, loop, live; s32 group;
+    u32 wf1; s32 h1, h2; s16 win[56];                   /* a VAG sample's: frames wf1 - 1 and wf1 decoded (0: none), the history after them */
+#ifdef AK_HAS_ARAM
+    u8 blk[512] __attribute__((aligned(32))); u32 blk_f1; /* an ARAM sample's: 32 frames from frame blk_f1 - 1 (0: none) */
+#endif
 } voice;
+static void vag_next(voice *v, s16 *out, u32 f)        /* frame f (silence past the end) */
+{
+    if (f >= v->s->len / 28) { memset(out, 0, 28 * sizeof(s16)); return; }
+#ifdef AK_HAS_ARAM
+    if (!v->s->vag) {
+        if (!v->blk_f1 || f + 1 < v->blk_f1 || f >= v->blk_f1 - 1 + 32) { u32 f0 = f & ~1u; ak_plat_aram_read(v->blk, v->s->aram + 16 * f0, sizeof v->blk); v->blk_f1 = f0 + 1; }
+        vag_frame(v->blk + 16 * (f - (v->blk_f1 - 1)), out, &v->h1, &v->h2); return;
+    }
+#endif
+    vag_frame(v->s->vag + 16 * f, out, &v->h1, &v->h2);
+}
+static s32 vag_at(voice *v, u32 i)                      /* sample i of a VAG voice: decoded forward, two frames held */
+{
+    u32 f = i / 28;
+    if (!v->wf1 || f + 1 < v->wf1) {                    /* (start, or back to the start after a loop) */
+        v->h1 = v->h2 = 0; vag_next(v, v->win, 0); vag_next(v, v->win + 28, 1); v->wf1 = 1;
+    }
+    while (f >= v->wf1 + 1) {
+        memcpy(v->win, v->win + 28, 28 * sizeof(s16)); v->wf1++;
+        vag_next(v, v->win + 28, v->wf1);
+    }
+    return v->win[i - 28 * (v->wf1 - 1)];
+}
 static voice voices[MAX_VOICES];
 static u32 next_id = 1;
 static f32 lis_pos[3], lis_yaw;
@@ -334,6 +387,10 @@ void ak_audio_level_reset(void)
     for (u32 i = 0; i < MAX_VOICES; i++) voices[i].live = false;
     u32 n = 0;
     for (u32 i = 0; i < nsamples; i++) { if (samples[i].level) ak_plat_free(samples[i].pcm); else samples[n++] = samples[i]; }
+#ifdef AK_HAS_ARAM
+    if (aram_shared) ak_plat_aram_release(aram_shared);
+    aram_shared = 0;
+#endif
     nsamples = n; n = 0;
     for (u32 i = 0; i < nevents; i++) if (!events[i].level) events[n++] = events[i];
     nevents = n;
@@ -360,7 +417,9 @@ void ak_audio_mix(s16 *out, u32 frames)
             for (u32 k = 0; k < n; k++) {
                 if (v->pos >= len) { if (v->loop) v->pos -= len; else { v->live = false; break; } }
                 u32 ip = (u32)(v->pos >> 32), fr = (u32)(v->pos >> 20) & 4095;
-                s32 a = pcm[ip], b = ip + 1 < v->s->len ? pcm[ip + 1] : (v->loop ? pcm[0] : 0);
+                s32 a, b;
+                if (pcm) { a = pcm[ip]; b = ip + 1 < v->s->len ? pcm[ip + 1] : (v->loop ? pcm[0] : 0); }
+                else { a = vag_at(v, ip); b = ip + 1 < v->s->len ? vag_at(v, ip + 1) : (v->loop ? v->s->first : 0); }
                 s32 smp = a + (((b - a) * (s32)fr) >> 12);
                 acc[2 * k] += (smp * gl) >> 12; acc[2 * k + 1] += (smp * gr) >> 12;
                 v->pos += v->step;

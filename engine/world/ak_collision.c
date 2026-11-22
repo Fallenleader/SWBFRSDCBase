@@ -13,11 +13,12 @@ static void cross(const f32 *a, const f32 *b, f32 *o) { o[0] = a[1] * b[2] - a[2
 static f32 dot(const f32 *a, const f32 *b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
 
 /* ---- BVH build: median split on the longest axis of the centroids, leaves of up to 4 triangles */
-typedef struct { f32 c[3]; f32 mn[3], mx[3]; u32 i; } prim;
+typedef struct { f32 mn[3], mx[3]; u32 i; } prim;   /* (the centre: PC(p, k), worked out where used) */
+#define PC(p, k) (((p)->mn[k] + (p)->mx[k]) * 0.5f)
 static int g_axis;
 static int prim_cmp(const void *x, const void *y)
 {
-    f32 a = ((const prim *)x)->c[g_axis], b = ((const prim *)y)->c[g_axis];
+    f32 a = PC((const prim *)x, g_axis), b = PC((const prim *)y, g_axis);
     return a < b ? -1 : a > b ? 1 : 0;
 }
 static u32 build(ak_collision *c, prim *p, u32 n, u32 *next)
@@ -28,7 +29,7 @@ static u32 build(ak_collision *c, prim *p, u32 n, u32 *next)
     for (u32 i = 0; i < n; i++)
         for (int k = 0; k < 3; k++) {
             nd->min[k] = fminf(nd->min[k], p[i].mn[k]); nd->max[k] = fmaxf(nd->max[k], p[i].mx[k]);
-            cmn[k] = fminf(cmn[k], p[i].c[k]); cmx[k] = fmaxf(cmx[k], p[i].c[k]);
+            cmn[k] = fminf(cmn[k], PC(&p[i], k)); cmx[k] = fmaxf(cmx[k], PC(&p[i], k));
         }
     if (n <= 4) { nd->count = n; nd->first_or_right = 0xFFFFFFFFu; return id; }   /* leaf: triangles placed in order below */
     int ax = 0; for (int k = 1; k < 3; k++) if (cmx[k] - cmn[k] > cmx[ax] - cmn[ax]) ax = k;
@@ -40,6 +41,7 @@ static u32 build(ak_collision *c, prim *p, u32 n, u32 *next)
     c->node[id].first_or_right = r;
     return id;
 }
+static u32 node_count(u32 n) { return n <= 4 ? 1 : 1 + node_count(n / 2) + node_count(n - n / 2); }   /* build()'s, exactly */
 /* leaves keep their primitives in prim order: assign each leaf its first index by walking the tree in the same order */
 static void assign(ak_collision *c, u32 id, u32 *cursor)
 {
@@ -53,7 +55,8 @@ bool ak_collision_load(const ak_level *l, ak_arena *a, ak_collision *out)
     memset(out, 0, sizeof *out);
     ak_chunk ch; u32 pos = 8; bool found = false;
     while (ak_asura_next(&l->file, &pos, &ch)) if (ak_chunk_tag(&ch) == AK_TAG('P', 'H', 'E', 'N')) { found = true; break; }
-    if (!found || ch.size < 24) return false;
+    ak_chunk stub = ch;                                                  /* (a streamed level's: read to count, and again to build) */
+    if (!found || !ak_chunk_load(&ch) || ch.size < 24) return false;
     const u8 *b = ch.body;
     u32 nobj = ak_rd32(b), nv = ak_rd32(b + 4), nq = ak_rd32(b + 8), nx = ak_rd32(b + 12), nm = ak_rd32(b + 16);
     size_t o = 24, oo = o; o += 52u * nobj;
@@ -69,10 +72,14 @@ bool ak_collision_load(const ak_level *l, ak_arena *a, ak_collision *out)
         const u8 *r = b + oo + 52 * i; u32 q0 = ak_rd32(r), n = ak_rd32(r + 8);
         for (u32 k = 0; k < n && q0 + k < nq; k++) ntri += ak_rd16(b + oq + 8 * (q0 + k) + 6) == 0xFFFF ? 1 : 2;
     }
+    ak_level_stream_drop();
     out->tri = AK_NEW(a, ak_col_tri, ntri ? ntri : 1); out->nobjects = nobj;
-    prim *p = (prim *)malloc(sizeof *p * (ntri ? ntri : 1));
-    ak_col_tri *tmp = (ak_col_tri *)malloc(sizeof *tmp * (ntri ? ntri : 1));
-    if (!out->tri || !p || !tmp) { free(p); free(tmp); return false; }
+    size_t mark = ak_arena_top_mark(a);                                 /* (the build's own: from the arena's top, given back) */
+    prim *p = (prim *)ak_arena_alloc_top(a, sizeof *p * (ntri ? ntri : 1), 16);
+    ak_col_tri *tmp = out->tri;                                          /* (built in place, then put in leaf order) */
+    if (!out->tri || !p) { ak_arena_top_release(a, mark); return false; }
+    ch = stub; if (!ak_chunk_load(&ch)) { ak_arena_top_release(a, mark); return false; }
+    b = ch.body;
     u32 t = 0;
     for (u32 i = 0; i < nobj; i++) {
         const u8 *r = b + oo + 52 * i;
@@ -100,20 +107,27 @@ bool ak_collision_load(const ak_level *l, ak_arena *a, ak_collision *out)
                 prim *pp = &p[t]; pp->i = t;
                 for (int k2 = 0; k2 < 3; k2++) {
                     pp->mn[k2] = fminf(P[0][k2], fminf(P[1][k2], P[2][k2])); pp->mx[k2] = fmaxf(P[0][k2], fmaxf(P[1][k2], P[2][k2]));
-                    pp->c[k2] = (pp->mn[k2] + pp->mx[k2]) * 0.5f;
                 }
                 t++;
             }
         }
     }
     out->ntri = t;
-    out->node = AK_NEW(a, ak_col_node, t ? 2 * t : 1);
-    if (!out->node) { free(p); free(tmp); return false; }
+    ak_level_stream_drop();                                              /* (the PHEN data: done with) */
+    ak_arena_trim(a, out->tri, sizeof(ak_col_tri) * (ntri ? ntri : 1), sizeof(ak_col_tri) * (t ? t : 1));   /* (degenerate ones left out) */
+    u32 nn = t ? node_count(t) : 1;
+    out->node = AK_NEW(a, ak_col_node, nn);
+    if (!out->node) { ak_arena_top_release(a, mark); return false; }
     u32 next = 0;
     if (t) { build(out, p, t, &next); u32 cur = 0; assign(out, 0, &cur); }
     out->nnode = next;
-    for (u32 i = 0; i < t; i++) out->tri[i] = tmp[p[i].i];          /* triangles in leaf order */
-    free(p); free(tmp);
+    if (t && next != nn) AK_WARN("col", "%u nodes built, %u counted", next, nn);
+    for (u32 s = 0; s < t; s++) {                                       /* triangles in leaf order: tri[i] = the old tri[p[i].i] (cycles) */
+        if (p[s].i == ~0u) continue;
+        ak_col_tri x = out->tri[s]; u32 j = s;
+        for (;;) { u32 k = p[j].i; p[j].i = ~0u; if (k == s) { out->tri[j] = x; break; } out->tri[j] = out->tri[k]; j = k; }
+    }
+    ak_arena_top_release(a, mark);
     return true;
 }
 

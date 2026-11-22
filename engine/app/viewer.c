@@ -121,6 +121,7 @@ static void fe_model_draw(const void *weapon, bool soldier, const ak_fe_look *lo
     f32 sx = rect[2] / 480.0f, sy = rect[3] / 272.0f, tx = (rect[0] + rect[2] * 0.5f) / 240.0f - 1.0f, ty = 1.0f - (rect[1] + rect[3] * 0.5f) / 136.0f;
     N.m[0] = sx; N.m[5] = sy; N.m[10] = 0.001f; N.m[12] = tx; N.m[13] = ty; N.m[14] = -0.998f; N.m[15] = 1;
     ak_m4 vp = ak_m4_mul(&N, &P);
+    ak_gfx_set_projection(&vp);                                        /* (the front end's frame has none: back to none after) */
     /* the turn in engine axes (y and z negated: about y and z the angles change sign) */
     /* [assumed: the y turn as stored, the x turn as stored - the closest of the four sign choices to the original's carousel frame] */
     f32 ax = rot[0], ay = rot[1], az = -rot[2];
@@ -133,6 +134,7 @@ static void fe_model_draw(const void *weapon, bool soldier, const ak_fe_look *lo
     if (soldier && look) { fe_t += 1.0f / 60.0f; ak_play_draw_look(fe_play, &lk, fe_models, fe_mscene, &vp, &W, fe_t, look->head_only); }
     else if (soldier) { fe_t += 1.0f / 60.0f; ak_play_draw_figure(fe_play, fe_models, fe_mscene, &vp, &W, fe_t); }   /* [assumed: his idle clip] */
     else ak_scene_models_draw(fe_mscene, (u32)mi, &vp, &W, NULL, NULL, NULL);
+    ak_gfx_set_projection(NULL);
 }
 
 int main(int argc, char **argv)
@@ -154,10 +156,10 @@ int main(int argc, char **argv)
     AK_INFO("aurek", "renderer: %s", ak_gfx_name());
 
     ak_arena tmp, lvl;
-    if (!ak_arena_init(&tmp, 1u << 20) || !ak_arena_init(&lvl, (size_t)ak_setting_int("AK_LEVEL_MB", 48) << 20)) return 1;
+    if (!ak_arena_init(&tmp, (size_t)ak_setting_int("AK_TMP_KB", 1024) << 10)) return 1;   /* (the level's arena: below, once the others are made) */
     find_levels(vfs, &tmp);
     ak_arena data; ak_blueprints bps; memset(&bps, 0, sizeof bps);              /* the game's blueprints: once, for every level */
-    if (ak_arena_init(&data, 2u << 20)) {
+    if (ak_arena_init(&data, (size_t)ak_setting_int("AK_DATA_KB", 2048) << 10)) {
         ak_blob cb;
         if (ak_vfs_read(vfs, "PSP_GAME/USRDIR/MISC/COMMON.ASR", &data, &cb) && ak_blueprints_parse(&cb, &data, &bps)) {
             u32 no = 0; for (u32 i = 0; i < bps.ntypes; i++) no += bps.types[i].nobjects;
@@ -167,17 +169,33 @@ int main(int argc, char **argv)
     if (!nlevels) { AK_ERROR("aurek", "no levels in PSP_GAME/USRDIR/ENVS"); return 1; }
     /* audio (1.9): the shared sound bank once; each level adds its own and its music */
     ak_arena sndmem, musmem; ak_audio_init();
-    if (ak_arena_init(&sndmem, 3u << 20)) { ak_blob sb;
+    if (ak_arena_init(&sndmem, (size_t)ak_setting_int("AK_SOUND_KB", 3072) << 10)) { ak_blob sb;
         ak_hud_load(vfs);
-        if (ak_vfs_read(vfs, "PSP_GAME/USRDIR/SOUNDS/GMSND.ASR", &sndmem, &sb)) {
+#ifdef AK_HAS_ARAM   /* (its sounds go to ARAM as the bank loads: read streamed, they do not stay in memory) */
+        bool snd_stream = ak_setting_int("AK_AUDIO_ADPCM", 1) && ak_setting_int("AK_AUDIO_ARAM", 1);
+#else
+        const bool snd_stream = false;
+#endif
+        if (snd_stream ? ak_level_stream_read(vfs, "PSP_GAME/USRDIR/SOUNDS/GMSND.ASR", &sndmem, &sb) : ak_vfs_read(vfs, "PSP_GAME/USRDIR/SOUNDS/GMSND.ASR", &sndmem, &sb)) {
             AK_INFO("audio", "SOUNDS/GMSND.ASR: %u sounds and events", ak_audio_bank_add(&sb, false));
             ak_blob am;                                                   /* speech: GMSND.AM's index (its lines, the bundle's table) */
+            ak_level_stream_close();
             if (ak_vfs_read_part(vfs, "PSP_GAME/USRDIR/SOUNDS/GMSND.AM", 0, 256u << 10, &sndmem, &am)) ak_speech_load(&am, &sb);
         }
         else AK_WARN("audio", "no SOUNDS/GMSND.ASR (copy the game's SOUNDS folder next to ENVS): shared sounds missing"); }
     bool have_mus = ak_arena_init(&musmem, 64u << 10);                      /* (a track's header only: its delay and loop) */
     FILE *dumpf = NULL; u32 dump_frames = 0; ak_blob b_level_keep = { 0 };
     if (getenv("AK_AUDIO_DUMP")) { dumpf = fopen(getenv("AK_AUDIO_DUMP"), "wb"); if (dumpf) { static const u8 z[44]; fwrite(z, 1, 44, dumpf); } }
+    {   /* the level's arena: AK_LEVEL_MB, or 0 = all the memory left but AK_LEVEL_RESERVE_KB (the consoles with little memory) */
+        size_t lmb = (size_t)ak_setting_int("AK_LEVEL_MB", 48) << 20;
+        if (!lmb) {
+            size_t s = 64u << 20; void *t; while (s > (2u << 20) && !(t = ak_plat_alloc(s, 64))) s -= 256u << 10;
+            if (s > (2u << 20)) ak_plat_free(t);
+            size_t keep = (size_t)ak_setting_int("AK_LEVEL_RESERVE_KB", 1536) << 10; lmb = s > keep + (4u << 20) ? s - keep : (4u << 20);
+            AK_INFO("aurek", "level memory: %.2f MB (%.2f MB free, %.2f MB kept back)", lmb / 1048576.0, s / 1048576.0, keep / 1048576.0);
+        }
+        if (!ak_arena_init(&lvl, lmb)) return 1;
+    }
     int cur = 0;
     const char *want = ak_setting_str("AK_LEVEL", "CLASSIC HOTH");
     for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, want)) cur = i;
@@ -219,7 +237,7 @@ int main(int argc, char **argv)
             int ev = ak_fe_update(&in, dt);
             ak_m4 id; memset(&id, 0, sizeof id); id.m[0] = id.m[5] = id.m[10] = id.m[15] = 1;
             ak_gfx_env env = { { 0, 0, 0 }, 0, 0, 1.0f };
-            ak_gfx_begin(0xFF000000u, &id, &env); ak_fe_draw(); ak_gfx_end(&gs);
+            ak_gfx_set_projection(NULL); ak_gfx_begin(0xFF000000u, &id, &env); ak_fe_draw(); ak_gfx_end(&gs);
             frame++;
             if (shot && frame == shot_frame) { ak_gfx_screenshot(shot); break; }
             if (ev == AK_FE_CMPN_START) {                                  /* the campaign: its level (0x08B1C060's list) in mode CMPN */
@@ -250,8 +268,9 @@ int main(int argc, char **argv)
             u64 t0 = ak_plat_time_us();
             ak_arena_reset(&lvl);
             ak_blob b;
-            if (!ak_vfs_read(vfs, levels[cur].path, &lvl, &b) || !ak_level_parse(&b, &lvl, &level) || !ak_scene_level_init(&scene, &level, &lvl)) {
-                AK_ERROR("aurek", "%s did not load", levels[cur].path); cur = (cur + 1) % nlevels; continue;
+            static int stream = -1; if (stream < 0) stream = ak_setting_int("AK_LEVEL_STREAM", AK_SMALL_MEMORY);
+            if (!(stream ? ak_level_stream_read(vfs, levels[cur].path, &lvl, &b) : ak_vfs_read(vfs, levels[cur].path, &lvl, &b)) || !ak_level_parse(&b, &lvl, &level) || !ak_scene_level_init(&scene, &level, &lvl)) {
+                ak_level_stream_close(); AK_ERROR("aurek", "%s did not load", levels[cur].path); cur = (cur + 1) % nlevels; continue;
             }
             if (!ak_models_load(&level, &lvl, &models) || !ak_scene_models_init(&mscene, &models, &scene, &lvl)) AK_WARN("aurek", "models did not load");
             fe_models = &models; fe_mscene = &mscene; fe_play = &play;
@@ -259,7 +278,7 @@ int main(int argc, char **argv)
             if (!strcmp(levels[cur].label, "GC")) {   /* the Galactic Conquest map: a new game, the player's first treasury */
                 static ak_gc_screen gcs_;
                 if (gcs_.ready && gc_back) {                  /* back from a battle: the same conquest on the reloaded map */
-                    ak_gc_screen keep = gcs_; ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, 1);
+                    static ak_gc_screen keep; keep = gcs_;   /* (static: 120 KB, too big for a console stack) */ ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, 1);
                     keep.corona = gcs_.corona; memcpy(keep.tex, gcs_.tex, sizeof keep.tex); memcpy(keep.shape, gcs_.shape, sizeof keep.shape); keep.nshape = gcs_.nshape;
                     gcs_ = keep; ak_gc_screen_battle_done(&gcs_, gc_back_res.winner_faction, gc_back_res.left); gc_back = false;
                 } else if (gc_keep && !gcs_.ready) {          /* resume: the saved conquest */
@@ -268,7 +287,7 @@ int main(int argc, char **argv)
                     if (!ak_gc_screen_load(&gcs_, sv)) { gcs_.g.turn = 0; gcs_.income = ak_gc_collect(&gcs_.g, &gcs_.r, 0); }
                     gc_keep = false;
                 } else if (gcs_.ready && gc_keep) {           /* resume: the conquest in memory */
-                    ak_gc_screen keep = gcs_; ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, 1);
+                    static ak_gc_screen keep; keep = gcs_;   /* (static: 120 KB, too big for a console stack) */ ak_gc_screen_init(&gcs_, vfs, &level, &scene, &models, &ents, &bps, 1);
                     keep.corona = gcs_.corona; memcpy(keep.tex, gcs_.tex, sizeof keep.tex); memcpy(keep.shape, gcs_.shape, sizeof keep.shape); keep.nshape = gcs_.nshape;
                     gcs_ = keep; gc_keep = false;
                 } else {
@@ -326,6 +345,7 @@ int main(int argc, char **argv)
             load_ms = (ak_plat_time_us() - t0) / 1000.0f;
             AK_INFO("aurek", "%s: %u triangles, %u batches, %u textures, %u models (%u in the gallery), %u skeletons, %u of %u entities placed, loaded in %.0f ms, %.1f MB",
                     levels[cur].label, level.geom.nidx / 3, level.geom.nbatch, level.ntex, models.nmodels, ngallery, models.nskels, ents.placed, ents.n, load_ms, lvl.used / 1048576.0);
+            ak_arena_report();
             {   /* start above the highest surface near the middle of the level */
                 f32 cx = (scene.bounds_min[0] + scene.bounds_max[0]) * 0.5f, cz = (scene.bounds_min[2] + scene.bounds_max[2]) * 0.5f, top = -1e30f;
                 for (f32 r = 15.0f; top < -1e29f && r < 2000.0f; r *= 2.0f)
@@ -409,6 +429,7 @@ int main(int argc, char **argv)
             ak_m4 view = ak_m4_view_yaw_pitch(eye, orbit_yaw, orbit_pitch), vp = ak_m4_mul(&proj, &view), ident;
             memset(&ident, 0, sizeof ident); ident.m[0] = ident.m[5] = ident.m[10] = ident.m[15] = 1;
             ak_gfx_env env = { { 0, 0, 0 }, 0, 0, ak_setting_float("AK_COLOUR_SCALE", 2.0f) };   /* PARITY(R.1) */
+            ak_gfx_set_projection(&proj);
             ak_gfx_begin(0x40382Eu | 0xFF000000u, &vp, &env);
             ak_scene_stats ms; memset(&ms, 0, sizeof ms);
             const f32 (*bp)[12] = NULL;
@@ -576,6 +597,8 @@ int main(int argc, char **argv)
             if (!ak_play_init(&play, &level, &models, &bps, &lvl, soldier, st)) { AK_WARN("aurek", "no soldier for this level"); playing = false; }
             else AK_INFO("aurek", "playing as %s (%s, head %d) at %.1f %.1f %.1f; level memory %.1f MB", models.models[play.look.body].name, ak_faction_name(play.look.faction),
                          play.look.head_index + 1, play.ch.pos[0], play.ch.pos[1], play.ch.pos[2], lvl.used / 1048576.0);
+            ak_arena_report();
+            ak_level_stream_close();                    /* (every loader has run: the resources left on the disc are not read again) */
             if (play.ready) ak_play_sound_start(&play, &level, &bps);
             if (play.ready && play.pfx_tex_index >= 0 && (u32)play.pfx_tex_index < level.ntex) play.pfx_tex = scene.tex[play.pfx_tex_index];   /* the particle sheet (R.6) */
             if (play.ready && fe_ingame) {                                  /* the player waits for the menus: team, then the spawn map */
@@ -819,6 +842,7 @@ int main(int argc, char **argv)
                 memcpy(env.fog_rgb, lf.rgb, 12); env.fog_start = 0; env.fog_end = lf.end * k;
             }
         }
+        ak_gfx_set_projection(&proj);
         ak_gfx_begin(gc_map ? 0xFF000000u : (0x6B5A4Cu | 0xFF000000u), &vp, &env);
         if (ak_setting_int("AK_SKY", 1)) ak_scene_sky_draw(&scene, &proj, &view, ak_setting_float("AK_FAR", 8000.0f) * 0.45f);
         {   static f32 clock_; clock_ += dt; ak_scene_set_time(clock_); }   /* (the scrolling textures' clock) */

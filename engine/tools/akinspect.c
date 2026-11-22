@@ -403,7 +403,7 @@ int main(int argc, char **argv)
             for (u32 k = 0; k < ms.nclips; k++) if (!strcmp(ms.clips[k].name, argv[i + 1])) {
                 const ak_anim_clip *c = &ms.clips[k];
                 printf("clip %s bones %u channels %u duration %.3f keys %u/%u\n", c->name, c->nbones, c->nchannels, c->duration, c->nrot, c->npos);
-                for (u32 r = 0; r < c->nrot && r < 8; r++) printf("  rot %u t %u  %.4f %.4f %.4f %.4f\n", r, c->rtime[r], c->rot[r].x, c->rot[r].y, c->rot[r].z, c->rot[r].w);
+                for (u32 r = 0; r < c->nrot && r < 8; r++) printf("  rot %u t %u  %.4f %.4f %.4f %.4f\n", r, c->rtime[r], ak_clip_rot(c, r).x, ak_clip_rot(c, r).y, ak_clip_rot(c, r).z, ak_clip_rot(c, r).w);
                 for (u32 ch = 0; ch < c->nchannels; ch++) { const ak_anim_channel *a = &c->chan[ch];   /* each channel's travel: first and last position key */
                     if (a->pos_count < 2) continue;
                     const f32 *p0 = c->pos[a->pos_first], *p1 = c->pos[a->pos_first + a->pos_count - 1];

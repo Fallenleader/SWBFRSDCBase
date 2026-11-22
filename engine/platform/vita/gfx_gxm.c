@@ -510,3 +510,4 @@ void ak_gfx_end(ak_gfx_stats *out)
 }
 void ak_gfx_vita_dialog(int on) { dialog_on = on; }
 bool ak_gfx_screenshot(const char *path) { (void)path; return false; }
+void ak_gfx_set_projection(const ak_m4 *proj) { (void)proj; }   /* (the full transform is enough here) */

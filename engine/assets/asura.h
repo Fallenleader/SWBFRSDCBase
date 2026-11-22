@@ -21,8 +21,19 @@ static inline u32 ak_chunk_tag(const ak_chunk *c) { return AK_TAG(c->tag[0], c->
 
 /* ---- RSCF: an embedded resource (texture, level geometry, model, sound, ...) */
 enum { AK_RSCF_MESH = 0, AK_RSCF_TEXTURE = 2, AK_RSCF_SOUND = 3 };
-typedef struct { u32 type, sub; const char *name; const u8 *data; u32 size; } ak_rscf;
+typedef struct { u32 type, sub; const char *name; const u8 *data; u32 size; u32 stub_off; } ak_rscf;
 bool ak_rscf_parse(const ak_chunk *c, ak_rscf *out);
+/* A streamed level (AK_LEVEL_STREAM, ak_level_stream_read) keeps its big texture and mesh resources on the disc: their chunks hold
+ * the header and the name, data = NULL and stub_off = where the data is in the file.  ak_rscf_bytes gives the data either way
+ * (a stub's read into a scratch buffer, valid until the next call; only while the level's stream is open: NULL after). */
+const u8 *ak_rscf_bytes(const ak_rscf *r);
+/* likewise whole chunks only read while loading (PHEN, NAV1, HCAN, HSKN): their body is "AKST", file offset, size until loaded here
+ * (into the same scratch); false = it could not be read.  Their loaders copy what they keep, names included. */
+bool ak_chunk_load(ak_chunk *c);
+struct ak_vfs;
+bool ak_level_stream_read(struct ak_vfs *v, const char *path, ak_arena *a, ak_blob *out);   /* opens the stream */
+void ak_level_stream_drop(void);                                    /* gives back the scratch (the last read: no longer used) */
+void ak_level_stream_close(void);                                   /* after the level's loaders have run */
 
 /* ---- name lists (TEXT) and material lists (MTRL v5) */
 typedef struct { const char **names; u32 count; } ak_names;
@@ -53,6 +64,7 @@ typedef struct {
     u32 sub;                           /* the resource's flags word (unknown meaning; kept for the cooker) */
 } ak_texture;
 bool ak_texture_parse(const ak_rscf *r, ak_arena *a, ak_texture *out);
+u32 ak_texture_slot(const ak_texture *t, u32 level);   /* the bytes level `level` has in the texture's block (>= its rows) */
 void ak_texture_expand(const ak_texture *t, int level, u32 *rgba);        /* width>>level * height>>level pixels */
 /* Personalisation colours on character and vehicle textures (the game's func_08A6A46C): a palette entry whose alpha is about half
  * (127 +- 10) becomes colour 1 ("team"), about zero (0 +- 10) colour 2 ("uniform"), each scaled by the entry's brightest channel

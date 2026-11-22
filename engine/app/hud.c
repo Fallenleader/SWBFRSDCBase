@@ -214,7 +214,7 @@ const u16 *ak_hud_bot_name(int faction, s32 i, u32 *len)
 bool ak_hud_load(ak_vfs *vfs)
 {
     if (ready) return true;
-    if (!ak_arena_init(&mem, 4u << 20)) return false;
+    if (!ak_arena_init(&mem, (size_t)ak_setting_int("AK_HUD_KB", 4096) << 10)) return false;
     u32 n = load_sheet(vfs, "PSP_GAME/USRDIR/GRAPHICS/HUD.ASR");
     for (u32 i = 0; i < S_COUNT; i++) {
         const sprite *s = find(table[i], 0, n);

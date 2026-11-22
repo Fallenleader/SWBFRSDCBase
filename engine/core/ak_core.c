@@ -21,18 +21,44 @@ void ak_log(ak_log_level lv, const char *tag, const char *fmt, ...)
     ak_plat_log_write(line);
 }
 
-bool ak_arena_init(ak_arena *a, size_t size)
+static ak_arena *live[32];
+bool ak_arena_init_n(ak_arena *a, size_t size, const char *name)
 {
-    a->base = (u8 *)ak_plat_alloc(size, 64); a->size = a->base ? size : 0; a->used = a->peak = 0;
+    a->base = (u8 *)ak_plat_alloc(size, 64); a->size = a->base ? size : 0; a->used = a->peak = 0; a->top = 0;
+    const char *s = strrchr(name, '/'); a->name = s ? s + 1 : name;
+    if (!a->base) AK_ERROR("mem", "%s: no memory for %.2f MB", a->name, size / 1048576.0);
+    else for (int i = 0; i < 32; i++) if (!live[i] || live[i] == a) { live[i] = a; break; }
     return a->base != NULL;
 }
-void ak_arena_free(ak_arena *a) { ak_plat_free(a->base); memset(a, 0, sizeof *a); }
+void ak_arena_free(ak_arena *a) { for (int i = 0; i < 32; i++) if (live[i] == a) live[i] = NULL; ak_plat_free(a->base); memset(a, 0, sizeof *a); }
+void ak_arena_report(void)
+{
+    size_t sz = 0, pk = 0;
+    for (int i = 0; i < 32; i++) if (live[i]) {
+        AK_INFO("mem", "%-28s %7.2f MB, most held %7.2f MB", live[i]->name, live[i]->size / 1048576.0, live[i]->peak / 1048576.0);
+        sz += live[i]->size; pk += live[i]->peak; }
+    AK_INFO("mem", "arenas: %.2f MB reserved, %.2f MB the most held", sz / 1048576.0, pk / 1048576.0);
+}
 void *ak_arena_alloc(ak_arena *a, size_t size, size_t align)
 {
     size_t p = AK_ALIGN_UP(a->used, align);
-    if (AK_UNLIKELY(p + size > a->size)) { AK_ERROR("mem", "arena full (%zu of %zu, asked %zu)", a->used, a->size, size); return NULL; }
-    a->used = p + size; if (a->used > a->peak) a->peak = a->used;
+    if (AK_UNLIKELY(p + size > a->size - a->top)) { AK_ERROR("mem", "%s full (%zu + %zu scratch of %zu, asked %zu)", a->name ? a->name : "arena", a->used, a->top, a->size, size); return NULL; }
+    a->used = p + size; if (a->used + a->top > a->peak) a->peak = a->used + a->top;
     return a->base + p;
+}
+void *ak_arena_alloc_top(ak_arena *a, size_t size, size_t align)
+{
+    size_t end = a->size - a->top;
+    if (AK_UNLIKELY(size > end || ((end - size) & ~(align - 1)) < a->used)) { AK_ERROR("mem", "%s full (%zu + %zu scratch of %zu, asked %zu scratch)", a->name ? a->name : "arena", a->used, a->top, a->size, size); return NULL; }
+    size_t start = (end - size) & ~(align - 1);
+    a->top = a->size - start; if (a->used + a->top > a->peak) a->peak = a->used + a->top;
+    return a->base + start;
+}
+char *ak_strndup(ak_arena *a, const char *s, size_t n)
+{
+    size_t l = strnlen(s, n); char *d = (char *)ak_arena_alloc(a, l + 1, 1);
+    if (d) { memcpy(d, s, l); d[l] = 0; }
+    return d;
 }
 void *ak_arena_zalloc(ak_arena *a, size_t size, size_t align)
 {

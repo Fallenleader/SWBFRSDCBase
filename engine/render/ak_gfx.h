@@ -38,6 +38,18 @@ const char *ak_gfx_name(void);                                   /* "GXM 960x544
 
 ak_gfx_buf *ak_gfx_vertices(const ak_vtx *v, u32 n);           /* static, GPU memory */
 ak_gfx_buf *ak_gfx_indices(const u32 *i, u32 n);
+/* buffers over data the caller keeps, unchanged, until the buffer is freed (32-byte aligned): a back end whose GPU reads the CPU's
+ * memory (the GameCube's GX: AK_GFX_KEEPS) draws from it in place instead of copying; the others copy, as the two above. */
+#ifdef AK_GFX_KEEPS
+ak_gfx_buf *ak_gfx_vertices_kept(const ak_vtx *v, u32 n);
+ak_gfx_buf *ak_gfx_indices_kept(const u32 *i, u32 n);
+ak_gfx_buf *ak_gfx_indices16_kept(const u16 *i, u32 n);   /* (16-bit indices: the models') */
+ak_gfx_tex *ak_gfx_texture_kept(ak_texture *t);   /* the texture's pixels become the GPU's (re-ordered in place): not read again */
+#else
+#define ak_gfx_texture_kept ak_gfx_texture
+#define ak_gfx_vertices_kept ak_gfx_vertices
+#define ak_gfx_indices_kept ak_gfx_indices
+#endif
 ak_gfx_tex *ak_gfx_texture(const ak_texture *t);                /* from the game's palette image (the back end picks the format) */
 /* the same image with another palette (personalisation colours): shares the pixels where the back end can (GXM) */
 ak_gfx_tex *ak_gfx_texture_palette(ak_gfx_tex *base, const ak_texture *t, const u32 *palette);
@@ -48,6 +60,10 @@ void ak_gfx_wait_idle(void);                                     /* before freei
 void ak_gfx_begin(u32 clear_rgba, const ak_m4 *view_proj, const ak_gfx_env *env);
 /* the clip-space transform of the draws that follow (model x view x projection); NULL = back to the frame's view_proj */
 void ak_gfx_set_transform(const ak_m4 *mvp);
+/* the projection part of the transforms that follow (a perspective of ak_m4_perspective's form, possibly scaled / offset in x and y
+ * and squashed in z), for back ends whose hardware wants the projection apart from the model-view (the GameCube's GX: model-view =
+ * projection^-1 x mvp).  NULL = none: the transforms are affine (2D, the front end).  Kept across frames; others ignore it. */
+void ak_gfx_set_projection(const ak_m4 *proj);
 /* a colour multiplied into the vertex colour of the draws that follow (holograms tinted by side); NULL = white.  Reset each frame. */
 void ak_gfx_set_tint(const f32 *rgba);
 /* back-face culling for the draws that follow (on at ak_gfx_begin; the setting AK_CULL, default 0, decides whether it does anything,

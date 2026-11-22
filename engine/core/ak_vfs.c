@@ -155,6 +155,28 @@ bool ak_vfs_read_part(ak_vfs *v, const char *path, u32 offset, u32 max, ak_arena
     return ok;
 }
 
+struct ak_vfs_file { ak_vfs *v; FILE *f; u32 lba, size; };
+ak_vfs_file *ak_vfs_fopen(ak_vfs *v, const char *path, u32 *size)
+{
+    ak_vfs_file *h = (ak_vfs_file *)calloc(1, sizeof *h); if (!h) return NULL;
+    h->v = v;
+    if (v->iso) { bool isdir; if (!iso_lookup(v, path, &h->lba, &h->size, &isdir) || isdir) { free(h); return NULL; } }
+    else {
+        char p[1024];
+        if (!dir_resolve(v->dir, path, p, sizeof p) || !(h->f = fopen(p, "rb"))) { free(h); return NULL; }
+        fseek(h->f, 0, SEEK_END); h->size = (u32)ftell(h->f);
+    }
+    if (size) *size = h->size;
+    return h;
+}
+bool ak_vfs_fread(ak_vfs_file *h, u32 offset, void *dst, u32 n)
+{
+    if (!h || offset > h->size || n > h->size - offset) return false;
+    if (h->v->iso) return iso_read(h->v, h->lba + offset / 2048, offset % 2048, dst, n);
+    return fseek(h->f, (long)offset, SEEK_SET) == 0 && fread(dst, 1, n, h->f) == n;
+}
+void ak_vfs_fclose(ak_vfs_file *h) { if (h) { if (h->f) fclose(h->f); free(h); } }
+
 static int name_cmp(const void *x, const void *y) { return strcmp(*(const char *const *)x, *(const char *const *)y); }
 
 int ak_vfs_list(ak_vfs *v, const char *dir, ak_arena *a, const char ***names)

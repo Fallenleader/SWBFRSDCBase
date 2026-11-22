@@ -20,12 +20,12 @@ static bool scene_level_init(ak_scene_level *s, const ak_level *l, ak_arena *a)
 {
     memset(s, 0, sizeof *s); s->level = l;
     const ak_level_geom *g = &l->geom;
-    s->vb = ak_gfx_vertices(g->vtx, g->nvtx); s->ib = ak_gfx_indices(g->idx, g->nidx);
+    s->vb = ak_gfx_vertices_kept(g->vtx, g->nvtx); s->ib = ak_gfx_indices_kept(g->idx, g->nidx);
     s->tex = AK_NEW(a, ak_gfx_tex *, l->ntex ? l->ntex : 1);
     s->items = AK_NEW(a, ak_draw_item, g->nbatch ? g->nbatch : 1); s->nitems_cap = g->nbatch;
     s->obj_visible = AK_NEW(a, u8, g->nobj ? g->nobj : 1);
     if (!s->vb || !s->ib || !s->tex || !s->items || !s->obj_visible) return false;
-    for (u32 i = 0; i < l->ntex; i++) { s->tex[i] = ak_gfx_texture(&l->tex[i]); }
+    for (u32 i = 0; i < l->ntex; i++) { s->tex[i] = ak_gfx_texture_kept((ak_texture *)&l->tex[i]);   /* (the level owns its textures; GX re-tiles them in place) */ }
     if (l->has_sky) {   /* unit cube faces seen from inside: front -Z, back +Z, left -X, right +X, up +Y; corners TL, TR, BL, BR */
         static const s8 F[5][4][3] = {
             { { -1, 1, -1 }, { 1, 1, -1 }, { -1, -1, -1 }, { 1, -1, -1 } }, { { 1, 1, 1 }, { -1, 1, 1 }, { 1, -1, 1 }, { -1, -1, 1 } },
@@ -174,6 +174,13 @@ bool ak_scene_models_init(ak_scene_models *s, const ak_model_set *set, const ak_
     u32 nv = 0, ni = 0;
     for (u32 i = 0; i < set->nmodels; i++) { nv += set->models[i].nvtx; ni += set->models[i].nidx; }
     s->index_base = AK_NEW(a, u32, set->nmodels ? set->nmodels : 1);
+#ifdef AK_GFX_KEEPS   /* (the GPU draws from each model's own arrays, kept with the level: no copies) */
+    s->mvb = AK_NEW(a, ak_gfx_buf *, set->nmodels ? set->nmodels : 1); s->mib = AK_NEW(a, ak_gfx_buf *, set->nmodels ? set->nmodels : 1);
+    if (!s->index_base || !s->mvb || !s->mib) return false;
+    for (u32 i = 0; i < set->nmodels; i++) if (set->models[i].nvtx && set->models[i].nidx) {
+        s->mvb[i] = ak_gfx_vertices_kept(set->models[i].vtx, set->models[i].nvtx); s->mib[i] = ak_gfx_indices16_kept(set->models[i].idx, set->models[i].nidx); }
+    s->vb = s->ib = (ak_gfx_buf *)1;   /* (not used) */
+#else
     ak_vtx *v = (ak_vtx *)malloc(sizeof *v * (nv ? nv : 1)); u32 *ix = (u32 *)malloc(4u * (ni ? ni : 1));
     if (!s->index_base || !v || !ix) { free(v); free(ix); return false; }
     u32 vo = 0, io = 0;
@@ -185,6 +192,7 @@ bool ak_scene_models_init(ak_scene_models *s, const ak_model_set *set, const ak_
     }
     s->vb = ak_gfx_vertices(v, nv); s->ib = ak_gfx_indices(ix, ni);
     free(v); free(ix);
+#endif
     const ak_level *l = level->level;
     s->masked = AK_NEW(a, u8, l->ntex ? l->ntex : 1);
     for (u32 i = 0; s->masked && i < l->ntex; i++) s->masked[i] = ak_texture_has_colour_mask(&l->tex[i]);
@@ -197,7 +205,11 @@ void ak_scene_models_free(ak_scene_models *s)
     ak_gfx_wait_idle();
     for (u32 i = 0; i < s->nvariant; i++) ak_gfx_free_tex(s->variant[i].gt);
     free(s->variant);
+#ifdef AK_GFX_KEEPS
+    for (u32 i = 0; s->set && s->mvb && i < s->set->nmodels; i++) { ak_gfx_free_buf(s->mvb[i]); ak_gfx_free_buf(s->mib[i]); }
+#else
     ak_gfx_free_buf(s->vb); ak_gfx_free_buf(s->ib);
+#endif
     memset(s, 0, sizeof *s);
 }
 
@@ -356,7 +368,11 @@ void ak_scene_models_draw(ak_scene_models *s, u32 mi, const ak_m4 *vp, const ak_
             if (lit && g_force_pipe < 0 && pipe != AK_PIPE_ADD) { ak_m4 wm = ak_m4_mul(world, &bm); f32 ll[12]; light_local(L, &wm, ll); ak_gfx_set_light(ll); }
             ak_gfx_tex *gt = pt->texture < 0 ? NULL : colours && s->masked[pt->texture] ? coloured(s, pt->texture, colours) : s->level->tex[pt->texture];
             tex_scroll(s->level, pt->flags, pt->extra);
+#ifdef AK_GFX_KEEPS
+            ak_gfx_draw(pipe, gt, s->mvb[mi], s->mib[mi], pt->first, pt->count);
+#else
             ak_gfx_draw(pipe, gt, s->vb, s->ib, s->index_base[mi] + pt->first, pt->count);
+#endif
             if (st) { st->draws++; st->tris += pt->count / 3; }
         }
     ak_gfx_set_transform(NULL); ak_gfx_set_light(NULL); ak_gfx_set_uv_offset(NULL);

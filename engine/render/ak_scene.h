@@ -33,6 +33,7 @@ typedef struct {
     const ak_model_set *set; const ak_scene_level *level;
     ak_gfx_buf *vb, *ib;
     u32 *index_base;           /* per model: its first index in ib (indices are rebased to the shared vertex buffer) */
+    ak_gfx_buf **mvb, **mib;   /* AK_GFX_KEEPS: per model, buffers over its own vertices and indices (vb, ib unused; index_base 0) */
     u8 *masked;                /* per level texture: has a personalisation colour mask */
     struct { s32 tex; u32 c1, c2; ak_gfx_tex *gt; } *variant; u32 nvariant, cap_variant;
     const ak_light_sample *light; u32 nlight;   /* the level's light samples (GISN): models are lit from them (R.1); none = unlit */

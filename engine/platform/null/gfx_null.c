@@ -26,3 +26,4 @@ void ak_gfx_draw_immediate(ak_pipe p, ak_gfx_tex *t, const ak_vtx *v, u32 n) { (
 void ak_gfx_text(f32 x, f32 y, u32 c, const char *s) { (void)x; (void)y; (void)c; (void)s; }
 void ak_gfx_end(ak_gfx_stats *o) { if (o) { o->draws = o->tris = 0; o->cpu_submit_ms = o->gpu_wait_ms = 0; } }
 bool ak_gfx_screenshot(const char *path) { (void)path; return true; }
+void ak_gfx_set_projection(const ak_m4 *proj) { (void)proj; }   /* (the full transform is enough here) */

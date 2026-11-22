@@ -44,7 +44,7 @@ static bool skel_parse(const ak_chunk *c, ak_arena *a, ak_skeleton *s)
     if (skip > c->size / 72) return false;
     o += 72u * skip;
     if (n == 0 || n > 512 || (size_t)o + 4u * n + 28u * n > c->size) return false;
-    s->name = name; s->name_hash = ak_hash_name(name); s->nbones = n;
+    s->name = ak_strndup(a, name, nl); s->name_hash = ak_hash_name(name); s->nbones = n;
     s->parent = AK_NEW(a, s16, n); s->bind_t = (f32 (*)[3])ak_arena_alloc(a, 12u * n, 4); s->bind_q = AK_NEW(a, ak_quat, n);
     s->world_t = (f32 (*)[3])ak_arena_alloc(a, 12u * n, 4); s->world_q = AK_NEW(a, ak_quat, n);
     if (!s->parent || !s->bind_t || !s->bind_q || !s->world_t || !s->world_q) return false;
@@ -146,6 +146,7 @@ static ak_quat q_unpack(u32 w)
     g[d] = s2 > 0 ? sqrtf(s2) : 0.0f;
     return q_from_game(g[0], g[1], g[2], g[3]);
 }
+ak_quat ak_quat_unpack(u32 w) { return q_unpack(w); }
 static ak_quat q_nlerp(ak_quat a, ak_quat b, f32 t)
 {
     f32 dot = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w, s = dot < 0 ? -1.0f : 1.0f;
@@ -179,7 +180,7 @@ static void anim_sample(const ak_anim_clip *c, const ak_skeleton *s, f32 t, bool
                 while (hi - lo > 1) { u32 mid = (lo + hi) / 2; if (tm[mid] <= tu) lo = mid; else hi = mid; }
                 k0 = lo; k1 = hi; f = (tu - tm[lo]) / (f32)(tm[hi] - tm[lo] ? tm[hi] - tm[lo] : 1);
             }
-            lq[b] = q_nlerp(c->rot[ch->rot_first + k0], c->rot[ch->rot_first + k1], f);
+            lq[b] = q_nlerp(ak_clip_rot(c, ch->rot_first + k0), ak_clip_rot(c, ch->rot_first + k1), f);
         }
         if (ch->pos_count == 1) memcpy(lt[b], c->pos[ch->pos_first], 12);
         else if (ch->pos_count > 1) {
@@ -205,9 +206,9 @@ static bool clip_parse(const ak_chunk *c, ak_arena *a, ak_anim_clip *k)
     u32 o = 28 + (u32)((nl + 1 + 3) & ~(size_t)3);
     u32 nch = nb + ((c->flags >> 4) & 1);
     if (nb > 512 || (size_t)o + 8u * nch + 6u * A + 12u * B > c->size) return false;
-    k->name = name; k->name_hash = ak_hash_name(name); k->nbones = nb; k->nchannels = nch; k->flags = c->flags;
+    k->name = ak_strndup(a, name, nl); k->name_hash = ak_hash_name(name); k->nbones = nb; k->nchannels = nch; k->flags = c->flags;
     k->duration = ak_rdf32(b + 4); k->nrot = A; k->npos = B;
-    k->chan = AK_NEW(a, ak_anim_channel, nch ? nch : 1); k->rot = AK_NEW(a, ak_quat, A ? A : 1); k->rtime = AK_NEW(a, u16, A ? A : 1);
+    k->chan = AK_NEW(a, ak_anim_channel, nch ? nch : 1); k->rot = AK_NEW(a, u32, A ? A : 1); k->rtime = AK_NEW(a, u16, A ? A : 1);
     k->pos = (f32 (*)[3])ak_arena_alloc(a, 12u * (B ? B : 1), 4);
     if (!k->chan || !k->rot || !k->rtime || !k->pos) return false;
     for (u32 i = 0; i < nch; i++) {
@@ -219,7 +220,7 @@ static bool clip_parse(const ak_chunk *c, ak_arena *a, ak_anim_clip *k)
         if ((u32)k->chan[i].rot_first + k->chan[i].rot_count > A || (u32)k->chan[i].pos_first + k->chan[i].pos_count > B) return false;
     }
     o += 8 * nch;
-    for (u32 i = 0; i < A; i++) k->rot[i] = q_unpack(ak_rd32(b + o + 4 * i));
+    for (u32 i = 0; i < A; i++) k->rot[i] = ak_rd32(b + o + 4 * i);
     o += 4 * A;
     for (u32 i = 0; i < A; i++) k->rtime[i] = ak_rd16(b + o + 2 * i);
     o += 2 * A;
@@ -246,17 +247,17 @@ static s8 snorm8f(f32 v) { int r = (int)lrintf(v * 127.0f); return (s8)(r < -127
 static bool mesh_parse(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_level *l, const ak_names *tex_names,
                        const ak_material *mats, u32 nmats, const ak_skeleton *sk)
 {
-    const u8 *b = r->data;
+    const u8 *b = ak_rscf_bytes(r); if (!b) return false;
     if (r->size < 16) return false;
     u32 np = ak_rd32(b + 4), nv = ak_rd32(b + 8), ni = ak_rd32(b + 12);
     u32 vo = 16 + 16 * np, io = vo + 32 * nv;
     if (np > 256 || (size_t)io + 2u * ni > r->size) return false;
     m->hash = ak_rd32(b); m->nparts = np; m->parts = AK_NEW(a, ak_model_part, np ? np : 1);
-    m->vtx = AK_NEW(a, ak_vtx, nv ? nv : 1); m->nvtx = nv;
+    m->vtx = (ak_vtx *)ak_arena_zalloc(a, sizeof(ak_vtx) * (nv ? nv : 1), 32); m->nvtx = nv;   /* (32: GX draws from it in place) */
     u32 tris_total = 0;                                                     /* strips -> lists: three indices per triangle */
     for (u32 pi = 0; pi < np; pi++) tris_total += ak_rd32(b + 16 + 16 * pi + 4);
     if (tris_total > 4u * ni + 16) return false;
-    m->idx = AK_NEW(a, u32, tris_total ? 3 * tris_total : 1);
+    m->idx = AK_NEW(a, u16, tris_total ? 3 * tris_total : 1);
     if (!m->parts || !m->vtx || !m->idx) return false;
     for (u32 i = 0; i < nv; i++) {
         const u8 *v = b + vo + 32 * i; ak_vtx *o = &m->vtx[i];
@@ -288,7 +289,7 @@ static bool mesh_parse(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_leve
             u32 x = v0 + ak_rd16(b + io + 2 * (i0 + k)), y = v0 + ak_rd16(b + io + 2 * (i0 + k + 1)), z = v0 + ak_rd16(b + io + 2 * (i0 + k + 2));
             if (x == y || y == z || x == z || x >= nv || y >= nv || z >= nv) continue;
             if (k & 1) { u32 t = x; x = y; y = t; }
-            m->idx[m->nidx++] = x; m->idx[m->nidx++] = y; m->idx[m->nidx++] = z;
+            m->idx[m->nidx++] = (u16)x; m->idx[m->nidx++] = (u16)y; m->idx[m->nidx++] = (u16)z;
         }
         pt->count = m->nidx - pt->first;
         if (mat == 0xFFFFFFFFu) pt->count = 0;                               /* invisible helpers (seats, invisible_skin) */
@@ -313,15 +314,15 @@ static bool mesh_parse(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_leve
 static bool mesh_parse_v2(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_level *l, const ak_names *tex_names,
                           const ak_material *mats, u32 nmats, const ak_skeleton *sk)
 {
-    const u8 *b = r->data; u32 sz = r->size;
+    const u8 *b = ak_rscf_bytes(r); u32 sz = r->size; if (!b) return false;
     size_t nl = strnlen((const char *)b, sz); u32 o = (u32)((nl + 1 + 3) & ~(size_t)3);
     if ((size_t)o + 8 > sz) return false;
     u32 nv = ak_rd32(b + o), ng = ak_rd32(b + o + 4), go = o + 8, vo = go + 16 * ng;
-    if (!nv || ng > 256 || (size_t)vo + 20u * nv > sz) return false;
+    if (!nv || nv > 65535 || ng > 256 || (size_t)vo + 20u * nv > sz) return false;
     {   u32 h = 0; for (const char *q = r->name; *q; q++) h = h * 31 + (u32)(*q >= 'A' && *q <= 'Z' ? *q + 32 : *q);   /* the game's name hash (v1 meshes store it) */
         m->hash = h; }
     m->nparts = ng; m->parts = AK_NEW(a, ak_model_part, ng ? ng : 1);
-    m->vtx = AK_NEW(a, ak_vtx, nv); m->nvtx = nv; m->idx = AK_NEW(a, u32, 3u * nv + 3);
+    m->vtx = (ak_vtx *)ak_arena_zalloc(a, sizeof(ak_vtx) * (nv ? nv : 1), 32); m->nvtx = nv; m->idx = AK_NEW(a, u16, 3u * nv + 3);
     if (!m->parts || !m->vtx || !m->idx) return false;
     if (sk) {
         m->skin = AK_NEW(a, struct ak_skin_w, nv);
@@ -369,7 +370,7 @@ static bool mesh_parse_v2(const ak_rscf *r, ak_arena *a, ak_model *m, const ak_l
             u32 x = first + k, y = first + k + 1, z = first + k + 2;
             if (!memcmp(m->vtx[x].pos, m->vtx[y].pos, 12) || !memcmp(m->vtx[y].pos, m->vtx[z].pos, 12) || !memcmp(m->vtx[x].pos, m->vtx[z].pos, 12)) continue;
             if (k & 1) { u32 t = x; x = y; y = t; }
-            m->idx[m->nidx++] = x; m->idx[m->nidx++] = y; m->idx[m->nidx++] = z;
+            m->idx[m->nidx++] = (u16)x; m->idx[m->nidx++] = (u16)y; m->idx[m->nidx++] = (u16)z;
         }
         pt->count = m->nidx - pt->first;
     }
@@ -479,9 +480,9 @@ bool ak_models_load(const ak_level *l, ak_arena *a, ak_model_set *out)
         u32 tag = ak_chunk_tag(&c); ak_rscf r;
         if (tag == AK_TAG('T', 'E', 'X', 'T')) ak_text_parse(&c, a, &text);
         else if (tag == AK_TAG('M', 'T', 'R', 'L')) { if (!ak_mtrl_parse(&c, a, &mats, &nmats)) { mats = NULL; nmats = 0; } }
-        else if (tag == AK_TAG('H', 'S', 'K', 'N') && c.version == 8) { if (skel_parse(&c, a, &out->skels[out->nskels])) out->nskels++; }
+        else if (tag == AK_TAG('H', 'S', 'K', 'N') && c.version == 8) { if (ak_chunk_load(&c) && skel_parse(&c, a, &out->skels[out->nskels])) out->nskels++; }
         else if (tag == AK_TAG('H', 'S', 'B', 'B') && c.version == 1) hsbb_parse(&c, out, a);
-        else if (tag == AK_TAG('H', 'C', 'A', 'N')) { if (clip_parse(&c, a, &out->clips[out->nclips])) out->nclips++; }
+        else if (tag == AK_TAG('H', 'C', 'A', 'N')) { if (ak_chunk_load(&c) && clip_parse(&c, a, &out->clips[out->nclips])) out->nclips++; }
         else if (tag == AK_TAG('A', 'T', 'E', 'X') && c.size >= 16) {             /* animation tables: resolved after the clips (below) */
             u32 sets = ak_rd32(c.body + 4), rows = ak_rd32(c.body + 8), cols = ak_rd32(c.body + 12);
             if (sets && rows && cols && sets * rows * cols <= 65536 && 16u + 4u * sets * rows * cols <= c.size) {

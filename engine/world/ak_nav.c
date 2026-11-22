@@ -6,7 +6,7 @@ bool ak_nav_load(const ak_level *l, ak_arena *a, ak_nav *out)
 {
     memset(out, 0, sizeof *out);
     ak_chunk c; u32 pos = 8; bool found = false;
-    while (ak_asura_next(&l->file, &pos, &c)) if (ak_chunk_tag(&c) == AK_TAG('N', 'A', 'V', '1')) { found = true; break; }
+    while (ak_asura_next(&l->file, &pos, &c)) if (ak_chunk_tag(&c) == AK_TAG('N', 'A', 'V', '1')) { found = ak_chunk_load(&c); break; }
     if (!found || c.size < 12) return false;
     const u8 *b = c.body;
     u32 nn = ak_rd32(b), o = 8;
@@ -36,15 +36,17 @@ bool ak_nav_load(const ak_level *l, ak_arena *a, ak_nav *out)
     u32 nc = out->gw * out->gh;
     out->cell_first = AK_NEW(a, u32, nc + 1); out->cell_items = AK_NEW(a, u32, nn);
     if (!out->cell_first || !out->cell_items) return false;
-    u32 *cellof = (u32 *)malloc(4u * nn);
+    size_t mark = ak_arena_top_mark(a);                                  /* (the working arrays: the arena's top, given back) */
+    u32 *cellof = (u32 *)ak_arena_alloc_top(a, 4u * (nn ? nn : 1), 16), *fill = (u32 *)ak_arena_alloc_top(a, 4u * (nc ? nc : 1), 16);
+    if (!cellof || !fill) { ak_arena_top_release(a, mark); return false; }
+    memset(fill, 0, 4u * nc);
     for (u32 i = 0; i < nn; i++) {
         u32 cx = (u32)((out->node[i].pos[0] - mn[0]) / out->cell), cz = (u32)((out->node[i].pos[2] - mn[1]) / out->cell);
         cellof[i] = cz * out->gw + cx; out->cell_first[cellof[i] + 1]++;
     }
     for (u32 k = 0; k < nc; k++) out->cell_first[k + 1] += out->cell_first[k];
-    u32 *fill = (u32 *)calloc(nc, 4);
     for (u32 i = 0; i < nn; i++) out->cell_items[out->cell_first[cellof[i]] + fill[cellof[i]]++] = i;
-    free(fill); free(cellof);
+    ak_arena_top_release(a, mark);
     return true;
 }
 

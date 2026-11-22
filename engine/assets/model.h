@@ -49,7 +49,7 @@ typedef struct {
     s32 skeleton;                      /* index into the level's skeletons, -1 = none (parts at the origin) */
     ak_model_part *parts; u32 nparts;
     ak_vtx *vtx; u32 nvtx;             /* in the part's bone space */
-    u32 *idx; u32 nidx;
+    u16 *idx; u32 nidx;                /* (16-bit: a model has at most 65535 vertices) */
     f32 radius;                        /* bounding sphere of the bind pose, around the model origin */
     f32 bmin[3], bmax[3];              /* bind-pose box in model space */
     ak_marker *markers; u32 nmarkers;  /* shared by the model's levels of detail */
@@ -67,7 +67,7 @@ typedef struct {
     u32 nbones, nchannels;             /* channels = bones (+1 root-motion channel) */
     u32 flags; f32 duration;
     ak_anim_channel *chan;
-    ak_quat *rot; u16 *rtime;          /* decoded at load, engine axes */
+    u32 *rot; u16 *rtime;              /* rotations packed as stored (4 bytes, not 16): ak_clip_rot decodes one, engine axes */
     f32 (*pos)[3]; u32 npos, nrot;
 } ak_anim_clip;
 
@@ -109,4 +109,6 @@ const ak_marker *ak_model_marker(const ak_model *m, const char *name);       /* 
 void ak_marker_matrix(const f32 bone[12], const ak_marker *mk, f32 out[12]);
 /* model-space transform of every bone for the bind pose: 3x4 rows (rotation | translation), engine axes */
 void ak_skeleton_bind_matrices(const ak_skeleton *s, f32 (*m)[12]);
+ak_quat ak_quat_unpack(u32 packed);   /* a clip's packed rotation key -> engine axes */
+static inline ak_quat ak_clip_rot(const ak_anim_clip *c, u32 i) { return ak_quat_unpack(c->rot[i]); }
 #endif

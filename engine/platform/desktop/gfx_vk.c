@@ -840,3 +840,4 @@ bool ak_gfx_screenshot(const char *path)
     fclose(f);
     return true;
 }
+void ak_gfx_set_projection(const ak_m4 *proj) { (void)proj; }   /* (the full transform is enough here) */

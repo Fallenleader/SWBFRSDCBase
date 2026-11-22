@@ -41,13 +41,24 @@ static inline int ak_log_level_now(void) { return ak_log_setting; }
 
 /* ---- memory: a linear arena per lifetime (level, frame).  Freed as a whole; no per-object frees on hot paths. */
 typedef struct ak_arena {
-    u8 *base; size_t size, used; size_t peak;
+    u8 *base; size_t size, used; size_t peak; const char *name;
+    size_t top;                        /* bytes taken from the end for short-lived scratch (ak_arena_alloc_top) */
 } ak_arena;
-bool  ak_arena_init(ak_arena *a, size_t size);              /* backed by ak_plat_alloc */
+bool  ak_arena_init_n(ak_arena *a, size_t size, const char *name);   /* backed by ak_plat_alloc */
+#define ak_arena_init(a, size) ak_arena_init_n((a), (size), __FILE__ ":" #a)
+void  ak_arena_report(void);                                 /* logs every live arena: its size and the most it has held */
 void  ak_arena_free(ak_arena *a);
 void *ak_arena_alloc(ak_arena *a, size_t size, size_t align); /* NULL when full */
 void *ak_arena_zalloc(ak_arena *a, size_t size, size_t align);
-static inline void ak_arena_reset(ak_arena *a) { a->used = 0; }
+static inline void ak_arena_reset(ak_arena *a) { a->used = 0; a->top = 0; }
+/* short-lived scratch from the arena's end, freed in reverse order: mark = ak_arena_top_mark(a) before, ak_arena_top_release(a, mark)
+ * after.  The arena's lasting allocations cannot reach it while it is held (load-time buffers that must not stay). */
+void *ak_arena_alloc_top(ak_arena *a, size_t size, size_t align);
+static inline size_t ak_arena_top_mark(const ak_arena *a) { return a->top; }
+static inline void ak_arena_top_release(ak_arena *a, size_t mark) { a->top = mark; }
+/* gives back the end of the arena's last allocation p (asked as `size`): it keeps `keep` bytes; nothing if p is not the last */
+static inline void ak_arena_trim(ak_arena *a, void *p, size_t size, size_t keep) { if ((u8 *)p + size == a->base + a->used && keep <= size) a->used -= size - keep; }
+char *ak_strndup(ak_arena *a, const char *s, size_t n);      /* up to n chars, 0-ended */
 #define AK_NEW(a, T, n) ((T *)ak_arena_zalloc((a), sizeof(T) * (size_t)(n), _Alignof(T)))
 
 /* ---- files: whole-file reads into an arena (level files are 8-12 MB; read once, parsed in place) */
@@ -56,6 +67,18 @@ bool ak_file_read(const char *path, ak_arena *a, ak_blob *out);
 
 /* ---- hashing (the game's resource names are matched case-insensitively) */
 u32 ak_hash_name(const char *s);    /* FNV-1a over lower-cased bytes, '/' == '\\' */
+
+/* AK_SMALL_MEMORY: the consoles with little memory (the GameCube's 24 MB) default to the memory-saving forms (settings can
+ * switch each): sounds kept ADPCM (AK_AUDIO_ADPCM), level resources read from the disc one at a time (AK_LEVEL_STREAM). */
+#if defined(__GAMECUBE__)
+#define AK_SMALL_MEMORY 1
+#define AK_HAS_ARAM 1                  /* sounds kept in the GameCube's audio memory */
+#else
+#define AK_SMALL_MEMORY 0
+#ifdef AK_ARAM_TEST
+#define AK_HAS_ARAM 1                  /* (tests: platform/null keeps a pretend ARAM) */
+#endif
+#endif
 
 /* ---- little-endian reads from unaligned data (all game files are little endian).  Big-endian devices (Wii U, GameCube) swap;
  * the little-endian ones compile these to plain loads.  AK_BIG_ENDIAN: values in memory read from the files must be swapped. */

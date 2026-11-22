@@ -1609,6 +1609,8 @@ textures and how they are used. Section R lists only what must be in place so th
   - Big endian (2026-11-22): engine reads/writes PSP data correctly on big-endian CPUs; tools/be_check.sh (x86 vs qemu-ppc) matches.
   - Wii U (2026-11-22): devkitPPC + wut built from source; GX2/AX/pads code compiles and links; CafeGLSL (shader compiler) waits on approval.
   - Wii U (2026-11-22): built (aurek.wuhb); untested on hardware.
+  - GameCube (2026-11-22): GX renderer + platform written, aurek.dol links; memory diet (ADPCM sounds in ARAM, streamed level resources, in-place GPU data, packed animations) brings every level under ~13.3 MB; front end not yet; untested on hardware.
+  - GameCube (2026-11-22): runs in Dolphin from a disc image (make_gcm.py, own apploader, dvd: device); every Classic level fits; front end not yet.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

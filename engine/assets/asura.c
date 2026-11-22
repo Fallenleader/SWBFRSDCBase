@@ -1,4 +1,6 @@
 #include "asura.h"
+#include "../core/ak_vfs.h"
+#include "../platform/plat.h"
 #include "../core/ak_settings.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,8 +34,110 @@ bool ak_rscf_parse(const ak_chunk *c, ak_rscf *out)
     if (n == room) return false;
     out->name = name;
     size_t q = 12 + ((n + 1 + 3) & ~(size_t)3);
-    if (q + out->size > c->size) return false;
+    out->stub_off = 0;
+    if (q + out->size > c->size) {                      /* a streamed level's stub: "AKST", the data's file offset */
+        if (q + 8 != c->size || memcmp(b + q, "AKST", 4)) return false;
+        out->data = NULL; out->stub_off = ak_rd32(b + q + 4);
+        return out->stub_off != 0;
+    }
     out->data = b + q;
+    return true;
+}
+
+/* ---- streamed levels: everything but the big texture / mesh resources read once into the arena; those stay on the disc */
+static struct { ak_vfs_file *f; u8 *scratch; u32 cap, biggest; u32 reads; u64 bytes; ak_arena *a; size_t mark, scratch_mark, mark_after; } stream;   /* scratch: the arena's top, one read's size */
+static const u8 *stream_get(const char *what, u32 off, u32 size)
+{
+    if (!stream.f) { AK_ERROR("level", "%s: a streamed resource read after the level loaded", what); return NULL; }
+    if (size > stream.cap || size + (64u << 10) < stream.cap) {          /* (each read its own size, unless close to the last's) */
+        if (stream.scratch && ak_arena_top_mark(stream.a) != stream.mark_after) { AK_ERROR("level", "%s: the scratch is held under another buffer", what); return NULL; }
+        if (stream.scratch) ak_arena_top_release(stream.a, stream.scratch_mark);
+        stream.cap = 0; stream.scratch_mark = ak_arena_top_mark(stream.a);
+        stream.scratch = (u8 *)ak_arena_alloc_top(stream.a, size, 64); if (!stream.scratch) return NULL;
+        stream.cap = size; stream.mark_after = ak_arena_top_mark(stream.a); if (size > stream.biggest) stream.biggest = size;
+    }
+    if (!ak_vfs_fread(stream.f, off, stream.scratch, size)) { AK_ERROR("level", "%s: the read failed", what); return NULL; }
+    stream.reads++; stream.bytes += size;
+    return stream.scratch;
+}
+const u8 *ak_rscf_bytes(const ak_rscf *r) { return r->data || !r->stub_off ? r->data : stream_get(r->name, r->stub_off, r->size); }
+bool ak_chunk_load(ak_chunk *c)
+{
+    if (c->size != 12 || memcmp(c->body, "AKST", 4)) return true;
+    const u8 *b = stream_get(c->tag, ak_rd32(c->body + 4), ak_rd32(c->body + 8)); if (!b) return false;
+    c->size = ak_rd32(c->body + 8); c->body = b;
+    return true;
+}
+void ak_level_stream_drop(void)
+{
+    if (stream.scratch && ak_arena_top_mark(stream.a) == stream.mark_after) { ak_arena_top_release(stream.a, stream.scratch_mark); stream.scratch = NULL; stream.cap = 0; }
+}
+void ak_level_stream_close(void)
+{
+    if (stream.f) AK_INFO("level", "streamed: %u resource reads, %.1f MB (the largest %.1f MB)", stream.reads, stream.bytes / 1048576.0, stream.biggest / 1048576.0);
+    ak_vfs_fclose(stream.f); if (stream.a) ak_arena_top_release(stream.a, stream.mark); memset(&stream, 0, sizeof stream);
+}
+static bool get_bytes(ak_vfs_file *f, u8 *win, u32 *wo, u32 *wn, u32 cap, u32 size, u32 off, void *d, u32 len)
+{
+    if (len > cap / 2) return ak_vfs_fread(f, off, d, len);
+    if (off < *wo || off + len > *wo + *wn) {
+        if (off >= size) return false;
+        *wo = off; *wn = size - off < cap ? size - off : cap;
+        if (!ak_vfs_fread(f, off, win, *wn)) { *wn = 0; return false; }
+        if (off + len > *wo + *wn) return false;
+    }
+    memcpy(d, win + (off - *wo), len); return true;
+}
+bool ak_level_stream_read(ak_vfs *v, const char *path, ak_arena *a, ak_blob *out)
+{
+    ak_level_stream_close();
+    u32 size = 0; ak_vfs_file *f = ak_vfs_fopen(v, path, &size);
+    if (!f) { AK_ERROR("level", "%s: not found", path); return false; }
+    /* the kept chunks go straight into the arena's free end (the arena's last allocation, trimmed to what was kept) */
+    size_t used0 = a->used, peak0 = a->peak, room = a->size - AK_ALIGN_UP(a->used, 64); u8 *dst = (u8 *)ak_arena_alloc(a, room, 64); u32 n = 0;
+    if (room) room--;                                                              /* (the end's 0) */
+    enum { WIN = 64u << 10 }; u8 *win = (u8 *)ak_plat_alloc(WIN, 64); u32 wo = 0, wn = 0;   /* a read-ahead window */
+    #define GET(off, d, len) get_bytes(f, win, &wo, &wn, WIN, size, (off), (d), (len))
+    bool ok = dst && win && size >= 8 && room >= 8 && GET(0, dst, 8) && !memcmp(dst, "Asura   ", 8);
+    n = 8; u32 pos = 8, stubs = 0, biggest = 0;
+    while (ok && pos + 16 <= size) {
+        u8 h[16 + 12 + 256]; if (!GET(pos, h, 16)) { ok = false; break; }
+        u32 csz = ak_rd32(h + 4);
+        if (csz < 16 || pos + csz > size) break;                                   /* (the files end with a few zero bytes) */
+        bool stub = false; u32 keep = csz;
+        if (!memcmp(h, "RSCF", 4) && csz > 16 + 12 + 2048) {
+            u32 hb = csz - 16 < 12 + 256 ? csz - 16 : 12 + 256;
+            if (!GET(pos + 16, h + 16, hb)) { ok = false; break; }
+            u32 type = ak_rd32(h + 16), rsz = ak_rd32(h + 24); size_t nl = strnlen((const char *)h + 28, hb - 12);
+            u32 q = 12 + (u32)((nl + 1 + 3) & ~(size_t)3);
+#ifdef AK_HAS_ARAM
+            static int snd = -1; if (snd < 0) snd = ak_setting_int("AK_AUDIO_ADPCM", 1) && ak_setting_int("AK_AUDIO_ARAM", 1);   /* (sounds: to ARAM as the bank loads) */
+#else
+            const int snd = 0;
+#endif
+            if ((type == AK_RSCF_TEXTURE || type == AK_RSCF_MESH || (type == AK_RSCF_SOUND && snd)) && nl < hb - 12 && q + rsz <= csz - 16) { stub = true; keep = 16 + q + 8; if (rsz > biggest) biggest = rsz; }
+            if (stub) {
+                if (n + keep > room) { ok = false; break; }
+                memcpy(dst + n, h, 16 + q); ak_wr32(dst + n + 4, keep); memcpy(dst + n + 16 + q, "AKST", 4); ak_wr32(dst + n + 16 + q + 4, pos + 16 + q);
+                n += keep; stubs++;
+            }
+        }
+        if (!stub && (!memcmp(h, "PHEN", 4) || !memcmp(h, "NAV1", 4) || !memcmp(h, "HCAN", 4) || !memcmp(h, "HSKN", 4)) && csz > 16 + 12) {
+            if (n + 28 > room) { ok = false; break; }                              /* (read only while loading: ak_chunk_load) */
+            memcpy(dst + n, h, 16); ak_wr32(dst + n + 4, 28); memcpy(dst + n + 16, "AKST", 4); ak_wr32(dst + n + 20, pos + 16); ak_wr32(dst + n + 24, csz - 16);
+            n += 28; stubs++; stub = true; if (csz - 16 > biggest) biggest = csz - 16;
+        }
+        if (!stub) { if (n + csz > room || !GET(pos, dst + n, csz)) { ok = false; break; } n += csz; }
+        pos += csz;
+    }
+    #undef GET
+    ak_plat_free(win);
+    if (!ok) { AK_ERROR("level", "%s: the streamed read failed (%.1f MB room)", path, room / 1048576.0); ak_vfs_fclose(f); a->used = used0; a->peak = peak0; return false; }
+    dst[n] = 0; a->used = (size_t)(dst - a->base) + n + 1; a->peak = peak0 > a->used ? peak0 : a->used;   /* (trimmed) */
+    out->data = dst; out->size = n;
+    stream.a = a; stream.mark = ak_arena_top_mark(a); (void)biggest;
+    stream.f = f;
+    AK_INFO("level", "%s: %.1f MB kept of %.1f MB (%u resources left on the disc)", path, n / 1048576.0, size / 1048576.0, stubs);
     return true;
 }
 
@@ -77,7 +181,7 @@ bool ak_mtrl_parse(const ak_chunk *c, ak_arena *a, ak_material **out, u32 *count
 bool ak_texture_parse(const ak_rscf *r, ak_arena *a, ak_texture *t)
 {
     if (r->type != AK_RSCF_TEXTURE || r->size < 8) return false;
-    const u8 *b = r->data;
+    const u8 *b = ak_rscf_bytes(r); if (!b) return false;
     memset(t, 0, sizeof *t);
     t->width = ak_rd16(b); t->height = ak_rd16(b + 2);
     u8 fmt = b[6], mips = b[7];
@@ -85,12 +189,14 @@ bool ak_texture_parse(const ak_rscf *r, ak_arena *a, ak_texture *t)
     if (!t->width || !t->height || mips >= AK_ARRAY_LEN(t->pixels)) return false;
     t->levels = (u8)(mips + 1); t->name = r->name; t->name_hash = ak_hash_name(r->name); t->sub = r->sub;
     u32 p = 8, w = t->width, h = t->height;
-    for (u32 l = 0; l < t->levels; l++) {
+    /* the levels in one block, each in a slot of ak_texture_slot bytes (room for the GameCube's tiles: GX re-tiles them in place) */
+    u32 total = 0; for (u32 l = 0; l < t->levels; l++) total += ak_texture_slot(t, l);
+    u8 *blk = (u8 *)ak_arena_alloc(a, total, 32), *dst = blk;
+    if (!blk) return false;
+    for (u32 l = 0; l < t->levels; l++, dst += ak_texture_slot(t, l - 1)) {
         u32 wb = w * t->bpp / 8, sz = wb * h;
         if (wb == 0) wb = 1, sz = h;
         if (p + sz > r->size) return false;
-        u8 *dst = (u8 *)ak_arena_alloc(a, sz, 16);
-        if (!dst) return false;
         const u8 *src = b + p;
         if (wb >= 16 && h >= 8) {                                   /* de-swizzle */
             u32 bw = wb / 16;
@@ -107,6 +213,11 @@ bool ak_texture_parse(const ak_rscf *r, ak_arena *a, ak_texture *t)
     return true;
 }
 
+u32 ak_texture_slot(const ak_texture *t, u32 l)
+{
+    u32 w = t->width >> l, h = t->height >> l; if (!w) w = 1; if (!h) h = 1;
+    return ((w + 7) / 8) * ((h + (t->bpp == 4 ? 7 : 3)) / (t->bpp == 4 ? 8 : 4)) * 32;   /* 8 x 8 texels at 4 bits, 8 x 4 at 8, 32 bytes each */
+}
 void ak_texture_expand(const ak_texture *t, int level, u32 *rgba)
 {
     u32 w = t->width >> level, h = t->height >> level;
@@ -184,9 +295,13 @@ static bool sep_axis(const f32 (*a)[2], const f32 (*b)[2], f32 eps)
     }
     return false;
 }
+/* the level geometry's working arrays: from the arena's top (given back when ak_env_parse returns): no heap needed */
+static ak_arena *tmp_a;
+static void *tmp_alloc(size_t n) { return ak_arena_alloc_top(tmp_a, n ? n : 1, 16); }
+static void *tmp_zalloc(size_t n) { void *q = tmp_alloc(n); if (q) memset(q, 0, n ? n : 1); return q; }
 static u32 mark_overlays(const ak_vtx *V, const u32 (*tri)[3], const u32 *mat, const u8 *lay, u8 *overlay, u32 nt)
 {
-    plane_rec *pr = (plane_rec *)malloc(sizeof *pr * (nt ? nt : 1)); u32 np = 0, marked = 0;
+    plane_rec *pr = (plane_rec *)tmp_alloc(sizeof *pr * (nt ? nt : 1)); u32 np = 0, marked = 0;
     if (!pr) return 0;
     for (u32 i = 0; i < nt; i++) {
         if (lay[i]) continue;
@@ -220,15 +335,22 @@ static u32 mark_overlays(const ak_vtx *V, const u32 (*tri)[3], const u32 *mat, c
         }
         g0 = g1;
     }
-    free(pr);
-    return marked;
+        return marked;
 }
 
 static s8 snorm8(s16 v) { int r = (v * 127 + (v >= 0 ? 16384 : -16384)) / 32768; return (s8)(r < -127 ? -127 : r > 127 ? 127 : r); }
 
+static bool env_parse(const ak_rscf *r, const u8 *b, ak_arena *a, ak_level_geom *g);
 bool ak_env_parse(const ak_rscf *r, ak_arena *a, ak_level_geom *g)
 {
-    const u8 *b = r->data; memset(g, 0, sizeof *g);
+    const u8 *b = ak_rscf_bytes(r); memset(g, 0, sizeof *g); if (!b) return false;   /* (first: a streamed one's scratch sits under the working arrays) */
+    ak_arena *keep = tmp_a; tmp_a = a; size_t mark = ak_arena_top_mark(a);
+    bool ok = env_parse(r, b, a, g);
+    ak_arena_top_release(a, mark); tmp_a = keep;
+    return ok;
+}
+static bool env_parse(const ak_rscf *r, const u8 *b, ak_arena *a, ak_level_geom *g)
+{
     if (r->size < 20) return false;
     u32 nopq = ak_rd32(b + 4), nlay = ak_rd32(b + 8), nv = ak_rd32(b + 12), ns = nopq + nlay;
     u32 vo = 20 + 20 * ns;
@@ -237,14 +359,14 @@ bool ak_env_parse(const ak_rscf *r, ak_arena *a, ak_level_geom *g)
 
     /* vertices: native layout, engine axes.  A strip's vertex type picks the colour format, so vertices are converted per strip
      * (the game never shares a vertex between the two layers). */
-    g->vtx = AK_NEW(a, ak_vtx, nv ? nv : 1); g->nvtx = nv;
-    u8 *seen = (u8 *)calloc(nv ? nv : 1, 1);
+    g->vtx = (ak_vtx *)ak_arena_zalloc(a, sizeof(ak_vtx) * (nv ? nv : 1), 32); g->nvtx = nv;   /* (32: GX draws from it in place) */
+    u8 *seen = (u8 *)tmp_zalloc((size_t)(nv ? nv : 1) * (1));
     u32 maxtri = 0, maxobj = 0;
-    if (!g->vtx || !seen) { free(seen); return false; }
+    if (!g->vtx || !seen) { return false; }
     for (u32 s = 0; s < ns; s++) {
         const u8 *sr = b + 20 + 20 * s;
         u32 w = ak_rd32(sr), n = w & 0xFFFF, vt = w >> 16, v0 = ak_rd32(sr + 4), obj = ak_rd32(sr + 16);
-        if ((size_t)v0 + n > nv || (vt != 0x1D2 && vt != 0x1DA)) { free(seen); AK_ERROR("env", "strip %u: bad range or vertex type %x", s, vt); return false; }
+        if ((size_t)v0 + n > nv || (vt != 0x1D2 && vt != 0x1DA)) { AK_ERROR("env", "strip %u: bad range or vertex type %x", s, vt); return false; }
         if (n >= 3) maxtri += n - 2;
         if (obj + 1 > maxobj) maxobj = obj + 1;
         for (u32 i = v0; i < v0 + n; i++) {
@@ -260,11 +382,10 @@ bool ak_env_parse(const ak_rscf *r, ak_arena *a, ak_level_geom *g)
             else { o->col[0] = (u8)((c & 31) * 255 / 31); o->col[1] = (u8)(((c >> 5) & 63) * 255 / 63); o->col[2] = (u8)((c >> 11) * 255 / 31); o->col[3] = 255; }
         }
     }
-    free(seen);
-    if (maxobj > 0xFFFF) return false;
+        if (maxobj > 0xFFFF) return false;
 
     /* strips -> triangles (degenerate joins dropped; the strip's alternate triangles flipped to keep one winding), then grouped */
-    tri_rec *tr = (tri_rec *)malloc(sizeof(tri_rec) * (maxtri ? maxtri : 1)); u32 nt = 0;
+    tri_rec *tr = (tri_rec *)tmp_alloc(sizeof(tri_rec) * (maxtri ? maxtri : 1)); u32 nt = 0;
     if (!tr) return false;
     u32 nmat_seen = 0;
     for (u32 s = 0; s < ns; s++) {
@@ -282,22 +403,21 @@ bool ak_env_parse(const ak_rscf *r, ak_arena *a, ak_level_geom *g)
         }
     }
     {   /* overlays (see mark_overlays): the key's bit 14 */
-        u32 (*tv)[3] = (u32 (*)[3])malloc(12u * (nt ? nt : 1)); u32 *tm = (u32 *)malloc(4u * (nt ? nt : 1));
-        u8 *tl = (u8 *)malloc(nt ? nt : 1), *ov = (u8 *)calloc(nt ? nt : 1, 1);
+        u32 (*tv)[3] = (u32 (*)[3])tmp_alloc(12u * (nt ? nt : 1)); u32 *tm = (u32 *)tmp_alloc(4u * (nt ? nt : 1));
+        u8 *tl = (u8 *)tmp_alloc(nt ? nt : 1), *ov = (u8 *)tmp_zalloc((size_t)(nt ? nt : 1) * (1));
         if (tv && tm && tl && ov) {
             for (u32 i = 0; i < nt; i++) { tv[i][0] = tr[i].a; tv[i][1] = tr[i].b; tv[i][2] = tr[i].c; tm[i] = tr[i].key & 0x3FFF; tl[i] = (u8)(tr[i].key >> 31); }
             g->overlay_tris = mark_overlays(g->vtx, (const u32 (*)[3])tv, tm, tl, ov, nt);
             for (u32 i = 0; i < nt; i++) if (ov[i]) tr[i].key |= 1u << 14;
         }
-        free(tv); free(tm); free(tl); free(ov);
-    }
+            }
     qsort(tr, nt, sizeof *tr, tri_cmp);
     g->idx = AK_NEW(a, u32, nt ? nt * 3 : 1); g->nidx = nt * 3;
     u32 nb = 0;
     for (u32 i = 0; i < nt; i++) if (i == 0 || tr[i].key != tr[i - 1].key) nb++;
     g->batch = AK_NEW(a, ak_batch, nb ? nb : 1); g->nobj = maxobj;
     g->obj_bounds = AK_NEW(a, ak_aabb, maxobj ? maxobj : 1);
-    if (!g->idx || !g->batch || !g->obj_bounds) { free(tr); return false; }
+    if (!g->idx || !g->batch || !g->obj_bounds) { return false; }
     for (u32 o = 0; o < maxobj; o++) for (int k = 0; k < 3; k++) { g->obj_bounds[o].min[k] = 1e30f; g->obj_bounds[o].max[k] = -1e30f; }
     for (u32 i = 0; i < nt; i++) {
         if (i == 0 || tr[i].key != tr[i - 1].key) {
@@ -316,8 +436,7 @@ bool ak_env_parse(const ak_rscf *r, ak_arena *a, ak_level_geom *g)
             if (v > bb->max[k]) bb->max[k] = v;
         }
     }
-    free(tr);
-    (void)nmat_seen;
+        (void)nmat_seen;
     return true;
 }
 
