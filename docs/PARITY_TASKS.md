@@ -1529,6 +1529,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - Part 69, 2026-11-22 - **6.5: force powers, first pass** (see NATIVE_ENGINE). Open in 6.5: the powers' exact targeting
     (08A220E0 / 08A1C2B0 decompile poorly - VFPU; read the recomp C), the victims' reactions and motion, the thrown saber's flight,
     bots using powers, blocking, the combo timing against the harness (RS_HERO_FAST + a melee setup). Next: 4.3b auto-gunners.
+  - 2026-11-22 (user's requests) - head swap (not the CIS), the HSV colour picker for every faction, the Vita trophies, the date
+    medals for a match won on the day (see NATIVE_ENGINE). Open: the platinum's picture (the user supplies it), a trophy test on
+    the Vita (NoTrpDrm), the picker on hardware.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
