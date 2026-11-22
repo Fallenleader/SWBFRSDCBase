@@ -2293,7 +2293,7 @@ static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
 
 static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a)
 {
-    p->in_veh = -1; p->in_turret = -1; p->fly_target = -1; p->fly_auto = false; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 10.0f);   /* (the spawn records say 10 s) */   /* PARITY(3.5) */
+    p->in_veh = -1; p->in_turret = -1; p->fly_target = -1; p->fly_auto = false; p->cam_lock = false; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 10.0f);   /* (the spawn records say 10 s) */   /* PARITY(3.5) */
     p->bot_drive = ak_setting_float("AK_BOT_VEHICLES", 1.0f);   /* the chance a spawned bot wants a vehicle (the spawner default 100 %, 0897E594) */
     if (!ak_setting_int("AK_VEHICLES", 1)) return;
     ak_entity_set es; size_t mark = a->used;
@@ -2752,7 +2752,16 @@ static void fly_target_update(ak_play *p, u32 v, f32 dt)
         if (ak_setting_int("AK_DEBUG_VEH", 0) && p->fly_target >= 0) { const ak_vehicle *tv = &p->veh[p->fly_target - NS(p)];
             AK_INFO("veh", "target %d: %s (%x) at %.0f %.0f %.0f, %u candidates", p->fly_target, tv->def ? tv->def->name : "-", p->vspawn[p->fly_target - NS(p)].eid, tv->pos[0], tv->pos[1], tv->pos[2], n); }
     }
-    if (p->fly_auto_req) { p->fly_auto_req = false; p->fly_auto = !p->fly_auto; }
+    /* triangle (089A9728, action 0xF): below the elite difficulty (08979DF4 != 2) the auto-pilot - +0x34C bit 0x20, kept only with a
+       target and in free flight (+0x354 bit 0, or the craft's vfunc +0xCC) - which clears the camera lock; at the elite difficulty
+       the camera lock instead (+0x1DC toggled: STDTEXT 0x1AE "Press .. to look towards your target. This is camera lock, it only
+       moves your camera not your starfighter") */
+    if (p->fly_auto_req) { p->fly_auto_req = false; if (p->difficulty >= 2) p->cam_lock = !p->cam_lock; else p->fly_auto = !p->fly_auto; }
+    if (p->fly_auto) p->cam_lock = false;
+    if (p->fly_target < 0) p->cam_lock = false;
+    /* the lock's blend (089AB82C: +728 += dt x the vehicle's +376 - a blueprint value, 0x20144D79, none on the game's flyers: its
+       default 1.0 - up to 1.0) [assumed: back to 0 at once when the lock ends] */
+    if (p->cam_lock) { p->cam_lock_t += dt; if (p->cam_lock_t > 1.0f) p->cam_lock_t = 1.0f; } else p->cam_lock_t = 0;
     if (p->fly_auto && p->fly_target >= 0 && vh->flying && vh->takeoff <= 0) {
         const ak_target *t = &p->target[p->fly_target];
         f32 tx = t->feet[0] - vh->pos[0], ty = t->feet[1] + t->height * 0.5f - vh->pos[1], tz = t->feet[2] - vh->pos[2], h = sqrtf(tx * tx + tz * tz);
@@ -4787,11 +4796,18 @@ void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *f
             f32 cp = cosf(vh->pitch), fw[3] = { -sinf(y) * cp, sinf(vh->pitch), -cosf(y) * cp };
             f32 c[3] = { vh->pos[0] - fw[0] * back, vh->pos[1] + vh->def->height * 0.5f - fw[1] * back + up, vh->pos[2] - fw[2] * back };
             f32 la[3] = { vh->pos[0] + fw[0] * 40, vh->pos[1] + vh->def->height * 0.5f + fw[1] * 40, vh->pos[2] + fw[2] * 40 };
+            if (p->cam_lock && p->fly_target >= 0 && (u32)p->fly_target < NV(p)) {   /* the camera lock: the view turns toward the target, the craft
+                                                                                   flies on [assumed: the look point blended from the nose's by the lock's
+                                                                                   blend - 089AB82C's angle work is not followed in full] */
+                const ak_target *t = &p->target[p->fly_target]; f32 tp[3] = { t->feet[0], t->feet[1] + t->height * 0.5f, t->feet[2] };
+                for (int k = 0; k < 3; k++) la[k] += (tp[k] - la[k]) * p->cam_lock_t;
+            }
             *eye = ak_v3_make(c[0], c[1], c[2]);
             f32 lx = la[0] - c[0], ly = la[1] - c[1], lz = la[2] - c[2];
             *yaw = atan2f(-lx, -lz); *pitch = atan2f(ly, sqrtf(lx * lx + lz * lz)); *fovy = p->fov;
             p->aim_ok = true; p->eye[0] = c[0]; p->eye[1] = c[1]; p->eye[2] = c[2];
             p->aim[0] = -sinf(*yaw) * cosf(*pitch); p->aim[1] = sinf(*pitch); p->aim[2] = -cosf(*yaw) * cosf(*pitch);
+            if (p->cam_lock_t > 0) memcpy(p->aim, fw, 12);                       /* (the guns stay on the nose) */
             return;
         }
         /* the game's ground vehicle camera (measured: harness RS_VIEW_LOG on Hoth's AT-ST and Boz Pity's T4B): the eye sits at

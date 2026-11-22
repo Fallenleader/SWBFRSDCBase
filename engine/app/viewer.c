@@ -626,6 +626,8 @@ int main(int argc, char **argv)
                         if (!t->alive || !t->def->boardable || t->team != play.team) continue;
                         f32 dx = t->pos[0] - play.ch.pos[0], dz = t->pos[2] - play.ch.pos[2], r = t->rad + 2.5f;
                         if (dx * dx + dz * dz < r * r && fabsf(t->pos[1] - play.ch.pos[1]) < 5.0f) use_id = 0x47; }
+                if (!use_id && play.in_veh >= 0 && play.fly_target >= 0) use_id = play.cam_lock ? 0x1B0 : play.fly_auto ? 0xF1 : 0;   /* (08A0B378: "Camera Lock
+                                                                                   engaged" / "Auto-pilot engaged" while on) [assumed: the use prompts' box] */
                 static f32 use_t = 0;
                 if (use_id && !ak_fe_page()) { use_t -= dt; if (use_t <= 0) { ak_hud_message(3, use_id, NULL, 0); use_t = 3.0f; } } else use_t = 0;
                 if (at_own && !ak_fe_page() && !use_id) { tip_t -= dt; if (tip_t <= 0) { ak_hud_message(3, 328, NULL, 0); tip_t = 3.0f; } } else tip_t = 0;
