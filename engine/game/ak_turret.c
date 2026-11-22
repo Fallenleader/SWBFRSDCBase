@@ -32,8 +32,12 @@ bool ak_turret_def_load(const ak_blueprints *bp, const ak_model_set *m, const ch
     d->wreck = part_model(m, ak_bp_string(o, "DestroyedTurret", ""));
     if (d->wreck < 0) { char n[96]; snprintf(n, sizeof n, "%s_destroyed", base_name); d->wreck = ak_models_find(m, n); }
     d->health = ak_bp_float(o, "Health", 200);
-    d->turn_rate = ak_bp_float(o, "MaxTurnYaw", 40) * DEG;
-    d->pitch_min = ak_bp_float(o, "MinPivotX", -20) * DEG; d->pitch_max = ak_bp_float(o, "MaxPivotX", 20) * DEG;
+    /* the turning (the vehicle base's getters, 089C5440..089C55A8: defaults in radians 4 / 10 / 3 / 4 / 5 / 3, 0x08AEEDB8..CC) and the
+     * pivot limits (089B60C4..6154 into +940..+952, default 0: none) */
+    d->turn_rate = ak_bp_float(o, "MaxTurnYaw", 3.0f / DEG) * DEG; d->pitch_rate = ak_bp_float(o, "MaxTurnPitch", 3.0f / DEG) * DEG;
+    d->yaw_in = ak_bp_float(o, "YawInputDamp", 5.0f / DEG) * DEG; d->yaw_damp = ak_bp_float(o, "YawDamp", 4.0f / DEG) * DEG;
+    d->pitch_in = ak_bp_float(o, "PitchInputDamp", 10.0f / DEG) * DEG; d->pitch_damp = ak_bp_float(o, "PitchDamp", 4.0f / DEG) * DEG;
+    d->pitch_min = ak_bp_float(o, "MinPivotX", 0) * DEG; d->pitch_max = ak_bp_float(o, "MaxPivotX", 0) * DEG;
     d->cam_z = ak_bp_float(o, "CameraBestZ", 20.0f); d->cam_y = ak_bp_float(o, "CameraBestY", 5.0f);
     d->yaw_min = ak_bp_float(o, "MinPivotY", 0) * DEG;     d->yaw_max = ak_bp_float(o, "MaxPivotY", 0) * DEG;
     d->boardable = ak_bp_int(o, "Boardable", 1) != 0;
@@ -168,9 +172,10 @@ bool ak_turret_aim_at(const ak_turret *t, const ak_model_set *m, const f32 *targ
     f32 F = t->def->face;                                                    /* a -z facing model: yaw by a half turn, pitch reversed */
     f32 y = atan2f(F * lx, F * lz), p = atan2f(ly, sqrtf(lx * lx + lz * lz));
     bool ok = true;
-    if (t->def->yaw_min != 0 || t->def->yaw_max != 0) { if (y < t->def->yaw_min) { y = t->def->yaw_min; ok = false; } if (y > t->def->yaw_max) { y = t->def->yaw_max; ok = false; } }
-    if (p < t->def->pitch_min) { p = t->def->pitch_min; ok = false; }
-    if (p > t->def->pitch_max) { p = t->def->pitch_max; ok = false; }
+    if (t->def->yaw_min != t->def->yaw_max) { if (y < t->def->yaw_min) { y = t->def->yaw_min; ok = false; } if (y > t->def->yaw_max) { y = t->def->yaw_max; ok = false; } }
+    if (t->def->pitch_min != t->def->pitch_max) {
+        if (p < t->def->pitch_min) { p = t->def->pitch_min; ok = false; }
+        if (p > t->def->pitch_max) { p = t->def->pitch_max; ok = false; } }
     *yaw = y; *pitch = F * p;
     return ok;
 }

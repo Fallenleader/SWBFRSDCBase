@@ -20,7 +20,8 @@
 typedef struct {
     const ak_bp_object *bp; const char *name;
     s32 base, pivot, barrel, wreck;    /* models (-1 = none) */
-    f32 health, turn_rate, pitch_min, pitch_max, yaw_min, yaw_max;   /* radians (yaw limits 0 / 0: all round) */
+    f32 health, turn_rate, pitch_min, pitch_max, yaw_min, yaw_max;   /* radians (limits equal: no limit - 089B7F50) */
+    f32 yaw_in, yaw_damp, pitch_in, pitch_damp, pitch_rate;   /* the gunner's turning (089B7F50 / 089B829C): Yaw/PitchInputDamp, Yaw/PitchDamp (rad/s^2), MaxTurnPitch (rad/s; MaxTurnYaw is turn_rate) */
     bool boardable, armed;
     ak_weapon_def gun, gun_bot; f32 volley, volley_bot;
     const char *muzzle[2]; f32 muzzle_time[2]; u32 nmuzzles;

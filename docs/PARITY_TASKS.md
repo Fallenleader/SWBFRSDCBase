@@ -503,6 +503,14 @@ textures and how they are used. Section R lists only what must be in place so th
     frame), the skid damping works across and backward only, the speed is held to StallSpeed..TopSpeed; turning spins up at
     YawInputDamp - YawDamp (100 degrees/s^2) to MaxTurnYaw and settles at YawDamp - Aurek matches.
   - [ ] **3.1b** The throttle cap over CruisingSpeed (vehicle +288), hover height, slopes, barrel aim, volleys, rider pose.
+    - 2026-11-22, the turret's aim traced (the turret class, 089B6864 setup; 089B7F50 pitch, 089B829C yaw): each rate (+496 pitch)
+      falls toward 0 by Damp x dt (both signs), gains the stick (+480 / +484) x InputDamp x dt, is held within +-MaxTurn; the angle
+      (+856, or +868 by 089B7D88) moves by rate x dt, wrapped to +-pi and held to MinPivotX..MaxPivotX (+940 / +944; the yaw's
+      MinPivotY..MaxPivotY +948 / +952) unless the two are equal. Defaults (vehicle base getters 089C5440..55A8, radians): PitchDamp 4,
+      PitchInputDamp 10, MaxTurnPitch 3, YawDamp 4, YawInputDamp 5, MaxTurnYaw 3; the pivot limits 0. Aurek: a gunner's view turns
+      by these rates (play.c, gun_yaw_rate / gun_pitch_rate), held to the pitch limits [assumed: a level base]; the limits' "equal:
+      none" rule and the defaults in ak_turret.c. Still open: the driver's own aim in a tank (vehicle aim_yaw: Aurek's 2 rad/s,
+      +-1.2 rad) and whether the hull's gun follows its turret.
     - 2026-11-22, the rider: open vehicles' blueprints say so - Enclosed false, Seat (the marker), AnimSit (the pose: speeder bikes
       SpeederBike_Sit_pose, Taun-Tauns Human_Taun_sitpose, the STAP Human_STAP_sitpose, the AT-RT Pilot_Sit_pose; turrets too).
       Aurek drew no rider; now the driver (the player or a bot) sits on the Seat marker in that pose, in his own look (seen on
@@ -1558,6 +1566,8 @@ textures and how they are used. Section R lists only what must be in place so th
   - Part 73 (2026-11-22): 3.1b volleys - HardpointW1TimeN is the barrel's share of RateOfFire (weapon +48 = TimeN x +52), traced
     and ported for vehicles and turrets.
   - Part 74 (2026-11-22): 3.1b rider - open vehicles (Enclosed false) show their driver on the Seat marker in the AnimSit pose.
+  - Part 75 (2026-11-22): 3.1b turret aim - the gunner's turning rates (Damp / InputDamp / MaxTurn) and the pivot limits traced and
+    ported; the limits' defaults are 0 (none).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

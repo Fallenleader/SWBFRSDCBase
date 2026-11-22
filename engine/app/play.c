@@ -3788,7 +3788,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (d2 < r * r && d2 < bd && fabsf(t->pos[1] - p->ch.pos[1]) < 5.0f) { bd = d2; best = (s32)i; }
         }
         if (best >= 0) {
-            p->in_turret = best; p->target[0].alive = false; p->lock = -1; tri = false;
+            p->in_turret = best; p->gun_yaw_rate = p->gun_pitch_rate = 0; p->target[0].alive = false; p->lock = -1; tri = false;
             f32 B[12]; if (ak_turret_barrel(&p->turret[best], m, B)) { f32 F = p->turret[best].def->face; p->ch.yaw = atan2f(-F * B[2], -F * B[10]); p->ch.pitch = 0; }   /* the view starts along the barrel */
         }
     }
@@ -3880,7 +3880,24 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     static ak_input manned; if (p->in_turret >= 0) { manned = *in; manned.lx = manned.ly = 0; manned.pressed &= ~AK_BTN_CROSS; in = &manned; }   /* a gunner aims only */
     /* the soldier's pitch is positive looking down (the camera uses -pitch): stick up looks up unless AK_INVERT_Y */
     ak_char_input ci = { in->lx, in->ly, in->rx, p->invert_y ? in->ry : -in->ry, (in->pressed & AK_BTN_CROSS) != 0, p->sprint && p->in_turret < 0, false, { 0, 0 }, 0 };
-    if (p->twin_stick) {
+    if (p->in_turret >= 0) {
+        /* a gunner turns the turret the game's way (089B7F50 pitch / 089B829C yaw): each rate first falls toward 0 by Damp x dt, then
+         * gains stick x InputDamp x dt, held within +-MaxTurn; the angle moves by rate x dt (the view rides the turret) */
+        const ak_turret_def *td = p->turret[p->in_turret].def;
+        f32 in2[2] = { in->rx, p->invert_y ? in->ry : -in->ry }, *r2[2] = { &p->gun_yaw_rate, &p->gun_pitch_rate };
+        f32 dmp[2] = { td->yaw_damp, td->pitch_damp }, acc[2] = { td->yaw_in, td->pitch_in }, mx[2] = { td->turn_rate, td->pitch_rate };
+        for (int k = 0; k < 2; k++) {
+            f32 r = *r2[k], dd = dmp[k] * dt;
+            r = r > 0 ? r - fminf(r, dd) : r + fminf(-r, dd);
+            r += in2[k] * acc[k] * dt; if (r > mx[k]) r = mx[k]; if (r < -mx[k]) r = -mx[k]; *r2[k] = r;
+        }
+        p->ch.yaw -= p->gun_yaw_rate * dt; p->ch.pitch += p->gun_pitch_rate * dt;
+        f32 plo = -1.35f, phi = 1.35f;   /* (the view's pitch is positive down; the turret's MinPivotX / MaxPivotX, up) [assumed: a level base] */
+        if (td->pitch_min != td->pitch_max) { plo = -td->pitch_max; phi = -td->pitch_min; }
+        if (p->ch.pitch > phi) { p->ch.pitch = phi; if (p->gun_pitch_rate > 0) p->gun_pitch_rate = 0; }
+        if (p->ch.pitch < plo) { p->ch.pitch = plo; if (p->gun_pitch_rate < 0) p->gun_pitch_rate = 0; }
+        ci.look_x = ci.look_y = 0;
+    } else if (p->twin_stick) {
         /* free aim with a response curve (fine near the centre, fast at the edge); the body turns with the aim */
         f32 ax = in->rx, ay = p->invert_y ? in->ry : -in->ry;
         f32 cx = copysignf(powf(fabsf(ax), p->aim_curve), ax), cy = copysignf(powf(fabsf(ay), p->aim_curve), ay);
@@ -4120,7 +4137,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             f32 P[12]; if (ak_turret_pivot(t, m, P)) { p->ch.pos[0] = P[3]; p->ch.pos[1] = P[7] + 0.5f; p->ch.pos[2] = P[11]; } else { memcpy(p->ch.pos, t->pos, 12); p->ch.pos[1] += 2.0f; }
             p->ch.vel[0] = p->ch.vel[1] = p->ch.vel[2] = 0;
             const ak_turret_def *d = t->def;                                  /* the view keeps to the turret's arc (the limits are symmetric) */
-            if (d->yaw_min != 0 || d->yaw_max != 0) {
+            if (d->yaw_min != d->yaw_max) {
                 f32 F = d->face, c = atan2f(-F * t->base[2], -F * t->base[10]), w = fmaxf(-d->yaw_min, d->yaw_max);
                 f32 dy = remainderf(p->ch.yaw - c, 6.2831853f);
                 dy = fminf(fmaxf(dy, -w), w);
