@@ -1675,6 +1675,18 @@ static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set 
                 h->saber = h->armed = true;
             } else if (ak_weapon_def_load(bp, m, wn, p->team_faction[t], &h->wdef) && h->wdef.model >= 0 && (h->wdef.dmg_infantry > 0 || h->wdef.hitscan)) h->armed = true;
         }
+        h->power = NULL;                                                      /* its force power: the first ForcePowers weapon among Loadout_1..5
+                                                                                 (Force_Jump has no Weapon blueprint - not one) */
+        for (int k = 1; k <= 5 && !h->power; k++) {
+            char key[16]; snprintf(key, sizeof key, "Loadout_%d", k); const char *wn = ak_bp_string(o, key, "");
+            const ak_bp_object *wb = (!strncmp(wn, "Force_", 6) || !strcmp(wn, "Throw_Lightsaber")) ? ak_bp_find(bp, "Weapon", wn) : NULL; if (!wb) continue;
+            h->power = wn; h->power_cost = ak_bp_float(wb, "Stamina", 60); h->power_rate = ak_bp_float(wb, "RateOfFire", 1); h->power_humans = ak_bp_int(wb, "OnlyLockOntoHumanoids", 1) != 0;
+            h->power_throw = !strcmp(wn, "Throw_Lightsaber"); h->power_cool = 0;
+            if (h->power_throw) { const ak_bp_object *pj = ak_bp_find(bp, "Projectile", ak_bp_string(wb, "Projectile", "Lightsaber_Thrown"));
+                h->power_dmg = pj ? ak_bp_float(pj, "DamageToInfantry", 100) : 100; h->power_dmgv = pj ? ak_bp_float(pj, "DamageToVehicle", 25) : 25;
+                h->power_range = pj ? ak_bp_float(pj, "ProjectileSpeed", 10) * ak_bp_float(pj, "Timer", 1) : 10; }
+            else { h->power_dmg = ak_bp_float(wb, "DamageToInfantry", 20); h->power_dmgv = 0; h->power_range = ak_bp_float(wb, "MaxRange", 50); }
+        }
         h->bdef = h->wdef;
         if (h->armed && h->wdef.bp && ak_setting_int("AK_BOT_GAME_MODIFIERS", 1)) {
             f32 md = ak_bp_float(h->wdef.bp, "Modifier_Bot_Damage", 1);
@@ -3912,6 +3924,29 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
        code, and whether the frame follows the camera's pitch, are open; the timings are measured] */
     p->gren_cool -= dt;
     bool gren_press = (in->pressed & AK_BTN_CIRCLE) && p->alive && p->in_veh < 0 && p->in_turret < 0 && p->roll_i < 0 && !hero_of(p, 0);
+    {   /* the hero's force power on the same button (the second item: the push / throw icon the harness showed).  Traced: the power
+           fires only with the hero's stamina at least the weapon's Stamina (08A22630), its targets are units of the other side within
+           MaxRange (08A220E0), its numbers the blueprint's (DamageToInfantry 20 push / pull, 50 lightning / choke; the thrown saber:
+           Lightsaber_Thrown's 100 / 25, flying ProjectileSpeed x Timer).  [assumed: one target - the nearest within a 45 degree cone
+           in front (the thrown saber: every one along its 10 m) - the stamina paid at once, RateOfFire between uses; the victims'
+           reactions (VictimAnim: Human_force_Push_Reaction ..), the pull / push motion and the flying saber not done] */   /* PARITY(6.5) */
+        ak_play_hero *ph = hero_of(p, 0);
+        if (ph) ph->power_cool -= dt;
+        if (ph && ph->power && (in->pressed & AK_BTN_CIRCLE) && p->alive && p->in_veh < 0 && p->in_turret < 0 && ph->power_cool <= 0 && p->stamina >= ph->power_cost) {
+            stamina_pay(p, ph->power_cost); ph->power_cool = ph->power_rate;
+            f32 fx = -sinf(p->ch.yaw), fz = -cosf(p->ch.yaw); s32 best = -1; f32 bd = 1e30f; int hits = 0;
+            for (u32 i = 1; i < NT(p); i++) {
+                ak_target *t = &p->target[i];
+                if (!t->alive || t->team == p->team || (ph->power_humans && i >= NS(p))) continue;
+                f32 dx = t->feet[0] - p->ch.pos[0], dz = t->feet[2] - p->ch.pos[2], d = sqrtf(dx * dx + dz * dz);
+                if (d > ph->power_range + (t->vehicle ? t->radius : 0) || (d > 0.5f && (dx * fx + dz * fz) / d < 0.7071f)) continue;
+                if (ph->power_throw) { t->health -= t->vehicle ? ph->power_dmgv : ph->power_dmg; t->last_attacker = 0; t->last_quiet = false; t->hits++; hits++; }
+                else if (d < bd) { bd = d; best = (s32)i; }
+            }
+            if (best >= 0) { ak_target *t = &p->target[best]; t->health -= ph->power_dmg; t->last_attacker = 0; t->last_quiet = false; t->hits++; hits++; }
+            if (ak_setting_int("AK_DEBUG_HERO", 0)) AK_INFO("hero", "%s: %d hit, stamina %.0f", ph->power, hits, p->stamina);
+        }
+    }
     /* the lower slot (measured, harness program 'powerup': d-pad right turned it from the explosive to the power-up, "Ready!"; square
        then used it - its message 0.6 s after the press (36-40 frames, the FiringAnim) - and again 15 s later did nothing: the
        RecuperationTime, 60 s) */

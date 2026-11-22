@@ -87,6 +87,7 @@ typedef struct {
     const ak_anim_table *tab;          /* its Animtable's table (ATEX), if the level has it */
     s32 clip[PLAY_NCLIPS];             /* the body clips from that table (else the generic saber ones) */
     s32 atk[3]; u32 natk; int atk_i; f32 atk_t; bool atk_next;   /* the attack combo (table rows 17-19) and where it is */
+    const char *power; f32 power_cost, power_rate, power_dmg, power_dmgv, power_range, power_cool; bool power_throw, power_humans;   /* its force power (the ForcePowers Weapon in its loadout) */
 } ak_play_hero;
 
 typedef struct {                       /* a bot soldier */

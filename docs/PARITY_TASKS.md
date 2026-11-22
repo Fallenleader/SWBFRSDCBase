@@ -1526,6 +1526,9 @@ textures and how they are used. Section R lists only what must be in place so th
     camera / vehicle +0x34C), shields ("(Shielded)"), capital ships; and (5.4) the CTF pointers 08A58620 / 08A59040.
   - Part 68, 2026-11-22 - **3.7: the camera lock** (see NATIVE_ENGINE). Open in 3.7: the camera lock's exact framing (089AB82C's
     angles, against the harness at the elite difficulty), shields, capital ships. Next: 6.5 sabers.
+  - Part 69, 2026-11-22 - **6.5: force powers, first pass** (see NATIVE_ENGINE). Open in 6.5: the powers' exact targeting
+    (08A220E0 / 08A1C2B0 decompile poorly - VFPU; read the recomp C), the victims' reactions and motion, the thrown saber's flight,
+    bots using powers, blocking, the combo timing against the harness (RS_HERO_FAST + a melee setup). Next: 4.3b auto-gunners.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
