@@ -1391,6 +1391,15 @@ textures and how they are used. Section R lists only what must be in place so th
     runs Junkyard -> 2 -> 30000 -> 32 -> 34 (18800) -> 5 (the escort's objective done) -> 46 (187ee: 4 to Chewbacca's spawner)
     -> 4. Open: he takes ~60 a second from the soldiers at the Junkyard when the post is the Empire's (the original lost 8 a hit,
     3 hits in 20 s - the AI's fire at non-player units, 4.x); the team spawn places 0x8023 / 0x8024; 0x800E objects; the rest.
+  - Part 50, 2026-11-22 - **Ord Mantell runs to its win in Aurek** (with test skips). Props now also come from class 0x800E
+    (flagged type 14: the type-7 layout one word later - 186ef, a SHAP hull with more faces than kept, so its box) and from a
+    model when no hull has the hash (186ed: Round_turret, the word after the hull hash); 0x8019's first byte arms (Ord Mantell's
+    {0x101}), 0x26 {0} disarms [assumed]. The chain: escort done (5) -> the turret 186ed and the post-side object 186ef (events 3
+    -> 3 / 15 -> objectives 186f2 / 186f0 -> 25 / 8) -> the data carry (flag 186f5 at game -12.9 1.8 80.6 -> 37; base 18731 at
+    16.3 6.1 -126.8 -> 41) -> 42 (the 100 s timer 186f8 with the countdown, 18 / 13) -> 6 -> 30002 (IG-88's spawner 18786, 600
+    health) -> his fall 10006 -> 1 -> 18832 -> 11 -> 0x8006: winner 0. Skips used: AK_TEST_FIRE 5 / 25 / 6 / 1, AK_TEST_BREAK,
+    teleports. Still unported there: the team spawn places 0x8023 / 0x8024 (3 / 4), 0x1C / 0x1D to type-7 objects, 0x8025 regions'
+    3. Next: SPACE_KESSEL.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -3154,10 +3154,12 @@ static void props_init(ak_play *p, const ak_level *l, const ak_model_set *m, ak_
     (void)m; (void)a; p->nprop = 0; if (ak_game_mode != 5) return;
     ak_chunk c; u32 pos = 8;
     while (ak_asura_next(&l->file, &pos, &c) && p->nprop < PLAY_MAX_PROPS) {
-        if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 30 * 4 || ak_rd32(c.body + 4) != 7) continue;
-        const u8 *b = c.body; u32 nw = c.size / 4, id = ak_rd32(b), ev[4], nev = ak_script_events(l, id, 13, ev, 4);
+        /* (also class 0x800E, flagged type 14 - Ord Mantell's 186ef / 1882f: the same layout one word later, its version first) */
+        u32 ty = ak_rd32(c.body + 4), sh = ty == 0x800E ? 1 : 0;
+        if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 30 * 4 || (ty != 7 && ty != 0x800E)) continue;
+        const u8 *b = c.body; u32 nw = c.size / 4, id = ak_rd32(b), ev[4], nev = ak_script_events(l, id, 13 + sh, ev, 4);
         if (!nev) continue;
-        u32 at = 16 + ak_rd32(b + 60); if (at + 9 > nw) continue;
+        u32 at = 16 + sh + ak_rd32(b + 60 + 4 * sh); if (at + 15 > nw) continue;
         f32 g[3] = { ak_rdf32(b + 4 * at), ak_rdf32(b + 4 * (at + 1)), ak_rdf32(b + 4 * (at + 2)) }, hp = ak_rdf32(b + 4 * (at + 7));
         ak_quat r = { ak_rdf32(b + 4 * (at + 3)), -ak_rdf32(b + 4 * (at + 4)), -ak_rdf32(b + 4 * (at + 5)), ak_rdf32(b + 4 * (at + 6)) };   /* (engine axes, as the movers') */
         u32 h = ak_rd32(b + 4 * (at + 8)), side = at + 14 < nw ? ak_rd32(b + 4 * (at + 14)) : 2;
@@ -3167,6 +3169,11 @@ static void props_init(ak_play *p, const ak_level *l, const ak_model_set *m, ak_
             if (ak_chunk_tag(&d) != AK_TAG('S', 'H', 'A', 'P') || d.size < 64 || ak_rd32(d.body) != h) continue;
             f32 v[6]; for (int k = 0; k < 6; k++) v[k] = ak_rdf32(d.body + 40 + 4 * k);
             mn[0] = v[0]; mx[0] = v[1]; mn[1] = -v[3]; mx[1] = -v[2]; mn[2] = -v[5]; mx[2] = -v[4]; got = true; hb = d.body; hsize = d.size;
+        }
+        if (!got && m) {                                                     /* no hull: the model named after it (Ord Mantell's 186ed: Round_turret) */
+            u32 mh = ak_rd32(b + 4 * (at + 9));
+            for (u32 i = 0; i < m->nmodels && !got; i++) if (m->models[i].lod == 0 && m->models[i].hash == mh) {
+                memcpy(mn, m->models[i].bmin, 12); memcpy(mx, m->models[i].bmax, 12); got = true; }
         }
         if (!got) continue;
         u32 k = p->nprop++; ak_target *t = &p->target[NP(p) + k];
@@ -3182,8 +3189,8 @@ static void props_init(ak_play *p, const ak_level *l, const ak_model_set *m, ak_
         {   /* the hull itself (convex: Space Alderaan's critical systems a9cdd4e9 are a six-sided bipyramid, 18 faces; its box would stop
                shots far from it): the vertices (game axes) after the radius, then faces of 4 u16 (0xFFFF: a triangle) - each face's
                plane, outward from the centre, in the world */
-            u32 nv = ak_rd32(hb + 12), nf = ak_rd32(hb + 16), vo = 68, fo = vo + 12 * nv; u32 np = 0;
-            if (nv >= 4 && nv <= 256 && nf >= 4 && fo + 8 * nf <= hsize) {
+            u32 nv = hb ? ak_rd32(hb + 12) : 0, nf = hb ? ak_rd32(hb + 16) : 0, vo = 68, fo = vo + 12 * nv; u32 np = 0;
+            if (hb && nv >= 4 && nv <= 256 && nf >= 4 && nf <= 48 && fo + 8 * nf <= hsize) {   /* (more faces than kept: the box) */
                 f32 cen[3] = { 0, 0, 0 }, wv[256][3];
                 for (u32 a = 0; a < nv; a++) {
                     f32 lv[3] = { ak_rdf32(hb + vo + 12 * a), -ak_rdf32(hb + vo + 12 * a + 4), -ak_rdf32(hb + vo + 12 * a + 8) };
@@ -3554,7 +3561,10 @@ static void script_sink(void *user, const ak_script_msg *m)
     }
     if (!done && (m->type == 0x26 || m->type == 0x8019))                     /* a breakable prop made live (0x26 / 0x8019 {1}) [assumed] */
         for (u32 i = 0; i < p->nprop; i++) if (p->prop[i].id == m->target) { done = true;
-            if (m->nextra >= 4 && ak_rd32(m->extra) == 1 && !p->prop[i].down) { p->prop[i].armed = true; p->target[NP(p) + i].alive = true; } }
+            u32 x = m->nextra >= 4 ? ak_rd32(m->extra) : 0, on = m->type == 0x26 ? x : (x & 0xFF);   /* (0x8019's first byte: Yavin {1}, Ord Mantell {0x101}; Space Alderaan's {0x100} to props already live) */
+            if (m->type == 0x8019 && on != 1) { }
+            else if (on == 1 && !p->prop[i].down) { p->prop[i].armed = true; p->target[NP(p) + i].alive = true; }
+            else if (on == 0 && m->type == 0x26) { p->prop[i].armed = false; p->target[NP(p) + i].alive = false; } }   /* (0x26 {0}: Ord Mantell's 9 to 186ef) [assumed: off] */
     if (!done && m->type == 4)                                               /* 4: a prop off (Space Alderaan's 27 / 47 / 70 / 82 send it 2 s after
                                                                          one of a pair of critical systems breaks, to the other) [assumed: no
                                                                          longer hurt, no event] */
