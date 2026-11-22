@@ -1336,6 +1336,16 @@ textures and how they are used. Section R lists only what must be in place so th
     steering], kinds 0xB / 0xC / 0xD / 0xE. Aurek (Space Alderaan): ... 103 -> 105 -> 125 -> 107 -> 109 -> 122 (the lasers /
     missile page), as the harness. Open: the target marker on the HUD, the camera lock (0x1AE, triangle?) - not a script gate;
     the game's own target order and auto-pilot; "Destroy the Tie Fighter" (1898c) and the rest of the mission.
+  - Part 44, 2026-11-22 - **Space Alderaan: the first TIE falls, the roll / level steps pass.** Harness sa_h12 (RS_VCOND_LOG
+    now prints +0x1C0, RS_DRIVE_ALL): d-pad down took 30d4e - the TIE that 1898c made, flown from -357 -71 309 to -537 -75 392,
+    480 m off the nose - and not the empty craft in the enemy hangar 1290 m ahead: targets are piloted craft. Aurek: the target
+    choice skips empty craft; the campaign's placed craft that fly (non-Humanoid 0x800D spawners) get pilots of their own (no
+    armies in the campaign; idle bots that never respawn on foot, put in when the craft is made - at the start or by the script's
+    3) [assumed: who flies them]. Aurek now runs ... 122 -> 116 (1898c's TIE destroyed) -> 115 (five more TIEs: 18861 / 18865-7 /
+    18868, counter 0/5) -> 60 (rolled) -> 61 (levelled with L + R). Open: groups 54-58 each send the counter {1, 5, 1} - with the
+    part-41 rule (first word 1 = set) that shows 1/5 after every kill; check in the harness. The rest of the mission is long:
+    the five TIEs (-> 24), the critical systems (type 7 props 1883c-f / 188fc-f, events 3), a data carry (188c5 / 18875) and
+    the end (0x8006 from 41 / 68 / 88). Yavin's training still wins (its Recon_Droid is not a flyer: no pilot).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

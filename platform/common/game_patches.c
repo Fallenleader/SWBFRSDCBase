@@ -1018,7 +1018,7 @@ void rs_vcond_log(u32 node, u32 obj){
     static int on = -1; if (on < 0) on = getenv("RS_VCOND_LOG") != 0; if (!on || !obj) return;
     static u32 last[32]; u32 k = GU32(node + 12) & 31; if (probe_fr - last[k] < 60) return; last[k] = probe_fr;
     u32 vt = GU32(obj), f10c = GU32(vt + 268), fc8 = GU32(vt + 200);
-    fprintf(stderr, "[VCOND] fr %u kind %x obj %08x vt %08x +1F8 %.3f +34C %x | +10C %08x +C8 %08x\n", probe_fr, GU32(node + 12), obj, vt, GF32(obj + 504), GU32(obj + 844), f10c, fc8);
+    fprintf(stderr, "[VCOND] fr %u kind %x obj %08x vt %08x +1F8 %.3f +34C %x target %x | +10C %08x +C8 %08x\n", probe_fr, GU32(node + 12), obj, vt, GF32(obj + 504), GU32(obj + 844), GU32(obj + 0x1C0), f10c, fc8);
 }
 void rs_801c_log(u32 obj, u32 msg){
     static int on = -1; if (on < 0) on = getenv("RS_801C_LOG") != 0; if (!on) return;

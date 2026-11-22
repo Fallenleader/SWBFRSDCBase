@@ -90,6 +90,7 @@ static void world_of(const f32 *pos, f32 yaw, ak_m4 *w) { world_of_scaled(pos, y
 #define NT(p) (NP(p) + (p)->nprop)              /* every target: soldiers, vehicles, turrets, then the breakable props */
 #define TT(p, t) (NV(p) + (t))                  /* turret t's target */
 static void turrets_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp);
+static void placed_flyer_crew(ak_play *p, const ak_model_set *m, u32 v);
 static void props_init(ak_play *p, const ak_level *l, const ak_model_set *m, ak_arena *a);
 
 /* ------------------------------------------------------------------ bodies (ak_box.h) */
@@ -551,6 +552,7 @@ static void bot_spawn(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
        owned post, or the nearest to the bot half the time]. */
     bool mine = b->team == p->team && p->player_post >= 0 && (u32)p->player_post < p->cq.nposts && p->match.post[p->player_post].owner == p->team &&
                 ak_setting_int("AK_BOT_SPAWN_NEAR_PLAYER", 1);
+    if (b->pilot && b->pilot_v >= 0) { memcpy(pos, p->veh[b->pilot_v].pos, 12); goto placed; }   /* (a pilot: straight into its craft) */
     if (b->uspawn >= 0 && (u32)b->uspawn < p->nuspawn) {                  /* a scripted spawner's soldier: at the spawner */
         memcpy(pos, p->uspawn[b->uspawn].pos, 12); yaw = p->uspawn[b->uspawn].yaw;
         f32 gy; if (ak_char_ground_below(&p->col, pos, 5.0f, &gy)) pos[1] = gy;
@@ -1186,8 +1188,19 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             p->nuspawn++;
         }
     }
-    u32 want_script = p->nuspawn;
-    if (want || want_script) {
+    u32 want_script = p->nuspawn, want_pilot = 0;
+    if (ak_game_mode == 5) {   /* the campaign's placed craft that fly (0x800D spawners of a vehicle: Space Alderaan's TIE 1898c, whose craft the
+                                  original flew from its spawn - 30d4e moved from -357 -71 309 to -537 -75 392, sa_h12): with no armies, each gets
+                                  a pilot of its own [assumed: who flies them in the game is not traced] */
+        ak_chunk c; u32 q = 8; const ak_bp_type *ht = ak_bp_find_type(bp, "Humanoid");
+        while (ak_asura_next(&l->file, &q, &c) && want_pilot < 16) {
+            if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 30 * 4 || (ak_rd32(c.body + 4) & 0xFFFF) != 0x800D) continue;
+            u32 h = ak_rd32(c.body + 28); bool hum = false;
+            for (u32 k = 0; ht && k < ht->nobjects && !hum; k++) hum = ak_hash31(ht->objects[k].name) == h;
+            if (!hum) want_pilot++;
+        }
+    }
+    if (want || want_script || want_pilot) {
         for (int k = 0; k < 2; k++) {   /* the bots' explosives (loadout slots 9 REP_Grenade and 12 Cluster_Grenades; Weapon_Name 127 and 130) */
             const ak_bp_object *gw = ak_bp_find(bp, "Weapon", k ? "Cluster_Grenades" : "REP_Grenade");
             p->ai_gren_ok[k] = gw && ak_setting_int("AK_BOT_GRENADES", 1) && ak_proj_def_load(bp, ak_bp_string(gw, "Projectile", k ? "cluster_grenade" : "Grenade"), &p->ai_gren_def[k]);
@@ -1210,10 +1223,10 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
                 p->team_bdef[t].bot_dmg = md; p->team_bdef[t].ai = true;
             }
         }
-        p->bot = AK_NEW(a, ak_play_bot, want + want_script);
+        p->bot = AK_NEW(a, ak_play_bot, want + want_script + want_pilot);
         size_t ss = (size_t)p->nav.nnode * 12 + (size_t)p->nav.nlink * 12 + 4096;
         p->scratch.base = (u8 *)ak_arena_alloc(a, ss, 16); p->scratch.size = ss;
-        if (!p->bot || !p->scratch.base) want = want_script = 0;
+        if (!p->bot || !p->scratch.base) want = want_script = want_pilot = 0;
     }
     for (u32 i = 0; i < want; i++) {
         /* sides: alternate, starting with the enemy, so the player's side has one fewer */
@@ -1254,6 +1267,14 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         if (u->waiting) { b->alive = false; b->dead_t = 10.0f; p->target[1 + p->nbots].alive = false; }
         else u->used = true;
         if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "spawner %x: %s (team %d)%s", u->id, bn, b->team, u->waiting ? ", waits" : "");
+        p->nbots++;
+    }
+    for (u32 k = 0; k < want_pilot; k++) {                                   /* the campaign craft's pilots (above): idle until a craft needs one */
+        ak_play_bot *b = &p->bot[p->nbots]; memset(b, 0, sizeof *b); b->uspawn = -1; b->pilot = true; b->pilot_v = -1; b->seed = 0x7F4A7C15u * (k + 5);
+        int team = p->nklass[1 - p->team] ? 1 - p->team : p->team; if (!p->nklass[team]) break;
+        if (!ak_soldier_look_make(bp, m, p->klass[team][0], 0, -1, -1, &b->look) || !poseable(m, &b->look)) break;
+        b->team = team; b->death_clip = p->death_clips[k % 4]; b->base_look = b->look; b->name = -1;
+        b->alive = false; b->dead_t = 100.0f; p->target[1 + p->nbots].alive = false; p->target[1 + p->nbots].team = team;
         p->nbots++;
     }
     {   /* squads (traced, 08926220): each side's soldiers are split into squads by the table 0x08AD9888 - its row for the side's
@@ -1320,20 +1341,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     /* placed craft in flight (space levels' type 13 flyers): in the original they fly from the first frame (harness state.log,
        Space Hoth: 30d44 / 30d46 / 30d48 / 30d4a / 30d4c move at 60-80 m/s from the start) - here a bot of the craft's side starts
        in each, flying at its cruise speed [assumed: who pilots them in the game is not traced] */
-    for (u32 v = 0; v < p->nveh; v++) {
-        ak_vehicle *vh = &p->veh[v];
-        if (!p->vspawn[v].fixed || !vh->alive || !vh->def || vh->def->kind != AK_VEH_FLYER || vh->driver >= 0) continue;
-        f32 dn[3] = { 0, -1, 0 }; ak_col_hit hh; if (ak_col_raycast(&p->col, vh->pos, dn, 20.0f, AK_COL_FLYER_MASK, &hh)) continue;   /* (standing on something: parked) */
-        for (u32 i = 0; i < p->nbots; i++) {
-            ak_play_bot *b = &p->bot[i]; if (b->veh >= 0 || b->team != vh->team || b->hero) continue;
-            if (!b->alive) bot_spawn(p, m, b, i);   /* (a bot still waiting for its spawner: in now, as the craft's pilot) */
-            bot_board(p, b, i, v);
-            vh->flying = true; vh->takeoff = 0; vh->speed = vh->def->cruise > 0 ? vh->def->cruise : vh->def->stall_speed;
-            vh->lvel[0] = vh->lvel[1] = 0; vh->lvel[2] = vh->speed; vh->r_tap_t = 99.0f;
-            b->fly_phase = 1;
-            break;
-        }
-    }
+    for (u32 v = 0; v < p->nveh; v++) placed_flyer_crew(p, m, v);
     {   int tv = ak_setting_int("AK_TEST_VEHICLE", 0);                      /* tests: start in vehicle N */
         if (tv > 0 && (u32)tv <= p->nveh && p->veh[tv - 1].alive) {
             ak_vehicle *vh = &p->veh[tv - 1]; vh->driver = 0; vh->team = p->team; p->target[VT(p, tv - 1)].team = p->team;
@@ -2624,10 +2632,33 @@ static void space_assign(ak_play *p, ak_play_bot *b, u32 idx)
                 b->role_obj >= 0 ? (p->space.obj[b->role_obj].kind == 2 ? " (kind 2)" : p->space.obj[b->role_obj].kind == 1 ? " (kind 1)" : "") : "");
 }
 
+/* placed craft in flight (space levels' type 13 flyers): in the original they fly from the first frame (harness state.log,
+   Space Hoth: 30d44 / 30d46 / 30d48 / 30d4a / 30d4c move at 60-80 m/s from the start) - here a bot of the craft's side starts
+   in each, flying at its cruise speed; in the campaign (no armies) one of the craft pilots (above) [assumed: who pilots them in the
+   game is not traced].  Also when the script starts the craft later (3) or makes a new one (0x8007). */
+static void placed_flyer_crew(ak_play *p, const ak_model_set *m, u32 v)
+{
+    ak_vehicle *vh = &p->veh[v];
+    if (!p->vspawn[v].fixed || !vh->alive || !vh->def || vh->def->kind != AK_VEH_FLYER || vh->driver >= 0) return;
+    f32 dn[3] = { 0, -1, 0 }; ak_col_hit hh; if (ak_col_raycast(&p->col, vh->pos, dn, 20.0f, AK_COL_FLYER_MASK, &hh)) return;   /* (standing on something: parked) */
+    s32 pick = -1;
+    for (u32 i = 0; i < p->nbots && pick < 0; i++) { const ak_play_bot *b = &p->bot[i]; if (!b->pilot && b->veh < 0 && b->team == vh->team && !b->hero) pick = (s32)i; }
+    for (u32 i = 0; i < p->nbots && pick < 0; i++) { const ak_play_bot *b = &p->bot[i]; if (b->pilot && !b->alive) pick = (s32)i; }
+    if (pick < 0) return;
+    ak_play_bot *b = &p->bot[pick];
+    if (b->pilot) { b->team = vh->team; b->pilot_v = (s16)v; }
+    if (!b->alive) bot_spawn(p, m, b, (u32)pick);   /* (a bot still waiting for its spawner, or a pilot: in now, as the craft's pilot) */
+    bot_board(p, b, (u32)pick, v);
+    vh->flying = true; vh->takeoff = 0; vh->speed = vh->def->cruise > 0 ? vh->def->cruise : vh->def->stall_speed;
+    vh->lvel[0] = vh->lvel[1] = 0; vh->lvel[2] = vh->speed; vh->r_tap_t = 99.0f;
+    b->fly_phase = 1;
+}
+
 /* the player's starfighter target and auto-pilot.  Measured (harness sa_h11, Space Alderaan): d-pad down gave the craft a target
- * (its +0x1C0, read by vfunc +0x10C = 08AC4BD0; 999 none), "press it again to change to another one" (tip 0x1A7); triangle set
+ * (its +0x1C0, read by vfunc +0x10C = 08AC4BD0; 999 none), "press it again to change to another one" (tip 0x1A7) - in sa_h12 it
+ * took the flown TIE 30d4e, 480 m off the nose, over the empty craft in the enemy hangar 1290 m ahead (so: craft with a pilot); triangle set
  * +0x34C bit 0x20, the auto-pilot, which counts only with a target (089CE1C0) - "move towards your target ... press again to return
- * to manual control" (0x178).  [assumed: the first target is the enemy craft nearest the nose within 2500 m, a press moves to the
+ * to manual control" (0x178).  [assumed: the first target is the piloted enemy craft nearest the nose within 2500 m, a press moves to the
  * next by that order; the auto-pilot turns the nose to the target at the bots' steering gains (bot_fly) and stops when it goes]
  * The game's own choice and steering are not traced. */
 static void fly_target_update(ak_play *p, u32 v, f32 dt)
@@ -2639,7 +2670,7 @@ static void fly_target_update(ak_play *p, u32 v, f32 dt)
         f32 cp = cosf(vh->pitch), fw[3] = { -sinf(vh->yaw) * cp, sinf(vh->pitch), -cosf(vh->yaw) * cp };
         s32 order[PLAY_MAX_VEH]; f32 key[PLAY_MAX_VEH]; u32 n = 0;
         for (u32 i = NS(p); i < NV(p) && n < PLAY_MAX_VEH; i++) {
-            const ak_target *t = &p->target[i]; if (!t->alive || t->team == p->team || (s32)(i - NS(p)) == (s32)v) continue;
+            const ak_target *t = &p->target[i]; if (!t->alive || t->team == p->team || (s32)(i - NS(p)) == (s32)v || p->veh[i - NS(p)].driver < 0) continue;
             f32 dx = t->feet[0] - vh->pos[0], dy = t->feet[1] - vh->pos[1], dz = t->feet[2] - vh->pos[2], d = sqrtf(dx * dx + dy * dy + dz * dz);
             if (d > 2500.0f || d < 1.0f) continue;
             f32 c = (fw[0] * dx + fw[1] * dy + fw[2] * dz) / d, k = -c; u32 j = n++;
@@ -2647,6 +2678,8 @@ static void fly_target_update(ak_play *p, u32 v, f32 dt)
             key[j] = k; order[j] = (s32)i;
         }
         if (n) { u32 j = 0; if (p->fly_target >= 0) { for (u32 q = 0; q < n; q++) if (order[q] == p->fly_target) j = (q + 1) % n; } p->fly_target = order[j]; }
+        if (ak_setting_int("AK_DEBUG_VEH", 0) && p->fly_target >= 0) { const ak_vehicle *tv = &p->veh[p->fly_target - NS(p)];
+            AK_INFO("veh", "target %d: %s (%x) at %.0f %.0f %.0f, %u candidates", p->fly_target, tv->def ? tv->def->name : "-", p->vspawn[p->fly_target - NS(p)].eid, tv->pos[0], tv->pos[1], tv->pos[2], n); }
     }
     if (p->fly_auto_req) { p->fly_auto_req = false; p->fly_auto = !p->fly_auto; }
     if (p->fly_auto && p->fly_target >= 0 && vh->flying && vh->takeoff <= 0) {
@@ -3477,7 +3510,7 @@ static void script_sink(void *user, const ak_script_msg *m)
     if (!done && m->type == 3 && p->nveh) {                                   /* a waiting unit spawner started by the script */
         for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].fixed && p->vspawn[v].eid == m->target) {
             done = true;
-            if (p->vspawn[v].waiting) { p->vspawn[v].waiting = false; if (!p->veh[v].alive && vehicle_make(p, v)) { p->vspawn[v].route_d = 0;
+            if (p->vspawn[v].waiting) { p->vspawn[v].waiting = false; if (!p->veh[v].alive && vehicle_make(p, v)) { p->vspawn[v].route_d = 0; if (p->mset) placed_flyer_crew(p, p->mset, v);
                 if (p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 10007, p->vspawn[v].eid, script_sink, p); } }
             break; }
     }
@@ -4427,7 +4460,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         for (u32 i = 0; i < p->nbots; i++) {
             ak_play_bot *b = &p->bot[i];
             if (b->alive) { b->respawn_set = false; continue; }
-            if (b->uspawn >= 0) continue;                                     /* (a scripted spawner's: once) */
+            if (b->uspawn >= 0 || b->pilot) continue;                         /* (a scripted spawner's: once; a pilot only with its craft) */
             if (p->have_cq && p->match.tickets[b->team] == 0) continue;
             if (!pace) { if (wave && b->dead_t >= 5.0f) bot_spawn(p, m, b, i); continue; }
             if (!b->respawn_set) { b->respawn_t = 5.0f + rnd(&b->seed) * 10.0f; b->respawn_set = true; }

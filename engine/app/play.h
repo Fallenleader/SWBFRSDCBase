@@ -110,6 +110,7 @@ typedef struct {                       /* a bot soldier */
        timer; a leader's heading (game axes: atan2(dz, dx) of its way) */
     s8 squad, sq_slot; f32 sq_t, sq_head;
     s8 uspawn;                         /* a scripted unit spawner's soldier (p->uspawn), -1: one of the standing armies */
+    bool pilot; s16 pilot_v;           /* a campaign craft's pilot (no army of its own): flies the placed craft pilot_v, never respawns on foot */
 } ak_play_bot;
 
 typedef struct {
