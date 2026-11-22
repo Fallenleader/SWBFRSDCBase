@@ -1464,6 +1464,11 @@ textures and how they are used. Section R lists only what must be in place so th
     18865, the hangar exits, the craft) and the get-in button (from the craft's get-in spot, 5 m behind it). Open: 0x4C to path nodes
     (68 sends it to the transport's start 18837 - it left on its own 0.39 s stand), 0x8011 to the transport, 0x800D / 0x800E to
     1892d, 0x1A to type 43, 0x8020 / 0x8022 to the ticket entity, 0x13 to 1896a, the timer 18862 (40). Next: KORRIBAN.
+  - Part 57, 2026-11-22 - **Korriban runs to its win in Aurek** (with test skips, one run; no engine change). The chain is in
+    NATIVE_ENGINE.md's row. Skips used: AK_TEST_FIRE 29 / 2 (the two posts - contested by soldiers) and 41 (the 60 s hold - the
+    timer later fired it again, harmless); AK_TEST_BREAK the seven props; teleports to the use spots (0.3 m above the spot's
+    height), the carried object and the base; the use button. Still open there: 0x1C / 0x1D to the props' effect objects,
+    0x800E to 18724 / 18725, 0x8010 {0} then {10} to the ticket entity (30006), 0x13 / 0x16-class 0x8016 links. Next: SULLUST.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
