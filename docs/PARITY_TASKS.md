@@ -1586,6 +1586,8 @@ textures and how they are used. Section R lists only what must be in place so th
   - Part 81 (2026-11-22): R.1 closed - effect lights built (curves, duration, flags; added to the model light as the game does).
   - Part 82 (2026-11-22): R.4 - the level draw's material states traced (blend / alpha test / depth write per flag, their order);
     Aurek's pipeline order fixed.
+  - Part 83 (2026-11-22): R.5 recorded as blocked (the draw log cannot follow a prop; no constant found). By request: the Vita's
+    debug text back to each line's own colour (AK_DEBUG_TEXT_RGB off by default there).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
@@ -2034,6 +2036,11 @@ groundwork below is needed before the parity work starts. The tiers come later.
     game draws models with an identity view, so the model matrix's translation is the distance): Hoth's soldiers drew 782
     strip indices up to 39.2 m and 442 from 40.2 m, none lower out to 220 m - one step at 40 m. Aurek's soldiers now take their
     L1 meshes beyond 40 m (`AK_SOLDIER_LOD`). Props: their draws are split per part, not identified yet.
+  - 2026-11-22, tried again (harness Hoth walk_forward, RS_DRAW_LOG=10, 10019 draws): with an identity view each draw's
+    translation is camera-relative, so a prop cannot be followed across frames by its position, and one model is several
+    draws (parts) at once; no 40.0 / 1600.0 constant is read near the model draw (they appear only in AI / weapon code), and no
+    code tests the "L1#" names - the LOD links are made elsewhere. Blocked on tooling: the draw log needs the drawn resource's
+    identity (the model or mesh pointer) to measure each prop's switch distance. AK_LOD_SCALE stays Aurek's [PARITY(R.5)].
 - [ ] **R.6 Particles and effects (PFX) [partial].** Explosions, muzzle flashes, impacts, streaks, and the command post glow (AK_POST_GLOW
   is Aurek's own).
   - 2026-11-20, the data read (tools/asura/pfx.py; every FX chunk of Hoth parses to its last byte but FXET's 48-byte tail):

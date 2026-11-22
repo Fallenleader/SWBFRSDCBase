@@ -25,8 +25,8 @@
 #   Gallery: d-pad left / right model, up / down clip, right stick turns, left stick zooms.
 # button layout: psp (the game's, above) or legacy (R fire, L lock, CROSS jump, TRIANGLE get in)
 AK_BUTTONS=psp
-# debug text colour, 0xRRGGBB (black here: the Vita draws a blue backdrop behind it)
-AK_DEBUG_TEXT_RGB=0x000000
+# debug text colour, 0xRRGGBB: one colour for every line; leave it off for each line's own colour
+#AK_DEBUG_TEXT_RGB=0xFFFFFF
 
 # ---- start
 # level shown first, as "<ERA> <MAP>" (eras: CLASSIC, PREQUEL, CAMPAIGN)

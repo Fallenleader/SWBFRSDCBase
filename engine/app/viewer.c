@@ -71,8 +71,8 @@ static bool gallery_blade(const ak_model_set *ms, const ak_model *body, const ak
     return true;
 }
 
-/* the debug text: one colour that reads on the level's colours - black on the Vita (its screens show a blue backdrop behind
- * the text), grey elsewhere; AK_DEBUG_TEXT_RGB (0xRRGGBB) overrides.  (The crosshair and lock marks keep their colours.) */
+/* the debug text: on the Vita each line keeps its own colour (as before part 1.8, by request: the black was unreadable); grey
+ * elsewhere; AK_DEBUG_TEXT_RGB (0xRRGGBB) sets one colour for all.  (The crosshair and lock marks keep their colours.) */
 /* a world point (engine space) on the HUD's 480 x 272 screen; false behind the camera */
 static bool hud_project(const ak_m4 *vp, const f32 *p, f32 *x, f32 *y)
 {
@@ -84,14 +84,15 @@ static bool hud_project(const ak_m4 *vp, const f32 *p, f32 *x, f32 *y)
 }
 static void dbg_text(f32 x, f32 y, u32 col, const char *s)
 {
-    static s32 c = -2; (void)col;
+    static s32 c = -2;
     if (c == -2) {
 #ifdef __vita__
-        c = ak_setting_int("AK_DEBUG_TEXT_RGB", 0x000000);
+        c = ak_setting_int("AK_DEBUG_TEXT_RGB", -1);                       /* the Vita: each line its own colour, as originally (by request) */
 #else
         c = ak_setting_int("AK_DEBUG_TEXT_RGB", 0xA0A0A0);
 #endif
     }
+    if (c < 0) { ak_gfx_text(x, y, col, s); return; }
     u32 r = ((u32)c >> 16) & 255, g = ((u32)c >> 8) & 255, b = (u32)c & 255;
     ak_gfx_text(x, y, 0xFF000000u | (b << 16) | (g << 8) | r, s);
 }
