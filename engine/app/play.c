@@ -2282,11 +2282,12 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
     for (u32 i = 0; i < es.n && p->nveh < PLAY_MAX_VEH; i++) {
         const ak_entity *e = &es.e[i];
         if (e->flagged && e->type == 27 && ak_setting_int("AK_DEBUG_VEH", 0) > 1) AK_INFO("veh", "spawn %x: placed %d, modes %x, models %d %d", e->id, e->placed, e->modes, e->model[0], e->model[1]);
-        if (!e->flagged || (e->type != 27 && e->type != 13 && e->type != 4) || !e->placed || !((e->modes >> ak_game_mode) & 1)) continue;
+        if (!e->flagged || (e->type != 27 && e->type != 13 && e->type != 4 && e->type != 20) || !e->placed || !((e->modes >> ak_game_mode) & 1)) continue;
         ak_play_vspawn *sp = &p->vspawn[p->nveh]; bool any = false;
         memcpy(sp->pos, e->pos, 12); sp->yaw = quat_yaw(e->rot); sp->post = -1; sp->respawn = p->veh_respawn; sp->fixed = e->type == 13;
         sp->eid = e->id; sp->nev = sp->fixed ? ak_script_events(l, e->id, 2, sp->ev, 4) : 0;   /* (a walker spawner's events: 10006 its walker destroyed) */
-        sp->lone = e->type == 4;   /* a placed craft (class 0x8004, 089B0B60 -> 089B04F4: the vehicle base 089D00D0; record: version, 2, 1, the event
+        sp->lone = e->type == 4 || e->type == 20;   /* (type 20, class 0x8014 (089C1E70): a placed ground vehicle in the same layout - Endor's AT_ST 18b05,
+                                                  Chewbacca's walker {10013 -> 7}, out at the start (30: 4) and back on 30004's 3 [assumed: as the craft]) */   /* a placed craft (class 0x8004, 089B0B60 -> 089B04F4: the vehicle base 089D00D0; record: version, 2, 1, the event
                                       table (8 16 0 count ...), place, turn, 250, 0, the model hash - Space Alderaan's X_Wing 189ac {10013 -> 124, 3 -> 72}).
                                       Harness (sa_h1): the player's rifle broke it and group 72 fired in that frame - event 3 is "destroyed" */
         if (sp->lone) { sp->nev = ak_script_events(l, e->id, 6, sp->ev, 4); sp->respawn = 1e30f; }
@@ -3540,7 +3541,13 @@ static void script_sink(void *user, const ak_script_msg *m)
     }
     else if (m->type == 3 && p->nnamed) {
         for (u32 k = 0; k < p->nnamed; k++) if (p->named[k].id == m->target) {
-            p->cut = p->named[k].cut; p->cut_t = 0; p->cut_gev = 0; done = true;
+            done = true;
+            {   const typeof(p->cuts[0]) *nc = &p->cuts[p->named[k].cut];   /* a scene with no length, no timed group and no end group does not take
+                                                                         over one that plays: Endor's 28 starts chewie's walker turns up and
+                                                                         cs_ewoks_01 (0 s) together, and the first one's end (30004) brings the walker
+                                                                         [assumed: Aurek plays one scene at a time; the game's scene list not traced] */
+                if (p->cut >= 0 && nc->len <= 0 && !nc->ngev && nc->group < 0) break; }
+            p->cut = p->named[k].cut; p->cut_t = 0; p->cut_gev = 0;
             if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "cut-scene %s (%.1f s)", p->cuts[p->cut].name, p->cuts[p->cut].len);
             break;
         }

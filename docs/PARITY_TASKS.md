@@ -1474,6 +1474,14 @@ textures and how they are used. Section R lists only what must be in place so th
     replayed IG-88 arrives: harmless here); AK_TEST_BREAK the prop 18797, IG-88 1876a, the spawner 1877f and the four props;
     teleports to the carried object and the base. Still open there: 0x14 to class 0x26 18891 (43 / 44), 0x1C / 0x1D, 0x800E to
     1890a / 1890b / 1878a, 0x53 to the fade 1888e. Next: ENDOR (the campaign's last).
+  - Part 59, 2026-11-22 - **Endor runs to its win in Aurek - the campaign's 11 missions all reach their wins** (with test skips).
+    Fixed: flagged type 20 (class 0x8014) placed vehicles load as placed craft [assumed: as 0x8004]; a scene of length 0 with no
+    groups does not take over a playing one [assumed]. Two runs: the start to 28 (cut by the 0-length scene before the fix), then
+    28 -> 30004 -> boarding the AT_ST (from its get-in spot game 210.39 -3.60 22.37) -> 7 -> 18 -> 19; the end (19 -> the timer ->
+    22 -> the three posts -> 39 -> 40 -> winner 0) in the first run. Skips used: AK_TEST_FIRE 4 / 29 / 43 / 46 (posts), 6 (the
+    turret's use - its 10014 is not raised by Aurek's turret use [open]), 23 (the 60 s timer); AK_TEST_BREAK the two spawners;
+    teleports and the use button. Still open there: 0x14 / 0x15 listener hashes from the turret (only via the skip), 0x801F to
+    the spawners, 0x53 to the fade 18a77, 0x1B / 0x1C to 18b01. Next: GTAG (5.4).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
