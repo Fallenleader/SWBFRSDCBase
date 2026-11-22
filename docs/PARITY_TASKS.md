@@ -1455,6 +1455,15 @@ textures and how they are used. Section R lists only what must be in place so th
     088725B8 -> 08872620: the group, the node stays active) is traced for timers; the region class (unflagged type 20, its
     loader not traced) may differ [assumed: stays active, as now]. Still open there: 0x1A to type 43, 0x800E to 1872a / 1873d,
     0x1B / 0x1C, 0x8018 / 0x8002 to the ticket entity. Next: SPACE_HOTH.
+  - Part 56, 2026-11-22 - **Space Hoth runs to its win in Aurek** (with test skips, in two runs: the start to 61, then 61 to the win).
+    Fixed: placed path craft fly their path at CruisingSpeed with node groups [assumed: the unit AI's pace and the pilot's part
+    not traced]; empty placed craft (0x8004) are open to any side [assumed: neutral, as the game's team 4 for a craft left empty];
+    AK_TEST_TP moves the driven vehicle. Read: the objective handler 089F05BC (0x8009 -> 10010 each time, 0x8008 -> 10009, 3 / 4
+    its active byte; a mode mask check first). Skips used: AK_TEST_BREAK the four turrets, the six TIE Defender spawners and Vader's
+    1885f; AK_TEST_FIRE 45 (the transport's 4.3 km - it was flying it, half way at the run's end) and 61; teleports (the region
+    18865, the hangar exits, the craft) and the get-in button (from the craft's get-in spot, 5 m behind it). Open: 0x4C to path nodes
+    (68 sends it to the transport's start 18837 - it left on its own 0.39 s stand), 0x8011 to the transport, 0x800D / 0x800E to
+    1892d, 0x1A to type 43, 0x8020 / 0x8022 to the ticket entity, 0x13 to 1896a, the timer 18862 (40). Next: KORRIBAN.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

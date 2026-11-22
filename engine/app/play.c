@@ -2174,12 +2174,14 @@ static bool vehicle_make(ak_play *p, u32 v)
     if (team < 0 || sp->def[team] < 0) return false;
     ak_vehicle *vh = &p->veh[v]; vh->spawn = (s32)v;
     {   f32 at[3], dir[3]; const ak_vehicle_def *dd = &p->vdef[sp->def[team]];   /* a hover unit with a patrol path is made on its first point */
-        if (sp->route && dd->kind != AK_VEH_WALKER && ak_route_at(sp->route, 0, at, dir)) { at[1] -= dd->hover; ak_vehicle_spawn(vh, dd, at, sp->yaw, team); sp->route_d = 0; }
+        if (sp->route && dd->kind != AK_VEH_WALKER && ak_route_at(sp->route, 0, at, dir)) { at[1] -= dd->hover; ak_vehicle_spawn(vh, dd, at, sp->yaw, team); sp->route_d = 0; sp->rt_q = 0; sp->rt_wait = -1; }
         else ak_vehicle_spawn(vh, dd, sp->pos, sp->yaw, team); }
     vh->free_flight = p->free_flight;          /* (flyers: +852 bit 0 - Aurek: every space map) */
     ak_target *t = &p->target[VT(p, v)]; memset(t, 0, sizeof *t);
     t->health = t->max_health = vh->def->health; t->alive = true; t->last_attacker = -1;
     vehicle_target(p, v);
+    if (sp->lone) vh->open = true;   /* a placed empty craft (0x8004) anyone may take: Space Hoth's Tie_Defender 18882 in the Empire's hangar, the
+                                        player's to steal (10013 -> 43 -> 101) [assumed: neutral until boarded, as one left empty - the game's team 4] */
     if (ak_setting_int("AK_DEBUG_VEH", 0) && p->ready) AK_INFO("veh", "vehicle %u (spawn %d) made: %s (model %s r %.2f) at %.2f %.2f %.2f team %d kind %d", v + 1, sp->first + 1, vh->def->name, p->mset ? p->mset->models[vh->def->model].name : "?", p->mset ? p->mset->models[vh->def->model].radius : 0.0f, vh->pos[0], vh->pos[1], vh->pos[2], team, (int)vh->def->kind);
     return true;
 }
@@ -3683,7 +3685,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         static const char *tp = (const char *)1; if (tp == (const char *)1) tp = ak_setting_str("AK_TEST_TP", NULL);
         for (const char *s = tp; s && *s; ) {
             u32 fr; f32 g[3], yd = 1e9f; int n = sscanf(s, "%u:%f,%f,%f,%f", &fr, &g[0], &g[1], &g[2], &yd); if (n < 4) break;   /* (a fifth number: the yaw, degrees) */
-            if (fr == p->frame_no && p->alive) { f32 q[3]; ak_from_game(g, q); ak_char_spawn(&p->ch, q, n == 5 ? yd * 0.0174533f : p->ch.yaw); if (n == 5) p->view_yaw = p->ch.yaw; }
+            if (fr == p->frame_no && p->in_veh >= 0) { ak_vehicle *tv = &p->veh[p->in_veh]; ak_from_game(g, tv->pos); tv->vel[0] = tv->vel[1] = tv->vel[2] = 0; }   /* (driving: the vehicle) */
+            else if (fr == p->frame_no && p->alive) { f32 q[3]; ak_from_game(g, q); ak_char_spawn(&p->ch, q, n == 5 ? yd * 0.0174533f : p->ch.yaw); if (n == 5) p->view_yaw = p->ch.yaw; }
             s = strchr(s, ';'); if (s) s++;
         }
     }
@@ -3754,6 +3757,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                    (089D1D24); never one an enemy or another player holds */
                 bool mate = vh->driver > 0 && p->bot[vh->driver - 1].team == p->team;
                 bool free_ok = vh->driver < 0 && (vh->team == p->team || vh->open);
+                if (p->vspawn[v].lone && ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "placed craft %u: alive %d driver %d team %d open %d drivable %d fixed %d", v, vh->alive, vh->driver, vh->team, vh->open, vh->def->drivable, p->vspawn[v].fixed);
                 if (!vh->alive || !(free_ok || mate) || ((!vh->def->drivable || p->vspawn[v].fixed) && !p->vspawn[v].route) || (p->vspawn[v].route && vh->team != p->team)) continue;   /* (a placed walker: its gunner's seat) */
                 /* in reach (measured, harness board_try): within 2 m of the spot where leaving puts a soldier (Hoth's AT-ST: from 5.0 m
                    behind - 1.96 m from it - yes, 5.5 m - 2.42 m - no, 3.5 m to its side no; the snowspeeder from 2.6 m behind yes, in
@@ -4227,7 +4231,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (p->aim_ok) vehicle_lock(p, vh, p->eye, p->aim, dt);                /* circle: the secondary (locked: guided) */
             if ((vin->held & AK_BTN_CIRCLE) && p->aim_ok) vehicle_fire2(p, m, v, p->aim_point, vh->locked ? vh->lock : -1);
             memcpy(p->ch.pos, vh->pos, 12); p->ch.yaw = vh->yaw + vh->aim_yaw; p->ch.vel[0] = p->ch.vel[1] = p->ch.vel[2] = 0;
-        } else if (vh->driver > 0) {                                          /* a bot drives (its controls are set in bot_drive) */
+        } else if (vh->driver > 0 && !(p->vspawn[v].route && vh->def->kind == AK_VEH_FLYER)) {   /* a bot drives (its controls are set in bot_drive); a placed craft with a path flies the path, its pilot aboard [assumed] */
             ak_vehicle_update(vh, &p->col, p->cp.gravity, vehicle_boost(vh, p->bot[vh->driver - 1].boost, dt), dt);
             memcpy(p->bot[vh->driver - 1].ch.pos, vh->pos, 12);
         } else if (p->vspawn[v].route && vh->def->kind != AK_VEH_WALKER && vh->alive) {
@@ -4235,12 +4239,27 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                18c3e / 18c3f, a loop): it starts on the path's first point and goes round at the original's pace - harness object 30d48,
                -24.40 -8.68 199.35 at its making, then about 0.5 m/s toward -26.6 203 and -22.0 204.7 [measured; the unit AI's own
                speed, turning and stops not traced] */
-            ak_play_vspawn *sp = &p->vspawn[v]; f32 at[3], dir[3];
-            sp->route_d += 0.5f * dt; if (sp->route_d > sp->route->length) sp->route_d = sp->route->length;
+            ak_play_vspawn *sp = &p->vspawn[v]; f32 at[3], dir[3]; const ak_route *r = sp->route;
+            /* its nodes as the scripted soldiers' (above): the low group on arrival, the stand, the high group as it leaves - Space
+               Hoth's transport 18860 leaves 18837 (69) and its arrival at 18839 is the escort's end (45) [assumed: as the soldiers'] */
+            if (sp->rt_wait < 0 && sp->rt_q < r->nnodes) {
+                u32 ev = r->node_ev[sp->rt_q]; sp->rt_wait = r->node_wait[sp->rt_q][0];
+                if ((ev & 0xFFFF) != 0xFFFF && p->have_script) ak_script_fire(&p->script, (s32)(ev & 0xFFFF), r->node_id[sp->rt_q], script_sink, p);
+                if (sp->rt_wait <= 0) sp->rt_wait = 1e-6f; }
+            if (sp->rt_wait > 0) { sp->rt_wait -= dt; if (sp->rt_wait <= 0) { sp->rt_wait = 0;
+                u32 ev = r->node_ev[sp->rt_q] >> 16; if (ev != 0xFFFF && p->have_script) ak_script_fire(&p->script, (s32)ev, r->node_id[sp->rt_q], script_sink, p); } }
+            /* a flyer at its cruising speed (Space Hoth's Rebel_Transport: CruisingSpeed 85), the rest at the recon droid's 0.5 m/s
+               [assumed: the unit AI's own pace is not traced] */
+            f32 spd = vh->def->kind == AK_VEH_FLYER && vh->def->cruise > 0 ? vh->def->cruise : 0.5f;
+            if (sp->rt_wait <= 0) { sp->route_d += spd * dt;
+                if (sp->rt_q + 1u < r->nnodes) { f32 nd = ak_route_dist(r, r->node_pt[sp->rt_q + 1]);
+                    if (sp->route_d >= nd) { sp->route_d = nd; sp->rt_q++; sp->rt_wait = -1; } } }
+            if (sp->route_d > sp->route->length) sp->route_d = sp->route->length;
             if (ak_route_at(sp->route, sp->route_d, at, dir)) {
                 vh->pos[0] = at[0]; vh->pos[1] = at[1] - vh->def->hover; vh->pos[2] = at[2];
                 if (dir[0] * dir[0] + dir[2] * dir[2] > 1e-6f) vh->yaw = atan2f(-dir[0], -dir[2]);
-                vh->vel[0] = dir[0] * 0.5f; vh->vel[1] = 0; vh->vel[2] = dir[2] * 0.5f;
+                vh->vel[0] = dir[0] * spd; vh->vel[1] = 0; vh->vel[2] = dir[2] * spd;
+                if (vh->driver > 0) memcpy(p->bot[vh->driver - 1].ch.pos, vh->pos, 12);
             }
         } else if (p->vspawn[v].route && vh->def->kind == AK_VEH_WALKER) {      /* a placed walker: along its path at its walking pace, then it stands */
             walker_route_step(p, v, dt);
