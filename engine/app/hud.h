@@ -55,7 +55,7 @@ typedef struct {
     f32 timer; bool timer_on;          /* the script's countdown under the radar (0x8015 {u32, f32 seconds}; 0x8016 ends it): "1:23" */
     s32 counter_val, counter_total;    /* the script's counter under the radar (0x8017 {1, total, add}: "0/4"); total 0 = none */
     u32 use_text;                      /* a use zone's prompt (STDTEXT, e.g. 0x47 "\ue813 Use"); 0 none */
-    bool target; const u16 *target_name; u32 target_name_len; f32 target_health, target_max;
+    bool target; const u16 *target_name; u32 target_name_len; f32 target_health, target_max; s32 target_dist;   /* target_dist: metres after the name, -1 none */
 } ak_hud_state;
 
 bool ak_hud_load(ak_vfs *vfs);

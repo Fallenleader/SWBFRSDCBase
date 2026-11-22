@@ -829,7 +829,12 @@ static void target_panel(const ak_hud_state *s)
 {
     if (!s->target || s->target_health <= 0) return;
     u32 col = s->dark ? 0xFF000000u : 0xFFFFFFFFu;
-    if (s->target_name) text16_box(196, 20, 284, 0.75f, col, s->target_name, s->target_name_len, true, true);
+    if (s->target_dist >= 0) {                                         /* "%s  %d" (a starfighter's target: name, metres) */
+        u16 b[80]; u32 n = 0; char d[16]; snprintf(d, sizeof d, "  %d", (int)s->target_dist);
+        for (u32 i = 0; s->target_name && i < s->target_name_len && n < 64; i++) b[n++] = s->target_name[i];
+        for (const char *c = d; *c && n < 79; c++) b[n++] = (u16)(u8)*c;
+        text16_box(196, 20, 284, 0.75f, col, b, n, true, true);
+    } else if (s->target_name) text16_box(196, 20, 284, 0.75f, col, s->target_name, s->target_name_len, true, true);
     pic(idx(0x28), 185, 20, true, col, 1);
     pic_mirror(idx(0x28), 295, 20, true, col);
     f32 k = s->target_max * 0.030303f; int q = (int)(k + 0.5f);

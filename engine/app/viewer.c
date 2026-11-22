@@ -949,15 +949,26 @@ int main(int argc, char **argv)
                             if (vh->def->sec.armed && vh->sec_reload > 0 && vh->def->sec.reload > 0) {   /* the lower weapon reloading */
                                 f32 v = 1.0f - vh->sec_reload / vh->def->sec.reload; hs.weapon2_bar = v < 0 ? 0 : v > 1 ? 1 : v; }
                             tgt = vh->lock;
+                            /* a starfighter's chosen target (d-pad down: +0x1C0, the panel's vfunc +0x10C - 08A566C0) */
+                            if (vh->def->kind == AK_VEH_FLYER && play.fly_target >= 0) tgt = play.fly_target;
                         }
                     }
                     if (ak_setting_int("AK_DEBUG_HUD", 0) > 2) AK_INFO("hud", "ring %d %.2f at %.0f %.0f, bar %.2f, target %d", hs.ring_type, hs.ring_value, hs.ring_x, hs.ring_y, bar_fill, tgt);
                     if (bar_fill >= 0) { hs.bar_fill = bar_fill; if (bar_fill < 1.0f) bar_full_t = 0; else bar_full_t += dt; hs.bar_full_t = bar_full_t; }
                     if (play.jet_ok) { static f32 jet_full_t; hs.jet = true; hs.jet_pack = true; hs.jet_using = play.jet_on; hs.jet_fill = play.jet_fuel / 100.0f;   /* (the jetpack's bar, 08A5AE84) */
                         if (hs.jet_fill < 1.0f || play.jet_on) jet_full_t = 0; else jet_full_t += dt; hs.jet_full_t = jet_full_t; }
+                    hs.target_dist = -1;
                     if (tgt >= 0 && play.target[tgt].alive) { hs.target = true; hs.target_health = play.target[tgt].health; hs.target_max = play.target[tgt].max_health;
                         if (tgt >= 1 && (u32)(tgt - 1) < play.nbots) { const ak_play_bot *tb = &play.bot[tgt - 1];   /* a soldier: its name */
-                            hs.target_name = ak_hud_bot_name(play.team_faction[tb->team], tb->name, &hs.target_name_len); } }
+                            hs.target_name = ak_hud_bot_name(play.team_faction[tb->team], tb->name, &hs.target_name_len); }
+                        else if ((u32)tgt >= 1 + play.nbots && (u32)tgt < 1 + play.nbots + play.nveh && play.in_veh >= 0) {
+                            /* a craft: its pilot's name (089C6DE0, the vehicle's vfunc +0x58: the driver's) and, in a starfighter, the
+                               distance - "%s  %d" (08A566C0; "%s %s" with "(Shielded)" for a shielded one - none in Aurek yet) */
+                            const ak_vehicle *tv = &play.veh[tgt - 1 - play.nbots], *mv = &play.veh[play.in_veh];
+                            if (tv->driver > 0 && (u32)(tv->driver - 1) < play.nbots) { const ak_play_bot *tb = &play.bot[tv->driver - 1];
+                                hs.target_name = ak_hud_bot_name(play.team_faction[tb->team], tb->name, &hs.target_name_len); }
+                            if (mv->def->kind == AK_VEH_FLYER) { f32 dx = tv->pos[0] - mv->pos[0], dy = tv->pos[1] - mv->pos[1], dz = tv->pos[2] - mv->pos[2];
+                                hs.target_dist = (s32)sqrtf(dx * dx + dy * dy + dz * dz); } } }
                     if (play.rep_show > 0 && play.rep_turret >= 0 && (u32)play.rep_turret < play.nturret) {   /* the fusion cutter's work: the turret's
                                                                                     panel ("Auto-Turret" and its health, harness ct25) */
                         const ak_turret *rt = &play.turret[play.rep_turret]; hs.target = true; hs.target_health = rt->health; hs.target_max = rt->def->health;
