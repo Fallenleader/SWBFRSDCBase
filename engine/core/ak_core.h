@@ -56,6 +56,7 @@ static inline u32 ak_rd32(const u8 *p) { u32 v; memcpy(&v, p, 4); return v; }
 static inline f32 ak_rdf32(const u8 *p) { f32 v; memcpy(&v, p, 4); return v; }
 
 /* MD5 (RFC 1321): the game's profile save carries one over its data (08831CE8) */
+void ak_local_date(int *month, int *day);   /* today on the device's clock: month 1..12, day 1..31 (0 0 unknown) */
 void ak_md5(const void *data, size_t n, u8 out[16]);
 
 #endif

@@ -997,6 +997,13 @@ void ak_fe_match_won(const char *level, int mode)
     if (!strcmp(nm, "space_kashyyyk_clone")) idx = 18;
     if (idx >= 0) ak_fe_stat(idx);
     if (mode != 5) ak_fe_stat(42);
+    {   /* Aurek's change (by request): the date medals (counters 38 Wookie_Life_Hero, 39 Endor_Day_Hero) for a match won on 25 December /
+           4 July, local date, offline too - the original's 08973070 asked for an online game and the top score; once each, as its */
+        int mon = 0, day = 0; ak_local_date(&mon, &day);
+        if (ak_setting_str("AK_TEST_DATE", NULL)) sscanf(ak_setting_str("AK_TEST_DATE", ""), "%d-%d", &mon, &day);   /* (tests: "12-25") */
+        if (mon == 12 && day == 25 && !stat_get(38)) ak_fe_stat(38);
+        if (mon == 7 && day == 4 && !stat_get(39)) ak_fe_stat(39);
+    }
 }
 void ak_fe_medal_clear(void) { medal_msg_n = 0; var_set("BFF.FE_DisplayMedal", 0); }
 static int medal_count(const char *fn) { (void)fn; return 14; }

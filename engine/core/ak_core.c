@@ -93,3 +93,10 @@ void ak_md5(const void *data, size_t n, u8 out[16])
     md5_block(h, tail); if (tl == 128) md5_block(h, tail + 64);
     for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) out[4 * i + j] = (u8)(h[i] >> (8 * j));
 }
+
+#include <time.h>
+void ak_local_date(int *month, int *day)
+{
+    time_t now = time(NULL); struct tm *lt = localtime(&now);
+    *month = lt ? lt->tm_mon + 1 : 0; *day = lt ? lt->tm_mday : 0;
+}
