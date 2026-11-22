@@ -769,7 +769,7 @@ textures and how they are used. Section R lists only what must be in place so th
       record's range / 7.5 degrees). The want flag read (0895076C): +0x22 is set at once for any target that is not a flyer,
       walker or tank, and for those when the lead (the vehicle's vfunc +0x68 with the shot speed 1000) has a solution - so there
       is no aim delay; the gun's turn into the cone is the only wait. Aurek's 0.6-1.0 s aim time before firing is gone (play.c).
-- [ ] **4.3b Auto-gunners [not original; requested 2026-11-21].** An opt-in setting (AK_AUTO_GUNNERS, off by default so parity
+- [x] **4.3b Auto-gunners [not original; requested 2026-11-21; done 2026-11-22, part 70].** An opt-in setting (AK_AUTO_GUNNERS, off by default so parity
   builds stay faithful) that lets the AT-AT and every turret target and shoot enemies on their own, with no gunner. Note: the AT-AT
   standing still for a whole match is original - it moves to the next waypoint only once the Empire holds the post near it
   (Hoth's script opens the node; it never walks back), see 3.4.
@@ -1532,6 +1532,7 @@ textures and how they are used. Section R lists only what must be in place so th
   - 2026-11-22 (user's requests) - head swap (not the CIS), the HSV colour picker for every faction, the Vita trophies, the date
     medals for a match won on the day (see NATIVE_ENGINE). Open: the platinum's picture (the user supplies it), a trophy test on
     the Vita (NoTrpDrm), the picker on hardware.
+  - Part 70, 2026-11-22 - **4.3b auto-gunners** (see NATIVE_ENGINE). Next: 9.2.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

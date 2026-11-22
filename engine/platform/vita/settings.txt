@@ -173,6 +173,8 @@ AK_INVERT_Y=0
 #AK_INVERT_Y_SPACE=1
 # personalisation (Aurek's additions): 1 = a head from any of the faction's three bodies (not the CIS), 0 = the original's three
 AK_HEAD_SWAP=1
+# not the original's: 1 = the AT-AT and the boardable turrets shoot at enemies on their own when nobody mans them (off: as the game)
+AK_AUTO_GUNNERS=0
 # the Vita's trophies (needs the NoTrpDrm plugin under *main in ur0:tai/config.txt; without it the game runs without trophies)
 AK_TROPHIES=1
 # the soldier's side in play mode: 1 (Republic / Alliance) or 2 (CIS / Empire); unset = the soldier's own faction

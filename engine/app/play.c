@@ -1156,6 +1156,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         /* the three control schemes' Y inversions (the profile's +0x51 / +0x6D / +0x89; a new profile: 0 / 0 / 1): the infantry's 08A5F128,
            the vehicles' 08A60028 (ground vehicles and flyers in the air - 089B20CC / 089B6960 make it), the spacecraft's 08A5EC4C (089A9728
            makes it for a flyer in free flight, vehicle +852 bit 0) - each negates the stick's raw Y when set */
+        p->auto_gunners = ak_setting_int("AK_AUTO_GUNNERS", 0) != 0;
         p->invert_y_vehicle = ak_setting_int("AK_INVERT_Y_VEHICLE", 0) != 0; p->invert_y_space = ak_setting_int("AK_INVERT_Y_SPACE", 1) != 0;
     }
     const ak_bp_object *ctl = ak_bp_find(bp, "Controls", "Humanoid");
@@ -3306,7 +3307,9 @@ static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
             } else t->volley_t = 0;
             continue;
         }
-        if (t->team < 0 || p->bots_passive || !(p->is_space || !d->boardable) || !d->armed || !d->nmuzzles) continue;
+        /* (the game's AI fires the turrets nobody can board, and every turret in space; AK_AUTO_GUNNERS (4.3b, not the original's - off
+           by default) also the boardable ones while nobody mans them) */
+        if (t->team < 0 || p->bots_passive || !(p->is_space || !d->boardable || p->auto_gunners) || !d->armed || !d->nmuzzles) continue;
         /* think: the nearest enemy it can point at and see */
         t->think_t -= dt;
         f32 piv[12]; ak_turret_pivot(t, m, piv); f32 eye[3] = { piv[3], piv[7] + 1.0f, piv[11] };
@@ -4333,7 +4336,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             }
         } else if (p->vspawn[v].route && vh->def->kind == AK_VEH_WALKER) {      /* a placed walker: along its path at its walking pace, then it stands */
             walker_route_step(p, v, dt);
-            {   /* its guns: the nearest enemy in its range within the head's reach (the game's walker gunnery is not traced) */   /* PARITY(3.4) */
+            if (p->auto_gunners) {   /* its guns with no gunner aboard: AK_AUTO_GUNNERS only (4.3b, not the original's - off by default): the nearest
+                                       enemy in its range within the head's reach */
                 static s32 cached[PLAY_MAX_VEH]; static f32 next[PLAY_MAX_VEH];   /* (looked for every half second) */
                 if ((next[v] -= dt) <= 0) { next[v] = 0.5f; cached[v] = find_enemy(p, vh->team, vh->pos, vh->yaw, vh->def->hover + vh->def->height * 0.8f, vh->def->target_range > 0 ? vh->def->target_range : 100.0f, true); }
                 s32 e = cached[v]; if (e >= 0 && !p->target[e].alive) e = cached[v] = -1;
