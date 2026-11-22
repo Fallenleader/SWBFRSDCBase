@@ -686,12 +686,16 @@ static void weapon_switch(ak_play *p)
 /* the weapon in the player's hands is this blueprint (the script's items: kind 4 0xDA0CAE3B "Fusion Cutter", 5 0x87D168AB
    "Rocket_Launcher", 6 0xDF19A556 "ALL_Sniper_Rifle" - 08A0E228 asks the soldier's inventory (+236) for its current weapon (+128)
    and compares the name's hash, 08985AC8) */
-static bool holding(const ak_play *p, u32 hash)   /* (its name, or its parent's for a faction's version [assumed: either]) */
+static bool def_is(const ak_weapon_def *d, u32 hash)   /* (its name, or its parent's for a faction's version [assumed: either]) */
 {
-    if (!p->alive || !p->armed || !p->wdef.bp) return false;
-    const ak_bp_object *o = p->wdef.bp;
+    const ak_bp_object *o = d->bp; if (!o) return false;
     return ak_hash31(o->name) == hash || (o->parent && ak_hash31(o->parent->name) == hash);
 }
+static bool holding(const ak_play *p, u32 hash) { return p->alive && p->armed && def_is(&p->wdef, hash); }
+/* carried in either slot: kinds 4 / 5 / 6 passed the moment the item was taken in the menu, before it was in the hands (harness:
+   Yavin's 18c2b (cutter) fired before d-pad left, 18c2c (rocket launcher) with the cutter still held - ct24 / ct30); 0x11 waits
+   for it in the hands (18d18 fired after the switch) */
+static bool carrying(const ak_play *p, u32 hash) { return p->alive && ((p->armed && def_is(&p->wdef, hash)) || (p->armed2 && def_is(&p->wdef2, hash))); }
 void ak_play_loadout(ak_play *p, const ak_model_set *m, const ak_blueprints *bp)
 {
     loadout_levels(p); loadout_items(p, m, bp);
@@ -3226,9 +3230,9 @@ static bool script_test(void *user, u32 kind, u32 param)
     case 1: return p->alive && p->in_veh < 0 && !p->ch.on_ground;
     case 2: return p->alive && p->lock >= 0;
     case 9: return p->alive && p->in_veh >= 0;
-    case 4: return holding(p, 0xDA0CAE3Bu);
-    case 5: return holding(p, 0x87D168ABu);
-    case 6: return holding(p, 0xDF19A556u);
+    case 4: return carrying(p, 0xDA0CAE3Bu);
+    case 5: return carrying(p, 0x87D168ABu);
+    case 6: return carrying(p, 0xDF19A556u);
     case 0x11: return holding(p, 0xDA0CAE3Bu);   /* (08A0E228's 0x11: the weapon 0xDA0CAE3B - Yavin's 18d18 after the cutter's tip) */
     default: return false;
     }
@@ -3291,9 +3295,10 @@ static void script_sink(void *user, const ak_script_msg *m)
     else if (m->target == 0x3E8 && m->type == 0x8017 && m->nextra >= 12) {
         /* the counter under the radar: {u32 on, u32 total, u32 add}.  Yavin's training: group 21 {1, 4, 0} as the stormtroopers come
            (the original then showed "0/4", ct25), each fall {1, 4, 1} (groups 25-28 from the counter 18beb), later {1, 5, 1} /
-           {1, 10, 1}, group 44 {0, 3, 0}.  [assumed: on = shown, add 0 starts it at 0, else it adds; the handler is not traced] */
+           {1, 10, 1}, group 44 {0, 3, 0}.  [assumed: on = shown, the second word the total, the third the value; the handler is not traced] */
         u32 on = ak_rd32(m->extra), tot = ak_rd32(m->extra + 4), add = ak_rd32(m->extra + 8);
-        if (!on) p->counter_total = 0; else { p->counter_total = (s32)tot; if (add == 0) p->counter_val = 0; else p->counter_val += (s32)add; }
+        if (!on) p->counter_total = 0; else { p->counter_total = (s32)tot; p->counter_val = (s32)add; }   /* (the third word as the value: the original
+            showed "1/4" after its four {1, 4, 1} came in one frame, ct27 [assumed: set, not add]) */
         done = true; }
     else if ((m->type == 0x3B || m->type == 0x51) && p->nnode_open < 32) {   /* a path node opened (0x3B) or shut (0x51): 08855908's flag 0x40 */
         u32 q = 0; while (q < p->nnode_open && p->node_open_id[q] != m->target) q++;
@@ -3823,6 +3828,11 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     }
     /* the bots */
     for (u32 i = 0; i < p->nbots; i++) bot_update(p, m, &p->bot[i], i, dt, NULL);
+    {   const char *tw = ak_setting_str("AK_TEST_WEAPON_AT", NULL);         /* tests: "frame:Weapon" puts that weapon in the player's hands */
+        unsigned f_; char nm[64];
+        if (tw && sscanf(tw, "%u:%63[^\n]", &f_, nm) == 2 && f_ == p->frame_no && p->bps && ak_weapon_def_load(p->bps, m, nm, p->look.faction, &p->wdef)) {
+            p->armed = true; ak_weapon_give(&p->weapon, &p->wdef); p->weapon.team = p->team; p->weapon.owner = 0; p->weapon.heats = true; anim_sets(p, m);
+            AK_INFO("play", "test: weapon %s", p->wdef.name); } }
     {   const char *tf = ak_setting_str("AK_TEST_FIRE", NULL);              /* tests: "frame:group[;...]" fires script groups (as the harness's RS_FIRE_AT) */
         if (tf && p->have_script) { char buf[256]; snprintf(buf, sizeof buf, "%s", tf);
             for (char *t = strtok(buf, ";"); t; t = strtok(NULL, ";")) { unsigned f_, g; if (sscanf(t, "%u:%u", &f_, &g) == 2 && f_ == p->frame_no) {

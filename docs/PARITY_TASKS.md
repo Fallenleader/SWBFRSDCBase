@@ -1288,6 +1288,11 @@ textures and how they are used. Section R lists only what must be in place so th
     (CT_RL) ran during the second cut-scene in ct28; they are now 850 frames later (--tp 15250 to the post). Next: run CT_RL,
     then the tank: where 18bf1's tank goes, how many rockets, cs / groups after it; the Pyramid post; the scout. Open: the troopers'
     damage rate (Aurek ~2.7x), the counter's meaning ("1/4" after all fell).
+  - Part 39, 2026-11-21 - **rocket launcher chosen.** CT_RL in cmpn_train now: X for page 0x19F at i 15530 / 15590, up x2, X, down x8,
+    X, circle x2 from i 15650 (ct30: group 47 at FIRE fr 17327). The tank's spawner 18bf1 events {10006 -> group 36}: 36 = 8009
+    18be5 + 5 to 18c2c; 37 on (the Pyramid post 18cc1 800a / 8014, objective 18be6, tip 0x1A2...). Next: the harness walks / teleports
+    to ~25 m of the tank facing it, R (lock) + X (fire): rockets to kill, the tank's reply; then 37-44 (the post, the blaster rifle,
+    the scout). Aurek's player rocket test (ak31) fired every rocket without a lock (the tank behind the player).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
