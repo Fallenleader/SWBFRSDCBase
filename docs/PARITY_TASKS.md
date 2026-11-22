@@ -1469,6 +1469,11 @@ textures and how they are used. Section R lists only what must be in place so th
     timer later fired it again, harmless); AK_TEST_BREAK the seven props; teleports to the use spots (0.3 m above the spot's
     height), the carried object and the base; the use button. Still open there: 0x1C / 0x1D to the props' effect objects,
     0x800E to 18724 / 18725, 0x8010 {0} then {10} to the ticket entity (30006), 0x13 / 0x16-class 0x8016 links. Next: SULLUST.
+  - Part 58, 2026-11-22 - **Sullust runs to its win in Aurek** (with test skips, one run; no engine change). The chain is in
+    NATIVE_ENGINE.md's row. Skips used: AK_TEST_FIRE 3 (the post) and 5 (the 60 s timer - it fired again on its own later, and
+    replayed IG-88 arrives: harmless here); AK_TEST_BREAK the prop 18797, IG-88 1876a, the spawner 1877f and the four props;
+    teleports to the carried object and the base. Still open there: 0x14 to class 0x26 18891 (43 / 44), 0x1C / 0x1D, 0x800E to
+    1890a / 1890b / 1878a, 0x53 to the fade 1888e. Next: ENDOR (the campaign's last).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
