@@ -1012,6 +1012,14 @@ void rs_fire_log(u32 group, u32 sender){
     static int on = -1; if (on < 0) on = getenv("RS_FIRE_LOG") != 0; if (!on) return;
     fprintf(stderr, "[FIRE] fr %u group %d sender %x\n", probe_fr, (int)(short)group, sender);
 }
+/* (5.4 campaign) RS_VCOND_LOG: the in-vehicle condition test 08A0E3DC (a0 the 0x801C node, a1 the object it asks) once a second
+   per kind: the object, its vtable, +0x1F8, +0x34C, and the functions at vtable +0x10C / +200 with what they return */
+void rs_vcond_log(u32 node, u32 obj){
+    static int on = -1; if (on < 0) on = getenv("RS_VCOND_LOG") != 0; if (!on || !obj) return;
+    static u32 last[32]; u32 k = GU32(node + 12) & 31; if (probe_fr - last[k] < 60) return; last[k] = probe_fr;
+    u32 vt = GU32(obj), f10c = GU32(vt + 268), fc8 = GU32(vt + 200);
+    fprintf(stderr, "[VCOND] fr %u kind %x obj %08x vt %08x +1F8 %.3f +34C %x | +10C %08x +C8 %08x\n", probe_fr, GU32(node + 12), obj, vt, GF32(obj + 504), GU32(obj + 844), f10c, fc8);
+}
 void rs_801c_log(u32 obj, u32 msg){
     static int on = -1; if (on < 0) on = getenv("RS_801C_LOG") != 0; if (!on) return;
     void *bt[8]; int n = backtrace(bt, 8);

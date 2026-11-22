@@ -2215,7 +2215,7 @@ static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
 
 static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a)
 {
-    p->in_veh = -1; p->in_turret = -1; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 10.0f);   /* (the spawn records say 10 s) */   /* PARITY(3.5) */
+    p->in_veh = -1; p->in_turret = -1; p->fly_target = -1; p->fly_auto = false; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 10.0f);   /* (the spawn records say 10 s) */   /* PARITY(3.5) */
     p->bot_drive = ak_setting_float("AK_BOT_VEHICLES", 1.0f);   /* the chance a spawned bot wants a vehicle (the spawner default 100 %, 0897E594) */
     if (!ak_setting_int("AK_VEHICLES", 1)) return;
     ak_entity_set es; size_t mark = a->used;
@@ -2622,6 +2622,39 @@ static void space_assign(ak_play *p, ak_play_bot *b, u32 idx)
     if (ak_setting_int("AK_DEBUG_BOTVEH", 0))
         AK_INFO("botveh", "%.1f s: bot %u (%s) role %s%s", p->clock, idx, vh->def->name, role == SPACE_RUN ? "attack run" : role == SPACE_LAND ? "land in the enemy hangar" : "general combat",
                 b->role_obj >= 0 ? (p->space.obj[b->role_obj].kind == 2 ? " (kind 2)" : p->space.obj[b->role_obj].kind == 1 ? " (kind 1)" : "") : "");
+}
+
+/* the player's starfighter target and auto-pilot.  Measured (harness sa_h11, Space Alderaan): d-pad down gave the craft a target
+ * (its +0x1C0, read by vfunc +0x10C = 08AC4BD0; 999 none), "press it again to change to another one" (tip 0x1A7); triangle set
+ * +0x34C bit 0x20, the auto-pilot, which counts only with a target (089CE1C0) - "move towards your target ... press again to return
+ * to manual control" (0x178).  [assumed: the first target is the enemy craft nearest the nose within 2500 m, a press moves to the
+ * next by that order; the auto-pilot turns the nose to the target at the bots' steering gains (bot_fly) and stops when it goes]
+ * The game's own choice and steering are not traced. */
+static void fly_target_update(ak_play *p, u32 v, f32 dt)
+{
+    ak_vehicle *vh = &p->veh[v]; (void)dt;
+    if (p->fly_target >= 0 && ((u32)p->fly_target >= NV(p) || !p->target[p->fly_target].alive)) { p->fly_target = -1; p->fly_auto = false; }
+    if (p->fly_pick) {
+        p->fly_pick = false;
+        f32 cp = cosf(vh->pitch), fw[3] = { -sinf(vh->yaw) * cp, sinf(vh->pitch), -cosf(vh->yaw) * cp };
+        s32 order[PLAY_MAX_VEH]; f32 key[PLAY_MAX_VEH]; u32 n = 0;
+        for (u32 i = NS(p); i < NV(p) && n < PLAY_MAX_VEH; i++) {
+            const ak_target *t = &p->target[i]; if (!t->alive || t->team == p->team || (s32)(i - NS(p)) == (s32)v) continue;
+            f32 dx = t->feet[0] - vh->pos[0], dy = t->feet[1] - vh->pos[1], dz = t->feet[2] - vh->pos[2], d = sqrtf(dx * dx + dy * dy + dz * dz);
+            if (d > 2500.0f || d < 1.0f) continue;
+            f32 c = (fw[0] * dx + fw[1] * dy + fw[2] * dz) / d, k = -c; u32 j = n++;
+            while (j > 0 && key[j - 1] > k) { key[j] = key[j - 1]; order[j] = order[j - 1]; j--; }
+            key[j] = k; order[j] = (s32)i;
+        }
+        if (n) { u32 j = 0; if (p->fly_target >= 0) { for (u32 q = 0; q < n; q++) if (order[q] == p->fly_target) j = (q + 1) % n; } p->fly_target = order[j]; }
+    }
+    if (p->fly_auto_req) { p->fly_auto_req = false; p->fly_auto = !p->fly_auto; }
+    if (p->fly_auto && p->fly_target >= 0 && vh->flying && vh->takeoff <= 0) {
+        const ak_target *t = &p->target[p->fly_target];
+        f32 tx = t->feet[0] - vh->pos[0], ty = t->feet[1] + t->height * 0.5f - vh->pos[1], tz = t->feet[2] - vh->pos[2], h = sqrtf(tx * tx + tz * tz);
+        f32 dyaw = wrap(atan2f(-tx, -tz) - vh->yaw), dp = atan2f(ty, fmaxf(h, 1.0f)) - vh->pitch;
+        vh->steer = clampf(-dyaw * 2.0f, -1, 1); vh->throttle = clampf(-dp * 3.0f, -1, 1);
+    }
 }
 
 /* a flyer: take off (from a capital ship's hangar: out along its hangar run, traced from the take-off behaviour 0894C438 - up
@@ -3230,7 +3263,13 @@ static ak_input psp_layout(ak_play *p, const ak_input *raw, f32 dt)
     g.pressed |= P & (AK_BTN_LEFT | AK_BTN_RIGHT);
     p->sprint = false;
     if (driving) {
-        if (flyer) { if (H & AK_BTN_L) g.held |= AK_BTN_L; if (H & AK_BTN_R) g.held |= AK_BTN_CROSS; if (P & AK_BTN_R) g.pressed |= AK_BTN_CROSS; }
+        if (flyer) { if (H & AK_BTN_L) g.held |= AK_BTN_L; if (H & AK_BTN_R) g.held |= AK_BTN_CROSS; if (P & AK_BTN_R) g.pressed |= AK_BTN_CROSS;
+            /* measured (harness sa_h11, Space Alderaan's tips 0x1A7 / 0x1A8 / 0x146): d-pad down acquires a target (the 0x801C kind 0xD
+               passed on it), triangle turns the auto-pilot on (kind 0xE: +0x34C bit 0x20 with a target, 089CE1C0), L and R together level
+               a rolled craft (kind 0xC: +0x34C bit 7, set in 089A9728 by two input actions) [assumed: which two] */
+            if (P & AK_BTN_DOWN) p->fly_pick = true;
+            if (P & AK_BTN_TRIANGLE) p->fly_auto_req = true;
+            p->fly_level = (H & AK_BTN_L) && (H & AK_BTN_R); }
         else if (H & AK_BTN_L) g.held |= AK_BTN_CROSS;
         p->l_was = false; p->l_t = 0;
     } else {
@@ -3310,11 +3349,14 @@ static bool script_test(void *user, u32 kind, u32 param)
     case 0x11: return holding(p, 0xDA0CAE3Bu);   /* (08A0E228's 0x11: the weapon 0xDA0CAE3B - Yavin's 18d18 after the cutter's tip) */
     /* in a vehicle (08A0E3DC, decompiled): 10 the view mode (0x08C29B58 == 1, shared with the soldier's), 0xB the craft's +0x1F8
        outside +-0.001, 0xC its +0x34C bit 7, 0xD its vfunc +0x10C (a target id) not 999, 0xE its vfunc +200, 0xF a craft at all.
-       Space Alderaan's tips name them: 0xD "Press .. to acquire a target", 0xE the auto-pilot, 0xC the camera lock.  [assumed: 0xB
-       the throttle held (the accelerate tip), 0xD Aurek's missile lock until the original's target choice is ported; 0xE / 0xC
-       false - Aurek has no auto-pilot or camera lock yet] */
-    case 0xB: return p->alive && p->in_veh >= 0 && fabsf(p->veh[p->in_veh].throttle) >= 0.001f;
-    case 0xD: return p->alive && p->in_veh >= 0 && p->veh[p->in_veh].lock >= 0;
+       Space Alderaan's tips name them: 0xD "Press .. to acquire a target", 0xE the auto-pilot, 0xB / 0xC the roll and levelling
+       (tip 0x146 between groups 60 / 61).  Harness sa_h11 (RS_VCOND_LOG): the object asked is the craft (vtable 0x08AFCBD0);
+       0xD passed on a d-pad down, 0xE on triangle (+0x34C 0x14011 -> 0x14071) */
+    case 0xB: return p->alive && p->in_veh >= 0 && fabsf(p->veh[p->in_veh].roll) >= 0.001f;   /* (rolled: tip 0x146 "You have rolled your spacecraft")
+                                                                         [assumed: +0x1F8 is the roll - it stayed 0 with R held, sa_h11] */
+    case 0xC: return p->alive && p->in_veh >= 0 && p->fly_level;     /* (levelling: L and R, tip 0x146) */
+    case 0xD: return p->alive && p->in_veh >= 0 && p->fly_target >= 0;
+    case 0xE: return p->alive && p->in_veh >= 0 && p->fly_auto && p->fly_target >= 0;
     case 0xF: return p->alive && p->in_veh >= 0;
     default: return false;
     }
@@ -3572,7 +3614,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (best >= 0) {
                 if (p->veh[best].driver > 0) { u32 bi = (u32)(p->veh[best].driver - 1); bot_exit(p, &p->bot[bi], bi); }
                 ak_vehicle *vh = &p->veh[best]; vh->driver = 0; vh->team = p->team; vh->open = false; vh->aim_yaw = vh->aim_pitch = 0;
-                p->target[VT(p, best)].team = p->team; p->in_veh = best; p->target[0].alive = false; p->lock = -1; p->cam_dist = vh->def->cam_z;
+                p->target[VT(p, best)].team = p->team; p->in_veh = best; p->target[0].alive = false; p->lock = -1; p->cam_dist = vh->def->cam_z; p->fly_target = -1; p->fly_auto = false;
                 if (p->vspawn[best].lone && p->have_script) ak_script_raise(&p->script, p->vspawn[best].ev, p->vspawn[best].nev, 10013, p->vspawn[best].eid, script_sink, p);   /* [assumed: 10013 is "boarded" - the harness could not board it] */
             } else if (p->have_cq && p->near_post >= 0 && p->match.post[p->near_post].owner == p->team)
                 p->want_equipment = true;                                     /* at an own post: the customisation menu (the viewer opens it) */
@@ -3997,7 +4039,6 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 /* the throttle (089B20CC): R held +1, L held -1, neither 0 - with no drag the speed then stays */
                 vh->fast = false; vh->brake = false;
                 if (!vh->flying) { if (vin->pressed & AK_BTN_CROSS) vh->takeoff_req = true; }
-                if (!vh->flying && vin->held && ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "parked: held %x pressed %x", vin->held, vin->pressed);
                 else if (vh->takeoff <= 0) { vh->fast = (vin->held & AK_BTN_CROSS) != 0; vh->brake = (vin->held & AK_BTN_L) != 0 && !vh->fast; }
                 fly_fast = true;
                 /* the boost (traced, 089A9728, and seen on Space Hoth's X-wing): R tapped, then R held again within 0.5 s of the tap's
@@ -4011,6 +4052,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                     fly_boost = r && vh->flying && vh->takeoff <= 0 && p->free_flight && (vh->r_tap_t < 0.5f || vh->boosting);
                 }
                 if (p->invert_y) vh->throttle = -vh->throttle;
+                fly_target_update(p, v, dt);
             }
             else if (vin->held & AK_BTN_L) { vh->strafe = vin->lx; vh->steer = 0; }   /* L held: strafe (hover craft) */
             vh->aim_yaw -= vin->rx * 2.0f * dt; vh->aim_pitch += (p->invert_y ? -vin->ry : vin->ry) * 1.5f * dt;

@@ -485,6 +485,7 @@ int main(int argc, char **argv)
                         if (frame == at && strchr(bt, 'o')) in.pressed |= AK_BTN_CIRCLE;   /* o: roll */
                         if (frame == at && strchr(bt, 'z')) in.pressed |= AK_BTN_TRIANGLE; /* z: zoom */
                         if (frame == at && strchr(bt, 'c')) in.pressed |= AK_BTN_SQUARE;   /* c: the secondary (pressed on its first frame) */
+                        if (frame == at && strchr(bt, 'd')) in.pressed |= AK_BTN_DOWN;     /* d: d-pad down (a starfighter's target) */
                         if (frame == at && strchr(bt, 'r')) in.pressed |= AK_BTN_RIGHT;    /* r: d-pad right (the lower slot: explosive / power-up) */
                         if (frame == at && strchr(bt, 'h')) in.pressed |= AK_BTN_LEFT;     /* h: d-pad left (weapon 1 <-> 2) */
                         if (frame == at && strchr(bt, 'x')) { in.pressed |= AK_BTN_CROSS; in.held |= AK_BTN_CROSS; }   /* x: a tap of cross (pages) */

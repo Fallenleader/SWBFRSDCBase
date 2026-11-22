@@ -9883,6 +9883,7 @@ u32 func_08A0E3DC(u32 a0, u32 a1, u32 a2, u32 a3, u32 t0, u32 t1, u32 t2, u32 t3
     u32 t_;
     u8 stack_[16] __attribute__((aligned(16)));
     u32 sp = RS_GADDR(stack_ + 16);
+    { extern void rs_vcond_log(u32, u32); rs_vcond_log(a0, a1); }   /* (harness: RS_VCOND_LOG) */
 L_08A0E3DC:;
     sp = sp - 16;
     v1 = LD32(a0+12);

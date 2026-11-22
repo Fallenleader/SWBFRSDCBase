@@ -1325,6 +1325,17 @@ textures and how they are used. Section R lists only what must be in place so th
     auto-pilot). Next: the craft's target choice (a button, "Press it again to change"), the auto-pilot (0xE) and camera lock
     (0xC) - traced from the vehicle's vfuncs +0x10C / +200 and +0x34C - then the rest of the mission (1895f 0xB, 18960 0xC,
     group 115's objectives, 0x800D 1882d / 1898c's 0x1B).
+  - Part 43, 2026-11-22 - **starfighter target choice and auto-pilot; Space Alderaan's tutorial runs to its lasers page.**
+    Harness hook RS_VCOND_LOG (08A0E3DC, once a second per kind; program cmpn_fly2: d-pad down taps, then triangle) on sa_h11:
+    the object the in-vehicle kinds ask is the craft (vtable 0x08AFCBD0); 0xD passed on d-pad down (vfunc +0x10C = 08AC4BD0
+    returns +0x1C0, the target id), 0xE on triangle (+0x34C went 0x14011 -> 0x14071; 089CE1C0: bit 0x20 and a target), +0x1F8
+    stayed 0 with R held (so 0xB is not the throttle). Tips: 0x146 "You have rolled your spacecraft. Press L and R together .. to
+    level" sits between 0xB (1895f -> 60) and 0xC (18960 -> 61), so 0xB = rolled, 0xC = levelling [assumed: +0x1F8 is the roll;
+    the two actions that set bit 7 in 089A9728 are L + R]. Ported: d-pad down picks / steps the target (enemy craft by angle to the
+    nose, 2500 m) [assumed: the order], triangle toggles the auto-pilot (the bots' steering toward the target) [assumed: the
+    steering], kinds 0xB / 0xC / 0xD / 0xE. Aurek (Space Alderaan): ... 103 -> 105 -> 125 -> 107 -> 109 -> 122 (the lasers /
+    missile page), as the harness. Open: the target marker on the HUD, the camera lock (0x1AE, triangle?) - not a script gate;
+    the game's own target order and auto-pilot; "Destroy the Tie Fighter" (1898c) and the rest of the mission.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
