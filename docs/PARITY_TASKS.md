@@ -1582,6 +1582,7 @@ textures and how they are used. Section R lists only what must be in place so th
   - Part 77 (2026-11-22): 3.4 walker clip table (ATBL) decoded; the AT-ST turns in place with turnL_30 / turnR_30.
   - Part 78 (2026-11-22): 7.2 - no reverb in the game (only RevVON is imported); the voice pitch path found for the Doppler check.
   - Part 79 (2026-11-22): 7.2 closed - no Doppler, no occlusion in the game; the 3D distance gain is linear (Aurek's was squared).
+  - Part 80 (2026-11-22): R.1 dynamic lights traced (effects' light curves, the flag bits, the per-frame update); building them is next.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
@@ -1964,6 +1965,15 @@ groundwork below is needed before the parity work starts. The tiers come later.
     dynamic lights (made by 0889CE40 and set by 0889D14C / 0889D1BC; its callers are the effects code - 0885ACE0 / 0885C6C0,
     the emitters 088E59C8 / 088E5B50 - and the classes 089F3B78..089F45F8 and 08A66F20..08A675C8: so an effect's light element
     makes them, read from its FX data - not traced), and per-vertex lighting on Vita / 3DS.
+  - 2026-11-22, the effects' lights followed (not built yet): an effect (FXET) carries a light - its colour curve (RGBA) and
+    radius curve, which Aurek's loader skips - and its def's flags word (+64, read raw by the loader 0882ACE0) decides: bit 0
+    makes one (088E5398 -> 088E59C8 takes a light record from the pool 0889CE40), bit 8 (0x100) one per particle. Each frame
+    (088E5B50) the single light sits at the effect's position (+140) with colour = the colour curve and radius = the radius curve,
+    both at the instance's time fraction (+236); per-particle lights sample the curves over the particle's age. 0889D14C frees
+    them. In the shipped levels 157 of 3210 effect defs have the bit [assumed: the file's tenth trailing word is +64] - big and
+    space explosions, the EMP launcher's, some smoke vents and space battle backdrops. Placed lights are a separate object
+    (messages 108 / 90, 0885ACE0: colour x intensity / 510, radius +68). To build: read the curves and flags, keep a light per
+    flagged effect, and add them in ak_scene_light_at as 0889B9E4 does (1 - d / r; ambient x 0.235, direction x 0.47).
 - [x] **R.2 Fog.** The FOG values are read but not understood (Tatooine 11–75 m). Trace them.
   - Done 2026-11-19: the FOG chunk (loader 08825C9C) is flags (bit 0 on; space levels off), r, g, b, -, start, end, strength,
     sky strength, 2 more.  The game sets the GU fog from near 0 to far = end (08903470 - logged in the harness: Tatooine
