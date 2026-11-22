@@ -28,7 +28,7 @@ static const char *dirs[2]; static int ndirs;
 bool ak_plat_init(void)
 {
     WHBProcInit();
-    VPADInit(); KPADInit(); WPADEnableURCC(TRUE);
+    KPADInit(); WPADEnableURCC(TRUE);                    /* (VPAD needs no init on current firmware: VPADInit is deprecated) */
     const char *sd = WHBMountSdCard() ? WHBGetSdCardMountPath() : NULL;    /* ("fs:/vol/external01") */
     snprintf(app_dir, sizeof app_dir, "%s/wiiu/apps/Aurek", sd ? sd : "fs:/vol/external01");
     mkdir(app_dir, 0777);
@@ -71,7 +71,7 @@ bool ak_plat_poll(ak_input *in)
     for (int ch = 0; ch < 4; ch++) {                     /* Pro Controllers (and Classic Controllers) */
         KPADStatus ks; KPADError ke = KPAD_ERROR_OK;
         if (KPADReadEx((KPADChan)ch, &ks, 1, &ke) <= 0 || ke != KPAD_ERROR_OK) continue;
-        if (ks.extensionType != WPAD_EXT_PRO_CONTROLLER && ks.extensionType != WPAD_EXT_MPLUS_PRO_CONTROLLER) continue;
+        if (ks.extensionType != WPAD_EXT_PRO_CONTROLLER) continue;
         u32 b = ks.pro.hold;
         if (b & WPAD_PRO_BUTTON_B) h |= AK_BTN_CROSS;
         if (b & WPAD_PRO_BUTTON_A) h |= AK_BTN_CIRCLE;

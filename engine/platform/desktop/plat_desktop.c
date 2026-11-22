@@ -11,6 +11,9 @@
 #include <windows.h>
 #include <malloc.h>
 #else
+#ifdef __WUT__
+#include <malloc.h>
+#endif
 #include <pthread.h>
 #include <time.h>
 #include <unistd.h>
@@ -23,6 +26,8 @@ void *ak_plat_alloc(size_t size, size_t align)
 {
 #ifdef _WIN32
     return _aligned_malloc(size, align);
+#elif defined(__WUT__)
+    return memalign(align < 8 ? 8 : align, size);          /* (wut's newlib: no posix_memalign) */
 #else
     void *p = NULL;
     return posix_memalign(&p, align < sizeof(void *) ? sizeof(void *) : align, size) == 0 ? p : NULL;
@@ -62,6 +67,8 @@ int ak_plat_core_count(void)
 {
 #ifdef _WIN32
     SYSTEM_INFO si; GetSystemInfo(&si); return (int)si.dwNumberOfProcessors;
+#elif defined(__WUT__)
+    return 3;                                                   /* (the Wii U's Espresso: three cores) */
 #else
     long n = sysconf(_SC_NPROCESSORS_ONLN); return n > 0 ? (int)n : 1;
 #endif

@@ -25,7 +25,7 @@ OPT=(-O3 -mcpu=750 -meabi -mhard-float -DESPRESSO -fomit-frame-pointer -ffast-ma
      -fno-signed-zeros -fno-trapping-math -funroll-loops -ftree-vectorize -fpredictive-commoning -fgcse-after-reload -ftree-loop-distribution
      -floop-nest-optimize -fgraphite-identity -fipa-pta -fipa-cp-clone -fsched-pressure -fno-semantic-interposition -fmerge-all-constants
      -fno-common -fno-stack-protector -ffunction-sections -fdata-sections -flto=auto -flto-partition=one -fuse-linker-plugin)
-INC=(-I "$engine" -I "$out/gen" -I "$DKP/wut/include" -I "$DKP/wut/include/whb" -isystem "$DKP/wut/include")
+INC=(-I "$engine" -I "$out/gen" -I "$DKP/wut/include" -isystem "$DKP/wut/include")
 build_id=$(git -C "$engine" describe --always --dirty=+ 2>/dev/null || echo unknown)
 src=$(grep -o 'add_library(akcore STATIC [^)]*' "$engine/CMakeLists.txt" | cut -d' ' -f3-)
 src="$src app/viewer.c app/play.c app/play_sound.c app/hud.c app/frontend.c app/gc_screen.c platform/desktop/plat_desktop.c platform/wiiu/plat_wiiu.c platform/wiiu/gfx_gx2.c"
@@ -38,7 +38,7 @@ for f in $src; do
   objs+=("$o")
 done
 powerpc-eabi-gcc "${OPT[@]}" -specs="$DKP/wut/share/wut.specs" -Wl,--gc-sections -o "$out/aurek.elf" "${objs[@]}" \
-  -L "$DKP/wut/lib" -lwhb -lgfd -lwut -lm
+  -L "$DKP/wut/lib" -lwut -lm
 elf2rpl "$out/aurek.elf" "$out/aurek.rpx"
 wuhbtool "$out/aurek.rpx" "$out/aurek.wuhb" --name "Aurek" --short-name "Aurek" --author "Aurek" \
   ${AK_WIIU_ICON:+--icon="$AK_WIIU_ICON"}
