@@ -835,7 +835,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         while (ak_asura_next(&l->file, &pos, &c)) {
             if (ak_chunk_tag(&c) == AK_TAG('C', 'U', 'T', 'S') && c.size >= 96 && p->ncuts < 16) {
                 typeof(p->cuts[0]) *k = &p->cuts[p->ncuts]; memset(k, 0, sizeof *k); k->off = (u32)(c.body - l->file.data); k->size = c.size;
-                memcpy(k->name, c.body + 20, 27); f32 g[3]; memcpy(g, c.body + 8, 12); ak_from_game(g, k->org);
+                for (u32 z = 0; z < 47 && 20 + z < c.size && c.body[20 + z]; z++) k->name[z] = (char)c.body[20 + z];   /* (names run to 36 bytes: Tatooine's falcon flying in to the evac point) */ f32 g[3]; memcpy(g, c.body + 8, 12); ak_from_game(g, k->org);
                 u32 q = 20;
                 while (q < c.size && c.body[q]) q++;
                 q = ((q + 4) & ~3u) + 12;                                    /* the name, padded to 4, then 3 words */
@@ -969,7 +969,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         pos = 8;
         while (ak_asura_next(&l->file, &pos, &c) && p->nnamed < 64) {
             if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 24 || ak_rd32(c.body + 4) != 3) continue;
-            char nm[29] = { 0 }; memcpy(nm, c.body + 20, c.size - 20 < 28 ? c.size - 20 : 28);
+            char nm[48] = { 0 }; memcpy(nm, c.body + 20, c.size - 20 < 47 ? c.size - 20 : 47);
             for (u32 k = 0; k < p->ncuts; k++) if (!strcmp(nm, p->cuts[k].name)) { p->named[p->nnamed].id = ak_rd32(c.body); p->named[p->nnamed++].cut = (s32)k; break; }
         }
     }

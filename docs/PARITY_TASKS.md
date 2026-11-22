@@ -1421,6 +1421,18 @@ textures and how they are used. Section R lists only what must be in place so th
     Leaving a lone craft raises 10015 [assumed]; a length-0 scene with timed groups runs to its last [assumed]. Skips used:
     AK_TEST_BREAK 18877, AK_TEST_FIRE 77 / 78. Still open there: 0x53 to the fade 18998 (type 0x44 {3, 0.25, 0.25, black, 1,
     next 18999}), 800d / 800e to 18954, the AI's fire at non-player units. Next: TATOOINE.
+  - Part 53, 2026-11-22 - **Tatooine runs to its win in Aurek** (with test skips; campaign mode AK_MODE=5). Fixed: 0x800C to a post
+    gives it without capture events (089ECC48 -> 08A26FF4 + 0897367C only; traced) - Tatooine's 28 gives its spawn post 18719 to
+    the Empire, and the event Aurek raised (10003 -> 18 -> 50 -> the timer 18a2c -> 41, 0x8006 winner 1) lost the match at 2 s.
+    Cut-scene names longer than 27 bytes were cut short, so their named objects never matched (18a47 "falcon flying in to the evac
+    point"). The chain: 28 / 36 / 17 (start) -> post 1871a (10002 -> 1) -> 18ada -> 51 -> objective 189cb -> 2 -> use zone 18a0d
+    (the Rodian, 3 -> the scene place holder chat to rodian, its end 30000) -> 189cc -> 5 -> the commando 189d1 walks to 189d3
+    (8) -> 9 (three props 189db / dc / dd, counter 189df) -> 13 -> 35 -> post 18719 to the Alliance (49) -> 18aaf -> 14 -> 15 (the
+    cage scene, 30003, the 30 s countdown 189e1 -> 16 -> 19) -> 30011 / 30012 / 30013 (two scout walkers 189e5 / e6, falls 20 /
+    21, counter 189f0) -> 24 -> 25 -> the Falcon scene 18a47 (timed 30014 / 30015 / 30002 / 30001) -> region 189f1 on (who 1000)
+    -> 27 -> 189f2 -> 38 -> 0x8006 winner 0. Skips used: AK_TEST_FIRE 1 / 49 / 20 / 21 (posts contested by soldiers; the walkers),
+    AK_TEST_BREAK the three props, teleports and the use button. Still open there: 0x4C to path nodes, 0x801F / 0x8007 / 0x0E to
+    the spawners, 0x1C / 0x1D, 0x1A to type 43, 5 to class 0x800E 18ae1 / 18ae2, 0x53 to the fade 18a9e. Next: BOZ_PITY.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -240,7 +240,7 @@ static void set_owner(const ak_conquest_map *m, ak_conquest *s, u32 i, int team)
 
 /* A command post's script messages (handler 089ECC48, flags at +0xC0): 0x800B locks it (bit 0: it cannot be captured - the
  * cross), 0x800A unlocks, 0x8014 / 0x8013 set / clear bit 1 [what bit 1 does: not traced], 0x800C {u32, team} gives it to a
- * team (08A26FF4; 2 and up: neutral [assumed]), 3 / 4 enable / disable the object (08A067A8 - Aurek: the post is there or
+ * team (08A26FF4: 0 / 1, the other era's 2 / 3, else 4 - neutral; no events), 3 / 4 enable / disable the object (08A067A8 - Aurek: the post is there or
  * absent [assumed]).  The CTF timers of most levels lock the posts at the start (Endor, Geonosis, Kashyyyk ...). */
 bool ak_conquest_post_msg(ak_conquest_map *m, ak_conquest *s, u32 target, u16 type, const u8 *x, u32 nx)
 {
@@ -252,7 +252,11 @@ bool ak_conquest_post_msg(ak_conquest_map *m, ak_conquest *s, u32 target, u16 ty
     case 0x800A: po->flags &= ~1u; po->disabled = false; break;
     case 0x8014: po->flags |= 2; break;
     case 0x8013: po->flags &= ~2u; break;
-    case 0x800C: if (x && nx >= 8) { u32 t = ak_rd32(x + 4); set_owner(m, s, i, t < 2 ? (int)t : AK_CQ_NEUTRAL); s->captures--; } break;
+    case 0x800C: if (x && nx >= 8) {   /* the owner word only (+0xC) and a recount (0897367C) - not 089ECDE4, so no capture events:
+                                           Tatooine's 28 gives its spawn post 18719 to the Empire, whose 10003 would fire the loss path 18 */
+        u32 t = ak_rd32(x + 4); ak_post_state *ps = &s->post[i];
+        ps->owner = t < 2 ? (int)t : AK_CQ_NEUTRAL; ps->progress = m->post[i].amount; ps->capturing = AK_CQ_NEUTRAL;   /* [assumed: the bar full] */
+        recount(m, s); } break;
     case 3: case 4: if (po->absent != (type == 4)) { po->absent = type == 4; recount(m, s); } break;
     default: return false;
     }

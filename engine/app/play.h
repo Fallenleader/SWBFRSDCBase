@@ -228,7 +228,7 @@ typedef struct {
     f32 clock;                         /* seconds of play (spinning logos) */
     s32 near_post;                     /* the post the soldier stands at (the HUD's capture bar), or -1 */
     struct { u32 id; f32 pos[3], yaw, fade[2]; } warp[8]; u32 nwarp;
-    struct { char name[28]; f32 len, org[3]; s32 group; bool camera; u32 off, size; s32 cam_clip, cam2_clip, act_clip, act_model; char model[96]; f32 sp[3]; ak_quat sq;
+    struct { char name[48]; f32 len, org[3]; s32 group; bool camera; u32 off, size; s32 cam_clip, cam2_clip, act_clip, act_model; char model[96]; f32 sp[3]; ak_quat sq;
                  s32 anim[6]; u32 nanim; f32 hfov;                           /* the scene's clips in its list order; the camera's width (rad) */
                  struct { u8 type, anim; bool cam; f32 t, a, b; } ev[8]; u32 nev;
                  struct { f32 t; s32 g; } gev[32]; u32 ngev;                  /* CTEV type 4: a group fired at its time, in time order */
