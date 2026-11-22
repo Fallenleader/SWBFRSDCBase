@@ -2477,22 +2477,33 @@ static bool vehicle_fire2(ak_play *p, const ak_model_set *m, u32 v, const f32 *a
     return true;
 }
 
-/* the lock-on of a vehicle's tracking secondary (traced: 089CC77C / 089CC878): the candidate is the enemy nearest the line of `fwd`
- * within LockAngle and reach; while it builds, each frame it must stay within InitialLockOnAngle / InitialLockOnRange, or the timer
- * starts again; after LockOnTime it is locked, and stays locked while within LoseLockOnAngle / LoseLockOnRange (ground vehicles
- * without the ranges: 300 m) */
+/* the lock-on of a vehicle's secondary (traced: 089CC77C per frame, 089CC878 / 089CC92C the check): it runs for a tracking weapon,
+ * and for proton bombs (they lock though they do not track); else no lock.  A new target clears the timer and the lock; the check
+ * then needs the target alive, no farther from the vehicle than InitialLockOnRange and within InitialLockOnAngle of the aim - once
+ * locked, LoseLockOnRange / LoseLockOnAngle instead (bombs keep the Initial pair).  Each frame the check passes, the timer grows by
+ * dt (held to LockOnTime); when it reaches LockOnTime the lock is the check's answer; a failed check starts it all again.  The
+ * ranges default to 0, so ground vehicles (none set them) never lock.  The candidate: the enemy nearest the line of `fwd` within
+ * LockAngle (089CA734) [assumed: within InitialLockOnRange - a farther one could never pass the check] */
+static bool vehicle_lock_check(ak_play *p, const ak_vehicle *vh, s32 ti, const f32 *eye, const f32 *fwd)
+{
+    const ak_vehicle_def *d = vh->def; const ak_target *t = &p->target[ti];
+    if (!t->alive) return false;
+    bool lose = vh->locked && !d->sec.bomb_lock;
+    f32 lim_r = lose ? d->lose_lock_range : d->init_lock_range, lim_a = lose ? d->lose_lock_angle : d->init_lock_angle;
+    f32 tc[3] = { t->feet[0], t->feet[1] + t->height * 0.5f, t->feet[2] };
+    f32 r[3] = { tc[0] - vh->pos[0], tc[1] - vh->pos[1], tc[2] - vh->pos[2] };
+    if (sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]) > lim_r) return false;   /* (from the vehicle: its +244) */
+    f32 c[3] = { tc[0] - eye[0], tc[1] - eye[1], tc[2] - eye[2] }, dl = sqrtf(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
+    f32 ang = dl > 0.01f ? acosf(fmaxf(-1, fminf(1, (c[0] * fwd[0] + c[1] * fwd[1] + c[2] * fwd[2]) / dl))) : 0;
+    return ang <= lim_a;
+}
 static void vehicle_lock(ak_play *p, ak_vehicle *vh, const f32 *eye, const f32 *fwd, f32 dt)
 {
     const ak_vehicle_def *d = vh->def;
-    if (!d->sec.armed || !d->sec.tracks) { vh->lock = -1; vh->locked = false; return; }
-    f32 reach = d->lose_lock_range > 0 ? d->lose_lock_range : 300.0f;
+    if (!d->sec.armed || !(d->sec.tracks || d->sec.bomb_lock)) { vh->lock = -1; vh->locked = false; vh->lock_t = 0; return; }
     if (vh->lock >= 0) {
-        const ak_target *t = &p->target[vh->lock];
-        f32 c[3] = { t->feet[0] - eye[0], t->feet[1] + t->height * 0.5f - eye[1], t->feet[2] - eye[2] }, dl = sqrtf(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
-        f32 ang = dl > 0.01f ? acosf(fmaxf(-1, fminf(1, (c[0] * fwd[0] + c[1] * fwd[1] + c[2] * fwd[2]) / dl))) : 0;
-        f32 lim_r = vh->locked ? reach : (d->init_lock_range > 0 ? d->init_lock_range : reach), lim_a = vh->locked ? d->lose_lock_angle : d->init_lock_angle;
-        if (!t->alive || dl > lim_r || ang > lim_a) { vh->lock = -1; vh->locked = false; vh->lock_t = 0; }
-        else { vh->lock_t = fminf(vh->lock_t + dt, d->lock_time); if (vh->lock_t >= d->lock_time) vh->locked = true; return; }
+        if (!vehicle_lock_check(p, vh, vh->lock, eye, fwd)) { vh->lock = -1; vh->locked = false; vh->lock_t = 0; }
+        else { vh->lock_t = fminf(vh->lock_t + dt, d->lock_time); if (d->lock_time <= vh->lock_t) vh->locked = true; return; }
     }
     s32 best = -1; f32 bc = cosf(d->lock_angle);
     for (u32 i = 0; i < NT(p); i++) {
@@ -2500,11 +2511,12 @@ static void vehicle_lock(ak_play *p, ak_vehicle *vh, const f32 *eye, const f32 *
         if (!t->alive || t->team == vh->team || t->team == AK_CQ_NEUTRAL || i >= NP(p)) continue;
         if (i >= NS(p) && i < NV(p) && p->veh[i - NS(p)].driver < 0) continue;
         f32 c[3] = { t->feet[0] - eye[0], t->feet[1] + t->height * 0.5f - eye[1], t->feet[2] - eye[2] }, dl = sqrtf(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
-        if (dl > reach || dl < 1) continue;
+        if (dl > d->init_lock_range || dl < 1) continue;
         f32 cs = (c[0] * fwd[0] + c[1] * fwd[1] + c[2] * fwd[2]) / dl;
         if (cs > bc) { bc = cs; best = (s32)i; }
     }
     vh->lock = best; vh->lock_t = 0; vh->locked = false;
+    if (best >= 0 && d->lock_time <= 0) vh->locked = vehicle_lock_check(p, vh, best, eye, fwd);
 }
 
 /* a vehicle's boost and energy: held, it boosts only while the energy is above a frame's EnergyBoost, paying it (089CABFC /

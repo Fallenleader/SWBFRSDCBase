@@ -64,6 +64,7 @@ bool ak_secondary_load(const ak_blueprints *bp, const char *hp, ak_secondary *s)
     s->clip = ak_bp_int(w, "AmmoPerClip", 1); if (s->clip <= 0) s->clip = 1;
     s->lock_time = ak_bp_float(w, "LockonTime", 0);
     s->tracks = s->proj.track || ak_bp_int(w, "WillTrack", 0) != 0;
+    s->bomb_lock = ak_bp_hash(ak_bp_string(w, "Projectile", "")) == 0xF968C3BBu;   /* [assumed: the weapon's +20 is its projectile's name] */
     s->bot_dmg = ak_bp_float(w, "Modifier_Bot_Damage", 1);
     s->armed = true;
     return true;

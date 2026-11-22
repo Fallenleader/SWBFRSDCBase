@@ -32,6 +32,7 @@ typedef struct {
     f32 rate, reload, lock_time; s32 clip;   /* clip < 0: never runs dry */
     const char *hud_icon;                    /* the Weapon's "HUDIcon" (its picture on the HUD) */
     bool tracks; f32 bot_dmg;                /* tracks: Weapon or Projectile WillTrack; bot_dmg: the Weapon's Modifier_Bot_Damage */
+    bool bomb_lock;                          /* its projectile is "Proton_Bomb" (hash 0xF968C3BB): it locks on though it does not track (089CC77C) */
 } ak_secondary;
 
 typedef struct {

@@ -634,7 +634,7 @@ textures and how they are used. Section R lists only what must be in place so th
     first free) and built - see the NATIVE_ENGINE row; open: 089D5A60's free test, the boarding test's own code, creatures. Debug: AK_DUMP_VEH_MARKERS=1 lists each vehicle
     model's markers and bounds; AK_DEBUG_VEH logs where the player gets out.
 
-- [ ] **3.6 Secondary weapons and lock-on.** Lock-on traced 2026-11-17 (089CC77C per frame, 089CC878 the check; blueprint
+- [x] **3.6 Secondary weapons and lock-on.** Lock-on traced 2026-11-17 (089CC77C per frame, 089CC878 the check; blueprint
   fields from 089C4A2C: LockAngle +400, LockOnTime +408, LoseLockOnAngle +412, LoseLockOnRange +416, InitialLockOnAngle +420,
   InitialLockOnRange +424; target +448 (999 none), last target +452, timer +464, locked +468).  A new target resets the timer.
   While building, the target must pass the check within InitialLockOnRange / InitialLockOnAngle (1000 m / 30° in the base
@@ -642,6 +642,14 @@ textures and how they are used. Section R lists only what must be in place so th
   while the check passes within LoseLockOnRange / LoseLockOnAngle.  Aurek now does this; it used LockAngle (15°) while
   building.  The candidate test (089CA734): the angle to the target (acos of the clamped dot) under LockAngle - as Aurek's choice.  Was: Verify HardpointW2 and the lock rules against the original. The docs list them as
   "not yet" (stale).
+  - 2026-11-22, the rest traced: 089CC77C runs only for a tracking weapon or one whose projectile is Proton_Bomb (0xF968C3BB),
+    else the timer and lock clear. The check (089CC878 / 089CC92C) measures the range from the vehicle (+244) and the angle
+    from the aim; once locked it uses the LoseLockOn pair, bombs the Initial pair still. The vehicle getters' defaults are 0
+    (LockOnTime, both ranges and angles) and 5 degrees for LockAngle (0x08AEEE80): no ground vehicle sets them, so ground
+    vehicles never lock (none of their secondaries track anyway). The Weapon's LockonTime (homing missiles 3) is not the
+    vehicle's: the A-wing locks in its own 2 s. Aurek follows all of this (play.c vehicle_lock / vehicle_lock_check; it had
+    defaults 2 s / 45 / 30 degrees, a 300 m fallback and the weapon's time). HardpointW2 per vehicle checked against the
+    blueprints (akbp); the beams, mortars and the self-destruct still wait on 2.3.
 - [ ] **3.7 Space [partial].** Capital ship turrets (ENTI type 30), the pilots' dogfight states, and hangar and shield rules.
   - Traced 2026-11-21 - **how a space match ends** (the level script, game/ak_script.c; Space Alderaan's groups as the example):
     a damageable object whose damage is relayed (08A069F8: shield first (+0x1C / +0x20), then, when 08A06E00 says so, the hit goes
@@ -1535,6 +1543,8 @@ textures and how they are used. Section R lists only what must be in place so th
   - Part 70, 2026-11-22 - **4.3b auto-gunners** (see NATIVE_ENGINE). Next: 9.2.
   - Part 71 (2026-11-22): 9.2 vehicle cameras - the blocked pull-in (pivot ray, 0.5 margin, 1.0/s return) and the tank type's
     swing (Camera Yaw/Pitch Rate, Damp, Max) traced and ported; vehicle camera defaults now the game's.
+  - Part 72 (2026-11-22): 3.6 closed - the lock-on's remaining rules (proton bombs lock, the Lose / Initial pairs, the range from
+    the vehicle, the getters' zero defaults, the vehicle's own LockOnTime) traced and ported.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
