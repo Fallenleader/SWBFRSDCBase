@@ -503,6 +503,11 @@ textures and how they are used. Section R lists only what must be in place so th
     frame), the skid damping works across and backward only, the speed is held to StallSpeed..TopSpeed; turning spins up at
     YawInputDamp - YawDamp (100 degrees/s^2) to MaxTurnYaw and settles at YawDamp - Aurek matches.
   - [ ] **3.1b** The throttle cap over CruisingSpeed (vehicle +288), hover height, slopes, barrel aim, volleys, rider pose.
+    - 2026-11-22, volleys traced: every hardpoint barrel is its own weapon (089C4A2C, vehicle +672..+684); its first wait (+48)
+      is HardpointW1TimeN x its RateOfFire (+52), so TimeN is a share of the cycle, not seconds (X-wing 0 / .25 / .5 / .75 of 2 s:
+      a gun every 0.5 s; T4B .1-.4 of 0.25 s). The wait runs down each frame (08A186EC, while +364 bit 1 - set from creation) and
+      is set back to RateOfFire as the barrel fires (08A17C64); barrels with the same phase are marked (+364 bit 16). Aurek: the
+      barrel offsets are TimeN x RateOfFire, the volley RateOfFire (vehicles and turrets) [assumed: the phases hold while held].
     - 2026-11-21, the throttle cap read: +288 is AntiBoost (the vehicle base's getter 089C5790: key h31 0x81C82D81, default -2.0,
       D_08AEEDE8; CruisingSpeed's default is 50, D_08AEEDE4) - no Tank blueprint sets it. In the tank step (089B2A04), when the
       forward speed is above CruisingSpeed and the vehicle is not boosting (+844 bit 2), the throttle is min(throttle,
@@ -1545,6 +1550,8 @@ textures and how they are used. Section R lists only what must be in place so th
     swing (Camera Yaw/Pitch Rate, Damp, Max) traced and ported; vehicle camera defaults now the game's.
   - Part 72 (2026-11-22): 3.6 closed - the lock-on's remaining rules (proton bombs lock, the Lose / Initial pairs, the range from
     the vehicle, the getters' zero defaults, the vehicle's own LockOnTime) traced and ported.
+  - Part 73 (2026-11-22): 3.1b volleys - HardpointW1TimeN is the barrel's share of RateOfFire (weapon +48 = TimeN x +52), traced
+    and ported for vehicles and turrets.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

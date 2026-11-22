@@ -55,8 +55,11 @@ bool ak_turret_def_load(const ak_blueprints *bp, const ak_model_set *m, const ch
     if (d->nmuzzles && carrier >= 0) { const ak_marker *mk = ak_model_marker(&m->models[carrier], d->muzzle[0]);
         static const f32 I[12] = { 1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0 }; f32 o[12];
         if (mk) { ak_marker_matrix(I, mk, o); if (o[11] < -0.2f) d->face = -1; } }
-    d->volley = hw ? ak_bp_float(hw, "RateOfFire", last + 0.5f) : last + 0.5f;
-    if (d->volley < last + 0.05f) d->volley = last + 0.05f;
+    if (hw && ak_bp_get(hw, "RateOfFire") && ak_bp_float(hw, "RateOfFire", 0) > 0) {   /* TimeN is the barrel's share of the cycle (089C4A2C:
+                                                                                     weapon +48 = TimeN x RateOfFire; turrets read it there too [assumed]) */
+        d->volley = ak_bp_float(hw, "RateOfFire", 0);
+        for (u32 i = 0; i < d->nmuzzles; i++) d->muzzle_time[i] *= d->volley;
+    } else { d->volley = last + 0.5f; }
     const ak_bp_object *w = hw ? hw : ak_bp_find(bp, "Weapon", "Base");
     f32 md = w ? ak_bp_float(w, "Modifier_Bot_Damage", 1) : 1, mr = w ? ak_bp_float(w, "Modifier_Bot_RateOfFire", 1) : 1;
     d->gun_bot = d->gun; d->gun_bot.bot_dmg = md; d->gun_bot.ai = true; d->volley_bot = d->volley; (void)mr;   /* (089E1FDC: the bot damage only on the local player; no slower fire - see play.c) */

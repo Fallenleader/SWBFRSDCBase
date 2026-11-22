@@ -199,8 +199,10 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
         d->muzzle[d->nmuzzles] = s; d->muzzle_time[d->nmuzzles] = ak_bp_float(o, tm[i], 0); if (d->muzzle_time[d->nmuzzles] > last) last = d->muzzle_time[d->nmuzzles];
         d->nmuzzles++;
     }
-    /* a volley every RateOfFire seconds (the Weapon's: tank lasers 0.25, fighters 0.3, TIE fighter 0.2, X-wing 2), the barrels at their
-     * HardpointW1Time offsets within it (how the game combines the two is not traced; never shorter than the last barrel's offset) */   /* PARITY(3.1) */
+    /* a volley every RateOfFire seconds (the Weapon's: tank lasers 0.25, fighters 0.3, TIE fighter 0.2, X-wing 2); each barrel is its own
+     * weapon whose first wait is HardpointW1TimeN x RateOfFire (089C4A2C: weapon +48 = TimeN x +52), so TimeN is the barrel's share of
+     * the cycle - the X-wing's 0 / .25 / .5 / .75 of 2 s fire a gun every 0.5 s.  [assumed: the phases hold while the trigger is held -
+     * each weapon's wait runs down every frame (08A186EC) and is set back to RateOfFire as it fires (08A17C64)] */
     /* the secondary (HardpointW2) and the lock-on */
     if (ak_secondary_load(bp, ak_bp_string(o, "HardpointW2", ""), &d->sec)) {
         static const char *mk2[4] = { "HardpointW2Marker1", "HardpointW2Marker2", "HardpointW2Marker3", "HardpointW2Marker4" };
@@ -216,8 +218,10 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     d->lock_angle = ak_bp_float(o, "LockAngle", 5) * 0.017453293f; d->lock_time = ak_bp_float(o, "LockOnTime", 0);
     d->lose_lock_angle = ak_bp_float(o, "LoseLockOnAngle", 0) * 0.017453293f; d->lose_lock_range = ak_bp_float(o, "LoseLockOnRange", 0);
     d->init_lock_angle = ak_bp_float(o, "InitialLockOnAngle", 0) * 0.017453293f; d->init_lock_range = ak_bp_float(o, "InitialLockOnRange", 0);
-    d->volley = hw ? ak_bp_float(hw, "RateOfFire", last + 0.5f) : last + 0.5f;
-    if (d->volley < last + 0.05f) d->volley = last + 0.05f;
+    if (hw && ak_bp_get(hw, "RateOfFire") && ak_bp_float(hw, "RateOfFire", 0) > 0) {
+        d->volley = ak_bp_float(hw, "RateOfFire", 0);
+        for (u32 i = 0; i < d->nmuzzles; i++) d->muzzle_time[i] *= d->volley;
+    } else { d->volley = last + 0.5f; }                                    /* (no Weapon timing: the old rule) [assumed] */
     {   /* bots: the hardpoint's Weapon blueprint (else Weapon "Base") scales damage and the time between volleys */
         const ak_bp_object *w = hw ? hw : ak_bp_find(bp, "Weapon", "Base");
         f32 md = w ? ak_bp_float(w, "Modifier_Bot_Damage", 1) : 1, mr = w ? ak_bp_float(w, "Modifier_Bot_RateOfFire", 1) : 1;
