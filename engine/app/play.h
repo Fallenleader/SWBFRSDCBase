@@ -157,6 +157,7 @@ typedef struct {
     bool classic_cam;
     f32 fov, pivot_h, pivot_x, cam_back, cam_up, cam_side, pull_out_rate, pull_in_rate;
     f32 cam_dist;                      /* current pull-in distance (eases back out) */
+    f32 veh_cam_t, veh_cam_yaw, veh_cam_pitch;   /* the vehicle camera: the share of the way out to its eye (pulled in when blocked), the view's swing */
     f32 eye[3], aim[3]; bool aim_ok;   /* last camera position and its forward direction (shots go where it looks) */
     f32 aim_point[3];                  /* where the centre of the view meets the level */
     bool twin_stick; f32 aim_yaw_speed, aim_pitch_speed, aim_curve; bool invert_y, invert_y_vehicle, invert_y_space, auto_gunners;

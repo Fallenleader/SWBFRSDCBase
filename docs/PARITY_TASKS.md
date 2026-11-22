@@ -1533,6 +1533,8 @@ textures and how they are used. Section R lists only what must be in place so th
     medals for a match won on the day (see NATIVE_ENGINE). Open: the platinum's picture (the user supplies it), a trophy test on
     the Vita (NoTrpDrm), the picker on hardware.
   - Part 70, 2026-11-22 - **4.3b auto-gunners** (see NATIVE_ENGINE). Next: 9.2.
+  - Part 71 (2026-11-22): 9.2 vehicle cameras - the blocked pull-in (pivot ray, 0.5 margin, 1.0/s return) and the tank type's
+    swing (Camera Yaw/Pitch Rate, Damp, Max) traced and ported; vehicle camera defaults now the game's.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
@@ -1839,9 +1841,15 @@ textures and how they are used. Section R lists only what must be in place so th
     x the velocity (T4B 0.2: 2.6 m further back at 13 m/s, 0.6 m nearer reversing at 3 m/s; walkers 0). The harness's object
     state is one frame older than the view. The AT-ST looks at the ground CameraDistanceZ (20 m) ahead of the vehicle (23.4
     degrees down in its frame); the T4B looks level along its hull. Yaw locked to the hull (within 1 degree).
-    Engine: play.c builds the eye this way (AK_DEBUG_VEH_CAM logs it). Still open: while turning the T4B's eye sits 1.5 m to
-    the side (0.115 x the speed, and it fades with the speed after the turn), CameraMinY / MinZ (Aurek pulls in toward them
-    when blocked [assumed]), the speeder bikes' CameraMaxYaw, and whether the tank's view follows its turret.
+    Engine: play.c builds the eye this way (AK_DEBUG_VEH_CAM logs it).
+  - 2026-11-22: traced. Cameras per class: 089B2DC8 the "Tank" type (tanks, hovers, speeder bikes, creatures), 089BFA98 walkers,
+    089AB82C flyers. Blocked: a ray from the pivot (0, CameraMinY, CameraMinZ) to the eye, t = (hit - 0.5) / length in 0..1,
+    nearer at once, farther back at 1.0/s. The swing (tank type only): angle -= angle x Damp x dt with the control at rest,
+    += control x Rate x dt, within +-Max (CameraMaxYaw: the speeder bikes' 2 rad). Defaults are the game's (MinZ 0, MinY 2.5,
+    DistanceZ 250, VelocityWeight 0.2). Engine follows it [assumed: channels 0 / 1 are steer / throttle, and the swing's side].
+    Still open: the T4B's 1.5 m sideways eye while turning (the swing gives at most 0.5 m; the eye's x term in 089B2DC8 is
+    not decoded), the eye's speed term (the game adds speed x VelocityWeight to BestZ; Aurek keeps the velocity vector, as
+    measured), and whether the tank's view follows its turret.
 - [ ] **9.3 Controls [partial].** The PSP layout is traced. Twin-stick aiming (AK_AIM_*) is a modern option and stays as one, kept apart from
   the classic controls.
   - 2026-11-20: the original's own one-stick controls measured (harness `RS_TWIN_STICK=0 RS_VIEW_LOG=1`, program strafe_switch):

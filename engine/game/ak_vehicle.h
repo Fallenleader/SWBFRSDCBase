@@ -30,6 +30,7 @@ typedef struct {
      * (089C6AE8, default true): the HUD's bar shows the energy, else the health (08AC4BAC) */
     f32 energy_max, energy_boost, energy_stunt, energy_recharge; bool boardable;
     f32 health, cam_z, cam_y, target_range;
+    f32 cam_max_yaw, cam_max_pitch, cam_yaw_rate, cam_pitch_rate, cam_yaw_damp, cam_pitch_damp;   /* the view's swing (CameraMaxYaw ...) */
     f32 cam_dz, cam_min_z, cam_min_y, cam_vel_w;   /* CameraDistanceZ (walkers look at the ground that far ahead), CameraMinZ / MinY, CameraVelocityWeight */
     f32 hover, radius, height;             /* hover height above the ground; collision circle; body height */
     f32 box_min[3], box_max[3];         /* the physics box (model space, engine axes: the skeleton's collision box) */

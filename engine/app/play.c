@@ -1141,7 +1141,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         p->pivot_h = 1.55f; p->pivot_x = 0.0f; p->cam_back = 1.8f; p->cam_up = 0.05f; p->cam_side = 0.6f;
     }
     p->pivot_h *= S; p->pivot_x *= S; p->cam_back *= S; p->cam_up *= S; p->cam_side *= S; p->pull_close *= S;
-    p->cam_dist = p->cam_back;
+    p->cam_dist = p->cam_back; p->veh_cam_t = 1;
     {   int ts = ak_setting_int("AK_TWIN_STICK", -1);
         p->twin_stick = ak_plat_has_right_stick() && ts != 0;                 /* -1 (the default) and 1: on where the device can */
         {   /* no right stick (the Old 3DS) or AK_SINGLE_STICK=1: the PSP's own one-stick scheme */
@@ -1390,7 +1390,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     {   int tv = ak_setting_int("AK_TEST_VEHICLE", 0);                      /* tests: start in vehicle N */
         if (tv > 0 && (u32)tv <= p->nveh && p->veh[tv - 1].alive) {
             ak_vehicle *vh = &p->veh[tv - 1]; vh->driver = 0; vh->team = p->team; p->target[VT(p, tv - 1)].team = p->team;
-            p->in_veh = tv - 1; p->target[0].alive = false; memcpy(p->ch.pos, vh->pos, 12); p->cam_dist = vh->def->cam_z;
+            p->in_veh = tv - 1; p->target[0].alive = false; memcpy(p->ch.pos, vh->pos, 12); p->cam_dist = vh->def->cam_z; p->veh_cam_t = 1; p->veh_cam_yaw = p->veh_cam_pitch = 0;
         } }
     p->ready = true;
     return true;
@@ -3823,7 +3823,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (best >= 0) {
                 if (p->veh[best].driver > 0) { u32 bi = (u32)(p->veh[best].driver - 1); bot_exit(p, &p->bot[bi], bi); }
                 ak_vehicle *vh = &p->veh[best]; vh->driver = 0; vh->team = p->team; vh->open = false; vh->aim_yaw = vh->aim_pitch = 0;
-                p->target[VT(p, best)].team = p->team; p->in_veh = best; p->target[0].alive = false; p->lock = -1; p->cam_dist = vh->def->cam_z; p->fly_target = -1; p->fly_auto = false;
+                p->target[VT(p, best)].team = p->team; p->in_veh = best; p->target[0].alive = false; p->lock = -1; p->cam_dist = vh->def->cam_z; p->veh_cam_t = 1; p->veh_cam_yaw = p->veh_cam_pitch = 0; p->fly_target = -1; p->fly_auto = false;
                 if (p->vspawn[best].lone && p->have_script) ak_script_raise(&p->script, p->vspawn[best].ev, p->vspawn[best].nev, 10013, p->vspawn[best].eid, script_sink, p);   /* [assumed: 10013 is "boarded" - the harness could not board it] */
             } else if (p->have_cq && p->near_post >= 0 && p->match.post[p->near_post].owner == p->team)
                 p->want_equipment = true;                                     /* at an own post: the customisation menu (the viewer opens it) */
@@ -4856,24 +4856,43 @@ void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *f
         f32 cy = cosf(y), sy = sinf(y), cp = cosf(vh->pitch), sp = sinf(vh->pitch), cr = cosf(vh->roll), sr = sinf(vh->roll);
         f32 fw[3] = { -sy * cp, sp, -cy * cp }, r0[3] = { cy, 0, -sy }, u0[3] = { r0[1] * fw[2] - r0[2] * fw[1], r0[2] * fw[0] - r0[0] * fw[2], r0[0] * fw[1] - r0[1] * fw[0] };
         f32 up3[3]; for (int k = 0; k < 3; k++) up3[k] = u0[k] * cr - r0[k] * sr;
+        /* the view's swing (the tank class's camera, func 089B2DC8; walkers' camera 089BFA98 has none): with its control at rest
+         * each angle decays by angle x Damp x dt (not past 0), then moves by control x Rate x dt and is held within +-Max - yaw
+         * on the turn control (CameraYawRate / YawDamp / MaxYaw: the speeder bikes swing up to 2 rad), pitch on the other
+         * (PitchRate / PitchDamp / MaxPitch) [assumed: the game's channels 0 / 1 are the steer and the throttle, and the side] */
+        if (vh->def->kind != AK_VEH_WALKER && dt > 0) {
+            const ak_vehicle_def *d = vh->def; f32 *a2[2] = { &p->veh_cam_yaw, &p->veh_cam_pitch };
+            f32 in[2] = { -vh->steer, -vh->throttle }, rate[2] = { d->cam_yaw_rate, d->cam_pitch_rate }, damp[2] = { d->cam_yaw_damp, d->cam_pitch_damp }, mx[2] = { d->cam_max_yaw, d->cam_max_pitch };
+            for (int k = 0; k < 2; k++) {
+                f32 v = *a2[k];
+                if (in[k] == 0) { f32 n = v - v * dt * damp[k]; v = (v > 0) == (n > 0) ? n : 0; }
+                v += in[k] * rate[k] * dt; if (v > mx[k]) v = mx[k]; if (v < -mx[k]) v = -mx[k]; *a2[k] = v;
+            }
+        }
+        if (vh->def->kind == AK_VEH_WALKER) p->veh_cam_yaw = p->veh_cam_pitch = 0;
+        {   f32 cs = cosf(p->veh_cam_yaw), sn = sinf(p->veh_cam_yaw), ct = cosf(p->veh_cam_pitch), st = sinf(p->veh_cam_pitch), f1[3], r1[3], u1[3];
+            for (int k = 0; k < 3; k++) { f1[k] = fw[k] * cs - r0[k] * sn; r1[k] = r0[k] * cs + fw[k] * sn; }
+            for (int k = 0; k < 3; k++) { u1[k] = up3[k] * ct - f1[k] * st; fw[k] = f1[k] * ct + up3[k] * st; r0[k] = r1[k]; up3[k] = u1[k]; } }
+        /* blocked (089B2DC8 / 089BFA98, traced): a ray from the pivot (0, CameraMinY, CameraMinZ) out to the eye; the eye sits the
+         * share t of the way out, t = (the hit's distance - 0.5) / the length (0x08AEEE30), held to 0..1; a nearer t is taken at
+         * once, a farther one comes back at 1.0 a second (0x08AEEE34) */
         f32 best[3], mn[3], vw = vh->def->cam_vel_w;
         for (int k = 0; k < 3; k++) { best[k] = up3[k] * up - fw[k] * back - vh->vel[k] * vw; mn[k] = up3[k] * vh->def->cam_min_y * dsc - fw[k] * vh->def->cam_min_z * dsc; }
-        /* blocked: drawn in toward (0, CameraMinY, CameraMinZ) [assumed: the Min pair's use is not traced] */
         f32 piv[3] = { vh->pos[0] + mn[0], vh->pos[1] + mn[1], vh->pos[2] + mn[2] }, want[3] = { best[0] - mn[0], best[1] - mn[1], best[2] - mn[2] };
-        f32 wl = sqrtf(want[0] * want[0] + want[1] * want[1] + want[2] * want[2]) + 1e-6f;
-        f32 dir[3] = { want[0] / wl, want[1] / wl, want[2] / wl }, lim = wl; ak_col_hit h;
-        if (ak_col_raycast(&p->col, piv, dir, wl, AK_COL_NOT_BODIES, &h)) lim = h.t - 0.4f;
-        if (lim < 0.0f) lim = 0.0f;
-        if (p->cam_dist > wl) p->cam_dist = wl;
-        if (lim < p->cam_dist) p->cam_dist += (lim - p->cam_dist) * fminf(1.0f, p->pull_in_rate * dt); else p->cam_dist += (lim - p->cam_dist) * fminf(1.0f, 2.0f * dt);
-        if (p->cam_dist > lim) p->cam_dist = lim;
-        f32 sc = p->cam_dist / wl;
+        f32 wl2 = want[0] * want[0] + want[1] * want[1] + want[2] * want[2];
+        if (wl2 > 0) {
+            f32 wl = sqrtf(wl2), dir[3] = { want[0] / wl, want[1] / wl, want[2] / wl }, th = 1.0f; ak_col_hit h;
+            if (ak_col_raycast(&p->col, piv, dir, wl, AK_COL_NOT_BODIES, &h)) { th = (h.t - 0.5f) / wl; if (th < 0) th = 0; if (th > 1) th = 1; }
+            if (th < p->veh_cam_t) p->veh_cam_t = th;
+            else if (th > p->veh_cam_t) { p->veh_cam_t += 1.0f * dt; if (p->veh_cam_t > th) p->veh_cam_t = th; if (p->veh_cam_t > 1) p->veh_cam_t = 1; }
+        }
+        f32 sc = p->veh_cam_t;
         *eye = ak_v3_make(piv[0] + want[0] * sc, piv[1] + want[1] * sc, piv[2] + want[2] * sc);
         if (vh->def->kind == AK_VEH_WALKER) {
             f32 look[3] = { vh->pos[0] + fw[0] * vh->def->cam_dz, vh->pos[1] + fw[1] * vh->def->cam_dz, vh->pos[2] + fw[2] * vh->def->cam_dz };
             f32 lx = look[0] - eye->x, ly = look[1] - eye->y, lz = look[2] - eye->z;
             *yaw = atan2f(-lx, -lz); pt = atan2f(ly, sqrtf(lx * lx + lz * lz));
-        } else { *yaw = y; pt = vh->pitch; }
+        } else { *yaw = y + p->veh_cam_yaw; pt = vh->pitch + p->veh_cam_pitch; }   /* (along the hull, swung) */
         *pitch = pt + vh->aim_pitch; *fovy = p->fov;
         p->aim_ok = true; p->eye[0] = eye->x; p->eye[1] = eye->y; p->eye[2] = eye->z;
         p->aim[0] = -sinf(*yaw) * cosf(*pitch); p->aim[1] = sinf(*pitch); p->aim[2] = -cosf(*yaw) * cosf(*pitch);

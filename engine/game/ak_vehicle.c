@@ -156,7 +156,12 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     d->vel_damp = ak_bp_float(o, "VelDamp", 1.5f); d->skid_damp = ak_bp_float(o, "TimeTillStopSkid", 2.0f);
     d->yaw_in = ak_bp_float(o, "YawInputDamp", 280) * DEG; d->yaw_damp = ak_bp_float(o, "YawDamp", 230) * DEG; d->turn_rate = ak_bp_float(o, "MaxTurnYaw", 85) * DEG;
     d->roll_deg = ak_bp_float(o, "CosmeticRoll", 0);
-    d->health = ak_bp_float(o, "Health", 800); d->cam_z = ak_bp_float(o, "CameraBestZ", 20); d->cam_y = ak_bp_float(o, "CameraBestY", 5); d->cam_dz = ak_bp_float(o, "CameraDistanceZ", 20); d->cam_min_z = ak_bp_float(o, "CameraMinZ", 1); d->cam_min_y = ak_bp_float(o, "CameraMinY", 2); d->cam_vel_w = ak_bp_float(o, "CameraVelocityWeight", 0);   /* (defaults: the game's, 0x08AEEE24 / 0x08AEEE2C) */
+    d->health = ak_bp_float(o, "Health", 800); d->cam_z = ak_bp_float(o, "CameraBestZ", 20); d->cam_y = ak_bp_float(o, "CameraBestY", 5); d->cam_dz = ak_bp_float(o, "CameraDistanceZ", 250); d->cam_min_z = ak_bp_float(o, "CameraMinZ", 0); d->cam_min_y = ak_bp_float(o, "CameraMinY", 2.5f); d->cam_vel_w = ak_bp_float(o, "CameraVelocityWeight", 0.2f);
+    /* the view's swing (the tank class's camera, func 089B2DC8): CameraMaxYaw / MaxPitch, YawRate / PitchRate, YawDamp / PitchDamp */
+    d->cam_max_yaw = ak_bp_float(o, "CameraMaxYaw", 0.0245437f); d->cam_max_pitch = ak_bp_float(o, "CameraMaxPitch", 0.0122718f);
+    d->cam_yaw_rate = ak_bp_float(o, "CameraYawRate", 0.0981748f); d->cam_pitch_rate = ak_bp_float(o, "CameraPitchRate", 0.0490874f);
+    d->cam_yaw_damp = ak_bp_float(o, "CameraYawDamp", 1.5707964f); d->cam_pitch_damp = ak_bp_float(o, "CameraPitchDamp", 1.5707964f);
+    /* (defaults: the game's getters 089C58C4..089C5C14 over 0x08AEEE04..0x08AEEE38; MinZ's is 0) */
     d->target_range = ak_bp_float(o, "TargetRange", 100);
     const ak_model *md = &m->models[d->model];
     f32 wx = md->bmax[0] - md->bmin[0], wz = md->bmax[2] - md->bmin[2];
