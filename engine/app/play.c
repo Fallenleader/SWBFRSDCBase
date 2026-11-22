@@ -3488,7 +3488,12 @@ static void script_sink(void *user, const ak_script_msg *m)
             f32 sp[3]; memcpy(sp, p->warp[k].pos, 12); f32 gy; if (ak_char_ground_below(&p->col, sp, 5.0f, &gy)) sp[1] = gy;
             ak_char_spawn(&p->ch, sp, p->warp[k].yaw); done = true; }
     }
-    else if (m->target == 0x3E8 && m->type == 0x801E) { ak_hud_tip_clear(); done = true; }   /* (clears the tip [assumed]) */
+    else if (m->target == 0x3E8 && m->type == 0x801E) { ak_hud_tip_clear(); done = true; }
+    else if (m->target == 0x3E8 && m->type == 0x8015 && m->nextra >= 8) {   /* a countdown under the radar: {u32, f32 seconds} - measured (harness om_h3:
+                                                                         Ord Mantell's 18 {1, 60} showed 0:58 counting down; om_h4: 30000 {0, 85}
+                                                                         showed 1:23, so the first word is not "shown"; 13's 0x8016 took it away) */
+        f32 t; memcpy(&t, m->extra + 4, 4); p->hud_timer = t; p->hud_timer_on = true; done = true; }
+    else if (m->target == 0x3E8 && m->type == 0x8016) { p->hud_timer_on = false; done = true; }   /* (clears the tip [assumed]) */
     else if (m->target == 0x3E8 && m->type == 0x8017 && m->nextra >= 12) {
         /* the counter under the radar: {u32, u32 total, u32 n} - n added.  Yavin's training: group 21 {1, 4, 0} as the stormtroopers
            come ("0/4", ct25), each fall {1, 4, 1}, group 44 {0, 3, 0} ("0/3", ct37), each control room bank {0, 3, 1} ("1/3", "2/3",
@@ -4398,6 +4403,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     }
     if (p->have_script && p->cut >= 0 && (p->cut_t += dt) >= p->cuts[p->cut].len) {   /* the cut-scene's end: its group */
         s32 g = p->cuts[p->cut].group; p->cut = -1; if (g >= 0) ak_script_fire(&p->script, g, 0x3E7, script_sink, p); }
+    if (p->hud_timer_on && p->hud_timer > 0) p->hud_timer -= dt;            /* [assumed: it stops at 0 and stays until 0x8016] */
     if (p->have_script) { ak_script_update(&p->script, dt, false, script_sink, p); ak_script_cond(&p->script, script_test, script_sink, p);
         f32 gp[3]; ak_from_game(p->in_veh >= 0 ? p->veh[p->in_veh].pos : p->ch.pos, gp);   /* (ak_from_game is its own inverse: engine -> game) */
         ak_script_regions(&p->script, p->alive ? gp : NULL, script_sink, p);   /* (the player's craft counts: Space Alderaan's 18963 at the hangar's

@@ -52,6 +52,7 @@ typedef struct {
     f32 weapon2_bar;
     /* the target's panel (element 08A56438: update 08A564C4, draw 08A566C0): its name (UTF-16; NULL none), health and maximum */
     s32 missile;                       /* space, in a flyer: an incoming guided missile's distance (game units), < 0 none */
+    f32 timer; bool timer_on;          /* the script's countdown under the radar (0x8015 {u32, f32 seconds}; 0x8016 ends it): "1:23" */
     s32 counter_val, counter_total;    /* the script's counter under the radar (0x8017 {1, total, add}: "0/4"); total 0 = none */
     u32 use_text;                      /* a use zone's prompt (STDTEXT, e.g. 0x47 "\ue813 Use"); 0 none */
     bool target; const u16 *target_name; u32 target_name_len; f32 target_health, target_max;

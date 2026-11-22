@@ -1372,6 +1372,15 @@ textures and how they are used. Section R lists only what must be in place so th
     the spawner's 5-15 s timer; none before the first 0x8010. Also fixed: 0x800D spawners with no events (Ord Mantell's squads
     18838-b, 18843-5, 18849-b) were skipped - the blueprint is at word 6 + the event count, not word 7 (and those records are 26
     words). Ord Mantell (campaign 3): the original waits after 23 / 9 for "Secure the Junkyard command post" (om_h1).
+  - Part 48, 2026-11-22 - **Ord Mantell: the Junkyard and the countdown.** Capturing the Junkyard post 186ac (game 5.5 7.4
+    -39.4) raises its 10002 (the Alliance's) -> 17 -> 1882c -> 33 -> 186d8 done -> 2 (the squads 18843-5 / 18849-b 5.9 s later,
+    the spawn places' 3 / 4) -> 30000 (Chewbacca's spawner 18806, objective 186eb "his" escort: done by 34, failed by 7 -> 0x8006
+    {1, 1, ..} the Empire's win). Measured (harness om_h3 / om_h4, RS_FIRE_AT 18 / 30000 / 13): 0x8015 {u32, f32 s} to 0x3E8 shows
+    a countdown under the radar ("0:58" from 60, "1:23" from 85 - the first word is not "shown"), 0x8016 removes it. Aurek: the
+    countdown (hud timer, m:ss) [assumed: rounded up, stops at 0]. Next in Ord Mantell: Chewbacca's walk along the path nodes
+    (type 55: 187fa raises 32 when reached, a later one 34 [to find]), the team spawn places 0x8023 / 0x8024 (3 / 4; link to a
+    post or a unit, a count; 0898383C uses them in game kind 5 when no post is chosen - trace which soldiers), 0x800E 1882f's
+    0x800D and 186ef's 26 / 8019 {0x101}.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

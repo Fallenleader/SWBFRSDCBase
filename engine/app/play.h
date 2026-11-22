@@ -238,6 +238,7 @@ typedef struct {
                                                                                  with a Humanoid blueprint: Yavin's stormtroopers 18be0-18be3) */
     struct { u32 id; s32 cut; } named[64]; u32 nnamed;
     s32 counter_val, counter_total;                                       /* the script's counter (0x8017 to 0x3E8) */
+    f32 hud_timer; bool hud_timer_on;     /* the script's countdown (0x8015 / 0x8016) */
     u32 narmy; s32 unit_count; bool campaign_army;   /* the campaign's standing army: bots 0..narmy-1, as many in play as the script's unit count (0x8010) allows */
     bool fly_pick, fly_auto_req, fly_level; s32 fly_target; bool fly_auto;   /* a starfighter's target choice (d-pad down), auto-pilot (triangle), levelling (L + R) */
     u32 use_prompt;                                                       /* the use zone's prompt (STDTEXT) while the player is in one; 0 none */                    /* the named objects (type 3) that are cut-scenes */

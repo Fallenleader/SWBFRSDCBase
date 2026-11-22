@@ -815,7 +815,7 @@ int main(int argc, char **argv)
         if (playing && play.ready) {
             ak_play_draw(&play, &mscene, &models, &vp, &ss);
             {   ak_hud_state hs; memset(&hs, 0, sizeof hs);                     /* the game's HUD (app/hud.c) */
-                hs.alive = play.alive; hs.use_text = 0; hs.counter_val = play.counter_val; hs.counter_total = play.counter_total; hs.reticle = play.in_veh < 0 && play.in_turret < 0;
+                hs.alive = play.alive; hs.use_text = 0; hs.counter_val = play.counter_val; hs.counter_total = play.counter_total; hs.timer = play.hud_timer; hs.timer_on = play.hud_timer_on; hs.reticle = play.in_veh < 0 && play.in_turret < 0;
                 hs.health = play.health; hs.health_max = play.max_health; hs.weapon_name_t = -1; hs.weapon_name = hs.weapon2_name = -1; hs.weapon2_text = -1;
                 if (play.armed && play.weapon.def && play.in_veh < 0 && play.in_turret < 0) {
                     hs.weapon = play.weapon.def->hud_icon; hs.ammo = play.weapon.ammo;
