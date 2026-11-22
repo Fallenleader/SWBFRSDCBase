@@ -1,5 +1,7 @@
 /* Aurek - the level script (see ak_script.h for what is traced and where). */
 #include "game/ak_script.h"
+#include "core/ak_settings.h"
+#include "core/ak_core.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -164,6 +166,8 @@ static const ak_smsg *group_msg(const ak_script *s, u32 group, u32 i, u32 *nmsg)
 static void fire(ak_script *s, s32 group, u32 sender)                    /* 08879DB8 */
 {
     if (group < 0 || group > 59999) return;
+    {   static int dg = -1; if (dg < 0) dg = ak_setting_int("AK_DEBUG_GROUPS", 0);   /* tests: every group fired, as the harness's RS_FIRE_LOG */
+        if (dg) AK_INFO("script", "group %d (sender %x)", (int)group, sender); }
     u32 nm = 0; group_msg(s, (u32)group, 0, &nm);
     for (u32 i = 0; i < nm; i++) {
         const ak_smsg *m = group_msg(s, (u32)group, i, &nm);
@@ -261,6 +265,8 @@ static void deliver(ak_script *s, const ak_smsg *m, u32 sender, ak_script_sink s
         if (sink) { ak_script_msg o = { m->type, m->target, sender, m->extra, m->nextra, NULL }; sink(user, &o); }
         return;
     }
+    {   static int dg = -1; if (dg < 0) dg = ak_setting_int("AK_DEBUG_GROUPS", 0);
+        if (dg > 1) AK_INFO("script", "  %x -> node %x (type %u, active %d, disabled %d)", m->type, n->id, n->type, n->active, n->disabled); }
     if (n->disabled) return;
     u32 x0 = m->nextra >= 4 && m->extra ? ak_rd32(m->extra) : 0;
     if (n->type == AK_SN_TIMER) switch (m->type) {                       /* 08872230 */

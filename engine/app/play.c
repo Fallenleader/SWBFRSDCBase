@@ -2089,7 +2089,7 @@ static f32 quat_yaw(ak_quat q) { return atan2f(-2 * (q.x * q.z + q.w * q.y), -(1
 /* which side's vehicle a spawn makes: the side holding the nearest command post (none while it is neutral) */
 static int spawn_team(const ak_play *p, const ak_play_vspawn *sp)
 {
-    if (sp->fixed) return sp->def[0] >= 0 ? 0 : 1;
+    if (sp->fixed || sp->lone) return sp->def[0] >= 0 ? 0 : 1;
     if (p->have_cq && sp->post >= 0) { int o = p->match.post[sp->post].owner; return o < 2 ? o : -1; }   /* the post the spawn belongs to */
     if (!p->have_cq) return sp->def[0] >= 0 ? 0 : 1;
     s32 best = -1; f32 bd = 1e30f;
@@ -2200,6 +2200,7 @@ static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
        raises 10006 [assumed: 0897F230 is the destroyed callback, from what it does]; Hoth's and Boz Pity's tables send it 0x8007
        120 s later, which makes a new walker when the old one is dead (0897F950 -> +0x74 = 0897FDE0) */
     if (p->vspawn[v].fixed && p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 10006, p->vspawn[v].eid, script_sink, p);
+    if (p->vspawn[v].lone && p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 3, p->vspawn[v].eid, script_sink, p);   /* (a placed craft broken) */
     if (p->target[VT(p, v)].last_attacker == 0 && vh->driver != 0) p->kills++;
     vh->alive = false; vh->dead_t = 0; boom(p, vh->pos, vh->def->bp);
     if (vh->driver == 0) { p->in_veh = -1; vh->driver = -1; if (p->alive) { p->target[0].alive = true; p->target[0].health = 0; player_down(p); } }
@@ -2221,10 +2222,15 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
     if (!ak_entities_load(l, m, a, &es)) { a->used = mark; return; }
     for (u32 i = 0; i < es.n && p->nveh < PLAY_MAX_VEH; i++) {
         const ak_entity *e = &es.e[i];
-        if (!e->flagged || (e->type != 27 && e->type != 13) || !e->placed || !((e->modes >> ak_game_mode) & 1)) continue;
+        if (e->flagged && e->type == 27 && ak_setting_int("AK_DEBUG_VEH", 0) > 1) AK_INFO("veh", "spawn %x: placed %d, modes %x, models %d %d", e->id, e->placed, e->modes, e->model[0], e->model[1]);
+        if (!e->flagged || (e->type != 27 && e->type != 13 && e->type != 4) || !e->placed || !((e->modes >> ak_game_mode) & 1)) continue;
         ak_play_vspawn *sp = &p->vspawn[p->nveh]; bool any = false;
         memcpy(sp->pos, e->pos, 12); sp->yaw = quat_yaw(e->rot); sp->post = -1; sp->respawn = p->veh_respawn; sp->fixed = e->type == 13;
         sp->eid = e->id; sp->nev = sp->fixed ? ak_script_events(l, e->id, 2, sp->ev, 4) : 0;   /* (a walker spawner's events: 10006 its walker destroyed) */
+        sp->lone = e->type == 4;   /* a placed craft (class 0x8004, 089B0B60 -> 089B04F4: the vehicle base 089D00D0; record: version, 2, 1, the event
+                                      table (8 16 0 count ...), place, turn, 250, 0, the model hash - Space Alderaan's X_Wing 189ac {10013 -> 124, 3 -> 72}).
+                                      Harness (sa_h1): the player's rifle broke it and group 72 fired in that frame - event 3 is "destroyed" */
+        if (sp->lone) { sp->nev = ak_script_events(l, e->id, 6, sp->ev, 4); sp->respawn = 1e30f; }
         sp->waiting = false;
         if (sp->fixed) {   /* a unit spawner the script starts: word 23 of the record has 0x200000 (Yavin's campaign Recon_Droid 18bd8 and
                               IFTT_Tank_Campaign 18bf1; Hoth's AT-AT has 0x10000 and is there from the start) - the original's recon
@@ -2280,7 +2286,7 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
     {   u32 base = p->nveh;
         for (int x = 0; x < 3 && ak_setting_int("AK_VEHICLE_SLOTS", 1); x++)
             for (u32 v = 0; v < base && p->nveh < PLAY_MAX_VEH; v++) {
-                const ak_play_vspawn *sp = &p->vspawn[v]; if (sp->fixed || sp->route || sp->mpost >= 0) continue;
+                const ak_play_vspawn *sp = &p->vspawn[v]; if (sp->fixed || sp->lone || sp->route || sp->mpost >= 0) continue;
                 p->vspawn[p->nveh] = *sp; p->vspawn[p->nveh].first = (s32)v; p->nveh++;
             }
     }
@@ -3302,6 +3308,14 @@ static bool script_test(void *user, u32 kind, u32 param)
     case 5: return carrying(p, 0x87D168ABu);
     case 6: return carrying(p, 0xDF19A556u);
     case 0x11: return holding(p, 0xDA0CAE3Bu);   /* (08A0E228's 0x11: the weapon 0xDA0CAE3B - Yavin's 18d18 after the cutter's tip) */
+    /* in a vehicle (08A0E3DC, decompiled): 10 the view mode (0x08C29B58 == 1, shared with the soldier's), 0xB the craft's +0x1F8
+       outside +-0.001, 0xC its +0x34C bit 7, 0xD its vfunc +0x10C (a target id) not 999, 0xE its vfunc +200, 0xF a craft at all.
+       Space Alderaan's tips name them: 0xD "Press .. to acquire a target", 0xE the auto-pilot, 0xC the camera lock.  [assumed: 0xB
+       the throttle held (the accelerate tip), 0xD Aurek's missile lock until the original's target choice is ported; 0xE / 0xC
+       false - Aurek has no auto-pilot or camera lock yet] */
+    case 0xB: return p->alive && p->in_veh >= 0 && fabsf(p->veh[p->in_veh].throttle) >= 0.001f;
+    case 0xD: return p->alive && p->in_veh >= 0 && p->veh[p->in_veh].lock >= 0;
+    case 0xF: return p->alive && p->in_veh >= 0;
     default: return false;
     }
 }
@@ -3425,6 +3439,16 @@ static void script_sink(void *user, const ak_script_msg *m)
                 if (p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 10007, p->vspawn[v].eid, script_sink, p); } }
             break; }
     }
+    if (!done && (m->type == 3 || m->type == 4))                             /* a hangar's vehicle spawn on (3) / off (4) - Space Alderaan's 1874f-18752,
+                                                                         4 at the start (group 35), 3 once the player is in the X-Wing (126): the
+                                                                         original's radar showed no craft there before and three friendly ones after
+                                                                         (sa_h8) [assumed: 4 takes away an empty craft standing there and stops the
+                                                                         spawn; 3 makes one at once and lets it respawn] */
+        for (u32 v = 0; v < p->nveh; v++) if (!p->vspawn[v].fixed && !p->vspawn[v].lone && p->vspawn[v].eid == m->target) {
+            done = true; ak_play_vspawn *sp = &p->vspawn[v]; ak_vehicle *vh = &p->veh[v];
+            if (m->type == 4) { sp->waiting = true; if (vh->alive && vh->driver < 0) { vh->alive = false; vh->dead_t = 100.0f; p->target[VT(p, v)].alive = false; }   /* (gone, no wreck) */ }
+            else if (sp->waiting) { sp->waiting = false; if (sp->first == (s32)v && !vh->alive) vehicle_make(p, v); }
+        }
     if (!done) for (u32 k = 0; k < p->nobj; k++) if (p->obj[k].id == m->target) {   /* an objective marker (089F05BC) */
         if (m->type == 3 || m->type == 4 || m->type == 0x8008 || m->type == 0x8009) {
             /* 3 / 4 start / stop it; 0x8008 / 0x8009 end it [measured: the original's objective line stops after the training's
@@ -3540,6 +3564,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                    not board from 1.9 m behind: their rule is not found) */
                 f32 at[3]; bool spot = vh->def->kind != AK_VEH_CREATURE && vehicle_exit_spot(p, vh, at);
                 if (!spot) memcpy(at, vh->pos, 12);
+                if (p->vspawn[v].lone && ak_setting_int("AK_DEBUG_VEH", 0)) { f32 g[3]; ak_from_game(at, g); AK_INFO("veh", "placed craft %u: its get-in spot %.2f %.2f %.2f (game)", v, g[0], g[1], g[2]); }
                 f32 dx = at[0] - p->ch.pos[0], dz = at[2] - p->ch.pos[2], d2 = dx * dx + dz * dz, r = spot ? 2.2f * S : vh->def->radius + 3.0f;
                 if (d2 < r * r && d2 < bd && fabsf(at[1] - p->ch.pos[1]) < 4) { bd = d2; best = (s32)v; }
             }
@@ -3548,6 +3573,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 if (p->veh[best].driver > 0) { u32 bi = (u32)(p->veh[best].driver - 1); bot_exit(p, &p->bot[bi], bi); }
                 ak_vehicle *vh = &p->veh[best]; vh->driver = 0; vh->team = p->team; vh->open = false; vh->aim_yaw = vh->aim_pitch = 0;
                 p->target[VT(p, best)].team = p->team; p->in_veh = best; p->target[0].alive = false; p->lock = -1; p->cam_dist = vh->def->cam_z;
+                if (p->vspawn[best].lone && p->have_script) ak_script_raise(&p->script, p->vspawn[best].ev, p->vspawn[best].nev, 10013, p->vspawn[best].eid, script_sink, p);   /* [assumed: 10013 is "boarded" - the harness could not board it] */
             } else if (p->have_cq && p->near_post >= 0 && p->match.post[p->near_post].owner == p->team)
                 p->want_equipment = true;                                     /* at an own post: the customisation menu (the viewer opens it) */
         }
@@ -3955,7 +3981,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             const f32 extra = 0;
             const ak_play_vspawn *sv = &p->vspawn[v]; const ak_play_vspawn *fs = &p->vspawn[sv->first];
             /* (the spawn's clock: how long its area has been clear - see the spawner above; a slot comes back once its wreck has gone) */
-            if (!sv->fixed && vh->dead_t > 5.0f && fs->clear_t > sv->respawn + extra) {
+            if (!sv->fixed && !sv->lone && !sv->waiting && vh->dead_t > 5.0f && fs->clear_t > sv->respawn + extra) {
                 bool other = false; for (u32 u = 0; u < v; u++) if (p->vspawn[u].first == sv->first && !p->veh[u].alive && p->veh[u].dead_t > 5.0f) other = true;
                 if (!other) { if (vehicle_make(p, v)) p->vspawn[sv->first].clear_t = 0; else vh->dead_t = 5.0f; }   /* (one slot at a time) */
             }
@@ -3971,6 +3997,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 /* the throttle (089B20CC): R held +1, L held -1, neither 0 - with no drag the speed then stays */
                 vh->fast = false; vh->brake = false;
                 if (!vh->flying) { if (vin->pressed & AK_BTN_CROSS) vh->takeoff_req = true; }
+                if (!vh->flying && vin->held && ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "parked: held %x pressed %x", vin->held, vin->pressed);
                 else if (vh->takeoff <= 0) { vh->fast = (vin->held & AK_BTN_CROSS) != 0; vh->brake = (vin->held & AK_BTN_L) != 0 && !vh->fast; }
                 fly_fast = true;
                 /* the boost (traced, 089A9728, and seen on Space Hoth's X-wing): R tapped, then R held again within 0.5 s of the tap's
@@ -4250,7 +4277,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     if (p->have_script && p->cut >= 0 && (p->cut_t += dt) >= p->cuts[p->cut].len) {   /* the cut-scene's end: its group */
         s32 g = p->cuts[p->cut].group; p->cut = -1; if (g >= 0) ak_script_fire(&p->script, g, 0x3E7, script_sink, p); }
     if (p->have_script) { ak_script_update(&p->script, dt, false, script_sink, p); ak_script_cond(&p->script, script_test, script_sink, p);
-        f32 gp[3]; ak_from_game(p->ch.pos, gp); ak_script_regions(&p->script, p->alive && p->in_veh < 0 ? gp : NULL, script_sink, p);   /* (ak_from_game is its own inverse: engine -> game) */
+        f32 gp[3]; ak_from_game(p->in_veh >= 0 ? p->veh[p->in_veh].pos : p->ch.pos, gp);   /* (ak_from_game is its own inverse: engine -> game) */
+        ak_script_regions(&p->script, p->alive ? gp : NULL, script_sink, p);   /* (the player's craft counts: Space Alderaan's 18963 at the hangar's
+                                                                         mouth fired as the original's player flew the X-Wing out, sa_h9) */
         f32 eye[3] = { gp[0], gp[1] - 1.6f, gp[2] }, fw[3] = { -sinf(p->ch.yaw), 0, cosf(p->ch.yaw) };   /* (game axes: the body's facing) */
         ak_script_look(&p->script, dt, p->alive && p->in_veh < 0 ? eye : NULL, fw, look_clear, script_sink, p); }
     /* conquest: the posts, the tickets, the spawn wave */

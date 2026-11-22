@@ -1311,6 +1311,20 @@ textures and how they are used. Section R lists only what must be in place so th
     or set (1, ct27) [assumed: a new total starts it again]. Also fixed: ak_turret.h's unclosed comment that hid two declarations.
     Open: the banks' wreck look / effect, what 0x26 / 0x8019 mean, the harness's own carry (its teleports did not reach the data),
     the 18c63 / 18c65 / 18c66 / 18c07 / 18c64 (types 35 / 36: 0x8023 / 0x8024 spawn places) messages. Next: SPACE_ALDERAAN.
+  - Part 42, 2026-11-22 - **Space Alderaan (campaign 2) runs into its flight tutorial.** Harness (Yavin ended by RS_FIRE_AT 49,
+    program cmpn_board2, --tp to the X-Wing's get-in spot): the mission starts in a hangar ("Get in the X-Wing"); getting in fired
+    the craft's 10013 -> 124 -> 189b0 -> 126 (the hangar's four craft spawns 1874f-18752 started 5 s later; three friendly dots on the
+    radar), flying out through region 18963 at the hangar's mouth -> 63, then the tips 120 (accelerate), 103 (acquire a target) -
+    each an 0x8023 page held until X. In sa_h1 the player's rifle broke the parked X-Wing and 72 fired in that frame: event 3 is
+    "destroyed" (also taken for Yavin's control room). Ported: class 0x8004 is a single placed craft (089B0B60 -> 089B04F4, the
+    vehicle base 089D00D0; event table at word 6) - drivable, never made again, 10013 when boarded, 3 when broken; script 3 / 4
+    start / stop a vehicle spawn (4 takes away an empty craft) [assumed]; regions now test the player's craft too; the in-vehicle
+    condition kinds decompiled (08A0E3DC: 10 view mode, 0xB +0x1F8, 0xC +0x34C bit 7, 0xD vfunc +0x10C != 999, 0xE vfunc +200,
+    0xF any craft) - Aurek: 0xB throttle, 0xD the missile lock, 0xF [assumed]. AK_DEBUG_GROUPS=1 logs every group (2: every node
+    message). Aurek now runs 35 -> 67 -> 124 -> 126 -> 86 -> 63 -> 120 -> 103 -> 105 -> 125 -> 107 and waits on 1897d (0xE: the
+    auto-pilot). Next: the craft's target choice (a button, "Press it again to change"), the auto-pilot (0xE) and camera lock
+    (0xC) - traced from the vehicle's vfuncs +0x10C / +200 and +0x34C - then the rest of the mission (1895f 0xB, 18960 0xC,
+    group 115's objectives, 0x800D 1882d / 1898c's 0x1B).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
