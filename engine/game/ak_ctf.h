@@ -28,13 +28,14 @@ typedef struct { u32 id; f32 pos[3]; int side; f32 radius; } ak_ctf_base_def;
 typedef struct { ak_ctf_flag_def flag[AK_CTF_MAX]; u32 nflags; ak_ctf_base_def base[AK_CTF_MAX]; u32 nbases;
                  f32 drop_raise; } ak_ctf_map;   /* drop_raise: the flag model's height + 0.1 (089F7B4C), set by the caller */
 
-typedef struct { bool present; f32 pos[3]; s32 carrier; f32 return_t; } ak_ctf_flag;   /* carrier: soldier index, -1 none */
+typedef struct { bool present, off; f32 pos[3]; s32 carrier; f32 return_t; } ak_ctf_flag;   /* carrier: soldier index, -1 none; off: switched off by the script (the campaign) */
 typedef struct {
     ak_ctf_flag flag[AK_CTF_MAX];
     s32 score[2], limit; f32 time, time_limit; int winner;   /* winner: -1 playing, 0 / 1, 2 draw */
     u32 events;                                              /* the last update's AK_CTF_EV_* bits */
     int last_side;                                           /* the side of the last pickup / capture / drop */
     s32 last_capturer;                                       /* the soldier whose capture it was (its index), -1 none */
+    bool base_off[AK_CTF_MAX]; s32 last_flag, last_base;     /* bases switched off by the script; the last pickup's flag, the last capture's base */
 } ak_ctf;
 enum { AK_CTF_EV_PICKUP = 1, AK_CTF_EV_DROP = 2, AK_CTF_EV_RETURN = 4, AK_CTF_EV_CAPTURE = 8 };
 

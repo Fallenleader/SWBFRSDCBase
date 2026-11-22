@@ -37,7 +37,7 @@ static u32 mask_at(const u8 *b, u32 nw)
 bool ak_ctf_load(const ak_level *l, int mode, ak_ctf_map *out)
 {
     memset(out, 0, sizeof *out); out->drop_raise = 0.1f;
-    if (mode < 1 || mode > 3) return false;
+    if (mode < 1 || mode > 5 || mode == 4) return false;   /* (5: the campaign's carried objects - Yavin's stolen data 18bf7 to base 18bf9) */
     ak_chunk c; u32 pos = 8;
     while (ak_asura_next(&l->file, &pos, &c)) {
         if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 30 * 4) continue;
@@ -86,6 +86,7 @@ void ak_ctf_update(const ak_ctf_map *m, ak_ctf *s, int mode, bool space, const a
     s->time += dt;
     for (u32 f = 0; f < m->nflags; f++) {
         ak_ctf_flag *fl = &s->flag[f];
+        if (fl->off) { fl->present = false; fl->carrier = -1; continue; }
         if (fl->return_t > 0 && s->time >= fl->return_t) { go_home(m, s, f); s->events |= AK_CTF_EV_RETURN; s->last_side = m->flag[f].side; }
         if (fl->carrier < 0) {
             /* pickup (089F708C): the first soldier in range who may carry it and carries nothing yet */
@@ -97,7 +98,7 @@ void ak_ctf_update(const ak_ctf_map *m, ak_ctf *s, int mode, bool space, const a
                 bool busy = false; for (u32 k = 0; k < m->nflags; k++) busy = busy || s->flag[k].carrier == (s32)i;
                 if (busy || dist(c->pos, fl->pos) > r) continue;
                 fl->carrier = (s32)i; fl->return_t = 0;                     /* 089F79A0 */
-                s->events |= AK_CTF_EV_PICKUP; s->last_side = c->side;
+                s->events |= AK_CTF_EV_PICKUP; s->last_side = c->side; s->last_flag = (s32)f;
                 break;
             }
         } else {
@@ -112,7 +113,7 @@ void ak_ctf_update(const ak_ctf_map *m, ak_ctf *s, int mode, bool space, const a
     }
     /* the bases (089EF220) */
     for (u32 b = 0; b < m->nbases; b++) {
-        const ak_ctf_base_def *bs = &m->base[b];
+        const ak_ctf_base_def *bs = &m->base[b]; if (s->base_off[b]) continue;
         for (u32 f = 0; f < m->nflags; f++) {
             ak_ctf_flag *fl = &s->flag[f]; if (fl->carrier < 0) continue;
             int fs = m->flag[f].side, cs = sol[fl->carrier].side, bsd = bs->side;
@@ -120,8 +121,8 @@ void ak_ctf_update(const ak_ctf_map *m, ak_ctf *s, int mode, bool space, const a
             if (mode == 3 && fs == bsd && fs == cs) { go_home(m, s, f); s->events |= AK_CTF_EV_RETURN; continue; }   /* 089F7894 */
             if ((fs == 2 || fs != bsd) && (mode != 1 || bsd == cs) && fs != cs) {
                 if (bsd == 0 || bsd == 1) s->score[bsd]++;                  /* 08973830 */
-                s->events |= AK_CTF_EV_CAPTURE; s->last_side = bsd; s->last_capturer = fl->carrier;
-                go_home(m, s, f);
+                s->events |= AK_CTF_EV_CAPTURE; s->last_side = bsd; s->last_capturer = fl->carrier; s->last_base = (s32)b;
+                go_home(m, s, f); if (mode == 5) { fl->off = true; fl->present = false; }   /* [assumed: the campaign's delivered object is gone until the script starts it again] */
                 if (bsd <= 1 && s->limit > 0 && s->score[bsd] >= s->limit) { s->winner = bsd; return; }
             }
         }

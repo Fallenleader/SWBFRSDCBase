@@ -71,7 +71,8 @@ enum { PLAY_IDLE, PLAY_RUN, PLAY_BACK, PLAY_LEFT, PLAY_RIGHT, PLAY_JUMP, PLAY_FA
 #define PLAY_MAX_VEH 32
 #define PLAY_MAX_DEFS 12
 #define PLAY_MAX_TURRETS 32
-#define PLAY_MAX_TARGETS (1 + PLAY_MAX_BOTS + PLAY_MAX_VEH + PLAY_MAX_TURRETS)
+#define PLAY_MAX_PROPS 16
+#define PLAY_MAX_TARGETS (1 + PLAY_MAX_BOTS + PLAY_MAX_VEH + PLAY_MAX_TURRETS + PLAY_MAX_PROPS)
 #define PLAY_MAX_BOOMS 8
 typedef struct { f32 pos[3], yaw; s32 def[2]; s32 post; f32 respawn; bool fixed; s32 mpost; ak_route *route; f32 route_d; s32 first; f32 clear_t; u32 eid, ev[4], nev; bool waiting; } ak_play_vspawn;   /* eid: its record; ev: its script events (ak_script_events) */   /* first: the spawn's first slot (its own when it is the first); clear_t: how long no vehicle of it has stood within 25 m */   /* route: a placed walker's path (ak_path.h), how far along it is */   /* mpost: the post it carries (-1 none) */   /* a vehicle spawn: one vehicle per side (index into vdef, -1 none), the post whose owner gets it; fixed = a walker placed in the level (no respawn, not drivable) */
 typedef struct { f32 pos[3], t; } ak_play_boom;
@@ -237,6 +238,9 @@ typedef struct {
     struct { u32 id; s32 cut; } named[64]; u32 nnamed;
     s32 counter_val, counter_total;                                       /* the script's counter (0x8017 to 0x3E8) */
     u32 use_prompt;                                                       /* the use zone's prompt (STDTEXT) while the player is in one; 0 none */                    /* the named objects (type 3) that are cut-scenes */
+    struct { u32 id; f32 health; u32 ev[4], nev; bool armed, down; } prop[PLAY_MAX_PROPS]; u32 nprop;   /* the campaign's breakable placed models (unflagged type 7 with an
+                                                                         event table and health: Yavin's temple control room 18c2f-18c31), targets after the turrets */
+    u32 ctf_fev[AK_CTF_MAX][4], ctf_nfev[AK_CTF_MAX], ctf_bev[AK_CTF_MAX][4], ctf_nbev[AK_CTF_MAX];   /* the campaign's carried objects: the flag spawners' and bases' script events */
     s32 cut; f32 cut_t; const ak_model_set *mset;
     bool modal, modal_x; f32 modal_t, modal_min;                                    /* a campaign page waiting for X (0x8023 with its flag set) */                                                    /* the cut-scene playing (-1 none), its time */   /* the campaign's player moves (ENTI type 68 -> its type 69 point) */
     bool want_equipment;               /* d-pad up at an own post with no vehicle to board: open the customisation menu */

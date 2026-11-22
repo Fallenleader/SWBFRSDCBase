@@ -86,9 +86,11 @@ static void world_of(const f32 *pos, f32 yaw, ak_m4 *w) { world_of_scaled(pos, y
 
 #define NS(p) (1 + (p)->nbots)                 /* soldiers in the target list */
 #define NV(p) (1 + (p)->nbots + (p)->nveh)    /* soldiers and vehicles */
-#define NT(p) (NV(p) + (p)->nturret)            /* every target: soldiers, vehicles, then turrets */
+#define NP(p) (NV(p) + (p)->nturret)            /* soldiers, vehicles and turrets: the targets that fight */
+#define NT(p) (NP(p) + (p)->nprop)              /* every target: soldiers, vehicles, turrets, then the breakable props */
 #define TT(p, t) (NV(p) + (t))                  /* turret t's target */
 static void turrets_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp);
+static void props_init(ak_play *p, const ak_level *l, const ak_model_set *m, ak_arena *a);
 
 /* ------------------------------------------------------------------ bodies (ak_box.h) */
 static const f32 default_box[2][3] = { { -0.3f, 0, -0.3f }, { 0.3f, 2.0f, 0.3f } };   /* 08A061BC: 0.6 x 2.0 x 0.6 m on the origin */
@@ -1001,6 +1003,17 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     }
     if (p->have_ctf) {
         ak_ctf_start(&p->ctf_map, &p->ctf);
+        if (ak_game_mode == 5) {   /* the campaign: the script switches each flag spawner / base on (3) and off (4) and hears their events -
+                                      pickup 10012, capture 10004 (Yavin's data 18bf7 {10012 -> group 51}, base 18bf9 {10004 -> group 43}; the
+                                      records' event table at word 4) [assumed: both start off, as the
+                                      training's do until group 42 starts them; no score or time limit] */
+            p->ctf.limit = 0; p->ctf.time_limit = 0;
+            for (u32 k = 0; k < 2; k++) for (u32 i = 0; i < (k ? p->ctf_map.nbases : p->ctf_map.nflags); i++) {
+                u32 id = k ? p->ctf_map.base[i].id : p->ctf_map.flag[i].id; u32 *ev = k ? p->ctf_bev[i] : p->ctf_fev[i], *nev = k ? &p->ctf_nbev[i] : &p->ctf_nfev[i];
+                *nev = ak_script_events(l, id, 4, ev, 4);
+                if (k) p->ctf.base_off[i] = true; else { p->ctf.flag[i].off = true; p->ctf.flag[i].present = false; }
+            }
+        }
         /* each flag's model (089F84D4): its side's faction, blue when it is the player's side, red otherwise; neutral_flag */
         static const u32 own[4] = { 0x3D7C732Au, 0x95314C5Bu, 0x9EA8D745u, 0x5F017962u }, foe[4] = { 0xF177DBC1u, 0x2E1A9870u, 0x4F710846u, 0x349D2E89u };
         {   const char *c0[2] = { "flag_Flapping", NULL }, *c1[2] = { "flag_Flapping_Backattch", NULL };
@@ -1265,6 +1278,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     vehicles_init(p, l, m, bp, a);
     for (u32 i = 0; i < p->nbots; i++) p->bot[i].wants_veh = p->bot_drive > 0 && rnd(&p->bot[i].seed) < p->bot_drive;   /* (the first wave: spawned before the chance was read) */
     p->nturret = 0; p->ntdef = 0; turrets_init(p, l, m, bp);
+    props_init(p, l, m, a);
     {   /* the battlefront's bounds: ENTI class 0x8021 records {1, 0, 0, x min, x max, y min, y max, z min, z max (game axes), flags};
          * flags byte 1 = 0 is the box soldiers and their vehicles are held to (089D4BDC asks 08A145E4(0)); 1 is the AI pilots' (089477A8) */
         ak_chunk c; u32 pos = 8; p->have_oob = false; p->have_pil = false;
@@ -1482,6 +1496,7 @@ static s32 find_enemy(ak_play *p, int team, const f32 *pos, f32 yaw, f32 eye_h, 
     for (u32 i = 0; i < nt; i++) {
         const ak_target *t = &p->target[i];
         if (!t->alive || t->team == team) continue;
+        if (i >= NP(p)) continue;                                            /* (the props are no threat) */
         if (i >= NS(p) && i < NV(p) && p->veh[i - NS(p)].driver < 0) continue;   /* empty vehicles are no threat */
         f32 dx = t->feet[0] - pos[0], dy = t->feet[1] - pos[1], dz = t->feet[2] - pos[2], d2 = dx * dx + dy * dy + dz * dz;
         if (d2 > bd) continue;
@@ -1531,7 +1546,7 @@ static void bot_sense(ak_play *p, ak_play_bot *b, f32 dt)
     u32 nt = NT(p);
     for (u32 i = 0; i < nt; i++) {
         const ak_target *t = &p->target[i];
-        if (!t->alive || t->team == b->team) continue;
+        if (!t->alive || t->team == b->team || i >= NP(p)) continue;       /* (bots leave the props alone [assumed]) */
         if (i >= NS(p) && i < NV(p) && p->veh[i - NS(p)].driver < 0) continue;   /* empty vehicles are no threat */
         if (i >= NV(p) && p->in_turret != (s32)(i - NV(p)) && p->turret[i - NV(p)].def->boardable) continue;   /* nor an empty turret
             (one a soldier mans) - the original's training turret stood untouched among the stormtroopers (ct26) [assumed: the rule] */
@@ -2384,7 +2399,7 @@ static void vehicle_lock(ak_play *p, ak_vehicle *vh, const f32 *eye, const f32 *
     s32 best = -1; f32 bc = cosf(d->lock_angle);
     for (u32 i = 0; i < NT(p); i++) {
         const ak_target *t = &p->target[i];
-        if (!t->alive || t->team == vh->team || t->team == AK_CQ_NEUTRAL) continue;
+        if (!t->alive || t->team == vh->team || t->team == AK_CQ_NEUTRAL || i >= NP(p)) continue;
         if (i >= NS(p) && i < NV(p) && p->veh[i - NS(p)].driver < 0) continue;
         f32 c[3] = { t->feet[0] - eye[0], t->feet[1] + t->height * 0.5f - eye[1], t->feet[2] - eye[2] }, dl = sqrtf(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
         if (dl > reach || dl < 1) continue;
@@ -3011,6 +3026,56 @@ static void turret_destroyed(ak_play *p, u32 i)
     if (p->in_turret == (s32)i) { p->in_turret = -1; if (p->alive) { p->target[0].alive = true; p->target[0].health = 0; player_down(p); } }   /* the gunner goes with it */
 }
 
+/* a breakable prop broken: its event 3 to the script (18c2f {3 -> group 52}: the counter, its objective done) [assumed: event 3 is
+   "destroyed"; the class 089F317C (vtable 0x08B0F6E4) not traced - its wreck look and effect are open, the model stays] */
+static void prop_destroyed(ak_play *p, u32 i)
+{
+    if (p->prop[i].down) return;
+    p->prop[i].down = true; boom_fx(p, p->target[NP(p) + i].box_c, NULL);
+    AK_INFO("play", "%.1f s: prop %x broken", p->clock, p->prop[i].id);
+    if (p->have_script) ak_script_raise(&p->script, p->prop[i].ev, p->prop[i].nev, 3, p->prop[i].id, script_sink, p);
+}
+
+/* the campaign's breakable props: unflagged type-7 records with an event table (version at word 13, count at 15, then the entries),
+   the place (game axes) and turn (quaternion) after it, the health, and a hull's hash - a SHAP chunk (no mesh: the thing seen is the
+   level's own geometry).  Yavin's control room 18c2f-18c31: {3 -> group 52}, health 50, hull 2a25f45e over each console bank.
+   Targets with the hull's box that anyone's shots hurt, live once the script sends 0x26 or 0x8019 {1} [assumed: what those two say;
+   the class 089F317C (vtable 0x08B0F6E4) is not traced] */
+static void props_init(ak_play *p, const ak_level *l, const ak_model_set *m, ak_arena *a)
+{
+    (void)m; (void)a; p->nprop = 0; if (ak_game_mode != 5) return;
+    ak_chunk c; u32 pos = 8;
+    while (ak_asura_next(&l->file, &pos, &c) && p->nprop < PLAY_MAX_PROPS) {
+        if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 30 * 4 || ak_rd32(c.body + 4) != 7) continue;
+        const u8 *b = c.body; u32 nw = c.size / 4, id = ak_rd32(b), ev[4], nev = ak_script_events(l, id, 13, ev, 4);
+        if (!nev) continue;
+        u32 at = 16 + ak_rd32(b + 60); if (at + 9 > nw) continue;
+        f32 g[3] = { ak_rdf32(b + 4 * at), ak_rdf32(b + 4 * (at + 1)), ak_rdf32(b + 4 * (at + 2)) }, hp = ak_rdf32(b + 4 * (at + 7));
+        ak_quat r = { ak_rdf32(b + 4 * (at + 3)), -ak_rdf32(b + 4 * (at + 4)), -ak_rdf32(b + 4 * (at + 5)), ak_rdf32(b + 4 * (at + 6)) };   /* (engine axes, as the movers') */
+        u32 h = ak_rd32(b + 4 * (at + 8));
+        if (!(hp > 0 && hp < 100000) || fabsf(r.x * r.x + r.y * r.y + r.z * r.z + r.w * r.w - 1) > 0.01f) continue;
+        f32 mn[3], mx[3]; bool got = false; ak_chunk d; u32 q = 8;
+        while (!got && ak_asura_next(&l->file, &q, &d)) {
+            if (ak_chunk_tag(&d) != AK_TAG('S', 'H', 'A', 'P') || d.size < 64 || ak_rd32(d.body) != h) continue;
+            f32 v[6]; for (int k = 0; k < 6; k++) v[k] = ak_rdf32(d.body + 40 + 4 * k);
+            mn[0] = v[0]; mx[0] = v[1]; mn[1] = -v[3]; mx[1] = -v[2]; mn[2] = -v[5]; mx[2] = -v[4]; got = true;
+        }
+        if (!got) continue;
+        u32 k = p->nprop++; ak_target *t = &p->target[NP(p) + k];
+        p->prop[k].id = id; p->prop[k].health = hp; memcpy(p->prop[k].ev, ev, sizeof ev); p->prop[k].nev = nev; p->prop[k].armed = false; p->prop[k].down = false;
+        memset(t, 0, sizeof *t);
+        f32 R[3][3] = { { 1 - 2 * (r.y * r.y + r.z * r.z), 2 * (r.x * r.y + r.w * r.z), 2 * (r.x * r.z - r.w * r.y) },
+                        { 2 * (r.x * r.y - r.w * r.z), 1 - 2 * (r.x * r.x + r.z * r.z), 2 * (r.y * r.z + r.w * r.x) },
+                        { 2 * (r.x * r.z + r.w * r.y), 2 * (r.y * r.z - r.w * r.x), 1 - 2 * (r.x * r.x + r.y * r.y) } };   /* rows: the hull's axes */
+        f32 ep[3], mc[3]; ak_from_game(g, ep);
+        for (int j = 0; j < 3; j++) { mc[j] = 0.5f * (mn[j] + mx[j]); t->box_h[j] = fmaxf(0.1f, 0.5f * (mx[j] - mn[j])); }
+        for (int j = 0; j < 3; j++) { t->box_c[j] = ep[j] + mc[0] * R[0][j] + mc[1] * R[1][j] + mc[2] * R[2][j]; for (int k2 = 0; k2 < 3; k2++) t->box_ax[j][k2] = R[j][k2]; }
+        t->boxed = true; memcpy(t->feet, ep, 12); t->height = 2 * t->box_h[1]; t->radius = fmaxf(t->box_h[0], t->box_h[2]);
+        t->health = t->max_health = hp; t->alive = false; t->team = AK_CQ_NEUTRAL; t->last_attacker = -1; t->elite = 1.0f; t->headshot_mult = 1.0f;
+        AK_INFO("play", "prop %x: health %.0f, %u events, hull %08x %.2f x %.2f x %.2f at %.2f %.2f %.2f", id, hp, nev, h, 2 * t->box_h[0], 2 * t->box_h[1], 2 * t->box_h[2], t->box_c[0], t->box_c[1], t->box_c[2]);
+    }
+}
+
 static void turrets_update(ak_play *p, const ak_model_set *m, f32 dt)
 {
     for (u32 i = 0; i < p->nturret; i++) {
@@ -3296,12 +3361,15 @@ static void script_sink(void *user, const ak_script_msg *m)
     }
     else if (m->target == 0x3E8 && m->type == 0x801E) { ak_hud_tip_clear(); done = true; }   /* (clears the tip [assumed]) */
     else if (m->target == 0x3E8 && m->type == 0x8017 && m->nextra >= 12) {
-        /* the counter under the radar: {u32 on, u32 total, u32 add}.  Yavin's training: group 21 {1, 4, 0} as the stormtroopers come
+        /* the counter under the radar: {u32 how, u32 total, u32 n}.  Yavin's training: group 21 {1, 4, 0} as the stormtroopers come
            (the original then showed "0/4", ct25), each fall {1, 4, 1} (groups 25-28 from the counter 18beb), later {1, 5, 1} /
-           {1, 10, 1}, group 44 {0, 3, 0}.  [assumed: on = shown, the second word the total, the third the value; the handler is not traced] */
-        u32 on = ak_rd32(m->extra), tot = ak_rd32(m->extra + 4), add = ak_rd32(m->extra + 8);
-        if (!on) p->counter_total = 0; else { p->counter_total = (s32)tot; p->counter_val = (s32)add; }   /* (the third word as the value: the original
-            showed "1/4" after its four {1, 4, 1} came in one frame, ct27 [assumed: set, not add]) */
+           {1, 10, 1}; group 44 {0, 3, 0} ("0/3", ct37), each control room bank {0, 3, 1} (groups 52-54).  Measured: four {1, 4, 1} in
+           one frame showed "1/4" (ct27) - set; {0, 3, 1} twice showed "1/3" then "2/3" (ct38) - added.  [assumed: the first word picks
+           set (1) or add (0), the second is the total; the handler is not traced] */
+        u32 how = ak_rd32(m->extra), tot = ak_rd32(m->extra + 4), n = ak_rd32(m->extra + 8);
+        p->counter_val = how || (s32)tot != p->counter_total ? (s32)n : p->counter_val + (s32)n;   /* [assumed: a new total starts it again -
+                                                                         otherwise the troopers' count would run on into the control room's 0/3] */
+        p->counter_total = (s32)tot;
         done = true; }
     else if ((m->type == 0x3B || m->type == 0x51) && p->nnode_open < 32) {   /* a path node opened (0x3B) or shut (0x51): 08855908's flag 0x40 */
         u32 q = 0; while (q < p->nnode_open && p->node_open_id[q] != m->target) q++;
@@ -3322,6 +3390,15 @@ static void script_sink(void *user, const ak_script_msg *m)
             e->t = secs > 0 ? secs : 0;
             if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "speech %08x (%.1f s)", e->speech, secs);
             break; }
+    }
+    if (!done && (m->type == 0x26 || m->type == 0x8019))                     /* a breakable prop made live (0x26 / 0x8019 {1}) [assumed] */
+        for (u32 i = 0; i < p->nprop; i++) if (p->prop[i].id == m->target) { done = true;
+            if (m->nextra >= 4 && ak_rd32(m->extra) == 1 && !p->prop[i].down) { p->prop[i].armed = true; p->target[NP(p) + i].alive = true; } }
+    if (!done && (m->type == 3 || m->type == 4) && p->have_ctf && ak_game_mode == 5) {   /* the campaign's carried object / its base on (3), off (4) */
+        for (u32 i = 0; i < p->ctf_map.nflags && !done; i++) if (p->ctf_map.flag[i].id == m->target) { done = true;
+            ak_ctf_flag *fl = &p->ctf.flag[i]; fl->off = m->type == 4;
+            if (!fl->off) { fl->present = true; fl->carrier = -1; fl->return_t = 0; memcpy(fl->pos, p->ctf_map.flag[i].home, 12); } }
+        for (u32 i = 0; i < p->ctf_map.nbases && !done; i++) if (p->ctf_map.base[i].id == m->target) { done = true; p->ctf.base_off[i] = m->type == 4; }
     }
     if (!done && m->type == 3 && p->nuspawn) {                                /* a scripted soldier spawner started by the script */
         for (u32 k = 0; k < p->nuspawn; k++) if (p->uspawn[k].id == m->target) { done = true;
@@ -3531,7 +3608,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             f32 fx = -sinf(p->ch.yaw), fz = -cosf(p->ch.yaw);
             bool veh_only = p->armed && p->wdef.bp && ak_bp_int(p->wdef.bp, "OnlyLockOnToVehicles", 0);   /* the rocket launcher (STDTEXT 0x1A1 "the
                                                                                  rocket launcher can only auto lock onto vehicles, not infantry") */
-            for (u32 i = 1; i < nt; i++) {
+            for (u32 i = 1; i < NP(p); i++) {                                 /* (the props are not locked [assumed]) */
                 if (!p->target[i].alive || p->target[i].team == p->team) continue;
                 if (veh_only && !p->target[i].vehicle) continue;
                 f32 dx = p->target[i].feet[0] - p->ch.pos[0], dz = p->target[i].feet[2] - p->ch.pos[2], d = sqrtf(dx * dx + dz * dz);
@@ -4086,6 +4163,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     /* who fell this frame: a ticket each, the kill to whoever shot last */
     for (u32 i = 0; i < nt; i++) {
         if (!(alive_before[i] && !p->target[i].alive)) continue;
+        if (i >= NP(p)) { prop_destroyed(p, i - NP(p)); continue; }
         if (i >= NV(p)) { turret_destroyed(p, i - NV(p)); continue; }
         if (i >= NS(p)) { vehicle_destroyed(p, m, i - NS(p)); continue; }
         if (p->target[i].last_attacker == 0 && i != 0) p->kills++;
@@ -4207,6 +4285,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             cs[i].alive = i ? p->bot[i - 1].alive : p->alive; cs[i].on_foot = i ? p->bot[i - 1].veh < 0 : p->in_veh < 0 && p->in_turret < 0;
         }
         ak_ctf_update(&p->ctf_map, &p->ctf, ak_game_mode, p->is_space, cs, NS(p), dt);
+        if (ak_game_mode == 5 && p->have_script) {                           /* the campaign's carried objects tell the script */
+            if ((p->ctf.events & AK_CTF_EV_PICKUP) && p->ctf.last_flag >= 0) { u32 f = (u32)p->ctf.last_flag;
+                ak_script_raise(&p->script, p->ctf_fev[f], p->ctf_nfev[f], 10012, p->ctf_map.flag[f].id, script_sink, p); }
+            if ((p->ctf.events & AK_CTF_EV_CAPTURE) && p->ctf.last_base >= 0) { u32 b = (u32)p->ctf.last_base;
+                ak_script_raise(&p->script, p->ctf_bev[b], p->ctf_nbev[b], 10004, p->ctf_map.base[b].id, script_sink, p); }
+        }
         /* a dropped flag at rest in a kill box goes home 5 s after it settled (089F6658: on a planet, min(its timer, now + 5),
            D_08ADEAA8) [assumed: Aurek's dropped flag is at rest as dropped] */
         for (u32 f = 0; f < p->ctf_map.nflags; f++) { ak_ctf_flag *fl = &p->ctf.flag[f];

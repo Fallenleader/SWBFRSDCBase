@@ -1298,6 +1298,19 @@ textures and how they are used. Section R lists only what must be in place so th
     -> the scout; killing it (18bf5's 10006 -> 41 -> 18be7 -> 49) ends the match (0x8006) and the next mission loads. Still to
     check in the harness: the scout's kill and 49 in the original (RS_FIRE_AT 41 / 49), the game-over / mission-complete pages of
     the campaign, the next mission's start. Then: SPACE_ALDERAAN (the campaign's second mission).
+  - Part 41, 2026-11-22 - **the training's last stages run in Aurek**: after the scout, group 42 starts the stolen data (flag
+    spawner 18bf7, class 0x8019, side 1) and its base 18bf9 (0x8017, side 0, radius 4.03). CTF now loads in mode 5 with the flags and
+    bases off until the script's 3 (4 turns them off again), no score or time limit, a dropped object stays, a delivered one is gone
+    [assumed]; pickup raises the spawner's 10012 (-> 51), delivery the base's 10004 (-> 43 -> 44), each record's event table at word 4.
+    Group 44: "Destroy the temple control room" (harness ct37) - three unflagged type-7 records 18c2f-18c31 (factory 0896F170 ->
+    089F3684 -> class 089F317C, vtable 0x08B0F6E4, 196 bytes; not traced further): event table at word 13, the place and turn after
+    it, health 50, and a SHAP hull 2a25f45e (1.5 x 4.0 x 3.7 m, no mesh - the banks seen are level geometry). Aurek makes each a
+    target with the hull's box, live after the script's 0x26 / 0x8019 {1} [assumed]; broken it raises event 3 [assumed: "destroyed"]
+    -> 52 / 53 / 54 (the counter, its objective done) -> counter 18bfd at 3 -> 46 -> 18be9 done -> 49 -> 0x8006: the match won.
+    Counter 0x8017 measured (ct38, RS_FIRE_AT 44, 52, 53): {0, 3, 1} twice went 0/3 -> 1/3 -> 2/3, so the first word picks add (0)
+    or set (1, ct27) [assumed: a new total starts it again]. Also fixed: ak_turret.h's unclosed comment that hid two declarations.
+    Open: the banks' wreck look / effect, what 0x26 / 0x8019 mean, the harness's own carry (its teleports did not reach the data),
+    the 18c63 / 18c65 / 18c66 / 18c07 / 18c64 (types 35 / 36: 0x8023 / 0x8024 spawn places) messages. Next: SPACE_ALDERAAN.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -538,6 +538,10 @@ int main(int argc, char **argv)
                     for (u32 v = 0; v < play.nturret && k < 480; v++)
                         k += snprintf(vl + k, sizeof vl - (size_t)k, " %s:%s%.0f(%u hits)", play.turret[v].def->name, play.turret[v].alive ? "" : "wreck ", play.target[1 + play.nbots + play.nveh + v].health, play.target[1 + play.nbots + play.nveh + v].hits);
                     AK_INFO("test", "turrets:%s", vl); }
+                if (play.nprop) { k = 0; u32 b0 = 1 + play.nbots + play.nveh + play.nturret;
+                    for (u32 v = 0; v < play.nprop && k < 480; v++)
+                        k += snprintf(vl + k, sizeof vl - (size_t)k, " %x:%s%s%.0f(%u hits)", play.prop[v].id, play.prop[v].down ? "broken " : "", play.target[b0 + v].alive ? "" : "off ", play.target[b0 + v].health, play.target[b0 + v].hits);
+                    AK_INFO("test", "props:%s", vl); }
             }
         }
         if (menu == 4) playing = !playing;                                  /* SELECT + square: play (a soldier on foot) / free camera */

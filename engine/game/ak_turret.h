@@ -42,7 +42,7 @@ typedef struct {
 /* the Turret blueprint for this base model (its name), with its parts in this level; false if none */
 bool ak_turret_def_load(const ak_blueprints *bp, const ak_model_set *m, const char *base_name, ak_turret_def *out);
 /* read the turret records of a level (ENTI type 30): position, rotation, health, base model hash, post, range */
-typedef struct { u32 id, model_hash, post_id, bp_hash, text; f32 pos[3]; ak_quat rot; f32 health, range; u32 ev[4], nev; } ak_turret_rec;   /* bp_hash: the Turret blueprint's name hash (the third word from the end); ev: the script events (word 8 the count, then { group << 16 | event })
+typedef struct { u32 id, model_hash, post_id, bp_hash, text; f32 pos[3]; ak_quat rot; f32 health, range; u32 ev[4], nev; } ak_turret_rec;   /* bp_hash: the Turret blueprint's name hash (the third word from the end); ev: the script events (word 8 the count, then { group << 16 | event }) */
 u32 ak_turrets_read(const ak_level *l, ak_turret_rec *out, u32 max);
 void ak_turret_place(ak_turret *t, const ak_turret_def *d, const ak_turret_rec *r);
 /* world matrices (3x4 rows) of the pivot and the barrel, and a muzzle's position; false when the part is missing */

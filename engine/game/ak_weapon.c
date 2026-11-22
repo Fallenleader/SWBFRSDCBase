@@ -234,6 +234,8 @@ void ak_bolts_update(ak_bolts *b, const ak_collision *col, ak_target *tg, u32 nt
         ak_col_hit h; f32 tt; bool head = false;
         bool wall = step > 0 && ak_col_raycast(col, o->pos, o->dir, step, SHOT_IGNORE, &h);
         s32 ti = step > 0 ? ray_targets(tg, ntg, o->pos, o->dir, wall ? h.t : step, &tt, &head, o->team, o->src) : -1;
+        {   static int dp = -1; if (dp < 0) dp = ak_setting_int("AK_DEBUG_PROPS", 0);
+            if (dp && wall && o->owner == 0) AK_INFO("bolt", "wall at %.2f %.2f %.2f (t %.2f), target %d", h.pos[0], h.pos[1], h.pos[2], h.t, ti); }
         if (ti >= 0) {
             {   f32 k = tg[ti].local && o->ai ? o->vs_local * (tg[ti].elite > 0 ? tg[ti].elite : 1.0f) : 1.0f;   /* (089E1FDC: an AI's shot at the local player takes Modifier_Bot_Damage) */
                 {   static int lgf = -1; if (lgf < 0) lgf = ak_setting_int("AK_DEBUG_FRIENDLY", 0);
