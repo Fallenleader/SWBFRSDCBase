@@ -240,7 +240,7 @@ typedef struct {
     s32 counter_val, counter_total;                                       /* the script's counter (0x8017 to 0x3E8) */
     bool fly_pick, fly_auto_req, fly_level; s32 fly_target; bool fly_auto;   /* a starfighter's target choice (d-pad down), auto-pilot (triangle), levelling (L + R) */
     u32 use_prompt;                                                       /* the use zone's prompt (STDTEXT) while the player is in one; 0 none */                    /* the named objects (type 3) that are cut-scenes */
-    struct { u32 id; f32 health; u32 ev[4], nev; bool armed, down; } prop[PLAY_MAX_PROPS]; u32 nprop;   /* the campaign's breakable placed models (unflagged type 7 with an
+    struct { u32 id; f32 health; u32 ev[4], nev; bool armed, down; f32 plane[48][4]; } prop[PLAY_MAX_PROPS]; u32 nprop;   /* the campaign's breakable placed models (unflagged type 7 with an
                                                                          event table and health: Yavin's temple control room 18c2f-18c31), targets after the turrets */
     u32 ctf_fev[AK_CTF_MAX][4], ctf_nfev[AK_CTF_MAX], ctf_bev[AK_CTF_MAX][4], ctf_nbev[AK_CTF_MAX];   /* the campaign's carried objects: the flag spawners' and bases' script events */
     s32 cut; f32 cut_t; const ak_model_set *mset;

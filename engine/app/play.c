@@ -3126,11 +3126,11 @@ static void props_init(ak_play *p, const ak_level *l, const ak_model_set *m, ak_
         ak_quat r = { ak_rdf32(b + 4 * (at + 3)), -ak_rdf32(b + 4 * (at + 4)), -ak_rdf32(b + 4 * (at + 5)), ak_rdf32(b + 4 * (at + 6)) };   /* (engine axes, as the movers') */
         u32 h = ak_rd32(b + 4 * (at + 8)), side = at + 14 < nw ? ak_rd32(b + 4 * (at + 14)) : 2;
         if (!(hp > 0 && hp < 100000) || fabsf(r.x * r.x + r.y * r.y + r.z * r.z + r.w * r.w - 1) > 0.01f) continue;
-        f32 mn[3], mx[3]; bool got = false; ak_chunk d; u32 q = 8;
+        f32 mn[3], mx[3]; bool got = false; ak_chunk d; u32 q = 8; const u8 *hb = NULL; u32 hsize = 0;
         while (!got && ak_asura_next(&l->file, &q, &d)) {
             if (ak_chunk_tag(&d) != AK_TAG('S', 'H', 'A', 'P') || d.size < 64 || ak_rd32(d.body) != h) continue;
             f32 v[6]; for (int k = 0; k < 6; k++) v[k] = ak_rdf32(d.body + 40 + 4 * k);
-            mn[0] = v[0]; mx[0] = v[1]; mn[1] = -v[3]; mx[1] = -v[2]; mn[2] = -v[5]; mx[2] = -v[4]; got = true;
+            mn[0] = v[0]; mx[0] = v[1]; mn[1] = -v[3]; mx[1] = -v[2]; mn[2] = -v[5]; mx[2] = -v[4]; got = true; hb = d.body; hsize = d.size;
         }
         if (!got) continue;
         u32 k = p->nprop++; ak_target *t = &p->target[NP(p) + k];
@@ -3143,6 +3143,31 @@ static void props_init(ak_play *p, const ak_level *l, const ak_model_set *m, ak_
         for (int j = 0; j < 3; j++) { mc[j] = 0.5f * (mn[j] + mx[j]); t->box_h[j] = fmaxf(0.1f, 0.5f * (mx[j] - mn[j])); }
         for (int j = 0; j < 3; j++) { t->box_c[j] = ep[j] + mc[0] * R[0][j] + mc[1] * R[1][j] + mc[2] * R[2][j]; for (int k2 = 0; k2 < 3; k2++) t->box_ax[j][k2] = R[j][k2]; }
         t->boxed = true; memcpy(t->feet, ep, 12); t->height = 2 * t->box_h[1]; t->radius = fmaxf(t->box_h[0], t->box_h[2]);
+        {   /* the hull itself (convex: Space Alderaan's critical systems a9cdd4e9 are a six-sided bipyramid, 18 faces; its box would stop
+               shots far from it): the vertices (game axes) after the radius, then faces of 4 u16 (0xFFFF: a triangle) - each face's
+               plane, outward from the centre, in the world */
+            u32 nv = ak_rd32(hb + 12), nf = ak_rd32(hb + 16), vo = 68, fo = vo + 12 * nv; u32 np = 0;
+            if (nv >= 4 && nv <= 256 && nf >= 4 && fo + 8 * nf <= hsize) {
+                f32 cen[3] = { 0, 0, 0 }, wv[256][3];
+                for (u32 a = 0; a < nv; a++) {
+                    f32 lv[3] = { ak_rdf32(hb + vo + 12 * a), -ak_rdf32(hb + vo + 12 * a + 4), -ak_rdf32(hb + vo + 12 * a + 8) };
+                    for (int j = 0; j < 3; j++) wv[a][j] = ep[j] + lv[0] * R[0][j] + lv[1] * R[1][j] + lv[2] * R[2][j];
+                    for (int j = 0; j < 3; j++) cen[j] += wv[a][j] / (f32)nv;
+                }
+                for (u32 fi = 0; fi < nf && np < 48; fi++) {
+                    u32 i0 = ak_rd16(hb + fo + 8 * fi), i1 = ak_rd16(hb + fo + 8 * fi + 2), i2 = ak_rd16(hb + fo + 8 * fi + 4);
+                    if (i0 >= nv || i1 >= nv || i2 >= nv) continue;
+                    f32 e1[3], e2[3], n[3]; for (int j = 0; j < 3; j++) { e1[j] = wv[i1][j] - wv[i0][j]; e2[j] = wv[i2][j] - wv[i0][j]; }
+                    n[0] = e1[1] * e2[2] - e1[2] * e2[1]; n[1] = e1[2] * e2[0] - e1[0] * e2[2]; n[2] = e1[0] * e2[1] - e1[1] * e2[0];
+                    f32 ln = sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]); if (ln < 1e-6f) continue;
+                    for (int j = 0; j < 3; j++) n[j] /= ln;
+                    f32 dd = n[0] * wv[i0][0] + n[1] * wv[i0][1] + n[2] * wv[i0][2];
+                    if (n[0] * cen[0] + n[1] * cen[1] + n[2] * cen[2] > dd) { for (int j = 0; j < 3; j++) n[j] = -n[j]; dd = -dd; }   /* (outward) */
+                    memcpy(p->prop[k].plane[np], n, 12); p->prop[k].plane[np][3] = dd; np++;
+                }
+            }
+            if (np >= 4) { t->planes = &p->prop[k].plane[0][0]; t->nplanes = (u8)np; }
+        }
         /* the side after the hull hash (+0 0 0, a flag, -1, side): Yavin's consoles 2 - live after the script's 0x26 / 0x8019 {1};
            Space Alderaan's critical systems 1883c-f / 188fc-f / 18709-a 1 (the Empire's; the script sends them no 0x26) - live from
            the start [assumed: that the side decides it] */
@@ -4025,6 +4050,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (tf && p->have_script) { char buf[256]; snprintf(buf, sizeof buf, "%s", tf);
             for (char *t = strtok(buf, ";"); t; t = strtok(NULL, ";")) { unsigned f_, g; if (sscanf(t, "%u:%u", &f_, &g) == 2 && f_ == p->frame_no) {
                 AK_INFO("script", "test: group %u", g); ak_script_fire(&p->script, (s32)g, 0x3E7, script_sink, p); } } } }
+    {   const char *tb = ak_setting_str("AK_TEST_BREAK", NULL);             /* tests: "frame:prop id hex[;...]" - a prop's health to 0 (it breaks as if shot) */
+        if (tb) { char buf[256]; snprintf(buf, sizeof buf, "%s", tb);
+            for (char *t = strtok(buf, ";"); t; t = strtok(NULL, ";")) { unsigned f_, id; if (sscanf(t, "%u:%x", &f_, &id) == 2 && f_ == p->frame_no)
+                for (u32 i = 0; i < p->nprop; i++) if (p->prop[i].id == id && p->target[NP(p) + i].alive) { p->target[NP(p) + i].health = 0; p->target[NP(p) + i].last_attacker = 0; } } } }
     {   static int dbb = -1; if (dbb < 0) dbb = ak_setting_int("AK_DEBUG_BOTS", 0);   /* tests: each live bot once a second */
         if (dbb && p->frame_no % 30 == 0) { for (u32 i = 0; i < p->nbots; i++) { const ak_play_bot *b = &p->bot[i]; if (!b->alive) continue;
             f32 dx = b->ch.pos[0] - p->ch.pos[0], dz = b->ch.pos[2] - p->ch.pos[2];

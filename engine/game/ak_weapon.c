@@ -115,6 +115,19 @@ static s32 ray_targets(ak_target *tg, u32 n, const f32 *o, const f32 *d, f32 max
             }
             continue;
         }
+        if (T->nplanes) {                                                  /* a convex hull: clip the ray by its faces' planes */
+            f32 lo = 0, hi = bt; bool in = true;
+            for (u32 k = 0; k < T->nplanes && in; k++) {
+                const f32 *pl = T->planes + 4 * k;
+                f32 dn = pl[0] * d[0] + pl[1] * d[1] + pl[2] * d[2], ds = pl[0] * o[0] + pl[1] * o[1] + pl[2] * o[2] - pl[3];
+                if (fabsf(dn) < 1e-9f) { if (ds > 0) in = false; continue; }
+                f32 t = -ds / dn;
+                if (dn < 0) { if (t > lo) lo = t; } else { if (t < hi) hi = t; }
+                if (lo > hi) in = false;
+            }
+            if (in && lo > 0 && lo < bt) { bt = lo; best = (s32)i; *head = false; }
+            continue;
+        }
         if (T->boxed) {                                                    /* the body box: a slab test in its frame */
             f32 lo = 0, hi = bt; bool in = true;
             for (int k = 0; k < 3 && in; k++) {

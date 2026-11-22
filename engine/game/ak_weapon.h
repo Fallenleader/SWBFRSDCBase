@@ -96,6 +96,7 @@ typedef struct {
     f32 last_hit_dir[3];
     bool boxed; f32 box_c[3], box_ax[3][3], box_h[3];   /* a body box (centre, unit axes, half extents): shots test it instead of the
                                         * capsule - vehicles, whose physics body is their model's box (ak_box.h) */
+    const f32 *planes; u8 nplanes;     /* a convex hull (planes nx ny nz d, outward, n.x <= d inside): shots test it instead of the box (props) */
     u8 nbb;                            /* soldiers: the posed HSBB bone boxes (nbb > 0: shots test these, not the capsule) */
     u8 bb_bone[AK_TGT_BB]; f32 bb_c[AK_TGT_BB][3], bb_ax[AK_TGT_BB][3][3], bb_h[AK_TGT_BB][3];
 } ak_target;

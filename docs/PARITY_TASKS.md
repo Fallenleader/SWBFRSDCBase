@@ -1355,6 +1355,15 @@ textures and how they are used. Section R lists only what must be in place so th
     0x26): props of side 0 / 1 are live from the start as that side's [assumed: the side decides it]; the script's 4 turns one
     off (2 s after its pair breaks - groups 27 / 47 / 70 / 82) [assumed]. The five-TIE wave (115) now flies with pilots. Open:
     a prop's box is the hull's box (the bipyramid's corners stop shots too), the data carry 188c5 / 18875, the end; then ORD_MANTELL.
+  - Part 46, 2026-11-22 - **Space Alderaan runs to its win in Aurek** (with test skips). Props now test their SHAP hull's faces
+    (convex: each face's plane, outward; the critical systems' a9cdd4e9 is a six-sided bipyramid, 18 faces) instead of its box.
+    The chain, Aurek: data carry (28 -> 3 to the data 188c5 in the Star Destroyer's interior; pickup 10012 -> 42, delivery at
+    18875 10004 -> 44 -> 18876 -> 45: cut-scene "Bobba fett arrives" via 0x801A to the ticket entity, then 30001 starts Slave_1
+    18878), Boba's fall (46 -> 18877 -> 64: the critical systems' objectives 1887a-e, counter {1, 4, 0}), each system broken (event
+    3 -> 48 / 78 / 71 / 85 -> selectors -> 82 / 47 / 27 / 70: its objective done, its pair off after 2 s) -> 50 / 49 / 51 / 52 ->
+    counter 18879 at 4 -> 53 -> 1887a -> 65 -> 0x8006: winner 0 (the Alliance). Skips used: AK_TEST_FIRE 28 / 46, teleports to
+    the data and base, AK_TEST_BREAK (new: "frame:prop id" breaks a prop as if shot). Not checked against the harness: the
+    interior's walk, Boba's fight, the systems under fire. ORD_MANTELL loads and runs (groups 23, 9 in its first minute).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
