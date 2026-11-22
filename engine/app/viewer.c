@@ -148,6 +148,7 @@ int main(int argc, char **argv)
 
     ak_gfx_config gc = { ak_setting_int("AK_WIDTH", 960), ak_setting_int("AK_HEIGHT", 544), ak_setting_int("AK_VSYNC", 1) != 0, ak_plat_user_dir(), "Aurek" };
     if (!ak_gfx_init(&gc)) { AK_ERROR("aurek", "renderer failed to start"); return 1; }
+    if (ak_setting_int("AK_TROPHIES", 1)) ak_plat_trophy_init();       /* (the Vita's trophies: their first-time dialog before anything else) */
     AK_INFO("aurek", "renderer: %s", ak_gfx_name());
 
     ak_arena tmp, lvl;
@@ -204,6 +205,7 @@ int main(int argc, char **argv)
     fe_bps = &bps; ak_fe_set_model_drawer(fe_model_draw);                                         /* (the customisation menu: items, costs, descriptions) */
     bool fe_ingame = false, fe_after_team = false;                      /* the match's own pages (team selection, the spawn map) */
     if (!fe_on && playing && ak_setting_int("AK_PLAY_MENUS", 0) && ak_fe_init(vfs)) fe_ingame = true;   /* (tests: a match straight in, with its own pages) */
+    if (fe_on || fe_ingame) ak_fe_trophies_sync();                      /* (medals earned before the trophies existed) */
     for (;;) {
         if (fe_on) {
             if (!ak_plat_poll(&in)) break;

@@ -21,6 +21,8 @@ const char *ak_plat_user_dir(void) { return "."; }
 
 static f32 axis(Sint16 v) { f32 f = v / 32767.0f; return f > 0.15f || f < -0.15f ? f : 0.0f; }
 
+void ak_plat_trophy_init(void) {}
+void ak_plat_trophy_unlock(int id) { (void)id; }
 bool ak_plat_has_right_stick(void) { return true; }
 
 bool ak_plat_poll(ak_input *in)

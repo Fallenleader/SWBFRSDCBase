@@ -16,3 +16,4 @@ platform/ps5/sce_sys/snd0.wav
 tools/ToolsCrossTest/swbf-unmunge.exe
 tools/ToolsCrossTest/third_party.md
 tools/ToolsCrossTest/__pycache__/
+engine/platform/vita/sce_sys/trophy/

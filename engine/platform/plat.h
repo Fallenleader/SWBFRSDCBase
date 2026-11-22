@@ -37,6 +37,10 @@ bool ak_plat_poll(ak_input *in);         /* false: the user asked to quit */
 /* Does this device have a second analogue stick (rx/ry) for free aim?  PC (gamepad or mouse), Steam Deck, Vita, PS4, PS5: yes;
  * New 3DS: yes (the C-stick; twin-stick is an option there, AK_TWIN_STICK); Old 3DS: no - only the game's own scheme. */
 bool ak_plat_has_right_stick(void);
+/* trophies (the Vita's own, through sceNpTrophy - they need the NoTrpDrm plugin; elsewhere none): set up once the renderer runs
+   (the Vita shows the system's first-time dialog), then unlock by id; asking again for one already earned does nothing */
+void ak_plat_trophy_init(void);
+void ak_plat_trophy_unlock(int id);
 
 /* audio output (1.9): the device calls `fn` from its own audio thread for `frames` of interleaved stereo s16 at `rate` */
 typedef void (*ak_audio_fn)(s16 *out, u32 frames, void *user);

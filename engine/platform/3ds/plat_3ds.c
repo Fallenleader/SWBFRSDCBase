@@ -80,6 +80,8 @@ const char *ak_plat_user_dir(void) { return USER_DIR; }
 
 /* the Circle Pad: about +-155 at the rim; a dead zone at the centre, as the PSP stick's */
 static f32 pad(int v) { f32 f = v / 150.0f; if (f > 1) f = 1; if (f < -1) f = -1; return f > 0.15f || f < -0.15f ? f : 0.0f; }
+void ak_plat_trophy_init(void) {}
+void ak_plat_trophy_unlock(int id) { (void)id; }
 bool ak_plat_has_right_stick(void) { return false; }
 
 bool ak_plat_poll(ak_input *in)

@@ -958,6 +958,10 @@ static const f32 medal_cell[14][3][5] = {
     { { 0, .75f, .25f, 1, 2 }, { .25f, .75f, .5f, 1, 2 }, { .5f, .75f, .75f, 1, 2 } },
     { { 0 }, { .5f, .75f, .75f, 1, 1 }, { 0 } },
     { { 0 }, { .75f, 0, 1, .25f, 1 }, { 0 } } };
+/* the Vita trophy for medal k (tools/trophy/make_trophies.py: medal k -> id k + 1, from Infra_Elite (5, no trophy) on k; 0 the
+   platinum, which the system gives) */
+static void medal_trophy(int k) { if (k >= 0 && k < 29 && k != 5) ak_plat_trophy_unlock(k < 5 ? k + 1 : k); }
+void ak_fe_trophies_sync(void) { if (!prof_have) return; for (int k = 0; k < 29; k++) if (prof[0x168 + k]) medal_trophy(k); }   /* (medals earned before) */
 static u32 stat_get(int i) { if (!prof_have) prof_new(); return i >= 0 && i < NSTATS ? ak_rd32(prof + 0xA4 + 4 * i) : 0; }
 static const ak_bp_object *medal_obj(int k) { return fe_bp && k >= 0 && k < 29 ? ak_bp_find(fe_bp, "Medals", medal_bp[k]) : NULL; }
 static void medals_check(void)                                         /* 089775A8 + 08977D14 */
@@ -969,7 +973,7 @@ static void medals_check(void)                                         /* 089775
         if (prof[0x168 + k]) continue;
         const ak_bp_object *o = medal_obj(k); if (!o) continue;
         u32 need = (u32)ak_bp_int(o, "Test_Number", 0); if (!need || need > stat_get(medal_counter[k])) continue;
-        prof[0x168 + k] = 1;
+        prof[0x168 + k] = 1; medal_trophy(k);
         if (!ak_bp_int(o, "Display_Message", 0)) continue;
         u32 nn = 0, fn = 0; const u16 *nm = ak_hud_stdtext((u32)ak_bp_int(o, "Name", 0), &nn);
         if (!ak_bp_int(o, "DisplayOnScoreBoard", 0)) { ak_hud_message(4, 256, nm, nn); continue; }
@@ -1281,18 +1285,18 @@ static bool pick_event(const ak_input *in, f32 dt)
         if (P & (AK_BTN_CIRCLE | AK_BTN_CROSS)) { pick.edit = false; return true; }
         f32 sx = fabsf(in->lx) > 0.2f ? in->lx : 0, sy = fabsf(in->ly) > 0.2f ? in->ly : 0;   /* (the stick, past a dead zone) */
         if (pick.elem == 0) {
-            pick.s += sx * dt * 0.8f; pick.v -= sy * dt * 0.8f;
+            pick.s += sx * dt * 0.8f; pick.v += sy * dt * 0.8f;           /* (the stick: +y up) */
             if (P & AK_BTN_LEFT) pick.s -= 1.0f / 31; if (P & AK_BTN_RIGHT) pick.s += 1.0f / 31;
             if (P & AK_BTN_UP) pick.v += 1.0f / 31; if (P & AK_BTN_DOWN) pick.v -= 1.0f / 31;
         } else {
-            pick.h += sy * dt * 0.4f;
+            pick.h -= sy * dt * 0.4f;
             if (P & AK_BTN_UP) pick.h -= 1.0f / 48; if (P & AK_BTN_DOWN) pick.h += 1.0f / 48;
             pick.h = clamp01(pick.h);
         }
         pick.s = clamp01(pick.s); pick.v = clamp01(pick.v); pick_apply();
         return true;
     }
-    static f32 stick_t; bool sl = in->lx < -0.6f, sr = in->lx > 0.6f, su = in->ly < -0.6f, sd = in->ly > 0.6f;   /* (the stick moves one step a 0.25 s) */
+    static f32 stick_t; bool sl = in->lx < -0.6f, sr = in->lx > 0.6f, su = in->ly > 0.6f, sd = in->ly < -0.6f;   /* (the stick moves one step a 0.25 s) */
     if (!(sl || sr || su || sd)) stick_t = 0; else if ((stick_t -= dt) > 0) sl = sr = su = sd = false; else stick_t = 0.25f;
     bool L = (P & AK_BTN_LEFT) || sl, R = (P & AK_BTN_RIGHT) || sr, U = (P & AK_BTN_UP) || su, D = (P & AK_BTN_DOWN) || sd;
     if (pick.elem == 0 && R) pick.elem = 1; else if (pick.elem == 1 && L) pick.elem = 0;

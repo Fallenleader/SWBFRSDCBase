@@ -13,6 +13,7 @@
 #include "../../core/ak_settings.h"
 #include "../plat.h"
 #include <psp2/gxm.h>
+#include <psp2/common_dialog.h>
 #include <psp2/display.h>
 #include <psp2/kernel/sysmem.h>
 #include <psp2/kernel/threadmgr.h>
@@ -35,7 +36,7 @@ struct ak_gfx_tex { SceGxmTexture tex; u8 *px; };
 
 static SceGxmContext *ctx; static SceGxmRenderTarget *rt; static SceGxmShaderPatcher *patcher;
 static SceGxmColorSurface surf[NBUF]; static SceGxmSyncObject *sync_[NBUF]; static void *fb[NBUF];
-static SceGxmDepthStencilSurface depth;
+static SceGxmDepthStencilSurface depth; static void *depth_mem; static int dialog_on;
 static int back, front, frame_no; static volatile unsigned *notif;
 static u8 *scratch[NBUF]; static size_t scratch_used; static int scr; static unsigned scr_fence[NBUF];
 static char cache_dir[256], name[64];
@@ -258,7 +259,7 @@ bool ak_gfx_init(const ak_gfx_config *c)
     unsigned dw = ALIGN(W, SCE_GXM_TILE_SIZEX), dh = ALIGN(H, SCE_GXM_TILE_SIZEY);
     void *dm = gpu_alloc(4u * dw * dh, true);
     if (!dm) return false;
-    sceGxmDepthStencilSurfaceInit(&depth, SCE_GXM_DEPTH_STENCIL_FORMAT_S8D24, SCE_GXM_DEPTH_STENCIL_SURFACE_TILED, dw, dm, NULL);
+    sceGxmDepthStencilSurfaceInit(&depth, SCE_GXM_DEPTH_STENCIL_FORMAT_S8D24, SCE_GXM_DEPTH_STENCIL_SURFACE_TILED, dw, dm, NULL); depth_mem = dm;
     sceGxmDepthStencilSurfaceSetBackgroundDepth(&depth, 1.0f);           /* each scene starts with a cleared depth buffer */
     notif = sceGxmGetNotificationRegion(); notif[0] = 0;
     unsigned voff, foff;
@@ -490,6 +491,13 @@ void ak_gfx_end(ak_gfx_stats *out)
     SceGxmNotification n; n.address = (volatile unsigned int *)notif; n.value = (unsigned)frame_no;
     sceGxmEndScene(ctx, NULL, &n);
     sceGxmPadHeartbeat(&surf[back], sync_[back]);
+    if (dialog_on) {                                                   /* a system dialog (the trophies' first-time set-up) over the frame */
+        SceCommonDialogUpdateParam up; memset(&up, 0, sizeof up);
+        up.renderTarget.colorFormat = SCE_GXM_COLOR_FORMAT_A8B8G8R8; up.renderTarget.surfaceType = SCE_GXM_COLOR_SURFACE_LINEAR;
+        up.renderTarget.width = W; up.renderTarget.height = H; up.renderTarget.strideInPixels = STRIDE;
+        up.renderTarget.colorSurfaceData = fb[back]; up.renderTarget.depthSurfaceData = depth_mem; up.displaySyncObject = sync_[back];
+        sceCommonDialogUpdate(&up);
+    }
     disp_data d = { fb[back] }; sceGxmDisplayQueueAddEntry(sync_[front], sync_[back], &d);
     front = back;
     st.cpu_submit_ms = (ak_plat_time_us() - t_begin) / 1000.0f;
@@ -500,4 +508,5 @@ void ak_gfx_end(ak_gfx_stats *out)
     st.gpu_wait_ms = (ak_plat_time_us() - t0) / 1000.0f;
     if (out) *out = st;
 }
+void ak_gfx_vita_dialog(int on) { dialog_on = on; }
 bool ak_gfx_screenshot(const char *path) { (void)path; return false; }

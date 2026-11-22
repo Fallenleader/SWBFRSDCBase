@@ -106,3 +106,71 @@ bool ak_plat_audio_open(u32 rate, ak_audio_fn fn, void *user)
     return athr != NULL;
 }
 void ak_plat_audio_close(void) { arun = 0; if (athr) ak_plat_thread_join(athr); athr = NULL; if (aport >= 0) sceAudioOutReleasePort(aport); aport = -1; }
+
+/* ------------------------------------------------------------------ trophies
+ * The system's trophies through sceNpTrophy, for the pack in sce_sys/trophy/AURK00001_00/TROPHY.TRP (tools/trophy/make_trophies.py).
+ * A homebrew's pack is unsigned: the NoTrpDrm plugin lets the system take it; without the plugin the context is refused and the
+ * game goes on without trophies.  The first start shows the system's set-up dialog (drawn over the renderer's frames); unlocks go
+ * through a thread of their own (the call waits for the system's notice). */
+#include <psp2/common_dialog.h>
+#include <psp2/sysmodule.h>
+#include <string.h>
+#include "../../render/ak_gfx.h"
+#include "../../core/ak_core.h"
+void ak_gfx_vita_dialog(int on);
+typedef struct { int sdk_version; SceCommonDialogParam common; int context; int options; u8 reserved[128]; } trophy_setup_param;
+int sceNpTrophyInit(void *unk);
+int sceNpTrophyCreateContext(int *context, const char *comm_id, const char *comm_sign, u64 options);
+int sceNpTrophySetupDialogInit(trophy_setup_param *p);
+SceCommonDialogStatus sceNpTrophySetupDialogGetStatus(void);
+int sceNpTrophySetupDialogTerm(void);
+int sceNpTrophyCreateHandle(int *handle);
+int sceNpTrophyDestroyHandle(int handle);
+int sceNpTrophyUnlockTrophy(int context, int handle, int id, int *platinum);
+int sceNpTrophyGetTrophyUnlockState(int context, int handle, void *state, unsigned *count);
+static int tr_ctx = -1, tr_ready; static u32 tr_state[4]; static int tr_queue[64]; static volatile int tr_head, tr_tail; static SceUID tr_sema = -1;
+static int tr_thread(SceSize n, void *arg)
+{
+    (void)n; (void)arg;
+    for (;;) {
+        sceKernelWaitSema(tr_sema, 1, NULL);
+        int id = tr_queue[tr_tail & 63], h, plat = -1; tr_tail++;
+        if (sceNpTrophyCreateHandle(&h) < 0) continue;
+        int r = sceNpTrophyUnlockTrophy(tr_ctx, h, id, &plat);
+        sceNpTrophyDestroyHandle(h);
+        AK_INFO("trophy", "unlock %d: %08x%s", id, (unsigned)r, plat >= 0 ? " (platinum)" : "");
+    }
+    return 0;
+}
+void ak_plat_trophy_init(void)
+{
+    if (sceSysmoduleLoadModule(SCE_SYSMODULE_NP_TROPHY) < 0) return;
+    sceNpTrophyInit(NULL);
+    char comm_id[12] = "AURK00001";                                   /* SceNpCommunicationId: 9 characters, a NUL, the set (0), reserved */
+    static const char sign[160] = { (char)0xb9, (char)0xdd, (char)0xe1, 0x3b, 0x01, 0x00 };   /* (any: NoTrpDrm skips the check) */
+    int r = sceNpTrophyCreateContext(&tr_ctx, comm_id, sign, 0);
+    if (r < 0) { AK_INFO("trophy", "no trophies (%08x: is the NoTrpDrm plugin installed?)", (unsigned)r); tr_ctx = -1; return; }
+    trophy_setup_param p; memset(&p, 0, sizeof p);
+    _sceCommonDialogSetMagicNumber(&p.common); p.sdk_version = PSP2_SDK_VERSION; p.context = tr_ctx;
+    if (sceNpTrophySetupDialogInit(&p) < 0) { AK_WARN("trophy", "set-up dialog failed"); return; }
+    ak_m4 id; memset(&id, 0, sizeof id); id.m[0] = id.m[5] = id.m[10] = id.m[15] = 1;
+    ak_gfx_env env = { { 0, 0, 0 }, 0, 0, 1.0f };
+    ak_gfx_vita_dialog(1);
+    while (sceNpTrophySetupDialogGetStatus() == SCE_COMMON_DIALOG_STATUS_RUNNING) { ak_gfx_begin(0xFF000000u, &id, &env); ak_gfx_end(NULL); }
+    ak_gfx_vita_dialog(0);
+    sceNpTrophySetupDialogTerm();
+    int h; unsigned cnt;
+    if (sceNpTrophyCreateHandle(&h) >= 0) { sceNpTrophyGetTrophyUnlockState(tr_ctx, h, tr_state, &cnt); sceNpTrophyDestroyHandle(h); }
+    tr_sema = sceKernelCreateSema("ak_trophy", 0, 0, 64, NULL);
+    SceUID t = sceKernelCreateThread("ak_trophy", tr_thread, 0x10000100, 0x4000, 0, 0, NULL);
+    if (tr_sema < 0 || t < 0) return;
+    sceKernelStartThread(t, 0, NULL); tr_ready = 1;
+    AK_INFO("trophy", "trophies ready");
+}
+void ak_plat_trophy_unlock(int id)
+{
+    if (!tr_ready || id <= 0 || id >= 128 || (tr_state[id >> 5] & (1u << (id & 31)))) return;
+    if (tr_head - tr_tail >= 64) return;
+    tr_state[id >> 5] |= 1u << (id & 31);
+    tr_queue[tr_head & 63] = id; tr_head++; sceKernelSignalSema(tr_sema, 1);
+}
