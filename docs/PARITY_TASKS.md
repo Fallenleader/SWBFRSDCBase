@@ -1482,6 +1482,10 @@ textures and how they are used. Section R lists only what must be in place so th
     turret's use - its 10014 is not raised by Aurek's turret use [open]), 23 (the 60 s timer); AK_TEST_BREAK the two spawners;
     teleports and the use button. Still open there: 0x14 / 0x15 listener hashes from the turret (only via the skip), 0x801F to
     the spawners, 0x53 to the fade 18a77, 0x1B / 0x1C to 18b01. Next: GTAG (5.4).
+  - Part 60, 2026-11-22 - **GTAG closed: not reachable in the shipped game.** FE_ListValidModes (08A31A94) lists only modes below 4
+    that the map table (0x08B1B980, 22 entries x 20 bytes: two level names, the name's STDTEXT id, four mode flags, the space
+    flag) marks - no map offers mode 4 - and no placed object's mode mask holds GTAG without conquest (masks over all 45 levels:
+    0x3F 711, 0x0C 78, 0x20 55, 0x21 54, 0x02 45, 0x08 24, 0x01 17, 0x0B 8, 0x1F 6, 0x2B 3, 0x2D 2). Next: the 8.2 leftovers.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
