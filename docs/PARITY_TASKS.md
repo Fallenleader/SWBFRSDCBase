@@ -1588,6 +1588,8 @@ textures and how they are used. Section R lists only what must be in place so th
     Aurek's pipeline order fixed.
   - Part 83 (2026-11-22): R.5 recorded as blocked (the draw log cannot follow a prop; no constant found). By request: the Vita's
     debug text back to each line's own colour (AK_DEBUG_TEXT_RGB off by default there).
+  - Part 84 (2026-11-22): R.6-R.8 checked for the checkpoint - R.7's shadow filler chain traced (the casting object not identified),
+    R.6 cell animation and R.8 damage / hyperspace still open; R.9 depends on them. Next: the bug-test build.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
@@ -2118,12 +2120,18 @@ groundwork below is needed before the parity work starts. The tiers come later.
       order; muzzle flashes take the bolt's colour. [assumed] left in the draw: flags 0x400's flip on half the particles (seen,
       the rule not read), the mirror's rule, and an impact's Recoil drawn bluish (0xACCEF2 against a (1, 1, 0.76) curve: some tint
       from the surface, not found).
+    - 2026-11-22: the effect lights are built (R.1). The cell animation's object (088E643C sets up the emitter's +124 block;
+      0889C644 makes an animator with flags in its +20) is still not advanced anywhere found - left as is [blocked].
 - [ ] **R.7 Shadows and decals.** Shadow blobs and scorch marks as the game places them.
   - 2026-11-20: the blob shadows are one batch (08918144): a vertex list at 0x08C19240 (20-byte vertices, room for 2024; count
     0x08C23244), drawn as one triangle strip (prim 4, vertex type 0x183: float UV and position) with \specialfx\blobshadow.tga,
     depth writes off, when the count is not 0. The harness's draw log of a Hoth match (RS_DRAW_LOG=60, RS_DRAW_ALL=1, frames
     1500-1680, Empire spawn) has no such batch: every 0x183 draw is a sky face, so nothing in that scene casts a blob - Aurek's
     lack of soldier shadows matches it there. Who fills the list (and on which levels or objects) is not found.
+  - 2026-11-22, the filler chain found: 08819660 (a frame step, through a global object's +8) -> 08966298 / 0896637C (only while
+    that object's +248 is under 1.0, constant 0x08AEE0CC) -> 088F2C88 / 088F33C8 -> 088EF7DC -> 088EF8AC (1,095 lines: the blob
+    laid on the ground under ray tests 088F0884) -> 08918118 adds the vertices; 08918098 / 089180F8 reset and close the list.
+    Which object that is (and what +248 holds) is not identified, so nothing is built [blocked: the object's class].
 - [ ] **R.8 Screen effects.** Damage, zoom overlay, hyperspace.
   - 2026-11-20, the zoom overlay (measured on the original's screen, harness program `zoom`, Hoth, the blaster rifle's one
     zoom level): GRAPHICS/SNIPER.ASR holds one picture, CHUD_Zoom_Scope (128 x 128): the scope's top-left quarter - the frame,
@@ -2132,6 +2140,8 @@ groundwork below is needed before the parity work starts. The tiers come later.
     rest of the HUD and with no reticle. Built (hud.c, the HUD's `scope` flag while the weapon is zoomed). [ ] The code that
     draws it (not found: no h31 of the picture's name in the data); damage and hyperspace effects. Tool: AK_HUD_DUMP_TEX=part
     of a HUD file's path writes its texture (colour | alpha) to /tmp/hud_tex.ppm.
+  - 2026-11-22: damage and hyperspace screen effects not traced in this pass (no candidate draw found yet); recorded as open
+    for after the bug test.
 
 ### Groundwork before any PBR code
 
