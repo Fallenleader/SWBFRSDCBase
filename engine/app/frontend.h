@@ -22,6 +22,8 @@ typedef struct {
     u32 nposts; f32 post_pos[AK_FE_MAX_POSTS][3]; int post_owner[AK_FE_MAX_POSTS]; s32 post_name[AK_FE_MAX_POSTS];   /* (owner 0 / 1, else nobody's; names: CPNAMES entries) */
     u32 nnames[2]; const u16 *name[2][32]; u32 name_len[2][32]; bool bot[2][32];
     u16 kills[2][32], deaths[2][32]; bool alive[2][32];          /* (the score boards) */
+    const char *level;                             /* the level ("CLASSIC HOTH"): its name when level_text is 0 */
+    f32 time_left;                                 /* the match's time left, seconds (< 0: no limit) */
 } ak_fe_match;
 
 bool ak_fe_init(ak_vfs *vfs);

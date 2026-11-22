@@ -567,6 +567,7 @@ int main(int argc, char **argv)
             fm.mode = ak_game_mode; fm.era = strncmp(levels[cur].label, "PREQUEL", 7) == 0; fm.team = play.team; fm.winner = play.have_cq ? play.match.winner : -1;
             if (ak_setting_int("AK_FE_TEST_OVER_AT", -1) >= 0 && frame >= ak_setting_int("AK_FE_TEST_OVER_AT", -1)) fm.winner = play.team;   /* (tests: a won match) */
             fm.faction[0] = play.team_faction[0]; fm.faction[1] = play.team_faction[1];
+            fm.level = levels[cur].label; fm.time_left = play.have_cq && play.rules.time_limit > 0 ? play.rules.time_limit - play.match.time : -1.0f;
             for (u32 i = 0; i < play.cq.nposts && fm.nposts < AK_FE_MAX_POSTS; i++) {   /* (posts that cannot be taken are on the map too) */
                 if (play.cq.post[i].absent) continue;
                 memcpy(fm.post_pos[fm.nposts], play.cq.post[i].pos, 12); fm.post_owner[fm.nposts] = play.match.post[i].owner; fm.post_name[fm.nposts] = play.cq.post[i].name;

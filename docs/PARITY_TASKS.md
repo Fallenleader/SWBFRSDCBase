@@ -1494,6 +1494,13 @@ textures and how they are used. Section R lists only what must be in place so th
     +0xA4.., the 20 x 0x2C records at +0x1B0, the customisation bytes +0x5A8-0x5D8, GC at +0x6C8.., the 16 records at +0x704,
     the 4 at +0x7C4), the name entry (the OSK), the autosave pages, the controls pages, the spawn map's zoom, the customisation
     menu's open points.
+  - Part 62, 2026-11-22 - **8.2: profile pages, the spawn map's title and time, the map's scale closed** (see NATIVE_ENGINE). The
+    spawn map against the original's (Hoth, harness program respawn): posts at (63,92) (112,106) (85,170) (133,168) (170,155)
+    (181,155) in the original, Aurek (64,92) (112,107) (87,171) (134,168) (171,156) (182,156). Open in 8.2: an on-screen keyboard
+    for the name, the vehicle / spacecraft inversions and the stick sensitivities in play, the personalisation menu
+    (FE_OpenPersonalisationMenu 08A2F5A4 -> page 0xCD12E72F, FE_Personalisation_*), the medals pages (FE_Medals_*, with the
+    profile's stats 08972F90), the cut-scene list and movies (FE_ListAvaliableCutscenes / FE_PlayMovie), the version line
+    (FE_GetVersionNumber 08A29580: "Version: 02.11aj.%d (18:06:38, Jul 29 2007)"), the customisation preview's scale.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

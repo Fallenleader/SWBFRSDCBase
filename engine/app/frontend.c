@@ -111,6 +111,7 @@ static void prof_to_vars(void)
         var_set(prof_map[i].name, v);
     }
     ak_setting_set("AK_SUBTITLES", var_get("BFF.Subtitles") != 0 ? "1" : "0");
+    if (!ak_setting_str("AK_INVERT_Y", NULL) || var_get("BFF.InfantryControlInvertYAxis") != 0) ak_setting_set("AK_INVERT_Y", var_get("BFF.InfantryControlInvertYAxis") != 0 ? "1" : "0");
     ak_audio_set_volumes(var_get("BFF.VolumeMaster"), var_get("BFF.VolumeMusic"), var_get("BFF.VolumeSFX"));
 }
 static void prof_from_vars(void)
@@ -181,6 +182,12 @@ void ak_fe_set_match(const ak_fe_match *m)
 {
     match = *m; have_match = true;
     if (!match.level_text && nrot > 0) match.level_text = maps[rot[0].map].text;   /* (the play list's map: its name) */
+    if (!match.level_text && match.level) {                           /* (a match started without the menus: its level's map entry) */
+        const char *sp = strchr(match.level, ' '); const char *nm = sp ? sp + 1 : match.level;
+        for (int i = 0; i < NMAPS && !match.level_text; i++) { const char *c[2] = { maps[i].gcw, maps[i].cw };
+            for (int k = 0; k < 2; k++) if (c[k] && strlen(c[k]) == strlen(nm)) { bool eq = true; for (size_t j = 0; nm[j] && eq; j++) eq = (nm[j] | 0x20) == (c[k][j] | 0x20); if (eq) match.level_text = maps[i].text; } }
+    }
+    var_set("BFF.TimeLimitSinglePlayer", m->time_left >= 0 ? 60.0f : 0.0f);   /* (the time line's show condition) */
     var_set("BFF.FE_GameType", m->mode); var_set("BFF.FE_GameEra", m->era == 0 ? 1 : 0);   /* (FE_GameEra: 1 classic, 0 prequel - the team buttons) */
     var_set("BFF.FE_PlayerFaction", m->faction[m->team]); var_set("BFF.FE_ChangeTeamAllowed", 1);
     var_set("BFF.FE_SpawnPointCount", (f32)m->nposts); var_set("BFF.FE_IsPlayerVictorious", m->winner == m->team);
@@ -477,11 +484,15 @@ static const u16 *gc_text(const ak_widget *w, u32 *n)
 static const u16 *override_text(const ak_widget *w, u32 *n)
 {
     { const u16 *t = gc_text(w, n); if (t) return t; }
+    if (w->binding && !strcmp(w->binding, "BFF.FE_ProfileName")) return ak_fe_profile_name(n);   /* (the profile's name, 089783BC's) */
     if (!have_match || !w->name) return NULL;
     if (parent_name && !strcmp(parent_name, "W_TB_SpawnName")) {          /* the focused post's name */
         int k = focused_spawn(); if (k >= 0 && (u32)k < match.nposts && match.post_name[k] >= 0) return ak_hud_post_name(match.post_name[k], n);
     }
     if (!strcmp(w->name, "E_TX_LevelName")) return ak_hud_stdtext(match.level_text, n);
+    if (!strcmp(w->name, "E_TX_LevelTime") && match.time_left >= 0) {   /* the time left, "m:ss" (the original's spawn map: 59:59) [assumed: its format beyond the hour] */
+        static u16 t[16]; char b[16]; s32 sec = (s32)match.time_left; snprintf(b, sizeof b, "%d:%02d", sec / 60, sec % 60);
+        u32 k = 0; while (b[k] && k < 15) { t[k] = (u8)b[k]; k++; } *n = k; return t; }
     if (!strcmp(w->name, "E_TX_LevelType")) return ak_hud_stdtext(40 + 2 * (u32)(match.mode & 3), n);
     return NULL;
 }
@@ -646,7 +657,7 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
     if (have_match && w->name && !strcmp(w->name, "E_TX_StyleMenuTitle") && cur_file == 8) return;   /* (the campaign's title: none in a plain match) */
     if (w->is_template && lb_row < 0) return;                          /* (a list box's row: drawn by the list, once per row) */
     if (getenv("AK_FE_TRACE") && w->name && strstr(w->name, getenv("AK_FE_TRACE"))) AK_INFO("fe", "draw %s shows %d cond %d at %.0f,%.0f", w->name, shows(w, focused), cond_holds(w), x, y);
-    if (getenv("AK_FE_TRACE2") && w->name) { static int nd; if (nd++ < 400) { fprintf(stderr, "[W] %s bind=%s text=%u/%u", w->name, w->binding ? w->binding : "-", w->text_table, w->text_key); for (u32 i = 0; i < w->ncond; i++) fprintf(stderr, " cond(%s %u %s)", w->cond[i].var, w->cond[i].op, w->cond[i].val); for (u32 i = 0; i < w->nactions; i++) fprintf(stderr, " act(%s %s k%u)", w->actions[i].fn, w->actions[i].arg, w->actions[i].key); fprintf(stderr, "\n"); } }
+    if (getenv("AK_FE_TRACE2") && w->name) { static int nd; if (nd++ < ak_setting_int("AK_FE_TRACE2_N", 400)) { fprintf(stderr, "[W] %s bind=%s text=%u/%u", w->name, w->binding ? w->binding : "-", w->text_table, w->text_key); for (u32 i = 0; i < w->ncond; i++) fprintf(stderr, " cond(%s %u %s)", w->cond[i].var, w->cond[i].op, w->cond[i].val); for (u32 i = 0; i < w->nactions; i++) fprintf(stderr, " act(%s %s k%u)", w->actions[i].fn, w->actions[i].arg, w->actions[i].key); fprintf(stderr, "\n"); } }
     bool in_row = lb_row >= 0 && !w->is_template;
     if (in_row && (w->flags & 0x20) && !(w->flags & 0x400)) {          /* a row part for the chosen row only (flags bit 5) [assumed] */
         if (!lb_selected || !cond_holds(w)) return;
@@ -917,6 +928,13 @@ static int run(const ak_gui_action *a, int row)
         ak_fe_close(); return AK_FE_QUIT;
     }
     else if (!strcmp(fn, "FE_EnterGameover")) {}                 /* (the button's page follows: the spawn map) */
+    else if (!strcmp(fn, "FE_SetProfileName")) {                       /* 08A2EA04 -> 089783BC: the name typed in (08A2E9A0's buffer, 0x20
+                                                                         characters) - Aurek has no on-screen keyboard: AK_PLAYER_NAME is the
+                                                                         typed name [assumed] */
+        const char *nm = ak_setting_str("AK_PLAYER_NAME", NULL);
+        if (nm) { if (!prof_have) prof_new(); memset(prof + PROF_NAME, 0, 42); for (u32 i = 0; nm[i] && i < 20; i++) { u16 c = (u8)nm[i]; memcpy(prof + PROF_NAME + 2 * i, &c, 2); } prof[6] = 1; } }
+    else if (!strcmp(fn, "FE_OpenProfileMenu")) open_hash(0x5B53EB0Du, true);   /* 08A2E8B4: the profile page */
+    else if (!strcmp(fn, "FE_ExitAutoSaveMenu") || !strcmp(fn, "FE_ForceProfileChangeState") || !strcmp(fn, "FE_ProfileNameOnInit")) {}   /* (flags of the game's save state: 08A2F624 / 08A2EB50 / 08A2E9A0) */
     else if (!strcmp(fn, "FE_SavePlayerProfile")) ak_fe_profile_save();   /* 08A2EA54 -> 08A62208: the profile to its save (above) */
     else if (!strcmp(fn, "FE_LoadPlayerProfile")) ak_fe_profile_load();   /* 08A2EAC8 -> 08A62274 */
     else if (!strcmp(fn, "FE_DeletePlayerProfile")) { char pp[512]; prof_path(pp, sizeof pp); remove(pp); prof_have = false; }
@@ -1074,6 +1092,7 @@ int ak_fe_update(const ak_input *in, f32 dt)
     if (f && f->type == AK_GUI_BUTTON2 && f->binding && f->binding[0] && (in->pressed & AK_BTN_CROSS)) {   /* a check box */
         var_set(f->binding, var_get(f->binding) != 0 ? 0 : 1);
         if (!strcmp(f->binding, "BFF.Subtitles")) ak_setting_set("AK_SUBTITLES", var_get(f->binding) != 0 ? "1" : "0");   /* (the narrator's subtitles) */
+        if (!strcmp(f->binding, "BFF.InfantryControlInvertYAxis")) ak_setting_set("AK_INVERT_Y", var_get(f->binding) != 0 ? "1" : "0");   /* (the soldier's look; the next match) [assumed: the vehicle and spacecraft flags not applied yet] */
         return AK_FE_NONE;
     }
     static const u32 dirs[4] = { AK_BTN_LEFT, AK_BTN_RIGHT, AK_BTN_UP, AK_BTN_DOWN };
