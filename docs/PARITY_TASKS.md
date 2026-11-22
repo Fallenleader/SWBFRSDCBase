@@ -1508,6 +1508,10 @@ textures and how they are used. Section R lists only what must be in place so th
     (FE_Medals_* 08A34840.., the earned flags at +0x168, the stats 08972F90), the soldier preview / head models and the choices in
     play (body, head, colours), an on-screen keyboard, the vehicle / spacecraft inversions and sensitivities in play, the
     cut-scene list and movies, the customisation preview's scale.
+  - Part 64, 2026-11-22 - **8.2: medals and the profile's counters** (see NATIVE_ENGINE). Open in 8.2: Super_Slicer's counter
+    (08A1F9B0), the kill flags' meanings checked against the harness, the personalisation's soldier preview / head models and the
+    choices in play, an on-screen keyboard, the vehicle / spacecraft inversions and sensitivities in play, the cut-scene list and
+    movies, the customisation preview's scale.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

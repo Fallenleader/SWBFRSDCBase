@@ -8,6 +8,7 @@
 #include "../assets/blueprint.h"
 #include "../platform/plat.h"
 #include <string.h>
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -66,6 +67,7 @@ static f32 var_get(const char *name)
  * 0x80C, 0x4000)); checked against the recompiled build's own saves (the MD5 of their 0x80C bytes is their first 16).  The script
  * values point into it (registered by 08978CEC): the table below.  Aurek keeps the whole block, so the parts it does not read go
  * back out as they came.  [assumed: the load checks the MD5 (its checker not read); the slot "0000"; loaded when the menus start] */
+static u16 medal_msg[96]; static u32 medal_msg_n;              /* (the medals: below) */
 #define PROF_SIZE 0x80C
 static u8 prof[PROF_SIZE]; static bool prof_have;
 static const struct { const char *name; u16 off; u8 kind; } prof_map[] = {   /* kind: 0 u8, 1 s32, 2 f32 */
@@ -485,7 +487,8 @@ static const u16 *gc_text(const ak_widget *w, u32 *n)
 static const u16 *override_text(const ak_widget *w, u32 *n)
 {
     { const u16 *t = gc_text(w, n); if (t) return t; }
-    if (w->binding && !strcmp(w->binding, "BFF.FE_ProfileName")) return ak_fe_profile_name(n);   /* (the profile's name, 089783BC's) */
+    if (w->binding && !strcmp(w->binding, "BFF.FE_ProfileName")) return ak_fe_profile_name(n);
+    if (w->name && !strcmp(w->name, "E_TX_MedalNotification")) { *n = medal_msg_n; return medal_msg_n ? medal_msg : NULL; }   /* (08A32C4C's text) */   /* (the profile's name, 089783BC's) */
     if (!have_match || !w->name) return NULL;
     if (parent_name && !strcmp(parent_name, "W_TB_SpawnName")) {          /* the focused post's name */
         int k = focused_spawn(); if (k >= 0 && (u32)k < match.nposts && match.post_name[k] >= 0) return ak_hud_post_name(match.post_name[k], n);
@@ -557,6 +560,8 @@ static const u16 *cust_name(int cat, int i, u32 *n)
 }
 static int pers_count(const char *fn); static bool pers_text(const char *fn, int row, u32 *n, const u16 **out); static bool pers_picture(const char *fn, int row, f32 *uv);
 static int pers_insignia(void);
+static int medal_count(const char *fn); static bool medal_text(const char *fn, int row, u16 *buf, u32 *n, const u16 **out); static bool medal_picture(const char *fn, int row, f32 *uv);
+static s32 lb_tex = -1;                                              /* (a row part's picture from another of the file's textures, -1 its own) */
 static int pers_cat(void); static const u16 *pers_item_name(int cat, int row, const char *suffix, u32 *n); static const u32 pers_prompt_key[5];
 static void cust_vars(void)                                            /* the script values the pages show by */
 {
@@ -583,6 +588,7 @@ static int lb_count(const ak_widget *w)
         if (!strncmp(fn, "FE_Customisation_ListCategory", 29)) return NCAT;
         if (!strncmp(fn, "FE_Customisation_ListCarousel", 29)) return cust_count[cust_cat];
         if (!strncmp(fn, "FE_Personalisation_", 19)) return pers_count(fn);
+        if (!strncmp(fn, "FE_MedalsPopulate", 17)) return medal_count(fn);
     }
     return 0;
 }
@@ -601,6 +607,7 @@ static bool lb_text(const char *fn, int row, u16 *buf, u32 *n, const u16 **out)
 {
     char t[24] = ""; *out = NULL;
     if (pers_text(fn, row, n, out)) return true;
+    if (medal_text(fn, row, buf, n, out)) return true;
     if (!strcmp(fn, "FE_Customisation_ListCategoryNames")) { *out = ak_gui_text(&texts, cust_name_key[row & 7], n); return true; }
     if (!strcmp(fn, "FE_Customisation_ListCategoryTotals")) snprintf(t, sizeof t, "%d", cust_cost(row & 7, cust_sel[row & 7]));
     else if (!strcmp(fn, "FE_Customisation_ListCarouselCosts")) snprintf(t, sizeof t, "%d", cust_cost(cust_cat, row));
@@ -625,6 +632,7 @@ static bool lb_picture(const char *fn, int row, f32 *uv)
     }
     if (!strcmp(fn, "FE_Customisation_ListCarouselAnims")) { memset(uv, 0, 16); return true; }   /* (the 3D items: not drawn yet) */
     if (pers_picture(fn, row, uv)) return true;
+    if (medal_picture(fn, row, uv)) return true;
     return false;
 }
 static int lb_row = -1; static bool lb_selected;                     /* drawing a list box's row: which, and is it the chosen one */
@@ -694,7 +702,8 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
     }
     f32 uvo[4]; const f32 *uv = w->uv;
     if (have_match && w->type == AK_GUI_IMAGE && w->name && picture_override(w, uvo)) { if (uvo[2] <= uvo[0]) return; uv = uvo; }
-    if (in_row && w->fill.fn && w->fill.fn[0] && w->type == AK_GUI_IMAGE && lb_picture(w->fill.fn, lb_row, uvo)) { if (uvo[2] == uvo[0]) return; uv = uvo; }
+    s32 wtex = w->tex; lb_tex = -1;
+    if (in_row && w->fill.fn && w->fill.fn[0] && w->type == AK_GUI_IMAGE && lb_picture(w->fill.fn, lb_row, uvo)) { if (uvo[2] == uvo[0]) return; uv = uvo; if (lb_tex >= 0) wtex = lb_tex; }
     if (gc_on && w->type == AK_GUI_IMAGE && w->name && !strcmp(w->name, "E_IM_Commander") && gc_cmdr(parent_name) >= 0 && gc_cmdr(parent_name) < 4) {
         /* the side's commander from GC's own sheets (texture table 12-15: Alliance, greys, Empire, greys; cells by 08A4xxxx's draws:
            commander k at u (k / 2) x 0.4219, v (k % 2) x 0.375, 0.4219 x 0.375) - in colour while available or bought, else greyed
@@ -702,10 +711,10 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
         int c = gc_cmdr(parent_name); bool col = gc.cmdr_avail[c] || gc.cmdr_bought[c]; ak_gfx_tex *t = gc.portrait[col ? 0 : 1];
         if (t) { f32 u0 = (f32)(c / 2) * 0.4219f, v0 = (f32)(c % 2) * 0.375f; ak_hud_2d_quad(t, x, y, x + w->size[0], y + w->size[1], u0, v0, u0 + 0.4219f, v0 + 0.375f, argb_of(w->rgba, a)); goto children; }
     }
-    if (w->type == AK_GUI_IMAGE && w->tex >= 0 && (u32)w->tex < gf.ntex && gtex[w->tex]) {
+    if (w->type == AK_GUI_IMAGE && wtex >= 0 && (u32)wtex < gf.ntex && gtex[wtex]) {
         const f32 *c = w->rgba;
         if (spawn_owner >= 0 && w->name && !strncmp(w->name, "E_IM_SpawnPoint", 15)) c = spawn_rgba[spawn_owner][w->name[15] == 'H'];
-        ak_hud_2d_quad(gtex[w->tex], x, y, x + w->size[0], y + w->size[1], uv[0], uv[1], uv[2], uv[3], argb_of(c, a));
+        ak_hud_2d_quad(gtex[wtex], x, y, x + w->size[0], y + w->size[1], uv[0], uv[1], uv[2], uv[3], argb_of(c, a));
     } else if (w->type == AK_GUI_IMAGE && w->rgba[3] > 0) {          /* no picture: a plain quad in its colour (panels, scroll bars) */
         f32 h = w->size[1], yy = y;
         if (scroll && w->name && !strcmp(w->name, "W_IM_Bar")) {      /* the bar: the shown share of the rows, at the first shown row */
@@ -888,6 +897,132 @@ static void close_layer(void)
 }
 static void status(int s) { var_set("BFF.FE_MapSelectionStatus", s); }
 static void rotation_changed(void) { var_set("BFF.NumMapsInRotation", nrot); var_set("BFF.FE_IsRotationListFull", nrot >= 16); }
+/* The medals and the profile's counters.  The counters are u32s at profile +0xA4 (089775E0 adds one, marks the profile changed and
+ * runs 08977D14); the 29 medals' earned flags are bytes at +0x168.  Counters (with what adds to them, traced):
+ *   0..21  a level won (08973218: h31 of the level's name - boz_pity, endor, geonosis, hoth, hoth_ion_cannon, kashyyyk, korriban,
+ *          mustafar, mygeeto, naboo, ord_mantell, saleucami, sullust, tatooine, yavin_iv, space_alderaan, space_coruscant_clone,
+ *          space_hoth, space_kashyyyk_civil / _clone, space_kessel, space_mygeeto, space_yavin), from 08972F90 when the player's side
+ *          won; 45 = every one of them non-zero (089775A8)
+ *   33 the campaign's Endor won (0897300C); 34 a Galactic Conquest won (08A3B09C); 42 a match won outside the campaign (08972F90)
+ *   36 a kill online (08A62C70: only while BFF.ExternalNetwork, 0x08C2932C); 37 nothing adds to it; 38 / 39 the top score on
+ *      25 December / 4 July, online only (08973070: BFF.ExternalNetwork's neighbour 0x08C2932D, set when hosting or joining)
+ *   40 / 41 a kill whose flags have bit 1 (08A62C70; 41 when the killer's vehicle is one 089C6AE8 accepts) [assumed: bit 1 = the
+ *      victim was in a vehicle, 41 = the killer flies]; 46 bit 0 [assumed: a hero]; 47 a kill by a soldier in the table 0x08C2B3A4
+ *      [assumed: a saber-wielding hero]; 43 a flag the player captured outside the campaign (089EADD4, message 0x8082); 44 a post
+ *      taken with the player in it (089EA3D0); 48 08A1F9B0 [not traced - nothing adds to it here]
+ * A medal (Medals blueprints, in 0x08ADC738's order with their counters at 0x08ADC7AC) is earned when its counter reaches
+ * Test_Number; with Display_Message the text is STDTEXT 256 ("You have been awarded the %s medal") of its Name - on the HUD (08A4EDDC
+ * style 4) unless DisplayOnScoreBoard, then on the game-over dialogue (08A32C4C: E_TX_MedalNotification while BFF.FE_DisplayMedal).
+ * The medals page (MP_Medals, FE_Medals_* 08A34840..): 14 rows (keys 0x08AE3440 / 0x08AE3478), each with bronze / silver / gold
+ * medals (0x08AE34B0, -1 none); a tier's cost text is its Test_Number when 2 or more (08A346E8), its picture (08A34A68 / 08A34D68,
+ * cells set by 08A35158) the medal's when earned, else the locked cell of Medals_01.tga, or with no medal the empty one of
+ * Medals_02.tga. */
+#define NSTATS 49
+static const char *const medal_bp[29] = {
+    "Complete_Campaign", "Galactic_Conquest", "Scourge_Infra_Bronze", "Scourge_infra_silver", "Scourge_infra_Gold", "Infra_Elite",
+    "Wookie_Life_Hero", "Endor_Day_Hero", "Tank_Buster_Bronze", "Tank_Buster_Silver", "Tank_Buster_Gold", "Rogue_Leader_Bronze",
+    "Rogue_Leader_Silver", "Rogue_Leader_Gold", "Conqueror_Bronze", "Conqueror_Silver", "Conqueror_Gold", "Flag_Carrier_Bronze",
+    "Flag_Carrier_Silver", "Flag_Carrier_Gold", "Capture_Master_Bronze", "Capture_Master_Silver", "Capture_Master_Gold",
+    "Conqueror_Supreme", "Hero_Vanquisher", "Super_Slicer", "Jedi_Master_Bronze", "Jedi_Master_Silver", "Jedi_Master_Gold" };
+static const u8 medal_counter[29] = { 33, 34, 36, 36, 36, 37, 38, 39, 40, 40, 40, 41, 41, 41, 42, 42, 42, 43, 43, 43, 44, 44, 44, 45, 46, 48, 47, 47, 47 };
+static const s8 medal_row[14][3] = { { 8, 9, 10 }, { 11, 12, 13 }, { 26, 27, 28 }, { 14, 15, 16 }, { 17, 18, 19 }, { 20, 21, 22 }, { -1, 23, -1 },
+                                     { -1, 24, -1 }, { -1, 25, -1 }, { -1, 0, -1 }, { -1, 1, -1 }, { 2, 3, 4 }, { -1, 6, -1 }, { -1, 7, -1 } };
+static const u32 medal_name_key[14] = { 0x14CE3F2Au, 0x772D2CFAu, 0x8C41D115u, 0x9BFC2D0Au, 0xD9002B11u, 0x0F3ACC67u, 0xD02E6C24u,
+                                        0x97379D7Du, 0xDF85141Du, 0xFE02D817u, 0xEA7C4C62u, 0x4A756E7Au, 0x9443475Du, 0xE325F0CAu };
+static const u32 medal_desc_key[14] = { 0x92AF858Bu, 0xB574B2B9u, 0x0A231776u, 0xF88D97ABu, 0x1747B0D0u, 0xD9B7DE66u, 0xA0BFA5C5u,
+                                        0x1C5CCB5Eu, 0xB0164DBEu, 0x832805F8u, 0xBB0D8603u, 0x75C7771Bu, 0xC8449E1Cu, 0xADA302C9u };
+/* 08A35158's cells: per row, bronze / silver / gold {u0, v0, u1, v1, sheet (1 Medals_01, 2 Medals_02)} */
+static const f32 medal_cell[14][3][5] = {
+    { { 0, 0, .25f, .25f, 2 }, { .25f, 0, .5f, .25f, 2 }, { .5f, 0, .75f, .25f, 2 } },
+    { { 0, .5f, .25f, .75f, 2 }, { .25f, .5f, .5f, .75f, 2 }, { .5f, .5f, .75f, .75f, 2 } },
+    { { 0, 0, .25f, .25f, 1 }, { .5f, 0, .75f, .25f, 1 }, { .25f, 0, .5f, .25f, 1 } },
+    { { 0, .5f, .25f, .75f, 1 }, { .5f, .5f, .75f, .75f, 1 }, { .25f, .5f, .5f, .75f, 1 } },
+    { { 0, .25f, .25f, .5f, 2 }, { .25f, .25f, .5f, .5f, 2 }, { .5f, .25f, .75f, .5f, 2 } },
+    { { 0, .25f, .25f, .5f, 1 }, { .5f, .25f, .75f, .5f, 1 }, { .25f, .25f, .5f, .5f, 1 } },
+    { { 0 }, { .75f, .5f, 1, .75f, 1 }, { 0 } },
+    { { 0 }, { .25f, .75f, .5f, 1, 1 }, { 0 } },
+    { { 0 }, { .75f, .25f, 1, .5f, 2 }, { 0 } },
+    { { 0 }, { 0, .75f, .25f, 1, 1 }, { 0 } },
+    { { 0 }, { .75f, 0, 1, .25f, 2 }, { 0 } },
+    { { 0, .75f, .25f, 1, 2 }, { .25f, .75f, .5f, 1, 2 }, { .5f, .75f, .75f, 1, 2 } },
+    { { 0 }, { .5f, .75f, .75f, 1, 1 }, { 0 } },
+    { { 0 }, { .75f, 0, 1, .25f, 1 }, { 0 } } };
+static u32 stat_get(int i) { if (!prof_have) prof_new(); return i >= 0 && i < NSTATS ? ak_rd32(prof + 0xA4 + 4 * i) : 0; }
+static const ak_bp_object *medal_obj(int k) { return fe_bp && k >= 0 && k < 29 ? ak_bp_find(fe_bp, "Medals", medal_bp[k]) : NULL; }
+static void medals_check(void)                                         /* 089775A8 + 08977D14 */
+{
+    if (!prof_have) prof_new();
+    u32 all = 1; for (int i = 0; i < 22; i++) if (!stat_get(i)) all = 0;
+    memcpy(prof + 0xA4 + 4 * 45, &all, 4);
+    for (int k = 0; k < 29; k++) {
+        if (prof[0x168 + k]) continue;
+        const ak_bp_object *o = medal_obj(k); if (!o) continue;
+        u32 need = (u32)ak_bp_int(o, "Test_Number", 0); if (!need || need > stat_get(medal_counter[k])) continue;
+        prof[0x168 + k] = 1;
+        if (!ak_bp_int(o, "Display_Message", 0)) continue;
+        u32 nn = 0, fn = 0; const u16 *nm = ak_hud_stdtext((u32)ak_bp_int(o, "Name", 0), &nn);
+        if (!ak_bp_int(o, "DisplayOnScoreBoard", 0)) { ak_hud_message(4, 256, nm, nn); continue; }
+        const u16 *f = ak_hud_stdtext(256, &fn); medal_msg_n = 0;          /* 08A32C4C: kept for the game-over dialogue */
+        for (u32 i = 0; f && i < fn && medal_msg_n < 95; i++) {
+            if (f[i] == '%' && i + 1 < fn && f[i + 1] == 's') { for (u32 j = 0; nm && j < nn && medal_msg_n < 95; j++) medal_msg[medal_msg_n++] = nm[j]; i++; }
+            else medal_msg[medal_msg_n++] = f[i];
+        }
+        var_set("BFF.FE_DisplayMedal", 1);
+    }
+}
+void ak_fe_stat(int i)                                                 /* 089775E0 */
+{
+    if (i < 0 || i >= NSTATS) return;
+    u32 v = stat_get(i) + 1; memcpy(prof + 0xA4 + 4 * i, &v, 4); prof[6] = 1; medals_check();
+}
+u32 ak_fe_stat_value(int i) { return stat_get(i); }
+bool ak_fe_has_profile(void) { return prof_have; }
+/* the match's end (08972F90, from 08972EB0): when the player's side won - the campaign's Endor (33), the level (0..21), a win outside
+ * the campaign (42) */
+void ak_fe_match_won(const char *level, int mode)
+{
+    static const char *const lv[22] = { "boz_pity", "endor", "geonosis", "hoth", "hoth_ion_cannon", "kashyyyk", "korriban", "mustafar",
+        "mygeeto", "naboo", "ord_mantell", "saleucami", "sullust", "tatooine", "yavin_iv", "space_alderaan", "space_coruscant_clone",
+        "space_hoth", "space_kashyyyk_civil", "space_kessel", "space_mygeeto", "space_yavin" };
+    char nm[48] = ""; size_t k = 0; for (; level && level[k] && k < sizeof nm - 1; k++) nm[k] = (char)tolower((u8)level[k]); nm[k] = 0;
+    if (mode == 5 && !strcmp(nm, "endor")) ak_fe_stat(33);
+    int idx = -1; for (int i = 0; i < 22; i++) if (!strcmp(nm, lv[i])) idx = i;
+    if (!strcmp(nm, "space_kashyyyk_clone")) idx = 18;
+    if (idx >= 0) ak_fe_stat(idx);
+    if (mode != 5) ak_fe_stat(42);
+}
+void ak_fe_medal_clear(void) { medal_msg_n = 0; var_set("BFF.FE_DisplayMedal", 0); }
+static int medal_count(const char *fn) { (void)fn; return 14; }
+static bool medal_text(const char *fn, int row, u16 *buf, u32 *n, const u16 **out)
+{
+    if (strncmp(fn, "FE_MedalsPopulate", 17) || row < 0 || row >= 14) return false;
+    const char *w = fn + 17;
+    if (!strcmp(w, "NameText")) { *out = ak_gui_text(&texts, medal_name_key[row], n); return true; }
+    if (!strcmp(w, "DescriptionText")) { *out = ak_gui_text(&texts, medal_desc_key[row], n); return true; }
+    int t = !strcmp(w, "BronzeCost") ? 0 : !strcmp(w, "SilverCost") ? 1 : !strcmp(w, "GoldCost") ? 2 : -1; if (t < 0) return false;
+    int k = medal_row[row][t]; const ak_bp_object *o = medal_obj(k); s32 v = o ? ak_bp_int(o, "Test_Number", 0) : 0;
+    *n = 0; *out = buf; if (k < 0 || v < 2) return true;
+    char tx[16]; snprintf(tx, sizeof tx, "%d", (int)v); for (const char *c = tx; *c; c++) buf[(*n)++] = (u16)(u8)*c;
+    return true;
+}
+static s32 tex_named(const char *part)
+{
+    for (u32 i = 0; i < gf.ntex; i++) { const char *nm = gf.tex[i].name; if (!nm) continue;
+        for (const char *q = nm; *q; q++) { size_t j = 0; while (part[j] && q[j] && tolower((u8)q[j]) == tolower((u8)part[j])) j++; if (!part[j]) return (s32)i; } }
+    return -1;
+}
+static bool medal_picture(const char *fn, int row, f32 *uv)
+{
+    if (strncmp(fn, "FE_MedalsPopulate", 17) || row < 0 || row >= 14) return false;
+    const char *w = fn + 17;
+    int t = !strcmp(w, "BronzeImage") ? 0 : !strcmp(w, "SilverImage") ? 1 : !strcmp(w, "GoldImage") ? 2 : -1; if (t < 0) return false;
+    int k = medal_row[row][t]; if (!prof_have) prof_new();
+    static const f32 corner[4] = { .75f, .75f, 1, 1 };
+    if (k < 0) { memcpy(uv, corner, 16); lb_tex = tex_named("Medals_02"); }
+    else if (prof[0x168 + k]) { memcpy(uv, medal_cell[row][t], 16); lb_tex = tex_named(medal_cell[row][t][4] == 1 ? "Medals_01" : "Medals_02"); }
+    else { memcpy(uv, corner, 16); lb_tex = tex_named("Medals_01"); }
+    return true;
+}
 static const ak_widget *first_control(const ak_widget *w);
 /* The personalisation menu (BFF_CUSTOMISATION.GUI; FE_Personalisation_* registered by 08A3646C): MP_Personalisation (the 5
  * categories, W_LB_TypeList) over MP_CustomBackground, with MP_PersonCarousel beside it (opened unfocused: the highlighted

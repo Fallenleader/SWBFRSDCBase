@@ -29,6 +29,11 @@ typedef struct {
 bool ak_fe_init(ak_vfs *vfs);
 bool ak_fe_profile_load(void);                 /* the player profile (savedata/ULUS10292<slot>/DATA.BIN, the game's format) */
 bool ak_fe_profile_save(void);
+void ak_fe_stat(int i);                                  /* the profile's counter i + 1, the medals checked (089775E0) */
+u32 ak_fe_stat_value(int i);
+bool ak_fe_has_profile(void);                            /* (the front end set up: its profile loaded or new) */
+void ak_fe_match_won(const char *level, int mode);       /* the player's side won a match (08972F90): the level, its mode */
+void ak_fe_medal_clear(void);                            /* the game-over dialogue's medal line off */
 const u16 *ak_fe_profile_name(u32 *len);       /* its name, NULL none */
 void ak_fe_campaign_won(void);                 /* a won campaign mission: the profile's level on (08973468), saved */                  /* the page index and the menu texts; false = no GUIMENU files */
 bool ak_fe_open(const char *page);             /* "MP_MainMenu" */

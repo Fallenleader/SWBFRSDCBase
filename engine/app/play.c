@@ -2261,6 +2261,8 @@ static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
     if (p->vspawn[v].fixed && p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 10006, p->vspawn[v].eid, script_sink, p);
     if (p->vspawn[v].lone && p->have_script) ak_script_raise(&p->script, p->vspawn[v].ev, p->vspawn[v].nev, 3, p->vspawn[v].eid, script_sink, p);   /* (a placed craft broken) */
     if (p->target[VT(p, v)].last_attacker == 0 && vh->driver != 0) p->kills++;
+    if (p->target[VT(p, v)].last_attacker == 0 && vh->driver > 0 && p->target[vh->driver].team != p->target[0].team)   /* (08A62C70: flag bit 1, 40 / 41) */
+        p->stat_add[p->in_veh >= 0 && p->veh[p->in_veh].def && p->veh[p->in_veh].def->kind == AK_VEH_FLYER ? 41 : 40]++;   /* [assumed: bit 1 = the victim in a vehicle; 41 = the killer flying] */
     vh->alive = false; vh->dead_t = 0; boom(p, vh->pos, vh->def->bp);
     if (vh->driver == 0) { p->in_veh = -1; vh->driver = -1; if (p->alive) { p->target[0].alive = true; p->target[0].health = 0; player_down(p); } }
     else if (vh->driver > 0) {                                                /* a bot's: it dies with it (no body left) */
@@ -4426,6 +4428,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         if (p->target[i].last_attacker == 0 && i != 0) p->kills++;
         if (i < 64) p->tally_deaths[i]++;
         {   s32 a = p->target[i].last_attacker; if (a >= 0 && a < 64 && (u32)a < NS(p) && p->target[a].team != p->target[i].team) p->tally_kills[a]++; }
+        if (p->target[i].last_attacker == 0 && i != 0 && p->target[i].team != p->target[0].team) {   /* the profile's counters (08A62C70) */
+            if (hero_of(p, (s32)i)) p->stat_add[46]++;                    /* [assumed: the kill message's flag bit 0 = the victim a hero] */
+            if (hero_of(p, 0)) p->stat_add[47]++;                         /* [assumed: the table 0x08C2B3A4 = the heroes] - "kills as a hero" */
+        }
         {   s32 a = p->target[i].last_attacker; ak_play_hero *h = hero_of(p, a);      /* a hero's kill heals it (HeroHealthAddPerKill) */
             if (h && ak_game_mode != 3 && p->target[a].alive && p->target[a].team != p->target[i].team) {   /* (08982634: not in hero CTF) */
                 ak_target *ht = &p->target[a]; ht->health += h->per_kill * h->health; if (ht->health > h->health) ht->health = h->health; } }
@@ -4534,6 +4540,10 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         for (u32 k = 0; k < p->match.nev; k++) {                              /* the posts' script events (captures) */
             const ak_post *po = &p->cq.post[p->match.ev[k].post];
             if (p->have_script) ak_script_raise(&p->script, po->ev, po->nev, p->match.ev[k].event, p->cq.post_id[p->match.ev[k].post], script_sink, p);
+            if (p->match.ev[k].event == 10000 && p->alive && p->in_veh < 0 && p->match.post[p->match.ev[k].post].owner == p->team) {   /* (089EA3D0: taken with the player in it) */
+                f32 dx = p->ch.pos[0] - po->pos[0], dy = p->ch.pos[1] - po->pos[1], dz = p->ch.pos[2] - po->pos[2];
+                if (dx * dx + dy * dy + dz * dz <= p->rules.capture_radius * p->rules.capture_radius) p->stat_add[44]++;
+            }
         }
         p->match.nev = 0;
         p->near_post = -1;
@@ -4552,6 +4562,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             cs[i].alive = i ? p->bot[i - 1].alive : p->alive; cs[i].on_foot = i ? p->bot[i - 1].veh < 0 : p->in_veh < 0 && p->in_turret < 0;
         }
         ak_ctf_update(&p->ctf_map, &p->ctf, ak_game_mode, p->is_space, cs, NS(p), dt);
+        if ((p->ctf.events & AK_CTF_EV_CAPTURE) && p->ctf.last_capturer == 0 && ak_game_mode != 5) p->stat_add[43]++;   /* (089EADD4, message 0x8082) */
         if (ak_game_mode == 5 && p->have_script) {                           /* the campaign's carried objects tell the script */
             if ((p->ctf.events & AK_CTF_EV_PICKUP) && p->ctf.last_flag >= 0) { u32 f = (u32)p->ctf.last_flag;
                 ak_script_raise(&p->script, p->ctf_fev[f], p->ctf_nfev[f], 10012, p->ctf_map.flag[f].id, script_sink, p); }

@@ -204,6 +204,9 @@ typedef struct {
     bool pfx_on;                       /* AK_PFX (1): the game's effects in place of Aurek's flashes */
     s32 proj_fx[AK_MAX_PROJ], veh_fx[PLAY_MAX_VEH][2], eng_fx[PLAY_MAX_VEH][4], boost_fx[PLAY_MAX_VEH][6];   /* effects riding objects: projectile trails (PFXEffect), vehicle smoke / fire (0 none) */
     u32 kills, deaths;
+    u16 stat_add[49];                  /* the profile's counters to add (frontend ak_fe_stat; the viewer takes them each frame): 40 / 41
+                                          vehicles destroyed on foot / flying, 43 flags captured, 44 posts taken, 46 heroes killed, 47 kills
+                                          as the hero */
     u16 tally_kills[64], tally_deaths[64];   /* per soldier (0 the player, 1.. the bots): the score boards' columns */
     s32 idle_clip, death_clips[4], death_pick, idle_vars[2];   /* idle_vars: the rifle set's rows 18 / 19 (the idle variations) */   /* death_pick: the player's, of the four */
     ak_weapon_def team_wdef[2], team_bdef[2]; bool team_armed[2];

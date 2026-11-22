@@ -689,6 +689,16 @@ int main(int argc, char **argv)
         bool fe_paused = fe_menu && ak_fe_page() && strcmp(ak_fe_page(), "MP_Team_Selection") && strcmp(ak_fe_page(), "MP_Spawn_Location");
         if (playing && play.ready) {
             if (!fe_paused) ak_play_update(&play, &models, &in, dt);
+            if (ak_fe_has_profile()) {                                      /* the profile's counters and medals (089775E0, 08972F90) */
+                for (int k = 0; k < 49; k++) for (; play.stat_add[k]; play.stat_add[k]--) ak_fe_stat(k);
+                static bool told; int w = play.have_cq ? play.match.winner : play.have_ctf ? play.ctf.winner : -1;
+                if (w < 0) { if (told) ak_fe_medal_clear(); told = false; }
+                else if (!told) { told = true;
+                    if (w == play.team && strcmp(levels[cur].label, "GC")) {
+                        const char *sp = strchr(levels[cur].label, ' '); ak_fe_match_won(sp ? sp + 1 : levels[cur].label, ak_game_mode);
+                        if (ak_setting_int("AK_AUTOSAVE", 1)) ak_fe_profile_save();   /* [assumed: saved at the match's end] */
+                    } }
+            }
             ak_play_camera(&play, dt, &cam.pos, &cam.yaw, &cam.pitch, &fovy); if (getenv("AK_DEBUG_CAMPOS")) fprintf(stderr, "[campos] %.3f %.3f %.3f yaw %.4f pitch %.4f fovy %.3f\n", cam.pos.x, cam.pos.y, cam.pos.z, cam.yaw, cam.pitch, fovy);
             ak_play_sound_update(&play, dt);
             if (play.gc_result.done && gc_level >= 0 && (gc_end_t += dt) > ak_setting_float("AK_GC_RETURN_S", 4.0f)) {   /* a GC battle over: back to the map [assumed: 4 s, the original shows its results pages] */
@@ -726,7 +736,8 @@ int main(int argc, char **argv)
                   if (*q && ph == 0) in.pressed |= *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : *q == 'S' ? AK_BTN_SQUARE : *q == 'T' ? AK_BTN_TRIANGLE : *q == '1' ? AK_BTN_R : *q == 'P' ? AK_BTN_START : 0u; } }
             char gc_sav[400]; snprintf(gc_sav, sizeof gc_sav, "%s/gc_conquest.sav", ak_plat_user_dir());
             if (gc_screen->phase == 4 && !gc_screen->win_open && ak_fe_init(vfs)) {   /* the game over: 08A3B09C opens the winner's page */
-                ak_fe_var("Menus.GCDisplayVictoryMedalText", 1);   /* (= no award yet, 0x08C29468 == 0) [assumed: the award is not recorded] */
+                ak_fe_var("Menus.GCDisplayVictoryMedalText", ak_fe_stat_value(34) == 0);   /* (08A3B09C: the medal's text while counter 34 was 0, then + 1) */
+                if (gc_screen->g.winner == 0) { ak_fe_stat(34); if (ak_setting_int("AK_AUTOSAVE", 1)) ak_fe_profile_save(); }   /* [assumed: on the player's victory only, as the page] */
                 /* 08A3B09C: the page by the player's side's faction (08A38508 +0x2C == 3: 0x8154D073, else 0xFC9D4FB7) - the victory
                    pages; a defeat shows the map's "You've been defeated" (0x61) [assumed: 08A3B09C runs on the player's victory only] */
                 if (gc_screen->g.winner == 0) gc_screen->win_open = ak_fe_open(gc_screen->g.side[0].faction == 3 ? "MP_Win_Empire" : "MP_Win_Rebel");
