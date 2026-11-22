@@ -77,7 +77,7 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     if (d->model < 0) return false;
     const char *tt = ak_bp_string(o, "tank_type", "hover_tank");
     d->kind = flyer ? AK_VEH_FLYER : walker ? AK_VEH_WALKER : !strcmp(tt, "speeder_bike") ? AK_VEH_SPEEDER : !strcmp(tt, "track_tank") ? AK_VEH_TRACK : !strcmp(tt, "creature_tank") ? AK_VEH_CREATURE : AK_VEH_HOVER;
-    d->clip_walk = d->clip_idle = d->clip_death = d->clip_flight = d->clip_landed = -1;
+    d->clip_walk = d->clip_idle = d->clip_death = d->clip_flight = d->clip_landed = d->clip_turn_l = d->clip_turn_r = -1;
     for (int k = 0; k < 8; k++) d->cclip[k] = -1;
     {   /* a creature's clips (its blueprint's Anim* paths; the clip is the file's name) */
         static const char *ck[8] = { "AnimLanded", "AnimWalk", "AnimRun", "AnimWalkBack", "AnimRunBack", NULL, "AnimLeftTurn", "AnimRightTurn" };
@@ -128,6 +128,11 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
         snprintf(nm, sizeof nm, "%s_WalkLoop", pre); d->clip_walk = find_clip(m, nm);
         snprintf(nm, sizeof nm, "%s_idle", pre); d->clip_idle = find_clip(m, nm);
         snprintf(nm, sizeof nm, "%s_Death", pre); d->clip_death = find_clip(m, nm);
+        /* the AT-ST's clip table (its ATBL chunk in the level: 7 slots x 1 variant, the clips' name hashes) is idle, WalkLoop, Death,
+         * idle_to_leftfoot, leftfoot_to_idle, turnL_30, turnR_30 (the foot-to-turn clips in the files are not in it); the table is
+         * read through 089C0828 (slot, variant; 0xDB3 = none) */
+        snprintf(nm, sizeof nm, "%s_turnL_30", pre); d->clip_turn_l = find_clip(m, nm);
+        snprintf(nm, sizeof nm, "%s_turnR_30", pre); d->clip_turn_r = find_clip(m, nm);
         d->walk_speed = walk_speed_of(m, d->model, d->clip_walk) * ak_bp_float(o, "WalkingSpeedScale", 1);
         snprintf(nm, sizeof nm, "%s_idle_to_leftfoot", pre); d->clip_wstart = find_clip(m, nm);
         snprintf(nm, sizeof nm, "%s_leftfoot_to_idle", pre); d->clip_wstop_l = find_clip(m, nm);
@@ -653,7 +658,10 @@ void ak_vehicle_pose(ak_vehicle *v, const ak_model_set *m, f32 dt)
             goto sample;
         }
         else if (fabsf(fwd) > 0.3f) { clip = d->clip_walk; rate = fwd / d->walk_speed; }   /* the feet keep pace with the ground (backwards too) */
-        else if (fabsf(v->steer) > 0.1f) { clip = d->clip_walk; rate = 0.6f; }               /* turning on the spot */
+        else if (fabsf(v->steer) > 0.1f && (v->steer > 0 ? d->clip_turn_r : d->clip_turn_l) >= 0) { clip = v->steer > 0 ? d->clip_turn_r : d->clip_turn_l; }
+            /* turning on the spot: the table's turn clip, looped [assumed: picked while standing and turning - the walker's clip
+               controller (+876) that sets the slot is not followed] */
+        else if (fabsf(v->steer) > 0.1f) { clip = d->clip_walk; rate = 0.6f; }               /* (no turn clips) */
         else if (d->clip_idle >= 0) clip = d->clip_idle;
         else { clip = d->clip_walk; rate = 0; }                                             /* no idle clip: hold the stride */
         if (clip != v->clip && !(clip == d->clip_walk && v->clip == d->clip_walk)) v->anim_t = 0;

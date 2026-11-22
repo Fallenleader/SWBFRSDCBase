@@ -604,8 +604,12 @@ textures and how they are used. Section R lists only what must be in place so th
     with the boost control (channel 3) past 0.5 and channel 9 set (+1008 bit 0, 089BD694) [assumed: held while walking], paying
     EnergyBoost x dt (089DCE7C); the walk clips then play at SprintingSpeedScale, else at WalkingSpeedScale. Aurek: the same
     (play.c vehicle_boost, ak_vehicle.c walk_scale).  Walking backwards
-    is not measured.  Turning in place (ATST_turnL_30 / ATST_turnR_30, and leftfoot_ / rightfoot_to_lturn / _rturn: names found in
-    HOTH.PSP) is not read - their choice lives in the walker's clip table (ATBL, not read); it is posed as before.
+    is not measured.  Turning in place, 2026-11-22: the walker's clip table is the level's ATBL chunk (AT-ST: 7 slots x 1 variant
+    of clip-name hashes - idle, WalkLoop, Death, idle_to_leftfoot, leftfoot_to_idle, turnL_30, turnR_30; the AT-AT 8 x 3 with
+    leftup / rightup variants), read through 089C0828 (slot, variant; 0xDB3 = none). The foot-to-turn clips and rightfoot_to_idle
+    are in the files but not in the AT-ST's table. turnL_30 / turnR_30 are 0.667 s with no root motion. Aurek now loops the turn
+    clip while the walker stands and turns [assumed: the clip controller at +876 that sets the slot is not followed]. Open: the
+    table says the AT-ST stops only with leftfoot_to_idle, but Aurek (as measured earlier) also uses rightfoot_to_idle - recheck.
   - [ ] Gunnery, what a placed walker does at its path's end, and the ATBL animation chunks (not read).  AT-AT not measured.
     - 2026-11-21, Hoth's AT-AT measured (harness state.log, class 0x8014 id 30d44, two 2.5 min runs): it walks from its start
       node (18874, 226.99 / -9.10 game axes) to the next (18875) at about 2 m/s and stands exactly on it (196.18, -11.84) for the
@@ -1575,6 +1579,7 @@ textures and how they are used. Section R lists only what must be in place so th
     ported; the limits' defaults are 0 (none).
   - Part 76 (2026-11-22): 3.4 walker sprint traced and ported (SprintingSpeedScale above 1, the boost control, EnergyBoost x dt;
     WalkingSpeedScale otherwise).
+  - Part 77 (2026-11-22): 3.4 walker clip table (ATBL) decoded; the AT-ST turns in place with turnL_30 / turnR_30.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

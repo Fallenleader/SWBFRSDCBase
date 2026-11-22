@@ -41,7 +41,7 @@ typedef struct {
     const char *muzzle[4]; f32 muzzle_time[4]; u32 nmuzzles; f32 volley;
     /* walkers ("Walker" blueprints: AT-ST, AT-AT, AT-RT, AT-TE, spider walker): no root motion in their clips, so the walking
      * speed is measured from the walk loop itself - how fast a planted foot slides back (AT-ST 4.9 m/s, AT-AT 2.0 m/s) */
-    s32 clip_walk, clip_idle, clip_death; f32 walk_speed, sprint_scale, walk_scale; bool drivable;
+    s32 clip_walk, clip_idle, clip_death, clip_turn_l, clip_turn_r; f32 walk_speed, sprint_scale, walk_scale; bool drivable;
     s32 cclip[8];                      /* creatures (089B4898): 0 AnimLanded, 1 walk, 2 run, 3 walk back, 4 run back, 6 / 7 left / right turn; -1 none */
     /* the walk's clips and their root speeds (|root velocity| across the ground, per key segment): idle_to_leftfoot, the walk
        loop, leftfoot_to_idle, rightfoot_to_idle */
