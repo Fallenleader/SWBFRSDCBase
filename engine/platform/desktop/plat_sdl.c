@@ -3,6 +3,13 @@
 #include "../../core/ak_settings.h"
 #include <SDL2/SDL.h>
 #include <stdlib.h>
+#include <stdio.h>
+#ifdef _WIN32
+#include <direct.h>
+#define chdir _chdir
+#else
+#include <unistd.h>
+#endif
 
 static SDL_GameController *pad;
 static const char *dirs[3];
@@ -11,6 +18,13 @@ static int ndirs;
 bool ak_plat_init(void)
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS) != 0) { AK_ERROR("plat", "SDL: %s", SDL_GetError()); return false; }
+    {   /* started from another folder (a desktop shortcut, Steam's launcher): when the working folder has no settings.txt and the
+           program's own folder has one, work from the program's folder (settings, log, saves and game files sit next to it) */
+        FILE *f = fopen("settings.txt", "r");
+        if (f) fclose(f);
+        else { char *bp = SDL_GetBasePath(); if (bp) { char p[1024]; snprintf(p, sizeof p, "%ssettings.txt", bp); FILE *g = fopen(p, "r");
+                                                       if (g) { fclose(g); if (chdir(bp) != 0) AK_WARN("plat", "cannot enter %s", bp); } SDL_free(bp); } }
+    }
     const char *d = getenv("AK_DATA_DIR");
     if (d) dirs[ndirs++] = d;
     dirs[ndirs++] = ".";
@@ -55,6 +69,9 @@ bool ak_plat_poll(ak_input *in)
             { SDL_CONTROLLER_BUTTON_START, AK_BTN_START }, { SDL_CONTROLLER_BUTTON_BACK, AK_BTN_SELECT }, { SDL_CONTROLLER_BUTTON_DPAD_UP, AK_BTN_UP },
             { SDL_CONTROLLER_BUTTON_DPAD_DOWN, AK_BTN_DOWN }, { SDL_CONTROLLER_BUTTON_DPAD_LEFT, AK_BTN_LEFT }, { SDL_CONTROLLER_BUTTON_DPAD_RIGHT, AK_BTN_RIGHT } };
         for (size_t i = 0; i < AK_ARRAY_LEN(map); i++) if (SDL_GameControllerGetButton(pad, (SDL_GameControllerButton)map[i].b)) h |= map[i].m;
+        /* the triggers (L2 / R2, LT / RT) act as L / R too: the Vita's two shoulder buttons, on either pair */
+        if (SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 12000) h |= AK_BTN_L;
+        if (SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 12000) h |= AK_BTN_R;
     }
     in->held = h; in->pressed = h & ~prev;
     return true;

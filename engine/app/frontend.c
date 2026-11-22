@@ -14,6 +14,10 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include <direct.h>
+#define mkdir(p, m) _mkdir(p)
+#endif
 
 static void fill_all(const struct ak_widget *w);
 static const struct ak_widget *find_id(const struct ak_widget *w, u32 id);
