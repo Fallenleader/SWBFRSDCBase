@@ -1602,6 +1602,8 @@ textures and how they are used. Section R lists only what must be in place so th
   - PS4 (2026-11-22): OpenOrbis toolchain bootstrapped from git (platform/ps4/bootstrap_toolchain.sh). Renderer: Piglet needs
     precompiled shader binaries (no retail compiler, gde-only, ~768 MiB); PS4GL_GNM (GNM, PC-compiled shaders) is the candidate,
     pending the owner's approval to run its tools.
+  - PS5 (2026-11-22): AK_VK_DISPLAY path in gfx_vk.c, plat_ps5.c, build.sh and settings.txt written; compiles for the PS5
+    target; the RADV / SDK / packaging build waits on approval to run PS5_Vulkan's tools.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

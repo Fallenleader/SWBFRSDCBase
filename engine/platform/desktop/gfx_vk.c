@@ -1,4 +1,4 @@
-/* Desktop renderer, Vulkan 1.3 (SDL2 window): the Windows and Steam Deck back end.  The same pipelines, shaders and draw rules as the
+/* Vulkan 1.3 renderer: the Windows and Steam Deck back end (SDL2 window), and the PS5's (AK_VK_DISPLAY: RADV, VK_KHR_display).  The same pipelines, shaders and draw rules as the
  * GL back end (gfx_gl.c), written for what Vulkan is good at: geometry and textures in device-local memory (sub-allocated from
  * large blocks), one persistent descriptor set per texture, per-draw state in push constants, the object lighting in a per-frame
  * ring of uniform records (dynamic offsets), dynamic rendering, two frames in flight.  vulkan-1.dll / libvulkan.so is loaded at
@@ -14,8 +14,14 @@
 #include "../plat.h"
 #include "../../core/ak_settings.h"
 #include <vulkan/vulkan.h>
+#ifdef AK_VK_DISPLAY
+/* consoles (the PS5): no window system; the driver (RADV, linked in) presents to the video output through VK_KHR_display */
+extern PFN_vkVoidFunction vk_icdGetInstanceProcAddr(VkInstance instance, const char *name);
+extern int usleep(unsigned int);
+#else
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +32,12 @@
 #define VK_INST(X) X(DestroyInstance) X(EnumeratePhysicalDevices) X(GetPhysicalDeviceProperties) X(GetPhysicalDeviceQueueFamilyProperties) \
     X(GetPhysicalDeviceMemoryProperties) X(GetPhysicalDeviceFeatures2) X(EnumerateDeviceExtensionProperties) X(CreateDevice) X(GetDeviceProcAddr) \
     X(GetPhysicalDeviceSurfaceSupportKHR) X(GetPhysicalDeviceSurfaceCapabilitiesKHR) X(GetPhysicalDeviceSurfaceFormatsKHR) \
-    X(GetPhysicalDeviceSurfacePresentModesKHR) X(DestroySurfaceKHR) X(GetPhysicalDeviceFormatProperties)
+    X(GetPhysicalDeviceSurfacePresentModesKHR) X(DestroySurfaceKHR) X(GetPhysicalDeviceFormatProperties) VK_INST_DISPLAY(X)
+#ifdef AK_VK_DISPLAY
+#define VK_INST_DISPLAY(X) X(GetPhysicalDeviceDisplayPropertiesKHR) X(GetDisplayModePropertiesKHR) X(CreateDisplayPlaneSurfaceKHR)
+#else
+#define VK_INST_DISPLAY(X)
+#endif
 #define VK_DEV(X) X(DestroyDevice) X(GetDeviceQueue) X(DeviceWaitIdle) X(CreateBuffer) X(DestroyBuffer) X(GetBufferMemoryRequirements) \
     X(AllocateMemory) X(FreeMemory) X(BindBufferMemory) X(MapMemory) X(CreateImage) X(DestroyImage) X(GetImageMemoryRequirements) \
     X(BindImageMemory) X(CreateImageView) X(DestroyImageView) X(CreateSampler) X(DestroySampler) X(CreateShaderModule) X(DestroyShaderModule) \
@@ -60,7 +71,12 @@ typedef struct {
 } frame_t;
 typedef struct { f32 mvp[16]; f32 tint[4]; f32 fogp[4]; f32 uvo[4]; } pconst;   /* 112 bytes (<= 128, the guaranteed minimum) */
 
-static SDL_Window *win; static int W, H; static char name[200];
+#ifdef AK_VK_DISPLAY
+static void *win __attribute__((unused)) = (void *)1;   /* (no window) */
+#else
+static SDL_Window *win;
+#endif
+static int W, H; static char name[200];
 static VkInstance inst; static VkPhysicalDevice phys; static VkDevice dev; static VkQueue queue; static u32 qfam;
 static VkPhysicalDeviceMemoryProperties memp; static VkPhysicalDeviceProperties props;
 static VkSurfaceKHR surf; static VkSwapchainKHR swch; static VkFormat sw_fmt; static u32 sw_n;
@@ -182,8 +198,12 @@ static bool load_instance(void)
     if (!vkCreateInstance) { AK_ERROR("vk", "no Vulkan driver (vkCreateInstance missing)"); return false; }
     u32 iver = VK_API_VERSION_1_0; if (vkEnumerateInstanceVersion) vkEnumerateInstanceVersion(&iver);
     if (iver < VK_API_VERSION_1_3) { AK_ERROR("vk", "the Vulkan loader is %u.%u; Aurek needs 1.3 (update the GPU driver)", VK_API_VERSION_MAJOR(iver), VK_API_VERSION_MINOR(iver)); return false; }
+#ifdef AK_VK_DISPLAY
+    unsigned int n = 2; const char **ext = (const char **)calloc(n + 2, sizeof *ext); ext[0] = "VK_KHR_surface"; ext[1] = "VK_KHR_display";
+#else
     unsigned int n = 0; if (!SDL_Vulkan_GetInstanceExtensions(win, &n, NULL)) { AK_ERROR("vk", "SDL: %s", SDL_GetError()); return false; }
     const char **ext = (const char **)calloc(n + 2, sizeof *ext); SDL_Vulkan_GetInstanceExtensions(win, &n, ext);
+#endif
     const char *layers[1]; u32 nl = 0;
     if (ak_setting_int("AK_VK_VALIDATE", 0)) {
         u32 lc = 0; vkEnumerateInstanceLayerProperties(&lc, NULL);
@@ -198,9 +218,31 @@ static bool load_instance(void)
     VKCHK(r, "vkCreateInstance");
 #define LOADI(n) vk##n = (PFN_vk##n)gipa(inst, "vk" #n);
     VK_INST(LOADI)
+#ifndef AK_VK_DISPLAY
     if (!SDL_Vulkan_CreateSurface(win, inst, &surf)) { AK_ERROR("vk", "surface: %s", SDL_GetError()); return false; }
+#endif
     return true;
 }
+
+#ifdef AK_VK_DISPLAY
+/* the video output as a surface: the display's mode with AK_OUTPUT lines (2160 / 1440 / 1080) at about 60 Hz, else its first mode.
+ * Needs a physical device, so it runs after pick_device's first pass (which then checks presentation on this surface). */
+static bool display_surface(VkPhysicalDevice pd)
+{
+    u32 n = 1; VkDisplayPropertiesKHR dp;
+    if (vkGetPhysicalDeviceDisplayPropertiesKHR(pd, &n, &dp) != VK_SUCCESS || !n) { AK_ERROR("vk", "no display"); return false; }
+    VkDisplayModePropertiesKHR modes[16]; u32 nm = 16; vkGetDisplayModePropertiesKHR(pd, dp.display, &nm, modes);
+    if (!nm) { AK_ERROR("vk", "the display has no modes"); return false; }
+    int pick = 0, want_h = ak_setting_int("AK_OUTPUT", 2160);
+    for (u32 i = 0; i < nm; i++) AK_INFO("vk", "display mode %u: %ux%u at %.2f Hz", i, modes[i].parameters.visibleRegion.width, modes[i].parameters.visibleRegion.height, modes[i].parameters.refreshRate / 1000.0);
+    for (u32 i = 0; i < nm; i++) if ((int)modes[i].parameters.visibleRegion.height == want_h && modes[i].parameters.refreshRate >= 59000 && modes[i].parameters.refreshRate <= 61000) { pick = (int)i; break; }
+    VkDisplaySurfaceCreateInfoKHR si = { VK_STRUCTURE_TYPE_DISPLAY_SURFACE_CREATE_INFO_KHR, NULL, 0, modes[pick].displayMode, 0, 0, VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, 1.0f,
+        VK_DISPLAY_PLANE_ALPHA_OPAQUE_BIT_KHR, modes[pick].parameters.visibleRegion };
+    VKCHK(vkCreateDisplayPlaneSurfaceKHR(inst, &si, NULL, &surf), "vkCreateDisplayPlaneSurfaceKHR");
+    AK_INFO("vk", "video output %ux%u at %.2f Hz", modes[pick].parameters.visibleRegion.width, modes[pick].parameters.visibleRegion.height, modes[pick].parameters.refreshRate / 1000.0);
+    return true;
+}
+#endif
 
 static bool pick_device(void)
 {
@@ -282,7 +324,10 @@ static void swap_destroy(void)
 static bool swap_make(void)
 {
     VkSurfaceCapabilitiesKHR cap; vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phys, surf, &cap);
-    int dw, dh; SDL_Vulkan_GetDrawableSize(win, &dw, &dh);
+    int dw = 0, dh = 0;
+#ifndef AK_VK_DISPLAY
+    SDL_Vulkan_GetDrawableSize(win, &dw, &dh);
+#endif
     VkExtent2D ex = cap.currentExtent.width != 0xFFFFFFFFu ? cap.currentExtent : (VkExtent2D){ (u32)dw, (u32)dh };
     if (!ex.width || !ex.height) return false;                                   /* minimised */
     u32 cnt = cap.minImageCount + 1; if (cap.maxImageCount && cnt > cap.maxImageCount) cnt = cap.maxImageCount; if (cnt > 8) cnt = 8;
@@ -398,6 +443,15 @@ static bool make_pipes(void)
 bool ak_gfx_init(const ak_gfx_config *c)
 {
     vsync = c->vsync;
+#ifdef AK_VK_DISPLAY
+    gipa = (PFN_vkGetInstanceProcAddr)vk_icdGetInstanceProcAddr;
+    if (!load_instance()) return false;
+    {   u32 n = 0; vkEnumeratePhysicalDevices(inst, &n, NULL);
+        VkPhysicalDevice pd[4]; if (n > 4) n = 4; if (!n) { AK_ERROR("vk", "no Vulkan GPU"); return false; }
+        vkEnumeratePhysicalDevices(inst, &n, pd);
+        if (!display_surface(pd[0])) return false; }
+    if (!pick_device() || !make_device()) return false;
+#else
     u32 wf = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
     if (ak_setting_int("AK_FULLSCREEN", 0)) wf |= SDL_WINDOW_FULLSCREEN_DESKTOP;
     win = SDL_CreateWindow(c->title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, c->width, c->height, wf);
@@ -405,6 +459,7 @@ bool ak_gfx_init(const ak_gfx_config *c)
     gipa = (PFN_vkGetInstanceProcAddr)SDL_Vulkan_GetVkGetInstanceProcAddr();
     if (!gipa) { AK_ERROR("vk", "no Vulkan library (%s): install or update the GPU driver", SDL_GetError()); return false; }
     if (!load_instance() || !pick_device() || !make_device()) return false;
+#endif
     ubo_align = props.limits.minUniformBufferOffsetAlignment; if (ubo_align < 16) ubo_align = 16;
     {   /* surface format: 8-bit UNORM (the GL back end writes its colours as they are, no sRGB conversion) */
         u32 n = 0; vkGetPhysicalDeviceSurfaceFormatsKHR(phys, surf, &n, NULL);
@@ -462,7 +517,9 @@ void ak_gfx_shutdown(void)
         for (int i = 0; i < FR; i++) { for (int k = 0; k < fr[i].ndead; k++) dead_free(&fr[i].dead[k]); fr[i].ndead = 0; free(fr[i].dead); }
         swap_destroy(); if (swch) vkDestroySwapchainKHR(dev, swch, NULL);
     }   /* (the device, its objects and the instance go with the process) */
+#ifndef AK_VK_DISPLAY
     if (win) SDL_DestroyWindow(win);
+#endif
     free(ui_v); free(shot_px);
 }
 void ak_gfx_size(int *w, int *h) { *w = W; *h = H; }
@@ -590,7 +647,11 @@ void ak_gfx_begin(u32 clear, const ak_m4 *vp, const ak_gfx_env *env)
         VkResult r = vkAcquireNextImageKHR(dev, swch, UINT64_MAX, f->acquired, VK_NULL_HANDLE, &sw_i);
         if (r == VK_SUCCESS || r == VK_SUBOPTIMAL_KHR) break;
         vkDeviceWaitIdle(dev);
+#ifdef AK_VK_DISPLAY
+        while (!swap_make()) usleep(50000);
+#else
         while (!swap_make()) { SDL_Event e; SDL_WaitEventTimeout(&e, 50); }                /* (minimised: wait for a size) */
+#endif
         if (tries > 4) { AK_ERROR("vk", "cannot acquire a swapchain image (%d)", (int)r); break; }
     }
     vkResetFences(dev, 1, &f->fence);
@@ -752,6 +813,10 @@ void ak_gfx_end(ak_gfx_stats *out)
     VkPresentInfoKHR pi = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, NULL, 1, &sw_done[sw_i], 1, &swch, &sw_i, NULL };
     VkResult r = vkQueuePresentKHR(queue, &pi);
     in_frame = false;
+#ifdef AK_VK_DISPLAY
+    {   static bool first = true; extern void ak_plat_first_frame(void);       /* (the PS5 hides its launch splash) */
+        if (first) { first = false; ak_plat_first_frame(); } }
+#endif
     if (shot_want && shot_buf) {                                       /* keep the frame for ak_gfx_screenshot */
         vkWaitForFences(dev, 1, &f->fence, VK_TRUE, UINT64_MAX);
         free(shot_px); shot_px = (u8 *)malloc((size_t)W * H * 3);
