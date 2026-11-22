@@ -140,7 +140,8 @@ int main(int argc, char **argv)
     if (!ak_plat_init()) return 1;
     char sp[600]; snprintf(sp, sizeof sp, "%s/settings.txt", ak_plat_user_dir());
     ak_settings_load(sp);
-    AK_INFO("aurek", "Aurek level viewer, build %s", AK_BUILD_ID);
+    ak_log_set_level(ak_setting_int("AK_LOG", 1));                     /* 0 off (frame-rate checks), 1 usual, 2 everything */
+    AK_INFO("aurek", "Aurek level viewer, build %s (log level %d)", AK_BUILD_ID, ak_log_level_now());
 
     int nd; const char *const *dirs = ak_plat_data_dirs(&nd);
     ak_vfs *vfs = ak_vfs_open(dirs, nd);

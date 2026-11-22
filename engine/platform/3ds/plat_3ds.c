@@ -57,7 +57,10 @@ void ak_plat_log_write(const char *line)
 {
     static FILE *lf;
     if (!lf) lf = fopen(USER_DIR "/log.txt", "w");
-    if (lf) { fprintf(lf, "%s\n", line); fflush(lf); }
+    if (lf) {   /* flushed at once for warnings and errors; verbose runs flush every 64 lines (a crash loses at most those) */
+        static u32 n; fprintf(lf, "%s\n", line);
+        if (strstr(line, "error") || strstr(line, "warning") || ak_log_level_now() < 2 || ++n % 64 == 0) fflush(lf);
+    }
 }
 
 /* RunFast: flush denormals to zero and default NaNs (the ARM11's VFP otherwise hands denormal numbers to slow software) */

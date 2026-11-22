@@ -5,6 +5,7 @@
  * Window, present and the Vulkan back end join at milestone 1.2. */
 #include "../plat.h"
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #ifdef _WIN32
 #include <windows.h>
@@ -118,7 +119,10 @@ void ak_plat_log_write(const char *line)
     static FILE *lf;
     if (!lf) lf = fopen("log.txt", "w");
     fprintf(stderr, "%s\n", line);
-    if (lf) { fprintf(lf, "%s\n", line); fflush(lf); }
+    if (lf) {   /* flushed at once for warnings and errors; verbose runs flush every 64 lines (a crash loses at most those) */
+        static u32 n; fprintf(lf, "%s\n", line);
+        if (strstr(line, "error") || strstr(line, "warning") || ak_log_level_now() < 2 || ++n % 64 == 0) fflush(lf);
+    }
 }
 
 /* audio without a device (tools): the SDL back end (plat_sdl.c) provides the real ones */

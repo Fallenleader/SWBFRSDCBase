@@ -30,7 +30,7 @@ static int cur_file = -1; static ak_gui_file gf; static ak_gfx_tex **gtex; stati
  * per name - SINGLEPLAYER.GUI's own menu_logos.tga carries the Italian logo, and the original shows the main menu's) */
 static ak_arena basemem; static ak_gui_file base; static ak_gfx_tex **btex;
 static bool gc_on;                     /* (Galactic Conquest's tech page: below) */
-static const ak_gui_page *page; static u32 focus, active_widget; static f32 clock;   /* (active_widget: the page in use's focus - GUIMenu.ActiveWidget) */
+static const ak_gui_page *page; static u32 focus, active_widget; static f32 fe_clock;   /* (active_widget: the page in use's focus - GUIMenu.ActiveWidget) */
 static u32 stack[16]; static int nstack; static bool focus_fix_pending;
 /* pages open together, drawn in order, one of them in use (`page`): the customisation's MP_CustomBackground, MP_Customisation, its
  * MP_CustomCarousel and the dialogues over them (the game's 0888ADB0 opens a page with or without the focus) */
@@ -311,7 +311,7 @@ static bool open_hash(u32 h, bool push)
         const ak_gui_page *pg = ak_gui_find_page(&gf, h); if (!pg) return false;
         if (push && page && nstack < 16) stack[nstack++] = page->root.id;
         if (!layering) nlayer = 0;
-        page = pg; focus = pg->focus; clock = 0;
+        page = pg; focus = pg->focus; fe_clock = 0;
         focus_fix_pending = true;
         if (have_match && h == ak_gui_hash("MP_Spawn_Location"))     /* the first post the player's side holds */
             for (u32 k = 0; k < match.nposts; k++) if (match.post_owner[k] == match.team) { char nm[32]; snprintf(nm, sizeof nm, "W_BU_SpawnPoint%u", k); if (id_of(nm)) focus = id_of(nm); break; }
@@ -326,7 +326,7 @@ static bool open_hash(u32 h, bool push)
     for (u32 i = 0; i < gf.npages; i++) {
         if (!find_id(&gf.pages[i].root, h)) continue;
         if (push && page && nstack < 16) stack[nstack++] = page->root.id;
-        page = &gf.pages[i]; focus = h; clock = 0; focus_fix_pending = false;
+        page = &gf.pages[i]; focus = h; fe_clock = 0; focus_fix_pending = false;
         nlists = 0; ak_arena_reset(&rowmem); fill_all(&page->root);
         AK_INFO("fe", "%s (at %08x)", page->root.name, h);
         return true;
@@ -691,7 +691,7 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
         && strcmp(ak_setting_str("AK_FE_LANGUAGE", "AM"), "IT")) return;
     f32 a = 1;
     for (u32 i = 0; i < w->nanims; i++)                               /* "pulse_highlight": the highlight breathes [assumed rate] */
-        if (!strncmp(w->anims[i], "pulse_highlight", 15)) a = 0.65f + 0.35f * cosf(clock * 6.2831853f);
+        if (!strncmp(w->anims[i], "pulse_highlight", 15)) a = 0.65f + 0.35f * cosf(fe_clock * 6.2831853f);
     if (w->type == AK_GUI_MODEL && model_fn) {                        /* a 3D model: the item, the second weapon, the soldier */
         const ak_bp_object *wo = NULL; bool soldier = false, any = false;
         if (in_row && w->fill.fn && !strcmp(w->fill.fn, "FE_Customisation_ListCarouselAnims")) {
@@ -895,7 +895,7 @@ static void open_layer(u32 h)                                          /* a page
 static void use_layer(int k)                                           /* the focus to an open page */
 {
     if (k < 0 || k >= nlayer) return;
-    layer_focus[active_layer] = focus; active_layer = k; page = layer[k]; focus = layer_focus[k]; clock = 0;
+    layer_focus[active_layer] = focus; active_layer = k; page = layer[k]; focus = layer_focus[k]; fe_clock = 0;
 }
 static int layer_of(const char *name) { for (int k = 0; k < nlayer; k++) if (layer[k]->root.name && !strcmp(layer[k]->root.name, name)) return k; return -1; }
 static void close_layer(void)
@@ -903,7 +903,7 @@ static void close_layer(void)
     if (nlayer < 2) return;
     int back = layer_prev[nlayer - 1]; nlayer--;
     if (active_layer >= nlayer) { active_layer = back >= 0 && back < nlayer ? back : nlayer - 1; }
-    page = layer[active_layer]; focus = layer_focus[active_layer]; clock = 0;
+    page = layer[active_layer]; focus = layer_focus[active_layer]; fe_clock = 0;
     refill();
 }
 static void status(int s) { var_set("BFF.FE_MapSelectionStatus", s); }
@@ -1527,7 +1527,7 @@ static int cust_event(const ak_input *in)
 int ak_fe_update(const ak_input *in, f32 dt)
 {
     if (!page) return AK_FE_NONE;
-    clock += dt; clock_total += dt;
+    fe_clock += dt; clock_total += dt;
     if (focus_fix_pending) {                                           /* the page's focus hidden or a title: its first shown control */
         focus_fix_pending = false;
         const ak_widget *f0 = focus ? find_visible(&page->root, focus) : NULL;
@@ -1605,7 +1605,7 @@ int ak_fe_update(const ak_input *in, f32 dt)
         if ((in->pressed & dirs[k]) && f && f->links[k]) {          /* (a hidden neighbour: on along its own link the same way) */
             u32 to = f->links[k];
             for (int hop = 0; hop < 8 && to; hop++) {
-                if (find_visible(&page->root, to)) { focus = to; clock = 0; return AK_FE_NONE; }
+                if (find_visible(&page->root, to)) { focus = to; fe_clock = 0; return AK_FE_NONE; }
                 const ak_widget *n = find_id(&page->root, to); to = n ? n->links[k] : 0;
             }
         }

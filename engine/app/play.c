@@ -575,6 +575,7 @@ placed:
     if (b->hero) { b->look = b->base_look; b->hero = false; }               /* a fallen hero comes back as its soldier */
     if (ak_setting_int("AK_DEBUG_SPAWN", 0)) AK_INFO("spawn", "%.1f s: bot %d (team %d) at %.0f %.0f %.0f (game axes %.0f %.0f %.0f)", p->clock, (int)(b - p->bot), b->team, pos[0], pos[1], pos[2], pos[0], -pos[1], -pos[2]);
     ak_char_spawn(&b->ch, pos, yaw);
+    AK_VERBOSE("bot", "bot %u (team %d) spawns at %.1f %.1f %.1f", idx, b->team, pos[0], pos[1], pos[2]);
     b->alive = true; b->dead_t = 0; b->state = PLAY_IDLE; b->clip_t = rnd(&b->seed); b->land_t = 0; b->was_ground = true; b->idle_var = -1; b->idle_t = (rnd(&b->seed) + 0.5f) * 2.5f;
     b->rt_i = 0; b->rt_q = 0; b->rt_wait = -1; b->rt_on = b->uspawn >= 0 && (u32)b->uspawn < p->nuspawn && p->uspawn[b->uspawn].route;
     b->goal = -1; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->fenemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
@@ -686,6 +687,7 @@ static const ak_bp_object *repair_tool(const ak_play *p)
 static void weapon_switch(ak_play *p)
 {
     if (!p->armed2) return;
+    AK_VERBOSE("player", "weapon switch");
     ak_weapon_def d = p->wdef; ak_weapon w = p->weapon; bool a = p->armed;
     p->wdef = p->wdef2; p->weapon = p->weapon2; p->armed = p->armed2;
     p->wdef2 = d; p->weapon2 = w; p->armed2 = a; p->wsel ^= 1;
@@ -1714,6 +1716,7 @@ static void heroes_init(ak_play *p, const ak_blueprints *bp, const ak_model_set 
 
 static void hero_make(ak_play *p, const ak_model_set *m, int t, s32 unit)
 {
+    AK_VERBOSE("hero", "side %d's hero goes to unit %d", t, (int)unit);
     ak_play_hero *h = &p->hero[t]; ak_target *tg = &p->target[unit];
     h->unit = unit; h->offered = -1; h->atk_i = -1;
     if (unit == 0) {
@@ -2294,6 +2297,7 @@ static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
     if (p->target[VT(p, v)].last_attacker == 0 && vh->driver > 0 && p->target[vh->driver].team != p->target[0].team)   /* (08A62C70: flag bit 1, 40 / 41) */
         p->stat_add[p->in_veh >= 0 && p->veh[p->in_veh].def && p->veh[p->in_veh].def->kind == AK_VEH_FLYER ? 41 : 40]++;   /* [assumed: bit 1 = the victim in a vehicle; 41 = the killer flying] */
     vh->alive = false; vh->dead_t = 0; boom(p, vh->pos, vh->def->bp);
+    AK_VERBOSE("veh", "vehicle %u (%s) destroyed%s, driver %d, attacker %d", v, vh->def->name, vh->crashed ? " (crash)" : "", vh->driver, (int)p->target[VT(p, v)].last_attacker);
     if (vh->driver == 0) { p->in_veh = -1; vh->driver = -1; if (p->alive) { p->target[0].alive = true; p->target[0].health = 0; player_down(p); } }
     else if (vh->driver > 0) {                                                /* a bot's: it dies with it (no body left) */
         u32 i = (u32)vh->driver - 1; ak_play_bot *b = &p->bot[i]; vh->driver = -1;
@@ -2584,6 +2588,7 @@ static bool bot_take_vehicle(ak_play *p, ak_play_bot *b)
 
 static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v)
 {
+    AK_VERBOSE("bot", "bot %u boards vehicle %u (%s)", idx, v, p->veh[v].def ? p->veh[v].def->name : "-");
     ak_vehicle *vh = &p->veh[v];
     vh->driver = (s32)(1 + idx); vh->aim_yaw = vh->aim_pitch = 0; vh->volley_t = 0;
     vh->team = b->team; vh->open = false; p->target[VT(p, v)].team = b->team;   /* (the vehicle takes its occupant's side, 089D29D8) */
@@ -3202,6 +3207,7 @@ static void turret_destroyed(ak_play *p, u32 i)
 {
     ak_turret *t = &p->turret[i]; if (!t->alive) return;
     t->alive = false; t->health = 0; boom(p, t->pos, t->def->bp);
+    AK_VERBOSE("turret", "turret %s destroyed", t->def->name);
     if (p->have_script) ak_script_raise(&p->script, t->ev, t->nev, 3, t->id, script_sink, p);   /* (destroyed: event 3 - Space Kessel's turrets 188c9-cc {3 -> 102 / 103 / 25 / 26}, as the craft's and props') */
     if (p->target[TT(p, i)].last_attacker == 0) p->kills++;
     if (p->in_turret == (s32)i) { p->in_turret = -1; if (p->alive) { p->target[0].alive = true; p->target[0].health = 0; player_down(p); } }   /* the gunner goes with it */
@@ -3414,6 +3420,7 @@ static void player_down(ak_play *p)
     if (ak_setting_int("AK_TEST_GOD", 0)) { p->target[0].alive = true; p->target[0].health = p->target[0].max_health; p->health = p->max_health; return; }   /* tests: the player does not fall */
     p->alive = false; p->dead_t = 0; p->deaths++; p->lock = -1; p->health = 0; p->death_pick = (s32)(rnd(&p->seed) * 4.0f) & 3;
     p->target[0].alive = false; p->target[0].health = 0;
+    AK_VERBOSE("player", "down (deaths %d, kills %d)", p->deaths, p->kills);
     if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, p->team);
 }
 
@@ -3728,6 +3735,19 @@ static void script_sink(void *user, const ak_script_msg *m)
 
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt)
 {
+    if (AK_UNLIKELY(ak_log_level_now() >= 2)) {                              /* AK_LOG=2: a snapshot every second */
+        static u64 next; u64 now_us = ak_plat_time_us();
+        if (now_us >= next) { next = now_us + 1000000;
+            AK_VERBOSE("state", "t %.1f: player %s at %.1f %.1f %.1f health %.0f/%.0f, veh %d turret %d, kills %d deaths %d, ammo %d", p->clock, p->alive ? "up" : "down",
+                       p->ch.pos[0], p->ch.pos[1], p->ch.pos[2], p->health, p->max_health, p->in_veh, p->in_turret, p->kills, p->deaths, p->weapon.ammo);
+            if (p->have_cq) AK_VERBOSE("state", "tickets %d / %d", p->match.tickets[0], p->match.tickets[1]);
+            for (u32 i = 0; i < p->nbots; i++) { const ak_play_bot *b = &p->bot[i];
+                AK_VERBOSE("state", "bot %u team %d %s at %.1f %.1f %.1f health %.0f, enemy %d, veh %d", i, b->team, b->alive ? "up" : "down", b->ch.pos[0], b->ch.pos[1], b->ch.pos[2], p->target[1 + i].health, (int)b->enemy, (int)b->veh); }
+            for (u32 v = 0; v < p->nveh; v++) { const ak_vehicle *vh = &p->veh[v]; if (!vh->alive || !vh->def) continue;
+                AK_VERBOSE("state", "vehicle %u %s at %.1f %.1f %.1f health %.0f driver %d", v, vh->def->name, vh->pos[0], vh->pos[1], vh->pos[2], vh->health, vh->driver); }
+        }
+        {   static u32 held; if (in && in->held != held) { AK_VERBOSE("input", "buttons %08x -> %08x, sticks %.2f %.2f %.2f %.2f", held, in->held, in->lx, in->ly, in->rx, in->ry); held = in->held; } }
+    }
     if (!p->ready) return;
     p->clock += dt; p->frame_no++;
     if (p->modal) {                                                        /* a page up: the world waits for X */
@@ -3791,7 +3811,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (d2 < r * r && d2 < bd && fabsf(t->pos[1] - p->ch.pos[1]) < 5.0f) { bd = d2; best = (s32)i; }
         }
         if (best >= 0) {
-            p->in_turret = best; p->gun_yaw_rate = p->gun_pitch_rate = 0; p->target[0].alive = false; p->lock = -1; tri = false;
+            AK_VERBOSE("player", "mans turret %d", best); p->in_turret = best; p->gun_yaw_rate = p->gun_pitch_rate = 0; p->target[0].alive = false; p->lock = -1; tri = false;
             f32 B[12]; if (ak_turret_barrel(&p->turret[best], m, B)) { f32 F = p->turret[best].def->face; p->ch.yaw = atan2f(-F * B[2], -F * B[10]); p->ch.pitch = 0; }   /* the view starts along the barrel */
         }
     }
@@ -3838,6 +3858,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (best >= 0) {
                 if (p->veh[best].driver > 0) { u32 bi = (u32)(p->veh[best].driver - 1); bot_exit(p, &p->bot[bi], bi); }
                 ak_vehicle *vh = &p->veh[best]; vh->driver = 0; vh->team = p->team; vh->open = false; vh->aim_yaw = vh->aim_pitch = 0;
+                AK_VERBOSE("player", "gets in vehicle %d (%s)", best, vh->def ? vh->def->name : "-");
                 p->target[VT(p, best)].team = p->team; p->in_veh = best; p->target[0].alive = false; p->lock = -1; p->cam_dist = vh->def->cam_z; p->veh_cam_t = 1; p->veh_cam_yaw = p->veh_cam_pitch = 0; p->fly_target = -1; p->fly_auto = false;
                 if (p->vspawn[best].lone && p->have_script) ak_script_raise(&p->script, p->vspawn[best].ev, p->vspawn[best].nev, 10013, p->vspawn[best].eid, script_sink, p);   /* [assumed: 10013 is "boarded" - the harness could not board it] */
             } else if (p->have_cq && p->near_post >= 0 && p->match.post[p->near_post].owner == p->team)
@@ -4537,6 +4558,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (h && ak_game_mode != 3 && p->target[a].alive && p->target[a].team != p->target[i].team) {   /* (08982634: not in hero CTF) */
                 ak_target *ht = &p->target[a]; ht->health += h->per_kill * h->health; if (ht->health > h->health) ht->health = h->health; } }
         drop_pickups(p, i == 0 ? p->look.bp : p->bot[i - 1].look.bp, p->target[i].feet, (s32)i);
+        AK_VERBOSE("death", "unit %u (team %d) down at %.1f %.1f %.1f, by unit %d", i, p->target[i].team, p->target[i].feet[0], p->target[i].feet[1], p->target[i].feet[2], (int)p->target[i].last_attacker);
         if (i == 0) player_down(p);
         else {
             ak_play_bot *b = &p->bot[i - 1]; b->alive = false; b->dead_t = 0; b->state = PLAY_IDLE; b->death_clip = p->death_clips[(s32)(rnd(&b->seed) * 4.0f) & 3];
@@ -4712,6 +4734,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (ok) {
                 hero_unmake_player(p, m);
                 ak_char_spawn(&p->ch, sp, syaw); p->alive = true; p->health = p->max_health; p->dead_t = 0; p->state = PLAY_IDLE; p->clip_t = 0;
+                AK_VERBOSE("player", "spawn at %.1f %.1f %.1f (post %d)", sp[0], sp[1], sp[2], p->spawn_post);
                 if (p->have_cq) { f32 bd = 1e30f; p->player_post = -1;       /* (the post it came in at: the nearest owned one) */
                     for (u32 i = 0; i < p->cq.nposts; i++) { if (p->match.post[i].owner != p->team) continue; const f32 *q = p->cq.post[i].pos; f32 dx = q[0] - sp[0], dz = q[2] - sp[2];
                         if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; p->player_post = (s32)i; } } }

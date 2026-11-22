@@ -261,6 +261,7 @@ static void deliver(ak_script *s, const ak_smsg *m, u32 sender, ak_script_sink s
 {
     ak_snode *n = find(s, m->target);
     s->sent++;
+    AK_VERBOSE("script", "message 0x%X from %X to %X%s", (unsigned)m->type, (unsigned)sender, (unsigned)m->target, n ? "" : " (no such object)");
     if (!n) {
         if (sink) { ak_script_msg o = { m->type, m->target, sender, m->extra, m->nextra, NULL }; sink(user, &o); }
         return;

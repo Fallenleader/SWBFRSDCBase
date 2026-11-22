@@ -28,6 +28,12 @@ AK_BUTTONS=psp
 # debug text colour, 0xRRGGBB: one colour for every line; leave it off for each line's own colour
 #AK_DEBUG_TEXT_RGB=0xFFFFFF
 
+# ---- logging (log.txt in this folder): 0 = no log at all (use for frame-rate checks), 1 = the usual (load times, per-second
+# frame stats, warnings, errors), 2 = everything (each line timed: a per-second snapshot of the player, bots, vehicles and tickets,
+# input changes, deaths, spawns, boarding, weapon switches, heroes, vehicle / turret losses, script messages, sound events).
+# 2 is set for the bug test; it costs some frame rate (the file is flushed every 64 lines and on any warning or error).
+AK_LOG=2
+
 # ---- start
 # level shown first, as "<ERA> <MAP>" (eras: CLASSIC, PREQUEL, CAMPAIGN)
 AK_LEVEL=CLASSIC HOTH

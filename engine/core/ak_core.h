@@ -26,8 +26,15 @@ typedef float f32;
 #endif
 
 /* ---- logging */
-typedef enum { AK_LOG_INFO, AK_LOG_WARN, AK_LOG_ERROR } ak_log_level;
+typedef enum { AK_LOG_INFO, AK_LOG_WARN, AK_LOG_ERROR, AK_LOG_VERBOSE } ak_log_level;
 void ak_log(ak_log_level lv, const char *tag, const char *fmt, ...) AK_PRINTF(3, 4);
+/* AK_LOG (settings.txt): 0 = no log at all (for frame-rate checks), 1 = the usual info / warnings / errors, 2 = everything
+ * (AK_VERBOSE lines too: input, state changes, AI, vehicles, weapons, scripts, audio, per-second render stats), each line
+ * stamped with the time.  ak_log_level_now() lets hot paths skip building a verbose line. */
+extern int ak_log_setting;
+void ak_log_set_level(int level);
+static inline int ak_log_level_now(void) { return ak_log_setting; }
+#define AK_VERBOSE(tag, ...) do { if (AK_UNLIKELY(ak_log_setting >= 2)) ak_log(AK_LOG_VERBOSE, tag, __VA_ARGS__); } while (0)
 #define AK_INFO(tag, ...)  ak_log(AK_LOG_INFO, tag, __VA_ARGS__)
 #define AK_WARN(tag, ...)  ak_log(AK_LOG_WARN, tag, __VA_ARGS__)
 #define AK_ERROR(tag, ...) ak_log(AK_LOG_ERROR, tag, __VA_ARGS__)

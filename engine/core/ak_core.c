@@ -3,11 +3,18 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+int ak_log_setting = 1;
+void ak_log_set_level(int level) { ak_log_setting = level < 0 ? 0 : level > 2 ? 2 : level; }
+
 void ak_log(ak_log_level lv, const char *tag, const char *fmt, ...)
 {
+    if (ak_log_setting <= 0) return;                                  /* AK_LOG=0: nothing */
+    if (lv == AK_LOG_VERBOSE && ak_log_setting < 2) return;
     char line[1024];
-    static const char *lvn[] = { "", "warning: ", "error: " };
-    int n = snprintf(line, sizeof line, "[%s] %s", tag, lvn[lv]);
+    static const char *lvn[] = { "", "warning: ", "error: ", "" };
+    int n;
+    if (ak_log_setting >= 2) { static u64 t0; u64 t = ak_plat_time_us(); if (!t0) t0 = t; n = snprintf(line, sizeof line, "%10.3f [%s] %s", (double)(t - t0) * 1e-6, tag, lvn[lv]); }   /* (seconds since the first line) */
+    else n = snprintf(line, sizeof line, "[%s] %s", tag, lvn[lv]);
     va_list ap; va_start(ap, fmt);
     if (n >= 0 && (size_t)n < sizeof line) vsnprintf(line + n, sizeof line - (size_t)n, fmt, ap);
     va_end(ap);

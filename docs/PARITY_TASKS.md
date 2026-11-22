@@ -1590,6 +1590,12 @@ textures and how they are used. Section R lists only what must be in place so th
     debug text back to each line's own colour (AK_DEBUG_TEXT_RGB off by default there).
   - Part 84 (2026-11-22): R.6-R.8 checked for the checkpoint - R.7's shadow filler chain traced (the casting object not identified),
     R.6 cell animation and R.8 damage / hyperspace still open; R.9 depends on them. Next: the bug-test build.
+  - Part 84b (2026-11-22): the bug-test build (by request): AK_LOG 0 / 1 / 2 (off for frame-rate checks / usual / everything,
+    timed lines: per-second state snapshots, input, deaths, spawns, boarding, heroes, losses, script messages, sound events);
+    every optimisation flag the Vita and 3DS compilers take (fast-math with isfinite kept, unrolling, vectorising, graphite,
+    IPA, whole-program LTO; the GC AI file kept exact); the Vita build's missing sources added (ak_script, ak_gc, ak_gc_ai,
+    gc_screen - the Vita and 3DS builds had not linked since those files arrived); frontend.c's `clock` renamed (it clashed with
+    time.h on the Vita). Vita VPK built.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

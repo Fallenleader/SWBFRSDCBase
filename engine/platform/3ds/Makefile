@@ -22,7 +22,8 @@ SRC := $(E)/app/viewer.c $(E)/app/play.c $(E)/app/play_sound.c $(E)/app/hud.c $(
        $(E)/assets/asura.c $(E)/assets/model.c $(E)/assets/entity.c $(E)/assets/blueprint.c $(E)/assets/gui.c $(E)/game/ak_soldier.c $(E)/game/ak_character.c \
        $(E)/game/ak_weapon.c $(E)/game/ak_conquest.c $(E)/game/ak_ctf.c $(E)/game/ak_vehicle.c $(E)/game/ak_space.c $(E)/game/ak_turret.c $(E)/game/ak_projectile.c $(E)/game/ak_pfx.c \
        $(E)/game/ak_path.c $(E)/game/ak_loco.c $(E)/world/ak_collision.c $(E)/world/ak_nav.c $(E)/render/ak_scene.c $(E)/audio/ak_audio.c \
-       $(E)/audio/ak_music.c $(E)/audio/ak_speech.c $(E)/audio/ak_adp.c $(P)/plat_3ds.c $(P)/gfx_c3d.c
+       $(E)/audio/ak_music.c $(E)/audio/ak_speech.c $(E)/audio/ak_adp.c $(E)/app/gc_screen.c $(E)/game/ak_gc.c $(E)/game/ak_gc_ai.c \
+       $(E)/game/ak_script.c $(P)/plat_3ds.c $(P)/gfx_c3d.c
 OBJ := $(patsubst $(E)/%.c,$(B)/%.o,$(SRC)) $(B)/aurek.shbin.o
 
 GIT_ID := $(shell git describe --always --dirty=+ 2>/dev/null)
@@ -30,8 +31,11 @@ GIT_ID := $(shell git describe --always --dirty=+ 2>/dev/null)
 # every performance flag: the ARM11 MPCore with its VFPv2, hard float, ARM code (the ARMv6 Thumb-1 set is slower), -O3, link-time
 # optimisation, sections for the linker's garbage collection, fast float rules (as the Vita build).  TLS is a call on the 3DS (-mtp=soft).
 ARCH    := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft -marm
-OPT     := -O3 -flto=auto -fomit-frame-pointer -ffunction-sections -fdata-sections -fno-math-errno -ffp-contract=fast -fno-signed-zeros \
-           -fno-trapping-math -fno-strict-aliasing
+OPT     := -O3 -flto=auto -flto-partition=one -fuse-linker-plugin -fomit-frame-pointer -ffunction-sections -fdata-sections \
+           -ffast-math -fno-finite-math-only -fno-math-errno -ffp-contract=fast -fno-signed-zeros -fno-trapping-math -fno-strict-aliasing \
+           -funroll-loops -ftree-vectorize -fpredictive-commoning -fgcse-after-reload -ftree-loop-distribution -fipa-pta -fipa-cp-clone \
+           -fmodulo-sched -fsched-pressure -fno-semantic-interposition -fmerge-all-constants -fno-common -fsection-anchors \
+           -fno-stack-protector -fno-asynchronous-unwind-tables -fno-unwind-tables -fdevirtualize-at-ltrans
 DEFS    := -D__3DS__ -DAK_AUDIO_RATE=32000 -DAK_BUILD_ID=\"$(GIT_ID)\"
 CFLAGS  := -std=gnu11 $(ARCH) $(OPT) $(DEFS) -Wall -Wextra -Wno-unused-parameter -Wno-format -I$(E) -I$(B) -I$(CTRU)/include
 LDFLAGS := -B$(CRT)/ -specs=3dsx.specs -nodefaultlibs $(ARCH) $(OPT) -Wl,--gc-sections -Wl,-Map,$(B)/aurek.map
@@ -44,6 +48,8 @@ independence: ; @sh $(E)/tools/check_independence.sh
 $(B)/aurek.shbin: $(P)/aurek.v.pica ; @mkdir -p $(B); $(PICASSO) -o $@ $<
 $(B)/aurek_shbin.h $(B)/aurek.shbin.o: $(B)/aurek.shbin ; cd $(B) && $(BIN2S) -a 4 -H aurek_shbin.h aurek.shbin > aurek.shbin.s && $(CC) $(ARCH) -c aurek.shbin.s -o aurek.shbin.o
 $(B)/%.o: $(E)/%.c $(B)/aurek_shbin.h ; @mkdir -p $(dir $@); $(CC) $(CFLAGS) -c $< -o $@
+# the GC AI must round as the PSP's single-precision code: no fused multiply-add, no fast-math
+$(B)/game/ak_gc_ai.o: CFLAGS += -fno-fast-math -ffp-contract=off
 
 $(B)/aurek.elf: $(OBJ) ; $(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 $(B)/aurek.smdh: $(P)/icon.png ; $(SMDHTOOL) --create "Aurek" "Star Wars Battlefront: Renegade Squadron - native engine" "Aurek" $< $@

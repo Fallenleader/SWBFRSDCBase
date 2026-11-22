@@ -191,7 +191,8 @@ static void voice_gains(voice *v)                     /* distance fade and the p
 static u32 start(const char *event, const f32 *pos, f32 pan, f32 gain, bool loop)
 {
     if (!event || !*event) return 0;
-    snd_event *e = event_find(ak_hash31(event)); if (!e || !e->nsamp) return 0;
+    snd_event *e = event_find(ak_hash31(event)); if (!e || !e->nsamp) { AK_VERBOSE("audio", "event %s: none", event); return 0; }
+    AK_VERBOSE("audio", "event %s%s", event, pos ? "" : " (2D)");
     const snd_sample *s = NULL;
     u32 first = e->nsamp > 1 ? (u32)(frand() * e->nsamp) : 0;               /* a random one of the event's samples */
     for (u32 tries = 0; tries < e->nsamp && !s; tries++) {

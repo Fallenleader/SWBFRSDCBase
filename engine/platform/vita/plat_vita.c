@@ -9,6 +9,8 @@
 #include <psp2/power.h>
 #include <psp2/audioout.h>
 #include <stdio.h>
+#include <string.h>
+#include "../../core/ak_core.h"
 #include <stdlib.h>
 #include <malloc.h>
 
@@ -50,7 +52,10 @@ void ak_plat_log_write(const char *line)
 {
     static FILE *lf;
     if (!lf) lf = fopen(USER_DIR "/log.txt", "w");
-    if (lf) { fprintf(lf, "%s\n", line); fflush(lf); }
+    if (lf) {   /* flushed at once for warnings and errors; verbose runs flush every 64 lines (a crash loses at most those) */
+        static u32 n; fprintf(lf, "%s\n", line);
+        if (strstr(line, "error") || strstr(line, "warning") || ak_log_level_now() < 2 || ++n % 64 == 0) fflush(lf);
+    }
 }
 
 bool ak_plat_init(void)
