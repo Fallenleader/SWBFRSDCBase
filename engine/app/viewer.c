@@ -100,9 +100,16 @@ static void dbg_text(f32 x, f32 y, u32 col, const char *s)
  * (game axes x, y, z; [assumed: y, then x, then z]) and placed at -cam_off from a camera looking along the game's +z, the field
  * of view `fov` across the rectangle's height [assumed], depth pressed into the nearest thousandth so it draws over the scene */
 static const ak_model_set *fe_models; static ak_scene_models *fe_mscene; static const ak_blueprints *fe_bps; static ak_play *fe_play; static f32 fe_t;
-static void fe_model_draw(const void *weapon, bool soldier, const f32 rect[4], f32 fov, const f32 off[3], const f32 rot[3])
+static void fe_model_draw(const void *weapon, bool soldier, const ak_fe_look *look, const f32 rect[4], f32 fov, const f32 off[3], const f32 rot[3])
 {
     if (!fe_models || !fe_mscene || (!weapon && !soldier)) return;
+    static ak_soldier_look lk; static ak_fe_look have; static bool lk_ok;   /* (the look asked for, made once) */
+    if (look) {
+        if (!fe_play || !fe_play->ready || !fe_bps) return;
+        if (!have.body || strcmp(have.body, look->body) || have.head != look->head || have.c1 != look->c1 || have.c2 != look->c2) {
+            have = *look; lk_ok = ak_soldier_look_make(fe_bps, fe_models, look->body, look->head, look->c1, look->c2, &lk); }
+        if (!lk_ok) return;
+    }
     const ak_bp_object *w = (const ak_bp_object *)weapon;   /* (weapons whose models the level lacks are not drawn) */
     s32 mi = soldier ? -1 : ak_models_find(fe_models, ak_bp_string(w, "WeaponModel", "")); if (mi < 0 && !soldier) return;
     if (soldier && (!fe_play || !fe_play->ready)) return;
@@ -122,7 +129,8 @@ static void fe_model_draw(const void *weapon, bool soldier, const f32 rect[4], f
     for (int c = 0; c < 3; c++) for (int r = 0; r < 3; r++) { A[c * 3 + r] = 0; for (int k = 0; k < 3; k++) A[c * 3 + r] += Ry[k * 3 + r] * Rx[c * 3 + k]; }
     for (int c = 0; c < 3; c++) for (int r = 0; r < 3; r++) { R[c * 3 + r] = 0; for (int k = 0; k < 3; k++) R[c * 3 + r] += A[k * 3 + r] * Rz[c * 3 + k]; }
     ak_m4 W = { { R[0], R[1], R[2], 0,  R[3], R[4], R[5], 0,  R[6], R[7], R[8], 0,  -off[0], off[1], off[2], 1 } };
-    if (soldier) { fe_t += 1.0f / 60.0f; ak_play_draw_figure(fe_play, fe_models, fe_mscene, &vp, &W, fe_t); }   /* [assumed: his idle clip] */
+    if (soldier && look) { fe_t += 1.0f / 60.0f; ak_play_draw_look(fe_play, &lk, fe_models, fe_mscene, &vp, &W, fe_t, look->head_only); }
+    else if (soldier) { fe_t += 1.0f / 60.0f; ak_play_draw_figure(fe_play, fe_models, fe_mscene, &vp, &W, fe_t); }   /* [assumed: his idle clip] */
     else ak_scene_models_draw(fe_mscene, (u32)mi, &vp, &W, NULL, NULL, NULL);
 }
 

@@ -1265,9 +1265,22 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         if (!p->nklass[team]) continue;
         ak_play_bot *b = &p->bot[p->nbots]; memset(b, 0, sizeof *b); b->uspawn = -1;
         b->seed = 0x9E3779B9u * (i + 7) + 0x85EBCA6Bu * (u32)(ak_setting_int("AK_SEED", 1) - 1);   /* (AK_SEED: tests' other runs) */
-        const char *k = p->klass[team][(u32)(rnd(&b->seed) * p->nklass[team]) % p->nklass[team]];
-        if (!ak_soldier_look_make(bp, m, k, (int)(rnd(&b->seed) * 3) % 3, -1, -1, &b->look) || !poseable(m, &b->look)) continue;
+        /* the body (08983644 -> 089835EC): one of the faction's three personalisation bodies (089784DC's table 0x08C29190), by the game's
+           generator % 3, with the first head (+0x70 = 0); a body this level has no model for: the side's other classes as before
+           [assumed: the generator's sequence - Aurek's per-bot one] */
+        static const char *const fbody[4][3] = { { "Clonetrooper", "Arc_Trooper", "MECTrooper" }, { "Battle_Droid", "SuperBattleDroid", "SuperMagnaGuard" },
+                                                 { "RebelTrooperCommando", "MediumRebel", "WookieWarrior" }, { "Biker_Scout", "Stormtrooper", "Darktrooper" } };
+        int fac = p->team_faction[team]; bool made = false;
+        if (fac >= 0 && fac < 4) {
+            int pick = (int)(rnd(&b->seed) * 3) % 3;
+            for (int t = 0; t < 3 && !made; t++) made = ak_soldier_look_make(bp, m, fbody[fac][(pick + t) % 3], 0, -1, -1, &b->look) && poseable(m, &b->look);
+        }
+        if (!made) {
+            const char *k = p->klass[team][(u32)(rnd(&b->seed) * p->nklass[team]) % p->nklass[team]];
+            if (!ak_soldier_look_make(bp, m, k, (int)(rnd(&b->seed) * 3) % 3, -1, -1, &b->look) || !poseable(m, &b->look)) continue;
+        }
         b->team = team; b->death_clip = p->death_clips[i % 4]; b->base_look = b->look;
+        if (ak_setting_int("AK_DEBUG_BOTS", 0)) AK_INFO("bots", "bot %u: team %d, %s", p->nbots, team, b->look.bp ? b->look.bp->name : "?");
         {   /* a name: a random entry of the side's BOTNAMES list not yet taken (the original, read from a running match) */
             u32 nn = ak_hud_bot_names(p->team_faction[team]); b->name = -1;
             if (nn) { u32 at = (u32)(rnd(&p->seed) * nn) % nn;
@@ -4666,6 +4679,19 @@ void ak_play_counts(const ak_play *p, u32 alive[2], u32 total[2])
 
 /* the soldier as the customisation menu shows him (its E_Anim_AppDisplay): his look in the idle clip at t, his weapon in his hands,
    placed by `world` (feet at its origin) */
+/* a soldier's look standing (the menus' previews): its body posed in the idle clip, its head; head_only: the head mesh alone, unposed */
+void ak_play_draw_look(ak_play *p, const ak_soldier_look *lk, const ak_model_set *m, ak_scene_models *ms, const ak_m4 *vp, const ak_m4 *world, f32 t, bool head_only)
+{
+    static f32 fb[64][12], head[1][12];
+    ak_model_colours col = { lk->rgb1, lk->rgb2 };
+    if (head_only) { if (lk->head >= 0) ak_scene_models_draw(ms, (u32)lk->head, vp, world, NULL, &col, NULL); return; }
+    const ak_model *body = &m->models[lk->body];
+    if (body->skeleton < 0 || m->skels[body->skeleton].nbones > 64) return;
+    pose(m, lk, p->idle_clip, t, true, fb);
+    ak_scene_models_draw(ms, (u32)lk->body, vp, world, (const f32 (*)[12])fb, &col, NULL);
+    if (lk->head >= 0) { ak_soldier_head_matrix(body, &m->skels[body->skeleton], lk->head_bone, (const f32 (*)[12])fb, head[0]);
+                         ak_scene_models_draw(ms, (u32)lk->head, vp, world, (const f32 (*)[12])head, &col, NULL); }
+}
 void ak_play_draw_figure(ak_play *p, const ak_model_set *m, ak_scene_models *ms, const ak_m4 *vp, const ak_m4 *world, f32 t)
 {
     static f32 fb[64][12], head[1][12];

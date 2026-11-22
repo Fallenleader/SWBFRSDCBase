@@ -562,6 +562,7 @@ static const u16 *cust_name(int cat, int i, u32 *n)
 }
 static int pers_count(const char *fn); static bool pers_text(const char *fn, int row, u32 *n, const u16 **out); static bool pers_picture(const char *fn, int row, f32 *uv);
 static int pers_insignia(void);
+static bool pers_look(int row, ak_fe_look *out, f32 off[3]);
 static int medal_count(const char *fn); static bool medal_text(const char *fn, int row, u16 *buf, u32 *n, const u16 **out); static bool medal_picture(const char *fn, int row, f32 *uv);
 static s32 lb_tex = -1;                                              /* (a row part's picture from another of the file's textures, -1 its own) */
 static int pers_cat(void); static const u16 *pers_item_name(int cat, int row, const char *suffix, u32 *n); static const u32 pers_prompt_key[5];
@@ -695,11 +696,15 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
             if (!(lb_selected && w->name && strstr(w->name, "_Default"))) { wo = cust_item(cust_cat, lb_row); any = cust_cat <= 3; }
         } else if (w->name && !strcmp(w->name, "E_Anim_SecondaryWeapon")) { wo = cust_item(1, cust_sel[1]); any = true; }
         else if (w->name && !strcmp(w->name, "E_Anim_AppDisplay")) { wo = cust_item(0, cust_sel[0]); soldier = true; any = true; }
+        ak_fe_look lk; f32 off[3]; memcpy(off, w->cam_off, 12); bool have_lk = false;
+        if (w->name && !strcmp(w->name, "E_Anim_AppDisplay") && pers_look(-1, &lk, off)) have_lk = true;   /* (the personalisation's soldier, 08A36BA0) */
+        if (in_row && w->fill.fn && !strcmp(w->fill.fn, "FE_Personalisation_ListCarouselAnims") && pers_look(lb_row, &lk, off)) { have_lk = soldier = any = true; }
+        if (have_lk) { soldier = any = true; wo = NULL; }
         if (any && (wo || soldier)) {
             f32 rect[4] = { x, y, w->size[0], w->size[1] }, rot[3];
             for (int k = 0; k < 3; k++) rot[k] = w->cam_rot[k] + w->cam_spin[k] * clock_total;
             f32 fov = w->cam_aspect != 0 ? w->cam_fov / w->cam_aspect : w->cam_fov;
-            ak_hud_2d_end(); model_fn(wo, soldier, rect, fov, w->cam_off, rot); ak_hud_2d_begin();
+            ak_hud_2d_end(); model_fn(wo, soldier, have_lk ? &lk : NULL, rect, fov, off, rot); ak_hud_2d_begin();
         }
     }
     f32 uvo[4]; const f32 *uv = w->uv;
@@ -1110,6 +1115,25 @@ static bool pers_picture(const char *fn, int row, f32 *uv)
     return false;
 }
 static bool in_pers(void) { return nlayer && layer_of("MP_Personalisation") >= 0; }
+/* the previews' looks: row -1 the soldier (08A36BA0: the faction's chosen body, head and colours), a carousel row on the heads
+   category its head alone (08A35D88: the chosen body's "Head <row+1>" mesh, the camera at Head<n>CameraOffsetX / Y / Z, which stand
+   in for the widget's own - most are its 0, 0, -2.6) [assumed: the offsets go where the widget's go; drawn so, the heads come out small and the Rodian's
+   +1.2 puts the camera behind it - not checked against the original's frame].  Aurek draws only the bodies
+   and heads the level has models for. */
+static bool pers_look(int row, ak_fe_look *out, f32 off[3])
+{
+    if (!in_pers()) return false;
+    const u8 *r = pers_rec(); s32 b = (s32)ak_rd32(r), h = (s32)ak_rd32(r + 4);
+    out->body = pers_unit[pers_faction()][b >= 0 && b < 3 ? b : 0]; out->head = h >= 0 && h < 3 ? h : 0; out->c1 = r[8] & 15; out->c2 = r[9] & 15; out->head_only = false;
+    if (row < 0) return true;
+    if (pers_cat() != 1 || row > 2) return false;
+    out->head = row; out->head_only = true;
+    const ak_bp_object *o = pers_body(b >= 0 && b < 3 ? b : 0);
+    if (o) { char k[32]; static const char ax[3] = { 'X', 'Y', 'Z' };
+        for (int i = 0; i < 3; i++) { snprintf(k, sizeof k, "Head%dCameraOffset%c", row + 1, ax[i]); off[i] = ak_bp_float(o, k, off[i]); }
+        }
+    return true;
+}
 static void pers_sync(void)                                            /* the bound values, the carousel on the chosen row when the category changes */
 {
     int cat = pers_cat();

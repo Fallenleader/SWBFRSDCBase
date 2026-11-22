@@ -284,6 +284,7 @@ const char *ak_play_surface_sound(const ak_play *p, u16 material, const char *ke
 u16  ak_play_ground_material(const ak_play *p, const f32 *pos);
 /* the held weapon's world matrix (3x4 rows) */
 bool ak_play_weapon_matrix(const ak_play *p, const ak_model_set *m, f32 out[12]);
+void ak_play_draw_look(ak_play *p, const ak_soldier_look *lk, const ak_model_set *m, ak_scene_models *ms, const ak_m4 *vp, const ak_m4 *world, f32 t, bool head_only);
 void ak_play_draw_figure(ak_play *p, const ak_model_set *m, ak_scene_models *ms, const ak_m4 *vp, const ak_m4 *world, f32 t);
 /* damage to the player's soldier (from bots, falls, tests) */
 void ak_play_damage(ak_play *p, f32 amount);

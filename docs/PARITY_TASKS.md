@@ -1517,6 +1517,10 @@ textures and how they are used. Section R lists only what must be in place so th
     sensitivities (08A5F1A4's axis set-up), slicing (08A1F9B0, Super_Slicer), an on-screen keyboard, the customisation preview's
     scale, and the movies: no player in Aurek yet - FMV/*.PMF (PSMF H.264) needs a decoder per platform, then the cut-scene list
     (FE_ListAvaliableCutscenes / FE_PlayMovie) and the campaign's FMV nodes can follow - a task of its own (8.3).
+  - Part 66, 2026-11-22 - **8.2: the bots' bodies, the personalisation previews** (see NATIVE_ENGINE). Left in 8.2: the stick
+    sensitivities (the infantry scheme's axis set-up 08A5F1A4 / 088968BC - not traced), the head previews' framing against the
+    original, the main menu's previews (the front end's own soldier models), an on-screen keyboard, the customisation preview's
+    scale; 8.3 movies; slicing. Next: 3.7 space.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

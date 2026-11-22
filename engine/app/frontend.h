@@ -54,7 +54,9 @@ void ak_fe_set_blueprints(const void *bp);     /* (COMMON.ASR's, for the items' 
 int ak_fe_loadout(int sel[8], const char *names[5]);
 /* the menus' 3D models (1004 widgets): the viewer draws `weapon` (a Weapon blueprint object, NULL none) - in the soldier's hands when
    `soldier` - in the rectangle (480 x 272 units) with the widget's camera */
-typedef void (*ak_fe_model_fn)(const void *weapon, bool soldier, const f32 rect[4], f32 fov, const f32 cam_off[3], const f32 rot[3]);
+/* a soldier's look for the previews: a Humanoid, its head 0..2, team / uniform colours; head_only: the head mesh alone */
+typedef struct { const char *body; int head, c1, c2; bool head_only; } ak_fe_look;
+typedef void (*ak_fe_model_fn)(const void *weapon, bool soldier, const ak_fe_look *look, const f32 rect[4], f32 fov, const f32 cam_off[3], const f32 rot[3]);
 void ak_fe_set_model_drawer(ak_fe_model_fn fn);
 /* Galactic Conquest's MP_TechPurchase (BFF_GALACTICCONQUEST.GUI): the side's technology and commanders as the page shows them;
    after AK_FE_GC_BUY (GC_Purchase<Equipment|Infantry|Space>Tech n / GC_PurchaseCommander n) the choice: kind 0..2 tech (level n),
