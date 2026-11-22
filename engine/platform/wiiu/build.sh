@@ -9,7 +9,7 @@ engine=$(cd -- "$here/../.." && pwd)
 repo=$(dirname "$engine")
 DKP=${DEVKITPRO:-/opt/devkitpro}
 export PATH="$DKP/devkitPPC/bin:$DKP/tools/bin:$PATH"
-glslc=${CAFEGLSL:?set CAFEGLSL to CafeGLSL's glslcompiler}
+glslc=${CAFEGLSL:?set CAFEGLSL to the CafeGLSL glslcompiler}
 out="$repo/build/wiiu"; mkdir -p "$out/obj" "$out/gen"
 
 # shaders: one .gsh per program (vertex + fragment), embedded
