@@ -38,7 +38,11 @@ bool ak_route_for_unit(const ak_level *l, u32 unit, ak_route *out)
            nodes 0x3B when the Empire takes a post and 0x51 when the Alliance does - the node sets / clears its flag 0x40, 08855908)
            [assumed: bit 7 = wait here, 0x40 = open; the walker's own handler is not found] */
         if (out->nnodes < AK_ROUTE_NODES) { u32 q = out->nnodes++; out->node_id[q] = node; out->node_pt[q] = out->n ? out->n - 1 : 0;
-            out->node_stop[q] = hops > 0 && sz >= 32 && (ak_rd32(nb + sz - 32) & 0x80); }
+            out->node_stop[q] = hops > 0 && sz >= 32 && (ak_rd32(nb + sz - 32) & 0x80);
+            out->node_wait[q][0] = sz >= 76 ? wf(nb + 68) : 0; out->node_wait[q][1] = sz >= 76 ? wf(nb + 72) : 0;
+            if (!(out->node_wait[q][0] >= 0 && out->node_wait[q][0] < 1e4f)) out->node_wait[q][0] = 0;
+            if (!(out->node_wait[q][1] >= out->node_wait[q][0] && out->node_wait[q][1] < 1e4f)) out->node_wait[q][1] = out->node_wait[q][0];
+            out->node_ev[q] = ak_rd32(nb + sz - 4); }
         u32 seg = ak_rd32(nb + 44); if (seg == 999) break;
         const u8 *sb = find_enti(l, seg, 60, &sz);
         if (!sb || sz < 68) break;

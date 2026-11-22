@@ -110,6 +110,7 @@ typedef struct {                       /* a bot soldier */
        timer; a leader's heading (game axes: atan2(dz, dx) of its way) */
     s8 squad, sq_slot; f32 sq_t, sq_head;
     s8 uspawn;                         /* a scripted unit spawner's soldier (p->uspawn), -1: one of the standing armies */
+    u16 rt_i, rt_q; f32 rt_wait; bool rt_on;   /* a scripted unit walking its spawner's route: the next point, the node it is at / heading for, the stand there, on the way */
     bool pilot; s16 pilot_v;           /* a campaign craft's pilot (no army of its own): flies the placed craft pilot_v, never respawns on foot */
 } ak_play_bot;
 
@@ -234,7 +235,7 @@ typedef struct {
     struct { u32 id; s32 fx, h; f32 pos[3], dir[3]; bool on; } sfx[48]; u32 nsfx;
     struct { u32 id, ev[4], nev, speech; f32 t; } t62[32]; u32 nt62;    /* ENTI type 62: a speech line (the script's 5 says it; event 12 at its end) */   /* ENTI type 33 effect places the script turns on / off */      /* ENTI type 38: fire a group on message 0x14 with a hash */
     struct { u32 id; f32 p0[3], p1[3], pos[3], len, t, wait; ak_quat q; f32 mn[3], mx[3]; bool moving, open; } mover[16]; u32 nmover;   /* ENTI type 19: a moving hull */
-    struct { u32 id; f32 pos[3], yaw; u32 ev[4], nev; s32 bot; bool waiting, used; } uspawn[16]; u32 nuspawn;   /* scripted soldier spawners (0x800D
+    struct { u32 id; f32 pos[3], yaw; u32 ev[4], nev; s32 bot; bool waiting, used; ak_route *route; } uspawn[16]; u32 nuspawn;   /* scripted soldier spawners (0x800D
                                                                                  with a Humanoid blueprint: Yavin's stormtroopers 18be0-18be3) */
     struct { u32 id; s32 cut; } named[64]; u32 nnamed;
     s32 counter_val, counter_total;                                       /* the script's counter (0x8017 to 0x3E8) */

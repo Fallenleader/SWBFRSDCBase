@@ -16,7 +16,8 @@
 #define AK_ROUTE_MAX 256
 #define AK_ROUTE_NODES 32
 /* nodes: the path nodes passed, in order - id, the point index, whether the walker must wait there (flags bit 7) */
-typedef struct { f32 pt[AK_ROUTE_MAX][3]; u32 n; f32 length; u32 node_id[AK_ROUTE_NODES], node_pt[AK_ROUTE_NODES]; bool node_stop[AK_ROUTE_NODES]; u32 nnodes; } ak_route;
+typedef struct { f32 pt[AK_ROUTE_MAX][3]; u32 n; f32 length; u32 node_id[AK_ROUTE_NODES], node_pt[AK_ROUTE_NODES]; bool node_stop[AK_ROUTE_NODES]; u32 nnodes;
+                 f32 node_wait[AK_ROUTE_NODES][2]; u32 node_ev[AK_ROUTE_NODES]; } ak_route;   /* node_wait: seconds a unit stands there (min, max: words 17 / 18 - Ord Mantell's 20 / 20 and 10 / 10); node_ev: the record's last word, two script groups (low half on arrival, high half - 0xFFFF none) */
 /* the distance along the route of its point i */
 f32 ak_route_dist(const ak_route *r, u32 i);
 

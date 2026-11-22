@@ -1381,6 +1381,16 @@ textures and how they are used. Section R lists only what must be in place so th
     (type 55: 187fa raises 32 when reached, a later one 34 [to find]), the team spawn places 0x8023 / 0x8024 (3 / 4; link to a
     post or a unit, a count; 0898383C uses them in game kind 5 when no post is chosen - trace which soldiers), 0x800E 1882f's
     0x800D and 186ef's 26 / 8019 {0x101}.
+  - Part 49, 2026-11-22 - **Chewbacca's escort walks.** A scripted spawner names its unit's start node (byte 82 + 4 x the event
+    count: Chewbacca's 18806 -> 187fa); nodes (type 55) chain by type-60 splines (187fa -> 187fc -> 187fe -> 18800 -> 187ee), each
+    with a stand time (words 17 / 18: 20 / 20, 10 / 10) and two groups in its last word (187fa 0x20 / -, 18800 - / 0x22, 187ee
+    0x2E / -). Measured (harness om_h5, RS_DRIVE_ALL): Chewbacca (600 health - his blueprint's, the army's soldiers 60) came in
+    at 187fa (its group 32 that frame), stood 19.8 s, ran the spline to 187fc at ~5.4 m/s and stood again. Aurek: scripted units
+    with a route walk it - arrival fires the low group, leaving the high [assumed], the stand drawn between the two times, no
+    fight drift on the way; scripted units keep their blueprint's Health (no army multiplier) [assumed for all]. Ord Mantell now
+    runs Junkyard -> 2 -> 30000 -> 32 -> 34 (18800) -> 5 (the escort's objective done) -> 46 (187ee: 4 to Chewbacca's spawner)
+    -> 4. Open: he takes ~60 a second from the soldiers at the Junkyard when the post is the Empire's (the original lost 8 a hit,
+    3 hits in 20 s - the AI's fire at non-player units, 4.x); the team spawn places 0x8023 / 0x8024; 0x800E objects; the rest.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

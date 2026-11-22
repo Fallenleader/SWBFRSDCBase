@@ -92,6 +92,7 @@ static void world_of(const f32 *pos, f32 yaw, ak_m4 *w) { world_of_scaled(pos, y
 static void turrets_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp);
 static void placed_flyer_crew(ak_play *p, const ak_model_set *m, u32 v);
 static void props_init(ak_play *p, const ak_level *l, const ak_model_set *m, ak_arena *a);
+static void script_sink(void *user, const ak_script_msg *m);
 
 /* ------------------------------------------------------------------ bodies (ak_box.h) */
 static const f32 default_box[2][3] = { { -0.3f, 0, -0.3f }, { 0.3f, 2.0f, 0.3f } };   /* 08A061BC: 0.6 x 2.0 x 0.6 m on the origin */
@@ -574,6 +575,7 @@ placed:
     if (ak_setting_int("AK_DEBUG_SPAWN", 0)) AK_INFO("spawn", "%.1f s: bot %d (team %d) at %.0f %.0f %.0f (game axes %.0f %.0f %.0f)", p->clock, (int)(b - p->bot), b->team, pos[0], pos[1], pos[2], pos[0], -pos[1], -pos[2]);
     ak_char_spawn(&b->ch, pos, yaw);
     b->alive = true; b->dead_t = 0; b->state = PLAY_IDLE; b->clip_t = rnd(&b->seed); b->land_t = 0; b->was_ground = true; b->idle_var = -1; b->idle_t = (rnd(&b->seed) + 0.5f) * 2.5f;
+    b->rt_i = 0; b->rt_q = 0; b->rt_wait = -1; b->rt_on = b->uspawn >= 0 && (u32)b->uspawn < p->nuspawn && p->uspawn[b->uspawn].route;
     b->goal = -1; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->fenemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
     b->stuck_t = 0; memcpy(b->stuck_pos, pos, 12); b->veh = b->want_veh = -1; b->rev_t = 0; b->vstucks = 0; b->veh_cool = 0;
     b->wants_veh = p->bot_drive > 0 && rnd(&b->seed) < p->bot_drive;   /* the spawner's chance (089800C8: random % 100 < +0xEC, 100 by default - 0897E594) */
@@ -585,7 +587,9 @@ placed:
     {   static const f32 mul[5] = { 0.6f, 1.0f, 1.3f, 1.6f, 2.0f }, wel[5] = { 0, 5, 2, 0.5f, 0.15f };
         int k = 0;
         if (p->difficulty >= 2) { f32 r = game_roll(p) * 0.01f * 7.65f, acc = 0; for (k = 0; k < 4; k++) { acc += wel[k]; if (r < acc) break; } }
-        t->health = t->max_health = ak_bp_float(b->look.bp, "Health", 100.0f) * mul[k]; }
+        /* a scripted spawner's unit keeps its blueprint's Health (measured, om_h5: Chewbacca came in with 600, his blueprint's, while
+           the army's soldiers had 60) [assumed: for all scripted units] */
+        t->health = t->max_health = ak_bp_float(b->look.bp, "Health", 100.0f) * (b->uspawn >= 0 ? 1.0f : mul[k]); }
     t->headshot_mult = ak_bp_float(b->look.bp, "Headshot multiplier", 4.0f);
     t->alive = true; t->team = b->team; t->last_attacker = -1;
     b->held = -1;
@@ -1192,6 +1196,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
             f32 r20 = ak_rdf32(c.body + 4 * (bw + 6)), r22 = ak_rdf32(c.body + 4 * (bw + 12)); u->yaw = atan2f(r20, r22) + 3.14159265f;   /* [assumed: the third column's x / z; soldiers face -z] */
             u->waiting = (ak_rd32(c.body + 4 * (bw + 16)) & 0x200000u) != 0;
             u->nev = ak_script_events(l, u->id, 2, u->ev, 4);
+            {   ak_route *r = (ak_route *)ak_arena_alloc(a, sizeof *r, 4);   /* its route (the start node after the record's blueprint: Chewbacca's 18806 -> 187fa) */
+                if (r && ak_route_for_unit(l, u->id, r) && r->nnodes) u->route = r; }
             p->nuspawn++;
         }
     }
@@ -1274,7 +1280,7 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         bot_spawn(p, m, b, p->nbots);
         if (u->waiting) { b->alive = false; b->dead_t = 10.0f; p->target[1 + p->nbots].alive = false; }
         else u->used = true;
-        if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "spawner %x: %s (team %d)%s", u->id, bn, b->team, u->waiting ? ", waits" : "");
+        if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "spawner %x: %s (team %d, Health %.0f)%s%s", u->id, bn, b->team, ak_bp_float(b->look.bp, "Health", 100.0f), u->waiting ? ", waits" : "", u->route ? ", a route" : "");
         p->nbots++;
     }
     for (u32 k = 0; k < want_pilot; k++) {                                   /* the campaign craft's pilots (above): idle until a craft needs one */
@@ -1901,6 +1907,28 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
     if (b->enemy >= 0 && (!p->target[b->enemy].alive)) b->enemy = -1;
     /* where to go: along the route, then onto the post */
     f32 want[3]; bool moving = true;
+    if (b->rt_on) {
+        /* a scripted unit's route (measured, harness om_h5: Chewbacca spawned at his start node 187fa (its arrival group 32 fired
+           in that frame), stood there 19.8 s - the node's 20 / 20 - then ran the spline to 187fc at ~5.4 m/s and stood again).
+           [assumed: a node's high group as it leaves; the wait drawn between the two times; it does not stop to fight] */
+        const ak_route *r = p->uspawn[b->uspawn].route;
+        if (b->rt_wait < 0) {                                                 /* arrived at node rt_q */
+            u32 ev = r->node_ev[b->rt_q]; b->rt_wait = r->node_wait[b->rt_q][0] + rnd(&b->seed) * (r->node_wait[b->rt_q][1] - r->node_wait[b->rt_q][0]);
+            if ((ev & 0xFFFF) != 0xFFFF && p->have_script) ak_script_fire(&p->script, (s32)(ev & 0xFFFF), r->node_id[b->rt_q], script_sink, p);
+            b->rt_i = (u16)(r->node_pt[b->rt_q] + 1);
+        }
+        if (b->rt_wait > 0) { b->rt_wait -= dt; if (b->rt_wait <= 0) { b->rt_wait = 0;
+            u32 ev = r->node_ev[b->rt_q] >> 16; if (ev != 0xFFFF && p->have_script) ak_script_fire(&p->script, (s32)ev, r->node_id[b->rt_q], script_sink, p); } }
+        if (b->rt_wait > 0 || b->rt_q + 1u >= r->nnodes || b->rt_i >= r->n) { memcpy(want, b->ch.pos, 12); moving = false; if (b->rt_q + 1u >= r->nnodes && b->rt_wait <= 0) b->rt_on = false; }
+        else {
+            memcpy(want, r->pt[b->rt_i], 12);
+            f32 dx = want[0] - b->ch.pos[0], dz = want[2] - b->ch.pos[2];
+            if (dx * dx + dz * dz < 1.0f * S * 1.0f * S) {
+                if (b->rt_i == r->node_pt[b->rt_q + 1] || b->rt_i + 1u >= r->n) { b->rt_q++; b->rt_wait = -1; }
+                else b->rt_i++;
+            }
+        }
+    } else
     if (b->path_i < b->npath) {
         const ak_nav_node *nd = &p->nav.node[b->path[b->path_i]]; const f32 *np = nd->pos; memcpy(want, np, 12);
         {   /* its own line through the node (inside the node's radius), so a squad does not walk in single file */
@@ -1981,7 +2009,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
        Aurek's shooters never stand (4.1 / 4.5 / 4.8 / 5.0 / 6.4 m/s against the original's 0 / 0.08 / 2.2 / 5.0 / 8.2), so it stays
        on until the movement orders' holding (0x3F2) is ported */
     static int drift = -1; if (drift < 0) drift = ak_setting_int("AK_BOT_FIGHT_DRIFT", 1);
-    f32 speed = en && !saber && !attack && drift ? 0.55f : 1.0f;
+    f32 speed = en && !saber && !attack && drift && !b->rt_on ? 0.55f : 1.0f;   /* (a unit on its route keeps to it: Chewbacca stood still at his nodes, om_h5) */
     /* the path node's wanted speed (0893D4E8): 8.5 m/s (D_08AED88C); 5.0 (D_08AED894) within 40 m (D_08AED890, 3-D) of a soldier of
        the soldier list 0x08C2A880 (harness RS_DRIVE_LIST: every soldier) that is a player (089E3BD4: a player record, +84 != 999;
        either side) or a living enemy (team +12 differs, health +40 > 0, flags +5 and +64 set) - unless the node's byte +41 is set
@@ -1997,7 +2025,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         ci.speed = near ? 5.0f : 8.5f; }
     f32 rx = cosf(b->ch.yaw), rz = -sinf(b->ch.yaw), fx = -sinf(b->ch.yaw), fz = -cosf(b->ch.yaw);
     if (moving) { ci.move_x = (mdx * rx + mdz * rz) * speed; ci.move_y = (mdx * fx + mdz * fz) * speed; }
-    if (en && !saber && !attack && drift) {
+    if (en && !saber && !attack && drift && !b->rt_on) {
         b->strafe_t -= dt;
         if (b->strafe_t <= 0) { b->strafe_t = 0.8f + rnd(&b->seed) * 1.2f; b->strafe = rnd(&b->seed) < 0.5f ? -0.6f : 0.6f; if (rnd(&b->seed) < 0.3f) b->strafe = 0; }
         ci.move_x += b->strafe;
@@ -4073,7 +4101,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     {   static int dbb = -1; if (dbb < 0) dbb = ak_setting_int("AK_DEBUG_BOTS", 0);   /* tests: each live bot once a second */
         if (dbb && p->frame_no % 30 == 0) { for (u32 i = 0; i < p->nbots; i++) { const ak_play_bot *b = &p->bot[i]; if (!b->alive) continue;
             f32 dx = b->ch.pos[0] - p->ch.pos[0], dz = b->ch.pos[2] - p->ch.pos[2];
-            AK_INFO("bots", "%.1f s: bot %u at %.1f %.1f %.1f, %.1f m from the player, enemy %d, goal %d, state %d", p->clock, i, b->ch.pos[0], -b->ch.pos[1], -b->ch.pos[2], sqrtf(dx * dx + dz * dz), b->enemy, b->goal, b->fstate); }
+            AK_INFO("bots", "%.1f s: bot %u at %.1f %.1f %.1f, %.1f m from the player, enemy %d, goal %d, state %d, health %.0f, team %d", p->clock, i, b->ch.pos[0], -b->ch.pos[1], -b->ch.pos[2], sqrtf(dx * dx + dz * dz), b->enemy, b->goal, b->fstate, p->target[1 + i].health, b->team); }
             AK_INFO("bots", "%.1f s: player health %.1f", p->clock, p->target[0].health); } }
     /* the vehicles */
     for (u32 v = 0; v < p->nveh; v++) {                                      /* each spawn's clock: reset while one of its vehicles stands near */
