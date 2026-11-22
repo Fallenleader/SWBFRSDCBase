@@ -31,7 +31,8 @@ bool ak_fe_profile_load(void);                 /* the player profile (savedata/U
 bool ak_fe_profile_save(void);
 void ak_fe_stat(int i);                                  /* the profile's counter i + 1, the medals checked (089775E0) */
 u32 ak_fe_stat_value(int i);
-bool ak_fe_has_profile(void);                            /* (the front end set up: its profile loaded or new) */
+bool ak_fe_has_profile(void);
+bool ak_fe_personal_look(int faction, const char **body, int *head, int *c1, int *c2);   /* the profile's personalisation for a faction */                            /* (the front end set up: its profile loaded or new) */
 void ak_fe_match_won(const char *level, int mode);       /* the player's side won a match (08972F90): the level, its mode */
 void ak_fe_medal_clear(void);                            /* the game-over dialogue's medal line off */
 const u16 *ak_fe_profile_name(u32 *len);       /* its name, NULL none */

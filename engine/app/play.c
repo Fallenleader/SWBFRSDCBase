@@ -1153,6 +1153,10 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
         }
         p->aim_yaw_speed = ak_setting_float("AK_AIM_SPEED", 3.2f); p->aim_pitch_speed = p->aim_yaw_speed * 0.7f;
         p->aim_curve = ak_setting_float("AK_AIM_CURVE", 2.0f); p->invert_y = ak_setting_int("AK_INVERT_Y", 0) != 0;
+        /* the three control schemes' Y inversions (the profile's +0x51 / +0x6D / +0x89; a new profile: 0 / 0 / 1): the infantry's 08A5F128,
+           the vehicles' 08A60028 (ground vehicles and flyers in the air - 089B20CC / 089B6960 make it), the spacecraft's 08A5EC4C (089A9728
+           makes it for a flyer in free flight, vehicle +852 bit 0) - each negates the stick's raw Y when set */
+        p->invert_y_vehicle = ak_setting_int("AK_INVERT_Y_VEHICLE", 0) != 0; p->invert_y_space = ak_setting_int("AK_INVERT_Y_SPACE", 1) != 0;
     }
     const ak_bp_object *ctl = ak_bp_find(bp, "Controls", "Humanoid");
     p->stamina = p->stamina_max = 100.0f; p->stamina_regen = 10.0f; p->stamina_spent = false;
@@ -4226,11 +4230,11 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                     vh->r_tap_t += dt; vh->r_was = r;
                     fly_boost = r && vh->flying && vh->takeoff <= 0 && p->free_flight && (vh->r_tap_t < 0.5f || vh->boosting);
                 }
-                if (p->invert_y) vh->throttle = -vh->throttle;
+                if (p->free_flight ? p->invert_y_space : p->invert_y_vehicle) vh->throttle = -vh->throttle;   /* (the snowspeeder's pull-up measured with 0) */
                 fly_target_update(p, v, dt);
             }
             else if (vin->held & AK_BTN_L) { vh->strafe = vin->lx; vh->steer = 0; }   /* L held: strafe (hover craft) */
-            vh->aim_yaw -= vin->rx * 2.0f * dt; vh->aim_pitch += (p->invert_y ? -vin->ry : vin->ry) * 1.5f * dt;
+            vh->aim_yaw -= vin->rx * 2.0f * dt; vh->aim_pitch += (p->invert_y_vehicle ? -vin->ry : vin->ry) * 1.5f * dt;   /* [assumed: which of the vehicle's inputs 08A60028's axis 1 is] */
             if (vh->aim_yaw > 1.2f) vh->aim_yaw = 1.2f;
             if (vh->aim_yaw < -1.2f) vh->aim_yaw = -1.2f;
             if (vh->aim_pitch > 0.6f) vh->aim_pitch = 0.6f;

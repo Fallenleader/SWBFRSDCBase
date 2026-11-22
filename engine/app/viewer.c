@@ -551,7 +551,17 @@ int main(int argc, char **argv)
             f32 st[3] = { cam.pos.x, cam.pos.y, cam.pos.z };
             {   const char *md = ak_setting_str("AK_MODE", "");   /* (tests straight into a campaign mission: the menu's side, as line 218) */
                 if ((!strcmp(md, "CMPN") || !strcmp(md, "5")) && !ak_setting_str("AK_SOLDIER", NULL)) { ak_setting_set("AK_TEAM", "1"); ak_setting_set("AK_SOLDIER", "MediumRebel"); } }
-            if (!ak_play_init(&play, &level, &models, &bps, &lvl, ak_setting_str("AK_SOLDIER", "Stormtrooper"), st)) { AK_WARN("aurek", "no soldier for this level"); playing = false; }
+            const char *soldier = ak_setting_str("AK_SOLDIER", "Stormtrooper");
+            {   /* the personalisation (08A08EF8: the join message carries the profile's body, head and colours for the player's faction) -
+                   outside the campaign [assumed: the campaign keeps its own soldier], unless the settings name a head or colours */
+                static int user_look = -1; if (user_look < 0) user_look = ak_setting_str("AK_HEAD", NULL) || ak_setting_str("AK_COLOUR1", NULL) || ak_setting_str("AK_COLOUR2", NULL);
+                const ak_bp_object *so = ak_bp_find(&bps, "Humanoid", soldier); const char *pb; int ph, c1, c2;
+                if (!user_look && ak_game_mode != 5 && so && ak_fe_personal_look(ak_bp_int(so, "Faction", -1), &pb, &ph, &c1, &c2)) {
+                    char v[8]; soldier = pb; snprintf(v, sizeof v, "%d", ph); ak_setting_set("AK_HEAD", v);
+                    snprintf(v, sizeof v, "%d", c1); ak_setting_set("AK_COLOUR1", v); snprintf(v, sizeof v, "%d", c2); ak_setting_set("AK_COLOUR2", v);
+                }
+            }
+            if (!ak_play_init(&play, &level, &models, &bps, &lvl, soldier, st)) { AK_WARN("aurek", "no soldier for this level"); playing = false; }
             else AK_INFO("aurek", "playing as %s (%s, head %d) at %.1f %.1f %.1f; level memory %.1f MB", models.models[play.look.body].name, ak_faction_name(play.look.faction),
                          play.look.head_index + 1, play.ch.pos[0], play.ch.pos[1], play.ch.pos[2], lvl.used / 1048576.0);
             if (play.ready) ak_play_sound_start(&play, &level, &bps);

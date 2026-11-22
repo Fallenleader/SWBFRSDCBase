@@ -1512,6 +1512,11 @@ textures and how they are used. Section R lists only what must be in place so th
     (08A1F9B0), the kill flags' meanings checked against the harness, the personalisation's soldier preview / head models and the
     choices in play, an on-screen keyboard, the vehicle / spacecraft inversions and sensitivities in play, the cut-scene list and
     movies, the customisation preview's scale.
+  - Part 65, 2026-11-22 - **8.2: the personalisation in play, the vehicle / spacecraft inversions** (see NATIVE_ENGINE). Open:
+    the personalisation preview and head models in the menu (08A36BA0 / 08A35D88), the bots' random bodies (089835EC), the stick
+    sensitivities (08A5F1A4's axis set-up), slicing (08A1F9B0, Super_Slicer), an on-screen keyboard, the customisation preview's
+    scale, and the movies: no player in Aurek yet - FMV/*.PMF (PSMF H.264) needs a decoder per platform, then the cut-scene list
+    (FE_ListAvaliableCutscenes / FE_PlayMovie) and the campaign's FMV nodes can follow - a task of its own (8.3).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

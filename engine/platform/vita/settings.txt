@@ -15,7 +15,7 @@
 #            weapon's zoom levels, then back out).
 #   Ground vehicles: left stick throttle / steer, right stick aims, CROSS fire, SQUARE secondary, L hold boost, UP get out.
 #            Walkers (AT-ST) answer the stick 0.47 s late, as the game's do, and finish their stride when let go.
-#   Flyers: left stick pitch (forward = nose down; AK_INVERT_Y flips it) and turn / bank; on the ground R takes off; flying, R
+#   Flyers: left stick pitch (forward = nose down; AK_INVERT_Y_VEHICLE / AK_INVERT_Y_SPACE flip it) and turn / bank; on the ground R takes off; flying, R
 #            speeds up toward the cruising speed and L slows toward the stall speed (the speed stays when let go); in space,
 #            tap R then hold it again within 0.5 s to boost to top speed; CROSS fire, SQUARE secondary;
 #            touching down slowly and level lands.  Keeping an
@@ -167,6 +167,10 @@ AK_SINGLE_STICK=-1
 AK_AIM_SPEED=3.2
 AK_AIM_CURVE=2.0
 AK_INVERT_Y=0
+# invert the vertical in vehicles and atmospheric flyers / in space flight (the original's options; unset = the profile's choice,
+# which starts at 0 / 1 - a new profile flies inverted in space, as the original does)
+#AK_INVERT_Y_VEHICLE=0
+#AK_INVERT_Y_SPACE=1
 # the soldier's side in play mode: 1 (Republic / Alliance) or 2 (CIS / Empire); unset = the soldier's own faction
 #AK_TEAM=1
 # conquest (the game's options): tickets each team starts with (25..200), seconds between spawn waves,

@@ -114,6 +114,8 @@ static void prof_to_vars(void)
     }
     ak_setting_set("AK_SUBTITLES", var_get("BFF.Subtitles") != 0 ? "1" : "0");
     if (!ak_setting_str("AK_INVERT_Y", NULL) || var_get("BFF.InfantryControlInvertYAxis") != 0) ak_setting_set("AK_INVERT_Y", var_get("BFF.InfantryControlInvertYAxis") != 0 ? "1" : "0");
+    if (!ak_setting_str("AK_INVERT_Y_VEHICLE", NULL)) ak_setting_set("AK_INVERT_Y_VEHICLE", var_get("BFF.VehicleControlInvertYAxis") != 0 ? "1" : "0");   /* (08A60028) */
+    if (!ak_setting_str("AK_INVERT_Y_SPACE", NULL)) ak_setting_set("AK_INVERT_Y_SPACE", var_get("BFF.SpacecraftControlInvertYAxis") != 0 ? "1" : "0");   /* (08A5EC4C) */
     ak_audio_set_volumes(var_get("BFF.VolumeMaster"), var_get("BFF.VolumeMusic"), var_get("BFF.VolumeSFX"));
 }
 static void prof_from_vars(void)
@@ -1075,6 +1077,16 @@ static const u16 *pers_item_name(int cat, int row, const char *suffix, u32 *n)  
     if (cat == 0) snprintf(key, sizeof key, "Body%s", suffix); else snprintf(key, sizeof key, "Head%d%s", row + 1, suffix);
     s32 id = o ? ak_bp_int(o, key, -1) : -1; return id >= 0 ? ak_hud_stdtext((u32)id, n) : NULL;
 }
+/* the player's look from the profile for a faction (08A08EF8's join message 0x8027: the body 08978120, its head 0897808C, the colours
+   and the insignia): the body's Humanoid, the head 0..2, team colour, uniform colour */
+bool ak_fe_personal_look(int faction, const char **body, int *head, int *c1, int *c2)
+{
+    if (!prof_have || faction < 0 || faction > 3) return false;
+    static const u32 off[4] = { 0x5C0, 0x5CC, 0x5A8, 0x5B4 }; const u8 *r = prof + off[faction];
+    s32 b = (s32)ak_rd32(r), h = (s32)ak_rd32(r + 4);
+    *body = pers_unit[faction][b >= 0 && b < 3 ? b : 0]; *head = h >= 0 && h < 3 ? h : 0; *c1 = r[8] & 15; *c2 = r[9] & 15;
+    return true;
+}
 static int pers_count(const char *fn)
 {
     if (!strncmp(fn, "FE_Personalisation_ListCategory", 31)) return 5;
@@ -1386,7 +1398,9 @@ int ak_fe_update(const ak_input *in, f32 dt)
     if (f && f->type == AK_GUI_BUTTON2 && f->binding && f->binding[0] && (in->pressed & AK_BTN_CROSS)) {   /* a check box */
         var_set(f->binding, var_get(f->binding) != 0 ? 0 : 1);
         if (!strcmp(f->binding, "BFF.Subtitles")) ak_setting_set("AK_SUBTITLES", var_get(f->binding) != 0 ? "1" : "0");   /* (the narrator's subtitles) */
-        if (!strcmp(f->binding, "BFF.InfantryControlInvertYAxis")) ak_setting_set("AK_INVERT_Y", var_get(f->binding) != 0 ? "1" : "0");   /* (the soldier's look; the next match) [assumed: the vehicle and spacecraft flags not applied yet] */
+        if (!strcmp(f->binding, "BFF.InfantryControlInvertYAxis")) ak_setting_set("AK_INVERT_Y", var_get(f->binding) != 0 ? "1" : "0");   /* (the soldier's look; the next match) */
+        if (!strcmp(f->binding, "BFF.VehicleControlInvertYAxis")) ak_setting_set("AK_INVERT_Y_VEHICLE", var_get(f->binding) != 0 ? "1" : "0");
+        if (!strcmp(f->binding, "BFF.SpacecraftControlInvertYAxis")) ak_setting_set("AK_INVERT_Y_SPACE", var_get(f->binding) != 0 ? "1" : "0");
         return AK_FE_NONE;
     }
     static const u32 dirs[4] = { AK_BTN_LEFT, AK_BTN_RIGHT, AK_BTN_UP, AK_BTN_DOWN };

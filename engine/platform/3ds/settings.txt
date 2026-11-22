@@ -17,7 +17,7 @@
 #            moves around the target), L tap jump, L hold sprint, d-pad UP get in / out of a vehicle or man a turret (the stick
 #            aims it), CIRCLE roll, TRIANGLE zoom.
 #   Ground vehicles: stick throttle / steer, CROSS fire, SQUARE secondary, L hold boost, UP get out.
-#   Flyers: stick pitch (forward = nose down; AK_INVERT_Y flips it) and turn / bank; on the ground R takes off; flying, R speeds up
+#   Flyers: stick pitch (forward = nose down; AK_INVERT_Y_VEHICLE / AK_INVERT_Y_SPACE flip it) and turn / bank; on the ground R takes off; flying, R speeds up
 #            toward the cruising speed and L slows toward the stall speed; in space, tap R then hold it again within 0.5 s to boost.
 #   Heroes: when your side's hero is offered, d-pad UP takes it, DOWN declines.
 #   Stereo 3D: raise the 3D slider.  The HUD sits on the screen; the world goes behind it.
@@ -182,6 +182,10 @@ AK_TWIN_STICK=0
 AK_AIM_SPEED=3.2
 AK_AIM_CURVE=2.0
 AK_INVERT_Y=0
+# invert the vertical in vehicles and atmospheric flyers / in space flight (the original's options; unset = the profile's choice,
+# which starts at 0 / 1 - a new profile flies inverted in space, as the original does)
+#AK_INVERT_Y_VEHICLE=0
+#AK_INVERT_Y_SPACE=1
 # the soldier's side in play mode: 1 (Republic / Alliance) or 2 (CIS / Empire); unset = the soldier's own faction
 #AK_TEAM=1
 # conquest (the game's options): tickets each team starts with (25..200), seconds between spawn waves,
