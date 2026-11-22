@@ -337,6 +337,7 @@ void ak_script_update(ak_script *s, f32 dt, bool paused, ak_script_sink sink, vo
         if (n->disabled || !n->active) continue;
         if (n->type == AK_SN_TIMER) {                                    /* 08871FA4, 08872000 */
             if (!(n->tflags & 2u) || !paused) n->left -= dt;
+            { static int dg = -1; if (dg < 0) dg = ak_setting_int("AK_DEBUG_GROUPS", 0); if (dg > 2 && fmodf(n->left, 10.0f) < dt) AK_INFO("script", "timer %x: %.1f s left", n->id, n->left); }
             if (n->left <= 0) {
                 if (!(n->tflags & 1u)) { n->active = false; n->left = n->time; }
                 else n->left = n->time > 0 ? n->time + fmodf(n->left, n->time) : 0;

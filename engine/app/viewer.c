@@ -548,6 +548,8 @@ int main(int argc, char **argv)
         if (menu == 4) playing = !playing;                                  /* SELECT + square: play (a soldier on foot) / free camera */
         if (playing && !play.ready) {
             f32 st[3] = { cam.pos.x, cam.pos.y, cam.pos.z };
+            {   const char *md = ak_setting_str("AK_MODE", "");   /* (tests straight into a campaign mission: the menu's side, as line 218) */
+                if ((!strcmp(md, "CMPN") || !strcmp(md, "5")) && !ak_setting_str("AK_SOLDIER", NULL)) { ak_setting_set("AK_TEAM", "1"); ak_setting_set("AK_SOLDIER", "MediumRebel"); } }
             if (!ak_play_init(&play, &level, &models, &bps, &lvl, ak_setting_str("AK_SOLDIER", "Stormtrooper"), st)) { AK_WARN("aurek", "no soldier for this level"); playing = false; }
             else AK_INFO("aurek", "playing as %s (%s, head %d) at %.1f %.1f %.1f; level memory %.1f MB", models.models[play.look.body].name, ak_faction_name(play.look.faction),
                          play.look.head_index + 1, play.ch.pos[0], play.ch.pos[1], play.ch.pos[2], lvl.used / 1048576.0);

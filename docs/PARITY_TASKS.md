@@ -1433,6 +1433,20 @@ textures and how they are used. Section R lists only what must be in place so th
     -> 27 -> 189f2 -> 38 -> 0x8006 winner 0. Skips used: AK_TEST_FIRE 1 / 49 / 20 / 21 (posts contested by soldiers; the walkers),
     AK_TEST_BREAK the three props, teleports and the use button. Still open there: 0x4C to path nodes, 0x801F / 0x8007 / 0x0E to
     the spawners, 0x1C / 0x1D, 0x1A to type 43, 5 to class 0x800E 18ae1 / 18ae2, 0x53 to the fade 18a9e. Next: BOZ_PITY.
+  - Part 54, 2026-11-22 - **Boz Pity runs to its win in Aurek** (with test skips). Found on the way: tests started straight into a
+    campaign mission played a Stormtrooper (AK_SOLDIER's default), the menu's campaign path sets AK_TEAM 1 / MediumRebel - now the
+    command line does the same for AK_MODE CMPN / 5 (Kessel's and Tatooine's runs were on the wrong side; their chains were
+    script skips, so the wins stand, the fights do not). AK_TEST_GOD=1 keeps the player up. The chain: post 186a6 (10002 -> 5;
+    skipped) -> selector 188d2 -> 62 -> 18753 -> 2 (the 90 s timer 18755 and its countdown) -> 3 -> 6 -> use zone 188d1 (game
+    -10.45 3.16 192.0) -> 8 -> 13 (placeholder cutscene, its 30003 starts the AT-AT 18854) -> the AT-AT walks its route and
+    enters region 188d4 (who 18854: a vehicle spawner's walker) at ~85 s -> 25 -> "AT-At gone boom" (15 timed groups, end
+    30012) -> 18763 -> 11 -> the AT-STs 18770 / 18772 (broken: 27 / 24 -> counter 1876c) -> 32 -> 33 -> the carried object
+    18783 (game -117.7 2.6 -77.7, the Empire's; 10012 -> 34) -> 50 -> base 18789 (-258.8 3.5 32.9; 10004 -> 51) -> 36 (ackbar
+    injured / acbar getting up) -> region 18881 -> 1 -> 1880f -> 26 -> the timer 1878c -> 37 (skipped: the teleport was above
+    the region's box) -> 49 -> "Laat coming in" (length 0 - ran to its last timed group, 8.5 s) -> Ackbar's node 18787 (38) ->
+    region 18795 -> 40 -> 41 -> 0x8006 winner 0. Skips used: AK_TEST_FIRE 5 / 3 / 25 / 37, AK_TEST_BREAK 18770 / 18772,
+    teleports. Still open there: 0x51 / 0x3B to path nodes (the AT-AT's route switches), 0x801F to the spawners, 0x8022 to the
+    ticket entity, 0x6 / 0x7 to selectors 1889e / 188d3 [handled], 0x39 to 1888e. Next: HOTH_ION_CANNON.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -3350,6 +3350,7 @@ static void draw_part(ak_scene_models *ms, s32 model, const f32 *M, const ak_m4 
 /* ------------------------------------------------------------------ the frame */
 static void player_down(ak_play *p)
 {
+    if (ak_setting_int("AK_TEST_GOD", 0)) { p->target[0].alive = true; p->target[0].health = p->target[0].max_health; p->health = p->max_health; return; }   /* tests: the player does not fall */
     p->alive = false; p->dead_t = 0; p->deaths++; p->lock = -1; p->health = 0; p->death_pick = (s32)(rnd(&p->seed) * 4.0f) & 3;
     p->target[0].alive = false; p->target[0].health = 0;
     if (p->have_cq) ak_conquest_killed(&p->rules, &p->match, p->team);
@@ -3596,6 +3597,7 @@ static void script_sink(void *user, const ak_script_msg *m)
     if (!done && (m->type == 3 || m->type == 4) && p->have_ctf && ak_game_mode == 5) {   /* the campaign's carried object / its base on (3), off (4) */
         for (u32 i = 0; i < p->ctf_map.nflags && !done; i++) if (p->ctf_map.flag[i].id == m->target) { done = true;
             ak_ctf_flag *fl = &p->ctf.flag[i]; fl->off = m->type == 4;
+            if (ak_setting_int("AK_DEBUG_SCRIPT", 0)) AK_INFO("script", "carried object %x %s", m->target, fl->off ? "off" : "on");
             if (!fl->off) { fl->present = true; fl->carrier = -1; fl->return_t = 0; memcpy(fl->pos, p->ctf_map.flag[i].home, 12); } }
         for (u32 i = 0; i < p->ctf_map.nbases && !done; i++) if (p->ctf_map.base[i].id == m->target) { done = true; p->ctf.base_off[i] = m->type == 4; }
     }
