@@ -1599,6 +1599,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - Platforms (2026-11-22): Windows and Steam Deck builds on a new Vulkan 1.3 renderer (platform/desktop/gfx_vk.c), RT-ready
     (support detected and logged; AK_VK_RT=1 enables the extensions; nothing traced). Same pictures as the GL back end on
     lavapipe; validation clean. Twin-stick as the Vita; triggers double as L / R. 3DS build delivered (one-stick).
+  - PS4 (2026-11-22): OpenOrbis toolchain bootstrapped from git (platform/ps4/bootstrap_toolchain.sh). Renderer: Piglet needs
+    precompiled shader binaries (no retail compiler, gde-only, ~768 MiB); PS4GL_GNM (GNM, PC-compiled shaders) is the candidate,
+    pending the owner's approval to run its tools.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
