@@ -5,8 +5,8 @@
 #  - an SD card (SD2SP2, or an SD Gecko in slot A / B): this file and the game (game.iso or GAME/PSP_GAME/...) in sd:/aurek; start
 #    aurek.dol with Swiss.  Log: sd:/aurek/log.txt.
 #  - a disc image with the game inside, for Dolphin or Swiss: platform/gc/make_gcm.py --dol aurek.dol --data <the folder above>
-#    --out aurek_gc.iso.  A disc cannot be written, so there is no log file: the last log lines show on the screen instead
-#    (AK_GC_CONSOLE=1 shows them with an SD card too; AK_GC_CONSOLE_FILTER=word|word keeps only lines with those words).
+#    --out aurek_gc.iso.  A disc cannot be written, so there is no log file: AK_GC_CONSOLE=1 (below) shows the last log lines on
+#    the screen instead (AK_GC_CONSOLE_FILTER=word|word keeps only lines with those words).
 #
 # Controls (the GameCube pad; the PSP game's buttons [assumed, by feel - the pad's face buttons are not a diamond]: CROSS = A,
 # SQUARE = B, CIRCLE = X, TRIANGLE = Y; L = L, R = R (fully pressed or past a third), START = START, SELECT = Z; the stick moves,
@@ -87,7 +87,7 @@ AK_AUDIO_ADPCM=1
 AK_AUDIO_ARAM=1
 # converted speech kept in memory (MB)
 AK_SPEECH_CACHE_MB=1
-# the last log lines over the picture (1); on by itself when there is no log file
+# the last log lines over the picture: 1 on, 0 off, -1 on when there is no log file (the game on a disc)
 AK_GC_CONSOLE=0
 
 # --- play mode (square in the level view toggles it) ---
@@ -184,6 +184,11 @@ AK_GRAVITY=10
 AK_CAM_STYLE=modern
 # field of view of the modern camera (vertical degrees)
 AK_FOV=55
+# screens narrower than the game's 16:9 (4:3 TVs, 16:10, the 3DS's 5:3): 1 = the same view across as on 16:9 and more of it up and
+# down; 0 = the same height (the sides cut off)
+AK_FOV_KEEP_WIDTH=1
+# the radar's size on the HUD (1 = the game's; 0.75 makes it a quarter smaller).  The HUD keeps its shape on any screen.
+AK_HUD_RADAR_SCALE=1.0
 # twin-stick aiming (right stick aims freely): -1 = the device's default (on: pads have a right stick), 0 = off (the game's own
 # scheme: the right stick turns), 1 = on.  Lock-on (hold L) works either way; reloading is automatic, as in the game.
 AK_TWIN_STICK=-1

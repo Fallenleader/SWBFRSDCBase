@@ -22,7 +22,7 @@
 
 struct ak_gfx_buf { void *p; u32 n, bytes; bool kept, i16; };   /* i16: 16-bit indices */
 typedef struct { void *img; u32 refs; bool owned; } gx_img;   /* owned: freed with its last texture (else the level's memory) */
-struct ak_gfx_tex { GXTexObj obj; GXTlutObj tlut; u16 *lut; gx_img *img; bool ci; };
+struct ak_gfx_tex { GXTexObj obj; GXTlutObj tlut; u16 *lut; gx_img *img; bool ci; u8 akscale; };   /* akscale: the palette's alpha x this (faint ones) */
 
 static GXRModeObj *rmode; static void *xfb[2]; static int xfb_i; static void *fifo;
 static int W, H; static char name[64];
@@ -152,7 +152,11 @@ static ak_gfx_tex *tex_ci(const ak_texture *t, const u32 *pal, gx_img *share, bo
     }
     u32 n = 1u << t->bpp; x->lut = (u16 *)memalign(32, n * 2);
     if (!x->lut) { AK_WARN("gx", "no memory for a palette"); if (--x->img->refs == 0) { if (x->img->owned) free(x->img->img); free(x->img); } free(x); return NULL; }
-    for (u32 i = 0; i < n; i++) x->lut[i] = rgb5a3(pal[i]);
+    /* RGB5A3 keeps 3 bits of alpha below 0xE0: a faint palette (Kessel's hangar shield: 22..48) would round to nothing.  Its alpha
+     * is stored k times larger and the TEV takes k back (the tint's alpha / k) */
+    u32 amax = 0; for (u32 i = 0; i < n; i++) if ((pal[i] >> 24) > amax) amax = pal[i] >> 24;
+    u32 k = amax && amax < 128 ? 255 / amax : 1; if (k > 8) k = 8; x->akscale = (u8)k;
+    for (u32 i = 0; i < n; i++) { u32 c = pal[i], a = (c >> 24) * k; x->lut[i] = rgb5a3((c & 0xFFFFFF) | (a > 255 ? 255 : a) << 24); }
     DCFlushRange(x->lut, n * 2);
     GX_InitTlutObj(&x->tlut, x->lut, GX_TL_RGB5A3, (u16)n);
     u8 wrap = pow2(t->width) && pow2(t->height) ? GX_REPEAT : GX_CLAMP;
@@ -336,7 +340,8 @@ static void state(ak_pipe p, ak_gfx_tex *t)
     GX_SetNumChans(1); GX_SetNumTexGens(1);
     /* TEV */
     f32 cs = hud ? 1.0f : env.colour_scale; u8 scale = cs > 3.0f ? GX_CS_SCALE_4 : cs > 1.5f ? GX_CS_SCALE_2 : GX_CS_SCALE_1;
-    GXColor k = { c8(tint[0]), c8(tint[1]), c8(tint[2]), c8(tint[3]) }; GX_SetTevKColor(GX_KCOLOR0, k);
+    ak_gfx_tex *tx = beam ? glow : t ? t : white;
+    GXColor k = { c8(tint[0]), c8(tint[1]), c8(tint[2]), c8(tint[3] / (tx->ci && tx->akscale > 1 ? tx->akscale : 1)) }; GX_SetTevKColor(GX_KCOLOR0, k);
     GX_SetTevKColorSel(GX_TEVSTAGE1, GX_TEV_KCSEL_K0); GX_SetTevKAlphaSel(GX_TEVSTAGE1, GX_TEV_KASEL_K0_A);
     GX_SetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLOR0A0);
     GX_SetTevOrder(GX_TEVSTAGE1, GX_TEXCOORD0, GX_TEXMAP0, GX_COLOR0A0);
@@ -373,7 +378,6 @@ static void state(ak_pipe p, ak_gfx_tex *t)
     if (hud || beam || env.fog_end <= env.fog_start) { GXColor z = { 0, 0, 0, 0 }; GX_SetFog(GX_FOG_NONE, 0, 1, 0.1f, 1, z); }
     else { GXColor fc = { c8(env.fog_rgb[0]), c8(env.fog_rgb[1]), c8(env.fog_rgb[2]), 255 }; GX_SetFog(GX_FOG_LIN, env.fog_start, env.fog_end, p_near, p_far, fc); }
     /* texture */
-    ak_gfx_tex *tx = beam ? glow : t ? t : white;
     if (tx != cur_tex) { if (tx->ci) GX_LoadTlut(&tx->tlut, GX_TLUT0); GX_LoadTexObj(&tx->obj, GX_TEXMAP0); cur_tex = tx; }
 }
 static void indexed_desc(void)

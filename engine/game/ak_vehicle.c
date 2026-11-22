@@ -183,7 +183,9 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     /* the hover height (measured 2026-11-20, parked: the harness's object height over Aurek's ground there - speeder bikes 0.09-0.11 m
        (Endor x2, Kashyyyk x2), Kashyyyk's IFT-T 1.01 m (another, on a slope, 0.35); driving not measured) */
     d->hover = d->kind == AK_VEH_HOVER ? 1.0f : d->kind == AK_VEH_SPEEDER ? 0.1f : 0.0f;
-    if (flyer) d->hover = 0;                                             /* (flyers rest on their landing gear: the model origin) */
+    /* flyers rest on their lowest point: those with landing gear have the model origin at its foot (bmin y ~0); a TIE's is its cockpit,
+       which left it half under a hangar floor (Space Kessel), so it is lifted by its mesh's depth below the origin */
+    if (flyer) d->hover = md->bmin[1] < 0 ? -md->bmin[1] : 0;
     if (!strcasecmp(name, "Recon_Droid")) d->hover = 1.94f;                /* (Yavin's training droid, idle: 1.94 m over the courtyard floor - harness route cmpn, object
                                                                             30d48 at y -8.667 over -6.73 [measured; the source of the height not traced]) */
     if (walker) {                                                        /* walkers: the speed from the legs, sharp turns */

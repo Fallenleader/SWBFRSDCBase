@@ -166,6 +166,11 @@ AK_GRAVITY=10
 AK_CAM_STYLE=modern
 # field of view of the modern camera (vertical degrees)
 AK_FOV=55
+# screens narrower than the game's 16:9 (4:3 TVs, 16:10, the 3DS's 5:3): 1 = the same view across as on 16:9 and more of it up and
+# down; 0 = the same height (the sides cut off)
+AK_FOV_KEEP_WIDTH=1
+# the radar's size on the HUD (1 = the game's; 0.75 makes it a quarter smaller).  The HUD keeps its shape on any screen.
+AK_HUD_RADAR_SCALE=1.0
 # twin-stick aiming (right stick aims freely): -1 = the device's default (on: pads have a right stick), 0 = off (the game's own
 # scheme: the right stick turns), 1 = on.  Lock-on (hold L) works either way; reloading is automatic, as in the game.
 AK_TWIN_STICK=-1

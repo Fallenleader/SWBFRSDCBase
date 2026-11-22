@@ -80,7 +80,7 @@ static bool hud_project(const ak_m4 *vp, const f32 *p, f32 *x, f32 *y)
     f32 cx = m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], cy = m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13];
     f32 cw = m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15];
     if (cw <= 0) return false;
-    *x = (cx / cw * 0.5f + 0.5f) * 480.0f; *y = (0.5f - cy / cw * 0.5f) * 272.0f; return true;
+    ak_hud_from_ndc(cx / cw, cy / cw, x, y); return true;   /* (the HUD's space follows the screen's shape) */
 }
 static void dbg_text(f32 x, f32 y, u32 col, const char *s)
 {
@@ -775,6 +775,11 @@ int main(int argc, char **argv)
         }
 
         int w, h; ak_gfx_size(&w, &h);
+        {   /* a screen narrower than the game's 16:9 (the GameCube's 4:3): the same view across, more of it up and down (AK_FOV_KEEP_WIDTH=0: the same height) */
+            static int keep = -1; if (keep < 0) keep = ak_setting_int("AK_FOV_KEEP_WIDTH", 1);
+            f32 asp = h > 0 ? (f32)w / (f32)h : 1.0f;
+            if (keep && asp < 480.0f / 272.0f - 0.01f) fovy = 2.0f * atanf(tanf(fovy * 0.5f) * (480.0f / 272.0f) / asp);
+        }
         ak_m4 proj = ak_m4_perspective(fovy, (f32)w / (f32)h, playing && play.ready ? 0.25f : ak_setting_float("AK_NEAR", 0.75f), ak_setting_float("AK_FAR", 8000.0f));   /* PARITY(9.1) */
         ak_m4 view = ak_m4_view_yaw_pitch(cam.pos, cam.yaw, cam.pitch), vp = ak_m4_mul(&proj, &view);
         if (gc_map && gc_screen) {

@@ -235,7 +235,36 @@ bool ak_hud_load(ak_vfs *vfs)
 /* ---- drawing, in the game's 480 x 272 */
 #define MAXV 6 * 256
 static ak_vtx vb[MAXV]; static u32 nv; static ak_gfx_tex *vtex;
-static bool vset; static void flush(void) { if (nv) ak_gfx_draw_immediate(AK_PIPE_HUD, vtex, vb, nv); nv = 0; }
+/* Screens of another shape than the game's 16:9 (the GameCube's 4:3, the 3DS's 5:3, 21:9 PCs): the HUD is laid out in a space 480
+ * wide (taller screens) or 272 high (wider ones), so nothing stretches; each element keeps its corner or edge (anchor: 0 left / top,
+ * 1 the middle, 2 right / bottom), and an element can be scaled about a point (the radar: AK_HUD_RADAR_SCALE).  Applied as a batch
+ * is drawn. */
+static f32 view_w = 480, view_h = 272, an_dx, an_dy, an_k = 1, an_px, an_py;
+static void view_size(void)
+{
+    int w = 0, h = 0; ak_gfx_size(&w, &h);
+    f32 a = w > 0 && h > 0 ? (f32)w / (f32)h : 480.0f / 272.0f;
+    if (a < 480.0f / 272.0f - 0.01f) { view_w = 480; view_h = 480.0f / a; }
+    else if (a > 480.0f / 272.0f + 0.01f) { view_h = 272; view_w = 272.0f * a; }
+    else { view_w = 480; view_h = 272; }
+}
+static bool vset; static void flush(void)
+{
+    if (!nv) return;
+    if (an_dx != 0 || an_dy != 0 || an_k != 1)
+        for (u32 i = 0; i < nv; i++) { vb[i].pos[0] = an_px + (vb[i].pos[0] - an_px) * an_k + an_dx; vb[i].pos[1] = an_py + (vb[i].pos[1] - an_py) * an_k + an_dy; }
+    ak_gfx_draw_immediate(AK_PIPE_HUD, vtex, vb, nv); nv = 0;
+}
+static void anchor_k(int h, int v, f32 k, f32 px, f32 py)
+{
+    flush(); an_dx = (f32)h * (view_w - 480.0f) * 0.5f; an_dy = (f32)v * (view_h - 272.0f) * 0.5f; an_k = k; an_px = px; an_py = py;
+}
+static void anchor(int h, int v) { anchor_k(h, v, 1, 0, 0); }
+void ak_hud_from_ndc(f32 nx, f32 ny, f32 *x, f32 *y)   /* a point of the 3D view (-1..1) in the HUD's space, for anchor (1, 1) */
+{
+    view_size();
+    *x = (nx * 0.5f + 0.5f) * view_w - (view_w - 480.0f) * 0.5f; *y = (0.5f - ny * 0.5f) * view_h - (view_h - 272.0f) * 0.5f;
+}
 static void quad(ak_gfx_tex *t, f32 x0, f32 y0, f32 x1, f32 y1, f32 u0, f32 v0, f32 u1, f32 v1, u32 argb)
 {
     if (t != vtex || !vset || nv + 6 > MAXV) { flush(); vtex = t; vset = true; }
@@ -566,6 +595,7 @@ static void messages(f32 dt, bool alive)
     for (int ch = 0; ch < 5; ch++) {
         if (!alive && ch > 2) break;                                       /* (dead: the left queue only) */
         if (ch == 0 || ch == 3) y = msg_box[ch][1];                          /* (0..2 share their box: one stack) */
+        if (ch == 0) anchor(0, 0); else if (ch == 3) anchor(1, 1); else if (ch == 4) anchor(1, 2);   /* (the left stack, the tips, the bottom box) */
         if (ch == 4) {
             f32 tot = 0;
             for (u32 k = 0; k < 4; k++) { msg_slot *s = &msgs[ch][(msg_head[ch] + k) & 3]; if (s->on && s->t + dt < s->life) tot += text16_box(msg_box[ch][0], 0, msg_box[ch][2], 0.75f, 0, s->text, s->n, false, true); }
@@ -855,7 +885,10 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
 {
     (void)sw; (void)sh;
     if (!ready || !s || !ak_setting_int("AK_HUD", 1)) return;
-    ak_m4 o = ak_m4_ortho2d(480.0f, 272.0f); ak_gfx_set_transform(&o); ak_gfx_set_tint(NULL);
+    view_size();
+    ak_m4 o = ak_m4_ortho2d(view_w, view_h); ak_gfx_set_transform(&o); ak_gfx_set_tint(NULL);
+    static f32 radar_k = -1; if (radar_k < 0) radar_k = ak_setting_float("AK_HUD_RADAR_SCALE", 1.0f);
+    anchor(1, 1);
     if (s->scope && s->alive && !s->vehicle && scope_n) {
         /* the zoom view's scope (measured on the original's screen, harness program `zoom`, Hoth): GRAPHICS/SNIPER.ASR's one picture,
          * CHUD_Zoom_Scope (128 x 128, the scope's top-left quarter: the frame, a light blue haze outside it and clear glass inside),
@@ -869,24 +902,33 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
         f32 hu = q->u0 + (q->u1 - q->u0) * 0.01f, hv = q->v0 + (q->v1 - q->v0) * 0.01f;   /* (the haze: the picture's corner texel) */
         quad(q->tex, 0, 0, 80, 272, hu, hv, hu, hv, W); quad(q->tex, 400, 0, 480, 272, hu, hv, hu, hv, W);
         quad(q->tex, 80, 0, 400, 8, hu, hv, hu, hv, W); quad(q->tex, 80, 264, 400, 272, hu, hv, hu, hv, W);
+        f32 ex = (view_w - 480.0f) * 0.5f, ey = (view_h - 272.0f) * 0.5f;   /* (the haze over the screen beyond the game's 16:9) */
+        if (ey > 0) { quad(q->tex, -ex, -ey, 480 + ex, 0, hu, hv, hu, hv, W); quad(q->tex, -ex, 272, 480 + ex, 272 + ey, hu, hv, hu, hv, W); }
+        if (ex > 0) { quad(q->tex, -ex, 0, 0, 272, hu, hv, hu, hv, W); quad(q->tex, 480, 0, 480 + ex, 272, hu, hv, hu, hv, W); }
         flush();
     }
+    anchor_k(2, 0, radar_k, 480, 0);
     if (s->radar && s->alive) radar(s);
     if (s->counter_total > 0 && s->alive) { char t[24]; snprintf(t, sizeof t, "%d/%d", s->counter_val, s->counter_total);   /* the script's counter: centred under the
                                                                                     radar at y 101 (the original's training frame, ct25) [assumed: the font and its flags] */
         text(430, 101, 0xFFFFFFFFu, 0x04 | 0x40, t); }
     else if (s->timer_on && s->alive) { char t[24]; s32 k = (s32)ceilf(s->timer > 0 ? s->timer : 0); snprintf(t, sizeof t, "%d:%02d", k / 60, k % 60);
         text(430, 101, 0xFFFFFFFFu, 0x04 | 0x40, t); }   /* (the same place: Ord Mantell's om_h3 / om_h4 frames) [assumed: rounded up] */
+    anchor(2, 0);
     if (elem_clock <= 2.0f) elem_clock += s->dt;
     if (elem_clock > 2.0f) elem_clock = 0;
     if (s->post && s->alive && !s->vehicle) capture_panel(s);
+    anchor(1, 0);                                                    /* (the missile warning: top middle; messages set their own) */
     if (!missile_warning(s)) messages(s->dt, s->alive);
+    anchor(1, 1);
     if (s->use_text && s->alive) { u32 n; const u16 *w = stdtext_get(s->use_text, &n);   /* a use zone's prompt [assumed: white, centred at y 200] */
         if (w) text16_box(0, 200, 480, 1.0f, 0xFFFFFFFFu, w, n, true, true); }
     if (s->alive) hit_marks(s); else nhits = 0;
-    if (s->alive) { target_panel(s); stamina_bar(s); if (!s->vehicle) jet_bar(s); timer(s); ring(s); }
+    if (s->alive) { anchor(1, 0); target_panel(s); anchor(0, 2); stamina_bar(s); if (!s->vehicle) jet_bar(s); anchor(2, 0); timer(s); anchor(1, 1); ring(s); }
+    anchor(1, 0);
     if (s->tickets) { u32 tc = s->dark ? 0xFF000000u : 0xFFFFFFFFu; tickets(s->tickets_own, s->faction_own, 167.5f, tc, 0xFF0000FFu); tickets(s->tickets_enemy, s->faction_enemy, 312.5f, tc, 0xFFFF0000u); }
     if (s->alive) {
+        anchor(1, 1);
         if (s->vehicle) {
             if (s->aim) pic(idx(S_RETICLE), s->aim_x, s->aim_y, true, 0xFFFFFFFFu, 1);
             if (s->lock) vehicle_lock(s);
@@ -897,6 +939,7 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
         /* health (func 08A574BC, positions 08A578DC): the bar for the maximum (08A57854: max / 33 rounded - 3 or less: the
          * 3-section bar, 4, 5, 6 and more: the long one), top-left at (20, 252), grey behind, the fill in the health colour; the
          * health icon centred at (10, 256) */
+        anchor(0, 2);
         f32 k = s->health_max * 0.030303f; int q = (int)(k + 0.5f);
         int bar = q <= 3 ? S_HEALTH_3 : q == 4 ? S_HEALTH_4 : q == 5 ? S_HEALTH_5 : S_HEALTH_BAR;
         f32 f = s->health_max > 0 ? s->health / s->health_max : 0; if (f < 0) f = 0; if (f > 1) f = 1;
@@ -907,6 +950,7 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
         /* (a single weapon is the upper one's, 08A52DF8, moved down: no bar) */
         /* the weapon names (08A5318C): each weapon's Weapon_Name while its timer is under 5 s (0x08AF03C0), scale 1, fading
          * (08A512A0) - measured on the original's spawn: centred at x 385, the upper 29 above its icon, the lower 22 below */
+        anchor(2, 2);
         if (s->weapon_name_t >= 0 && s->weapon_name_t < 5.0f) {
             f32 a = s->weapon_name_t > 4.0f ? 5.0f - s->weapon_name_t : 1.0f; u32 col = (u32)(a * 255.0f) << 24 | 0xFFFFFF;
             u32 n; const u16 *w;
@@ -921,12 +965,12 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
             if (s->weapon2_bar >= 0) framed_bar(0x22, 0x23, 427, 237, s->weapon2_bar, 0xFF404040u, 0xFF404040u);
         } else if (s->weapon) weapon_panel(s->weapon, s->ammo, s->spare, s->prequel, 240, true);
     }
-    flush();
+    anchor(0, 0);
     ak_gfx_set_transform(NULL);
 }
 
 /* ---- the front end's drawing (app/frontend.c): the same 480 x 272 space, quads and the game's two fonts */
-void ak_hud_2d_begin(void) { ak_m4 o = ak_m4_ortho2d(480.0f, 272.0f); ak_gfx_set_transform(&o); ak_gfx_set_tint(NULL); vset = false; nv = 0; }
+void ak_hud_2d_begin(void) { ak_m4 o = ak_m4_ortho2d(480.0f, 272.0f); ak_gfx_set_transform(&o); ak_gfx_set_tint(NULL); vset = false; nv = 0; an_dx = an_dy = 0; an_k = 1; }
 void ak_hud_2d_quad(ak_gfx_tex *t, f32 x0, f32 y0, f32 x1, f32 y1, f32 u0, f32 v0, f32 u1, f32 v1, u32 argb) { quad(t, x0, y0, x1, y1, u0, v0, u1, v1, argb); }
 f32 ak_hud_2d_text(int big, f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s, u32 n, int align)
 {

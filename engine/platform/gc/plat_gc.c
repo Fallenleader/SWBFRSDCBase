@@ -49,7 +49,8 @@ u32 gc_heap_free(void)                               /* malloc's free blocks + t
 }
 int gc_console(const char **lines, int max)
 {
-    if (!con_shown && !ak_setting_int("AK_GC_CONSOLE", 0)) return 0;
+    int on = ak_setting_int("AK_GC_CONSOLE", -1);              /* 1 on, 0 off, -1: on when there is no log file */
+    if (on == 0 || (on < 0 && !con_shown)) return 0;
     int n = (int)(con_n < CON_LINES ? con_n : CON_LINES); if (n > max) n = max;
     for (int i = 0; i < n; i++) lines[i] = con[(con_n - (u32)n + (u32)i) % CON_LINES];
     return n;
