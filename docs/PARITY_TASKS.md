@@ -1501,6 +1501,13 @@ textures and how they are used. Section R lists only what must be in place so th
     (FE_OpenPersonalisationMenu 08A2F5A4 -> page 0xCD12E72F, FE_Personalisation_*), the medals pages (FE_Medals_*, with the
     profile's stats 08972F90), the cut-scene list and movies (FE_ListAvaliableCutscenes / FE_PlayMovie), the version line
     (FE_GetVersionNumber 08A29580: "Version: 02.11aj.%d (18:06:38, Jul 29 2007)"), the customisation preview's scale.
+  - Part 63, 2026-11-22 - **8.2: the personalisation menu, the version line** (see NATIVE_ENGINE). Checked by screenshots: the main
+    menu's Rebel entry (bodies Rebel Commando / Rebel Vanguard / Wookiee Warrior; heads Human / Rodian / Sullustan), the colour
+    and insignia pickers with their focus frames, the choices saved to the profile (+0x5A8.. and +0x5D8) and back to
+    MP_MCustomisationMenu; in a match (Tatooine) the spawn map's triangle opens it for the Alliance. Open in 8.2: the medals pages
+    (FE_Medals_* 08A34840.., the earned flags at +0x168, the stats 08972F90), the soldier preview / head models and the choices in
+    play (body, head, colours), an on-screen keyboard, the vehicle / spacecraft inversions and sensitivities in play, the
+    cut-scene list and movies, the customisation preview's scale.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

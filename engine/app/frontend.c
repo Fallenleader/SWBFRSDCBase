@@ -376,6 +376,7 @@ static bool shows(const ak_widget *w, bool focused)
         if ((w->name[l - 1] == 'C') != on) return false;
         u32 f = w->flags & 6; return !f ? true : focused ? (f & 4) != 0 : (f & 2) != 0;
     }
+    if (w->type < 2000 && w->flags == 0x20) return focused;           /* (a button's picture for its focus alone: the colour and insignia pickers' frames) [assumed] */
     if (w->type < 2000 && w->flags && !(w->flags & 0x400)              /* (pictures and texts: bit 10 shown) [assumed] - */
         && !(spawn_owner >= 0 && w->name && !strncmp(w->name, "E_IM_SpawnPointD", 16))) return false;   /* (but the spawn map's unfocused posts show) */
     u32 f = w->flags & 6;
@@ -554,13 +555,16 @@ static const u16 *cust_name(int cat, int i, u32 *n)
     if (!o) return ak_gui_text(&texts, 0xA40C5954u, n);                /* "None" */
     s32 id = ak_bp_int(o, "Weapon_Name", -1); return id >= 0 ? ak_hud_stdtext((u32)id, n) : NULL;
 }
+static int pers_count(const char *fn); static bool pers_text(const char *fn, int row, u32 *n, const u16 **out); static bool pers_picture(const char *fn, int row, f32 *uv);
+static int pers_insignia(void);
+static int pers_cat(void); static const u16 *pers_item_name(int cat, int row, const char *suffix, u32 *n); static const u32 pers_prompt_key[5];
 static void cust_vars(void)                                            /* the script values the pages show by */
 {
     var_set("BFF.FE_Customisation_Credits", (f32)(CUST_CREDITS - cust_spent()));
     var_set("BFF.FE_Customisation_EnableSellButton", cust_sel[cust_cat] > 0 && cust_cost(cust_cat, cust_sel[cust_cat]) > 0);
     var_set("BFF.FE_Customisation_PowerUp", (f32)cust_sel[4]); var_set("BFF.FE_Customisation_Health", (f32)cust_sel[5]);
     var_set("BFF.FE_Customisation_Speed", (f32)cust_sel[6]); var_set("BFF.FE_Customisation_Agility", (f32)cust_sel[7]);
-    var_set("BFF.FE_Customisation_Insignia", (f32)ak_setting_int("AK_PLAYER_INSIGNIA", 0));
+    var_set("BFF.FE_Customisation_Insignia", (f32)pers_insignia());   /* (08A3646C: bound to the profile's insignia, +0x5D8) */
 }
 static bool in_cust(void) { return page && page->root.name && (!strncmp(page->root.name, "MP_Custom", 9)); }
 int ak_fe_loadout(int sel[8], const char *names[5])
@@ -578,6 +582,7 @@ static int lb_count(const ak_widget *w)
         const char *fn = t->child[i].fill.fn; if (!fn) continue;
         if (!strncmp(fn, "FE_Customisation_ListCategory", 29)) return NCAT;
         if (!strncmp(fn, "FE_Customisation_ListCarousel", 29)) return cust_count[cust_cat];
+        if (!strncmp(fn, "FE_Personalisation_", 19)) return pers_count(fn);
     }
     return 0;
 }
@@ -595,6 +600,7 @@ static void cust_carousel_sync(void)
 static bool lb_text(const char *fn, int row, u16 *buf, u32 *n, const u16 **out)
 {
     char t[24] = ""; *out = NULL;
+    if (pers_text(fn, row, n, out)) return true;
     if (!strcmp(fn, "FE_Customisation_ListCategoryNames")) { *out = ak_gui_text(&texts, cust_name_key[row & 7], n); return true; }
     if (!strcmp(fn, "FE_Customisation_ListCategoryTotals")) snprintf(t, sizeof t, "%d", cust_cost(row & 7, cust_sel[row & 7]));
     else if (!strcmp(fn, "FE_Customisation_ListCarouselCosts")) snprintf(t, sizeof t, "%d", cust_cost(cust_cat, row));
@@ -618,6 +624,7 @@ static bool lb_picture(const char *fn, int row, f32 *uv)
         return true;
     }
     if (!strcmp(fn, "FE_Customisation_ListCarouselAnims")) { memset(uv, 0, 16); return true; }   /* (the 3D items: not drawn yet) */
+    if (pers_picture(fn, row, uv)) return true;
     return false;
 }
 static int lb_row = -1; static bool lb_selected;                     /* drawing a list box's row: which, and is it the chosen one */
@@ -645,7 +652,7 @@ static bool picture_override(const ak_widget *w, f32 *uv)
     if (!good && !evil) return false;
     u32 k = (u32)atoi(w->name + 17); int side = good ? match.team : 1 - match.team;
     if (side < 0 || side > 1 || k >= match.nnames[side]) { memset(uv, 0, 16); return true; }
-    int cell = match.bot[side][k] ? 10 : ak_setting_int("AK_PLAYER_INSIGNIA", 0);
+    int cell = match.bot[side][k] ? 10 : pers_insignia();
     if (cell < 0 || cell > 12) cell = 12;
     memcpy(uv, insignia_cell[cell], 16); return true;
 }
@@ -822,6 +829,15 @@ static void fill(const ak_widget *w)
         }
         if (!t) t = ak_gui_text(&texts, cust_desc_key[cust_cat & 7], &n);
         if (t) row_add16(t, n, 0);
+    } else if (!strcmp(fn, "FE_GetVersionNumber")) {              /* 08A29580: "Version: %S (%S)" of snprintf("02.11aj.%d", 1) and the build's time;
+                                                                         MP_MainMenu's W_TLB_VersionNumber shows it while BFF.FE_ShowVersionNumber == 1 */
+        static const char v[] = "Version: 02.11aj.1 (18:06:38, Jul 29 2007)"; u16 b[64]; u32 k = 0;
+        for (const char *c = v; *c && k < 63; c++) b[k++] = (u16)(u8)*c;
+        row_add16(b, k, 0);
+    } else if (!strcmp(fn, "FE_Personalisation_Prompt")) {        /* 08A36034: row 0 only */
+        int cat = pers_cat(); u32 n = 0; const u16 *t = cat < 2 ? pers_item_name(cat, 0, "Desc", &n) : NULL;
+        if (!t) t = ak_gui_text(&texts, pers_prompt_key[cat], &n);
+        if (t) row_add16(t, n, 0);
     } else if (!strcmp(fn, "FE_ListMapsInRotation")) {               /* 08A31CA4: "Tatooine - CQST - GCW" */
         for (int i = 0; i < nrot; i++) {
             u16 b[96]; u32 n = 0, k; const u16 *t;
@@ -872,6 +888,129 @@ static void close_layer(void)
 }
 static void status(int s) { var_set("BFF.FE_MapSelectionStatus", s); }
 static void rotation_changed(void) { var_set("BFF.NumMapsInRotation", nrot); var_set("BFF.FE_IsRotationListFull", nrot >= 16); }
+static const ak_widget *first_control(const ak_widget *w);
+/* The personalisation menu (BFF_CUSTOMISATION.GUI; FE_Personalisation_* registered by 08A3646C): MP_Personalisation (the 5
+ * categories, W_LB_TypeList) over MP_CustomBackground, with MP_PersonCarousel beside it (opened unfocused: the highlighted
+ * category's choices show while browsing).  Everything is kept per faction in the profile (08A3729C: Republic +0x5C0, CIS +0x5CC,
+ * Alliance +0x5A8, Empire +0x5B4 - u32 body, u32 head, u8 team colour, u8 uniform colour) but the insignia (+0x5D8, one for all).
+ *   categories (08A35808, text keys 0x08AE3E64): 0 body, 1 head, 2 team colour, 3 uniform colour, 4 insignia;
+ *     BFF.FE_Personalisation_Category is bound to the list's highlighted row (08A356D4), BFF.FE_Personalisation_ShowCarousel =
+ *     category < 2, BFF.FE_Personalisation_ShowPrompt = on the list page or category < 2 (08A36034);
+ *   bodies 0..2: the faction's three Humanoids (089784DC's table 0x08C29190, hashes of the names at 0x08ADC680), named by their
+ *     BodyName (a STDTEXT id); heads 0..2: the chosen body's Head1Name..Head3Name (08A35BB0);
+ *   AcceptCategoryItem (08A359F4): the carousel page focused - its list (bodies, heads) on the chosen row, the colour / insignia
+ *     button of the current value (tables 0x08AE3E8C / 0x08AE3ECC / 0x08AE3F0C: value -> button id);
+ *   AcceptCarouselItem / AcceptTeamColour / AcceptUniformColour / AcceptInsignia (08A35B00 / 08A3619C / 08A3624C / 08A362FC): the
+ *     value stored, the profile marked changed (+6), back to the list;
+ *   ConfirmCancel (08A35FE4, the buttons' triangle): MP_PersonCancel; Cancel (08A35F70): the menu closed, to the spawn map in a
+ *     match else MP_MCustomisationMenu.  The choices are kept as made (no restore).
+ *   the prompt (08A36034): the body's BodyDesc / head's Head1Desc (STDTEXT; the game's Humanoids have none) else the category's
+ *     text (0x08AE3E78; the insignia's 5th word is no text key - nothing shown).
+ * Not yet: the soldier preview (08A36BA0 builds it in the page's model widget) and the heads' 3D models in the carousel rows. */
+static int pers_fac_sel = 2, pers_last_cat = -1; static bool pers_ingame;
+static const char *const pers_unit[4][3] = { { "Clonetrooper", "Arc_Trooper", "MECTrooper" }, { "Battle_Droid", "SuperBattleDroid", "SuperMagnaGuard" },
+                                             { "RebelTrooperCommando", "MediumRebel", "WookieWarrior" }, { "Biker_Scout", "Stormtrooper", "Darktrooper" } };
+static const u32 pers_cat_key[5] = { 0xD45B0D42u, 0xD45DA180u, 0x97C6A209u, 0xCBF6C0E0u, 0xA4D8509Au };
+static const u32 pers_prompt_key[5] = { 0x5F3DD6F0u, 0x5F406B2Eu, 0xAA2AF137u, 0x1310FAF2u, 0x08C29348u };
+static const u32 pers_team_btn[16] = { 0x76B3B8D3u, 0, 0x758D7CA9u, 0x63040D0Au, 0x52A5CEC4u, 0xC7363B7Bu, 0x3AFEC7BBu, 0x24D963AAu, 0x24D9578Cu,
+                                       0x5E1F3D15u, 0x548CB052u, 0x24D30670u, 0x24DB1872u, 0x75D6BBADu, 0x0686A0F7u, 0x7644CE85u };
+static const u32 pers_uniform_btn[16] = { 0xDDD38552u, 0, 0xDCAD4928u, 0xBDB91E10u, 0xB3E8214Eu, 0xBA7BDA1Cu, 0xFC4F75F0u, 0x7A50C57Cu, 0xB370D2C2u,
+                                          0x388DF024u, 0xDCF6882Cu, 0x07DE15F6u, 0x0797C829u, 0x3847A257u, 0xBCC51293u, 0xDD2A4C2Bu };
+static const u32 pers_insignia_btn[10] = { 0x298F535Eu, 0x66DB3FB1u, 0x93D8941Au, 0x49613585u, 0x05454249u, 0xC6A19934u, 0x5768EA73u, 0xD87E003Eu,
+                                           0xDC49FE7Fu, 0x21187DFCu };
+#define PERS_LIST 0x65008CD9u                                          /* W_LB_TypeList */
+#define PERS_CAROUSEL 0x7EA08E83u                                      /* W_LB_Carousel */
+static int pers_faction(void)                                          /* 08A28C68: the player's in a match, else the one opened for */
+{
+    int f = pers_ingame && have_match ? match.faction[match.team & 1] : pers_fac_sel; return f >= 0 && f < 4 ? f : 2;
+}
+static u8 *pers_rec(void) { static const u32 off[4] = { 0x5C0, 0x5CC, 0x5A8, 0x5B4 }; if (!prof_have) prof_new(); return prof + off[pers_faction()]; }
+static int pers_insignia(void)
+{
+    if (ak_setting_str("AK_PLAYER_INSIGNIA", NULL)) return ak_setting_int("AK_PLAYER_INSIGNIA", 0);   /* (tests) */
+    if (!prof_have) prof_new();
+    s32 v = (s32)ak_rd32(prof + 0x5D8); return v >= 0 && v < 10 ? v : 0;
+}
+static int pers_cat(void) { list_rows *L = rows_of(PERS_LIST); return L && L->sel >= 0 && L->sel < 5 ? L->sel : 0; }
+static int pers_choice(int cat) { s32 v = (s32)ak_rd32(pers_rec() + 4 * (cat & 1)); return v >= 0 && v < 3 ? v : 0; }
+static const ak_bp_object *pers_body(int i) { return fe_bp && i >= 0 && i < 3 ? ak_bp_find(fe_bp, "Humanoid", pers_unit[pers_faction()][i]) : NULL; }
+static const u16 *pers_item_name(int cat, int row, const char *suffix, u32 *n)   /* a body's or head's STDTEXT ("Name" / "Desc") */
+{
+    char key[16]; const ak_bp_object *o = pers_body(cat == 0 ? row : pers_choice(0)); *n = 0;
+    if (cat == 0) snprintf(key, sizeof key, "Body%s", suffix); else snprintf(key, sizeof key, "Head%d%s", row + 1, suffix);
+    s32 id = o ? ak_bp_int(o, key, -1) : -1; return id >= 0 ? ak_hud_stdtext((u32)id, n) : NULL;
+}
+static int pers_count(const char *fn)
+{
+    if (!strncmp(fn, "FE_Personalisation_ListCategory", 31)) return 5;
+    if (!strncmp(fn, "FE_Personalisation_ListCarousel", 31)) return pers_cat() < 2 ? 3 : 0;
+    return 0;
+}
+static bool pers_text(const char *fn, int row, u32 *n, const u16 **out)
+{
+    if (strncmp(fn, "FE_Personalisation_", 19)) return false;
+    if (!strcmp(fn, "FE_Personalisation_ListCategoryNames")) *out = row >= 0 && row < 5 ? ak_gui_text(&texts, pers_cat_key[row], n) : NULL;
+    else if (!strcmp(fn, "FE_Personalisation_ListCarouselNames")) *out = pers_cat() < 2 && row >= 0 && row < 3 ? pers_item_name(pers_cat(), row, "Name", n) : NULL;
+    else return false;
+    return true;
+}
+static bool pers_picture(const char *fn, int row, f32 *uv)
+{
+    if (!strcmp(fn, "FE_Personalisation_ListCategoryIcons")) {        /* 08A358CC: personalisation_01.tga, 0.14453125 a row along, 0.137 high */
+        uv[0] = (f32)row * 0.14453125f; uv[1] = 0; uv[2] = uv[0] + 0.14453125f; uv[3] = 0.137f; return true;
+    }
+    if (!strcmp(fn, "FE_Personalisation_ListCarouselAnims")) { memset(uv, 0, 16); return true; }   /* (the heads' 3D models: not drawn yet) */
+    return false;
+}
+static bool in_pers(void) { return nlayer && layer_of("MP_Personalisation") >= 0; }
+static void pers_sync(void)                                            /* the bound values, the carousel on the chosen row when the category changes */
+{
+    int cat = pers_cat();
+    var_set("BFF.FE_Personalisation_Category", (f32)cat);
+    var_set("BFF.FE_Personalisation_ShowCarousel", cat < 2);
+    var_set("BFF.FE_Personalisation_ShowPrompt", (page && page->root.name && !strcmp(page->root.name, "MP_Personalisation")) || cat < 2);
+    var_set("BFF.FE_Customisation_Insignia", (f32)pers_insignia());
+    if (cat != pers_last_cat) {
+        pers_last_cat = cat;
+        list_rows *C = rows_of(PERS_CAROUSEL);
+        if (!C && nlists < 24) { C = &lists[nlists++]; memset(C, 0, sizeof *C); C->id = PERS_CAROUSEL; }
+        if (C) { C->n = cat < 2 ? 3 : 0; C->sel = cat < 2 ? pers_choice(cat) : 0; C->top = 0; }
+        refill();
+    }
+}
+static void pers_back(void)                                            /* (the Accept* functions: the profile changed, back to the list) */
+{
+    prof[6] = 1; int k = layer_of("MP_Personalisation"); if (k >= 0) use_layer(k);
+    pers_last_cat = -1; pers_sync();
+}
+static void pers_open(void)
+{
+    nlayer = 0; page = NULL; nstack = 0;
+    if (open_hash(ak_gui_hash("MP_CustomBackground"), false)) {
+        open_layer(ak_gui_hash("MP_Personalisation"));
+        list_rows *L = rows_of(PERS_LIST); if (!L && nlists < 24) { L = &lists[nlists++]; memset(L, 0, sizeof *L); L->id = PERS_LIST; }
+        if (L) { L->n = 5; L->sel = 0; L->top = 0; }                    /* [assumed: the list starts on its first row each time] */
+        focus_new = false; open_layer(ak_gui_hash("MP_PersonCarousel"));
+    }
+    pers_last_cat = -1; if (page) pers_sync();
+}
+static void pers_close(void)                                           /* 08A35F70 / 08A357A0 */
+{
+    nlayer = 0; page = NULL;
+    if (prof_have && prof[6] && ak_setting_int("AK_AUTOSAVE", 1)) ak_fe_profile_save();   /* [assumed: the autosave on - as the campaign's] */
+    open_hash(pers_ingame && have_match ? 0xBF679E15u : 0xEDFF6328u, false);   /* MP_Spawn_Location / MP_MCustomisationMenu */
+}
+/* the menu's own keys: circle off the carousel back to the list, off the exit dialogue back to the menu, off the list the exit
+ * dialogue [assumed: the game's circle here not traced; the buttons' triangle is ConfirmCancel]; -1 = not handled here */
+static int pers_event(const ak_input *in)
+{
+    pers_sync();
+    if (!(in->pressed & AK_BTN_CIRCLE) || !page || !page->root.name) return -1;
+    if (!strcmp(page->root.name, "MP_PersonCarousel")) { int k = layer_of("MP_Personalisation"); if (k >= 0) use_layer(k); pers_sync(); return AK_FE_NONE; }
+    if (!strcmp(page->root.name, "MP_PersonCancel")) { close_layer(); pers_sync(); return AK_FE_NONE; }
+    if (!strcmp(page->root.name, "MP_Personalisation")) { open_layer(ak_gui_hash("MP_PersonCancel")); return AK_FE_NONE; }
+    return -1;
+}
 static int run(const ak_gui_action *a, int row)
 {
     if (!a->fn || !a->fn[0]) return AK_FE_NONE;
@@ -917,6 +1056,25 @@ static int run(const ak_gui_action *a, int row)
         if (cust_return) open_hash(cust_return, false);
         cust_vars(); return AK_FE_NONE;
     }
+    else if (!strcmp(fn, "FE_OpenPersonalisationMenu")) {             /* 08A2F5A4: the faction (-1: the player's in a match), over the background */
+        int f = atoi(a->arg); pers_ingame = f == -1; if (f >= 0 && f < 4) pers_fac_sel = f; pers_open(); return AK_FE_NONE;
+    }
+    else if (!strcmp(fn, "FE_Personalisation_AcceptCategoryItem")) {  /* 08A359F4 */
+        int k = layer_of("MP_PersonCarousel");
+        if (row >= 0 && row < 5 && k >= 0) {
+            u8 *r = pers_rec(); u32 to = PERS_CAROUSEL;
+            if (row == 2) to = pers_team_btn[r[8] & 15]; else if (row == 3) to = pers_uniform_btn[r[9] & 15]; else if (row == 4) to = pers_insignia_btn[pers_insignia()];
+            use_layer(k); if (to && find_id(&page->root, to)) focus = to; else { const ak_widget *c = first_control(&page->root); if (c) focus = c->id; }
+        }
+    }
+    else if (!strcmp(fn, "FE_Personalisation_AcceptCarouselItem")) {  /* 08A35B00: the body or the head */
+        int cat = pers_cat(); if (cat < 2 && row >= 0 && row < 3) { u32 v = (u32)row; memcpy(pers_rec() + 4 * cat, &v, 4); } pers_back(); }
+    else if (!strcmp(fn, "FE_Personalisation_AcceptTeamColour")) { pers_rec()[8] = (u8)atoi(a->arg); pers_back(); }   /* 08A3619C */
+    else if (!strcmp(fn, "FE_Personalisation_AcceptUniformColour")) { pers_rec()[9] = (u8)atoi(a->arg); pers_back(); }   /* 08A3624C */
+    else if (!strcmp(fn, "FE_Personalisation_AcceptInsignia")) {       /* 08A362FC: one for every faction */
+        u32 v = (u32)atoi(a->arg); if (!prof_have) prof_new(); memcpy(prof + 0x5D8, &v, 4); pers_back(); }
+    else if (!strcmp(fn, "FE_Personalisation_ConfirmCancel")) open_layer(ak_gui_hash("MP_PersonCancel"));   /* 08A35FE4 */
+    else if (!strcmp(fn, "FE_Personalisation_Cancel")) { pers_close(); return AK_FE_NONE; }   /* 08A35F70 */
     else if (!strcmp(fn, "FE_RespawnOrTeamSelect")) {}
     else if (!strcmp(fn, "FE_ProcessGameover")) {                       /* Retry: the same map again; Continue: the play list's next, else the main menu */
         const ak_widget *f = focus ? find_id(&page->root, focus) : NULL;
@@ -1039,6 +1197,7 @@ int ak_fe_update(const ak_input *in, f32 dt)
     }
     var_set("GUIMenu.ActiveWidget", (s32)focus); active_widget = focus;
     if (in_cust()) { int e = cust_event(in); if (e >= 0) return e; }
+    if (in_pers()) { int e = pers_event(in); if (e >= 0) return e; }
     const ak_widget *f = focus ? find_id(&page->root, focus) : NULL;
     /* the buttons' keys (the game's: 16 cross, 32 square, 64 triangle - the spawn map's "\ue801 Customization Menu" runs on
        square, "\ue803 Personalization Menu" on triangle) */
@@ -1052,7 +1211,7 @@ int ak_fe_update(const ak_input *in, f32 dt)
             if ((in->pressed & AK_BTN_DOWN) && L->sel + 1 < L->n) L->sel++;
             if (L->sel < L->top) L->top = L->sel;
             if (L->sel >= L->top + shown) L->top = L->sel - shown + 1;
-            if (L->sel != was) { if (f->name && !strcmp(f->name, "W_LB_TypeList")) cust_cat = L->sel; if (in_cust()) cust_vars(); refill(); return AK_FE_NONE; }
+            if (L->sel != was) { if (f->name && !strcmp(f->name, "W_LB_TypeList") && in_cust()) cust_cat = L->sel; if (in_cust()) cust_vars(); refill(); return AK_FE_NONE; }
         }
         for (int k = 0; k < 3; k++) if (in->pressed & keys[k][0])
             for (u32 i = 0; i < f->nactions; i++) if (f->actions[i].key == keys[k][1]) return run(&f->actions[i], L && L->n ? L->sel : -1);
