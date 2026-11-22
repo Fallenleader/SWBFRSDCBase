@@ -5030,6 +5030,21 @@ void ak_play_draw(ak_play *p, ak_scene_models *ms, const ak_model_set *m, const 
         {   ak_m4 gw = { { M[0], M[4], M[8], 0,  M[1], M[5], M[9], 0,  M[2], M[6], M[10], 0,  M[3], M[7], M[11], 1 } };
             ak_scene_models_draw(ms, (u32)vh->def->model, vp, &gw, vh->posed ? (const f32 (*)[12])vh->bones : NULL, NULL, st); }
         f32 T[12];
+        if (!vh->def->enclosed && vh->def->sit_clip >= 0 && *vh->def->seat && vh->driver >= 0) {   /* the rider of an open vehicle */
+            const ak_soldier_look *lk = vh->driver == 0 ? &p->look : (u32)(vh->driver - 1) < p->nbots ? &p->bot[vh->driver - 1].look : NULL;
+            f32 SM[12]; static f32 rb[64][12];
+            if (lk && lk->body >= 0 && ak_vehicle_marker(vh, m, vh->def->seat, SM)) {
+                pose(m, lk, vh->def->sit_clip, 0, true, rb);
+                const ak_model *body = &m->models[lk->body];
+                if (body->skeleton >= 0) {
+                    ak_m4 w = { { SM[0] * S, SM[4] * S, SM[8] * S, 0,  SM[1] * S, SM[5] * S, SM[9] * S, 0,  SM[2] * S, SM[6] * S, SM[10] * S, 0,  SM[3], SM[7], SM[11], 1 } };
+                    ak_model_colours col = { lk->rgb1, lk->rgb2 };
+                    ak_scene_models_draw(ms, (u32)lk->body, vp, &w, (const f32 (*)[12])rb, &col, st);
+                    if (lk->head >= 0) { static f32 hm[1][12]; ak_soldier_head_matrix(body, &m->skels[body->skeleton], lk->head_bone, (const f32 (*)[12])rb, hm[0]);
+                        ak_scene_models_draw(ms, (u32)lk->head, vp, &w, (const f32 (*)[12])hm, &col, st); }
+                }
+            }
+        }
         if (vh->def->turret_model >= 0 && ak_vehicle_marker(vh, m, vh->def->turret_marker, T))   /* the turret (the AT-AT's head) */
             draw_weapon(ms, m, &(ak_weapon_def){ .model = vh->def->turret_model }, T, vp, st);
     }

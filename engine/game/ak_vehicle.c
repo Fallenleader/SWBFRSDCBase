@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include "ak_space.h"
 #include "game/ak_vehicle.h"
 #include "core/ak_settings.h"
@@ -210,6 +211,15 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
             const char *s2 = ak_bp_string(o, mk2[i], "");
             if (*s2 && (ak_model_marker(md, s2) || (d->turret_model >= 0 && ak_model_marker(&m->models[d->turret_model], s2)))) d->sec_muzzle[d->nsec_muzzles++] = s2;
         }
+    }
+    {   /* the rider (open vehicles: speeder bikes, Taun-Tauns, the STAP, the AT-RT): Enclosed false shows him on the Seat marker in the
+         * AnimSit pose - the name or an .ASR path, matched by the clip's own name [assumed: Enclosed's default is true] */
+        d->enclosed = ak_bp_int(o, "Enclosed", 1) != 0; d->seat = ak_bp_string(o, "Seat", ""); d->sit_clip = -1;
+        const char *an = ak_bp_string(o, "AnimSit", ""), *b = an;
+        for (const char *q = an; *q; q++) if (*q == '\\' || *q == '/') b = q + 1;
+        char nm[64]; size_t n = strlen(b); if (n >= sizeof nm) n = sizeof nm - 1; memcpy(nm, b, n); nm[n] = 0;
+        char *dot = strrchr(nm, '.'); if (dot && !strcasecmp(dot, ".asr")) *dot = 0;
+        if (*nm) for (u32 i = 0; i < m->nclips; i++) if (!strcasecmp(m->clips[i].name, nm)) { d->sit_clip = (s32)i; break; }
     }
     d->carries_cp = ak_bp_int(o, "CarriesCommandPost", 0) != 0; d->cp_marker = ak_bp_string(o, "CommandPostMarker", "cp");
     /* the lock-on's fields (089C4A2C: LockAngle +400, LockOnTime +408, LoseLockOnAngle +412, LoseLockOnRange +416, InitialLockOnAngle

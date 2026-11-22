@@ -503,6 +503,11 @@ textures and how they are used. Section R lists only what must be in place so th
     frame), the skid damping works across and backward only, the speed is held to StallSpeed..TopSpeed; turning spins up at
     YawInputDamp - YawDamp (100 degrees/s^2) to MaxTurnYaw and settles at YawDamp - Aurek matches.
   - [ ] **3.1b** The throttle cap over CruisingSpeed (vehicle +288), hover height, slopes, barrel aim, volleys, rider pose.
+    - 2026-11-22, the rider: open vehicles' blueprints say so - Enclosed false, Seat (the marker), AnimSit (the pose: speeder bikes
+      SpeederBike_Sit_pose, Taun-Tauns Human_Taun_sitpose, the STAP Human_STAP_sitpose, the AT-RT Pilot_Sit_pose; turrets too).
+      Aurek drew no rider; now the driver (the player or a bot) sits on the Seat marker in that pose, in his own look (seen on
+      Endor's speeder bike and Hoth's Taun-Taun). [assumed: Enclosed defaults to true; the rider's gun is not drawn; seated turret
+      gunners not yet]. Slopes: no Tank blueprint key limits them - they follow from the body against the level (3.2).
     - 2026-11-22, volleys traced: every hardpoint barrel is its own weapon (089C4A2C, vehicle +672..+684); its first wait (+48)
       is HardpointW1TimeN x its RateOfFire (+52), so TimeN is a share of the cycle, not seconds (X-wing 0 / .25 / .5 / .75 of 2 s:
       a gun every 0.5 s; T4B .1-.4 of 0.25 s). The wait runs down each frame (08A186EC, while +364 bit 1 - set from creation) and
@@ -1552,6 +1557,7 @@ textures and how they are used. Section R lists only what must be in place so th
     the vehicle, the getters' zero defaults, the vehicle's own LockOnTime) traced and ported.
   - Part 73 (2026-11-22): 3.1b volleys - HardpointW1TimeN is the barrel's share of RateOfFire (weapon +48 = TimeN x +52), traced
     and ported for vehicles and turrets.
+  - Part 74 (2026-11-22): 3.1b rider - open vehicles (Enclosed false) show their driver on the Seat marker in the AnimSit pose.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

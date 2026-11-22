@@ -54,6 +54,7 @@ typedef struct {
     f32 roll_in, roll_damp, anti_boost, top_hangar; bool snowspeeder;   /* TopSpeedHanger; Flyer_Type "snowspeeder" */ /* RollInputDamp, RollDamp (radians/s^2), AntiBoost (the throttle above the cruise) */
     u32 ntakeoff; f32 takeoff_t[24], takeoff_y[24];   /* AnimTakeoff's root channel: key times and heights (the lift-off, straight up) */
     int flyer_type;                    /* Flyer_Type (AK_FLY_*: the space AI commander's roles) */
+    bool enclosed; const char *seat; s32 sit_clip;   /* Enclosed (false: the rider shows), Seat (the marker he sits on), AnimSit (his pose; -1 none loaded) */
     bool carries_cp; const char *cp_marker;   /* CarriesCommandPost (AT-AT, transports): a command post of its side rides it, at CommandPostMarker */
     ak_secondary sec; const char *sec_muzzle[4]; u32 nsec_muzzles;   /* HardpointW2 (torpedoes, missiles, bombs) from HardpointW2Marker1..4 */
     f32 lock_angle, lock_time, lose_lock_angle, lose_lock_range, init_lock_angle, init_lock_range;   /* LockAngle / LockOnTime / LoseLockOnAngle (radians) / LoseLockOnRange */
