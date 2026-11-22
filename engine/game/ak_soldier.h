@@ -31,6 +31,14 @@ void ak_soldier_head_matrix(const ak_model *body, const ak_skeleton *sk, u16 hea
 
 const char *ak_faction_name(int faction);
 void ak_faction_default_colours(int faction, u8 *colour1, u8 *colour2);
+/* the faction's three personalisation bodies (089784DC's table 0x08C29190), i = 0..2; NULL outside 0..3 */
+const char *ak_faction_body(int faction, int i);
+/* Aurek's personalisation extensions (by request, not the original's):
+ *  - a head may come from any of the faction's three bodies (not the CIS): head 0..2 = the body's own "Head 1..3"; head 3..11 =
+ *    "Head (k % 3) + 1" of the faction's body k / 3, k = head - 3 (AK_HEAD_ANY);
+ *  - a colour may be any RGB: AK_RGB_COLOUR | 0xRRGGBB instead of an index 0..15 */
+#define AK_HEAD_ANY 3
+#define AK_RGB_COLOUR 0x1000000
 /* body = the Humanoid blueprint's name; head 0..2; colour < 0 = the faction's default.  False when the blueprint or its body model
  * is not in this level. */
 bool ak_soldier_look_make(const ak_blueprints *bp, const ak_model_set *models, const char *body, int head, int colour1, int colour2,

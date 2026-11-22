@@ -6,6 +6,7 @@
 #include "../core/ak_settings.h"
 #include "../audio/ak_audio.h"
 #include "../assets/blueprint.h"
+#include "../game/ak_soldier.h"
 #include "../platform/plat.h"
 #include <string.h>
 #include <ctype.h>
@@ -562,6 +563,7 @@ static const u16 *cust_name(int cat, int i, u32 *n)
 }
 static int pers_count(const char *fn); static bool pers_text(const char *fn, int row, u32 *n, const u16 **out); static bool pers_picture(const char *fn, int row, f32 *uv);
 static int pers_insignia(void);
+static bool pers_hide(const ak_widget *w); static void pers_picker_draw(void);
 static bool pers_look(int row, ak_fe_look *out, f32 off[3]);
 static int medal_count(const char *fn); static bool medal_text(const char *fn, int row, u16 *buf, u32 *n, const u16 **out); static bool medal_picture(const char *fn, int row, f32 *uv);
 static s32 lb_tex = -1;                                              /* (a row part's picture from another of the file's textures, -1 its own) */
@@ -676,6 +678,7 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
     if (w->is_template && lb_row < 0) return;                          /* (a list box's row: drawn by the list, once per row) */
     if (getenv("AK_FE_TRACE") && w->name && strstr(w->name, getenv("AK_FE_TRACE"))) AK_INFO("fe", "draw %s shows %d cond %d at %.0f,%.0f", w->name, shows(w, focused), cond_holds(w), x, y);
     if (getenv("AK_FE_TRACE2") && w->name) { static int nd; if (nd++ < ak_setting_int("AK_FE_TRACE2_N", 400)) { fprintf(stderr, "[W] %s bind=%s text=%u/%u", w->name, w->binding ? w->binding : "-", w->text_table, w->text_key); for (u32 i = 0; i < w->ncond; i++) fprintf(stderr, " cond(%s %u %s)", w->cond[i].var, w->cond[i].op, w->cond[i].val); for (u32 i = 0; i < w->nactions; i++) fprintf(stderr, " act(%s %s k%u)", w->actions[i].fn, w->actions[i].arg, w->actions[i].key); fprintf(stderr, "\n"); } }
+    if (pers_hide(w)) return;                                         /* (the colour swatches: the picker stands in) */
     bool in_row = lb_row >= 0 && !w->is_template;
     if (in_row && (w->flags & 0x20) && !(w->flags & 0x400)) {          /* a row part for the chosen row only (flags bit 5) [assumed] */
         if (!lb_selected || !cond_holds(w)) return;
@@ -796,6 +799,7 @@ void ak_fe_draw(void)
         }
         var_set("GUIMenu.ActiveWidget", (f32)(s32)focus);
     } else { active_widget = focus; draw_widget(&page->root, 0, 0, false); }
+    pers_picker_draw();
     ak_hud_2d_end();
 }
 
@@ -1081,12 +1085,45 @@ static int pers_insignia(void)
     s32 v = (s32)ak_rd32(prof + 0x5D8); return v >= 0 && v < 10 ? v : 0;
 }
 static int pers_cat(void) { list_rows *L = rows_of(PERS_LIST); return L && L->sel >= 0 && L->sel < 5 ? L->sel : 0; }
-static int pers_choice(int cat) { s32 v = (s32)ak_rd32(pers_rec() + 4 * (cat & 1)); return v >= 0 && v < 3 ? v : 0; }
+static int pers_body_i(void) { s32 v = (s32)ak_rd32(pers_rec()); return v >= 0 && v < 3 ? v : 0; }
+/* Aurek's extensions (by request): (1) a head from any of the faction's three bodies - not the CIS (AK_HEAD_SWAP=0: the original's
+   three) - the heads category lists nine rows, three per body, and the record's head word keeps 0..2 for the body's own and
+   3 + body x 3 + head for another's (ak_soldier.h AK_HEAD_ANY); (2) colours by an HSV picker for every faction, stored where the
+   index was: the colour byte (+8 team, +9 uniform) 0x80 | the top 7 bits of a 15-bit RGB, the record's unused byte after them
+   (+10 / +11) the low 8 - indices (< 16) read as before */
+static bool pers_heads_any(void) { return pers_faction() != AK_FACTION_CIS && ak_setting_int("AK_HEAD_SWAP", 1) != 0; }
+static int pers_head_rows(void) { return pers_heads_any() ? 9 : 3; }
+static int pers_head_row(void)                                         /* the stored head as a row of the heads list */
+{
+    s32 h = (s32)ak_rd32(pers_rec() + 4); int b = pers_body_i();
+    if (h >= AK_HEAD_ANY && h < AK_HEAD_ANY + 9) return pers_heads_any() ? h - AK_HEAD_ANY : (h - AK_HEAD_ANY) % 3;
+    if (h < 0 || h > 2) h = 0;
+    return pers_heads_any() ? b * 3 + h : h;
+}
+static u32 pers_head_store(int row) { if (!pers_heads_any()) return (u32)row; return row / 3 == pers_body_i() ? (u32)(row % 3) : (u32)(AK_HEAD_ANY + row); }
+static int pers_colour_code(const u8 *r, int which)                    /* an index 0..15 or AK_RGB_COLOUR | rgb */
+{
+    u8 b = r[8 + which];
+    if (!(b & 0x80)) return b & 15;
+    u32 v = ((u32)(b & 0x7F) << 8) | r[10 + which], R = (v >> 10) & 31, G = (v >> 5) & 31, B = v & 31;
+    return (int)(AK_RGB_COLOUR | ((R * 255 / 31) << 16) | ((G * 255 / 31) << 8) | (B * 255 / 31));
+}
+static u32 pers_colour_rgb(const u8 *r, int which)
+{
+    int c = pers_colour_code(r, which); return (c & AK_RGB_COLOUR) ? (u32)c & 0xFFFFFFu : (which ? ak_personal_colour2 : ak_personal_colour1)[c & 15];
+}
+static void pers_colour_set(u8 *r, int which, u32 rgb)
+{
+    u32 v = (((rgb >> 19) & 31) << 10) | (((rgb >> 11) & 31) << 5) | ((rgb >> 3) & 31);
+    r[8 + which] = (u8)(0x80 | (v >> 8)); r[10 + which] = (u8)v;
+}
+static int pers_choice(int cat) { return cat == 1 ? pers_head_row() : pers_body_i(); }
 static const ak_bp_object *pers_body(int i) { return fe_bp && i >= 0 && i < 3 ? ak_bp_find(fe_bp, "Humanoid", pers_unit[pers_faction()][i]) : NULL; }
 static const u16 *pers_item_name(int cat, int row, const char *suffix, u32 *n)   /* a body's or head's STDTEXT ("Name" / "Desc") */
 {
-    char key[16]; const ak_bp_object *o = pers_body(cat == 0 ? row : pers_choice(0)); *n = 0;
-    if (cat == 0) snprintf(key, sizeof key, "Body%s", suffix); else snprintf(key, sizeof key, "Head%d%s", row + 1, suffix);
+    int hb = pers_head_rows() == 9 ? row / 3 : pers_body_i(), hh = pers_head_rows() == 9 ? row % 3 : row;   /* (nine rows: three per body) */
+    char key[16]; const ak_bp_object *o = pers_body(cat == 0 ? row : hb); *n = 0;
+    if (cat == 0) snprintf(key, sizeof key, "Body%s", suffix); else snprintf(key, sizeof key, "Head%d%s", hh + 1, suffix);
     s32 id = o ? ak_bp_int(o, key, -1) : -1; return id >= 0 ? ak_hud_stdtext((u32)id, n) : NULL;
 }
 /* the player's look from the profile for a faction (08A08EF8's join message 0x8027: the body 08978120, its head 0897808C, the colours
@@ -1096,20 +1133,21 @@ bool ak_fe_personal_look(int faction, const char **body, int *head, int *c1, int
     if (!prof_have || faction < 0 || faction > 3) return false;
     static const u32 off[4] = { 0x5C0, 0x5CC, 0x5A8, 0x5B4 }; const u8 *r = prof + off[faction];
     s32 b = (s32)ak_rd32(r), h = (s32)ak_rd32(r + 4);
-    *body = pers_unit[faction][b >= 0 && b < 3 ? b : 0]; *head = h >= 0 && h < 3 ? h : 0; *c1 = r[8] & 15; *c2 = r[9] & 15;
+    *body = pers_unit[faction][b >= 0 && b < 3 ? b : 0]; *head = h >= 0 && h < AK_HEAD_ANY + 9 && (h < 3 || faction != AK_FACTION_CIS) ? h : 0;
+    *c1 = pers_colour_code(r, 0); *c2 = pers_colour_code(r, 1);
     return true;
 }
 static int pers_count(const char *fn)
 {
     if (!strncmp(fn, "FE_Personalisation_ListCategory", 31)) return 5;
-    if (!strncmp(fn, "FE_Personalisation_ListCarousel", 31)) return pers_cat() < 2 ? 3 : 0;
+    if (!strncmp(fn, "FE_Personalisation_ListCarousel", 31)) return pers_cat() == 0 ? 3 : pers_cat() == 1 ? pers_head_rows() : 0;
     return 0;
 }
 static bool pers_text(const char *fn, int row, u32 *n, const u16 **out)
 {
     if (strncmp(fn, "FE_Personalisation_", 19)) return false;
     if (!strcmp(fn, "FE_Personalisation_ListCategoryNames")) *out = row >= 0 && row < 5 ? ak_gui_text(&texts, pers_cat_key[row], n) : NULL;
-    else if (!strcmp(fn, "FE_Personalisation_ListCarouselNames")) *out = pers_cat() < 2 && row >= 0 && row < 3 ? pers_item_name(pers_cat(), row, "Name", n) : NULL;
+    else if (!strcmp(fn, "FE_Personalisation_ListCarouselNames")) *out = pers_cat() < 2 && row >= 0 && row < (pers_cat() ? pers_head_rows() : 3) ? pers_item_name(pers_cat(), row, "Name", n) : NULL;
     else return false;
     return true;
 }
@@ -1130,14 +1168,16 @@ static bool in_pers(void) { return nlayer && layer_of("MP_Personalisation") >= 0
 static bool pers_look(int row, ak_fe_look *out, f32 off[3])
 {
     if (!in_pers()) return false;
-    const u8 *r = pers_rec(); s32 b = (s32)ak_rd32(r), h = (s32)ak_rd32(r + 4);
-    out->body = pers_unit[pers_faction()][b >= 0 && b < 3 ? b : 0]; out->head = h >= 0 && h < 3 ? h : 0; out->c1 = r[8] & 15; out->c2 = r[9] & 15; out->head_only = false;
+    const u8 *r = pers_rec(); int b = pers_body_i(); const char *bn; int hd, c1, c2;
+    ak_fe_personal_look(pers_faction(), &bn, &hd, &c1, &c2);
+    out->body = pers_unit[pers_faction()][b]; out->head = hd; out->c1 = c1; out->c2 = c2; out->head_only = false; (void)r;
     if (row < 0) return true;
-    if (pers_cat() != 1 || row > 2) return false;
-    out->head = row; out->head_only = true;
-    const ak_bp_object *o = pers_body(b >= 0 && b < 3 ? b : 0);
+    if (pers_cat() != 1 || row >= pers_head_rows()) return false;
+    int hb = pers_head_rows() == 9 ? row / 3 : b, hh = pers_head_rows() == 9 ? row % 3 : row;   /* (the row's head: its body's mesh alone) */
+    out->body = pers_unit[pers_faction()][hb]; out->head = hh; out->head_only = true;
+    const ak_bp_object *o = pers_body(hb);
     if (o) { char k[32]; static const char ax[3] = { 'X', 'Y', 'Z' };
-        for (int i = 0; i < 3; i++) { snprintf(k, sizeof k, "Head%dCameraOffset%c", row + 1, ax[i]); off[i] = ak_bp_float(o, k, off[i]); }
+        for (int i = 0; i < 3; i++) { snprintf(k, sizeof k, "Head%dCameraOffset%c", hh + 1, ax[i]); off[i] = ak_bp_float(o, k, off[i]); }
         }
     return true;
 }
@@ -1152,7 +1192,7 @@ static void pers_sync(void)                                            /* the bo
         pers_last_cat = cat;
         list_rows *C = rows_of(PERS_CAROUSEL);
         if (!C && nlists < 24) { C = &lists[nlists++]; memset(C, 0, sizeof *C); C->id = PERS_CAROUSEL; }
-        if (C) { C->n = cat < 2 ? 3 : 0; C->sel = cat < 2 ? pers_choice(cat) : 0; C->top = 0; }
+        if (C) { C->n = cat == 0 ? 3 : cat == 1 ? pers_head_rows() : 0; C->sel = cat < 2 ? pers_choice(cat) : 0; C->top = C->sel > 1 ? C->sel - 1 : 0; if (C->top + 3 > C->n) C->top = C->n > 3 ? C->n - 3 : 0; }
         refill();
     }
 }
@@ -1180,14 +1220,133 @@ static void pers_close(void)                                           /* 08A35F
 }
 /* the menu's own keys: circle off the carousel back to the list, off the exit dialogue back to the menu, off the list the exit
  * dialogue [assumed: the game's circle here not traced; the buttons' triangle is ConfirmCancel]; -1 = not handled here */
-static int pers_event(const ak_input *in)
+static bool pick_event(const ak_input *in, f32 dt);
+static int pers_event(const ak_input *in, f32 dt)
 {
     pers_sync();
+    if (pick_event(in, dt)) return AK_FE_NONE;
     if (!(in->pressed & AK_BTN_CIRCLE) || !page || !page->root.name) return -1;
     if (!strcmp(page->root.name, "MP_PersonCarousel")) { int k = layer_of("MP_Personalisation"); if (k >= 0) use_layer(k); pers_sync(); return AK_FE_NONE; }
     if (!strcmp(page->root.name, "MP_PersonCancel")) { close_layer(); pers_sync(); return AK_FE_NONE; }
     if (!strcmp(page->root.name, "MP_Personalisation")) { open_layer(ak_gui_hash("MP_PersonCancel")); return AK_FE_NONE; }
     return -1;
+}
+/* The colour picker (Aurek's, by request; the layout and keys as asked for the recompiled build's picker): in the carousel's panel
+ * an SV square (saturation across, value down) and a hue slider, a strip of the colour and two buttons, Save and Cancel, drawn
+ * for Color 1 / Color 2 whenever that category is highlighted (the swatch buttons are not shown).  Cross on the category opens it:
+ * the d-pad / left stick move between the four inputs and cross takes one (the square / slider: the d-pad and stick then move its
+ * cursor, circle lets go); Save (or start) keeps the colour, Cancel (or circle with nothing taken) puts the old one back.  The
+ * soldier preview follows the colour as it moves. */
+static struct { bool on; int which, elem; bool edit; f32 h, s, v; u8 saved[4]; } pick;
+static void rgb_to_hsv(u32 rgb, f32 *h, f32 *s, f32 *v)
+{
+    f32 r = (f32)((rgb >> 16) & 255) / 255.0f, g = (f32)((rgb >> 8) & 255) / 255.0f, b = (f32)(rgb & 255) / 255.0f;
+    f32 mx = fmaxf(r, fmaxf(g, b)), mn = fminf(r, fminf(g, b)), d = mx - mn;
+    *v = mx; *s = mx > 0 ? d / mx : 0;
+    if (d <= 0) { *h = 0; return; }
+    f32 hh = mx == r ? (g - b) / d : mx == g ? 2.0f + (b - r) / d : 4.0f + (r - g) / d;
+    hh /= 6.0f; if (hh < 0) hh += 1.0f; *h = hh;
+}
+static u32 hsv_to_rgb(f32 h, f32 s, f32 v)
+{
+    h = h - floorf(h); f32 f = h * 6.0f; int i = (int)f; f -= (f32)i;
+    f32 p = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f)), r, g, b;
+    switch (i % 6) { case 0: r = v; g = t; b = p; break; case 1: r = q; g = v; b = p; break; case 2: r = p; g = v; b = t; break;
+                     case 3: r = p; g = q; b = v; break; case 4: r = t; g = p; b = v; break; default: r = v; g = p; b = q; }
+    return ((u32)(r * 255.0f + 0.5f) << 16) | ((u32)(g * 255.0f + 0.5f) << 8) | (u32)(b * 255.0f + 0.5f);
+}
+static bool pers_hide(const ak_widget *w)
+{
+    if (!w->name || !in_pers()) return false;
+    return !strncmp(w->name, "W_CP_", 5) || !strcmp(w->name, "W_BU_TeamColourPrompt") || !strncmp(w->name, "W_BU_UniformColourPrompt", 24);
+}
+static void pick_open(int which)
+{
+    u8 *r = pers_rec(); memset(&pick, 0, sizeof pick); pick.on = true; pick.which = which; memcpy(pick.saved, r + 8, 4);
+    rgb_to_hsv(pers_colour_rgb(r, which), &pick.h, &pick.s, &pick.v);
+}
+static void pick_apply(void) { pers_colour_set(pers_rec(), pick.which, hsv_to_rgb(pick.h, pick.s, pick.v)); }
+static void pick_close(bool keep)
+{
+    if (!keep) memcpy(pers_rec() + 8, pick.saved, 4); else { pick_apply(); prof[6] = 1; }
+    pick.on = false; pers_last_cat = -1; pers_sync();
+}
+static f32 clamp01(f32 x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+static bool pick_event(const ak_input *in, f32 dt)
+{
+    if (!pick.on) return false;
+    u32 P = in->pressed;
+    if (P & AK_BTN_START) { pick_close(true); return true; }
+    if (pick.edit) {
+        if (P & (AK_BTN_CIRCLE | AK_BTN_CROSS)) { pick.edit = false; return true; }
+        f32 sx = fabsf(in->lx) > 0.2f ? in->lx : 0, sy = fabsf(in->ly) > 0.2f ? in->ly : 0;   /* (the stick, past a dead zone) */
+        if (pick.elem == 0) {
+            pick.s += sx * dt * 0.8f; pick.v -= sy * dt * 0.8f;
+            if (P & AK_BTN_LEFT) pick.s -= 1.0f / 31; if (P & AK_BTN_RIGHT) pick.s += 1.0f / 31;
+            if (P & AK_BTN_UP) pick.v += 1.0f / 31; if (P & AK_BTN_DOWN) pick.v -= 1.0f / 31;
+        } else {
+            pick.h += sy * dt * 0.4f;
+            if (P & AK_BTN_UP) pick.h -= 1.0f / 48; if (P & AK_BTN_DOWN) pick.h += 1.0f / 48;
+            pick.h = clamp01(pick.h);
+        }
+        pick.s = clamp01(pick.s); pick.v = clamp01(pick.v); pick_apply();
+        return true;
+    }
+    static f32 stick_t; bool sl = in->lx < -0.6f, sr = in->lx > 0.6f, su = in->ly < -0.6f, sd = in->ly > 0.6f;   /* (the stick moves one step a 0.25 s) */
+    if (!(sl || sr || su || sd)) stick_t = 0; else if ((stick_t -= dt) > 0) sl = sr = su = sd = false; else stick_t = 0.25f;
+    bool L = (P & AK_BTN_LEFT) || sl, R = (P & AK_BTN_RIGHT) || sr, U = (P & AK_BTN_UP) || su, D = (P & AK_BTN_DOWN) || sd;
+    if (pick.elem == 0 && R) pick.elem = 1; else if (pick.elem == 1 && L) pick.elem = 0;
+    else if (pick.elem <= 1 && D) pick.elem = 2; else if (pick.elem == 2 && D) pick.elem = 3;
+    else if (pick.elem == 2 && U) pick.elem = 0; else if (pick.elem == 3 && U) pick.elem = 2;
+    if (P & AK_BTN_CROSS) { if (pick.elem <= 1) pick.edit = true; else pick_close(pick.elem == 2); }
+    else if (P & AK_BTN_CIRCLE) pick_close(false);
+    return true;
+}
+static ak_gfx_tex *white_tex(void)
+{
+    static ak_gfx_tex *t; static ak_texture w; static u8 px[16];
+    if (!t) { memset(&w, 0, sizeof w); w.width = w.height = 4; w.bpp = 8; w.levels = 1; w.pixels[0] = px; w.palette[0] = 0xFFFFFFFFu; t = ak_gfx_texture(&w); }
+    return t;
+}
+static void frame_rect(ak_gfx_tex *t, f32 x0, f32 y0, f32 x1, f32 y1, f32 k, u32 c)
+{
+    ak_hud_2d_quad(t, x0 - k, y0 - k, x1 + k, y0, 0, 0, 1, 1, c); ak_hud_2d_quad(t, x0 - k, y1, x1 + k, y1 + k, 0, 0, 1, 1, c);
+    ak_hud_2d_quad(t, x0 - k, y0, x0, y1, 0, 0, 1, 1, c); ak_hud_2d_quad(t, x1, y0, x1 + k, y1, 0, 0, 1, 1, c);
+}
+static void pers_picker_draw(void)
+{
+    if (!in_pers() || layer_of("MP_PersonCancel") >= 0) return;
+    int cat = pers_cat(); if (!pick.on && cat != 2 && cat != 3) return;
+    ak_gfx_tex *t = white_tex(); if (!t) return;
+    f32 h, sat, val;
+    if (pick.on) { h = pick.h; sat = pick.s; val = pick.v; } else rgb_to_hsv(pers_colour_rgb(pers_rec(), cat - 2), &h, &sat, &val);
+    const f32 X0 = 160, Y0 = 32, W = 100, HS = 100, SX = 268, SW = 16;   /* (inside W_LB_Carousel's 141 x 201 at 152, 21) */
+    const int N = 20;
+    for (int j = 0; j < N; j++) for (int i = 0; i < N; i++) {           /* the SV square */
+        u32 c = hsv_to_rgb(h, (i + 0.5f) / N, 1.0f - (j + 0.5f) / N);
+        ak_hud_2d_quad(t, X0 + W * i / N, Y0 + HS * j / N, X0 + W * (i + 1) / N, Y0 + HS * (j + 1) / N, 0, 0, 1, 1, 0xFF000000u | c);
+    }
+    for (int j = 0; j < 30; j++)                                        /* the hue slider */
+        ak_hud_2d_quad(t, SX, Y0 + HS * j / 30, SX + SW, Y0 + HS * (j + 1) / 30, 0, 0, 1, 1, 0xFF000000u | hsv_to_rgb((j + 0.5f) / 30, 1, 1));
+    f32 cx = X0 + W * sat, cy = Y0 + HS * (1 - val), hy = Y0 + HS * h;
+    frame_rect(t, cx - 3, cy - 3, cx + 3, cy + 3, 1, 0xFFFFFFFFu); frame_rect(t, cx - 4, cy - 4, cx + 4, cy + 4, 1, 0xFF000000u);
+    ak_hud_2d_quad(t, SX - 3, hy - 1, SX + SW + 3, hy + 1, 0, 0, 1, 1, 0xFFFFFFFFu);
+    u32 cur = hsv_to_rgb(h, sat, val);
+    ak_hud_2d_quad(t, X0, Y0 + HS + 8, SX + SW, Y0 + HS + 20, 0, 0, 1, 1, 0xFF000000u | cur);   /* the colour */
+    frame_rect(t, X0, Y0 + HS + 8, SX + SW, Y0 + HS + 20, 1, 0xFF808080u);
+    static const char *const lab[2] = { "Save", "Cancel" };
+    for (int b = 0; b < 2; b++) {                                       /* the buttons: as the list's rows (the highlight, white / grey text) */
+        f32 by = Y0 + HS + 28 + b * 26; bool f = pick.on && pick.elem == 2 + b;
+        if (f) { const ak_widget *hl = NULL; int k = layer_of("MP_Personalisation"); if (k >= 0) hl = find_name(&layer[k]->root, "E_IM_Hilight");
+            if (hl && hl->tex >= 0 && (u32)hl->tex < gf.ntex && gtex[hl->tex]) ak_hud_2d_quad(gtex[hl->tex], X0 - 4, by, SX + SW + 4, by + 22, hl->uv[0], hl->uv[1], hl->uv[2], hl->uv[3], 0xFFFFFFFFu);
+            else frame_rect(t, X0, by, SX + SW, by + 22, 1, 0xFFFFFFFFu); }
+        u16 tx[8]; u32 n = 0; for (const char *c = lab[b]; *c; c++) tx[n++] = (u16)(u8)*c;
+        ak_hud_2d_text(1, X0, by + 3, SX + SW, 1.0f, f ? 0xFFFFFFFFu : 0xFF808080u, tx, n, 1);
+    }
+    if (pick.on && pick.elem <= 1) {                                    /* the input in use: white, taken yellow */
+        u32 c = pick.edit ? 0xFFFFD040u : 0xFFFFFFFFu;
+        if (pick.elem == 0) frame_rect(t, X0, Y0, X0 + W, Y0 + HS, 2, c); else frame_rect(t, SX, Y0, SX + SW, Y0 + HS, 2, c);
+    }
 }
 static int run(const ak_gui_action *a, int row)
 {
@@ -1241,12 +1400,15 @@ static int run(const ak_gui_action *a, int row)
         int k = layer_of("MP_PersonCarousel");
         if (row >= 0 && row < 5 && k >= 0) {
             u8 *r = pers_rec(); u32 to = PERS_CAROUSEL;
-            if (row == 2) to = pers_team_btn[r[8] & 15]; else if (row == 3) to = pers_uniform_btn[r[9] & 15]; else if (row == 4) to = pers_insignia_btn[pers_insignia()];
+            if (row == 2 || row == 3) { pick_open(row - 2); return AK_FE_NONE; }   /* (Aurek: the HSV picker, by request) */
+            if (row == 4) to = pers_insignia_btn[pers_insignia()];
             use_layer(k); if (to && find_id(&page->root, to)) focus = to; else { const ak_widget *c = first_control(&page->root); if (c) focus = c->id; }
         }
     }
     else if (!strcmp(fn, "FE_Personalisation_AcceptCarouselItem")) {  /* 08A35B00: the body or the head */
-        int cat = pers_cat(); if (cat < 2 && row >= 0 && row < 3) { u32 v = (u32)row; memcpy(pers_rec() + 4 * cat, &v, 4); } pers_back(); }
+        int cat = pers_cat(); if (cat == 0 && row >= 0 && row < 3) { u32 v = (u32)row; memcpy(pers_rec(), &v, 4); }
+        if (cat == 1 && row >= 0 && row < pers_head_rows()) { u32 v = pers_head_store(row); memcpy(pers_rec() + 4, &v, 4); }
+        pers_back(); }
     else if (!strcmp(fn, "FE_Personalisation_AcceptTeamColour")) { pers_rec()[8] = (u8)atoi(a->arg); pers_back(); }   /* 08A3619C */
     else if (!strcmp(fn, "FE_Personalisation_AcceptUniformColour")) { pers_rec()[9] = (u8)atoi(a->arg); pers_back(); }   /* 08A3624C */
     else if (!strcmp(fn, "FE_Personalisation_AcceptInsignia")) {       /* 08A362FC: one for every faction */
@@ -1375,7 +1537,7 @@ int ak_fe_update(const ak_input *in, f32 dt)
     }
     var_set("GUIMenu.ActiveWidget", (s32)focus); active_widget = focus;
     if (in_cust()) { int e = cust_event(in); if (e >= 0) return e; }
-    if (in_pers()) { int e = pers_event(in); if (e >= 0) return e; }
+    if (in_pers()) { int e = pers_event(in, dt); if (e >= 0) return e; }
     const ak_widget *f = focus ? find_id(&page->root, focus) : NULL;
     /* the buttons' keys (the game's: 16 cross, 32 square, 64 triangle - the spawn map's "\ue801 Customization Menu" runs on
        square, "\ue803 Personalization Menu" on triangle) */

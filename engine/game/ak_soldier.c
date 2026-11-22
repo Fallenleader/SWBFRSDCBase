@@ -19,6 +19,13 @@ void ak_soldier_head_matrix(const ak_model *body, const ak_skeleton *sk, u16 hb,
     }
 }
 
+const char *ak_faction_body(int f, int i)
+{
+    static const char *const b[4][3] = { { "Clonetrooper", "Arc_Trooper", "MECTrooper" }, { "Battle_Droid", "SuperBattleDroid", "SuperMagnaGuard" },
+                                         { "RebelTrooperCommando", "MediumRebel", "WookieWarrior" }, { "Biker_Scout", "Stormtrooper", "Darktrooper" } };
+    return f >= 0 && f < 4 && i >= 0 && i < 3 ? b[f][i] : NULL;
+}
+
 const char *ak_faction_name(int f)
 {
     static const char *n[] = { "Republic", "CIS", "Alliance", "Empire", "none" };
@@ -42,20 +49,28 @@ bool ak_soldier_look_make(const ak_blueprints *bp, const ak_model_set *models, c
     o->body = ak_models_find(models, body);
     if (o->body < 0) return false;
     o->faction = (u8)ak_bp_int(o->bp, "Faction", AK_FACTION_NONE);
+    const ak_bp_object *hb = o->bp;                                    /* the head's blueprint: the body's own, or (AK_HEAD_ANY) another body's */
+    if (head >= AK_HEAD_ANY && head < AK_HEAD_ANY + 9 && o->faction != AK_FACTION_CIS) {
+        const char *src = ak_faction_body(o->faction, (head - AK_HEAD_ANY) / 3); const ak_bp_object *sb = src ? ak_bp_find(bp, "Humanoid", src) : NULL;
+        if (sb) hb = sb;
+        head = (head - AK_HEAD_ANY) % 3;
+    }
     if (head < 0 || head > 2) head = 0;
     o->head_index = (u8)head;
     char key[32];
     snprintf(key, sizeof key, "Head %d", head + 1);
-    const char *hn = ak_bp_string(o->bp, key, "");
+    const char *hn = ak_bp_string(hb, key, "");
     if (*hn) o->head = ak_models_find(models, hn);
     const ak_model *m = &models->models[o->body];
     const ak_marker *mk = ak_model_marker(m, "Head");
     o->head_bone = mk ? mk->bone : AK_HEAD_BONE;
     if (m->skeleton < 0 || models->skels[m->skeleton].nbones <= AK_HEAD_BONE) o->head = -1;
     static const char axis[3] = { 'X', 'Y', 'Z' };
-    for (int k = 0; k < 3; k++) { snprintf(key, sizeof key, "Head%dCameraOffset%c", head + 1, axis[k]); o->camera_offset[k] = ak_bp_float(o->bp, key, 0); }
+    for (int k = 0; k < 3; k++) { snprintf(key, sizeof key, "Head%dCameraOffset%c", head + 1, axis[k]); o->camera_offset[k] = ak_bp_float(hb, key, 0); }
     u8 d1, d2; ak_faction_default_colours(o->faction, &d1, &d2);
     o->colour1 = (u8)(colour1 >= 0 ? colour1 & 15 : d1); o->colour2 = (u8)(colour2 >= 0 ? colour2 & 15 : d2);
     o->rgb1 = ak_personal_colour1[o->colour1]; o->rgb2 = ak_personal_colour2[o->colour2];
+    if (colour1 >= 0 && (colour1 & AK_RGB_COLOUR)) o->rgb1 = (u32)colour1 & 0xFFFFFFu;   /* (a picked RGB) */
+    if (colour2 >= 0 && (colour2 & AK_RGB_COLOUR)) o->rgb2 = (u32)colour2 & 0xFFFFFFu;
     return true;
 }
