@@ -179,7 +179,8 @@ static void voice_gains(voice *v)                     /* distance fade and the p
     if (v->pos3d) {
         f32 dx = v->p[0] - lis_pos[0], dy = v->p[1] - lis_pos[1], dz = v->p[2] - lis_pos[2], d = sqrtf(dx * dx + dy * dy + dz * dz);
         f32 a = d <= v->dmin ? 1.0f : d >= v->dmax ? 0.0f : 1.0f - (d - v->dmin) / (v->dmax - v->dmin);
-        g *= a * a;                                    /* (a soft fall-off between the event's two distances) */
+        g *= a;                                        /* (linear between the event's two distances: 088DC6BC - 1 inside the near one,
+                                                          (max - d) / (max - min) between, 0 beyond; no Doppler, no occlusion) */
         f32 s = sinf(lis_yaw), c = cosf(lis_yaw), rx = c * dx - s * dz;   /* the listener's right is (cos yaw, 0, -sin yaw) */
         pan = d > 0.5f ? rx / d : 0.0f;
     }

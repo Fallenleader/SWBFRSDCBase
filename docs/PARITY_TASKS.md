@@ -1581,6 +1581,7 @@ textures and how they are used. Section R lists only what must be in place so th
     WalkingSpeedScale otherwise).
   - Part 77 (2026-11-22): 3.4 walker clip table (ATBL) decoded; the AT-ST turns in place with turnL_30 / turnR_30.
   - Part 78 (2026-11-22): 7.2 - no reverb in the game (only RevVON is imported); the voice pitch path found for the Doppler check.
+  - Part 79 (2026-11-22): 7.2 closed - no Doppler, no occlusion in the game; the 3D distance gain is linear (Aurek's was squared).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
@@ -1696,12 +1697,19 @@ textures and how they are used. Section R lists only what must be in place so th
     one stream and 0.5 while two cross-fade (moving 0.02 a step), times the stream's volume; the profile's master / music / sfx
     volumes default to 1.0 (08977808).  AK_MUSIC_VOLUME defaults to 0.5625 (settings.txt files updated).  Open: the two-stream
     cross-fade (Aurek plays one stream).
-- [ ] **7.2 Missing effects.** Vehicle collisions ("Collision sound"), Doppler, any reverb or occlusion the game uses.
+- [x] **7.2 Missing effects.** Vehicle collisions ("Collision sound"), Doppler, any reverb or occlusion the game uses.
   - 2026-11-22, reverb: the game imports only __sceSasRevVON of the SAS reverb calls (no RevType / RevParam / RevEVOL), through
     08A96E50 (voice, on/off) - the effect's type and send level are never set, so [assumed: the PSP default leaves it off] the game
     has no reverb. Aurek matches (none). Pitch reaches the voices only through __sceSasSetPitch (08A96AC8 / 08A96CFC, from the
     mixer's voice table at D_08BD8184, 48 bytes a voice, its +4) - whether anything writes a speed-based (Doppler) pitch there is
     not followed yet (the table's writers: 08911818..08912030).
+  - 2026-11-22, followed: no Doppler - a voice's pitch is its sample's rate (08911818, held to 1..16384) times a ratio set only
+    through 0890EF70 / 08912030 (ratio 0 pauses), and the ratio is the event's random pitch (088DB940's callers 088E57E4 /
+    088D20C8: min + random x (max - min)) times a global scale (+24892); nothing speed-based. No occlusion: the 3D path (088DC190)
+    calls no collision code. Its distance gain (088DC6BC) is linear - 1 within the event's near distance, (far - d) / (far - near)
+    between, 0 beyond - and Aurek had squared it: fixed (audio/ak_audio.c). Box emitters (flag 0x800) take the least of three
+    per-axis ramps (088DC6F4), not built. The pan is an angle mapping (atan2 to the listener, pulled to the centre inside the near
+    distance, 088DC5AC..) - Aurek's sin pan stays [assumed].
   - 2026-11-19, traced not ported: a vehicle's collision (089CE510, with the impact speed) does nothing below the class's
     threshold (vfunc +0x1F0); above it the vehicle takes damage (message 0x8001: +0x34 x speed x dt x vfunc +500) and plays its
     blueprint's "Collision sound" event at its position, volume 1.0, stopping the previous one first (089CD7C4; also on message
