@@ -34,6 +34,10 @@ bool ak_audio_level_music_state(const ak_blob *level, u32 list_hash, u32 state, 
 /* play an event: pos = NULL plays it flat (2D, `pan` -1 left .. 1 right); loop keeps it going until ak_audio_stop.  Returns a
  * handle (0 = nothing played). */
 u32  ak_audio_play(const char *event, const f32 *pos, bool loop);
+/* the level's placed sound emitters (its SDPH chunk: ambience boxes, point sources), started looping; the number started */
+u32  ak_audio_level_emitters(const ak_blob *level);
+/* an animation clip's event (model.h ak_anim_clip ev_*) reached: the sound the level's HSND names for that clip and id, at pos */
+u32  ak_audio_clip_sound(const char *clip, u32 id, const f32 *pos);
 u32  ak_audio_play2d(const char *event, f32 pan, f32 gain, bool loop);
 /* a converted 16-bit WAV file (speech): flat when pos is NULL, else fading from dmin to dmax; `skip` frames at its start */
 u32  ak_audio_play_wav(const char *path, const char *group, const f32 *pos, f32 gain, f32 dmin, f32 dmax, u32 skip);  /* group: SDMX */
@@ -44,7 +48,8 @@ void ak_audio_gain(u32 handle, f32 gain);
 void ak_audio_set_volumes(f32 master, f32 music, f32 sfx);   /* the profile's volumes (0..1; the options menu), on top of the mix */           /* on top of the event's own volume */
 void ak_audio_stop(u32 handle);
 bool ak_audio_playing(u32 handle);
-void ak_audio_listener(const f32 *pos, f32 yaw);   /* the camera: yaw 0 looks down -z */
+void ak_audio_listener(const f32 *pos, f32 yaw);
+bool ak_audio_near_listener(const f32 *pos, f32 r);   /* closer than r to the listener */   /* the camera: yaw 0 looks down -z */
 
 /* music: a track by its game path ("PSP_GAME/USRDIR/SOUNDS/MUSIC/X.AT3"), played from its converted WAV (converted/<path>.wav in a
  * data folder); `head` is the start of the original file (its fact / smpl chunks: the delay and the loop), or NULL */
@@ -64,5 +69,6 @@ void ak_audio_movie_close(void);
 
 /* the mixer itself (the platform's callback; tests call it to render to a file) */
 void ak_audio_mix(s16 *out, u32 frames);
-u32  ak_hash31(const char *s);                     /* the game's name hash: h = h * 31 + c over lower-case bytes */
+u32  ak_hash31(const char *s);
+extern u32 ak_audio_frame;                         /* (tests: the play frame, set by the game, for AK_DEBUG_SND logs) */                     /* the game's name hash: h = h * 31 + c over lower-case bytes */
 #endif

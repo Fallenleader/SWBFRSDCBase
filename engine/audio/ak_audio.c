@@ -27,6 +27,7 @@ typedef struct {
     f32 vol_min, vol_max, pitch_min, pitch_max, dmin, dmax;
     u32 nsamp; u32 samp[16]; bool samp_ev[16];         /* sample hashes (samp_ev: an event's instead) */
     s32 group;                                         /* the SDMX mixer group, -1 = none (Master) */
+    u32 mode;                                          /* the u32 after the four u8s (event +76): 2 = a placed emitter's sound is not panned (088DE834) */
 } snd_event;
 /* the mixer (SDMX, in the shared bank): groups under Master, and snapshots of their volumes the game moves between */
 #define MAX_GROUPS 16
@@ -42,6 +43,10 @@ static snd_sample samples[MAX_SAMPLES]; static u32 nsamples;
 static u32 aram_shared;                                 /* ARAM's top after the shared bank: a level's sounds start there */
 #endif
 static snd_event  events[MAX_EVENTS];   static u32 nevents;
+/* the level's animation sounds (HSND v4, one chunk per clip): u32 count, the clip's name, count x { u32 the clip event's id, f32 x 4
+ * (1, 1, 20, 1 on Boz Pity: not read), u32 the sound event's hash, u32 0 } - the clip's events (model.h) at their times play these */
+#define MAX_CLIPSND 512
+static struct { u32 clip, id, event; } clipsnd[MAX_CLIPSND]; static u32 nclipsnd;
 
 /* PSP VAG ADPCM -> s16 (a 48-byte big-endian header: data size at 12, rate at 16; 16-byte frames: predictor / shift, flags,
  * 14 bytes of 4-bit samples; flag 7 ends the data) */
@@ -153,6 +158,10 @@ u32 ak_audio_bank_add(const ak_blob *f, bool level)
                 if ((s->pcm || s->vag || s->aram) && s->len) { s->hash = ak_hash31(nm); s->path = path; s->level = level; nsamples++; added++; }
                 break;
             }
+        } else if (tag == AK_TAG('H', 'S', 'N', 'D') && level && c.size >= 8) {
+            u32 n = ak_rd32(c.body); p = 4; const char *cn = cstr(c.body, c.size, &p);
+            for (u32 i = 0; cn && i < n && p + 28 <= c.size && nclipsnd < MAX_CLIPSND; i++, p += 28) {
+                clipsnd[nclipsnd].clip = ak_hash31(cn); clipsnd[nclipsnd].id = ak_rd32(c.body + p); clipsnd[nclipsnd].event = ak_rd32(c.body + p + 20); nclipsnd++; }
         } else if (tag == AK_TAG('S', 'D', 'E', 'V') && nevents < MAX_EVENTS) {
             /* (the game's loader, func 0882C824, version 4) name; 9 f32: volume min, max, pitch min, max, ...; u32 kind; 4 u8;
              * u32; f32 distance min, max; u32 n; n x { u32 hash, u32 0 = a sample / else an event }; kind 5: 6 f32; the mixer
@@ -163,7 +172,7 @@ u32 ak_audio_bank_add(const ak_blob *f, bool level)
             e->hash = ak_hash31(nm); e->level = level; e->name = nm; e->group = -1;
             e->vol_min = rdf(b); e->vol_max = rdf(b + 4); e->pitch_min = rdf(b + 8); e->pitch_max = rdf(b + 12);
             e->dmin = rdf(b + 0x30); e->dmax = rdf(b + 0x34);
-            u32 kind = ak_rd32(b + 0x24), n = ak_rd32(b + 0x38), q = p + 0x3C;
+            u32 kind = ak_rd32(b + 0x24), n = ak_rd32(b + 0x38), q = p + 0x3C; e->mode = ak_rd32(b + 0x2C);
             for (u32 i = 0; i < n && q + 8 <= c.size; i++, q += 8) if (e->nsamp < 16) { e->samp_ev[e->nsamp] = ak_rd32(c.body + q + 4) != 0; e->samp[e->nsamp++] = ak_rd32(c.body + q); }
             if (kind == 5) q += 24;
             if (q < c.size) { const char *g = cstr(c.body, c.size, &q); if (g) e->group = group_of(ak_hash31(g)); }
@@ -182,6 +191,8 @@ typedef struct {
     u32 id; const snd_sample *s; u64 pos, step;        /* 32.32 fixed point */
     f32 gain, pan, user_gain, dmin, dmax, gl, gr;
     f32 p[3]; bool pos3d, loop, live; s32 group;
+    bool box, centre; f32 bnear[3], bfar[3];            /* a placed emitter (SDPH): a box's per-axis distances; centre: no pan */
+    bool ev;                                            /* an event's sound (not a speech file): the voice volume's 0.75 applies */
     u32 wf1; s32 h1, h2; s16 win[56];                   /* a VAG sample's: frames wf1 - 1 and wf1 decoded (0: none), the history after them */
 #ifdef AK_HAS_ARAM
     u8 blk[512] __attribute__((aligned(32))); u32 blk_f1; /* an ARAM sample's: 32 frames from frame blk_f1 - 1 (0: none) */
@@ -218,6 +229,7 @@ void ak_audio_set_volumes(f32 master, f32 music, f32 sfx) { user_master = master
 static volatile int lock_flag;
 static bool opened;
 static u32 rng = 0x1234567u;
+u32 ak_audio_frame;                                    /* (tests: the game frame, for AK_DEBUG_SND) */
 
 static void lock(void)                          /* (yields after a while: on one core a spinning thread would starve the holder) */
 {
@@ -226,25 +238,52 @@ static void lock(void)                          /* (yields after a while: on one
 static void unlock(void) { __atomic_clear(&lock_flag, __ATOMIC_RELEASE); }
 static f32 frand(void)   { rng = rng * 1664525u + 1013904223u; return (rng >> 8) / 16777216.0f; }
 
+static f32 ramp(f32 d, f32 dmin, f32 dmax)            /* 088DC6BC: 1 within the near distance, (far - d) / (far - near) between, 0 beyond */
+{
+    return d <= dmin ? 1.0f : d >= dmax ? 0.0f : (dmax - d) / (dmax - dmin);
+}
 static void voice_gains(voice *v)                     /* distance fade and the pan to the listener */
 {
-    f32 g = v->gain * v->user_gain, pan = v->pan;
+    f32 g = v->gain * v->user_gain, pan = v->pan * 0.5f + 0.5f;   /* (pan here 0 left .. 1 right) */
     if (v->pos3d) {
         f32 dx = v->p[0] - lis_pos[0], dy = v->p[1] - lis_pos[1], dz = v->p[2] - lis_pos[2], d = sqrtf(dx * dx + dy * dy + dz * dz);
-        f32 a = d <= v->dmin ? 1.0f : d >= v->dmax ? 0.0f : 1.0f - (d - v->dmin) / (v->dmax - v->dmin);
-        g *= a;                                        /* (linear between the event's two distances: 088DC6BC - 1 inside the near one,
-                                                          (max - d) / (max - min) between, 0 beyond; no Doppler, no occlusion) */
-        f32 s = sinf(lis_yaw), c = cosf(lis_yaw), rx = c * dx - s * dz;   /* the listener's right is (cos yaw, 0, -sin yaw) */
-        pan = d > 0.5f ? rx / d : 0.0f;
+        /* the gain (088DC190): a box emitter (flag 0x800) the least of three per-axis ramps on the world-axis offsets (088DC6F4: 0
+           past an axis's far distance), else linear in the distance between the event's two distances (no Doppler, no occlusion) */
+        f32 a;
+        if (v->box) { a = 1.0f; for (int k = 0; k < 3; k++) { f32 o = fabsf(k == 0 ? dx : k == 1 ? dy : dz), r = o > v->bfar[k] ? 0.0f : ramp(o, v->bnear[k], v->bfar[k]); if (r < a) a = r; } }
+        else a = ramp(d, v->dmin, v->dmax);
+        g *= a;
+        /* the pan (088DC190, read from the code and checked against the original's SAS volumes on Boz Pity to 0.001): the angle
+           from the listener's facing to the sound in the ground plane, 0 ahead, pi/2 right, taken through a triangle wave - ahead and
+           behind centred, the full side at +-pi/2 - and pulled to the centre inside the near distance (x d / near); 0.5 + that /
+           pi.  Exactly on the listener (under 1 mm), or an emitter whose event says so (mode 2): centred */
+        if (d < 0.001f || v->centre) pan = 0.5f;
+        else {
+            f32 s = sinf(lis_yaw), c = cosf(lis_yaw);           /* the listener's right is (cos yaw, 0, -sin yaw), ahead (-sin yaw, 0, -cos yaw) */
+            f32 th = atan2f(c * dx - s * dz, -s * dx - c * dz);  /* -pi .. pi, positive to the right */
+            const f32 PI = 3.14159265f;
+            f32 t = th >= -PI * 0.5f && th <= PI * 0.5f ? th : (th > 0 ? PI - th : -PI - th);
+            if (d <= v->dmin && v->dmin > 0) t *= d / v->dmin;
+            pan = 0.5f + t / PI;
+        }
     }
-    pan = pan < -1 ? -1 : pan > 1 ? 1 : pan;
-    v->gl = g * sqrtf(0.5f * (1.0f - pan)); v->gr = g * sqrtf(0.5f * (1.0f + pan));
+    pan = pan < 0 ? 0 : pan > 1 ? 1 : pan;
+    /* an event's voice volume (088DCDB4, on its way to 08911F14): x 0.75 (D_08AECBE0), at most 1.0 - checked on the original's SAS
+       volumes: UI_Navigation (0.6) keys at 1303 = 0.45 x 0.707 x 4096, Boz Pity's centred ambience (0.15) at 325 */
+    if (v->ev) { g *= 0.75f; if (g > 1.0f) g = 1.0f; }
+    /* the voice's left and right (08911F14): volume x sqrt(1 - pan), volume x sqrt(pan) */
+    v->gl = g * sqrtf(1.0f - pan); v->gr = g * sqrtf(pan);
 }
 
+static u32 start_ev(const snd_event *e, const char *event, const f32 *pos, f32 pan, f32 gain, bool loop);
 static u32 start(const char *event, const f32 *pos, f32 pan, f32 gain, bool loop)
 {
     if (!event || !*event) return 0;
     snd_event *e = event_find(ak_hash31(event)); if (!e || !e->nsamp) { AK_VERBOSE("audio", "event %s: none", event); return 0; }
+    return start_ev(e, event, pos, pan, gain, loop);
+}
+static u32 start_ev(const snd_event *e, const char *event, const f32 *pos, f32 pan, f32 gain, bool loop)
+{
     AK_VERBOSE("audio", "event %s%s", event, pos ? "" : " (2D)");
     const snd_sample *s = NULL;
     u32 first = e->nsamp > 1 ? (u32)(frand() * e->nsamp) : 0;               /* a random one of the event's samples */
@@ -271,10 +310,15 @@ static u32 start(const char *event, const f32 *pos, f32 pan, f32 gain, bool loop
         f32 pitch = e->pitch_min + (e->pitch_max - e->pitch_min) * frand();
         v->s = s; v->step = (u64)((double)s->rate * pitch / AK_AUDIO_RATE * 4294967296.0);
         v->gain = e->vol_min + (e->vol_max - e->vol_min) * frand(); v->user_gain = gain; v->pan = pan;
-        v->dmin = e->dmin; v->dmax = e->dmax; v->loop = loop; v->live = true; v->group = e->group;
+        v->dmin = e->dmin; v->dmax = e->dmax; v->loop = loop; v->live = true; v->group = e->group; v->ev = true;
         if (pos) { memcpy(v->p, pos, 12); v->pos3d = true; }
         v->id = id = next_id++; if (!next_id) next_id = 1;
         voice_gains(v);
+        { static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_SND", 0);   /* tests: every voice started */
+          if (dbg) AK_INFO("snd", "frame %u %s %s gain %.3f l %.3f r %.3f (mixed %.3f %.3f) pitch %.3f loop %d dist %.1f", ak_audio_frame, event, s->path ? s->path : "?", v->gain * v->user_gain, v->gl, v->gr,
+                           v->gl * user_master * user_sfx * sfx_volume * (v->group >= 0 && (u32)v->group < ngroups ? groups[v->group].cur : 1.0f),
+                           v->gr * user_master * user_sfx * sfx_volume * (v->group >= 0 && (u32)v->group < ngroups ? groups[v->group].cur : 1.0f), pitch, loop,
+                           pos ? sqrtf((pos[0] - lis_pos[0]) * (pos[0] - lis_pos[0]) + (pos[1] - lis_pos[1]) * (pos[1] - lis_pos[1]) + (pos[2] - lis_pos[2]) * (pos[2] - lis_pos[2])) : -1.0f); }
     }
     unlock();
     return id;
@@ -373,8 +417,63 @@ void ak_audio_gain(u32 h, f32 g)          { lock(); voice *v = by_id(h); if (v) 
 void ak_audio_stop(u32 h)                 { lock(); voice *v = by_id(h); if (v) v->live = false; unlock(); }
 bool ak_audio_playing(u32 h)              { lock(); bool r = by_id(h) != NULL; unlock(); return r; }
 
+/* within r of the listener (088DC02C: the squared distance under r squared) */
+bool ak_audio_near_listener(const f32 *pos, f32 r)
+{
+    f32 dx = pos[0] - lis_pos[0], dy = pos[1] - lis_pos[1], dz = pos[2] - lis_pos[2];
+    return dx * dx + dy * dy + dz * dz < r * r;
+}
+
+/* a clip's event fired: the level's HSND sound for (clip, id), played at pos */
+u32 ak_audio_clip_sound(const char *clip, u32 id, const f32 *pos)
+{
+    if (!clip) return 0;
+    u32 h = ak_hash31(clip);
+    for (u32 i = 0; i < nclipsnd; i++) if (clipsnd[i].clip == h && clipsnd[i].id == id) {
+        snd_event *e = event_find(clipsnd[i].event); return e && e->nsamp ? start_ev(e, e->name, pos, 0, 1.0f, false) : 0; }
+    return 0;
+}
+
+/* the level's placed sound emitters (SDPH, read by 0882D0DC / 0882D190; started by 088DE834): u32 count, then 128 bytes each - u32 the
+ * emitter object's id, u32 the event's hash, vec3 position (game axes), u8, quaternion, f32 near and far distances, vec3 a box's
+ * near and far distances per axis (world axes), u8 box (flag 0x800), u8, u8, u8, u8, six f32, u8, f32, u8, six f32.  Boz Pity's
+ * ambience is three such boxes (Amb_Boz_Pity_C / _L / _R) and two points.  Each plays its event looping where it stands: a box with
+ * its per-axis distances, a point with its own near / far; an event of mode 2 is not panned [assumed: the emitters all play from
+ * the start - the original keyed Boz Pity's three boxes as the match began; the two points were out of range] */
+u32 ak_audio_level_emitters(const ak_blob *level)
+{
+    if (!level || !ak_asura_check(level)) return 0;
+    u32 pos = 8, n = 0; ak_chunk c;
+    while (ak_asura_next(level, &pos, &c)) {
+        if (ak_chunk_tag(&c) != AK_TAG('S', 'D', 'P', 'H') || c.size < 4) continue;
+        u32 cnt = ak_rd32(c.body);
+        if (4 + cnt * 128 != c.size) { AK_WARN("audio", "SDPH: %u emitters in %u bytes - not the layout read (version %u)", cnt, c.size, c.version); continue; }
+        for (u32 i = 0; i < cnt; i++) {
+            const u8 *b = c.body + 4 + i * 128;
+            snd_event *e = event_find(ak_rd32(b + 4)); if (!e || !e->nsamp) continue;
+            f32 p[3] = { rdf(b + 8), -rdf(b + 12), -rdf(b + 16) };   /* (game axes -> the engine's) */
+            u32 id = start_ev(e, e->name, p, 0, 1.0f, true); if (!id) continue;
+            lock(); voice *v = by_id(id);
+            if (v) {
+                v->dmin = rdf(b + 37); v->dmax = rdf(b + 41); if (!(v->dmax > v->dmin)) v->dmax = v->dmin + 1.0f;
+                v->box = b[69] != 0; for (int k = 0; k < 3; k++) { v->bnear[k] = rdf(b + 45 + 4 * k); v->bfar[k] = rdf(b + 57 + 4 * k); }
+                v->centre = e->mode == 2;
+                voice_gains(v);
+            }
+            unlock(); n++;
+            AK_INFO("audio", "emitter %s at %.1f %.1f %.1f (%s, %.1f..%.1f)", e->name, rdf(b + 8), rdf(b + 12), rdf(b + 16), b[69] ? "box" : "point", rdf(b + 37), rdf(b + 41));
+        }
+    }
+    return n;
+}
+
 void ak_audio_listener(const f32 *pos, f32 yaw)
 {
+    {   static int dbg = -1; static u32 last; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_SND", 0);   /* tests (2): the listener and the emitters */
+        if (dbg >= 2 && ak_audio_frame / 300 != last) { last = ak_audio_frame / 300;
+            AK_INFO("snd", "frame %u listener game %.2f %.2f %.2f yaw %.3f", ak_audio_frame, pos[0], -pos[1], -pos[2], yaw);
+            for (u32 i = 0; i < MAX_VOICES; i++) if (voices[i].live && voices[i].loop) AK_INFO("snd", "  loop %s gain l %.4f r %.4f (pan %.3f)", voices[i].s->path, voices[i].gl, voices[i].gr,
+                                                                                         voices[i].gl + voices[i].gr > 0 ? voices[i].gr * voices[i].gr / (voices[i].gl * voices[i].gl + voices[i].gr * voices[i].gr) : -1.0f); } }
     lock(); memcpy(lis_pos, pos, 12); lis_yaw = yaw;
     for (u32 i = 0; i < MAX_VOICES; i++) if (voices[i].live) voice_gains(&voices[i]);
     unlock();
@@ -385,6 +484,7 @@ void ak_audio_level_reset(void)
     ak_music_stop();
     lock();
     for (u32 i = 0; i < MAX_VOICES; i++) voices[i].live = false;
+    nclipsnd = 0;
     u32 n = 0;
     for (u32 i = 0; i < nsamples; i++) { if (samples[i].level) ak_plat_free(samples[i].pcm); else samples[n++] = samples[i]; }
 #ifdef AK_HAS_ARAM

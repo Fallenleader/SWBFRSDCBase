@@ -1923,6 +1923,14 @@ textures and how they are used. Section R lists only what must be in place so th
     beats it, the body does not move (f22 = 0) and the passes end (L_088C5F2C) - an inside body stops dead. Ported for soldiers;
     box-body vehicles back out along the axis of least overlap first [assumed]. Open: how the original keeps a turning box out of
     faces (turn swept? box held?); 0x801E objects (riding on vehicles: turrets / seats?) not modelled as separate objects.
+  - M12 sound (2026-11-23): emitters (SDPH), the pan law, the 0.75 voice volume, clip sounds (HCAN events + HSND) and bolt
+    fly-bys ported (NATIVE_ENGINE M12 row). Open: Command_post_hum - Aurek hums at every post, the original keyed none in 60 s
+    at a post-side spawn; 089E9A24 starts it only while its object's +100 < +96 (+96 = 1.0, +100 starts 0) - which object and
+    what +100 counts not read. AI soldiers' footsteps: the original keyed none in 60 s idle (one bot within 15 m, standing);
+    the player's own play (a 1.9 m stride, 0.8 x the 2-20 m ramp: measured 0.544 at about 3.7 m) - whether bots step at all is
+    not settled. HSND's four floats per entry (1, 1, 20, 1) not read; soldiers' reload / throw clip sounds not hooked; the
+    AT-AT chin blaster's Exp_blaster and how often it fires (AI). The original re-keys looping voices under voice pressure (32
+    SAS voices) - Aurek mixes 48 and never re-keys.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

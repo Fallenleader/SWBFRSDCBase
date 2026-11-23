@@ -33,6 +33,7 @@ typedef struct {
     const char *muzzle_pfx;            /* the weapon's "PFXMuzzleFlash" effect (played at the muzzle, along the shot) */
     const char *impact_pfx, *shield_pfx;   /* the bolt's "impact pfx" (on the level) and "shield impact pfx" (on vehicles) */
     f32 impact_pfx_dist;               /* the weapon's "impact pfx max dist": no impact effect farther from the camera */
+    const char *passby; f32 passby_range;   /* the bolt's "passby sound" / "passby range" (089F9A50: Projectile_Passby, 5 m by default) */
 } ak_weapon_def;
 
 /* A weapon's heat (the game's, weapon loader 08A16FD8: OverheatPershot / Decay / RecoveryTime at w+0x7C / +0x80 / +0x84, the heat
@@ -65,7 +66,8 @@ bool ak_ai_fire_ok(const f32 *fwd, const f32 *to, f32 range, f32 cone, bool flat
 
 typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; ak_heat heat; bool heats; s32 src; } ak_weapon;   /* team/owner: set after ak_weapon_give; heats: a player's (ak_heat); src: the target the shots leave from (a vehicle's or turret's own; -1: the owner's) */
 
-typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle, vs_local; bool ai; u32 colour; f32 dscale_max, dscale_dist; bool headshots; int team; s32 owner, src; const char *impact_pfx, *shield_pfx; } ak_bolt;
+typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle, vs_local; bool ai; u32 colour; f32 dscale_max, dscale_dist; bool headshots; int team; s32 owner, src; const char *impact_pfx, *shield_pfx;
+                 const char *passby; f32 passby_range; u32 passby_h; } ak_bolt;   /* passby_h: its fly-by sound playing (app/play_sound.c) */
 typedef struct { f32 pos[3], normal[3]; f32 age; u32 colour; u16 material; bool body; const char *pfx; } ak_impact;   /* pfx: the effect it plays (NULL none) */   /* material: the surface's (0xFFFF none) */
 #define AK_MAX_BOLTS 512
 #define AK_MAX_IMPACTS 64

@@ -240,3 +240,6 @@ Reports fall after M5, M10 and M15.
   Next session: fix it first.
 - 2026-11-23 M11 COMPLETE: vehicles no longer fall out (box sweep "inside" read and ported; vehicles back out of faces they
   turn into). 60 s against the original: AT-AT path within 0.7 m, vehicle classes mapped, no vehicle lost. Next: M12 sound.
+- 2026-11-23 M12: the original's sound key-ons logged (RS_SAS_LOG) and named; ported: placed emitters (Boz Pity's ambience),
+  the 3D pan law (matches the original to 0.002), the 0.75 voice volume, the AT-AT's / creatures' clip sounds (HCAN events +
+  HSND), bolt fly-bys. Open: the post hum's condition, bots' footsteps.

@@ -259,6 +259,9 @@ void hs_SasSetVoice(sdkcall_t *c){ VOICE int size = (int)A3_, loop = (int)T0_;
 void hs_SasSetVolume(sdkcall_t *c){ VOICE v->vl = (s32)A2_; v->vr = (s32)A3_; v->el = (s32)T0_; v->er = (s32)T1_; V0_ = 0; }
 void hs_SasSetPitch(sdkcall_t *c){ VOICE if ((s32)A2_ < 0 || A2_ > 0x4000) { V0_ = 0x80420011u; return; } v->pitch = (int)A2_; V0_ = 0; }
 void hs_SasSetKeyOn(sdkcall_t *c){ VOICE if (v->paused || v->on) { V0_ = 0x80420016u; return; }
+    { static int lg = -1; if (lg < 0) { extern int rs_setting_int(const char *, int); lg = rs_setting_int("RS_SAS_LOG", 0); }   /* RS_SAS_LOG=1 (harness): every key-on - frame, voice, FNV-1a of the first 256 sample bytes, size, volumes, pitch, loop */
+      if (lg && v->type == 0 && v->vsize >= 16) { extern volatile int g_frames; const u8 *d = g_mem + GADDR(v->vag); u32 n = v->vsize < 256 ? v->vsize : 256;
+        fprintf(stderr, "SASKEY %d %d %08X %u %d %d %d %d %d\n", g_frames, (int)A1_, fnv32(d, n, 2166136261u), v->vsize, v->vl, v->vr, v->el, v->pitch, v->loop); } }
     st_keyon++; v->est = E_KEYON; if (v->type == 0) vag_start(v); v->playing = 1; v->on = 1; v->paused = 0; v->frac = 0; V0_ = 0; }
 void hs_SasSetKeyOff(sdkcall_t *c){ VOICE if (v->paused || !v->on) { V0_ = 0x80420016u; return; } v->on = 0; env_state(v, E_RELEASE); V0_ = 0; }
 void hs_SasSetNoise(sdkcall_t *c){ VOICE v->type = 1; if (v->on) v->playing = 1; V0_ = 0; }

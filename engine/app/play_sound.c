@@ -9,8 +9,8 @@
  * What plays: weapons their "Fire Sound" (game/ak_weapon.c), bolt hits their surface's "laser impact sound", soldiers a
  * footstep every stride (1.9 m: the run clip's root motion, 3.77 m a cycle of two steps), a landing, a roll, a death (the
  * Humanoid blueprint's "Death Sound") and a body fall, vehicles their "Engine Sound" loop while driven or walking their path,
- * command posts Command_post_hum and Command_Post_Change, the level's ambience (Amb_<level>_Ext_C / _L / _R, flat, centre,
- * left and right) and, when the match ends, the level's VICTORY or FAIL music.
+ * command posts Command_post_hum and Command_Post_Change, the level's ambience (its placed emitters, SDPH: Boz Pity's
+ * Amb_Boz_Pity_C / _L / _R boxes - audio/ak_audio.c) and, when the match ends, the level's VICTORY or FAIL music.
  *
  * Speech (audio/ak_speech.h), as the game decides it:
  *   narration (func 089EA3D0, a post changing hands): the player's side hears Speech_BN_CP_Lost when it loses a post,
@@ -38,11 +38,32 @@ void ak_play_sound_start(ak_play *p, const ak_level *l, const ak_blueprints *bp)
     p->snd.lvl = l;
     for (int i = 0; i < 10; i++) p->snd.surf[i] = ak_bp_find(bp, "Material", surf_names[i]);
     for (u32 i = 0; i < AK_MAX_POSTS; i++) p->snd.post_owner[i] = -2;
+    for (u32 i = 0; i < PLAY_MAX_VEH; i++) p->snd.vclip[i] = -1;
     for (u32 i = 0; i < 129; i++) { p->snd.enemy[i] = -1; p->snd.hp[i] = 1e9f; }
     p->snd.rng = 0x13579BDu;
     p->snd.winner = -1;
-    const char *sfx[3] = { "_Ext_C", "_Ext_L", "_Ext_R" }; f32 pan[3] = { 0, -1, 1 };
-    for (int k = 0; k < 3; k++) { const char *e = ak_audio_find("Amb_", sfx[k], 0); if (e) p->snd.amb[k] = ak_audio_play2d(e, pan[k], 1.0f, true); }
+    /* (the level's ambience is its placed emitters - audio/ak_audio.c ak_audio_level_emitters, started by the viewer) */
+}
+
+/* a vehicle's clip events: the original's AT-AT keys Walker_Footstep every 80 vblanks while it walks (its walk loop's four events
+ * id 6 at 0.25 / 0.50 / 0.75 / 0.99 of 5.33 s) and Walker_Hydrolics at the twelve id-8 events; a Carrion_Spat's walk its fs_taun_taun
+ * (HSND).  The events between last frame's phase and this one fire (a new clip: from its start); a looping clip wraps */
+void ak_play_vehicle_clip_sounds(ak_play *p, const ak_model_set *m, u32 v)
+{
+    const ak_vehicle *vh = &p->veh[v]; s32 ci = vh->clip;
+    if (!m || ci < 0 || (u32)ci >= m->nclips || !vh->posed) { p->snd.vclip[v] = -1; return; }
+    const ak_anim_clip *c = &m->clips[ci];
+    f32 dur = c->duration > 1e-4f ? c->duration : 1e-4f, ph = vh->anim_t / dur;
+    bool loop = vh->alive && ph >= 0 && (vh->def->kind != AK_VEH_WALKER || vh->walk_state == 2 || vh->walk_state == 0);
+    if (loop) ph -= floorf(ph); else ph = ph < 0 ? 0 : ph > 1 ? 1 : ph;
+    f32 from = p->snd.vclip[v] == ci ? p->snd.vphase[v] : -1e-6f;
+    p->snd.vclip[v] = ci; p->snd.vphase[v] = ph;
+    if (!c->nev || from == ph) return;
+    f32 pos[3] = { vh->pos[0], vh->pos[1] + vh->def->hover, vh->pos[2] };
+    for (u32 i = 0; i < c->nev; i++) {
+        f32 t = c->ev_t[i]; bool hit = from <= ph ? (t > from && t <= ph) : (t > from || t <= ph);   /* (wrapped past the loop's end) */
+        if (hit) ak_audio_clip_sound(c->name, c->ev_id[i], pos);
+    }
 }
 
 u16 ak_play_ground_material(const ak_play *p, const f32 *pos)
@@ -205,6 +226,7 @@ static void speech_update(ak_play *p, f32 dt)
 
 void ak_play_sound_update(ak_play *p, f32 dt)
 {
+    ak_audio_frame++;
     if (!p->ready) return;
     speech_update(p, dt);
     /* soldiers */
@@ -218,6 +240,13 @@ void ak_play_sound_update(ak_play *p, f32 dt)
         const char *e = ak_play_surface_sound(p, im->material, "laser impact sound"); if (e) ak_audio_play(e, im->pos, false);
     }
     p->snd.impacts = p->bolts.impacts;
+    /* bolts flying past (089F9E8C, every bolt not the player's own): once one is within its "passby range" of the listener (5 m by
+       default) its "passby sound" (Projectile_Passby: whiz_sm / whiz_med) starts where it is and follows it while it flies */
+    for (u32 j = 0; j < p->bolts.n; j++) {
+        ak_bolt *o = &p->bolts.b[j];
+        if (o->passby_h) ak_audio_move(o->passby_h, o->pos);
+        else if (o->owner != 0 && o->passby && ak_audio_near_listener(o->pos, o->passby_range)) o->passby_h = ak_audio_play(o->passby, o->pos, false);
+    }
     /* vehicles: the engine loop while driven (or walking its path) */
     for (u32 v = 0; v < p->nveh && v < PLAY_MAX_VEH; v++) {
         const ak_vehicle *vh = &p->veh[v];

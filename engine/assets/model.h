@@ -69,6 +69,10 @@ typedef struct {
     ak_anim_channel *chan;
     u32 *rot; u16 *rtime;              /* rotations packed as stored (4 bytes, not 16): ak_clip_rot decodes one, engine axes */
     f32 (*pos)[3]; u32 npos, nrot;
+    /* the clip's events (the tail of HCAN v5, after 4 x (channels) bytes not read: u32 count, then { f32 time as a fraction of the
+     * clip, u32 id }): a walker's foot down (id 6) and hydraulics (8), a creature's step (6)... - the level's HSND chunk names the
+     * sound each id plays for this clip (audio/ak_audio.c ak_audio_clip_sound) */
+    u32 nev; f32 *ev_t; u32 *ev_id;
 } ak_anim_clip;
 
 /* An animation table (ATEX chunk, one per "Animtable" of the Humanoid blueprints: generic_male, Vader, Luke, hero, Duku, ...):

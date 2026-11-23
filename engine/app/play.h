@@ -261,6 +261,7 @@ typedef struct {
     struct {                           /* sound (app/play_sound.c) */
         const ak_level *lvl; const ak_bp_object *surf[10];   /* the Material blueprints by surface number (MTRL mode) */
         u32 amb[3], eng[PLAY_MAX_VEH], hum[AK_MAX_POSTS];
+        s32 vclip[PLAY_MAX_VEH]; f32 vphase[PLAY_MAX_VEH];  /* each vehicle's clip and its phase (0..1) last frame: the clips' sound events */
         f32 step[129]; bool ground[129], alive[129];         /* 0 the player, 1 + i bot i */
         u32 impacts; int post_owner[AK_MAX_POSTS]; int winner; bool hero;
         const char *music_req;                               /* a MMUS list the viewer should start ("VICTORY" / "FAIL") */
@@ -286,6 +287,7 @@ void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *f
 bool ak_play_lock_point(const ak_play *p, f32 out[3]);
 void ak_play_sound_start(ak_play *p, const ak_level *l, const ak_blueprints *bp);
 void ak_play_sound_update(ak_play *p, f32 dt);
+void ak_play_vehicle_clip_sounds(ak_play *p, const ak_model_set *m, u32 v);   /* after its pose: the clip events passed play their HSND sounds */
 void ak_play_chatter(ak_play *p, u32 unit, const char *key);   /* an AI soldier's chatter line (its Humanoid's Speech_BC_* key) */
 const char *ak_play_surface_sound(const ak_play *p, u16 material, const char *key);   /* a Material blueprint's event */
 u16  ak_play_ground_material(const ak_play *p, const f32 *pos);

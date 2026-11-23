@@ -45,6 +45,7 @@ bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, con
     d->muzzle_pfx = ak_bp_string(w, "PFXMuzzleFlash", NULL); if (d->muzzle_pfx && !*d->muzzle_pfx) d->muzzle_pfx = NULL;
     d->impact_pfx = ak_bp_string(lb ? lb : w, "impact pfx", NULL); d->shield_pfx = ak_bp_string(lb ? lb : w, "shield impact pfx", NULL);
     d->impact_pfx_dist = ak_bp_float(w, "impact pfx max dist", 100);
+    d->passby = ak_bp_string(lb ? lb : w, "passby sound", "Projectile_Passby"); d->passby_range = ak_bp_float(lb ? lb : w, "passby range", 5.0f);
     ak_weapon_def_heat(w, d);
     return true;
 }
@@ -83,6 +84,7 @@ bool ak_weapon_def_bolt(const ak_blueprints *bp, const char *bolt, ak_weapon_def
     d->colour = (u32)ak_bp_int(lb, "colour", (s32)0xFFFF2020u);
     d->dscale_dist = ak_bp_float(lb, "DistanceScalingMaxDist", 0); d->dscale_max = ak_bp_float(lb, "DistanceScalingMaxScale", 1);
     d->impact_pfx = ak_bp_string(lb, "impact pfx", NULL); d->shield_pfx = ak_bp_string(lb, "shield impact pfx", NULL); d->impact_pfx_dist = 100;
+    d->passby = ak_bp_string(lb, "passby sound", "Projectile_Passby"); d->passby_range = ak_bp_float(lb, "passby range", 5.0f);
     return true;
 }
 
@@ -220,7 +222,7 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
         if (b->n >= AK_MAX_BOLTS) break;
         ak_bolt *o = &b->b[b->n++];
         memcpy(o->pos, muzzle, 12); memcpy(o->dir, dd, 12);
-        o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->vs_local = d->bot_dmg > 0 ? d->bot_dmg : 1.0f; o->ai = d->ai; o->headshots = d->headshots; o->colour = d->colour; o->dscale_max = d->dscale_max; o->dscale_dist = d->dscale_dist; o->team = w->team; o->owner = w->owner; o->src = w->src >= 0 ? w->src : w->owner; o->impact_pfx = d->impact_pfx; o->shield_pfx = d->shield_pfx;
+        o->travelled = 0; o->range = d->range; o->speed = d->speed; o->length = d->length; o->thick = d->thickness; o->damage = d->dmg_infantry; o->damage_vehicle = d->dmg_vehicle; o->vs_local = d->bot_dmg > 0 ? d->bot_dmg : 1.0f; o->ai = d->ai; o->headshots = d->headshots; o->colour = d->colour; o->dscale_max = d->dscale_max; o->dscale_dist = d->dscale_dist; o->team = w->team; o->owner = w->owner; o->src = w->src >= 0 ? w->src : w->owner; o->impact_pfx = d->impact_pfx; o->shield_pfx = d->shield_pfx; o->passby = d->passby; o->passby_range = d->passby_range; o->passby_h = 0;
     }
     b->fired++;
     if (d->muzzle_pfx) { ak_shot_fx *f = &b->shot[b->shots++ % AK_MAX_SHOT_FX]; memcpy(f->pos, muzzle, 12); memcpy(f->dir, dir, 12); f->pfx = d->muzzle_pfx; f->colour = d->colour; }

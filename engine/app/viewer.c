@@ -767,7 +767,8 @@ int main(int argc, char **argv)
                          play.look.head_index + 1, play.ch.pos[0], play.ch.pos[1], play.ch.pos[2], lvl.used / 1048576.0);
             ak_arena_report();
             ak_level_stream_close();                    /* (every loader has run: the resources left on the disc are not read again) */
-            if (play.ready) ak_play_sound_start(&play, &level, &bps);
+            if (play.ready) { ak_play_sound_start(&play, &level, &bps);
+                AK_INFO("audio", "%u placed emitters", ak_audio_level_emitters(&b_level_keep)); }   /* (the level's ambience: SDPH) */
             if (play.ready && play.pfx_tex_index >= 0 && (u32)play.pfx_tex_index < level.ntex) play.pfx_tex = scene.tex[play.pfx_tex_index];   /* the particle sheet (R.6) */
             if (play.ready && fe_ingame) {                                  /* the player waits for the menus: team, then the spawn map */
                 play.alive = false; play.target[0].alive = false; play.menu_hold = true; play.dead_t = 0;
