@@ -1781,6 +1781,11 @@ textures and how they are used. Section R lists only what must be in place so th
     other ids are looked up by a1 in a linked list from 0x08B3071C (+0 the id, +4 / +36 / +40 its parts) - shapes made from the
     models' own data. Next: who creates those shapes for a walker (the AT-AT's physics body: its id and the parts' sizes) and
     which shape a soldier is separated from - then port it in place of the whole-model box.
+  - The shape list at 0x08B3071C has many readers (0882BEB4, 0882C024, 0885F00C, 08863FB8, 08864108, 08864AE0, 088D082C ...);
+    088D0188 (from 08832200 / 088D0244) and 088D0268 (from 088D0350 / 088D0370) both allocate / free (08A94748 / 08A94768) and
+    call 08AB6830 - the list's add / remove, likely when a model resource with collision data loads. Next: the vehicle's physics
+    body creation (the walker's class constructor -> its shape id -> the model's collision parts) - e.g. via the AT-AT class
+    0x8014's setup, or gdb on the harness original (break on 08A05F60 while the AT-AT spawns, read a0 / a1).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
