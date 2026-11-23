@@ -1741,6 +1741,10 @@ textures and how they are used. Section R lists only what must be in place so th
     the original to 1.95 then 0.53 m/s, Aurek to 2.2 / 2.0). Then Aurek FALLS THROUGH THE WORLD: at 7 s y +1.54 m, at 10 s
     +62 m (game y down) near 128.7 / 114.7, while the original walks on at y 0.6-0.9. Likely the AT-AT's box pushing the player
     down or into the ground (Aurek collides with the walker as one box; the original only slows - its legs?). To fix next.
+  - The fall is NOT the AT-AT: its pushes are small and level (y 0). At game 128.85 / 114.98 (engine 128.85 -0.93 -114.98) Aurek's
+    player loses the ground ("air", vel y -2) and free-falls (12 m/s down after 1 s, 89 m by the end) - Aurek's collision has no
+    floor there, while the original walks on at y 0.6-0.9. Next: what the original stands on at 128.7 / 114.7 (the level mesh's
+    faces there in Aurek's collision; a placed object / bridge / mover the original collides with and Aurek does not).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
