@@ -1842,6 +1842,9 @@ textures and how they are used. Section R lists only what must be in place so th
     08878E84 read (2026-11-23): it is not a bone - it blends two stored orientations (a 2-slot history at +0/+32, quaternion at
     +12..+24, time at +28, the newest index at +64) by time and writes the 3x3 frame. The aim frame is the soldier's interpolated
     orientation; what writes its pitch each tick is not traced (Uncertain, carried to M8: the aim/lock pitch).
+  - M8 lock timer (2026-11-23): 0899B62C - candidate +424, timer +376 at rate 1.0 (key 0x6e6b3925 absent from data), head
+    after "lock on to head time"; the target's vfunc +24 keeps or drops it. Still to trace: who chooses +424 each frame
+    (callers of the set-target vfunc +440: 08994C30, 089DD9CC, 089AE9DC, 089AEA7C, 089CC67C) and what vfunc +24 tests.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

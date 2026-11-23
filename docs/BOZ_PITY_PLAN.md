@@ -197,3 +197,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M7 done: fire rate, raise, reload, damage, headshot and grenade fuse match the original; pickups were traced before
   (089A70FC / 089F96C4). Carried as Uncertain: the soldier's aim pitch at rest (the throw's pitch; Boz lands 4.1 m short), the
   0.8 factor's switch (+56), the stance's other sources. Next: M8, lock-on.
+- 2026-11-23 M8 started: the original's lock timer and head switch traced (0899B62C) - Aurek's match. Next: the target choice.
