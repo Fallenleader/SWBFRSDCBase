@@ -251,3 +251,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M15 COMPLETE (acceptance, with open items): walk, camera, match end (victory and defeat) checked; the player's
   "X killed Y" line added. Report 3 sent. Next: the owner's win / loss conditions tested on the original and matched, then
   the M10 AI leftovers.
+- 2026-11-23 Report 3 written and sent (after M15; overall estimate 79%).
