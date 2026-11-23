@@ -198,13 +198,16 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
     for (int k = 0; k < 3; k++) dir[k] /= l;
     for (u32 s = 0; s < d->per_shot; s++) {
         f32 dd[3] = { dir[0], dir[1], dir[2] };
-        if (d->spread_deg > 0) {                                          /* a random direction inside the spread cone */
-            f32 a = d->spread_deg * 0.5f * 3.14159265f / 180.0f * sqrtf(rnd(seed)), ph = rnd(seed) * 6.2831853f;
+        if (d->spread_deg > 0 && d->per_shot > 1) {
+            /* the multishot fan (traced, the shot 08A1C5E4: MultishotSpreadAngle x pi/180 at w+96, ProjectilesPerShot at w+100): the
+               projectiles leave evenly spaced across the spread, from -spread / 2 in steps of spread / (count - 1), each turned about
+               the aim frame's up axis - not a random cone.  [assumed: the frame's up taken as the world's up turned with the aim; the
+               branch on w+112 before the fan not read] */
+            f32 sp = d->spread_deg * 3.14159265f / 180.0f, a = -0.5f * sp + sp * (f32)s / (f32)(d->per_shot - 1);
             f32 up[3] = { 0, 1, 0 }, r[3] = { dd[1] * up[2] - dd[2] * up[1], dd[2] * up[0] - dd[0] * up[2], dd[0] * up[1] - dd[1] * up[0] };
             f32 rl = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]); if (rl < 1e-4f) { r[0] = 1; r[1] = r[2] = 0; rl = 1; }
             for (int k = 0; k < 3; k++) r[k] /= rl;
-            f32 u[3] = { r[1] * dd[2] - r[2] * dd[1], r[2] * dd[0] - r[0] * dd[2], r[0] * dd[1] - r[1] * dd[0] };
-            for (int k = 0; k < 3; k++) dd[k] = dd[k] * cosf(a) + (r[k] * cosf(ph) + u[k] * sinf(ph)) * sinf(a);
+            for (int k = 0; k < 3; k++) dd[k] = dd[k] * cosf(a) + r[k] * sinf(a);
         }
         if (d->hitscan) {
             ak_col_hit h; f32 reach = d->distance, tt; bool head = false;

@@ -211,3 +211,5 @@ Reports fall after M5, M10 and M15.
   the bot weapon source is wider than Aurek's faction table. Tracing the unit maker 08985D74.
 - 2026-11-23 M10: bot weapons now resolve to their faction child as in the original (Imperial bots: Boba Fett's rifle);
   Rebel losses 6 a minute (original 9-12, before 4). Next: that rifle's multishot spread.
+- 2026-11-23 M10 closed for now: bot weapons (faction children) and the multishot fan traced and ported; the AI hit rate with
+  Boba Fett's rifle and the Rebel death rate (4-6 vs 9-12 a minute) stay open for a longer comparison. Next: Report 2, then M11.
