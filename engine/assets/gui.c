@@ -116,7 +116,7 @@ static void widget(rd *s, ak_widget *w, int depth)
         base(s, w); w->size[0] = rf(s); w->size[1] = rf(s); children(s, w, depth);
         break;                                                       /* (the page's tail: ak_gui_load) */
     case AK_GUI_IMAGE:                                                /* 08880AD4 */
-        image_base(s, w); for (int k = 0; k < 4; k++) w->uv[k] = rf(s); r32(s); w->tex = find_tex(s, rstr(s)); children(s, w, depth);
+        image_base(s, w); for (int k = 0; k < 4; k++) w->uv[k] = rf(s); r32(s); w->tex_name = rstr(s); w->tex = find_tex(s, w->tex_name); children(s, w, depth);
         break;
     case AK_GUI_TEXT:                                                 /* 08883974 (version 6+) */
         image_base(s, w); if (v < 6) { s->bad = true; return; }

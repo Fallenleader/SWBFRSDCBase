@@ -48,7 +48,7 @@ static const ak_gui_page *page; static u32 focus, active_widget; static f32 fe_c
 static u32 stack[16]; static int nstack; static bool focus_fix_pending;
 /* page_t: seconds since the page opened - its widgets' animations (UIAN) run on it; the page is active after its open length
    (08885414: max(1.0 s, the widgets' own) [the widgets' share: uncertain, 0 on the pages traced]); auto_fired: its self-pressing button ran */
-static f32 page_t; static bool auto_fired;
+static f32 page_t; static bool auto_fired; static u32 slider_edit;   /* (slider_edit: the slider being edited) */
 #define PAGE_OPEN_S 1.0f
 /* pages open together, drawn in order, one of them in use (`page`): the customisation's MP_CustomBackground, MP_Customisation, its
  * MP_CustomCarousel and the dialogues over them (the game's 0888ADB0 opens a page with or without the focus) */
@@ -77,7 +77,10 @@ static void var_set(const char *name, f32 v) { *var_ref(name) = v; }
 static f32 var_get(const char *name)
 {
     if (!strcmp(name, "GUIMenu.ActiveWidget")) return (f32)(s32)focus;
-    if (!strcmp(name, "Asura.CurrentLanguage")) return 0;              /* (English) [assumed numbering] */
+    if (!strcmp(name, "Asura.CurrentLanguage"))                       /* the US build (MENU_AM): 6 - MP_Movies' W_BU_Extras ("Bonus Content",
+                                                                         shown when == 6) is on the original's frame; other languages' numbers not traced */
+    {   const char *l = ak_setting_str("AK_FE_LANGUAGE", "AM");     /* (Italian 3: the Italian logo's condition, the widgets W_IM_ItalianLogo) */
+        return !strcmp(l, "AM") ? 6.0f : !strcmp(l, "IT") ? 3.0f : 0.0f; }
     return *var_ref(name);
 }
 
@@ -252,6 +255,7 @@ static int spawn_owner = -1;             /* drawing a spawn point: 0 ours, 1 the
  * +120 that takes them is not read] */
 static const f32 spawn_rgba[3][2][4] = { { { 0.3f, 0.3f, 1, 0.6f }, { 0.2f, 0.2f, 1, 1 } }, { { 1, 0.3f, 0.3f, 0.6f }, { 1, 0.2f, 0.2f, 1 } },
                                          { { 0.1f, 0.1f, 0.1f, 0.6f }, { 0.1f, 0.1f, 0.1f, 1 } } };
+static bool in_slider_edit;            /* (drawing the children of the slider being edited) */
 static f32 child_alpha = 1;            /* the alpha the widgets drawn now inherit (a parent's fade: the Press START box's) */
 static u32 child_tint = 0xFFFFFFFFu;   /* the colour the widgets drawn now are multiplied by (a spawn point's owner) */
 static void path_of(int f, char *out, size_t n) { snprintf(out, n, "PSP_GAME/USRDIR/GUIMENU/%s.GUI", files[f]); }
@@ -443,7 +447,7 @@ static bool shows(const ak_widget *w, bool focused)
     if (w->type < 2000 && w->flags && !(w->flags & 0x400)              /* (pictures and texts: bit 10 shown) [assumed] - */
         && !(spawn_owner >= 0 && w->name && !strncmp(w->name, "E_IM_SpawnPointD", 16))) return false;   /* (but the spawn map's unfocused posts show) */
     u32 f = w->flags & 6;
-    if (!f) return true;
+    if (!f) return !(w->type < 2000 && w->flags == 0x400) || in_slider_edit;   /* (0x400 alone: a slider's arrows - only while it is edited) */
     return focused ? (f & 4) != 0 : (f & 2) != 0;
 }
 static bool cond_holds(const ak_widget *w)
@@ -764,10 +768,6 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
     } else if (w->type != AK_GUI_PAGE && gc_shows(w) == -1) return;
     else if (w->name && !strncmp(w->name, "E_TX_GC_Win", 11)) { if (!cond_holds(w)) return; }   /* (MP_Win_*: by its condition alone - its flags hide it on a page without buttons) [assumed] */
     else if (w->type != AK_GUI_PAGE && gc_shows(w) != 1 && (!shows(w, focused) || !cond_holds(w))) return;
-    /* the Italian subtitle under the logo (menu_logos.tga's strip at v 0.445: "W_IM_ItalianLogo", or plain "Image 1") shows for
-       the Italian language only - the original's English frames have none [assumed: the page scripts' doing] */
-    if (w->type == AK_GUI_IMAGE && w->tex >= 0 && fabsf(w->uv[1] - 0.4453125f) < 1e-4f && gf.tex[w->tex].name && strstr(gf.tex[w->tex].name, "menu_logos")
-        && strcmp(ak_setting_str("AK_FE_LANGUAGE", "AM"), "IT")) return;
     f32 a = anim_a * child_alpha;                                     /* (the children take the parent's alpha: the Press START box) */
     if (w->type == AK_GUI_MODEL && model_fn) {                        /* a 3D model: the item, the second weapon, the soldier */
         const ak_bp_object *wo = NULL; bool soldier = false, any = false;
@@ -798,7 +798,11 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
         int c = gc_cmdr(parent_name); bool col = gc.cmdr_avail[c] || gc.cmdr_bought[c]; ak_gfx_tex *t = gc.portrait[col ? 0 : 1];
         if (t) { f32 u0 = (f32)(c / 2) * 0.4219f, v0 = (f32)(c % 2) * 0.375f; ak_hud_2d_quad(t, x, y, x + w->size[0], y + w->size[1], u0, v0, u0 + 0.4219f, v0 + 0.375f, argb_of(w->rgba, a)); goto children; }
     }
-    if (w->type == AK_GUI_IMAGE && wtex >= 0 && (u32)wtex < gf.ntex && gtex[wtex]) {
+    ak_gfx_tex *xt = NULL;                                            /* a picture another file holds (MP_Medals' red backgrounds: the main menu's, resident) */
+    if (w->type == AK_GUI_IMAGE && wtex < 0 && w->tex_name && w->tex_name[0] && btex)
+        for (u32 j = 0; j < base.ntex; j++) if (base.tex[j].name && same_name(base.tex[j].name + (strncmp(base.tex[j].name, "\\graphics", 9) ? 0 : 9), w->tex_name)) { xt = btex[j]; break; }
+    if (xt) ak_hud_2d_quad(xt, x, y, x + w->size[0], y + w->size[1], uv[0], uv[1], uv[2], uv[3], argb_of(w->rgba, a));
+    else if (w->type == AK_GUI_IMAGE && wtex >= 0 && (u32)wtex < gf.ntex && gtex[wtex]) {
         const f32 *c = w->rgba;
         if (spawn_owner >= 0 && w->name && !strncmp(w->name, "E_IM_SpawnPoint", 15)) c = spawn_rgba[spawn_owner][w->name[15] == 'H'];
         ak_hud_2d_quad(gtex[wtex], x, y, x + w->size[0], y + w->size[1], uv[0], uv[1], uv[2], uv[3], argb_of(c, a));
@@ -855,6 +859,7 @@ children:;
     const list_rows *keep = scroll; int keep_shown = scroll_shown; const char *keep_parent = parent_name; u32 keep_tint = child_tint; const char *keep_check = check_var; int keep_owner = spawn_owner;
     f32 keep_alpha = child_alpha; child_alpha *= anim_a; bool keep_nb = in_name_box;
     if (w->type == AK_GUI_TEXTBOX && w->binding && !strcmp(w->binding, "BFF.FE_ProfileName")) in_name_box = true;
+    bool keep_se = in_slider_edit; if (w->type == AK_GUI_SPINNER) in_slider_edit = slider_edit && w->id == slider_edit;
     if (w->type == AK_GUI_BUTTON2 && w->binding && w->binding[0]) check_var = w->binding;
     if (w->type >= 2000) parent_name = w->name;
     if (have_match && w->name && !strncmp(w->name, "W_BU_SpawnPoint", 15)) {   /* the post's owner (08A2DD50 -> the button's vfunc +120) */
@@ -865,11 +870,11 @@ children:;
         char want[64]; size_t l = strstr(w->name, "Scroll") - (w->name + 5); snprintf(want, sizeof want, "W_LB_%.*s", (int)l, w->name + 5);
         scroll = NULL;
         for (int i = 0; i < nlists; i++) { const ak_widget *lw = find_id(&page->root, lists[i].id); if (lw && lw->name && !strncmp(lw->name, want, strlen(want))) { scroll = &lists[i]; scroll_shown = lw->rows_shown ? (int)lw->rows_shown : 8; } }
-        if (!scroll || scroll->n <= scroll_shown) { scroll = keep; child_alpha = keep_alpha; in_name_box = keep_nb; return; }   /* (nothing to scroll: no bar) */
+        if (!scroll || scroll->n <= scroll_shown) { scroll = keep; child_alpha = keep_alpha; in_name_box = keep_nb; in_slider_edit = keep_se; return; }   /* (nothing to scroll: no bar) */
     }
     for (u32 i = 0; i < w->nchild; i++) draw_widget(&w->child[i], x, y, f2);
     scroll = keep; scroll_shown = keep_shown; parent_name = keep_parent; child_tint = keep_tint; check_var = keep_check; spawn_owner = keep_owner;
-    child_alpha = keep_alpha; in_name_box = keep_nb;
+    child_alpha = keep_alpha; in_name_box = keep_nb; in_slider_edit = keep_se;
 }
 
 static void fe_draw_page(void);
@@ -1923,7 +1928,18 @@ int ak_fe_update(const ak_input *in, f32 dt)
                 return AK_FE_NONE;
             }
     }
-    if (f && f->type == AK_GUI_SPINNER && f->binding && f->binding[0] && (in->pressed & (AK_BTN_LEFT | AK_BTN_RIGHT))) {   /* a slider: its value by its step, 0..1 [assumed range] */
+    /* a slider (2003): CROSS takes it into editing (its arrows - the 0x400-only pictures - show), LEFT / RIGHT then move its value by
+       its step within 0..1 (its bits' conditions: 0.1 .. 1), UP / DOWN do nothing, CROSS or CIRCLE leave editing (CIRCLE does not go
+       back); not editing, LEFT / RIGHT do nothing - all as the original's frames (harness, the audio options) */
+    if (slider_edit && (!f || f->id != slider_edit)) slider_edit = 0;
+    if (f && f->type == AK_GUI_SPINNER && f->binding && f->binding[0]) {
+        if (!slider_edit) { if (in->pressed & AK_BTN_CROSS) { slider_edit = f->id; return AK_FE_NONE; } }
+        else {
+            if (in->pressed & (AK_BTN_CROSS | AK_BTN_CIRCLE)) { slider_edit = 0; return AK_FE_NONE; }
+            if (!(in->pressed & (AK_BTN_LEFT | AK_BTN_RIGHT))) return AK_FE_NONE;
+        }
+    }
+    if (f && f->type == AK_GUI_SPINNER && f->binding && f->binding[0] && slider_edit && (in->pressed & (AK_BTN_LEFT | AK_BTN_RIGHT))) {   /* (editing: its value by its step) */
         f32 st = f->step > 0 ? f->step : 0.1f, v = var_get(f->binding) + ((in->pressed & AK_BTN_RIGHT) ? st : -st);
         var_set(f->binding, v < 0 ? 0 : v > 1 ? 1 : v);
         ak_audio_set_volumes(var_get("BFF.VolumeMaster"), var_get("BFF.VolumeMusic"), var_get("BFF.VolumeSFX"));   /* (applied at once) */

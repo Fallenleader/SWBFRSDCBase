@@ -97,3 +97,10 @@ Reports fall after M5, M10 and M15.
     profile's changed flag (+6); OnClose's exact moment; a small line-wrap difference in long texts (font metrics).
   Next: the Options sub-pages (Controls, Difficulty, Audio, Videos, Medals, Profile Management), Learn To Play's movies
   (with SUBTITLE\*.ASR), the Single Player pages up to the Instant Action map list.
+- 2026-11-23 (M2, Options): every Options entry's first page matches the original; sliders edit as the original (CROSS in / out,
+  arrows while editing, CIRCLE leaves editing only); Bonus Content appears (US language number 6); medals page background fixed.
+  - Hard facts: the slider rules above; Asura.CurrentLanguage US = 6, Italian = 3 (the data's own conditions).
+  - Uncertain: other languages' numbers; what UP / DOWN do while a slider is edited (nothing seen); the harness original
+    sometimes loses all its texts on a page (a harness fault - rerun).
+  Next: the Options sub-pages' own sub-pages (control schemes and sensitivities, AI difficulty, profile management actions,
+  name edit), the Cutscenes list and Credits / Bonus movies, Learn To Play movies with subtitles, Single Player entry pages.

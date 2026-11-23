@@ -31,6 +31,7 @@ typedef struct ak_widget {
     const char *name; u32 id, flags;
     f32 rgba[4], pos[3], size[2], uv[4];
     s32 tex;                           /* the picture: index into the file's textures, -1 none */
+    const char *tex_name;              /* its name ("\\gui\\menu elements\\red_schematics_1.tga"): another file's picture when not in this one */
     u32 text_table, text_key;          /* text: the menu text entry (0 = none) */
     const char *font; f32 text_scale; u32 text_flags;
     u32 links[4];                      /* buttons: the neighbours' ids (left, right, up, down) */
