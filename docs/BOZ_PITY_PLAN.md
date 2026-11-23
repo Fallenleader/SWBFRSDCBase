@@ -201,3 +201,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M8: the lock target choice traced (089DD9CC: distance + angle score, line of sight) and ported.
 - 2026-11-23 M8 done: lock timer, head switch and target choice match the original's code. Uncertain: the eye / target points,
   the soldier's +228 list (-200), the weapon bits in 089DCAAC, when the choice pass runs. Next: M9, Conquest rules.
+- 2026-11-23 M9 started: Boz Pity's starting tickets (100 / 125) and the bleed (1 per 4 s) match the original; capture timing next.

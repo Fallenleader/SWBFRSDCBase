@@ -1852,6 +1852,9 @@ textures and how they are used. Section R lists only what must be in place so th
     weapon decides - class 0x8004 / 0x801E targets take their own paths, the weapon's +364 bits 2 / 3 / 17 (the
     OnlyLockOnto... keys [assumed]) and a weapon hash 0xDA0CAE3B are tested. Aurek keeps its key-based rule (OnlyLockOnToVehicles
     / Humanoids); the exact bit meanings are Uncertain.
+  - M9 (2026-11-23): Boz Pity's counts are words 0x0AFBB268 (Rebels) / +4 (Empire) in a deterministic run (RS_DRIVE_PEEK);
+    start 100 / 125 and the Empire's 4 s bleed match Aurek. Next: a capture - teleport onto a post (pass --tp y about 12.8 above
+    the ground's game y: -15.1, 16.3, 168.6 for post 1) and find the post's state words (class 0x8008 objects, e.g. 186a6).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
