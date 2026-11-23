@@ -15,6 +15,9 @@ bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, con
     if (!w) return false;
     if (ak_bp_int(w, "Faction Specific", 0)) {                       /* the faction's own version: a direct child */
         const ak_bp_type *t = ak_bp_find_type(bp, "Weapon");
+        {   static int dc = -1; if (dc < 0) dc = ak_setting_int("AK_DEBUG_WEAPON_CHILDREN", 0);   /* tests: a faction-specific weapon's children */
+            if (dc) for (u32 i = 0; t && i < t->nobjects; i++) if (t->objects[i].parent == w)
+                AK_INFO("weapon", "%s (asked for faction %d): child %s, Faction %d", name, faction, t->objects[i].name, ak_bp_int(&t->objects[i], "Faction", -1)); }
         for (u32 i = 0; t && i < t->nobjects; i++)
             if (t->objects[i].parent == w && ak_bp_int(&t->objects[i], "Faction", -1) == faction) { w = &t->objects[i]; break; }
     }

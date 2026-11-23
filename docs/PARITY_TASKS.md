@@ -1868,6 +1868,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 (2026-11-23): bots on Boz Pity carry Ackbar_Blaster_Pistol and BobaFett_Blaster_Rifle with no hero in play (hero
     countdown 178.8 s at the start). Next: 08985D74 (the unit maker) - which unit classes the bots spawn as and where their
     weapons come from (the class's Loadout_1..3 keys, as the hero Humanoids have, or a level table).
+  - M10 bot weapons (2026-11-23): ported the faction-child resolution (Imperial bots: BobaFett_Blaster_Rifle; Rebels:
+    Ackbar_Blaster_Pistol). Next: BobaFett_Blaster_Rifle's multishot spread (45 degrees in Aurek, the original's bots still hit
+    with it) - trace how ProjectilesPerShot / MultishotSpreadAngle aim (08A1C950 area) and the AI accuracy cone.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

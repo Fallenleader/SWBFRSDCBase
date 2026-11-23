@@ -209,3 +209,5 @@ Reports fall after M5, M10 and M15.
   EMP_Blaster_Rifle (15) - the likely cause of the Rebel death gap. Tracing where the original picks it.
 - 2026-11-23 M10: the original's bots also carry the heroes' weapons (Ackbar's pistol, Boba Fett's rifle) with no hero in play;
   the bot weapon source is wider than Aurek's faction table. Tracing the unit maker 08985D74.
+- 2026-11-23 M10: bot weapons now resolve to their faction child as in the original (Imperial bots: Boba Fett's rifle);
+  Rebel losses 6 a minute (original 9-12, before 4). Next: that rifle's multishot spread.

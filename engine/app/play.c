@@ -502,7 +502,11 @@ static void ai_weapons_load(ak_play *p, const ak_blueprints *bp, const ak_model_
     static const int row_of_faction[4] = { 2, 3, 0, 1 };              /* (factions 0 Republic, 1 CIS, 2 Alliance, 3 Empire -> the table's rows) */
     int f = p->team_faction[t]; const char *const *names = ai_weapon_name[f >= 0 && f < 4 ? row_of_faction[f] : 0];
     for (int k = 0; k < 13; k++) {
-        p->ai_armed[t][k] = k < 9 && names[k] && ak_weapon_def_load(bp, m, names[k], -99, &p->ai_wdef[t][k]);   /* (already the faction's own: no child taken) */
+        /* the table's name is resolved one level further, as for any weapon: a "Faction Specific" weapon gives its first child of the
+           side's faction (traced with gdb on the weapon maker 08A16FD8 under the unit maker 08985D74, Boz Pity: Imperial bots asked
+           for EMP_Blaster_rifle got BobaFett_Blaster_Rifle (25 a hit), Rebel bots' ALL_Blaster_Pistol became Ackbar_Blaster_Pistol;
+           the player's customisation asks for BlasterRifle and so gets EMP_Blaster_Rifle) */
+        p->ai_armed[t][k] = k < 9 && names[k] && ak_weapon_def_load(bp, m, names[k], f, &p->ai_wdef[t][k]);
         if (!p->ai_armed[t][k]) continue;
         ak_weapon_def *d = &p->ai_wdef[t][k];                        /* in a bot's hands: the game's bot modifiers */
         f32 md = ak_bp_float(d->bp, "Modifier_Bot_Damage", 1);
