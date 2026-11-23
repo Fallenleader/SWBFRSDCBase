@@ -207,3 +207,5 @@ Reports fall after M5, M10 and M15.
   original; Uncertain: the player's capture rate (0.5 / s measured here, Aurek 1.0). Next: M10, AI soldiers.
 - 2026-11-23 M10 started: the original's Imperial bots carry a 25-damage rifle (BobaFett_Blaster_Rifle) where Aurek's carry
   EMP_Blaster_Rifle (15) - the likely cause of the Rebel death gap. Tracing where the original picks it.
+- 2026-11-23 M10: the original's bots also carry the heroes' weapons (Ackbar's pistol, Boba Fett's rifle) with no hero in play;
+  the bot weapon source is wider than Aurek's faction table. Tracing the unit maker 08985D74.

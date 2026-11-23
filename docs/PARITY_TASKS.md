@@ -1865,6 +1865,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 (2026-11-23): the original's Imperial bots on Boz Pity hit with BobaFett_Blaster_Rifle (hash 0x89B1803A, 25 a hit),
     though the AI table names EMP_Blaster_Rifle. Next: gdb on the weapon loader (08A16FD8) / the bot loadout draw (0897FA38)
     to see where the name changes (a per-level or per-class substitution, a child by faction).
+  - M10 (2026-11-23): bots on Boz Pity carry Ackbar_Blaster_Pistol and BobaFett_Blaster_Rifle with no hero in play (hero
+    countdown 178.8 s at the start). Next: 08985D74 (the unit maker) - which unit classes the bots spawn as and where their
+    weapons come from (the class's Loadout_1..3 keys, as the hero Humanoids have, or a level table).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
