@@ -1937,6 +1937,10 @@ textures and how they are used. Section R lists only what must be in place so th
     +18 s, 107 at +60 s), Aurek's test start (590 warm-up frames) had already lost 5 - whether the original's bleed waits for
     the player's first spawn is not read; the camera framing differs (Aurek's soldier sits lower-left and larger at the same
     spawn and facing) - for M15.
+  - M14 match end (2026-11-23): the won match's sequence ported (NATIVE_ENGINE M14 row). Open: a lost match (the poked Empire
+    at 1 lost no soldier in 60 s - not seen; the page's Defeat text and the same sequence assumed); the post mark glyph in the
+    team lines (not drawn); "Changing Map" over black (Aurek shows it 0.5 s over the frozen view, then its loading screen); the
+    end music; the respawn board's bars; what decides 08A2B410's state 19 -> 20 vs the dialogue (15) - observed only for IA.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

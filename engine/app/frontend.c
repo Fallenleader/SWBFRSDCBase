@@ -226,7 +226,8 @@ void ak_fe_set_match(const ak_fe_match *m)
     var_set("BFF.TimeLimitSinglePlayer", m->time_left >= 0 ? 60.0f : 0.0f);   /* (the time line's show condition) */
     var_set("BFF.FE_GameType", m->mode); var_set("BFF.FE_GameEra", m->era == 0 ? 1 : 0);   /* (FE_GameEra: 1 classic, 0 prequel - the team buttons) */
     var_set("BFF.FE_PlayerFaction", m->faction[m->team]); var_set("BFF.FE_ChangeTeamAllowed", 1);
-    var_set("BFF.FE_SpawnPointCount", (f32)m->nposts); var_set("BFF.FE_IsPlayerVictorious", m->winner == m->team);
+    var_set("BFF.FE_SpawnPointCount", (f32)m->nposts); var_set("BFF.FE_IsPlayerVictorious", m->winner == m->team); var_set("BFF.FE_IsGameADraw", m->winner >= 2);
+    var_set("BFF.FE_LocalPlayerSpawned", m->spawned);
     /* every post on the map is shown (08A2DD50: Active<k> = the post exists and is on the map, +4 / +68), coloured by its owner;
        only the side's own go into the list the focus moves through */
     for (u32 i = 0; i < AK_FE_MAX_POSTS; i++) { char k[40]; snprintf(k, sizeof k, "BFF.FE_SpawnPointActive%u", i); var_set(k, i < m->nposts); }
@@ -449,6 +450,11 @@ static const char *check_var;          /* drawing a check box's children: its va
 static bool shows(const ak_widget *w, bool focused)
 {
     size_t l = w->name ? strlen(w->name) : 0;
+    /* the game-over board's yellow bar on the player's row (the player first: its row at y 77) - seen on the original's board;
+       the game shows it at run time (its flags 0x43D alone would hide it) [assumed: the respawn board's bar and the red killer's bar
+       not checked] */
+    if (have_match && w->name && !strcmp(w->name, "E_IM_Player_Highlight") && page && page->root.name && !strcmp(page->root.name, "MP_GameOverScoreboard"))
+        return match.spawned;
     if (check_var && l > 2 && !strncmp(w->name, "E_IM_StyleCheckBox", 18) && (w->name[l - 1] == 'U' || w->name[l - 1] == 'C')) {
         bool on = var_get(check_var) != 0;                              /* the box's own pictures: ticked (..C) or not (..U) */
         if ((w->name[l - 1] == 'C') != on) return false;
@@ -593,6 +599,15 @@ static const u16 *override_text(const ak_widget *w, u32 *n)
         static u16 t[16]; char b[16]; s32 sec = (s32)match.time_left; snprintf(b, sizeof b, "%d:%02d", sec / 60, sec % 60);
         u32 k = 0; while (b[k] && k < 15) { t[k] = (u8)b[k]; k++; } *n = k; return t; }
     if (!strcmp(w->name, "E_TX_LevelType")) return ak_hud_stdtext(40 + 2 * (u32)(match.mode & 3), n);
+    /* the score boards' team lines (the original's game-over board: "(122) - [post mark] 2/6" for the Empire, "(0) - .. 4/6" for the
+       Alliance: the side's tickets, the posts it holds of all) [the post mark between them is not drawn: its glyph not found] */
+    if (!strcmp(w->name, "E_TX_GoodTeamInfo") || !strcmp(w->name, "E_TX_EvilTeamInfo")) {
+        static u16 t[2][32]; int side = (w->name[5] == 'G' ? match.team : 1 - match.team) & 1; char b[32];
+        snprintf(b, sizeof b, "(%d) - %u/%u", (int)match.tickets[side], match.held[side], match.posts_total);
+        u32 k = 0; while (b[k] && k < 31) { t[side][k] = (u8)b[k]; k++; } *n = k; return t[side]; }
+    if (!strcmp(w->name, "E_TX_CountDown") && match.countdown > 0) {   /* the game-over board's count: 5 .. 1, a second each */
+        static u16 t[8]; char b[8]; snprintf(b, sizeof b, "%d", (int)ceilf(match.countdown));
+        u32 k = 0; while (b[k] && k < 7) { t[k] = (u8)b[k]; k++; } *n = k; return t; }
     return NULL;
 }
 /* ---- the customisation menu (PARITY 8.2 / 2.1): BFF_CUSTOMISATION.GUI's MP_Customisation over MP_CustomBackground, the item

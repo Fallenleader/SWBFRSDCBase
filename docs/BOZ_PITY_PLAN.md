@@ -246,3 +246,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M12 COMPLETE (sound): the player's reload sounds from its reload clip too. Next: M13 HUD and messages.
 - 2026-11-23 M13 COMPLETE (HUD and messages): layout and messages match; the equipment prompt is held as the original's.
   Next: M14 match end.
+- 2026-11-23 M14 COMPLETE (match end): the original's won-match sequence (Victory 5 s, the frozen world, the score board's
+  5 .. 1 count, Changing Map, the same map again) measured with ticket pokes and ported. Next: M15 side-by-side acceptance.

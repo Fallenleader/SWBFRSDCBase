@@ -775,13 +775,17 @@ int main(int argc, char **argv)
                 ak_fe_open_ingame(fe_after_team || ak_game_mode == 5 ? "MP_Spawn_Location" : "MP_Team_Selection"); fe_after_team = false;   /* (the campaign: no team choice - the original goes to the spawn map) */
             }
         }
-        bool fe_menu = false;
+        bool fe_menu = false; static f32 over_count; static bool over_changing; bool next_map = false;   /* (the game-over board's count; the play list's next map) */
         if (playing && play.ready && fe_ingame) {
             static ak_fe_match fm; memset(&fm, 0, sizeof fm);
             fm.mode = ak_game_mode; fm.era = strncmp(levels[cur].label, "PREQUEL", 7) == 0; fm.team = play.team; fm.winner = play.have_cq ? play.match.winner : -1;
             if (ak_setting_int("AK_FE_TEST_OVER_AT", -1) >= 0 && frame >= ak_setting_int("AK_FE_TEST_OVER_AT", -1)) fm.winner = play.team;   /* (tests: a won match) */
             fm.faction[0] = play.team_faction[0]; fm.faction[1] = play.team_faction[1];
             fm.level = levels[cur].label; fm.time_left = play.have_cq && play.rules.time_limit > 0 ? play.rules.time_limit - play.match.time : -1.0f;
+            if (play.have_cq) { fm.tickets[0] = play.match.tickets[0]; fm.tickets[1] = play.match.tickets[1]; fm.posts_total = play.cq.nposts;
+                for (u32 i = 0; i < play.cq.nposts; i++) { int o = play.match.post[i].owner; if (o == 0 || o == 1) fm.held[o]++; } }
+            fm.countdown = over_count;
+            fm.spawned = (play.alive || play.deaths > 0) && !over_changing;
             for (u32 i = 0; i < play.cq.nposts && fm.nposts < AK_FE_MAX_POSTS; i++) {   /* (posts that cannot be taken are on the map too) */
                 if (play.cq.post[i].absent) continue;
                 memcpy(fm.post_pos[fm.nposts], play.cq.post[i].pos, 12); fm.post_owner[fm.nposts] = play.match.post[i].owner; fm.post_name[fm.nposts] = play.cq.post[i].name;
@@ -806,8 +810,22 @@ int main(int argc, char **argv)
             ak_fe_set_match(&fm);
             if (!ak_fe_page() && !play.alive && play.dead_t >= 3.0f) ak_fe_open_ingame(play.deaths ? "MP_RespawnScoreboard" : "MP_Spawn_Location");   /* (the original: three seconds of the death camera, the score board, then the spawn map) */
             if (frame == ak_setting_int("AK_FE_START_AT", -1)) in.pressed |= AK_BTN_START;   /* (tests) */
-            {   static f32 over_t = 0; over_t = fm.winner >= 0 ? over_t + dt : 0;   /* the match over: the game-over page [assumed: after 5 s of its end] */
-                if (over_t > 5.0f && (!ak_fe_page() || strcmp(ak_fe_page(), "MP_GameoverDialogue")) && over_t < 5.0f + dt * 1.5f) ak_fe_open_ingame("MP_GameoverDialogue"); }
+            {   static f32 over_t = 0; over_t = fm.winner >= 0 ? over_t + dt : 0;
+                bool camp = ak_game_mode == 5 || gc_level >= 0;
+                if (camp) {                                                    /* the campaign / GC: the game-over page [assumed: after 5 s of its end] */
+                    if (over_t > 5.0f && (!ak_fe_page() || strcmp(ak_fe_page(), "MP_GameoverDialogue")) && over_t < 5.0f + dt * 1.5f) ak_fe_open_ingame("MP_GameoverDialogue");
+                } else if (over_t > 0) {
+                    /* a match of the play list (Instant Action), measured on the original (Boz Pity, the Alliance's last ticket taken: harness
+                       RS_DRIVE_POKE): at once MP_GameoverResult - "Victory" / "Defeat" / "Draw" in the box mid-screen, the world stopped
+                       (every frame the same) - for 5 s; then MP_GameOverScoreboard, both sides' lists over the frozen view, counting 5 .. 1
+                       (D_08AEFA54, 5.0 s; 08A2B410's state 20); then "Changing Map" on black and the play list's next map - the same map
+                       again when it is the only one - to its team selection */
+                    const char *pg = ak_fe_page();
+                    if (over_t < 5.0f) { if (!pg || strcmp(pg, "MP_GameoverResult")) ak_fe_open_ingame("MP_GameoverResult"); over_count = 0; }
+                    else if (over_t < 10.0f) { if (!pg || strcmp(pg, "MP_GameOverScoreboard")) ak_fe_open_ingame("MP_GameOverScoreboard"); over_count = 10.0f - over_t; }
+                    else if (over_t < 10.5f) { over_count = 0; over_changing = true; }   /* ("Changing Map": FE_LocalPlayerSpawned 0) */
+                    else { over_count = 0; over_t = 0; over_changing = false; ak_fe_close(); next_map = true; }
+                } }
             if (!ak_fe_page() && play.alive && (in.pressed & AK_BTN_START)) ak_fe_open_ingame("MP_InGame_Menu");   /* START: the pause menu */
             {   /* at an own command post (seen in the original): the top message box keeps "Press [d-pad up] to change equipment"
                    (STDTEXT 328; its \ue813 drawn as the d-pad up mark the original shows) and d-pad up there, with no vehicle to
@@ -832,7 +850,7 @@ int main(int argc, char **argv)
                 if (frame == ak_setting_int("AK_TEST_TIP_AT", -1)) ak_hud_message(3, 328, NULL, 0);
                 if (play.want_equipment) { play.want_equipment = false; if (at_own && !ak_fe_page()) ak_fe_open_customisation(); }
             }
-            if (ak_fe_page()) {
+            if (ak_fe_page() || next_map) {
                 fe_menu = true;
                 { const char *keys = ak_setting_str("AK_FE_KEYS2", NULL);   /* tests: the in-match pages' buttons, as AK_FE_KEYS */
                   static int kf = 0; if (keys) { int k = kf / 4, ph = kf % 4; const char *q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; }
@@ -876,7 +894,7 @@ int main(int argc, char **argv)
                     char want[64]; snprintf(want, sizeof want, "CAMPAIGN %s", camp[li]);
                     for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, want)) cur = i;
                     AK_INFO("fe", "campaign: %s", want); loaded = false; play.ready = false;
-                } else if (ev == AK_FE_START) {                             /* the game-over page's Continue: the play list's next map */
+                } else if (ev == AK_FE_START || next_map) {                 /* the game-over page's Continue / the board's end: the play list's next map */
                     fe_loadout_settings();                                    /* (the profile's loadout set 0 for the next match's soldier) */
                     int md = 0; const char *lv = ak_fe_launch(&md); static const char *codes[4] = { "CQST", "CTF1", "CTF2", "HCTF" };
                     ak_setting_set("AK_MODE", codes[md & 3]); for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, lv)) cur = i;

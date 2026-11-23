@@ -24,6 +24,10 @@ typedef struct {
     u16 kills[2][32], deaths[2][32]; bool alive[2][32];          /* (the score boards) */
     const char *level;                             /* the level ("CLASSIC HOTH"): its name when level_text is 0 */
     f32 time_left;                                 /* the match's time left, seconds (< 0: no limit) */
+    s32 tickets[2]; u32 held[2], posts_total;      /* the score boards' team lines: "(tickets) - [post] held/total" */
+    f32 countdown;                                 /* the game-over score board's count (E_TX_CountDown; <= 0 none) */
+    bool spawned;                                  /* BFF.FE_LocalPlayerSpawned: the player is in the match (the game-over pages' lists and
+                                                      result show on 1, "Changing Map" on 0) */
 } ak_fe_match;
 
 bool ak_fe_init(ak_vfs *vfs);

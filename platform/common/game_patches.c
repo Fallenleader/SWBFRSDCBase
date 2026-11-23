@@ -215,6 +215,14 @@ void rs_drive_report(FILE *f){
                 if (sscanf(t, "%u:%u:%x", &fr_, &g, &snd) >= 2 && !done[k] && rs_drive_frame() >= fr_) { done[k] = 1;
                     func_08879DB8(IMG(0x08B29170u), g, snd, 0.0f); fprintf(stderr, "[DRIVE] fired group %u (sender %x)\n", g, snd); } } } }
     {   float pp[3]; if (getenv("RS_DRIVE_PLAYER") && drive_player_pos(pp)) fprintf(f, "player %.2f %.2f %.2f\n", pp[0], pp[1], pp[2]); }
+    {   /* RS_DRIVE_POKE="F:addr:value;...": tests - once at the first report at or after drive frame F, the word at addr (hex) is set
+           to value (decimal int; "f" after it: a float) */
+        static char pdone[16]; const char *po = getenv("RS_DRIVE_POKE"); extern u32 rs_drive_frame(void) __attribute__((weak));
+        if (po && rs_drive_frame) { char buf[256]; snprintf(buf, sizeof buf, "%s", po); int k = 0;
+            for (char *t = strtok(buf, ";"); t && k < 16; t = strtok(NULL, ";"), k++) { unsigned fr_, ad; char val[32];
+                if (sscanf(t, "%u:%x:%31s", &fr_, &ad, val) == 3 && !pdone[k] && rs_drive_frame() >= fr_ && gok(ad)) { pdone[k] = 1;
+                    u32 w; if (strchr(val, 'f')) { float fv = (float)atof(val); memcpy(&w, &fv, 4); } else w = (u32)strtol(val, 0, 10);
+                    *(volatile uint32_t *)GP(ad) = w; fprintf(stderr, "[DRIVE] poked %08x = %s\n", ad, val); } } } }
     {   /* RS_DRIVE_PEEK=a,b,...: words (hex addresses) as int and float */
         const char *pk = getenv("RS_DRIVE_PEEK");
         if (pk) { char buf[512]; snprintf(buf, sizeof buf, "%s", pk); fprintf(f, "peek");
