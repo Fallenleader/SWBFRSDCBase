@@ -215,3 +215,5 @@ Reports fall after M5, M10 and M15.
   Boba Fett's rifle and the Rebel death rate (4-6 vs 9-12 a minute) stay open for a longer comparison. Next: Report 2, then M11.
 - 2026-11-23 Report 2 written and sent (after M10; M10 partly done, 55%; overall estimate 63%).
 - 2026-11-23 M10: shot counts compared - Aurek's Imperial bots fire the pistol far too much and the rifle too little. Tracing.
+- 2026-11-23 M10: the pistol spam is two rifle-less Imperial bots (rocket loadout) firing nonstop at 30-37 m; choice and
+  burst rules read the same as the original's. Next: the loadout draw and the pistol's heat in a bot's hands.

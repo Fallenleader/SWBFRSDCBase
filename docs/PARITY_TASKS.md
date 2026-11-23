@@ -1876,6 +1876,11 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 fire (2026-11-23): Aurek's Imperial bots fire EMP_Blaster_Pistol 120-587 times a minute (original 13) and Boba
     Fett's rifle 5-12 (original 36). Next: why they hold the pistol (the loadout draw 0897FA38, ai_weapon_choice 0893F65C) and
     the burst / pause for weapons without heat (08A24648 / 08A24740) - gdb the fire node 0893F2F8 per bot.
+    Narrowed (2026-11-23): in Aurek two Imperial bots (1 and 5) fire EMP_Blaster_Pistol 205 / 382 times a minute at soldiers
+    30-37 m away (about 25 shots per target, no pause) - bots without a rifle (the rocket loadout, weight 0.3 once the enemy
+    has vehicles). The weapon choice 0893F65C has only the 8.5 / 12.5 m tests (D_08AED8F4 / 8F8), as Aurek's; the burst /
+    pause rules (08A24648 / 08A24740) also read the same. Next: compare the loadout draw on Boz (how many rocket loadouts the
+    original gives; its vehicle count at 0x08C2AC24 + 0x08C2AFC4) and EMP_Blaster_Pistol's heat keys in a bot's hands.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
