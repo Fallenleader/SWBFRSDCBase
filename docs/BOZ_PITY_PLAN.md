@@ -217,3 +217,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M10: shot counts compared - Aurek's Imperial bots fire the pistol far too much and the rifle too little. Tracing.
 - 2026-11-23 M10: the pistol spam is two rifle-less Imperial bots (rocket loadout) firing nonstop at 30-37 m; choice and
   burst rules read the same as the original's. Next: the loadout draw and the pistol's heat in a bot's hands.
+- 2026-11-23 M10: bot re-arm bug fixed (pistols fired every frame); the pistol rate now matches (10-22 vs 13 a minute). The
+  rifles' rates still differ (Rebel rifle 10x too often, Boba's 3-4x too rarely). Next: the fire node's gating.

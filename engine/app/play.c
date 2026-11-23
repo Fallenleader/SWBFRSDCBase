@@ -2146,7 +2146,9 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
             ai_hold(p, b, idx, ai_weapon_choice(p, b, b->enemy >= (s32)VT(p, 0), sqrtf(ex * ex + ez * ez)));
         }
         ak_weapon_update(&b->weapon, dt, b->weapon.ammo == 0);
-        if (b->weapon.ammo <= 0 && b->weapon.spare <= 0 && b->weapon.reload_t <= 0) { int tm = b->weapon.team; s32 ow = b->weapon.owner; ak_weapon_give(&b->weapon, b->weapon.def); b->weapon.team = tm; b->weapon.owner = ow; }
+        /* (a clip weapon run dry is handed back full; a weapon without a clip (AmmoPerClip -1: the pistols, Boba Fett's rifle) is
+           never empty - re-giving it every frame reset its cooldown and let a bot fire as fast as frames allowed) */
+        if (b->weapon.def->clip > 0 && b->weapon.ammo <= 0 && b->weapon.spare <= 0 && b->weapon.reload_t <= 0) { int tm = b->weapon.team; s32 ow = b->weapon.owner; ak_weapon_give(&b->weapon, b->weapon.def); b->weapon.team = tm; b->weapon.owner = ow; }
         /* the reaction (traced: the AI fire node 0893F2F8 - 0893EF7C / 0893F364): a countdown from 2.5 s (1.75 s at the elite
            difficulty) that runs while there is a target, at 1 / (0.03 d + 0.1) under 30 m and 1 beyond (d: the distance), and
            starts again whenever there is none; when it has run out the bot shoots */
@@ -4303,7 +4305,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 } }
             u32 shot = ak_weapon_fire(&p->weapon, &p->bolts, &p->col, p->target, nt, muz, tgt, &p->seed);
             {   static int ds = -1; if (ds < 0) ds = ak_setting_int("AK_DEBUG_SHOTS", 0);   /* tests: the player's shots, by frame */
-                if (ds && shot) AK_INFO("shot", "frame %u %s ammo %d spare %d heat %.1f dmg %.1f/%.1f speed %.1f spread %.2f", p->frame_no, p->wdef.name ? p->wdef.name : "?", p->weapon.ammo, p->weapon.spare, p->weapon.heat.heat, p->wdef.dmg_infantry, p->wdef.dmg_vehicle, p->wdef.speed, p->wdef.spread_deg); }
+                if (ds && shot) AK_INFO("shot", "frame %u %s ammo %d spare %d heat %.1f dmg %.1f/%.1f speed %.1f spread %.2f rof %.3f heat/shot %.2f decay %.2f windup %.2f ai burst %.3f pause %.3f", p->frame_no, p->wdef.name ? p->wdef.name : "?", p->weapon.ammo, p->weapon.spare, p->weapon.heat.heat, p->wdef.dmg_infantry, p->wdef.dmg_vehicle, p->wdef.speed, p->wdef.spread_deg, p->wdef.rate_of_fire, p->wdef.heat_shot, p->wdef.heat_decay, p->wdef.windup, ak_ai_burst(&p->wdef), ak_ai_pause(&p->wdef)); }
         }
     }
     /* the bots */

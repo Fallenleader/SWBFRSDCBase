@@ -1881,6 +1881,10 @@ textures and how they are used. Section R lists only what must be in place so th
     has vehicles). The weapon choice 0893F65C has only the 8.5 / 12.5 m tests (D_08AED8F4 / 8F8), as Aurek's; the burst /
     pause rules (08A24648 / 08A24740) also read the same. Next: compare the loadout draw on Boz (how many rocket loadouts the
     original gives; its vehicle count at 0x08C2AC24 + 0x08C2AFC4) and EMP_Blaster_Pistol's heat keys in a bot's hands.
+  - M10 (2026-11-23): bot re-arm bug fixed (clipless weapons were re-given every frame). Open: shots per weapon still differ -
+    ALL_Blaster_Rifle (no heat: 22.5 s bursts, no pause) 217-225 a minute in Aurek vs 22; Boba Fett's rifle 8-11 vs 36. Trace
+    the fire node 0893F2F8 per bot in the original (gdb: when it calls the shot, and why it stops) - the burst values for a
+    heatless weapon may not be what the original uses.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
