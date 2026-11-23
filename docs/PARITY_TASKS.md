@@ -1646,6 +1646,9 @@ textures and how they are used. Section R lists only what must be in place so th
     offset (floats 0x99602006/7/8); handed to the widget as {0xC91B7788, int, int, 1, offset x3, category == 3, 1, offset x3}.
     Uncertain: what the two ints are (model / animation?), the offset's use; the soldier preview (E_Anim_AppDisplay) still needs a
     play state (a level) in Aurek.
+  - Loadout = profile set 0 (+0x1B8..+0x1D4, 08977A34). Uncertain: what sets 1..19 hold (other factions / classes? not read
+    yet); the 4 bytes at +0x1B4 (0) and +0x1D8 (0); a byte check against the original's own save after a loadout change is still
+    to do (the harness route needs the carousel steps).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

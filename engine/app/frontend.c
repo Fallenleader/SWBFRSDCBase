@@ -640,6 +640,14 @@ static int cust_cost(int cat, int i)
     if (cat >= 5) return i >= 0 && i < 4 ? cust_level_cost[cat - 5][i] : 0;
     const ak_bp_object *o = cust_item(cat, i); return o ? ak_bp_int(o, "Cost", 0) : 0;
 }
+/* the loadout lives in the profile (08977A34): set k (< 20) at +0x1B4 + 44 k, category c (< 8) at +4 + 4 c; the menu uses set 0.
+   A store that changes the value marks the profile changed (+6). */
+static void cust_store(int c, int v)
+{
+    if (!prof_have) prof_new(); if (c < 0 || c >= 8) return;
+    u32 o = 0x1B4 + 4 + 4 * (u32)c; if (ak_rd32(prof + o) != (u32)v) { prof[6] = 1; AK_INFO("fe", "loadout: category %d = %d (profile +0x%X)", c, v, o); } ak_wr32(prof + o, (u32)v);
+}
+static void cust_from_profile(void) { if (!prof_have) prof_new(); for (int c = 0; c < NCAT && c < 8; c++) cust_sel[c] = (int)ak_rd32(prof + 0x1B4 + 4 + 4 * (u32)c); }
 static int cust_spent(void) { int t = 0; for (int c = 0; c < NCAT; c++) t += cust_cost(c, cust_sel[c]); return t; }
 static const u16 *cust_name(int cat, int i, u32 *n)
 {
@@ -666,7 +674,8 @@ static void cust_vars(void)                                            /* the sc
 static bool in_cust(void) { return page && page->root.name && (!strncmp(page->root.name, "MP_Custom", 9)); }
 int ak_fe_loadout(int sel[8], const char *names[5])
 {
-    for (int c = 0; c < NCAT; c++) sel[c] = cust_sel[c];
+    if (prof_have) cust_from_profile();                                 /* (the profile's set 0: what the player spawns with) */
+    for (int c = 0; c < NCAT; c++) { if (cust_count[c] > 0 && (cust_sel[c] < 0 || cust_sel[c] >= cust_count[c])) cust_sel[c] = 0; sel[c] = cust_sel[c]; }
     for (int c = 0; c < 5; c++) names[c] = cust_bp[c][cust_sel[c]];
     return cust_spent();
 }
@@ -1509,15 +1518,15 @@ static int run(const ak_gui_action *a, int row)
         if (row >= 0 && row < NCAT) { cust_cat = row; cust_carousel_sync(); int k = layer_of("MP_CustomCarousel"); if (k >= 0) { use_layer(k); focus = find_named(&page->root, "W_LB_Carousel") ? find_named(&page->root, "W_LB_Carousel")->id : focus; } }
     }
     else if (!strcmp(fn, "FE_Customisation_AcceptCarouselItem")) {   /* 08A27F28: the item taken (no credit check), back to the menu */
-        if (row >= 0 && row < cust_count[cust_cat]) cust_sel[cust_cat] = row;
+        if (row >= 0 && row < cust_count[cust_cat]) { cust_sel[cust_cat] = row; cust_store(cust_cat, row); }   /* (08977A34(profile, 0, category, row)) */
         use_layer(layer_of("MP_Customisation"));
     }
     else if (!strcmp(fn, "FE_Customisation_SellCarouselItem")) {     /* 08A27FD8: the category cleared (item 0) */
-        if (cust_sel[cust_cat] > 0 && cust_cost(cust_cat, cust_sel[cust_cat]) > 0) { cust_sel[cust_cat] = 0; cust_carousel_sync(); use_layer(layer_of("MP_Customisation")); }
+        if (cust_sel[cust_cat] > 0 && cust_cost(cust_cat, cust_sel[cust_cat]) > 0) { cust_sel[cust_cat] = 0; cust_store(cust_cat, 0); cust_carousel_sync(); use_layer(layer_of("MP_Customisation")); }
     }
     else if (!strcmp(fn, "FE_Customisation_ConfirmCancel")) open_layer(ak_gui_hash("MP_CustomCancel"));   /* 08A27E74 */
     else if (!strcmp(fn, "FE_Customisation_Cancel")) {                 /* 08A27DE0: the loadout as it was, the menu closed */
-        memcpy(cust_sel, cust_saved, sizeof cust_sel); nlayer = 0; page = NULL;
+        memcpy(cust_sel, cust_saved, sizeof cust_sel); for (int c = 0; c < NCAT && c < 8; c++) cust_store(c, cust_sel[c]); nlayer = 0; page = NULL;
         if (cust_return) open_hash(cust_return, false);
         cust_vars(); return AK_FE_NONE;
     }
@@ -1870,7 +1879,7 @@ static void cust_open(void)
 {
     if (open_hash(ak_gui_hash("MP_CustomBackground"), false)) {       /* (08A276F0: the background and the carousel open without the focus) */
         open_layer(ak_gui_hash("MP_Customisation")); focus_new = false; open_layer(ak_gui_hash("MP_CustomCarousel")); cust_carousel_sync(); }
-    memcpy(cust_saved, cust_sel, sizeof cust_sel); cust_cat = 0; cust_vars();   /* (08A276F0: OnInitMenu keeps the loadout to go back to) */
+    cust_from_profile(); memcpy(cust_saved, cust_sel, sizeof cust_sel); cust_cat = 0; cust_vars();   /* (08A276F0: OnInitMenu keeps the loadout to go back to) */
     refill();
 }
 /* the customisation menu on its own, from the match (d-pad up at an own command post); closed, play goes on */

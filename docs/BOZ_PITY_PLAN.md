@@ -132,3 +132,5 @@ Reports fall after M5, M10 and M15.
   personalisation and the loadouts in game.
 - 2026-11-23 M3: menu item models found by path or bare name (the Empire rifle and the grenades had none). Next: placement
   against the original, the soldier preview without a level, the saved loadout, the loadouts in game.
+- 2026-11-23 M3: the loadout is stored in the profile (set 0 at +0x1B8, 08977A34) and read back by the menu and the spawn.
+  Next: what sets 1..19 are, a byte check against the original's save, the loadouts in game by class and faction.

@@ -456,6 +456,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Menu item model names (M3) | Some items' WeaponModel is a path ("Objects\\Weapons\\EMP_Blaster_rifle\\EMP_Blaster_rifle.ASR"), while the menu file names its mesh bare ("EMP_Blaster_rifle"). The menu's model lookup now also tries the path's last part without .ASR. Under AK_LOG=2, every menu item's model is logged once as found or MISSING. Before this, the Empire rifle, thermal detonator, detpack and auto-turret pack had no model in the menu. |
 
+| Loadout in the profile (M3) | The menu's loadout now lives in the profile, as in the original. 08977A34(profile, set, category, value) stores set k (< 20) at +0x1B4 + 44 k, category c (< 8) at +4 + 4 c, and marks the profile changed (+6) only when the value differs. The menu uses set 0. FE_Customisation_AcceptCarouselItem (08A27F28) and SellCarouselItem (08A27FD8, value 0) store through it. OnInit (08A276F0) reads the menu's choices from the profile. Cancel stores the loadout as it was. ak_fe_loadout, which the spawn reads, takes set 0 from the profile. Values out of a category's range fall back to 0. The new profile's set 0 is 08977ED8's {1, 0, 1, 0, 0, 1, 1, 0}, the menu's old defaults. Checked in Aurek: Weapon 1 changed to its third item logs "category 0 = 2 (profile +0x1B8)", and the change survives leaving and reopening the menu. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |
