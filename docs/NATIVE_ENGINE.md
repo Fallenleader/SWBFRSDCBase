@@ -442,6 +442,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Movie subtitles (M2) | `SUBTITLE/<NAME>.ASR` (one SUBT chunk: u32 count, then {f32 start, f32 end, u32 text key}) with the texts from `MISC/CUTSCENE/CUTSCENE_AM.ASR` (HTXT table 0x25C2AF8A), loaded only for FE_PlayMovie with BFF.Subtitles on (08A69188). Drawn over the picture through the new `ak_movie_set_overlay` hook: the line with start <= t < end, alpha = min(t - start, end - t) x 4 capped at 1 (0884999C, constants 0x08AEBA18/1C), white, Franklin Gothic Medium Cond 9 at 0.8 (08A69920 / 0x08AEBA28), centred in x 0.075..0.925, y 0.89..0.98 with flags 0x44 (08A6994C). A '{' or '}' first character always shows, minus the mark; other lines need +0x3F (0897A350). The movie time is the sound clock (or the wall clock without sound). Test hook: `AK_MOVIE_TEST_SUBS=1`. |
 
+| Difficulty page (M2) | MP_AIDifficulty's OnOpen FE_AIDifficultyOnInit (08A2EB9C) puts the focus on W_BU_NormalDifficulty (0xABD00B76) when the profile's +0x34 is below 2, otherwise on W_BU_EliteDifficulty (0x1370447A). The buttons' action BFF.SelectDifficulty (0897968C) stores 1 (normal) or 2 (elite) at +0x34; any other value is ignored, and +6 (profile changed) is set when the value differs. The single player's difficulty is +0x34 (08979DF4; multiplayer reads 0x08C294DC instead), so AK_DIFFICULTY now follows the profile, both when it is loaded and when this button is pressed. The handler names were found as UTF-16 strings in BOOT.BIN (0x08AE09C0, 0x08ADD554) registered by 08897664 / 088976C4. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |

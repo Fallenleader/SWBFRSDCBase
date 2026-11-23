@@ -114,3 +114,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M2, movie subtitles: SUBTITLE\*.ASR + CUTSCENE_AM texts drawn over FE_PlayMovie's movies when BFF.Subtitles is on,
   timing/fade/place/size from 0884999C / 08849AA8 / 08A6994C; checked on BASICS (first line at the bottom, centred).
   Next: Difficulty (MP_AIDifficulty), Profile Management pages, the Cutscenes list, the Single Player entry pages.
+- 2026-11-23 M2, Difficulty: MP_AIDifficulty's focus follows the profile, Normal / Elite are stored in the profile (+0x34) and set
+  the game's difficulty; checked in Aurek (Elite chosen -> back to Options, the change logged). Next: Profile Management pages.

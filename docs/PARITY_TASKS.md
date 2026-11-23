@@ -1624,6 +1624,9 @@ textures and how they are used. Section R lists only what must be in place so th
     the bottom band 0.89..0.98, centred, scale 0.8, '{' / '}' lines forced.  Uncertain: whether in-game cutscenes pass the flag as
     1 always; CUTSCENE_AM is the only language file on this disc (other languages' loading not traced); the GameCube THP path
     (ak_plat_movie_play) draws no overlay yet.
+  - Difficulty traced (08A2EB9C / 0897968C / 08979DF4): the focus by the profile's +0x34, SelectDifficulty 1 / 2 into +0x34 with
+    the change flag. Uncertain: the meaning of 08A2EB9C's first argument (the call does nothing unless it is 0; OnOpen is assumed to
+    pass 0). The multiplayer bot difficulty (0x08C294DC) is not wired (multiplayer is out of scope).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

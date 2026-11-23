@@ -140,6 +140,7 @@ static void prof_to_vars(void)
         var_set(prof_map[i].name, v);
     }
     ak_setting_set("AK_SUBTITLES", var_get("BFF.Subtitles") != 0 ? "1" : "0");
+    {   u32 d = ak_rd32(prof + 0x34); if (d - 1 < 2) ak_setting_set("AK_DIFFICULTY", d >= 2 ? "2" : "1"); }   /* (08979DF4: the single player's difficulty is the profile's +0x34) */
     if (!ak_setting_str("AK_INVERT_Y", NULL) || var_get("BFF.InfantryControlInvertYAxis") != 0) ak_setting_set("AK_INVERT_Y", var_get("BFF.InfantryControlInvertYAxis") != 0 ? "1" : "0");
     if (!ak_setting_str("AK_INVERT_Y_VEHICLE", NULL)) ak_setting_set("AK_INVERT_Y_VEHICLE", var_get("BFF.VehicleControlInvertYAxis") != 0 ? "1" : "0");   /* (08A60028) */
     if (!ak_setting_str("AK_INVERT_Y_SPACE", NULL)) ak_setting_set("AK_INVERT_Y_SPACE", var_get("BFF.SpacecraftControlInvertYAxis") != 0 ? "1" : "0");   /* (08A5EC4C) */
@@ -1555,6 +1556,15 @@ static int run(const ak_gui_action *a, int row)
         if (differ) prof[6] = 1;
     }
     else if (!strcmp(fn, "FE_ProfileNameOnInit")) { u32 n; const u16 *t = ak_fe_profile_name(&n); tb_n = n > 20 ? 20 : n; if (t) memcpy(tb_name, t, tb_n * 2); tb_set = true; }   /* 08A2E9A0 */
+    else if (!strcmp(fn, "FE_AIDifficultyOnInit")) {                   /* 08A2EB9C (MP_AIDifficulty's OnOpen): the focus on Normal (0xABD00B76)
+                                                                         when the profile's +0x34 < 2, else Elite (0x1370447A) */
+        if (!prof_have) prof_new();
+        u32 want = ak_rd32(prof + 0x34) < 2 ? 0xABD00B76u : 0x1370447Au; if (find_id(&page->root, want)) focus = want; }
+    else if (!strcmp(fn, "BFF.SelectDifficulty")) {                    /* 0897968C: 1 normal, 2 elite into the profile's +0x34 (other values
+                                                                         ignored); +6 set when it differs */
+        u32 v = (u32)atoi(a->arg); if (!prof_have) prof_new();
+        if (v - 1 < 2) { if (!prof[6] && ak_rd32(prof + 0x34) != v) prof[6] = 1; pw32(0x34, v); ak_setting_set("AK_DIFFICULTY", v >= 2 ? "2" : "1"); }
+    }
     else if (!strcmp(fn, "FE_ForceProfileChangeState")) { if (!prof_have) prof_new(); prof[6] = (u8)atoi(a->arg); }   /* 08A2EB50: +6 = the argument */
     else if (!strcmp(fn, "ControlMethod")) {                         /* 08979C58: the scheme flips 0 <-> 1 (0 "Default", 1 "Alternate"),
                                                                          written to the profile's +0x58, +0x74, +0x90; the profile changed */
