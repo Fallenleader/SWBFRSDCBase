@@ -363,6 +363,32 @@ static bool open_hash(u32 h, bool push)
         AK_INFO("fe", "%s (at %08x)", page->root.name, h);
         return true;
     }
+    /* a widget of another file's page (MP_LoadProfile's Continue -> W_BU_MMSinglePlayer on MP_MainMenu): the file whose bytes hold
+       the id, then the page in it as above */
+    static bool searching; if (searching) { AK_WARN("fe", "no page %08x", h); return false; }
+    int was = cur_file; u32 keep_page = page ? page->root.id : 0;
+    for (int f = 0; f < NFILES; f++) {
+        if (f == was) continue;
+        char p[128]; path_of(f, p, sizeof p); bool hit = false;
+        ak_arena ta; if (!ak_arena_init(&ta, 260u << 10)) break;
+        for (u32 off = 0;; off += 256u << 10) {
+            ak_blob b; ak_arena_reset(&ta);
+            if (!ak_vfs_read_part(vfs, p, off, (256u << 10) + 3, &ta, &b) || b.size < 4) break;
+            for (size_t k = 0; k + 4 <= b.size && !hit; k++) if (ak_rd32(b.data + k) == h) hit = true;
+            if (hit || b.size < (256u << 10) + 3) break;
+        }
+        ak_arena_free(&ta);
+        if (!hit) continue;
+        if (page && page->on_close.fn && page->on_close.fn[0]) { const ak_gui_page *wp = page; run(&wp->on_close, -1); }
+        if (!load_file(f)) continue;
+        page = NULL;                                                  /* (the old page went with its file) */
+        if (push && keep_page && nstack < 16) stack[nstack++] = keep_page;
+        for (u32 i = 0; i < gf.npages; i++) if (find_id(&gf.pages[i].root, h)) {
+            searching = true; bool ok = open_hash(gf.pages[i].root.id, false); searching = false;
+            if (ok) { focus = h; focus_fix_pending = false; AK_INFO("fe", "(focused at %08x)", h); return true; }
+        }
+    }
+    if (was >= 0 && load_file(was) && keep_page) page = ak_gui_find_page(&gf, keep_page);   /* (back as it was) */
     AK_WARN("fe", "no page %08x", h); return false;
 }
 bool ak_fe_open(const char *name) { return ready && open_hash(ak_gui_hash(name), false); }
