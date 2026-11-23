@@ -2163,13 +2163,11 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         bool held = false;
         {   f32 fwd[3] = { -sinf(b->ch.yaw), 0, -cosf(b->ch.yaw) }, to[3] = { 0, 0, 0 };
             if (en) { to[0] = en->feet[0] - b->ch.pos[0]; to[1] = en->feet[1] - b->ch.pos[1]; to[2] = en->feet[2] - b->ch.pos[2]; }
-            /* the want flag (traced, 08943020 -> the fire record +36, read by 08942AA4 as 08965A70's "want"): set each frame only when a
-               ray from the bot to the target (the target's vfunc +104, reach 1000 = D_08B1B740) reaches it - a target out of sight
-               ends the burst at once.  [assumed: Aurek's sight test from the bot's chest to the target's chest] */
-            bool sees = false;
-            if (en && b->react_t <= 0) { f32 a[3] = { b->ch.pos[0], b->ch.pos[1] + 1.1f * S, b->ch.pos[2] }, c[3] = { en->feet[0], en->feet[1] + 1.1f * S, en->feet[2] };
-                sees = in_sight(p, a, c); }
-            held = ak_ai_fire_update(&b->fire_ai, b->weapon.def, en && b->react_t <= 0 && sees, en && ak_ai_fire_ok(fwd, to, 40.0f * S, 7.5f * 0.017453293f, true), rnd(&b->seed), dt);
+            /* the want flag (traced, 08943020 -> the fire record +36, read by 08942AA4 as 08965A70's "want"): set each frame from the
+               target's vfunc +104 (soldiers: 08A05718), which solves a lead-aim point from the target's velocity (its vfunc +20) and
+               the shot (f12 = 1000, D_08B1B740) and fails only without an intercept - so near enough always true against soldiers
+               [assumed: always true here; the lead point itself is not used by Aurek's aim yet] */
+            held = ak_ai_fire_update(&b->fire_ai, b->weapon.def, en && b->react_t <= 0, en && ak_ai_fire_ok(fwd, to, 40.0f * S, 7.5f * 0.017453293f, true), rnd(&b->seed), dt);
             /* Speech_BC_Rocket (089395E4): an AI that starts firing a weapon of the "Rocket" kind (the rocket launchers' Projectile
                "rocket") says it once, until it lets go */
             if (b->fire_ai.began && b->weapon.def && b->weapon.def->bp) { const char *pj = ak_bp_string(b->weapon.def->bp, "Projectile", "");

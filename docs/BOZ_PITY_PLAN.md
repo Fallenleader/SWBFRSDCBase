@@ -224,3 +224,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M10: the key lookup inherits (as Aurek) - the burst values match; the rifle rate gap is in when bots fire.
 - 2026-11-23 M10: the original's rifle bots fire in 2-3 shot runs with 1-4 s gaps; Aurek's stream - finding what stops them next.
 - 2026-11-23 M10: the want-to-fire flag needs the target's ray test (ported as sight); the Rebel rifle rate is still ~10x.
+- 2026-11-23 M10 closed (60%): bot weapons, multishot fan, the pistol re-arm bug, burst keys and inheritance match the original;
+  Uncertain: the AI firing rhythm (rifle runs of 2-3 shots in the original) and so the Rebel death rate. Next: M11, vehicles.

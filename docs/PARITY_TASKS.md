@@ -1897,6 +1897,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 want (2026-11-23): 08943020 sets the want flag from the target's vfunc +104 ray test (reach 1000). Sight alone does not
     explain the 2-3 shot runs. Next: read the soldier class's vfunc +104 (what it tests) - if not quick, carry this to the
     Uncertain list and move on to M11.
+  - M10 closed (2026-11-23) with the AI firing rhythm Uncertain: the original's rifle bots fire 2-3 shot runs then stop 1-4 s,
+    Aurek's stream; the want flag's vfunc +104 is a lead-aim solver (08A05718), not a sight ray (sight test removed). Leads
+    for later: the fire node 0893F2F8's other exits (target re-choice each run?), the aim turn (a bot must face within 7.5
+    degrees: its turning speed may break the gate), the lead point itself.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
