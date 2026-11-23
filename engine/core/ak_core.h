@@ -80,6 +80,7 @@ u32 ak_hash_name(const char *s);    /* FNV-1a over lower-cased bytes, '/' == '\\
 #define AK_SMALL_MEMORY 1
 #define AK_HAS_ARAM 1                  /* sounds kept in the GameCube's audio memory */
 #define AK_HAS_MEMCARD 1               /* saves on the memory card: no writable file system assumed (a disc, an SD card) */
+#define AK_HAS_MOVIES 1                /* the game's movies, converted to THP (platform/gc/movie_gc.c) */
 #else
 #define AK_SMALL_MEMORY 0
 #ifdef AK_ARAM_TEST

@@ -23,8 +23,9 @@
  * WAV.  RS_CONV_NO_VIDEO: no movie conversion in this build (no FFmpeg); the movies are left as they are. */
 #ifdef RS_CONV_ADPCM
 #include "rs_adpcm.h"
-#define AUDIO_EXT ".adp"
-#define ADPCM_BUILD 1
+int rs_conv_pcm;   /* the conversion tool's Vita target: 16-bit WAV audio (the Vita's), in an ADPCM-capable build */
+#define AUDIO_EXT (rs_conv_pcm ? ".wav" : ".adp")
+#define ADPCM_BUILD (!rs_conv_pcm)
 #else
 #define AUDIO_EXT ".wav"
 #define ADPCM_BUILD 0
@@ -43,7 +44,7 @@ void *rs_at3p_alloc(int ch, int ba); int rs_at3p_decode(void *c, float *l, float
 void *rs_at3_alloc(int ch, int ba, const unsigned char *extra, int extra_size); int rs_at3_decode(void *c, float *l, float *r, int *ns, const unsigned char *buf, int size); void rs_at3_free(void *c);
 
 #ifdef RS_CONV_ADPCM
-#define MANIFEST_VERSION (rs_conv_thp ? "rsconv 3g" : "rsconv 3a")   /* (ADPCM: never mixed with a WAV manifest; 3g: the GameCube's, with THP movies) */
+#define MANIFEST_VERSION (rs_conv_pcm ? "rsconv 3" : rs_conv_thp ? "rsconv 3g" : "rsconv 3a")   /* (ADPCM: never mixed with a WAV manifest; 3g: the GameCube's, with THP movies; the tool's Vita target writes the Vita's own) */
 #else
 #define MANIFEST_VERSION "rsconv 3"
 #endif   /* 3: sound bundles (.AM) -> one WAV per sound; 2: videos in the Vita movie format (AAC 160 kbps, moov first); older manifests keep their audio */
@@ -51,6 +52,9 @@ void *rs_at3_alloc(int ch, int ba, const unsigned char *extra, int extra_size); 
 /* the GameCube (set by the conversion tool's "gc" target, ADPCM builds): the movies too, PMF -> THP (tools/conversion_tool/thp.c) */
 int rs_conv_thp;
 int rs_conv_thp_file(const char *src, const char *tmp, uint64_t *out_size, void (*work)(uint64_t)) __attribute__((weak));
+/* the conversion tool's Vita target: the movies in the Vita movie format through FFmpeg's command-line tool (tools/conversion_tool/thp.c) */
+int rs_conv_mp4_cli;
+int rs_conv_mp4_file(const char *src, const char *tmp, uint64_t *out_size, void (*work)(uint64_t)) __attribute__((weak));
 typedef struct { char rel[256]; char src[1100]; int kind; unsigned size; uint32_t sig; uint64_t out_size; int state; } job_t;   /* kind 0 audio, 1 video, 2 sound bundle; state 0 ok, 1 todo, 2 done, 3 failed */
 static job_t jobs[MAXJOB]; static int njobs, next_job;
 static char g_root[1024], g_out[1024], g_iso[1024];
@@ -72,7 +76,7 @@ static void mkdirs(const char *path){            /* mkdir -p of the folder part 
 static const char *kind_ext(int kind){ return kind == 1 ? (rs_conv_thp ? ".thp" : ".mp4") : (kind == 2 ? ".idx" : AUDIO_EXT); }
 static void out_path(char *o, size_t cap, const char *rel, int kind){ snprintf(o, cap, "%s/%s%s", g_out, rel, kind_ext(kind)); }
 /* a bundle's sounds: <out>/<bundle>.d/<offset of the sound's RIFF header in the bundle, 8 hex digits>.wav */
-static void bundle_wav_path(char *o, size_t cap, const char *rel, uint32_t off){ snprintf(o, cap, "%s/%s.d/%08X" AUDIO_EXT, g_out, rel, off); }
+static void bundle_wav_path(char *o, size_t cap, const char *rel, uint32_t off){ snprintf(o, cap, "%s/%s.d/%08X%s", g_out, rel, off, AUDIO_EXT); }
 
 const char *rs_convert_output_for(const char *full, const char *ext){
     static __thread char buf[1300];
@@ -115,7 +119,7 @@ static void scan(const char *full, const char *rel, int depth){
         int isdir = 0; unsigned size = 0; if (vfs_stat(sub, &isdir, &size)) continue;
         if (isdir) { if (depth < 8) scan(sub, r, depth + 1); continue; }
         size_t l = strlen(r); int kind = -1;
-        if (l > 4 && !strcmp(r + l - 4, ".AT3")) kind = 0; else if (l > 4 && !strcmp(r + l - 4, ".PMF")) kind = rs_conv_thp ? 1 : VIDEO_KIND; else if (l > 3 && !strcmp(r + l - 3, ".AM")) kind = 2;
+        if (l > 4 && !strcmp(r + l - 4, ".AT3")) kind = 0; else if (l > 4 && !strcmp(r + l - 4, ".PMF")) kind = (rs_conv_thp || rs_conv_mp4_cli) ? 1 : VIDEO_KIND; else if (l > 3 && !strcmp(r + l - 3, ".AM")) kind = 2;
         if (kind < 0 || njobs >= MAXJOB) continue;
         job_t *j = &jobs[njobs++]; memset(j, 0, sizeof *j); snprintf(j->rel, sizeof j->rel, "%s", r); snprintf(j->src, sizeof j->src, "%s", sub); j->kind = kind; j->size = size; }
     vfs_closedir(d); }
@@ -437,8 +441,9 @@ static int conv_bundle(job_t *j, const char *tmp, uint64_t *out_size){
                 if (fwrite(pcm, 2u * (size_t)a.ch, (size_t)ns, o) != (size_t)ns) err = -5; }
             if (fclose(o)) err = -5;
 #ifdef RS_CONV_ADPCM
+            if (rs_conv_pcm) { if (!err) { remove(w); if (rename(wt, w)) err = -11; } else remove(wt); } else {
             if (!err) { uint64_t as = 0; remove(w); if (rs_adp_from_wav(wt, w, &as)) err = -6; else data_bytes = (uint32_t)as - 44u; }
-            remove(wt);
+            remove(wt); }
 #else
             if (!err) { remove(w); if (rename(wt, w)) err = -11; } else remove(wt);
 #endif
@@ -464,9 +469,9 @@ static void *worker(void *arg){
         job_t *j = &jobs[i]; char o[1300], t[1320]; out_path(o, sizeof o, j->rel, j->kind); snprintf(t, sizeof t, "%s.part", o); mkdirs(o);
         uint64_t sz = 0; int rc;
 #ifdef RS_CONV_ADPCM
-        if (j->kind == 0) { char tw[1340]; snprintf(tw, sizeof tw, "%s.wav", t); rc = conv_audio(j, tw, &sz); if (!rc) rc = rs_adp_from_wav(tw, t, &sz) ? -6 : 0; remove(tw); } else
+        if (j->kind == 0 && !rs_conv_pcm) { char tw[1340]; snprintf(tw, sizeof tw, "%s.wav", t); rc = conv_audio(j, tw, &sz); if (!rc) rc = rs_adp_from_wav(tw, t, &sz) ? -6 : 0; remove(tw); } else
 #endif
-        rc = j->kind == 1 ? (rs_conv_thp ? rs_conv_thp_file(j->src, t, &sz, add_work) : conv_video(j, t, &sz)) : (j->kind == 2 ? conv_bundle(j, t, &sz) : conv_audio(j, t, &sz));
+        rc = j->kind == 1 ? (rs_conv_thp ? rs_conv_thp_file(j->src, t, &sz, add_work) : rs_conv_mp4_cli ? rs_conv_mp4_file(j->src, t, &sz, add_work) : conv_video(j, t, &sz)) : (j->kind == 2 ? conv_bundle(j, t, &sz) : conv_audio(j, t, &sz));
         if (rc == 0) { remove(o); if (rename(t, o)) rc = -11; }
         if (rc) { remove(t); fprintf(stderr, "[CONV] %s failed (%d)\n", j->rel, rc); }
         else fprintf(stderr, "[CONV] %s -> %llu bytes\n", j->rel, (unsigned long long)sz);

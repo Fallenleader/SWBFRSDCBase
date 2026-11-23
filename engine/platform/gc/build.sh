@@ -19,7 +19,7 @@ OPT=(-O3 -DGEKKO -DAK_GFX_KEEPS -mogc -mcpu=750 -meabi -mhard-float -fomit-frame
 INC=(-I "$engine" -I "$DKP/libogc/include")
 build_id=$(git -C "$engine" describe --always --dirty=+ 2>/dev/null || echo unknown)
 src=$(grep -o 'add_library(akcore STATIC [^)]*' "$engine/CMakeLists.txt" | cut -d' ' -f3-)
-src="$src app/viewer.c app/play.c app/play_sound.c app/hud.c app/frontend.c app/gc_screen.c platform/gc/plat_gc.c platform/gc/gfx_gx.c platform/gc/dvd_fst.c"
+src="$src app/viewer.c app/play.c app/play_sound.c app/hud.c app/frontend.c app/gc_screen.c platform/gc/plat_gc.c platform/gc/gfx_gx.c platform/gc/dvd_fst.c platform/gc/movie_gc.c"
 objs=()
 for f in $src; do
   o="$out/obj/$(echo "$f" | tr / _).o"; extra=()

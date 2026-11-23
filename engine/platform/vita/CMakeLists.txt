@@ -39,7 +39,7 @@ add_executable(aurek
 set_source_files_properties(${E}/game/ak_gc_ai.c PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-ffp-contract=off")
 add_dependencies(aurek independence)
 target_compile_definitions(aurek PRIVATE AK_BUILD_ID="${AK_GIT_ID}")
-target_link_options(aurek PRIVATE ${AK_VITA_OPT} -Wl,--gc-sections -Wl,-O1 -Wl,--sort-common)
+target_link_options(aurek PRIVATE ${AK_VITA_OPT} -Wl,--gc-sections -Wl,-O1 -Wl,--sort-common -Wl,-T,${CMAKE_CURRENT_SOURCE_DIR}/sce_gap.ld)
 target_link_libraries(aurek vitashark SceShaccCg_stub SceShaccCgExt taihen_stub SceGxm_stub SceDisplay_stub SceCtrl_stub ScePower_stub
                       SceSysmodule_stub SceNpTrophy_stub SceCommonDialog_stub SceKernelDmacMgr_stub SceIofilemgr_stub SceAppMgr_stub SceAudio_stub m)
 

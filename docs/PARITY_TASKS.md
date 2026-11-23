@@ -1613,6 +1613,7 @@ textures and how they are used. Section R lists only what must be in place so th
   - GameCube (2026-11-22): runs in Dolphin from a disc image (make_gcm.py, own apploader, dvd: device); every Classic level fits; front end not yet.
   - HUD / camera on non-16:9 screens (2026-11-22): anchored HUD, width-keeping FOV; faint GX palettes; flyers rest on their lowest point.
   - GameCube media and saves (2026-11-22): memory card saves (libogc CARD, sector-by-sector: CARD_Write writes one sector per call), the on-screen keyboard for the player name, and the conversion tool's gc target (THP movies, letterboxed 4:3; DSP-ADPCM audio); make_gcm.py packs converted/ and drops or trims the originals it replaces. Movie playback in the engine is still to do.
+  - Media per console (2026-11-22): conversion tool `vita` target (WAV + MP4 through FFmpeg's CLI), per-console scripts writing Converted/<console>, GameCube THP playback (TEV YUV->RGB, sound on its own AESND voice, picture follows the sound); AESND buffers made whole 1152-byte transfers (the GameCube's own sound lost 11% to padding before); AK_HIDE_DEBUG=1 by default on every build. Wii U media scheduled (11.3).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
@@ -1955,6 +1956,17 @@ textures and how they are used. Section R lists only what must be in place so th
 ## 10. Network and server (1.11)
 
 - [ ] **10.1** The RS server protocol, hosting, and dedicated server mode.
+
+## 11. Platform media (converted audio and movies per console)
+
+- [x] **11.1 GameCube** [done 2026-11-22]: DSP-ADPCM audio and THP movies (conversion tool `gc`), played by `platform/gc/movie_gc.c`.
+- [x] **11.2 Vita** [done 2026-11-22]: the conversion tool's `vita` target writes the Vita port's own format (WAV, MP4). Aurek's Vita build
+  does not play movies yet.
+- [ ] **11.3 Wii U** [scheduled for later, owner's request 2026-11-22]: converted audio and video for the Wii U build. To decide: the audio
+  format its AX voices take (DSP-ADPCM as the GameCube's, or 16-bit PCM), the movie format and player (THP decoded on the CPU as on
+  the GameCube, or H.264 through the console's own decoder), a `wiiu` target in the conversion tool and a Convert_WiiU script writing
+  Converted/WiiU.
+- [ ] **11.4** The script FMV node (type 28, `fmv/<name>.pmf`) plays the movie on devices that can (its name is not parsed yet).
 
 ---
 

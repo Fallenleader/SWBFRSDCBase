@@ -7,9 +7,9 @@ Put this script in a folder with:
     the game, one of:    GAME/PSP_GAME/...  (the UMD's files, as extracted)
                          PSP_GAME/...       (the same without the GAME folder)
                          game.iso           (or any other PSP .iso: the UMD image; its files are unpacked onto the disc)
-    converted/           (optional) the game's media in the GameCube's own formats, as the SWBFRS Conversion Tool's "gc" target
-                         writes it (SWBFRS_ConversionTool.exe next to aurek.dol: music, voices and effects as DSP-ADPCM .adp,
-                         the movies as THP)
+    converted/           (optional) the game's media in the GameCube's own formats (music, voices and effects as DSP-ADPCM .adp,
+                         the movies as THP), as the SWBFRS Conversion Tool writes it: Converted/GameCube here, or in the tool's
+                         folder beside this one (its Convert_GameCube script), or converted/ here
 and run it with no arguments:
 
     python make_gcm.py                       ->  Aurek_GC.iso next to it
@@ -113,6 +113,22 @@ def iso_tree(iso, disc, skip_update=False):
         walk(struct.unpack_from('<I', root, 2)[0], struct.unpack_from('<I', root, 10)[0], '')
     return [(disc + '/' + p[len('PSP_GAME/'):], iso, o, n) for p, o, n in out if p.upper().startswith('PSP_GAME/')]
 
+def find_converted(d):
+    """the GameCube's converted media: converted/ or Converted/GameCube here, else Converted/GameCube in a folder beside this one
+    (the conversion tool's own folder, where its Convert_GameCube script writes)"""
+    c = find_ci(d, 'converted')
+    if c and os.path.isdir(c):
+        g = find_ci(c, 'GameCube')
+        if g and os.path.isdir(g): return g
+        if find_ci(c, 'PSP_GAME'): return c
+    up = os.path.dirname(d)
+    for n in sorted(os.listdir(up)) if os.path.isdir(up) else []:
+        s = os.path.join(up, n)
+        if os.path.isdir(s) and os.path.abspath(s) != os.path.abspath(d):
+            c = find_ci(s, 'converted'); g = c and find_ci(c, 'GameCube')
+            if g and os.path.isdir(g) and find_ci(g, 'PSP_GAME'): return g
+    return None
+
 def find_ci(folder, name):
     """a file or folder in folder by name, any letter case"""
     if not os.path.isdir(folder): return None
@@ -176,7 +192,7 @@ def main():
     have = {t[0].upper() for t in files}
     missing = [n for n in need if not any(h.startswith(('GAME/PSP_GAME/' + n).upper()) for h in have)]
     if missing: sys.exit('the game %s lacks %s: is it the whole UMD?' % (psp, ', '.join(missing)))
-    conv = a.converted or find_ci(d, 'converted')
+    conv = a.converted or find_converted(d)
     saved = 0; replaced = 0
     if conv and os.path.isdir(conv):
         cfiles = [t for t in tree_of(conv, 'converted') if t[0].upper() != 'CONVERTED/MANIFEST.TXT' and not t[0].upper().endswith('.PART')]
@@ -271,7 +287,7 @@ def main():
     os.replace(tmp, out)
     print('%s: %.1f MB (%s, ID %s)' % (out, total / 1048576, a.region, gid))
     print('  in it: %s, %s%s; %d files under /aurek' % (os.path.basename(dol_path), what,
-          (', settings.txt' if settings else ', no settings.txt (the defaults)') + (', converted/' if conv else ''), len(placed)))
+          (', settings.txt' if settings else ', no settings.txt (the defaults)') + (', converted media from %s' % conv if conv else ', no converted media (no music, voices or movies)'), len(placed)))
     if conv: print('  %d originals left out or cut to what the engine reads (their converted copies are on the disc): %.1f MB saved' % (replaced, saved / 1048576))
 
 if __name__ == '__main__':

@@ -52,6 +52,11 @@ bool ak_plat_memcard_write(const char *key, const char *title, const void *data,
 s32  ak_plat_memcard_read(const char *key, void *buf, u32 cap);
 bool ak_plat_memcard_delete(const char *key);
 #endif
+#ifdef AK_HAS_MOVIES
+/* a movie in the device's converted format (the GameCube: THP), full screen at its own shape, START / CROSS skips; blocks until it
+ * ends.  false: it could not be played (not there, not readable, no memory). */
+bool ak_plat_movie_play(const char *path);
+#endif
 #ifdef AK_HAS_ARAM
 /* the GameCube's ARAM: a store returns its address (0 = full; 512 bytes after each may be read); reads are 32-byte aligned both
  * sides, n a multiple of 32 */

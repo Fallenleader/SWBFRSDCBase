@@ -184,6 +184,22 @@ int main(int argc, char **argv)
         }
         else AK_WARN("audio", "no SOUNDS/GMSND.ASR (copy the game's SOUNDS folder next to ENVS): shared sounds missing"); }
     bool have_mus = ak_arena_init(&musmem, 64u << 10);                      /* (a track's header only: its delay and loop) */
+#ifdef AK_HAS_MOVIES
+    {   /* the movies at start (the game's "opening_logos", BOOT.BIN 0x2D7BA4 [assumed: the only one at start]), then AK_MOVIE_TEST's;
+         * from the converted copies (converted/PSP_GAME/USRDIR/FMV/<NAME>.PMF.thp), while the level's memory is still free */
+        char list[256]; snprintf(list, sizeof list, "%s %s", ak_setting_str("AK_INTRO_MOVIES", "OPENING_LOGOS"), ak_setting_str("AK_MOVIE_TEST", ""));
+        for (char *tok = strtok(list, " ,"); tok; tok = strtok(NULL, " ,")) {
+            bool ok = false;
+            for (int i = 0; i < nd && !ok; i++) {
+                char path[512]; int o = snprintf(path, sizeof path, "%s/converted/PSP_GAME/USRDIR/FMV/", dirs[i]);
+                for (const char *c = tok; *c && o < (int)sizeof path - 12; c++) path[o++] = (*c >= 'a' && *c <= 'z') ? (char)(*c - 32) : *c;
+                snprintf(path + o, sizeof path - (size_t)o, ".PMF.thp");
+                FILE *t = fopen(path, "rb"); if (!t) continue; fclose(t);
+                ok = ak_plat_movie_play(path); }
+            if (!ok) AK_INFO("movie", "%s: no converted copy (the conversion tool's GameCube target writes converted/PSP_GAME/USRDIR/FMV/%s.PMF.thp)", tok, tok);
+        }
+    }
+#endif
     FILE *dumpf = NULL; u32 dump_frames = 0; ak_blob b_level_keep = { 0 };
     if (getenv("AK_AUDIO_DUMP")) { dumpf = fopen(getenv("AK_AUDIO_DUMP"), "wb"); if (dumpf) { static const u8 z[44]; fwrite(z, 1, 44, dumpf); } }
     {   /* the level's arena: AK_LEVEL_MB, or 0 = all the memory left but AK_LEVEL_RESERVE_KB (the consoles with little memory) */
@@ -203,7 +219,7 @@ int main(int argc, char **argv)
     const char *shot = ak_setting_str("AK_SCREENSHOT", NULL);
     int shot_frame = ak_setting_int("AK_SCREENSHOT_FRAME", 3), frame = 0;
     const char *camset = ak_setting_str("AK_CAMERA", NULL);
-    bool show = ak_setting_int("AK_SHOW_FIGURES", 1) != 0;
+    bool show = ak_setting_int("AK_HIDE_DEBUG", 1) == 0;   /* the on-screen debug text (figures, level, position, controls): hidden unless AK_HIDE_DEBUG=0; SELECT + R toggles it */
 
     ak_level level; ak_scene_level scene; camera cam; bool loaded = false;
     ak_model_set models; ak_scene_models mscene; u32 *gallery = NULL; u32 ngallery = 0, gsel = 0; bool gallery_on = ak_setting_int("AK_GALLERY", 0) != 0;

@@ -240,3 +240,27 @@ int rs_conv_thp_file(const char *src, const char *tmp, uint64_t *out_size, void 
 out:
     free(pcm); remove(pmf); if (!getenv("RS_THP_KEEP")) { remove(w44); remove(w32); }   /* (RS_THP_KEEP: the sound's WAVs kept, for checking) */
     return rc; }
+
+/* ---- PMF -> MP4, the Vita movie format (the tool's "vita" target): exactly what the Vita port's own first-start conversion writes
+ * (platform/common/convert.c conv_video): the H.264 copied as it is (the PSP's streams are already inside the Vita's limits), the
+ * ATRAC3plus decoded here and lined up with the first picture as above, AAC-LC 160 kbit/s 44.1 kHz stereo, the moov box first.
+ * FFmpeg's command-line tool does the muxing and the AAC (it cannot read the PMF's ATRAC3plus itself). */
+int rs_conv_mp4_file(const char *src, const char *tmp, uint64_t *out_size, void (*work)(uint64_t)){
+    char pmf[1400], w44[1400]; snprintf(pmf, sizeof pmf, "%s.pmf", tmp); snprintf(w44, sizeof w44, "%s.44.wav", tmp);
+    int rc = 0; uint64_t size = 0;
+    { FILE *in = vfs_fopen(src, "rb"), *o = in ? fopen(pmf, "wb") : 0; if (!o) { if (in) fclose(in); return -1; }
+      uint8_t *cb = malloc(1 << 20); size_t n; while (cb && (n = fread(cb, 1, 1 << 20, in)) > 0) { fwrite(cb, 1, n, o); size += n; } free(cb); fclose(in); if (fclose(o) || !cb) { remove(pmf); return -4; } }
+    work(size / 3);
+    int has_audio = 0, ach = 2; rc = demux_audio(pmf, w44, &has_audio, &ach);
+    if (!rc) {
+        work(size / 3);
+        char a[4800], i1[1500], i2[1500], o1[1500]; q(i1, sizeof i1, pmf); q(i2, sizeof i2, w44); q(o1, sizeof o1, tmp);
+        if (has_audio) snprintf(a, sizeof a, "-hide_banner -v error -y -fflags +genpts -i %s -i %s -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -profile:a aac_low -b:a 160k -ar 44100 -ac 2 "
+                                "-movflags +faststart -f mp4 %s", i1, i2, o1);
+        else snprintf(a, sizeof a, "-hide_banner -v error -y -fflags +genpts -i %s -map 0:v:0 -c:v copy -an -movflags +faststart -f mp4 %s", i1, o1);
+        FILE *p = run(a, "r"); int prc = p ? pclose(p) : -1;
+        if (prc != 0) { fprintf(stderr, "[CONV] FFmpeg could not write the movie %s (exit %d)\n", src, prc); rc = -26; }
+        else { struct stat st; if (stat(tmp, &st) == 0 && st.st_size > 0) *out_size = (uint64_t)st.st_size; else rc = -10; }
+        work(size - size / 3 * 2); }
+    remove(pmf); if (!getenv("RS_THP_KEEP")) remove(w44);
+    return rc; }

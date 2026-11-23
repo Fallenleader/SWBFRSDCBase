@@ -37,8 +37,9 @@ AK_LOG=2
 # ---- start
 # level shown first, as "<ERA> <MAP>" (eras: CLASSIC, PREQUEL, CAMPAIGN)
 AK_LEVEL=CLASSIC HOTH
-# figures on screen at start (fps, frame time, draws, triangles, GPU wait)
-AK_SHOW_FIGURES=1
+# 1 = hide the on-screen debug information (fps and timings, level, counts, position, the controls list); 0 = show it.
+# SELECT + R shows / hides it while playing.
+AK_HIDE_DEBUG=1
 # 1 = start in the model gallery
 AK_GALLERY=0
 

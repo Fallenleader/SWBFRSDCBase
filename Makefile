@@ -212,7 +212,7 @@ decktest: build/data.c $(decktest_OBJ)
 	@mkdir -p $(decktest_B)/SWBFRS
 	$(ZIG) c++ -target x86_64-linux-gnu.2.31 -o $(decktest_B)/SWBFRS/swbfrs $(decktest_OBJ) $(call FF_LIBS,lin) /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0 -lm -lpthread -ldl -Wl,--gc-sections
 
-# ---- SWBFRS Conversion Tool (tools/conversion_tool): the device media prepared on the PC (3DS: audio -> DSP-ADPCM; GameCube: that + movies -> THP)
+# ---- SWBFRS Conversion Tool (tools/conversion_tool): the device media prepared on the PC (Vita: WAV + MP4; 3DS: DSP-ADPCM; GameCube: DSP-ADPCM + THP movies)
 #   make conversion_tool -> build/conversion_tool/SWBFRS_ConversionTool.exe (Windows x64) and SWBFRS_ConversionTool (Linux x86-64)
 CT_SRC := tools/conversion_tool/main.c tools/conversion_tool/thp.c $(C)/convert.c $(C)/rs_adpcm.c $(C)/vfs.c
 CT_DEFS := -DRS_CONV_ADPCM -DRS_CONV_NO_VIDEO -DHOST_BUILD -I$(C) -I$(C)/ext/at3 -Isrc/game -O2 -w
@@ -222,3 +222,4 @@ conversion_tool:
 	for f in $(CT_SRC); do $(ZIG) cc -target x86_64-windows-gnu -std=gnu11 -include platform/desktop/win_compat.h -D_FILE_OFFSET_BITS=64 $(CT_DEFS) -c $$f -o build/conversion_tool/win/$$(basename $$f .c).o || exit 1; done
 	$(ZIG) c++ -target x86_64-windows-gnu -static -o build/conversion_tool/SWBFRS_ConversionTool.exe build/conversion_tool/win/*.o -lpthread
 	$(ZIG) c++ -target x86_64-linux-gnu.2.31 -O2 -w $(CT_DEFS) -x c $(CT_SRC) -x c++ $(wildcard $(C)/ext/at3/*.cpp) -lpthread -o build/conversion_tool/SWBFRS_ConversionTool
+	cp tools/conversion_tool/scripts/* tools/conversion_tool/README.txt build/conversion_tool/

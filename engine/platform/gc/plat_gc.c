@@ -126,7 +126,9 @@ bool ak_plat_poll(ak_input *in)
 
 /* ---- audio: one streaming stereo voice.  The DSP asks for the next buffer (VOICE_STATE_STREAM, in its interrupt) and gets the one
  * the mixing thread filled; the thread is woken to fill the other.  (The engine's mixer takes locks: it must not run in the interrupt.) */
-#define ABUF_FRAMES 1024
+/* (a whole number of AESND's 1152-byte transfers: on the GameCube it copies a voice's buffer to ARAM in DSP_STREAMBUFFER_SIZE pieces and
+ * pads the last piece with silence - 4096-byte buffers lost 512 bytes of every 4608 played, a buzz and the sound 11% slow) */
+#define ABUF_FRAMES (DSP_STREAMBUFFER_SIZE)   /* 1152 stereo frames = 4 transfers */
 static s16 abuf[2][ABUF_FRAMES * 2] __attribute__((aligned(32))), silence[ABUF_FRAMES * 2] __attribute__((aligned(32)));
 static volatile int aready[2]; static int acur; static lwpq_t aq; static lwp_t athread; static volatile bool arun;
 static ak_audio_fn afn; static void *auser; static AESNDPB *voice;

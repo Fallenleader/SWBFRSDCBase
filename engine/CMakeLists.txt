@@ -32,7 +32,7 @@ endif()
 
 add_custom_target(independence ALL COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_independence.sh VERBATIM)
 
-add_library(akcore STATIC core/ak_core.c core/ak_vfs.c core/ak_settings.c assets/asura.c assets/model.c assets/entity.c assets/blueprint.c assets/gui.c game/ak_soldier.c game/ak_character.c game/ak_weapon.c game/ak_conquest.c game/ak_ctf.c game/ak_gc.c game/ak_gc_ai.c game/ak_script.c game/ak_vehicle.c game/ak_space.c game/ak_turret.c game/ak_projectile.c game/ak_pfx.c game/ak_path.c game/ak_loco.c world/ak_collision.c world/ak_nav.c render/ak_scene.c audio/ak_audio.c audio/ak_music.c audio/ak_speech.c audio/ak_adp.c)
+add_library(akcore STATIC core/ak_core.c core/ak_vfs.c core/ak_settings.c assets/asura.c assets/model.c assets/entity.c assets/blueprint.c assets/gui.c game/ak_soldier.c game/ak_character.c game/ak_weapon.c game/ak_conquest.c game/ak_ctf.c game/ak_gc.c game/ak_gc_ai.c game/ak_script.c game/ak_vehicle.c game/ak_space.c game/ak_turret.c game/ak_projectile.c game/ak_pfx.c game/ak_path.c game/ak_loco.c world/ak_collision.c world/ak_nav.c render/ak_scene.c audio/ak_audio.c audio/ak_music.c audio/ak_speech.c audio/ak_adp.c video/ak_thp.c)
 # The GC AI ranks plans by float scores that must round as the PSP's single-precision code does (no fused multiply-add)
 set_source_files_properties(game/ak_gc_ai.c PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-ffp-contract=off")
 target_include_directories(akcore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
