@@ -474,6 +474,9 @@ static void box_body_step(ak_vehicle *v, const ak_collision *col, f32 gravity, f
         box_place(v, ctr, ax, h);
         if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, probe, VEH_IGNORE, &t, n, &fl, NULL) && n[1] >= 0.70710678f) { ground = true; memcpy(gn, n, 12); }
     }
+    {   static int dv = -1; if (dv < 0) dv = ak_setting_int("AK_DEBUG_VEH", 0);   /* tests (3): a box body losing its footing */
+        if (dv >= 3 && v->on_ground && !ground) AK_INFO("veh", "%s leaves the ground at %.2f %.2f %.2f, vel %.2f %.2f %.2f", d->name ? d->name : "?", v->pos[0], v->pos[1], v->pos[2], v->vel[0], v->vel[1], v->vel[2]);
+        if (dv >= 3 && !ground && v->vel[1] < -30.0f && v->vel[1] > -30.2f) AK_INFO("veh", "%s falling fast at %.2f %.2f %.2f", d->name ? d->name : "?", v->pos[0], v->pos[1], v->pos[2]); }
     v->on_ground = ground;
     if (ground) { memcpy(v->ground_n, gn, 12); if (v->vel[1] < 0) v->vel[1] = 0; }
     f32 nf = gn[0] * fx + gn[2] * fz, nr = gn[0] * rx + gn[2] * rz;            /* lean with the footing */

@@ -236,3 +236,5 @@ Reports fall after M5, M10 and M15.
   drives the original's AT-ST at the start.
 - 2026-11-23 M11: the original's AT-ST start varies by run (moving by 10 s in one, still parked at 11 s in the next) - one
   sample is not enough; left as is. Next: the T4B, the flyers and the rest, then close M11.
+- 2026-11-23 M11: BUG found - Aurek's bot-driven Carrion_Spat creatures and a T4B tank fall out of the level after boarding.
+  Next session: fix it first.

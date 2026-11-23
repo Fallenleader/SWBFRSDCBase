@@ -1914,6 +1914,10 @@ textures and how they are used. Section R lists only what must be in place so th
     moving within 5 s, Aurek about 15 s): trace who drives it in the original (its driver handle / when a bot boards) next.
   - M11 AT-ST (2026-11-23): the original's AT-ST start time varies between harness runs (moving by 10 s once, parked past 11 s
     the next), so Aurek's 25 s is not shown to be wrong; a repeated comparison (several runs each) is owed.
+  - M11 BUG (2026-11-23): bot-driven Carrion_Spat and T4B fall out of the level in Aurek (not on the ground after boarding).
+    Fix first: find why a boarded box body stops colliding (boarding resets settled? a flyer flag? the push at play.c:157
+    straight into the level for the player's vehicle only) - then map the original's classes 0x801E / 0x801D to Aurek's
+    vehicles and compare their movement.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
