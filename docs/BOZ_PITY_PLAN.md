@@ -87,3 +87,13 @@ Reports fall after M5, M10 and M15.
   - Uncertain: the Vita path has not run on hardware (NV12 layout, the player's start-up); whether the Vita keeps up with the THP
     CPU decoder when only THPs are present.
   Next: M2, the main menu fully functional (every page reachable from it and its scripts, against the harness original).
+- 2026-11-23 (M2 started): the profile prompt's flows match the original side by side (tools/harness/fe_compare.py): Yes -> the
+  save dialogue (cancel -> Load Canceled / Back; a saved profile -> Load Successful + autosave notes -> Continue -> main menu), No
+  -> New Profile (name box + keyboard) -> Select Difficulty -> Save Profile -> the save dialogue -> Profile Saved -> main menu.
+  The main menu's Single Player, Options and Learn To Play pages match.
+  - Hard facts: BFF.FE.ProfileLoadAndSaveResult values (the game's own text); ProfileAutosaveOn starts on; pages run OnOpen;
+    the name box is a focusable text box opening the keyboard; the game's save slots are "%04d" (5 seen in the harness).
+  - Uncertain: the PSP dialogue's own look and rules (Aurek's stand-in: 5 slots, empty ones listed); whether a save clears the
+    profile's changed flag (+6); OnClose's exact moment; a small line-wrap difference in long texts (font metrics).
+  Next: the Options sub-pages (Controls, Difficulty, Audio, Videos, Medals, Profile Management), Learn To Play's movies
+  (with SUBTITLE\*.ASR), the Single Player pages up to the Instant Action map list.
