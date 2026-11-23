@@ -273,3 +273,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M10: the friendly-in-the-line test ported (a teammate within 0.5 of the line in front blocks a burst).
 - 2026-11-23 Measured over 6 minutes: the original's posts change hands 2-3 times (first at 146-300 s) and both sides lose
   50-90 tickets; Aurek's ~20 times (first at 75-86 s) with ~30 lost each. Next: the AI's goal choice and fighting time.
+- 2026-11-23 M10: the original's squads over 3 min - most Alliance soldiers have no squad, its squads mostly stand, the Empire
+  sends most to one post; Aurek sends every bot to the nearest post it lacks. Next: the commander 089279D4.

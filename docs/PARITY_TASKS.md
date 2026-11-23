@@ -1995,6 +1995,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - Capture rate (2026-11-23, measured): the original over 360 s, idle player: 2-3 post owner changes (first at 146 s / 300 s),
     tickets -46..-62 / -56..-92; Aurek ~20 changes (first at 75-86 s), about -30 / -30. Next: the AI's goal choice (who goes to which
     post, how many) and how long bots fight before moving on, against the original (RS_AI_BOTS=1 logs each bot's goal / squad).
+  - Squads measured (2026-11-23, Boz Pity 3 min, pure AI): Alliance 65 % of living soldiers in no squad, its squads 64 % standing;
+    Empire 61 % ordered to post 100006 (0x3F2). Aurek sends every bot to a post. Next: read the commander 089279D4 (08926478's
+    callers, the post choice and timing), order 0x3F0 and its 2000xx targets, and the no-squad soldier's behaviour.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
