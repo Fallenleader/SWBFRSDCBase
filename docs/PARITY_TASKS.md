@@ -1641,6 +1641,11 @@ textures and how they are used. Section R lists only what must be in place so th
   - Pictures with flags 0 are hidden (the Personalize logos). Uncertain: the original's draw check itself is not traced; the rule
     is read from frames. Other flag-0 widgets: Multiplayer status labels, MP_SelectControls' nav D pictures, CUSTOMISATION's
     E_TXT_Prompts (texts; left as they were).
+  - FE_Customisation_ListCarouselAnims traced (08A28388): per category s2 (0..4, table 0x08ADFC84), the row's object (0x08ADC5E8...)
+    in the player's faction's version (08A23598); its component 0xD0CDC21C (0881C3E0) gives two ints (0xE9772A8D, 0xDC090FF0) and an
+    offset (floats 0x99602006/7/8); handed to the widget as {0xC91B7788, int, int, 1, offset x3, category == 3, 1, offset x3}.
+    Uncertain: what the two ints are (model / animation?), the offset's use; the soldier preview (E_Anim_AppDisplay) still needs a
+    play state (a level) in Aurek.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

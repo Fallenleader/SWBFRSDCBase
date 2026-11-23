@@ -127,3 +127,6 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M3 started: Customization menu matches (faction logos fixed); the load-out page's lists, costs and credits match the
   original side by side. Next: the carousel's 3D items and the soldier preview (FE_Customisation_ListCarouselAnims / the model
   widgets), then personalisation, then the loadouts in game.
+- 2026-11-23 M3: the menus' own models (BFF_MAINMENU.GUI, 234 meshes) load with the front end, as the original's (no level
+  opened for the menus). Next: check the carousel items against the original, the soldier preview without a level, then
+  personalisation and the loadouts in game.

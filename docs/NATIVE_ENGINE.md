@@ -452,6 +452,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Customization menu logos (M3) | Each Personalize button on MP_MCustomisationMenu holds four faction logos from gc_tech_elements.tga. One has flags 0x43F and the other three have flags 0. Aurek drew all four on top of each other, which read as a white circle. Pictures with no flags at all are now hidden, so each button shows its own faction's emblem as in the original's frame. Compared side by side: the Customization menu and the load-out page now match. Still missing: the carousel's 3D item models and the soldier preview. |
 
+| Menu models (M3) | The original opens no level for the menus (strace on the harness original as far as the load-out page: no ENVS file read). The customisation menu's models are in BFF_MAINMENU.GUI itself: 234 meshes (soldiers by faction and class with their L1 / L2 levels of detail, skeletons, the items). Aurek now loads them at front-end start into their own arena (AK_FE_MODELS, AK_FE_MODELS_MB 12). The file has no level geometry, so ak_level_parse's false is ignored once its textures are read. Only its textures go to the GPU, as a scene level of textures alone (viewer.c fe_scene_textures). The model widgets (carousel items, second weapon) draw from these models when no level is loaded. Before, they were empty until a level had been played. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |

@@ -164,6 +164,15 @@ static void subs_draw(double t, int w, int h, void *ud)
         return;
     }
 }
+/* the menus' model file has no level geometry: only its textures go to the GPU, a scene level of textures alone for the models */
+static ak_scene_level fe_mscl;
+static bool fe_scene_textures(const ak_level *l, ak_arena *a)
+{
+    memset(&fe_mscl, 0, sizeof fe_mscl); fe_mscl.level = l;
+    fe_mscl.tex = AK_NEW(a, ak_gfx_tex *, l->ntex ? l->ntex : 1); if (!fe_mscl.tex) return false;
+    for (u32 i = 0; i < l->ntex; i++) fe_mscl.tex[i] = ak_gfx_texture_kept((ak_texture *)&l->tex[i]);
+    return true;
+}
 static int play_game_movie_subs(const char *name, bool subs);
 static int play_game_movie(const char *name) { return play_game_movie_subs(name, false); }
 static int play_fe_movie(const char *name) { return play_game_movie_subs(name, true); }   /* (FE_PlayMovie: 08A69188 with the profile's +0x3F) */
@@ -304,7 +313,18 @@ int main(int argc, char **argv)
     { char sv[400]; snprintf(sv, sizeof sv, "%s/gc_conquest.sav", ak_plat_user_dir()); u32 m = 0;   /* a saved conquest: New / Resume */
       if (ak_save_read("conquest", sv, &m, 4) == 4 && fe_on) ak_fe_var("BFF.HasGalacticConquestBeenPlayed", 1); }
     ak_fe_set_blueprints(&bps);
-    fe_bps = &bps; ak_fe_set_model_drawer(fe_model_draw);                                         /* (the customisation menu: items, costs, descriptions) */
+    fe_bps = &bps; ak_fe_set_model_drawer(fe_model_draw);
+    static ak_arena fe_marena; static ak_level fe_mlevel; static ak_model_set fe_mset; static ak_scene_models fe_ms;
+    if (fe_on && ak_setting_int("AK_FE_MODELS", 1) && ak_arena_init(&fe_marena, (size_t)ak_setting_int("AK_FE_MODELS_MB", 12) << 20)) {
+        /* the menus' own models (the original opens no level for the menus: BFF_MAINMENU.GUI carries the soldiers, their
+           skeletons and the items - 234 meshes - and the customisation menu draws from them) */
+        ak_blob mb;
+        int st = !ak_vfs_read(vfs, "PSP_GAME/USRDIR/GUIMENU/BFF_MAINMENU.GUI", &fe_marena, &mb) ? 1 : (ak_level_parse(&mb, &fe_marena, &fe_mlevel), !fe_mlevel.tex) ? 2   /* (no level geometry here: the parse says false, its textures and meshes are read) */
+               : !ak_models_load(&fe_mlevel, &fe_marena, &fe_mset) ? 3 : !fe_scene_textures(&fe_mlevel, &fe_marena) ? 4 : !ak_scene_models_init(&fe_ms, &fe_mset, &fe_mscl, &fe_marena) ? 5 : 0;
+        if (!st) {
+            fe_models = &fe_mset; fe_mscene = &fe_ms; AK_INFO("fe", "menu models: %u from BFF_MAINMENU.GUI", (unsigned)fe_mset.nmodels);
+        } else AK_WARN("fe", "BFF_MAINMENU.GUI: no menu models (step %d)", st);
+    }                                         /* (the customisation menu: items, costs, descriptions) */
     bool fe_ingame = false, fe_after_team = false;                      /* the match's own pages (team selection, the spawn map) */
     if (!fe_on && playing && ak_setting_int("AK_PLAY_MENUS", 0) && ak_fe_init(vfs)) fe_ingame = true;   /* (tests: a match straight in, with its own pages) */
     if (fe_on || fe_ingame) ak_fe_trophies_sync();                      /* (medals earned before the trophies existed) */
