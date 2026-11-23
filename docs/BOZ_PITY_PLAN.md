@@ -142,3 +142,6 @@ Reports fall after M5, M10 and M15.
   Next: the original's own path from set 0 to the spawn, the byte check against the original's save.
 - 2026-11-23 M3 COMPLETE (customisation and loadouts), with four items on the Uncertain list (PARITY_TASKS). Next: M4, Boz Pity
   Conquest - the map, its posts, the bots and the vehicles against the original.
+- 2026-11-23 note: the milestone table above stands - M4 is Loadouts (every class's weapons and items per faction, the selection
+  rules and limits, applied at spawn), M5 Instant Action to Boz Pity (the flow), M9 the Conquest rules, M10 the AI, M11 the
+  vehicles, M13 the HUD. M3's loadout menu work (profile set 0, credits) carries into M4.
