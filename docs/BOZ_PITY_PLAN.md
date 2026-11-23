@@ -234,3 +234,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M11: the AT-AT's walk matches the original (route and 2.0 m/s within 0.1 m); the AT-ST starts later in Aurek.
 - 2026-11-23 M11: Aurek's AT-ST waits 25 s for a bot that walks 84 m to it; the original's moves within 5-10 s. Next: who
   drives the original's AT-ST at the start.
+- 2026-11-23 M11: the original's AT-ST start varies by run (moving by 10 s in one, still parked at 11 s in the next) - one
+  sample is not enough; left as is. Next: the T4B, the flyers and the rest, then close M11.
