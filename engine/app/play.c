@@ -1530,12 +1530,91 @@ static s32 squad_leader(const ak_play *p, const ak_play_bot *b)
     return -1;
 }
 
+/* ---- the AI commander (traced; constants read live on the original, Boz Pity, harness gdb tools/harness/gdb/ai_commander.py and
+ * ai_priorities.py).  One per side.  It plans when its held posts change, or every 12 s (D_08AED470).  The posts it weighs come from
+ * the links (ENTI type 22): targets = posts linked to ours that are not ours (08928170's +72), the front = our posts linked to theirs
+ * (+73); every other post weighs 0.  A target's weight (089284B4) is 0.5 (D_08AED490) x the sum of the two largest weights of its
+ * links whose other end is ours, x 0.8 / 1.0 / 2.0 (D_08AED478 / 474 / 47C) as the side holds more / as many as / fewer posts than the
+ * other (08928424: own == 0 or the other's share over half -> 2.0; the other's 0 or ours over half -> 0.8); the front's (08928980) the
+ * sum over links whose other end is theirs x 0.5 x 0.1 (D_08AED49C), 2.0 (D_08AED4A4) with one of the enemy's squads within 15 m
+ * (D_08AED4A0).  Then each squad in turn (089279D4) takes the post with the most weight / (soldiers already sent there + 1), the first
+ * squad of a plan x 5 (D_08AED468) on a target; the free squad nearest the post takes it; a target is to be taken (order 0x3F2), the
+ * front held (0x3F5).  Read live: Alliance target 100005 3.6, Empire target 100006 9.0, fronts 0.45 - each side's squads go mostly
+ * at the one post across Boz Pity's only frontier.  [assumed: a link end held by nobody counts 10 (D_08AED48C - its exact use not
+ * followed); not ported: 08928980's soldier pass (25 m, 1.5), the squad given 0x3F0 on the object at +164 (the Alliance's 200035),
+ * the busy squads (+44 / +42) and order 1015's early plan] */
+static void commander_plan(ak_play *p, int team)
+{
+    const ak_conquest_map *m = &p->cq; u32 own = 0, foe = 0, n = m->nposts < 32 ? m->nposts : 32;
+    for (u32 i = 0; i < n; i++) { if (m->post[i].absent || m->post[i].mobile || m->post[i].disabled) continue;
+        int o = p->match.post[i].owner; if (o == team) own |= 1u << i; else if (o == 1 - team) foe |= 1u << i; }
+    u32 own_adj = 0, foe_adj = 0;
+    for (u32 i = 0; i < n; i++) { if (own >> i & 1) own_adj |= m->post[i].adj; if (foe >> i & 1) foe_adj |= m->post[i].adj; }
+    u32 targets = own_adj & ~own, front = foe_adj & own;
+    int co = 0, cf = 0, tot = 0; for (u32 i = 0; i < n; i++) { if (m->post[i].mobile || m->post[i].disabled) continue; tot++; co += own >> i & 1; cf += foe >> i & 1; }
+    f32 f20 = co == 0 ? 2.0f : cf == 0 ? 0.8f : tot / co < 2 ? 0.8f : tot / cf < 2 ? 2.0f : 1.0f;
+    f32 prio[32] = { 0 };
+    for (u32 k = 0; k < n; k++) {
+        bool tg = targets >> k & 1, fr = front >> k & 1; if (!tg && !fr) continue;
+        f32 w1 = 0, w2 = 0;
+        for (u32 l = 0; l < m->nlinks; l++) {
+            const ak_post_link *L = &m->link[l]; s32 o = L->a == (s32)k ? L->b : L->b == (s32)k ? L->a : -1; if (o < 0) continue;
+            int oo = p->match.post[o].owner; f32 w = L->weight;
+            if (oo != 0 && oo != 1) w = 10.0f; else if (tg ? oo != team : oo != 1 - team) continue;
+            if (w > w1) { w2 = w1; w1 = w; } else if (w > w2) w2 = w;
+        }
+        if (tg) prio[k] = 0.5f * (w1 + w2) * f20;
+        else {
+            f32 f21 = 0.1f;
+            for (u32 i = 0; i < p->nbots; i++) { const ak_play_bot *o = &p->bot[i];
+                if (o->team != 1 - team || o->squad < 0 || !o->alive || squad_leader(p, o) != (s32)i) continue;
+                f32 dx = o->ch.pos[0] - m->post[k].pos[0], dy = o->ch.pos[1] - m->post[k].pos[1], dz = o->ch.pos[2] - m->post[k].pos[2];
+                if (dx * dx + dy * dy + dz * dz < 15.0f * S * 15.0f * S) { f21 = 2.0f; break; } }
+            prio[k] = 0.5f * (w1 + w2) * f21;
+        }
+    }
+    s8 *sp = p->cmdr[team].sq_post; s8 old[64]; memcpy(old, sp, 64); memset(sp, -1, 64);
+    s32 sent[32] = { 0 }; bool first = true;
+    for (;;) {
+        s32 best = -1; f32 bw = -10.0f;                                     /* D_08AED460 */
+        for (u32 k = 0; k < n; k++) { if (m->post[k].mobile || m->post[k].disabled || m->post[k].absent) continue;
+            f32 w = prio[k] / (f32)(sent[k] + 1); if (first && (targets >> k & 1)) w *= 5.0f; if (w > bw) { bw = w; best = (s32)k; } }
+        if (best < 0) break;
+        s32 bs = -1; f32 bd = 1e30f; s32 size = 0;                          /* the free squad nearest the post (its leader) */
+        for (u32 i = 0; i < p->nbots; i++) { const ak_play_bot *o = &p->bot[i];
+            if (o->team != team || o->squad < 0 || o->squad >= 64 || sp[(int)o->squad] >= 0 || squad_leader(p, o) != (s32)i) continue;
+            f32 dx = o->ch.pos[0] - m->post[best].pos[0], dz = o->ch.pos[2] - m->post[best].pos[2], d = dx * dx + dz * dz;
+            if (d < bd) { bd = d; bs = o->squad; } }
+        if (bs < 0) break;
+        for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].team == team && p->bot[i].squad == bs && p->bot[i].alive) size++;
+        sp[bs] = (s8)best; sent[best] += size; first = false;
+    }
+    for (u32 i = 0; i < p->nbots; i++) { ak_play_bot *o = &p->bot[i];   /* leaders sent elsewhere re-choose */
+        if (o->team == team && o->squad >= 0 && o->squad < 64 && sp[(int)o->squad] != old[(int)o->squad] && squad_leader(p, o) == (s32)i) o->goal = -1; }
+    p->cmdr[team].own = own; p->cmdr[team].foe = foe; p->cmdr[team].t = 0; p->cmdr[team].planned = true;
+    {   static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_COMMANDER", 0);
+        if (dbg) { char b[160] = ""; int l = 0; for (u32 k = 0; k < n && l < 140; k++) l += snprintf(b + l, sizeof b - l, " %u:%.2f%s", k, prio[k], targets >> k & 1 ? "t" : front >> k & 1 ? "f" : "");
+                   char q[160] = ""; int ql = 0; for (int s2 = 0; s2 < 64 && ql < 140; s2++) if (sp[s2] >= 0) ql += snprintf(q + ql, sizeof q - ql, " sq%d->%d", s2, sp[s2]);
+                   AK_INFO("ai", "commander %d plan at %.1f s (tickets %d / %d):%s |%s", team, p->match.time, p->match.tickets[0], p->match.tickets[1], b, q); } }
+}
+static void commander_update(ak_play *p, f32 dt)
+{
+    if (!p->have_cq || !p->cmd_on) return;
+    for (int t = 0; t < 2; t++) {
+        p->cmdr[t].t += dt;
+        u32 own = 0, foe = 0; for (u32 i = 0; i < p->cq.nposts && i < 32; i++) { if (p->cq.post[i].absent || p->cq.post[i].mobile || p->cq.post[i].disabled) continue;
+            int o = p->match.post[i].owner; if (o == t) own |= 1u << i; else if (o == 1 - t) foe |= 1u << i; }
+        if (!p->cmdr[t].planned || p->cmdr[t].t >= 12.0f || own != p->cmdr[t].own || foe != p->cmdr[t].foe) commander_plan(p, t);
+    }
+}
+
 static void bot_choose_goal(ak_play *p, ak_play_bot *b)
 {
     if (p->have_ctf && b->veh < 0 && bot_ctf_goal(p, b, (u32)(b - p->bot))) return;
     if (b->veh < 0 && b->want_veh < 0 && bot_take_vehicle(p, b)) return;
     s32 best = -1; f32 bs = 1e30f;
-    for (u32 i = 0; p->have_cq && i < p->cq.nposts; i++) {
+    if (p->have_cq && p->cmd_on && b->squad >= 0 && b->squad < 64 && p->cmdr[b->team & 1].planned) best = p->cmdr[b->team & 1].sq_post[(int)b->squad];   /* the commander's post */
+    for (u32 i = 0; best < 0 && p->have_cq && i < p->cq.nposts; i++) {
         if (p->cq.post[i].disabled) continue;
         const ak_post_state *ps = &p->match.post[i];
         if (ps->owner == b->team && ps->progress >= p->cq.post[i].amount) continue;
@@ -2398,7 +2477,8 @@ static void vehicle_destroyed(ak_play *p, const ak_model_set *m, u32 v)
 static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a)
 {
     p->in_veh = -1; p->in_turret = -1; p->fly_target = -1; p->fly_auto = false; p->cam_lock = false; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 10.0f);   /* (the spawn records say 10 s) */   /* PARITY(3.5) */
-    p->bot_drive = ak_setting_float("AK_BOT_VEHICLES", 1.0f);   /* the chance a spawned bot wants a vehicle (the spawner default 100 %, 0897E594) */
+    p->bot_drive = ak_setting_float("AK_BOT_VEHICLES", 1.0f);
+    p->cmd_on = ak_setting_int("AK_BOT_COMMANDER", 1) != 0; memset(p->cmdr, 0, sizeof p->cmdr);   /* the chance a spawned bot wants a vehicle (the spawner default 100 %, 0897E594) */
     if (!ak_setting_int("AK_VEHICLES", 1)) return;
     ak_entity_set es; size_t mark = a->used;
     if (!ak_entities_load(l, m, a, &es)) { a->used = mark; return; }
@@ -4787,6 +4867,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         }
         sol[0].alive = p->alive; sol[0].weight = p->capture_rate; if (p->in_veh >= 0) { memcpy(sol[0].pos, p->veh[p->in_veh].pos, 12); sol[0].weight = 0; }   /* drivers do not capture */
         wave = ak_conquest_update(&p->cq, &p->rules, &p->match, sol, NS(p), dt);
+        commander_update(p, dt);
         for (u32 k = 0; k < p->match.nev; k++) {                              /* the posts' script events (captures) */
             const ak_post *po = &p->cq.post[p->match.ev[k].post];
             if (p->have_script) ak_script_raise(&p->script, po->ev, po->nev, p->match.ev[k].event, p->cq.post_id[p->match.ev[k].post], script_sink, p);

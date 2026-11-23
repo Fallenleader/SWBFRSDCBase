@@ -281,3 +281,5 @@ Reports fall after M5, M10 and M15.
   squad-less soldiers are the vehicle-wanting ones. Next: the priority functions, then the port.
 - 2026-11-23 M10: the commander's priorities read and checked live - the original's bots fight over one pair of posts (100005 /
   100006, the only weighted link). Next: why only that link counts, then port the commander.
+- 2026-11-23 M10: the AI commander ported - Aurek's sides now score posts exactly as the original's (3.6 / 9.0 / 0.45) and fight
+  over the same pair; captures fell from ~20 to 6-13 in ~6 min (original 2-3). Next: squad membership and pace.

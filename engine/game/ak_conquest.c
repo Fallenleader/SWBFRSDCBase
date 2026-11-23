@@ -97,7 +97,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
     enum { MAXLOC = 512 }; static u32 lid[MAXLOC]; static f32 lpos[MAXLOC][4]; static bool lown[MAXLOC]; u32 nl = 0;
     static u32 link_id[AK_MAX_POSTS][AK_POST_LOCS]; static s32 link_w[AK_MAX_POSTS][AK_POST_LOCS]; u32 nlink[AK_MAX_POSTS];
     memset(nlink, 0, sizeof nlink);
-    static u32 link_a[128], link_b[128]; u32 nlinks = 0;
+    static u32 link_a[128], link_b[128]; static f32 lnk_w[128]; u32 nlinks = 0;
     ak_chunk c; u32 pos = 8;
     while (ak_asura_next(&l->file, &pos, &c)) {
         if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 12) continue;
@@ -135,7 +135,9 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
             if (ver > 2 && c.size >= 64) { f32 m[9]; for (int k = 0; k < 9; k++) m[k] = wf(c.body + 28 + 4 * k); lpos[nl][3] = yaw_of_rows(m); }
             nl++;
         } else if (type == 22 && c.size >= 22 * 4 && nlinks < 128) {         /* post-to-post links (words 20, 21: the two posts) */
-            link_a[nlinks] = ak_rd32(c.body + 80); link_b[nlinks] = ak_rd32(c.body + 84); nlinks++;
+            link_a[nlinks] = ak_rd32(c.body + 80); link_b[nlinks] = ak_rd32(c.body + 84);
+            lnk_w[nlinks] = ak_rdf32(c.body + 88);        /* word 22: the weight (a float: 9.0 in record 100167, read live as the link object's +164) */
+            nlinks++;
         } else if ((type == 15 || type == 16) && find_pos_quat(&c, gp, gq)) {
             int t = type == 16; if (nsp[t] < 64) { ak_from_game(gp, sp[t][nsp[t]]); sp[t][nsp[t]][3] = yaw_of(gq); nsp[t]++; }
             if (out->ndroid < AK_MAX_DROIDS) { ak_droid *dr = &out->droid[out->ndroid++]; ak_from_game(gp, dr->pos); dr->ammo = t == 1; }
@@ -171,7 +173,8 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
     for (u32 k = 0; k < nlinks; k++) {                                       /* the links as each post's neighbour bits (D_08C25394) */
         s32 a = -1, b = -1;
         for (u32 i = 0; i < out->nposts; i++) { if (out->post_id[i] == link_a[k]) a = (s32)i; if (out->post_id[i] == link_b[k]) b = (s32)i; }
-        if (a >= 0 && b >= 0 && a < 32 && b < 32) { out->post[a].adj |= 1u << b; out->post[b].adj |= 1u << a; }
+        if (a >= 0 && b >= 0 && a < 32 && b < 32) { out->post[a].adj |= 1u << b; out->post[b].adj |= 1u << a;
+            if (out->nlinks < AK_MAX_LINKS) { ak_post_link *L = &out->link[out->nlinks++]; L->a = a; L->b = b; L->weight = lnk_w[k]; } }
     }
     return out->nposts > 0;
 }
