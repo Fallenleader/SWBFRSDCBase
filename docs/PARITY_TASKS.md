@@ -1998,6 +1998,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - Squads measured (2026-11-23, Boz Pity 3 min, pure AI): Alliance 65 % of living soldiers in no squad, its squads 64 % standing;
     Empire 61 % ordered to post 100006 (0x3F2). Aurek sends every bot to a post. Next: read the commander 089279D4 (08926478's
     callers, the post choice and timing), order 0x3F0 and its 2000xx targets, and the no-squad soldier's behaviour.
+  - Commander (2026-11-23): 089279D4 read (12 s plans, priority x 1/(sent+1), x5 for the first squad on an own post, nearest
+    free squad; own post -> 0x3F2, enemy -> 0x3F5; 0x3F0 on +164); priorities live: Alliance 100005 3.6 / 100006 0.45, Empire
+    100006 9.0 / 100005 0.45. Next: 08928170 (masks +72 / +73), 089284B4 / 08928980, D_08AED474..47C, squad membership (why
+    most soldiers have none); then port the commander to Aurek in place of bot_choose_goal's nearest-post rule.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
