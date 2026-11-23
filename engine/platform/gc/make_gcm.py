@@ -7,6 +7,7 @@ Put this script in a folder with:
     the game, one of:    GAME/PSP_GAME/...  (the UMD's files, as extracted)
                          PSP_GAME/...       (the same without the GAME folder)
                          game.iso           (or any other PSP .iso: the UMD image; its files are unpacked onto the disc)
+                         - here, or in the folder above, or in a folder beside this one (the conversion tool's folder, say)
     converted/           (optional) the game's media in the GameCube's own formats (music, voices and effects as DSP-ADPCM .adp,
                          the movies as THP), as the SWBFRS Conversion Tool writes it: Converted/GameCube here, or in the tool's
                          folder beside this one (its Convert_GameCube script), or converted/ here
@@ -165,16 +166,27 @@ def main():
 
     files = []                                  # (disc path under /aurek, host path, offset in it, size)
     game = a.game
+    def game_in(folder):
+        g = find_ci(folder, 'GAME')
+        if g and os.path.isdir(g) and find_ci(g, 'PSP_GAME'): return g
+        p = find_ci(folder, 'PSP_GAME')
+        if p and os.path.isdir(p): return p
+        isos = [os.path.join(folder, n) for n in sorted(os.listdir(folder)) if n.lower().endswith('.iso') and os.path.abspath(os.path.join(folder, n)) != out]
+        isos = [p for p in isos if os.path.isfile(p) and is_psp_iso(p)]
+        if len(isos) > 1: sys.exit('more than one PSP .iso in %s: %s (give --game)' % (folder, ', '.join(os.path.basename(p) for p in isos)))
+        return isos[0] if isos else None
     if not game:
-        g = find_ci(d, 'GAME')
-        if g and find_ci(g, 'PSP_GAME'): game = g
-        elif find_ci(d, 'PSP_GAME'): game = find_ci(d, 'PSP_GAME')
-        else:
-            isos = [os.path.join(d, n) for n in sorted(os.listdir(d)) if n.lower().endswith('.iso') and os.path.abspath(os.path.join(d, n)) != out]
-            isos = [p for p in isos if is_psp_iso(p)]
-            if len(isos) > 1: sys.exit('more than one PSP .iso in %s: %s (give --game)' % (d, ', '.join(os.path.basename(p) for p in isos)))
-            game = isos[0] if isos else None
-    if not game: sys.exit('no game in %s: put the UMD\'s GAME/PSP_GAME folder (or PSP_GAME, or its .iso) there, or give --game' % d)
+        # here, else the folder above, else a folder beside this one (the conversion tool's, say) - as the conversion tool looks
+        game = game_in(d)
+        up = os.path.dirname(os.path.abspath(d))
+        if not game and os.path.isdir(up): game = game_in(up)
+        if not game and os.path.isdir(up):
+            for n in sorted(os.listdir(up)):
+                sd = os.path.join(up, n)
+                if os.path.isdir(sd) and os.path.abspath(sd) != os.path.abspath(d):
+                    game = game_in(sd)
+                    if game: break
+    if not game: sys.exit('no game in %s, the folder above it or a folder beside it: put the UMD\'s GAME/PSP_GAME folder (or PSP_GAME, or its .iso) there, or give --game' % d)
     game = os.path.abspath(game)
     if os.path.isfile(game):
         if not is_psp_iso(game): sys.exit('%s is not a PSP UMD image' % game)
