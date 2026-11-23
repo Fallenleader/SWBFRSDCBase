@@ -145,3 +145,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 note: the milestone table above stands - M4 is Loadouts (every class's weapons and items per faction, the selection
   rules and limits, applied at spawn), M5 Instant Action to Boz Pity (the flow), M9 the Conquest rules, M10 the AI, M11 the
   vehicles, M13 the HUD. M3's loadout menu work (profile set 0, credits) carries into M4.
+- 2026-11-23 M4: the selection rules traced (no credit check on taking; sell gated; both mark the profile changed). Next: each
+  faction's item versions against the blueprints, the spawn mapping on Boz Pity.

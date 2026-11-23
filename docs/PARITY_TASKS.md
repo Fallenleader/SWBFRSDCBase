@@ -1666,6 +1666,9 @@ textures and how they are used. Section R lists only what must be in place so th
     - not proven; (2) no byte check of the saved loadout against the original's own save (the layout is traced exactly: 08977A34);
     (3) the soldier preview (E_Anim_AppDisplay, 08A36BA0) still needs a running level in Aurek; the carousel item placement is not
     compared against the original's frame.
+  - Loadout limits: no credit check on taking an item (08A27F28); credits shown = total - remaining (08A27994, 08A34290); sell
+    gated by 0x08C2CEA8 (08A27FD8). Uncertain: whether going over the total has any other consequence (no reader of the remaining
+    credits besides the display was found yet); where the total (200) itself is set (0x08C2CEAC +0).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

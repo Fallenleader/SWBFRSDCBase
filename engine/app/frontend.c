@@ -1519,10 +1519,11 @@ static int run(const ak_gui_action *a, int row)
     }
     else if (!strcmp(fn, "FE_Customisation_AcceptCarouselItem")) {   /* 08A27F28: the item taken (no credit check), back to the menu */
         if (row >= 0 && row < cust_count[cust_cat]) { cust_sel[cust_cat] = row; cust_store(cust_cat, row); }   /* (08977A34(profile, 0, category, row)) */
+        prof[6] = 1;                                                  /* (08A27F28 marks the profile changed whatever was taken) */
         use_layer(layer_of("MP_Customisation"));
     }
     else if (!strcmp(fn, "FE_Customisation_SellCarouselItem")) {     /* 08A27FD8: the category cleared (item 0) */
-        if (cust_sel[cust_cat] > 0 && cust_cost(cust_cat, cust_sel[cust_cat]) > 0) { cust_sel[cust_cat] = 0; cust_store(cust_cat, 0); cust_carousel_sync(); use_layer(layer_of("MP_Customisation")); }
+        if (cust_sel[cust_cat] > 0 && cust_cost(cust_cat, cust_sel[cust_cat]) > 0) { cust_sel[cust_cat] = 0; cust_store(cust_cat, 0); prof[6] = 1; cust_carousel_sync(); use_layer(layer_of("MP_Customisation")); }
     }
     else if (!strcmp(fn, "FE_Customisation_ConfirmCancel")) open_layer(ak_gui_hash("MP_CustomCancel"));   /* 08A27E74 */
     else if (!strcmp(fn, "FE_Customisation_Cancel")) {                 /* 08A27DE0: the loadout as it was, the menu closed */

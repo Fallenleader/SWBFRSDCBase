@@ -462,6 +462,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | M3 complete (customisation and loadouts) | Customization menu (faction logos), load-out lists, costs and credits match the original side by side; the menus' own models load from BFF_MAINMENU.GUI (no level needed); item models are found by path or name; the loadout lives in the profile as the original's (set 0 at +0x1B8, 08977A34; credits = total - chosen costs, 08A34290) and reaches the soldier at every match start. Open (PARITY_TASKS): the original's own set-0-to-spawn path, a byte check against the original's save, the soldier preview without a level, the carousel placement. |
 
+| Loadout selection rules (M4) | Traced: (1) taking an item (08A27F28) has no credit check - no affordability variable exists among the menu's BFF.FE_Customisation_* names; the credits shown (08A27994) are total - remaining with remaining = 08A34290's total minus the 8 chosen costs, so spending can pass the total; (2) selling (08A27FD8) is allowed only while the flag behind BFF.FE_Customisation_EnableSellButton (0x08C2CEA8) is set, stores 0 for the category, recomputes the credits and returns to MP_Customisation (0x820C81DE); (3) both mark the profile changed (+6 = 1) whatever the value - Aurek now does too (it only did when the value differed). |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |
