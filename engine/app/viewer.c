@@ -271,6 +271,14 @@ int main(int argc, char **argv)
             { const char *keys = ak_setting_str("AK_FE_KEYS", NULL);   /* tests: one button per frame from frame 10 ("D,D,X": down, down, cross) */
               if (keys && frame >= 10) { int k = (frame - 10) / 4, ph = (frame - 10) % 4; const char *q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; }
                   if (*q && ph == 0) { u32 m = *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : *q == 'S' ? AK_BTN_SQUARE : *q == 'T' ? AK_BTN_TRIANGLE : 0; in.pressed |= m; } } }
+            {   /* tests: AK_FE_PAD="170:X,240:D,250:S" - a button pressed on a front-end frame (X cross, O circle, S start, Q square,
+                   T triangle, U D L R the pad) */
+                const char *pad = ak_setting_str("AK_FE_PAD", NULL);
+                for (const char *q = pad; q && *q;) {
+                    int fr = (int)strtol(q, (char **)&q, 10); if (*q != ':') break; char k = q[1]; q += 2; if (*q == ',') q++;
+                    if (fr != frame) continue;
+                    in.pressed |= k == 'X' ? AK_BTN_CROSS : k == 'O' ? AK_BTN_CIRCLE : k == 'S' ? AK_BTN_START : k == 'Q' ? AK_BTN_SQUARE : k == 'T' ? AK_BTN_TRIANGLE :
+                                  k == 'U' ? AK_BTN_UP : k == 'D' ? AK_BTN_DOWN : k == 'L' ? AK_BTN_LEFT : k == 'R' ? AK_BTN_RIGHT : 0; } }
             int ev = ak_fe_update(&in, dt);
             ak_m4 id; memset(&id, 0, sizeof id); id.m[0] = id.m[5] = id.m[10] = id.m[15] = 1;
             ak_gfx_env env = { { 0, 0, 0 }, 0, 0, 1.0f };

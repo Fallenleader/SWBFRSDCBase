@@ -10,7 +10,14 @@
 #include "../platform/plat.h"
 #include <math.h>
 #include <stdio.h>
-static bool osk_wait;                                                  /* (FE_SetProfileName opened the keyboard: the button's list waits) */
+static bool osk_wait;
+/* the name text box's own text (08A2E9A0 / 08A2EA04: a buffer at 0x08C2A348 - FE_ProfileNameOnInit fills it from the profile,
+   the keyboard edits it, FE_SetProfileName copies it into the profile, marking it changed (+6) when it differs - 089783BC);
+   until set the box shows its text widget's own words (MP_NewProfile: "Col Serra", as the original's frame) */
+static u16 tb_name[21]; static u32 tb_n; static bool tb_set, in_name_box, osk_box;                                                  /* (FE_SetProfileName opened the keyboard: the button's list waits) */
+enum { SD_LOAD = 4, SD_SAVE = 5, SD_DELETE = 6 };                       /* (the save dialogue's modes: below) */
+static void sd_open(int mode); static void sd_draw(void);
+static int run(const ak_gui_action *a, int row);
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
@@ -92,7 +99,11 @@ static const struct { const char *name; u16 off; u8 kind; } prof_map[] = {   /* 
 #define PROF_NAME 0x08                                                     /* the profile's name, UTF-16, 21 characters (089783BC) */
 static const char *prof_dir(void) { static char d[400]; const char *s = ak_setting_str("AK_SAVE_DIR", NULL);
     if (s) snprintf(d, sizeof d, "%s", s); else snprintf(d, sizeof d, "%s/savedata", ak_plat_user_dir()); return d; }   /* (the PSP's PSP/SAVEDATA) */
-static void prof_path(char *out, size_t n) { snprintf(out, n, "%s/ULUS10292%s/DATA.BIN", prof_dir(), ak_setting_str("AK_SAVE_SLOT", "0000")); }
+/* the profile's slot: the game lists five ("%04d", BOOT.BIN 0x08AD9388: 0000..0004) for the PSP's save dialogue, which hands the
+   chosen one back for the autosave to keep using; AK_SAVE_SLOT the first one used */
+static char prof_slot[8];
+static const char *slot_id(void) { if (!prof_slot[0]) snprintf(prof_slot, sizeof prof_slot, "%s", ak_setting_str("AK_SAVE_SLOT", "0000")); return prof_slot; }
+static void prof_path(char *out, size_t n) { snprintf(out, n, "%s/ULUS10292%s/DATA.BIN", prof_dir(), slot_id()); }
 static void pw8(u32 o, u8 v) { prof[o] = v; }
 static void pw32(u32 o, u32 v) { ak_wr32(prof + o, v); }
 static void pwf(u32 o, f32 v) { u32 w; memcpy(&w, &v, 4); ak_wr32(prof + o, w); }
@@ -139,7 +150,7 @@ static void prof_from_vars(void)
 }
 bool ak_fe_profile_load(void)
 {
-    char p[512], key[40]; prof_path(p, sizeof p); snprintf(key, sizeof key, "ULUS10292%s", ak_setting_str("AK_SAVE_SLOT", "0000"));
+    char p[512], key[40]; prof_path(p, sizeof p); snprintf(key, sizeof key, "ULUS10292%s", slot_id());
     static u8 buf[16 + PROF_SIZE]; u8 sum[16]; s32 n = ak_save_read(key, p, buf, sizeof buf);
     if (n < (s32)sizeof buf) return false;
     ak_md5(buf + 16, PROF_SIZE, sum);
@@ -154,7 +165,7 @@ bool ak_fe_profile_save(void)
     if (!prof_have) prof_new();
     prof_from_vars();
     static u8 out[0x4000]; memset(out, 0, sizeof out); ak_md5(prof, PROF_SIZE, out); memcpy(out + 16, prof, PROF_SIZE);
-    char key[40]; snprintf(key, sizeof key, "ULUS10292%s", ak_setting_str("AK_SAVE_SLOT", "0000"));
+    char key[40]; snprintf(key, sizeof key, "ULUS10292%s", slot_id());
 #ifndef AK_HAS_MEMCARD
     mkdir(prof_dir(), 0777); snprintf(d, sizeof d, "%s/%s", prof_dir(), key); mkdir(d, 0777);
 #else
@@ -271,7 +282,11 @@ bool ak_fe_init(ak_vfs *v)
             for (u32 i = 0; i < base.ntex; i++) btex[i] = ak_gfx_texture(&base.tex[i]);
     }
     ready = nidx > 0;
-    if (ready && !ak_fe_profile_load()) { prof_new(); prof_to_vars(); }   /* (the profile if there is one: its options and campaign level; else the game's new one) */
+    /* the profile: from the splash on, the game's new one (the profile prompt loads one: FE_LoadPlayerProfile); a test starting
+       on another page takes the saved one if there is one */
+    var_set("BFF.FE.ProfileAutosaveOn", 1); var_set("BFF.FE.ProfileAutosaveNeedPrompt", 0); var_set("BFF.FE.ProfileLoadAndSaveResult", 0);   /* (08A622B0: their starting values) */
+    bool from_splash = !strcmp(ak_setting_str("AK_FE_PAGE", "MP_MSplashScreen"), "MP_MSplashScreen");
+    if (ready && (from_splash || !ak_fe_profile_load())) { prof_new(); prof_to_vars(); }
     AK_INFO("fe", "%u menu pages in %d files, %u menu texts", nidx, NFILES, texts.n);
     return ready;
 }
@@ -327,14 +342,15 @@ static bool open_hash(u32 h, bool push)
         const ak_gui_page *pg = ak_gui_find_page(&gf, h); if (!pg) return false;
         if (push && page && nstack < 16) stack[nstack++] = page->root.id;
         if (!layering) nlayer = 0;
+        if (page && page != pg && page->on_close.fn && page->on_close.fn[0]) { const ak_gui_page *was = page; run(&was->on_close, -1); }   /* (its OnClose) */
         page = pg; focus = pg->focus; fe_clock = 0; page_t = 0; auto_fired = false;
         focus_fix_pending = true;
         if (have_match && h == ak_gui_hash("MP_Spawn_Location"))     /* the first post the player's side holds */
             for (u32 k = 0; k < match.nposts; k++) if (match.post_owner[k] == match.team) { char nm[32]; snprintf(nm, sizeof nm, "W_BU_SpawnPoint%u", k); if (id_of(nm)) focus = id_of(nm); break; }
         if (!layering) nlists = 0;
         refill();
-        if (pg->on_open.fn && pg->on_open.fn[0]) AK_INFO("fe", "%s: %s(%s)", idx[i].name, pg->on_open.fn, pg->on_open.arg);
-        else AK_INFO("fe", "%s", idx[i].name);
+        AK_INFO("fe", "%s", idx[i].name);
+        if (pg->on_open.fn && pg->on_open.fn[0]) run(&pg->on_open, -1);   /* (the page's own OnOpen, run as it opens: 08885168 -> 0887DED0 - seen with gdb on MP_LoadProfile) */
         return true;
     }
     /* a widget's id instead of a page's (W_BU_Options -> its own page; "Quit to Main Menu" -> W_BU_No_QuitInGame on the yes / no
@@ -503,10 +519,25 @@ static const u16 *gc_text(const ak_widget *w, u32 *n)
     }
     return NULL;
 }
+static const ak_widget *find_name_box(const ak_widget *w)
+{
+    if (w->type == AK_GUI_TEXTBOX && w->binding && !strcmp(w->binding, "BFF.FE_ProfileName")) return w;
+    for (u32 i = 0; i < w->nchild; i++) { const ak_widget *r = find_name_box(&w->child[i]); if (r) return r; }
+    return NULL;
+}
+static const u16 *tb_text(const ak_widget *box, u32 *n)           /* the name box's text: the buffer once set, else its own words */
+{
+    if (tb_set) { *n = tb_n; return tb_name; }
+    if (!box && page) box = find_name_box(&page->root);
+    for (u32 i = 0; box && i < box->nchild; i++) if (box->child[i].type == AK_GUI_TEXT && box->child[i].text_key) {
+        const u16 *t = ak_gui_text(&texts, box->child[i].text_key, n); if (t) return t; }
+    *n = 0; return NULL;
+}
 static const u16 *override_text(const ak_widget *w, u32 *n)
 {
     { const u16 *t = gc_text(w, n); if (t) return t; }
     if (w->binding && !strcmp(w->binding, "BFF.FE_ProfileName")) return ak_fe_profile_name(n);
+    if (in_name_box && w->type == AK_GUI_TEXT && tb_set) { *n = tb_n; return tb_n ? tb_name : NULL; }
     if (w->name && !strcmp(w->name, "E_TX_MedalNotification")) { *n = medal_msg_n; return medal_msg_n ? medal_msg : NULL; }   /* (08A32C4C's text) */   /* (the profile's name, 089783BC's) */
     if (!have_match || !w->name) return NULL;
     if (parent_name && !strcmp(parent_name, "W_TB_SpawnName")) {          /* the focused post's name */
@@ -759,8 +790,10 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
             int big = w->font && strstr(w->font, "_13") != NULL;
             int al = (w->text_flags & 8) ? 2 : (w->text_flags & 4) ? 1 : 0;   /* 0xC8 right, 0xC4 centred, 0xC2 left */
             f32 lh = ak_hud_2d_line(big) * w->text_scale, ty = y + (w->size[1] - lh) * 0.5f;
-            if (w->text_flags & 0x20)                                 /* (0x20: to the box's bottom - the splash's legal texts, 0xA4, as the original's frames) */
-                ty = y + w->size[1] - ak_hud_2d_text_height(big, x, x + w->size[0], w->text_scale, s, n);
+            /* the vertical place (the original's frames): 0x40 the middle (0xC4, most), 0x20 the bottom (the splash's legal texts, 0xA4),
+               neither with 0x80 the top (MP_Profile's question, 0x84); without 0x80 (older texts) the middle, as before */
+            if (w->text_flags & 0x20) ty = y + w->size[1] - ak_hud_2d_text_height(big, x, x + w->size[0], w->text_scale, s, n);
+            else if ((w->text_flags & 0x80) && !(w->text_flags & 0x40)) ty = y;
             ak_hud_2d_text(big, x, ty, x + w->size[0], w->text_scale, argb_of(w->rgba, a), s, n, al);
         }
     }
@@ -790,9 +823,12 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
         }
     }
 children:;
-    bool f2 = is_button(w->type) ? (w->id == focus) : focused;
+    /* (a text box takes the focus too - MP_NewProfile's name: its highlight E_IM_StyleCheckBoxHC shows while it has it, as the
+       original's frames) */
+    bool f2 = (is_button(w->type) || w->type == AK_GUI_TEXTBOX) ? (w->id == focus) : focused;
     const list_rows *keep = scroll; int keep_shown = scroll_shown; const char *keep_parent = parent_name; u32 keep_tint = child_tint; const char *keep_check = check_var; int keep_owner = spawn_owner;
-    f32 keep_alpha = child_alpha; child_alpha *= anim_a;
+    f32 keep_alpha = child_alpha; child_alpha *= anim_a; bool keep_nb = in_name_box;
+    if (w->type == AK_GUI_TEXTBOX && w->binding && !strcmp(w->binding, "BFF.FE_ProfileName")) in_name_box = true;
     if (w->type == AK_GUI_BUTTON2 && w->binding && w->binding[0]) check_var = w->binding;
     if (w->type >= 2000) parent_name = w->name;
     if (have_match && w->name && !strncmp(w->name, "W_BU_SpawnPoint", 15)) {   /* the post's owner (08A2DD50 -> the button's vfunc +120) */
@@ -803,17 +839,18 @@ children:;
         char want[64]; size_t l = strstr(w->name, "Scroll") - (w->name + 5); snprintf(want, sizeof want, "W_LB_%.*s", (int)l, w->name + 5);
         scroll = NULL;
         for (int i = 0; i < nlists; i++) { const ak_widget *lw = find_id(&page->root, lists[i].id); if (lw && lw->name && !strncmp(lw->name, want, strlen(want))) { scroll = &lists[i]; scroll_shown = lw->rows_shown ? (int)lw->rows_shown : 8; } }
-        if (!scroll || scroll->n <= scroll_shown) { scroll = keep; child_alpha = keep_alpha; return; }   /* (nothing to scroll: no bar) */
+        if (!scroll || scroll->n <= scroll_shown) { scroll = keep; child_alpha = keep_alpha; in_name_box = keep_nb; return; }   /* (nothing to scroll: no bar) */
     }
     for (u32 i = 0; i < w->nchild; i++) draw_widget(&w->child[i], x, y, f2);
     scroll = keep; scroll_shown = keep_shown; parent_name = keep_parent; child_tint = keep_tint; check_var = keep_check; spawn_owner = keep_owner;
-    child_alpha = keep_alpha;
+    child_alpha = keep_alpha; in_name_box = keep_nb;
 }
 
 static void fe_draw_page(void);
 void ak_fe_draw(void)
 {
     fe_draw_page();
+    sd_draw();                                                         /* (the save dialogue over the page) */
     ak_osk_draw();                                                     /* (over the page) */
 }
 static void fe_draw_page(void)
@@ -1460,18 +1497,30 @@ static int run(const ak_gui_action *a, int row)
         ak_fe_close(); return AK_FE_QUIT;
     }
     else if (!strcmp(fn, "FE_EnterGameover")) {}                 /* (the button's page follows: the spawn map) */
-    else if (!strcmp(fn, "FE_SetProfileName")) {                       /* 08A2EA04 -> 089783BC: the name typed in (08A2E9A0's buffer, 0x20
-                                                                         characters) - Aurek has no on-screen keyboard: AK_PLAYER_NAME is the
-                                                                         typed name [assumed] */
-        const char *nm = ak_setting_str("AK_PLAYER_NAME", NULL);          /* (a name in the settings: taken, no keyboard) */
-        if (nm) { if (!prof_have) prof_new(); memset(prof + PROF_NAME, 0, 42); for (u32 i = 0; nm[i] && i < 20; i++) ak_wr16(prof + PROF_NAME + 2 * i, (u8)nm[i]); prof[6] = 1; }
-        else { u32 n0; const u16 *cur = ak_fe_profile_name(&n0); ak_osk_open("Enter your name", cur, cur ? n0 : 0, 20); osk_wait = true; } }
+    else if (!strcmp(fn, "FE_SetProfileName")) {                       /* 08A2EA04 -> 089783BC: the box's text into the profile (21 with
+                                                                         the end), +6 set when it differs (the profile changed) */
+        u32 n = 0; const u16 *t = tb_text(NULL, &n);
+        const char *nm = ak_setting_str("AK_PLAYER_NAME", NULL);          /* (tests: a name from the settings) */
+        u16 sb[21]; if (nm) { n = 0; while (nm[n] && n < 20) { sb[n] = (u8)nm[n]; n++; } t = sb; }
+        if (!prof_have) prof_new();
+        bool differ = false; for (u32 k = 0; k < 21; k++) { u16 a = k < n ? t[k] : 0, b = ak_rd16(prof + PROF_NAME + 2 * k); if (a != b) differ = true; if (!a && !b) break; }
+        memset(prof + PROF_NAME, 0, 42); for (u32 k = 0; k < n && k < 20; k++) ak_wr16(prof + PROF_NAME + 2 * k, t[k]);
+        if (differ) prof[6] = 1;
+    }
+    else if (!strcmp(fn, "FE_ProfileNameOnInit")) { u32 n; const u16 *t = ak_fe_profile_name(&n); tb_n = n > 20 ? 20 : n; if (t) memcpy(tb_name, t, tb_n * 2); tb_set = true; }   /* 08A2E9A0 */
+    else if (!strcmp(fn, "FE_ForceProfileChangeState")) { if (!prof_have) prof_new(); prof[6] = (u8)atoi(a->arg); }   /* 08A2EB50: +6 = the argument */
     else if (!strcmp(fn, "FE_OpenProfileMenu")) {                    /* 08A2E8B4: from MP_MSplashScreen only - it closes, the profile page opens */
         if (page && page->root.id == 0x818BCCE4u) open_hash(0x5B53EB0Du, false); }
-    else if (!strcmp(fn, "FE_ExitAutoSaveMenu") || !strcmp(fn, "FE_ForceProfileChangeState") || !strcmp(fn, "FE_ProfileNameOnInit")) {}   /* (flags of the game's save state: 08A2F624 / 08A2EB50 / 08A2E9A0) */
-    else if (!strcmp(fn, "FE_SavePlayerProfile")) ak_fe_profile_save();   /* 08A2EA54 -> 08A62208: the profile to its save (above) */
-    else if (!strcmp(fn, "FE_LoadPlayerProfile")) ak_fe_profile_load();   /* 08A2EAC8 -> 08A62274 */
-    else if (!strcmp(fn, "FE_DeletePlayerProfile")) { char pp[512], key[40]; prof_path(pp, sizeof pp); snprintf(key, sizeof key, "ULUS10292%s", ak_setting_str("AK_SAVE_SLOT", "0000")); ak_save_delete(key, pp); prof_have = false; }
+    else if (!strcmp(fn, "FE_ExitAutoSaveMenu")) {                    /* 08A2F624: a canceled save turns the autosave off */
+        if ((int)var_get("BFF.FE.ProfileLoadAndSaveResult") == 4) var_set("BFF.FE.ProfileAutosaveOn", 0); }
+    else if (!strcmp(fn, "FE_SavePlayerProfile")) {                   /* 08A2EA54: "0" the save dialogue (08A621E8), "1" the autosave (08A62208) */
+        if (!atoi(a->arg)) sd_open(SD_SAVE);
+        else if (!var_get("BFF.FE.ProfileAutosaveOn") || !prof_have || !prof[6]) var_set("BFF.FE.ProfileLoadAndSaveResult", 5);   /* (not needed) */
+        else if (var_get("BFF.FE.ProfileAutosaveNeedPrompt")) sd_open(SD_SAVE);
+        else var_set("BFF.FE.ProfileLoadAndSaveResult", ak_fe_profile_save() ? 2 : 3);   /* (08A6A05C: to the slot in use) */
+    }
+    else if (!strcmp(fn, "FE_LoadPlayerProfile")) sd_open(SD_LOAD);      /* 08A2EAC8 -> 08A62274 -> 08A6A1DC: the save dialogue, list load */
+    else if (!strcmp(fn, "FE_DeletePlayerProfile")) { char pp[512], key[40]; prof_path(pp, sizeof pp); snprintf(key, sizeof key, "ULUS10292%s", slot_id()); ak_save_delete(key, pp); prof_have = false; }
     else if (!strcmp(fn, "FE_RequestMenuMode")) var_set("BFF.FE_MenuMode", atoi(a->arg));   /* (which of a dialogue's answers show) */
     else if (!strcmp(fn, "FE_ResumePlay")) { ak_fe_close(); return AK_FE_RESUME; }
     else if (!strcmp(fn, "FE_StartGalacticConquest") || !strcmp(fn, "FE_CheckConquestState")) {
@@ -1569,6 +1618,88 @@ static void osk_str(int big, f32 x0, f32 y, f32 x1, u32 argb, const char *s, int
     u16 w[96]; u32 n = 0; for (; s[n] && n < 95; n++) w[n] = (u8)s[n];
     ak_hud_2d_text(big, x0, y, x1, 1.0f, argb, w, n, align);
 }
+/* ---- the save dialogue: the PSP's own list dialogue (sceUtilitySavedata in its list modes: 4 load, 5 save, 6 delete) holds the
+ * game's five profile slots; the game waits on it and reads the result into BFF.FE.ProfileLoadAndSaveResult (its own description,
+ * BOOT.BIN 0x08AE6xxx: 0 inactive, 1 in progress, 2 complete, 3 failed, 4 canceled, 5 not needed), which the pages show by
+ * (MP_LoadProfile: Loading / Load Complete / Load Canceled / Load Failed, Back or Continue).  The dialogue is the device's, not
+ * the game's: Aurek draws its own (the slots with each profile's name or "Empty", up / down, CROSS chooses, CIRCLE goes back; an
+ * empty slot cannot be loaded - "This slot is empty"; saving over or deleting a used slot asks first, No by default). */
+#define SD_SLOTS 5
+static struct { bool on; int mode, cur, confirm, yes; bool used[SD_SLOTS]; u16 name[SD_SLOTS][21]; u32 nlen[SD_SLOTS]; const char *note; } sd;
+static void sd_slot_key(int i, char *key, size_t kn, char *path, size_t pn)
+{
+    snprintf(key, kn, "ULUS10292%04d", i); snprintf(path, pn, "%s/ULUS10292%04d/DATA.BIN", prof_dir(), i);
+}
+static void sd_scan(void)
+{
+    for (int i = 0; i < SD_SLOTS; i++) {
+        char key[40], path[512]; sd_slot_key(i, key, sizeof key, path, sizeof path);
+        static u8 b[16 + PROF_SIZE]; s32 n = ak_save_read(key, path, b, sizeof b);
+        sd.used[i] = n >= (s32)(16 + PROF_NAME + 2); sd.nlen[i] = 0;
+        if (sd.used[i]) for (u32 k = 0; k < 20; k++) { u16 c = ak_rd16(b + 16 + PROF_NAME + 2 * k); if (!c) break; sd.name[i][sd.nlen[i]++] = c; }
+    }
+}
+static void sd_open(int mode)
+{
+    memset(&sd, 0, sizeof sd); sd.on = true; sd.mode = mode; sd_scan();
+    if (mode == SD_SAVE) { sd.cur = 0; for (int i = 0; i < SD_SLOTS; i++) if (!sd.used[i]) { sd.cur = i; break; } }   /* (a free slot first) */
+    else for (int i = 0; i < SD_SLOTS; i++) if (sd.used[i]) { sd.cur = i; break; }
+    var_set("BFF.FE.ProfileLoadAndSaveResult", 1);
+}
+static void sd_done(int result) { sd.on = false; var_set("BFF.FE.ProfileLoadAndSaveResult", (f32)result); AK_INFO("fe", "save dialogue: result %d (slot %s)", result, slot_id()); }
+static void sd_update(const ak_input *in)
+{
+    if (sd.confirm) {
+        if (in->pressed & (AK_BTN_UP | AK_BTN_DOWN | AK_BTN_LEFT | AK_BTN_RIGHT)) sd.yes = !sd.yes;
+        if (in->pressed & AK_BTN_CIRCLE) { sd.confirm = 0; return; }
+        if (!(in->pressed & AK_BTN_CROSS)) return;
+        sd.confirm = 0; if (!sd.yes) return;
+    } else {
+        if (in->pressed & AK_BTN_UP) { sd.cur = (sd.cur + SD_SLOTS - 1) % SD_SLOTS; sd.note = NULL; }
+        if (in->pressed & AK_BTN_DOWN) { sd.cur = (sd.cur + 1) % SD_SLOTS; sd.note = NULL; }
+        if (in->pressed & AK_BTN_CIRCLE) { sd_done(4); return; }
+        if (!(in->pressed & AK_BTN_CROSS)) return;
+        if (sd.mode != SD_SAVE && !sd.used[sd.cur]) { sd.note = "This slot is empty."; return; }
+        if (sd.mode == SD_DELETE || (sd.mode == SD_SAVE && sd.used[sd.cur])) { sd.confirm = 1; sd.yes = 0; return; }
+    }
+    char id[8]; snprintf(id, sizeof id, "%04d", sd.cur);
+    if (sd.mode == SD_LOAD) { char keep[8]; memcpy(keep, slot_id(), sizeof keep); memcpy(prof_slot, id, sizeof id);
+                              if (ak_fe_profile_load()) sd_done(2); else { memcpy(prof_slot, keep, sizeof keep); sd_done(3); } }
+    else if (sd.mode == SD_SAVE) { memcpy(prof_slot, id, sizeof id); sd_done(ak_fe_profile_save() ? 2 : 3); }
+    else { char key[40], path[512]; sd_slot_key(sd.cur, key, sizeof key, path, sizeof path); sd_done(ak_save_delete(key, path) ? 2 : 3); }
+}
+static void sd_str(int big, f32 x0, f32 y, f32 x1, u32 c, const char *t, int al)
+{
+    u16 b[64]; u32 n = 0; for (; t[n] && n < 63; n++) b[n] = (u8)t[n];
+    ak_hud_2d_text(big, x0, y, x1, 1.0f, c, b, n, al);
+}
+static void sd_draw(void)
+{
+    if (!sd.on) return;
+    ak_hud_2d_begin();
+    ak_hud_2d_quad(NULL, 0, 0, 480, 272, 0, 0, 1, 1, 0xC0000000u);
+    const f32 X0 = 90, X1 = 390, Y0 = 28;
+    ak_hud_2d_quad(NULL, X0, Y0, X1, 244, 0, 0, 1, 1, 0xE8102030u);
+    ak_hud_2d_quad(NULL, X0, Y0, X1, Y0 + 2, 0, 0, 1, 1, 0xFF4A90E0u);
+    sd_str(1, X0 + 10, Y0 + 8, X1, 0xFFFFFFFFu, sd.mode == SD_LOAD ? "Load Profile" : sd.mode == SD_SAVE ? "Save Profile" : "Delete Profile", 0);
+    for (int i = 0; i < SD_SLOTS; i++) {
+        f32 y = Y0 + 34 + i * 30; bool on = i == sd.cur;
+        ak_hud_2d_quad(NULL, X0 + 10, y, X1 - 10, y + 24, 0, 0, 1, 1, on ? 0xFF2F80C8u : 0xFF1A3046u);
+        char t[16]; snprintf(t, sizeof t, "Slot %d", i + 1); sd_str(0, X0 + 18, y + 5, X0 + 80, 0xFFFFFFFFu, t, 0);
+        if (sd.used[i]) ak_hud_2d_text(0, X0 + 80, y + 5, X1 - 14, 1.0f, 0xFFFFFFFFu, sd.name[i], sd.nlen[i], 0);
+        else sd_str(0, X0 + 80, y + 5, X1 - 14, 0xFFB0C0D0u, "Empty", 0);
+    }
+    if (sd.confirm) {
+        ak_hud_2d_quad(NULL, X0 + 40, 100, X1 - 40, 170, 0, 0, 1, 1, 0xF0081018u);
+        sd_str(0, X0 + 40, 108, X1 - 40, 0xFFFFFFFFu, sd.mode == SD_DELETE ? "Delete this profile?" : "Overwrite this profile?", 1);
+        sd_str(1, X0 + 60, 136, X0 + 140, sd.yes ? 0xFF4AB0FFu : 0xFF808890u, "Yes", 1);
+        sd_str(1, X1 - 140, 136, X1 - 60, sd.yes ? 0xFF808890u : 0xFF4AB0FFu, "No", 1);
+    }
+    if (sd.note) sd_str(0, X0 + 10, 226, X1, 0xFFE0C060u, sd.note, 0);
+    sd_str(0, X0, 226, X1 - 10, 0xFFE0E8F0u, "X Select   O Back", 2);
+    ak_hud_2d_end();
+}
+
 void ak_osk_draw(void)
 {
     if (!osk.on) return;
@@ -1676,14 +1807,16 @@ static const ak_widget *find_auto(const ak_widget *w)   /* a button that presses
 int ak_fe_update(const ak_input *in, f32 dt)
 {
     if (!page) return AK_FE_NONE;
+    if (sd.on) { sd_update(in); return AK_FE_NONE; }                    /* (the save dialogue has the pad until it closes) */
     if (osk.on) {                                                      /* the keyboard has the pad until it closes */
         int k = ak_osk_update(in, dt);
         if (k == 0) return AK_FE_NONE;
         const ak_widget *w = osk_widget; osk_widget = NULL;
-        if (k < 0) return AK_FE_NONE;                                  /* cancelled: the name and the page stay [assumed: as the PSP's] */
+        if (k < 0) { osk_box = false; return AK_FE_NONE; }             /* cancelled: the box keeps its text (the original's frame after a cancel) */
         u32 n; const u16 *t = ak_osk_text(&n);
         while (n && t[n - 1] == ' ') n--;                              /* (no trailing spaces) */
         if (!n) return AK_FE_NONE;                                     /* (an empty name is not taken) */
+        if (osk_box) { osk_box = false; tb_n = n > 20 ? 20 : n; memcpy(tb_name, t, tb_n * 2); tb_set = true; return AK_FE_NONE; }   /* (into the box) */
         if (!prof_have) prof_new();
         memset(prof + PROF_NAME, 0, 42); for (u32 i = 0; i < n && i < 20; i++) ak_wr16(prof + PROF_NAME + 2 * i, t[i]); prof[6] = 1;
         AK_INFO("fe", "profile name set (%u characters)", n);
@@ -1694,6 +1827,12 @@ int ak_fe_update(const ak_input *in, f32 dt)
         focus_fix_pending = false;
         const ak_widget *f0 = focus ? find_visible(&page->root, focus) : NULL;
         if (!f0 || (f0->type == AK_GUI_BUTTON && !f0->nactions && !f0->target)) { const ak_widget *c = first_control(&page->root); if (c) focus = c->id; }
+    }
+    {   /* the focus on nothing usable (a title text box - MP_LoadProfile's own focus - or a widget hidden now): the first shown
+           control takes it as one appears (MP_LoadProfile's Back, once the load is canceled: focused in the original's frames) */
+        const ak_widget *fv = focus ? find_visible(&page->root, focus) : NULL;
+        bool dead = !fv || (fv->type == AK_GUI_TEXTBOX && !(fv->binding && fv->binding[0]) && !(fv->links[0] | fv->links[1] | fv->links[2] | fv->links[3]));
+        if (dead && !nlayer) { const ak_widget *c = first_control(&page->root); if (c && c->id != focus) focus = c->id; }
     }
     {   /* a page's W_BU_AutoClick* button runs at once while its conditions hold (MP_GalacticConquest's
            W_BU_AutoClickWhenNoSavedConquest: no conquest played - a new one) [assumed: by its name; not traced] */
@@ -1782,6 +1921,11 @@ int ak_fe_update(const ak_input *in, f32 dt)
             }
         }
     if ((in->pressed & AK_BTN_CROSS) && getenv("AK_FE_TRACE")) AK_INFO("fe", "cross on %s (%u actions)", f && f->name ? f->name : "-", f ? f->nactions : 0);
+    if ((in->pressed & AK_BTN_CROSS) && f && f->type == AK_GUI_TEXTBOX && f->binding && !strcmp(f->binding, "BFF.FE_ProfileName")) {
+        /* a text box: CROSS opens the keyboard (08894140 -> 0888B4E0 -> 0890DAA8: sceUtilityOsk, 21 with the end - 20 characters),
+           the typed name the profile's (the PSP's own keyboard there; Aurek's here) */
+        u32 n0 = 0; const u16 *cur = tb_text(f, &n0); ak_osk_open("Enter your name", cur, n0, 20); osk_widget = NULL; osk_box = true; return AK_FE_NONE;
+    }
     if ((in->pressed & AK_BTN_CROSS) && f && is_button(f->type) && f->type != AK_GUI_TEXTLIST) return activate(f);
     for (int k = 1; k < 3; k++)                                        /* square, triangle: a button's own action for them */
         if ((in->pressed & keys[k][0]) && f && is_button(f->type))
