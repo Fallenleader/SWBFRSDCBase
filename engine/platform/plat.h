@@ -52,6 +52,15 @@ bool ak_plat_memcard_write(const char *key, const char *title, const void *data,
 s32  ak_plat_memcard_read(const char *key, void *buf, u32 cap);
 bool ak_plat_memcard_delete(const char *key);
 #endif
+/* a device's own MP4 player (the Vita: sceAvPlayer, platform/vita/movie_vita.c), for engine/video/ak_movie.c; elsewhere none
+ * (weak defaults: open returns NULL).  open: the file (H.264 + AAC, the conversion tool's Vita target); video: the newest picture
+ * due by the player's own clock (NV12: Y rows of `stride`, then the interleaved CbCr rows from y_rows on), 1 new, 0 none yet, -1
+ * ended; audio: interleaved stereo s16 frames waiting (up to cap; *rate set), 0 none */
+typedef struct ak_plat_mp4 ak_plat_mp4;
+ak_plat_mp4 *ak_plat_mp4_open(const char *path);
+int  ak_plat_mp4_video(ak_plat_mp4 *m, const u8 **nv12, u32 *w, u32 *h, u32 *stride, u32 *y_rows);
+u32  ak_plat_mp4_audio(ak_plat_mp4 *m, s16 *out, u32 cap, u32 *rate);
+void ak_plat_mp4_close(ak_plat_mp4 *m);
 #ifdef AK_HAS_MOVIES
 /* a movie in the device's converted format (the GameCube: THP), full screen at its own shape, START / CROSS skips; blocks until it
  * ends.  false: it could not be played (not there, not readable, no memory). */

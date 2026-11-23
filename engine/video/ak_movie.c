@@ -228,11 +228,60 @@ static int play_av(const char *path)
 }
 #endif
 
+/* ---- MP4 through the device's own player (ak_plat_mp4_*: the Vita's sceAvPlayer paces the pictures and the sound itself) */
+__attribute__((weak)) ak_plat_mp4 *ak_plat_mp4_open(const char *path) { (void)path; return NULL; }
+__attribute__((weak)) int ak_plat_mp4_video(ak_plat_mp4 *m, const u8 **nv12, u32 *w, u32 *h, u32 *stride, u32 *y_rows) { (void)m; (void)nv12; (void)w; (void)h; (void)stride; (void)y_rows; return -1; }
+__attribute__((weak)) u32 ak_plat_mp4_audio(ak_plat_mp4 *m, s16 *out, u32 cap, u32 *rate) { (void)m; (void)out; (void)cap; (void)rate; return 0; }
+__attribute__((weak)) void ak_plat_mp4_close(ak_plat_mp4 *m) { (void)m; }
+static void nv12_to_rgba(const u8 *y, u32 stride, u32 y_rows, int w, int h, u32 *out)
+{
+    const u8 *uv = y + (size_t)stride * y_rows;
+    for (int j = 0; j < h; j++) {
+        const u8 *yr = y + (size_t)j * stride, *cr = uv + (size_t)(j >> 1) * stride; u32 *o = out + (size_t)j * w;
+        for (int i = 0; i < w; i++) {
+            s32 Y = yr[i] << 16, B = cr[(i & ~1)] - 128, R = cr[(i & ~1) + 1] - 128;
+            u8 r = clamp8((Y + 91881 * R + 32768) >> 16), g = clamp8((Y - 22554 * B - 46802 * R + 32768) >> 16), b = clamp8((Y + 116130 * B + 32768) >> 16);
+            o[i] = 0xFF000000u | ((u32)b << 16) | ((u32)g << 8) | r;
+        }
+    }
+}
+static int play_plat_mp4(const char *path)
+{
+    ak_plat_mp4 *m = ak_plat_mp4_open(path); if (!m) return AK_MOVIE_NONE;
+    enum { CAP = 4096 }; s16 *pcm = (s16 *)malloc(CAP * 4); u32 *rgba = NULL; u32 pw = 0, ph = 0, shown = 0; bool snd = false; u32 snd_rate = 0;
+    tex_ring ring; memset(&ring, 0, sizeof ring); ak_gfx_tex *cur = NULL;
+    skipper sk; skip_init(&sk);
+    AK_INFO("movie", "%s: the device's player", path);
+    for (;;) {
+        u32 rate = 0, n;
+        while (pcm && (n = ak_plat_mp4_audio(m, pcm, CAP, &rate)) > 0) {     /* the sound as it comes, into the mix */
+            if (!snd || rate != snd_rate) { if (snd) ak_audio_movie_close(); snd = ak_audio_movie_open(rate, MOVIE_GAIN); snd_rate = rate; }
+            if (snd) for (u32 k = 0; k < n;) { u32 t = ak_audio_movie_push(pcm + 2 * k, n - k); k += t; if (!t) break; }
+        }
+        const u8 *nv; u32 w, h, stride, yr; int v = ak_plat_mp4_video(m, &nv, &w, &h, &stride, &yr);
+        if (v < 0) break;
+        if (v > 0) {
+            if (w != pw || h != ph) { free(rgba); pw = w; ph = h; rgba = (u32 *)malloc((size_t)w * h * 4); }
+            if (rgba) { nv12_to_rgba(nv, stride, yr, (int)w, (int)h, rgba); ak_gfx_tex *nt = ak_gfx_texture_rgba((int)w, (int)h, rgba); if (nt) { ring_put(&ring, nt); cur = nt; } shown++; }
+        }
+        f32 u0 = pw ? 0.5f / pw : 0, v0 = ph ? 0.5f / ph : 0;
+        present(cur, u0, v0, 1 - u0, 1 - v0, pw && ph ? (f32)pw / ph : 16.0f / 9.0f);
+        skip_poll(&sk);
+        if (sk.skip || sk.quit) break;
+    }
+    if (snd) ak_audio_movie_close();
+    ak_plat_mp4_close(m); ring_free(&ring);
+    AK_INFO("movie", "%s, %u pictures shown: %s", sk.quit ? "quit" : sk.skip ? "skipped" : "ended", shown, path);
+    free(rgba); free(pcm);
+    return sk.quit ? AK_MOVIE_QUIT : sk.skip ? AK_MOVIE_SKIPPED : AK_MOVIE_PLAYED;
+}
+
 static bool ends_with(const char *s, const char *e) { size_t a = strlen(s), b = strlen(e); return a >= b && !strcmp(s + a - b, e); }
 int ak_movie_play_file(const char *path, u32 src_w, u32 src_h)
 {
     FILE *t = fopen(path, "rb"); if (!t) return AK_MOVIE_NONE; fclose(t);
     if (ends_with(path, ".thp")) return play_thp(path, src_w, src_h);
+    if (ends_with(path, ".mp4")) { int r = play_plat_mp4(path); if (r != AK_MOVIE_NONE) return r; }
 #ifdef AK_HAVE_LIBAV
     return play_av(path);
 #else
@@ -245,11 +294,7 @@ int ak_movie_play(const char *const *dirs, int ndirs, const char *name, const ch
     char up[64]; int k = 0;
     for (const char *c = name; *c && k < 63; c++) up[k++] = (*c >= 'a' && *c <= 'z') ? (char)(*c - 32) : *c;
     up[k] = 0;
-    static const char *const ext[] = {
-#ifdef AK_HAVE_LIBAV
-        ".PMF.mp4",
-#endif
-        ".PMF.thp" };
+    static const char *const ext[] = { ".PMF.mp4", ".PMF.thp" };   /* (an MP4 needs libavcodec or the device's player: else passed over) */
     for (int pass = lang && *lang ? 0 : 1; pass < 2; pass++)            /* (the language folder first, as the game) */
         for (u32 e = 0; e < sizeof ext / sizeof ext[0]; e++)
             for (int i = 0; i < ndirs; i++) {

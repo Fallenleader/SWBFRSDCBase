@@ -83,3 +83,7 @@ Reports fall after M5, M10 and M15.
     it; set on the splash); vertical placement for text flags without 0x20 / 0x40 (Aurek centres them); whether a hidden
     widget's animation clock runs (Aurek: all from the page's opening); UIAN modes 14, 16, 17 (unused by the menus).
   Next: the Vita's own MP4 movie path (sceAvPlayer), then M1 is complete.
+- 2026-11-23 (M1 complete): the Vita's MP4 path (sceAvPlayer, platform/vita/movie_vita.c) built and linked; desktop rechecked.
+  - Uncertain: the Vita path has not run on hardware (NV12 layout, the player's start-up); whether the Vita keeps up with the THP
+    CPU decoder when only THPs are present.
+  Next: M2, the main menu fully functional (every page reachable from it and its scripts, against the harness original).
