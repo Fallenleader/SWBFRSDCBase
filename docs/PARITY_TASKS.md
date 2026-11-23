@@ -1836,6 +1836,9 @@ textures and how they are used. Section R lists only what must be in place so th
     down on flat ground. Uncertain: what sets the soldier's aim pitch at rest (the camera's pitch over the ground, the ground's
     slope, a default) - trace vfunc +92 of the soldier class and its pitch source; then the throw follows. Belongs with M8/M13's
     camera work.
+    Followed (2026-11-23): the soldier's vfunc +92 is 08998D04 - it returns soldier +276, a matrix refreshed at most once a
+    frame (+312 = the frame counter D_08B285AC) by 08878E84 from the soldier's model component (vbase +4): the frame is the
+    model's (likely an aim bone's, so the pitch would come from the aim animation's blend) [assumed: bone - 08878E84 not read].
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

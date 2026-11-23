@@ -193,3 +193,4 @@ Reports fall after M5, M10 and M15.
   Next: trace the aim frame the throw reads (08A1A77C).
 - 2026-11-23 M7: the throw's frame traced - it is the soldier's aim frame (4.0 degrees up at the Boz spawn). Its pitch rule is
   still open (Uncertain); the throw keeps 8.2 degrees down until it is found.
+- 2026-11-23 M7: the aim frame is soldier +276, refreshed from the model by 08878E84 (not read yet). Next: 08878E84, then pickups.
