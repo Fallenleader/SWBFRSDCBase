@@ -2015,6 +2015,10 @@ textures and how they are used. Section R lists only what must be in place so th
     360 s: 6-11 changes (original 2-3); Alliance tickets now in range, the Empire's not - its first capture (100006) comes at 70-80 s
     against the original's 146-300 s. Next: the Empire's squads at 100006 in the original (who, how many, when they arrive, what
     holds them) - RS_AI_BOTS=1 with positions.
+  - Front post (2026-11-23): the original's Alliance keeps 4-8 soldiers within 40 m of 100006 (vehicle-wanters moving, unplanned
+    squads and squad-less soldiers standing). Ported: unplanned squads / squad-less soldiers hold their spot. 350 s: 9-13 changes
+    (orig 2-3), Empire tickets -38..-61 (orig -56..-92), Alliance -13..-33 (orig -46..-62). Next: capture speed at a contested post
+    (the original's 30 s contest and the drain with defenders present) and the vehicle-wanters' movement.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

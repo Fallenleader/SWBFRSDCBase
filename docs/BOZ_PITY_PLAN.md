@@ -285,3 +285,5 @@ Reports fall after M5, M10 and M15.
   over the same pair; captures fell from ~20 to 6-13 in ~6 min (original 2-3). Next: squad membership and pace.
 - 2026-11-23 M10: squad membership as the original's (vehicle-wanting soldiers out of squads). 360 s: Alliance losses now in
   the original's range; the Empire still takes its target too early (70-80 s vs 146-300 s). Report 4 next.
+- 2026-11-23 M10: unplanned squads and squad-less soldiers now stand as the original's; the Empire's losses moved into range
+  (38-61 vs 56-92), captures still 9-13 vs 2-3. Next: capture speed at contested posts.

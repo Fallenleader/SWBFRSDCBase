@@ -1641,7 +1641,15 @@ static void bot_choose_goal(ak_play *p, ak_play_bot *b)
     if (p->have_ctf && b->veh < 0 && bot_ctf_goal(p, b, (u32)(b - p->bot))) return;
     if (b->veh < 0 && b->want_veh < 0 && bot_take_vehicle(p, b)) return;
     s32 best = -1; f32 bs = 1e30f;
-    if (p->have_cq && p->cmd_on && b->squad >= 0 && b->squad < 64 && p->cmdr[b->team & 1].planned) best = p->cmdr[b->team & 1].sq_post[(int)b->squad];   /* the commander's post */
+    if (p->have_cq && p->cmd_on && !p->have_ctf) {
+        /* the commander's post for the squad; a squad it has not planned for yet (formed since its last plan) and a soldier in no
+           squad stand where they are until the next plan - measured on the original (Boz Pity, 3 min, RS_AI_BOTS): within 40 m of
+           the Alliance's front post 100006, squads under 0x3F2 with no post (999) stood (median 0 m per 2 s, 126 samples), as did
+           soldiers in no squad not wanting a vehicle (60) [assumed: they hold their spot; re-checked each second] */
+        s32 k = b->squad >= 0 && b->squad < 64 && p->cmdr[b->team & 1].planned ? p->cmdr[b->team & 1].sq_post[(int)b->squad] : -1;
+        if (k >= 0) best = k;
+        else { b->goal = -2; b->holding = true; b->goal_t = 1.0f; memcpy(b->hold, b->ch.pos, 12); b->npath = b->path_i = 0; return; }
+    }
     for (u32 i = 0; best < 0 && p->have_cq && i < p->cq.nposts; i++) {
         if (p->cq.post[i].disabled) continue;
         const ak_post_state *ps = &p->match.post[i];
@@ -3957,6 +3965,11 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     }
     static const ak_input still; if (ak_play_cut_view(p)) in = &still;            /* a cut-scene: no control (seen: the player stands) */
     if (p->roll_nolock_t > 0) p->roll_nolock_t -= dt;                      /* (089DA874: +0x84 runs down by the frame's time) */
+    {   static int lb = -1; static f32 next = 0; if (lb < 0) lb = ak_setting_int("AK_DEBUG_BOTS", 0);   /* tests: every bot every 2 s of match time, game axes */
+        if (lb && p->have_cq && p->match.time >= next) { next = p->match.time + 2.0f;
+            for (u32 i = 0; i < p->nbots; i++) { const ak_play_bot *b = &p->bot[i];
+                AK_INFO("bots", "t %.1f bot %u team %d alive %d pos %.1f %.1f %.1f squad %d goal %d veh %d wantveh %d/%d enemy %d", p->match.time, i, b->team, b->alive,
+                        b->ch.pos[0], -b->ch.pos[1], -b->ch.pos[2], b->squad, b->goal, b->veh, b->wants_veh, b->want_veh, b->enemy); } } }
     if (ak_setting_int("AK_LOG_HITS", 0) && p->frame_no % 6 == 0)        /* (tests: each bot's position every 0.1 s, against the hits' shooters) */
         for (u32 i = 0; i < p->nbots; i++) if (p->bot[i].alive && p->bot[i].veh < 0) {
             f32 pd = 1e9f; for (u32 k = 0; p->have_cq && k < p->cq.nposts; k++) { f32 dx = p->cq.post[k].pos[0] - p->bot[i].ch.pos[0], dz = p->cq.post[k].pos[2] - p->bot[i].ch.pos[2]; pd = fminf(pd, dx * dx + dz * dz); }
