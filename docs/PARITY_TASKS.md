@@ -1794,6 +1794,11 @@ textures and how they are used. Section R lists only what must be in place so th
   - FIXED (assumed rule): pushes go through the sweep (ak_char_push); Boz Pity walk no longer falls. Open: the 4.5 m gap at the
     AT-AT from 5 s (the original slows to 0.53 / 1.14 m/s against it, Aurek holds ~2 m/s) - the original's soldier-vehicle
     response (speed loss against a body) is not read.
+  - Boz Pity run_jump (--warmup 590, 300 frames): within 0.24 m to 3 s. The jump (game y, down): both rise alike to frame 84
+    (-0.195 both); apex original -0.4865 at frame 98, Aurek -0.4268 at 97 (0.06 m lower); the descent is faster in Aurek
+    (frame 116: -0.060 vs +0.080; 132: 1.076 vs 1.284) - a rough fit from the apex gives 9.5 m/s^2 for the original and 10.2 for
+    Aurek (the ground under it differs slightly too). Next: the jump's vertical speed and gravity in the original (the jump
+    impulse, a lower gravity while rising / held?), against Aurek's ak_character jump.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
