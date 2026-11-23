@@ -1832,6 +1832,10 @@ textures and how they are used. Section R lists only what must be in place so th
     ahead) the original's aim frame is about 2.6 degrees UP (19.5 forward / 4.9 up), not the 8.2 degrees down measured standing
     on flat ground. Uncertain: what sets the aim frame's pitch (camera pitch, ground slope, the soldier's aim) - trace the frame
     08A1A77C reads. Uncertain: what the player record's +56 is (the 0.8 damage factor to local players, 08A3CCF8).
+  - M7 throw frame (2026-11-23): the throw uses the soldier's aim frame (vfunc +92), 4.0 degrees up at Boz Pity's spawn, 8.2
+    down on flat ground. Uncertain: what sets the soldier's aim pitch at rest (the camera's pitch over the ground, the ground's
+    slope, a default) - trace vfunc +92 of the soldier class and its pitch source; then the throw follows. Belongs with M8/M13's
+    camera work.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

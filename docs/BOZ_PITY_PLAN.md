@@ -191,3 +191,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M7: the player's rifle damage per hit measured in the original (15) - Aurek's the same. Next: headshot, grenades.
 - 2026-11-23 M7: grenade compared - fuse matches (3.0 s); the throw's pitch differs on sloped ground (lands 4.1 m short).
   Next: trace the aim frame the throw reads (08A1A77C).
+- 2026-11-23 M7: the throw's frame traced - it is the soldier's aim frame (4.0 degrees up at the Boz spawn). Its pitch rule is
+  still open (Uncertain); the throw keeps 8.2 degrees down until it is found.
