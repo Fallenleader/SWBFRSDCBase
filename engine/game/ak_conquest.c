@@ -230,6 +230,8 @@ void ak_conquest_start(const ak_conquest_map *m, const ak_cq_rules *r, ak_conque
 static void set_owner(const ak_conquest_map *m, ak_conquest *s, u32 i, int team)
 {
     ak_post_state *p = &s->post[i];
+    { static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_CAPTURES", 0);   /* tests: every owner change */
+      if (dbg) AK_INFO("conquest", "post %u: %d -> %d at %.2f s (tickets %d / %d)", i, p->owner, team, s->time, s->tickets[0], s->tickets[1]); }
     p->owner = team; p->progress = m->post[i].amount; p->capturing = AK_CQ_NEUTRAL; s->captures++;
     recount(m, s);
     /* the events (089ECDE4): neutral 10001; else 10000, then 10002 for team 1 or 10003 for team 2 */

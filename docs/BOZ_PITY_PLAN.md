@@ -268,3 +268,5 @@ Reports fall after M5, M10 and M15.
   Aurek -5 / -24 (one run each; more runs needed before calling it).
 - 2026-11-23 Score boards sorted as the original's (score, then deaths; the yellow bar follows the player). Death rate over
   2 min: the original -12 / -30; Aurek swings (-29/-33 .. -21/-114) from 16-41 post captures. Next: capture frequency.
+- 2026-11-23 Correction: the 2-minute Aurek numbers were 8-9 minutes of match time (frames, not seconds). By time, 120 s:
+  original 0 captures, -12..-16 / -30; Aurek 1-2 captures, -2..-5 / -22..-23. Next: the original's capture rate over 6 min.
