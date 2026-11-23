@@ -446,6 +446,7 @@ static void box_body_step(ak_vehicle *v, const ak_collision *col, f32 gravity, f
         v->pos[1] += 1.0f; box_place(v, ctr, ax, h);
         if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, drop, VEH_IGNORE, &t, n, &fl, NULL) && t >= 0) v->pos[1] += -3.0f * t + 0.005f;
         else v->pos[1] -= 1.0f;
+        if (ak_setting_int("AK_DEBUG_VEH", 0) >= 3) AK_INFO("veh", "%s settles at %.2f %.2f %.2f", d->name ? d->name : "?", v->pos[0], v->pos[1], v->pos[2]);
     }
     if (v->on_ground && v->vel[1] <= 0) {
         const f32 *n = v->ground_n; f32 dd = v->vel[0] * n[0] + v->vel[2] * n[2];
@@ -453,13 +454,23 @@ static void box_body_step(ak_vehicle *v, const ak_collision *col, f32 gravity, f
     }
     v->vel[1] -= gravity * dt;
     f32 move[3] = { v->vel[0] * dt, v->vel[1] * dt, v->vel[2] * dt };
-    bool ground = false; f32 gn[3] = { 0, 1, 0 };
+    bool ground = false; f32 gn[3] = { 0, 1, 0 }; int outs = 0;
     for (int pass = 0; pass < 10; pass++) {
         f32 L = sqrtf(move[0] * move[0] + move[1] * move[1] + move[2] * move[2]);
         if (L < 1e-4f) break;
         f32 ctr[3], ax[3][3], h[3], t, n[3]; u16 fl;
         box_place(v, ctr, ax, h);
         if (!ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, move, VEH_IGNORE, &t, n, &fl, NULL)) { for (int k = 0; k < 3; k++) v->pos[k] += move[k]; break; }
+        if (t < -0.5f) {
+            /* inside a face it moves into: the original's body step stops dead there (088C623C), which would leave a bot's creature or
+               tank hanging in the level for good.  The body's turn is not swept, so a turn beside a wall or on uneven ground swings a
+               corner into a face (seen on Boz Pity: 3-31 cm, ground and walls); the body backs out the shortest way (the separating axis
+               it overlaps least along, ak_col_box_sweep; up to 8 times a step) and stops only if that fails [assumed: how the original
+               keeps a turning box body out of the level is not read] */
+            f32 depth = -1.0f - t;
+            if (outs < 8 && depth > 0 && depth < 1.0f) { outs++; for (int k = 0; k < 3; k++) v->pos[k] += n[k] * (depth + 0.005f); pass--; continue; }
+            if (ak_setting_int("AK_DEBUG_VEH", 0) >= 3) AK_INFO("veh", "%s stuck inside the level at %.2f %.2f %.2f (out along %.2f %.2f %.2f, %.3f m)", d->name, v->pos[0], v->pos[1], v->pos[2], n[0], n[1], n[2], depth);
+            break; }
         f32 adv = t * L - 0.005f; if (adv < 0) adv = 0;
         if (t <= 0) for (int k = 0; k < 3; k++) v->pos[k] += n[k] * 0.005f;
         for (int k = 0; k < 3; k++) { v->pos[k] += move[k] / L * adv; move[k] *= 1.0f - adv / L; }
@@ -472,7 +483,7 @@ static void box_body_step(ak_vehicle *v, const ak_collision *col, f32 gravity, f
     if (!ground && v->vel[1] <= 0.01f) {                                     /* resting just above it: a short probe keeps the footing */
         f32 ctr[3], ax[3][3], h[3], t, n[3], probe[3] = { 0, -0.04f, 0 }; u16 fl;
         box_place(v, ctr, ax, h);
-        if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, probe, VEH_IGNORE, &t, n, &fl, NULL) && n[1] >= 0.70710678f) { ground = true; memcpy(gn, n, 12); }
+        if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, probe, VEH_IGNORE, &t, n, &fl, NULL) && t > -0.5f && n[1] >= 0.70710678f) { ground = true; memcpy(gn, n, 12); }
     }
     {   static int dv = -1; if (dv < 0) dv = ak_setting_int("AK_DEBUG_VEH", 0);   /* tests (3): a box body losing its footing */
         if (dv >= 3 && v->on_ground && !ground) AK_INFO("veh", "%s leaves the ground at %.2f %.2f %.2f, vel %.2f %.2f %.2f", d->name ? d->name : "?", v->pos[0], v->pos[1], v->pos[2], v->vel[0], v->vel[1], v->vel[2]);

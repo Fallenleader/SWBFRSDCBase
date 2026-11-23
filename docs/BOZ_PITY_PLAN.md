@@ -238,3 +238,5 @@ Reports fall after M5, M10 and M15.
   sample is not enough; left as is. Next: the T4B, the flyers and the rest, then close M11.
 - 2026-11-23 M11: BUG found - Aurek's bot-driven Carrion_Spat creatures and a T4B tank fall out of the level after boarding.
   Next session: fix it first.
+- 2026-11-23 M11 COMPLETE: vehicles no longer fall out (box sweep "inside" read and ported; vehicles back out of faces they
+  turn into). 60 s against the original: AT-AT path within 0.7 m, vehicle classes mapped, no vehicle lost. Next: M12 sound.

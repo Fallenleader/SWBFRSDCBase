@@ -321,7 +321,7 @@ static f32 box_tri_sweep_game(const ak_col_tri *T, const f32 *C, const f32 (*A)[
     for (int i = 0; i < 3; i++) memcpy(L[9 + i], A[i], 12);
     memcpy(L[12], N, 12);
     f32 d[3] = { (V[0][0] + V[1][0] + V[2][0]) / 3.0f - C[0], (V[0][1] + V[1][1] + V[2][1]) / 3.0f - C[1], (V[0][2] + V[1][2] + V[2][2]) / 3.0f - C[2] };
-    f32 enter = -1e-4f, exit = tmax, face_near = -1e30f; int axis = 13;
+    f32 enter = -1e-4f, exit = tmax, face_near = -1e30f, pen = 1e30f, pen_l[3] = { 0, 1, 0 }; int axis = 13;
     for (int a = 0; a < 13; a++) {
         f32 *l = L[a], ll = dot(l, l);
         if (ll < 0.001f) continue;
@@ -333,6 +333,7 @@ static f32 box_tri_sweep_game(const ak_col_tri *T, const f32 *C, const f32 (*A)[
         f32 mid = (lo + hi) * 0.5f, hw = hi - mid, off = dot(l, C) - mid, v = dot(l, mv);
         f32 far = off + r + hw, near = off - r - hw;                          /* the box's far and near side past the triangle's */
         if (a == 12 && dot(l, N) > 0) face_near = near;
+        if (-near < pen) { pen = -near; memcpy(pen_l, l, 12); }            /* (inside: the shortest way out, for callers) */
         if (near + (v < 0 ? v : 0) > 0) return 2.0f;                         /* apart along this axis for the whole move */
         if (far + (v > 0 ? v : 0) < 0) return 2.0f;
         if (fabsf(v) > 1e-7f) {
@@ -347,7 +348,8 @@ static f32 box_tri_sweep_game(const ak_col_tri *T, const f32 *C, const f32 (*A)[
         /* [PARITY(1.3b)] what the body step does with "inside" (088B6510) is not read yet; a box sunk at most 2 cm into the face it is
            moving into (placed on the ground, rounding) is taken as touching it now */
         if (face_near < 0 && face_near > -0.02f) { f32 inv = 1.0f / sqrtf(dot(N, N)); for (int k = 0; k < 3; k++) n_out[k] = N[k] * inv; return 0.0f; }
-        return -1.0f; }
+        memcpy(n_out, pen_l, 12);                                             /* inside: -1 - the overlap along the axis of least overlap, */
+        return -1.0f - (pen > 0 && pen < 1e29f ? pen : 0); }               /* that axis (toward the box) in n_out - the way out, for callers */
     memcpy(n_out, L[axis], 12);
     if (enter >= 1.0f) return 2.0f;
     if (enter >= 0) *edge = dot(N, n_out) < 0.999f;
@@ -365,7 +367,7 @@ bool ak_col_box_sweep(const ak_collision *c, const f32 *c0, const f32 (*ax)[3], 
         f32 a = c0[k], b = c0[k] + mv[k];
         mn[k] = (a < b ? a : b) - ext[k] - 0.01f; mx[k] = (a < b ? b : a) + ext[k] + 0.01f;
     }
-    f32 best = 2.0f; bool any = false;
+    f32 best = 2.0f, in_t = 0, in_n[3] = { 0, 1, 0 }; bool any = false, inside = false;
     u32 stack[64], sp = 0; stack[sp++] = 0;
     while (sp) {
         u32 id = stack[--sp]; const ak_col_node *nd = &c->node[id];
@@ -378,7 +380,9 @@ bool ak_col_box_sweep(const ak_collision *c, const f32 *c0, const f32 (*ax)[3], 
             if (corners) { if (!box_tri_sweep(T, c0, ax, h, mv, &t, n)) continue; }
             else {
                 t = box_tri_sweep_game(T, c0, ax, h, mv, best < 1.0f ? best : 1.0f, n, &edge);
-                if (t > 1.0f || t < -0.5f) continue;                          /* no hit, or inside it (-1) [PARITY(1.3b)] */
+                if (t < -0.5f) {                                              /* inside it (-1): below - the deepest kept */
+                    if (!inside || t < in_t) { in_t = t; memcpy(in_n, n, 12); } inside = true; continue; }
+                if (t > 1.0f) continue;                                       /* no hit */
                 if (t == best && any) {                                       /* a tie: the contact that faces the move more (088C6260) */
                     if (!(dot(n, mv) < dot(normal, mv))) continue;
                     memcpy(normal, n, 12); if (flags) *flags = T->flags; if (edge_out) *edge_out = edge; continue; }
@@ -386,6 +390,11 @@ bool ak_col_box_sweep(const ak_collision *c, const f32 *c0, const f32 (*ax)[3], 
             if (t < best) { best = t; memcpy(normal, n, 12); if (flags) *flags = T->flags; if (edge_out) *edge_out = edge; any = true; }
         }
     }
+    /* inside a triangle it is moving into: the body step (088C4CF4, at 088C623C: a result below 0 sets the pass's best to -1, D_08AEC808,
+       which no contact beats) does not move at all and ends its passes.  Reported as t = -1 - the overlap (the deepest
+       such triangle, the axis it overlaps least along in `normal`), so a caller can stop there - or, for a body whose turn is not swept,
+       back out of it */
+    if (inside && !corners) { *t_out = in_t; memcpy(normal, in_n, 12); if (flags) *flags = 0; if (edge_out) *edge_out = false; return true; }
     if (any) *t_out = best;
     return any;
 }

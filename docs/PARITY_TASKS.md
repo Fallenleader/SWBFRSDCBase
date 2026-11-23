@@ -1918,6 +1918,11 @@ textures and how they are used. Section R lists only what must be in place so th
     Fix first: find why a boarded box body stops colliding (boarding resets settled? a flyer flag? the push at play.c:157
     straight into the level for the player's vehicle only) - then map the original's classes 0x801E / 0x801D to Aurek's
     vehicles and compare their movement.
+  - M11 FIXED (2026-11-23): the fall was a box turned into a face, then "inside" skipped. CORRECTION to the reading above
+    ("the original ALSO skips inside"): at 088C623C a result below 0 stores -1 (D_08AEC808, f21) as the pass's best, so nothing
+    beats it, the body does not move (f22 = 0) and the passes end (L_088C5F2C) - an inside body stops dead. Ported for soldiers;
+    box-body vehicles back out along the axis of least overlap first [assumed]. Open: how the original keeps a turning box out of
+    faces (turn swept? box held?); 0x801E objects (riding on vehicles: turrets / seats?) not modelled as separate objects.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

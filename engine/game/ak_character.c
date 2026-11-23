@@ -61,6 +61,7 @@ static bool body_slide(ak_character *c, const ak_collision *col, f32 move[3], f3
             static int dbm = -1; if (dbm < 0) dbm = ak_setting_int("AK_DEBUG_BODY", 0);
             if (dbm >= 6) AK_INFO("body", "pass %d no hit: move %.4f %.4f %.4f from %.3f %.3f %.3f", pass, move[0], move[1], move[2], c->pos[0], c->pos[1], c->pos[2]);
             for (int k = 0; k < 3; k++) c->pos[k] += move[k]; break; }
+        if (t < -0.5f) break;                                            /* inside a face it moves into: no move this step (088C623C, ak_collision.c) */
         f32 adv = t * L - SKIN; if (adv < 0) adv = 0;
         if (t <= 0) for (int k = 0; k < 3; k++) c->pos[k] += n[k] * SKIN;   /* touching already (a corner just under it): back out to the skin */
         static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
@@ -107,7 +108,7 @@ static void body_update(ak_character *c, const ak_char_params *p, const ak_colli
     if (!ground && c->vel[1] <= 0.01f) {                                 /* resting on the ground below the skin: a short probe keeps the state steady */
         f32 ctr[3], ax[3][3], h[3], t, n[3], probe[3] = { 0, -(SKIN * 4 + 0.02f), 0 }; u16 fl; bool pe = false;
         body_place(c, ctr, ax, h);
-        if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, probe, BODY_IGNORE, &t, n, &fl, &pe) && n[1] >= WALKABLE) { ground = true; memcpy(gn, n, 12); gsrc = 2;
+        if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, probe, BODY_IGNORE, &t, n, &fl, &pe) && t > -0.5f && n[1] >= WALKABLE) { ground = true; memcpy(gn, n, 12); gsrc = 2;
             if ((pe ? n[1] >= 0.9848f : n[1] >= WALKABLE) || (fl & 0x0010)) rest = true; }
     }
     {   static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
