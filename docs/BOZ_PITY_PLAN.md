@@ -262,3 +262,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M10: the infantry trigger traced (fire node pause 2 / 6 s, bursts by Weapon_Name: rifles 2-3, pistols 1) and
   ported for bots on foot; rifles and pistols now fire in the original's rhythm. Open: Boba's rifle spacing, the friendly-fire
   test. Next: Boba's rifle (BurstTime), then the Rebel death rate.
+- 2026-11-23 M10: burst weapons (BurstTime) traced and ported - Boba Fett's rifle fires one projectile a call, 0.1 s apart,
+  2-3 a bot's burst; the 1.95 s gap was the fire node's first pause. Next: the Rebel death rate, then the open items.

@@ -2199,8 +2199,8 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
                 int wn = ak_bp_int(b->weapon.def->bp, "Weapon_Name", 0) - 110;
                 f32 d = sqrtf(to[0] * to[0] + to[1] * to[1] + to[2] * to[2]) / S;
                 switch (wn) {
-                case 0: b->fire_shots += rnd(&b->seed) < 0.75f ? (elite ? 3 : 2) : (elite ? 4 : 3); b->fire_fired = true; break;
-                case 1: case 8: case 9: case 16: b->fire_shots += 1; b->fire_fired = true; break;
+                case 0: { s32 n = rnd(&b->seed) < 0.75f ? (elite ? 3 : 2) : (elite ? 4 : 3); b->fire_shots += n; b->weapon.owed += n; b->fire_fired = true; } break;
+                case 1: case 8: case 9: case 16: b->fire_shots += 1; b->weapon.owed += 1; b->fire_fired = true; break;
                 case 6: case 12: b->fire_hold += 8.0f; b->fire_fired = true; break;
                 case 14: { f32 k = (d - 6.5f) * 0.074f; if (k < 0) k = 0; if (k > 1) k = 1; b->fire_hold += k * 3.0f; b->fire_fired = true; } break;
                 default: break;
@@ -2208,7 +2208,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
                 if (b->fire_fired) b->fire_ai.began = true;
             } else b->fire_ai.began = false;
             if (b->fire_hold > 0) b->fire_hold -= dt;
-            if (!en) { b->fire_shots = 0; b->fire_hold = 0; }
+            if (!en) { b->fire_shots = 0; b->fire_hold = 0; b->weapon.owed = 0; }   /* [assumed: a lost target drops what is owed] */
             held = en && (b->fire_shots > 0 || b->fire_hold > 0);
             /* Speech_BC_Rocket (089395E4): an AI that starts firing a weapon of the "Rocket" kind (the rocket launchers' Projectile
                "rocket") says it once, until it lets go */
@@ -4337,7 +4337,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     } else if (p->armed) {
         ak_weapon_update(&p->weapon, dt, false);
         f32 gun[12], muz[3];
-        if ((in->held & AK_BTN_R) && p->alive && p->in_turret < 0 && p->aim_ok && p->raise_t <= 0.001f && ak_play_weapon_matrix(p, m, gun)) {   /* (the camera has aimed once) */
+        if (((in->held & AK_BTN_R) || p->weapon.owed > 0) && p->alive && p->in_turret < 0 && p->aim_ok && p->raise_t <= 0.001f && ak_play_weapon_matrix(p, m, gun)) {   /* (the camera has aimed once;
+                                                                                     a burst weapon's press finishes its shots, the trigger let go or not: w+296) */
             muzzle_of(m, &p->wdef, gun, muz);
             f32 tgt[3]; memcpy(tgt, p->aim_point, 12);
             if (p->lock >= 0 && p->target[p->lock].alive) {                    /* locked on: the chest, then the head */

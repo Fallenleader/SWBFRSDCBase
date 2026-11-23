@@ -64,7 +64,7 @@ bool ak_ai_fire_update(ak_ai_fire *c, const ak_weapon_def *d, bool want, bool ok
  * (radians); flat: the angle across the ground only (the record's +24: soldiers and ground vehicles) */
 bool ak_ai_fire_ok(const f32 *fwd, const f32 *to, f32 range, f32 cone, bool flat);
 
-typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; ak_heat heat; bool heats; s32 src; } ak_weapon;   /* team/owner: set after ak_weapon_give; heats: a player's (ak_heat); src: the target the shots leave from (a vehicle's or turret's own; -1: the owner's) */
+typedef struct { const ak_weapon_def *def; s32 ammo, spare; f32 cooldown, reload_t; int team; s32 owner; ak_heat heat; bool heats; s32 src; s32 owed; } ak_weapon;   /* owed: shots still to come (w+296: a BurstTime weapon's press, an AI's 0x805F ask) - fired as the cooldown allows, trigger or not; team/owner: set after ak_weapon_give; heats: a player's (ak_heat); src: the target the shots leave from (a vehicle's or turret's own; -1: the owner's) */
 
 typedef struct { f32 pos[3], dir[3], travelled, range, speed, length, thick, damage, damage_vehicle, vs_local; bool ai; u32 colour; f32 dscale_max, dscale_dist; bool headshots; int team; s32 owner, src; const char *impact_pfx, *shield_pfx;
                  const char *passby; f32 passby_range; u32 passby_h; } ak_bolt;   /* passby_h: its fly-by sound playing (app/play_sound.c) */

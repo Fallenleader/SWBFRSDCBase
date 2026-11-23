@@ -1980,6 +1980,10 @@ textures and how they are used. Section R lists only what must be in place so th
     08935D94 / the Weapon_Name table D_08AD9C90) sends 0x805F (shots owed, weapon +296) or 0x8060 (time held, +300). Ported to
     play.c for bots on foot. Open: 08935D94's friendly-in-the-line test; when the node runs (the pause only advances while it
     does); Boba Fett's rifle (BurstTime 0.1: 3 projectiles a press spaced, presses ~1.95 s apart) - Aurek fires the 3 at once.
+  - Burst weapons (2026-11-23): BurstTime > 0 -> one projectile a call, ProjectilesPerShot calls a press (w+296), BurstTime
+    between, RateOfFire after; ported (ak_weapon.owed). Open: whether the player's burst keeps firing with the trigger let go
+    (assumed yes, as the AI's owed shots do); bots' weapons heating (bit 0x40 set on a bot's Boba rifle - Aurek heats only the
+    player's).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

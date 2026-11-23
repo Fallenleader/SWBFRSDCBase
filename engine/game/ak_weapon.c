@@ -198,9 +198,16 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
     f32 dir[3] = { target[0] - muzzle[0], target[1] - muzzle[1], target[2] - muzzle[2] };
     f32 l = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]); if (l < 1e-4f) return 0;
     for (int k = 0; k < 3; k++) dir[k] /= l;
-    for (u32 s = 0; s < d->per_shot; s++) {
+    /* a burst weapon (BurstTime > 0 with ProjectilesPerShot 2 or more: Boba Fett's rifle 0.1 / 3): traced in the shot 08A1C5E4 -
+       with w+56 (BurstTime) above 0, or fewer than 2 projectiles, each call makes one projectile (no fan); a press owes
+       ProjectilesPerShot calls (08A17C64 loads w+296 from w+100 when it is 0), each call takes one (w+296 - 1) and adds
+       OverheatPershot once; between them the cooldown is BurstTime, after the last RateOfFire. Measured on the original (gdb,
+       Boba Fett's rifle in a bot's hands): calls 6 frames apart, then 0.983 s; the heat +20 a call */
+    const bool burst = d->burst_time > 0 && d->per_shot > 1;
+    if (burst && w->owed <= 0) w->owed = (s32)d->per_shot;
+    for (u32 s = 0; s < (burst ? 1u : d->per_shot); s++) {
         f32 dd[3] = { dir[0], dir[1], dir[2] };
-        if (d->spread_deg > 0 && d->per_shot > 1) {
+        if (!burst && d->spread_deg > 0 && d->per_shot > 1) {
             /* the multishot fan (traced, the shot 08A1C5E4: MultishotSpreadAngle x pi/180 at w+96, ProjectilesPerShot at w+100): the
                projectiles leave evenly spaced across the spread, from -spread / 2 in steps of spread / (count - 1), each turned about
                the aim frame's up axis - not a random cone.  [assumed: the frame's up taken as the world's up turned with the aim; the
@@ -227,6 +234,8 @@ u32 ak_weapon_fire(ak_weapon *w, ak_bolts *b, const ak_collision *col, ak_target
     b->fired++;
     if (d->muzzle_pfx) { ak_shot_fx *f = &b->shot[b->shots++ % AK_MAX_SHOT_FX]; memcpy(f->pos, muzzle, 12); memcpy(f->dir, dir, 12); f->pfx = d->muzzle_pfx; f->colour = d->colour; }
     w->cooldown = d->rate_of_fire;
+    if (burst) { w->owed--; if (w->owed > 0) w->cooldown = d->burst_time; }
+    else if (w->owed > 0) w->owed--;
     if (d->clip > 0) w->ammo--;
     /* the reload starts with the shot that empties the clip (measured: the blaster rifle's last round at frame 497, a full clip
        at 631 - its ReloadTime 2.25 s from that shot) */
