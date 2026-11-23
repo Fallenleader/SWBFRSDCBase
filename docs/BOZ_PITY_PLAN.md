@@ -264,3 +264,5 @@ Reports fall after M5, M10 and M15.
   test. Next: Boba's rifle (BurstTime), then the Rebel death rate.
 - 2026-11-23 M10: burst weapons (BurstTime) traced and ported - Boba Fett's rifle fires one projectile a call, 0.1 s apart,
   2-3 a bot's burst; the 1.95 s gap was the fire node's first pause. Next: the Rebel death rate, then the open items.
+- 2026-11-23 M10 death rate re-measured (idle player, 60 s from the match start): original Alliance -8 / Empire -19 tickets,
+  Aurek -5 / -24 (one run each; more runs needed before calling it).
