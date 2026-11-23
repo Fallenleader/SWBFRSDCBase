@@ -458,6 +458,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Loadout in the profile (M3) | The menu's loadout now lives in the profile, as in the original. 08977A34(profile, set, category, value) stores set k (< 20) at +0x1B4 + 44 k, category c (< 8) at +4 + 4 c, and marks the profile changed (+6) only when the value differs. The menu uses set 0. FE_Customisation_AcceptCarouselItem (08A27F28) and SellCarouselItem (08A27FD8, value 0) store through it. OnInit (08A276F0) reads the menu's choices from the profile. Cancel stores the loadout as it was. ak_fe_loadout, which the spawn reads, takes set 0 from the profile. Values out of a category's range fall back to 0. The new profile's set 0 is 08977ED8's {1, 0, 1, 0, 0, 1, 1, 0}, the menu's old defaults. Checked in Aurek: Weapon 1 changed to its third item logs "category 0 = 2 (profile +0x1B8)", and the change survives leaving and reopening the menu. |
 
+| Loadout at match start (M3) | Aurek applied the customisation menu's loadout only when that menu closed during a match (AK_FE_LOADOUT). A match started from the menus, or the next map of a play list, spawned the soldier with the settings' defaults instead of the saved profile loadout. viewer.c's new fe_loadout_settings() turns set 0 of the profile (via ak_fe_loadout) into the soldier's equipment settings: weapons, explosive, special item, power-up, and the health, speed and capture levels. It runs on FE_HostGame's start, on the play list's next map, and before ak_play_loadout when the menu closes in a match. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |

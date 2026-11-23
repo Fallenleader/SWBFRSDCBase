@@ -1657,6 +1657,9 @@ textures and how they are used. Section R lists only what must be in place so th
     08A09928; second base at 0x08B14774 with the thunk 08ACF460) of an object built by 08A089B8, which 08971770 calls (the
     function that copies the profile into the game's settings: BFF.ControlMethod etc.). It writes {category, value} pairs from
     its +24 list into loadout set 0. Its role (the in-match loadout object?) is not traced further yet.
+  - Loadout at match start: Aurek now spawns with the profile's set 0. Uncertain: the original's own path from set 0 to the
+    spawned soldier (no reader of 08977918 outside the front end was found; 08A09928's object, built by 08971770, may hold the
+    match's copy) - Aurek's mapping of the 8 categories to the soldier's equipment is the earlier traced one (play.c).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

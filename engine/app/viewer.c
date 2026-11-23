@@ -181,6 +181,17 @@ static bool fe_scene_textures(const ak_level *l, ak_arena *a)
     for (u32 i = 0; i < l->ntex; i++) fe_mscl.tex[i] = ak_gfx_texture_kept((ak_texture *)&l->tex[i]);
     return true;
 }
+/* the profile's loadout (set 0, 08977A34 / 08977918) as the settings the soldier's equipment reads (play.c loadout_items) */
+static void fe_loadout_settings(void)
+{
+    int sel[8]; const char *nm[5]; ak_fe_loadout(sel, nm); char v[8];
+    ak_setting_set("AK_WEAPON", nm[0] ? nm[0] : ""); ak_setting_set("AK_WEAPON2", nm[1] ? nm[1] : ""); ak_setting_set("AK_EXPLOSIVE", nm[2] ? nm[2] : ""); ak_setting_set("AK_POWERUP", nm[4] ? nm[4] : ""); ak_setting_set("AK_SPECIAL", nm[3] ? nm[3] : "");
+    snprintf(v, sizeof v, "%d", sel[5]); ak_setting_set("AK_HEALTH_LEVEL", v);
+    snprintf(v, sizeof v, "%d", sel[6]); ak_setting_set("AK_SPEED_LEVEL", v);
+    /* [assumed: Capture Speed Level n is the rate table's n (None the 1.0 measured at the menu's default)] */
+    snprintf(v, sizeof v, "%d", sel[7] ? sel[7] : 1); ak_setting_set("AK_CAPTURE_LEVEL", v);
+    AK_INFO("aurek", "loadout: %s / %s / %s, health %d speed %d capture %d", nm[0] ? nm[0] : "-", nm[1] ? nm[1] : "-", nm[2] ? nm[2] : "-", sel[5], sel[6], sel[7]);
+}
 static int play_game_movie_subs(const char *name, bool subs);
 static int play_game_movie(const char *name) { return play_game_movie_subs(name, false); }
 static int play_fe_movie(const char *name) { return play_game_movie_subs(name, true); }   /* (FE_PlayMovie: 08A69188 with the profile's +0x3F) */
@@ -374,6 +385,7 @@ int main(int argc, char **argv)
                 continue;
             }
             if (ev == AK_FE_START) {                                       /* FE_HostGame: the play list's first map, its mode */
+                fe_loadout_settings();                                         /* (the soldier spawns with the profile's loadout, set 0) */
                 int md = 0; const char *lv = ak_fe_launch(&md);
                 static const char *codes[4] = { "CQST", "CTF1", "CTF2", "HCTF" }; ak_setting_set("AK_MODE", codes[md & 3]);
                 for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, lv)) cur = i;
@@ -847,20 +859,14 @@ int main(int argc, char **argv)
                     for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, want)) cur = i;
                     AK_INFO("fe", "campaign: %s", want); loaded = false; play.ready = false;
                 } else if (ev == AK_FE_START) {                             /* the game-over page's Continue: the play list's next map */
+                    fe_loadout_settings();                                    /* (the profile's loadout set 0 for the next match's soldier) */
                     int md = 0; const char *lv = ak_fe_launch(&md); static const char *codes[4] = { "CQST", "CTF1", "CTF2", "HCTF" };
                     ak_setting_set("AK_MODE", codes[md & 3]); for (int i = 0; i < nlevels; i++) if (!strcmp(levels[i].label, lv)) cur = i;
                     loaded = false; play.ready = false;
                 } else if (ev == AK_FE_RESTART) {
                     play.ready = false;
                 } else if (ev == AK_FE_LOADOUT) {                           /* the customisation menu's loadout: the next soldier's */
-                    int sel[8]; const char *nm[5]; ak_fe_loadout(sel, nm); char v[8];
-                    ak_setting_set("AK_WEAPON", nm[0] ? nm[0] : ""); ak_setting_set("AK_WEAPON2", nm[1] ? nm[1] : ""); ak_setting_set("AK_EXPLOSIVE", nm[2] ? nm[2] : ""); ak_setting_set("AK_POWERUP", nm[4] ? nm[4] : ""); ak_setting_set("AK_SPECIAL", nm[3] ? nm[3] : "");
-                    snprintf(v, sizeof v, "%d", sel[5]); ak_setting_set("AK_HEALTH_LEVEL", v);
-                    snprintf(v, sizeof v, "%d", sel[6]); ak_setting_set("AK_SPEED_LEVEL", v);
-                    /* [assumed: Capture Speed Level n is the rate table's n (None the 1.0 measured at the menu's default)] */
-                    snprintf(v, sizeof v, "%d", sel[7] ? sel[7] : 1); ak_setting_set("AK_CAPTURE_LEVEL", v);
-                    ak_play_loadout(&play, &models, &bps);
-                    AK_INFO("aurek", "loadout: %s / %s / %s, health %d speed %d capture %d", nm[0] ? nm[0] : "-", nm[1] ? nm[1] : "-", nm[2] ? nm[2] : "-", sel[5], sel[6], sel[7]);
+                    fe_loadout_settings(); ak_play_loadout(&play, &models, &bps);
                 } else if (ev == AK_FE_KILL) {
                     ak_play_damage(&play, 1e9f);                              /* (the soldier dies: the spawn map follows) */
                 } else if (ev == AK_FE_SPAWN) {

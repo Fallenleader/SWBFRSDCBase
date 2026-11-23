@@ -138,3 +138,5 @@ Reports fall after M5, M10 and M15.
   Next: how the match reads set 0 (08A09928's side and the spawn), the byte check against the original's save.
 - 2026-11-23 M3: 08A09928 found to be a method of an object made by 08971770 (profile -> game settings); next its role and the
   spawn's use of set 0.
+- 2026-11-23 M3: the saved loadout now reaches the soldier at every match start (it only did after using the menu in a match).
+  Next: the original's own path from set 0 to the spawn, the byte check against the original's save.
