@@ -1848,6 +1848,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - M8 target choice (2026-11-23): 089DD9CC scores 100(1-d/50) + 100(1-angle/60 deg), line of sight required, -200 for the
     soldier's +228 list; ported. Uncertain: the eye point (soldier vfunc +56) and the target point used, what fills +228, what
     the candidate's vfunc +24 tests, when 089DD9CC runs (its a1 flag).
+    The candidate's vfunc +24 (soldier: 0899F300) = alive (vfunc +112, 08AC33EC) and 089DCAAC(target, asker): the asker's
+    weapon decides - class 0x8004 / 0x801E targets take their own paths, the weapon's +364 bits 2 / 3 / 17 (the
+    OnlyLockOnto... keys [assumed]) and a weapon hash 0xDA0CAE3B are tested. Aurek keeps its key-based rule (OnlyLockOnToVehicles
+    / Humanoids); the exact bit meanings are Uncertain.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
