@@ -36,7 +36,7 @@ def aurek(a, start):
     _, x, y, z, m = start
     fx, fz = (m[2], m[8]) if m else (0.0, 1.0)                 # forward = the matrix's third column (game axes)
     trace = os.path.join(a.out, 'aurek_trace.txt')
-    env = dict(os.environ, AK_LEVEL=a.level, AK_PLAY='1', AK_BOTS='0', AK_FIXED_DT='0.0166667', AK_TEST_MOVE=MOVES[a.program], AK_TEST_MOVE_UNTIL=str(UNTIL.get(a.program, -1)),
+    env = dict(os.environ, AK_LEVEL=a.level, AK_PLAY='1', AK_BOTS='0', AK_FRONTEND='0', AK_INTRO_MOVIES='', AK_AUDIO='0', AK_VSYNC='0', AK_FIXED_DT='0.0166667', AK_TEST_MOVE=MOVES[a.program], AK_TEST_MOVE_UNTIL=str(UNTIL.get(a.program, -1)),
                AK_TEST_SPAWN='%f,%f,%f,%f,%f' % (x, y, z, fx, fz), AK_TEST_TRACE=trace, AK_TEST_TRACE_EVERY='1', **EXTRA.get(a.program, {}),
                AK_SCREENSHOT=os.path.join(a.out, 'aurek_end.ppm'), AK_SCREENSHOT_FRAME=str(a.frames + 30))
     subprocess.run(['xvfb-run', '-a', os.path.join(ROOT, 'build/engine/aurek_viewer')], cwd=a.data, env=env,

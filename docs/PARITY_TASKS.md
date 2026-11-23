@@ -1711,6 +1711,13 @@ textures and how they are used. Section R lists only what must be in place so th
     player on the side holding Boz Pity's two right-hand posts); (2) the bot count with the player in (the original lists 8 + 8
     before joining, the cap is 8 a side; Aurek runs 15); (3) the score board after a death not compared side by side (the harness
     route would need the player to die).
+  - M6 Boz Pity walk_forward (compare_walk.py, planet 0, 600 frames, from the original's spawn 152.20 1.49 106.83, facing
+    (-0.929, 0.370)): (1) the original starts slowly (0.10 m in 5 frames) in its facing (157 deg in game x/z), holds 157-158 deg;
+    (2) Aurek moves 0.58 m in its first 5 frames at 74 deg (a push-out at the spawn?), turns to 121 / 139 / 146 deg by frames
+    15 / 30 / 60 and stays at 146 deg - about 12 deg off; (3) the original stops / slows against something at t 4-5 s and 7-8 s
+    (133.4, 113.0 and 127.4, 112.6) that Aurek's path never reaches. Speeds after the start: original 5.6-6.3 m/s, Aurek
+    5.2-6.3. Next: the cause of Aurek's first-frame shove and of the heading offset (the camera's yaw at spawn vs the
+    soldier's? the spawn inside a collider?).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

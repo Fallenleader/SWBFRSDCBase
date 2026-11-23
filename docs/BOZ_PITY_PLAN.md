@@ -166,3 +166,6 @@ Reports fall after M5, M10 and M15.
   board, the bot count.
 - 2026-11-23 M5 COMPLETE (Instant Action to Boz Pity flow), three items on the Uncertain list. Report 1 written (after M5).
   Next: M6, infantry movement and physics against the harness.
+- 2026-11-23 M6 started: compare_walk.py now runs Aurek without the front end (AK_FRONTEND=0); Boz Pity walk compared - Aurek's
+  first frames shove 0.58 m sideways and its heading settles 12 degrees off the original's; the original meets obstacles Aurek
+  never reaches. Next: those two causes.
