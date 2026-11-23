@@ -226,8 +226,9 @@ int rs_conv_thp_file(const char *src, const char *tmp, uint64_t *out_size, void 
     /* the picture: 4:3 frame, full width, aspect kept, black bars above and below */
     char a[3200], i1[1500]; q(i1, sizeof i1, pmf);
     snprintf(a, sizeof a, "-hide_banner -v error -i %s -an -vf \"scale=%d:-2:flags=lanczos,pad=%d:%d:0:(oh-ih)/2:black,setsar=1\" -r %d/%d "
-             "-c:v mjpeg -pix_fmt yuvj420p -b:v %dk -maxrate %dk -bufsize %dk -f image2pipe -", i1, THP_W, THP_W, THP_H, FPS_NUM, FPS_DEN,
-             rs_thp_video_kbps, rs_thp_video_kbps * 3 / 2, rs_thp_video_kbps);
+             "-c:v mjpeg -pix_fmt yuvj420p -b:v %dk -f image2pipe -", i1, THP_W, THP_W, THP_H, FPS_NUM, FPS_DEN, rs_thp_video_kbps);
+    /* (an average rate only: the disc budget is the total.  A -maxrate / -bufsize cap made FFmpeg report "rc buffer underflow" on a
+     * busy frame it could not squeeze enough - harmless, the frame was still written - and bought nothing) */
     pipe_t s; memset(&s, 0, sizeof s); child_t vch; if (child_start(&vch, a) || !vch.out) { child_end(&vch); rc = -23; goto out; } s.p = vch.out;
     FILE *o = fopen(tmp, "wb"); if (!o) { child_end(&vch); rc = -4; goto out; }
     const uint32_t first_off = 0x60;
