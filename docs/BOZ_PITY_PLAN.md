@@ -51,3 +51,18 @@ Reports fall after M5, M10 and M15.
   (BOOT.BIN 0x2E2B44) and "fmv\%s\%s.pmf" (0x2E2B34, a language folder: to trace).  Aurek played only OPENING_LOGOS (GameCube) and
   nothing elsewhere.  Next: 08A69188's skip rule, sound volume and what it shows between/after; who calls 089714A4 / 08971558;
   08975C88 (the menu it leads to); then movie playback on desktop and Vita.
+- 2026-11-23 (M1, the boot sequence against the original; tools/harness/boot_probe.py runs it from boot with a timed pad):
+  - The harness original now plays the movies: build/linux64 rebuilt with libavcodec (its rs_avc/mpeg objects predated the
+    headers), the MP4s from the conversion tool's Vita target linked as <RS_DATA_DIR>/mods/movies/<NAME>.mp4 (/tmp/rsdata).
+  - Hard facts: OPENING_LOGOS (480x272, 105 pictures, 3.5 s, no sound), then REBELLION (180 pictures, 6.0 s, AAC sound).  CROSS
+    skips the movie playing (only that one: REBELLION still plays); START and CIRCLE do not.  Then the page MP_MSplashScreen: the
+    legal text, fading (about 70 frames) into "ESRB Notice ..." and a "Press START button" box; with no input, about 610 frames later
+    the Profile prompt ("Do you want to load an existing profile?" Yes / No, on the main menu background).  CROSS moves the splash on
+    (legal -> ESRB -> profile prompt).
+  - Movie path rule (func_08A69188): "fmv\<lang>\<name>.pmf" first (lang: en fr ge it sp ru, func_088342CC, index 0x08B25998),
+    else "fmv\<name>.pmf" with the language passed to the player as its audio / subtitle choice for languages 1-4; the screen is
+    cleared black for 3 frames before; the volume is 1.0 x (the setting at 0x08C2933C+148 x 0.7).  The US disc has no language
+    folders.
+  - Uncertain: the splash phases' exact lengths and the START rule there (to read from the page's own data, not the run's timing:
+    movie playback runs on real time, so frame numbers drift between runs); what Aurek's MP_MSplashScreen shows at once (both
+    phases together now).
