@@ -1873,6 +1873,9 @@ textures and how they are used. Section R lists only what must be in place so th
     with it) - trace how ProjectilesPerShot / MultishotSpreadAngle aim (08A1C950 area) and the AI accuracy cone.
   - M10 multishot (2026-11-23): the fan rule ported (08A1C5E4). Open: the AI's hit rate with Boba Fett's rifle (2 vs 14 a
     minute) - compare the AI accuracy cone (AIWeapon_Accuracy_Normal) and the fire node's burst for this weapon; longer runs.
+  - M10 fire (2026-11-23): Aurek's Imperial bots fire EMP_Blaster_Pistol 120-587 times a minute (original 13) and Boba
+    Fett's rifle 5-12 (original 36). Next: why they hold the pistol (the loadout draw 0897FA38, ai_weapon_choice 0893F65C) and
+    the burst / pause for weapons without heat (08A24648 / 08A24740) - gdb the fire node 0893F2F8 per bot.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

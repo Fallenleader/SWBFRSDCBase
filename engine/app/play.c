@@ -2176,7 +2176,9 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
                half-angle = the weapon's AI accuracy (degrees; elite at difficulty 2) around the line to the target */
             f32 acc = p->bot_aim_set ? p->bot_aim : b->weapon.def->ai_acc[p->difficulty >= 2 ? 1 : 0] * 0.017453293f;
             aim_cap(&b->seed, muz, tgt, acc);
-            ak_weapon_fire(&b->weapon, &p->bolts, &p->col, p->target, NT(p), muz, tgt, &b->seed);
+            u32 bshot = ak_weapon_fire(&b->weapon, &p->bolts, &p->col, p->target, NT(p), muz, tgt, &b->seed);
+            {   static int ds = -1; if (ds < 0) ds = ak_setting_int("AK_DEBUG_SHOTS", 0);   /* tests (2): the bots' shots too */
+                if (ds >= 2 && bshot && b->weapon.def) AK_INFO("shot", "bot %u %s", idx, b->weapon.def->name ? b->weapon.def->name : "?"); }
             b->shoot_t = 0;
         }
         bot_grenade(p, b, idx, dt);
