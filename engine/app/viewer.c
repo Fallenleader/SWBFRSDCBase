@@ -254,7 +254,7 @@ int main(int argc, char **argv)
     u64 last = ak_plat_time_us(), fps_t0 = last; int fps_frames = 0; f32 fps = 0, frame_ms = 0, load_ms = 0;
     ak_gfx_stats gs; memset(&gs, 0, sizeof gs);
     /* the front end (PARITY 8.2): the game's menus first (AK_FRONTEND=1; AK_FE_PAGE the first page), the level once launched */
-    bool fe_on = ak_setting_int("AK_FRONTEND", AK_SMALL_MEMORY ? 0 : 1) && ak_fe_init(vfs) && ak_fe_open(ak_setting_str("AK_FE_PAGE", "MP_MainMenu"));
+    bool fe_on = ak_setting_int("AK_FRONTEND", AK_SMALL_MEMORY ? 0 : 1) && ak_fe_init(vfs) && ak_fe_open(ak_setting_str("AK_FE_PAGE", "MP_MSplashScreen"));
     if (ak_setting_int("AK_TEST_PROFILE_SAVE", 0) && ak_fe_init(vfs)) ak_fe_profile_save();   /* tests: the profile written back at once */
     { char sv[400]; snprintf(sv, sizeof sv, "%s/gc_conquest.sav", ak_plat_user_dir()); u32 m = 0;   /* a saved conquest: New / Resume */
       if (ak_save_read("conquest", sv, &m, 4) == 4 && fe_on) ak_fe_var("BFF.HasGalacticConquestBeenPlayed", 1); }

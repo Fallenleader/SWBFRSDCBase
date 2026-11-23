@@ -983,6 +983,12 @@ f32 ak_hud_2d_text(int big, f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u
     fontp = keep; return h;
 }
 f32 ak_hud_2d_line(int big) { return fonts[big ? 1 : 0].line; }
+f32 ak_hud_2d_text_height(int big, f32 x0, f32 x1, f32 scale, const u16 *s, u32 n)
+{
+    fontdef *keep = fontp; fontp = &fonts[big ? 1 : 0];
+    f32 h = text16_box(x0, 0, x1, scale, 0, s, n, false, false);
+    fontp = keep; return h;
+}
 void ak_hud_2d_end(void) { flush(); ak_gfx_set_transform(NULL); }
 
 /* the level's map in a disc (the spawn screen's E_IM_SpawnLocal, 200 x 200): the whole map picture over the square (x, y, size),

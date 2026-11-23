@@ -38,6 +38,11 @@ typedef struct ak_widget {
     const ak_gui_action *actions; u32 nactions;
     const char *binding;               /* a script value the widget shows ("BFF.FE_ShowVersionNumber") */
     const char **anims; u32 nanims;    /* UIAN animations it plays ("pulse_highlight") */
+    const f32 *anim_speed;             /* each one's speed (0887D79C's f32: the animation time advances speed x dt) */
+    /* buttons (2001, 0888D170): b_flags (+176; bit 1: presses itself), b_flag8 (+153), and the page-active times (+192, +196):
+       the button ignores its keys until the page has been active ready_time seconds; with bit 1 (and +153) it presses itself (key
+       16) once the page has been active auto_time seconds (MP_MSplashScreen's W_BU_SelectProfile: 1 s, 10 s, flags 3) */
+    u32 b_flags; u8 b_flag8; f32 ready_time, auto_time;
     const ak_gui_cond *cond; u32 ncond, cond_mode;
     /* text lists (2005) and list boxes (2010 / 2012; size = the list's box): rows at most, rows shown, the chosen row's colour, the
        function that fills it (FE_ListAllMaps; a list box's row parts each have their own, the column's) */
@@ -57,10 +62,21 @@ typedef struct {
     ak_gui_action on_open, on_close;
 } ak_gui_page;
 
+/* UIAN: the file's animations (the chunk's loader 088264F8 / track 0887CD44: u32 count, then per animation its name and one track:
+ * u32 version 0, u32, u32 mode, u32 type, u32 n, n key times (0..1 of the length), the keys' values (type 1: 1 float, 3: 2, 4: 4),
+ * f32 length (s), u32 flags: 1 loop, 2 interpolate (else steps), 4 there and back (twice the length)).  Modes (08881058's table):
+ * 1 adds the values to the widget's x, y; 15 multiplies its alpha (0x0F); others (14, 16, 17) not used by the game's menus yet. */
+typedef struct { const char *name; u32 mode, type, n; const f32 *t, *v; f32 len; u32 flags; } ak_gui_anim;
+
 typedef struct {
     ak_gui_page *pages; u32 npages;
     ak_texture *tex; u32 ntex;
+    ak_gui_anim *anims; u32 nanims;
 } ak_gui_file;
+const ak_gui_anim *ak_gui_find_anim(const ak_gui_file *f, const char *name);
+/* the animation's values at `time` seconds since it started (0887D48C: the key index and fraction; 0887D1C8 & co: the values);
+ * returns how many (1, 2 or 4) */
+u32 ak_gui_anim_eval(const ak_gui_anim *a, f32 time, f32 out[4]);
 
 bool ak_gui_load(const ak_blob *file, ak_arena *a, ak_gui_file *out);
 const ak_gui_page *ak_gui_find_page(const ak_gui_file *f, u32 hash);

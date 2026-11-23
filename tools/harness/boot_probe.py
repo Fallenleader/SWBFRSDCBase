@@ -30,6 +30,7 @@ ap.add_argument('--bin', default=os.path.join(os.path.dirname(os.path.abspath(__
 ap.add_argument('--frames', type=int, default=2400); ap.add_argument('--every', type=int, default=10)
 ap.add_argument('--pad', default=''); ap.add_argument('--keep', action='store_true')
 ap.add_argument('--env', action='append', default=[])
+ap.add_argument('--gdb', default='', help='a gdb script to run the game under (breakpoints that log and continue)')
 a = ap.parse_args()
 sched = sorted((int(f), int(h, 16)) for f, h in (e.split(':') for e in a.pad.split(',') if e))
 shutil.rmtree(a.out, ignore_errors=True); os.makedirs(a.out)
@@ -37,7 +38,8 @@ drv = tempfile.mkdtemp(prefix='rsboot_'); save = tempfile.mkdtemp(prefix='rssave
 env = dict(os.environ, LIBGL_ALWAYS_SOFTWARE='1', RS_FAST='1', RS_VCLOCK='1', RS_DRIVE=drv, RS_DRIVE_EVERY=str(a.every), RS_SAVEDIR=save)
 for kv in a.env: k, v = kv.split('=', 1); env[k] = v
 log = open(os.path.join(a.out, 'game.log'), 'w')
-p = subprocess.Popen(['xvfb-run', '-a', 'setarch', '-R', os.path.abspath(a.bin)], cwd=a.game, env=env, stdout=log, stderr=log)
+cmd = ['gdb', '-batch', '-x', os.path.abspath(a.gdb), '--args', os.path.abspath(a.bin)] if a.gdb else [os.path.abspath(a.bin)]
+p = subprocess.Popen(['xvfb-run', '-a', 'setarch', '-R'] + cmd, cwd=a.game, env=env, stdout=log, stderr=log)
 out = open(os.path.join(a.out, 'steps.txt'), 'w'); last = -1
 try:
     while p.poll() is None:

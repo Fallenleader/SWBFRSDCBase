@@ -71,3 +71,15 @@ Reports fall after M5, M10 and M15.
   Uncertain: the Vita plays the THP conversion through the CPU decoder until its own MP4 path (sceAvPlayer) is written; the
   subtitles (SUBTITLE\<NAME>.ASR: the US disc has them for some movies, e.g. ENDOR, BASICS; none for the two boot movies)
   are not drawn yet (M-later: the in-game movies).  Next: MP_MSplashScreen.
+- 2026-11-23 (M1, the splash screen done): MP_MSplashScreen's phases are its widgets' UIAN animations (Fade_Out on the legal text:
+  alpha 1 to 0 over the first second of 2; Fade_In on the ESRB text and the Press START box: 0 until 1.2 s, 1 at 2 s), run from
+  the page's opening; the page is active 1 s after opening (08885414's constant 1.0); W_BU_SelectProfile takes no keys until
+  active 1 s and presses itself at active 10 s (its own data: flags 3, 1.0, 10.0; 0888D170).  START = key 512, CROSS = 16 both
+  run FE_OpenProfileMenu; CIRCLE nothing.  All checked against the harness original frame by frame (gdb on the decompiled build
+  showed the self-press: key 16 from the button's own update).
+  - Hard facts: the timings above; children take the parent's alpha; text flag 0x20 = bottom of the box.
+  - Uncertain: what the page's open length takes from its widgets (08885414's virtual call: 0 for the splash); whether every
+    page ignores keys while opening (only the splash's button is proven); the button's runtime flag +152 (the self-press needs
+    it; set on the splash); vertical placement for text flags without 0x20 / 0x40 (Aurek centres them); whether a hidden
+    widget's animation clock runs (Aurek: all from the page's opening); UIAN modes 14, 16, 17 (unused by the menus).
+  Next: the Vita's own MP4 movie path (sceAvPlayer), then M1 is complete.

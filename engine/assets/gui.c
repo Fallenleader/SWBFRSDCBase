@@ -72,10 +72,10 @@ static void base(rd *s, ak_widget *w)  /* 08888454, version 11 */
         }
     }
     u32 nr = r32(s); if (nr > 64) { s->bad = true; return; }
-    if (nr) { w->anims = AK_NEW(s->a, const char *, nr); if (!w->anims) { s->bad = true; return; } w->nanims = nr; }
-    for (u32 i = 0; i < nr && !s->bad; i++) {                        /* 0887D79C: u32 version (< 2), str, f32, (>= 1) 4 bytes */
+    if (nr) { w->anims = AK_NEW(s->a, const char *, nr); f32 *sp = AK_NEW(s->a, f32, nr); if (!w->anims || !sp) { s->bad = true; return; } w->anim_speed = sp; w->nanims = nr; }
+    for (u32 i = 0; i < nr && !s->bad; i++) {                        /* 0887D79C: u32 version (< 2), str, f32 speed, (>= 1) 4 bytes */
         u32 v = r32(s); if (v >= 2) { s->bad = true; return; }
-        w->anims[i] = rstr(s); rf(s); if (v >= 1) skip(s, 4);
+        w->anims[i] = rstr(s); ((f32 *)w->anim_speed)[i] = rf(s); if (v >= 1) skip(s, 4);
     }
 }
 
@@ -93,7 +93,7 @@ static void button_base(rd *s, ak_widget *w)                        /* 0888CFE8 
 {
     base(s, w); u32 v = r32(s);
     for (int k = 0; k < 4; k++) w->links[k] = r32(s);
-    if (v) r8(s);
+    if (v) w->b_flag8 = r8(s);
 }
 static s32 find_tex(rd *s, const char *name)   /* "\graphics" + the widget's picture name, case ignored */
 {
@@ -152,10 +152,10 @@ static void widget(rd *s, ak_widget *w, int depth)
         break; }
     case AK_GUI_BUTTON:                                               /* 0888D850 */
         button_base(s, w); children(s, w, depth);
-        w->target = r32(s); r32(s);
+        w->target = r32(s); w->b_flags = r32(s);
         if (v == 1) { ak_gui_action *a = AK_NEW(s->a, ak_gui_action, 1); if (!a) { s->bad = true; return; } *a = action(s); w->actions = a; w->nactions = 1; }
         else if (v >= 2) action_list(s, w);
-        if (v >= 3) { rf(s); rf(s); }
+        if (v >= 3) { w->ready_time = rf(s); w->auto_time = rf(s); }
         break;
     case AK_GUI_BUTTON2:                                              /* 0888DE48 */
         button_base(s, w); children(s, w, depth); if (v >= 1) w->binding = named(s);
@@ -248,7 +248,57 @@ bool ak_gui_load(const ak_blob *file, ak_arena *a, ak_gui_file *out)
         if (s.bad || s.p != s.n) { AK_WARN("gui", "page %s: read %u of %u bytes", pg->root.name ? pg->root.name : "?", s.p, s.n); continue; }
         out->npages++;
     }
+    pos = 8;
+    while (ak_asura_next(file, &pos, &c)) {                          /* UIAN: the animations (088264F8, 0887CD44) */
+        if (ak_chunk_tag(&c) != AK_TAG('U', 'I', 'A', 'N')) continue;
+        rd s = { c.body, c.size, 0, false, a, out->ntex, out };
+        u32 n = r32(&s); if (n > 1024) break;
+        out->anims = n ? AK_NEW(a, ak_gui_anim, n) : NULL; if (n && !out->anims) break;
+        for (u32 i = 0; i < n && !s.bad; i++) {
+            ak_gui_anim *an = &out->anims[i]; memset(an, 0, sizeof *an);
+            an->name = rstr(&s);
+            if (r32(&s) != 0) { s.bad = true; break; }                /* (version 0 only: 0887CD44 refuses others) */
+            r32(&s); an->mode = r32(&s); an->type = r32(&s); an->n = r32(&s);
+            u32 nc = an->type == 1 ? 1 : an->type == 3 ? 2 : an->type == 4 ? 4 : 0;
+            if (!nc || an->n > 256) { s.bad = true; break; }
+            f32 *t = AK_NEW(a, f32, an->n ? an->n : 1), *v = AK_NEW(a, f32, an->n * nc ? an->n * nc : 1); if (!t || !v) { s.bad = true; break; }
+            for (u32 k = 0; k < an->n; k++) t[k] = rf(&s);
+            for (u32 k = 0; k < an->n * nc; k++) v[k] = rf(&s);
+            an->t = t; an->v = v; an->len = rf(&s); an->flags = r32(&s);
+            if (!s.bad) out->nanims++;
+        }
+        if (s.bad || s.p != s.n) AK_WARN("gui", "UIAN: read %u of %u bytes (%u animations)", s.p, s.n, out->nanims);
+        break;
+    }
     return out->npages > 0;
+}
+
+const ak_gui_anim *ak_gui_find_anim(const ak_gui_file *f, const char *name)
+{
+    for (u32 i = 0; i < f->nanims; i++) if (f->anims[i].name && !strcmp(f->anims[i].name, name)) return &f->anims[i];
+    return NULL;
+}
+
+u32 ak_gui_anim_eval(const ak_gui_anim *a, f32 time, f32 out[4])
+{
+    u32 nc = a->type == 1 ? 1 : a->type == 3 ? 2 : 4;
+    if (!a->n) { for (u32 c = 0; c < nc; c++) out[c] = 0; return nc; }
+    f32 len = a->len, span = (a->flags & 4) ? len + len : len, t = time;
+    if (t > span || t < 0) {                                         /* past the end: looped / there-and-back wrap, else held */
+        if ((a->flags & 1) || (a->flags & 4)) { if (span <= 0) t = 0; else { t -= (f32)(s32)(t / span) * span; if (t < 0) t += span; if (t > span) t = span; } }
+        else t = t < 0 ? 0 : span;
+    }
+    if ((a->flags & 4) && t > len) { t = span - t; if (t < 0) t = 0; if (t > len) t = len; }   /* (the way back) */
+    f32 u = len > 0 ? t / len : 0;
+    u32 i = a->n - 1;
+    while (i > 0 && !(a->t[i] <= u)) i--;                            /* the last key at or before u */
+    const f32 *v0 = a->v + i * nc;
+    if ((a->flags & 2) && i + 1 < a->n) {
+        f32 d = a->t[i + 1] - a->t[i], f = d != 0 ? (u - a->t[i]) / d : 0; if (f < 0) f = 0; if (f > 1) f = 1;
+        const f32 *v1 = v0 + nc;
+        for (u32 c = 0; c < nc; c++) out[c] = v0[c] + (v1[c] - v0[c]) * f;
+    } else for (u32 c = 0; c < nc; c++) out[c] = v0[c];
+    return nc;
 }
 
 const ak_gui_page *ak_gui_find_page(const ak_gui_file *f, u32 hash)

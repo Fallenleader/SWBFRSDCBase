@@ -39,6 +39,10 @@ static ak_arena basemem; static ak_gui_file base; static ak_gfx_tex **btex;
 static bool gc_on;                     /* (Galactic Conquest's tech page: below) */
 static const ak_gui_page *page; static u32 focus, active_widget; static f32 fe_clock;   /* (active_widget: the page in use's focus - GUIMenu.ActiveWidget) */
 static u32 stack[16]; static int nstack; static bool focus_fix_pending;
+/* page_t: seconds since the page opened - its widgets' animations (UIAN) run on it; the page is active after its open length
+   (08885414: max(1.0 s, the widgets' own) [the widgets' share: uncertain, 0 on the pages traced]); auto_fired: its self-pressing button ran */
+static f32 page_t; static bool auto_fired;
+#define PAGE_OPEN_S 1.0f
 /* pages open together, drawn in order, one of them in use (`page`): the customisation's MP_CustomBackground, MP_Customisation, its
  * MP_CustomCarousel and the dialogues over them (the game's 0888ADB0 opens a page with or without the focus) */
 #define MAXLAYERS 6
@@ -237,6 +241,7 @@ static int spawn_owner = -1;             /* drawing a spawn point: 0 ours, 1 the
  * +120 that takes them is not read] */
 static const f32 spawn_rgba[3][2][4] = { { { 0.3f, 0.3f, 1, 0.6f }, { 0.2f, 0.2f, 1, 1 } }, { { 1, 0.3f, 0.3f, 0.6f }, { 1, 0.2f, 0.2f, 1 } },
                                          { { 0.1f, 0.1f, 0.1f, 0.6f }, { 0.1f, 0.1f, 0.1f, 1 } } };
+static f32 child_alpha = 1;            /* the alpha the widgets drawn now inherit (a parent's fade: the Press START box's) */
 static u32 child_tint = 0xFFFFFFFFu;   /* the colour the widgets drawn now are multiplied by (a spawn point's owner) */
 static void path_of(int f, char *out, size_t n) { snprintf(out, n, "PSP_GAME/USRDIR/GUIMENU/%s.GUI", files[f]); }
 
@@ -322,7 +327,7 @@ static bool open_hash(u32 h, bool push)
         const ak_gui_page *pg = ak_gui_find_page(&gf, h); if (!pg) return false;
         if (push && page && nstack < 16) stack[nstack++] = page->root.id;
         if (!layering) nlayer = 0;
-        page = pg; focus = pg->focus; fe_clock = 0;
+        page = pg; focus = pg->focus; fe_clock = 0; page_t = 0; auto_fired = false;
         focus_fix_pending = true;
         if (have_match && h == ak_gui_hash("MP_Spawn_Location"))     /* the first post the player's side holds */
             for (u32 k = 0; k < match.nposts; k++) if (match.post_owner[k] == match.team) { char nm[32]; snprintf(nm, sizeof nm, "W_BU_SpawnPoint%u", k); if (id_of(nm)) focus = id_of(nm); break; }
@@ -337,7 +342,7 @@ static bool open_hash(u32 h, bool push)
     for (u32 i = 0; i < gf.npages; i++) {
         if (!find_id(&gf.pages[i].root, h)) continue;
         if (push && page && nstack < 16) stack[nstack++] = page->root.id;
-        page = &gf.pages[i]; focus = h; fe_clock = 0; focus_fix_pending = false;
+        page = &gf.pages[i]; focus = h; fe_clock = 0; page_t = 0; auto_fired = false; focus_fix_pending = false;
         nlists = 0; ak_arena_reset(&rowmem); fill_all(&page->root);
         AK_INFO("fe", "%s (at %08x)", page->root.name, h);
         return true;
@@ -682,7 +687,13 @@ static bool picture_override(const ak_widget *w, f32 *uv)
 }
 static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
 {
-    f32 x = ox + w->pos[0], y = oy + w->pos[1];
+    f32 x = ox + w->pos[0], y = oy + w->pos[1], anim_a = 1;
+    for (u32 i = 0; i < w->nanims; i++) {                             /* its UIAN animations, from the page's opening (08881058) */
+        const ak_gui_anim *an = ak_gui_find_anim(&gf, w->anims[i]); if (!an) continue;
+        f32 v[4]; ak_gui_anim_eval(an, page_t * (w->anim_speed ? w->anim_speed[i] : 1.0f), v);
+        if (an->mode == 15 && an->type == 1) anim_a *= v[0];          /* (15: the alpha x the value) */
+        else if (an->mode == 1 && an->type == 3) { x += v[0]; y += v[1]; }   /* (1: the position + the values: "flyon") */
+    }
     if (spawn_point_pos(w, &x, &y)) { ox = 0; oy = 0; }
     if (have_match && w->name && !strcmp(w->name, "E_IM_SpawnLocal")) { ak_hud_2d_map(x, y, 200, 0xFFFFFFFFu); return; }
     if (have_match && w->name && !strcmp(w->name, "E_TX_StyleMenuTitle") && cur_file == 8) return;   /* (the campaign's title: none in a plain match) */
@@ -700,9 +711,7 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
        the Italian language only - the original's English frames have none [assumed: the page scripts' doing] */
     if (w->type == AK_GUI_IMAGE && w->tex >= 0 && fabsf(w->uv[1] - 0.4453125f) < 1e-4f && gf.tex[w->tex].name && strstr(gf.tex[w->tex].name, "menu_logos")
         && strcmp(ak_setting_str("AK_FE_LANGUAGE", "AM"), "IT")) return;
-    f32 a = 1;
-    for (u32 i = 0; i < w->nanims; i++)                               /* "pulse_highlight": the highlight breathes [assumed rate] */
-        if (!strncmp(w->anims[i], "pulse_highlight", 15)) a = 0.65f + 0.35f * cosf(fe_clock * 6.2831853f);
+    f32 a = anim_a * child_alpha;                                     /* (the children take the parent's alpha: the Press START box) */
     if (w->type == AK_GUI_MODEL && model_fn) {                        /* a 3D model: the item, the second weapon, the soldier */
         const ak_bp_object *wo = NULL; bool soldier = false, any = false;
         if (in_row && w->fill.fn && !strcmp(w->fill.fn, "FE_Customisation_ListCarouselAnims")) {
@@ -750,6 +759,8 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
             int big = w->font && strstr(w->font, "_13") != NULL;
             int al = (w->text_flags & 8) ? 2 : (w->text_flags & 4) ? 1 : 0;   /* 0xC8 right, 0xC4 centred, 0xC2 left */
             f32 lh = ak_hud_2d_line(big) * w->text_scale, ty = y + (w->size[1] - lh) * 0.5f;
+            if (w->text_flags & 0x20)                                 /* (0x20: to the box's bottom - the splash's legal texts, 0xA4, as the original's frames) */
+                ty = y + w->size[1] - ak_hud_2d_text_height(big, x, x + w->size[0], w->text_scale, s, n);
             ak_hud_2d_text(big, x, ty, x + w->size[0], w->text_scale, argb_of(w->rgba, a), s, n, al);
         }
     }
@@ -781,6 +792,7 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
 children:;
     bool f2 = is_button(w->type) ? (w->id == focus) : focused;
     const list_rows *keep = scroll; int keep_shown = scroll_shown; const char *keep_parent = parent_name; u32 keep_tint = child_tint; const char *keep_check = check_var; int keep_owner = spawn_owner;
+    f32 keep_alpha = child_alpha; child_alpha *= anim_a;
     if (w->type == AK_GUI_BUTTON2 && w->binding && w->binding[0]) check_var = w->binding;
     if (w->type >= 2000) parent_name = w->name;
     if (have_match && w->name && !strncmp(w->name, "W_BU_SpawnPoint", 15)) {   /* the post's owner (08A2DD50 -> the button's vfunc +120) */
@@ -791,10 +803,11 @@ children:;
         char want[64]; size_t l = strstr(w->name, "Scroll") - (w->name + 5); snprintf(want, sizeof want, "W_LB_%.*s", (int)l, w->name + 5);
         scroll = NULL;
         for (int i = 0; i < nlists; i++) { const ak_widget *lw = find_id(&page->root, lists[i].id); if (lw && lw->name && !strncmp(lw->name, want, strlen(want))) { scroll = &lists[i]; scroll_shown = lw->rows_shown ? (int)lw->rows_shown : 8; } }
-        if (!scroll || scroll->n <= scroll_shown) { scroll = keep; return; }   /* (nothing to scroll: no bar) */
+        if (!scroll || scroll->n <= scroll_shown) { scroll = keep; child_alpha = keep_alpha; return; }   /* (nothing to scroll: no bar) */
     }
     for (u32 i = 0; i < w->nchild; i++) draw_widget(&w->child[i], x, y, f2);
     scroll = keep; scroll_shown = keep_shown; parent_name = keep_parent; child_tint = keep_tint; check_var = keep_check; spawn_owner = keep_owner;
+    child_alpha = keep_alpha;
 }
 
 static void fe_draw_page(void);
@@ -1453,7 +1466,8 @@ static int run(const ak_gui_action *a, int row)
         const char *nm = ak_setting_str("AK_PLAYER_NAME", NULL);          /* (a name in the settings: taken, no keyboard) */
         if (nm) { if (!prof_have) prof_new(); memset(prof + PROF_NAME, 0, 42); for (u32 i = 0; nm[i] && i < 20; i++) ak_wr16(prof + PROF_NAME + 2 * i, (u8)nm[i]); prof[6] = 1; }
         else { u32 n0; const u16 *cur = ak_fe_profile_name(&n0); ak_osk_open("Enter your name", cur, cur ? n0 : 0, 20); osk_wait = true; } }
-    else if (!strcmp(fn, "FE_OpenProfileMenu")) open_hash(0x5B53EB0Du, true);   /* 08A2E8B4: the profile page */
+    else if (!strcmp(fn, "FE_OpenProfileMenu")) {                    /* 08A2E8B4: from MP_MSplashScreen only - it closes, the profile page opens */
+        if (page && page->root.id == 0x818BCCE4u) open_hash(0x5B53EB0Du, false); }
     else if (!strcmp(fn, "FE_ExitAutoSaveMenu") || !strcmp(fn, "FE_ForceProfileChangeState") || !strcmp(fn, "FE_ProfileNameOnInit")) {}   /* (flags of the game's save state: 08A2F624 / 08A2EB50 / 08A2E9A0) */
     else if (!strcmp(fn, "FE_SavePlayerProfile")) ak_fe_profile_save();   /* 08A2EA54 -> 08A62208: the profile to its save (above) */
     else if (!strcmp(fn, "FE_LoadPlayerProfile")) ak_fe_profile_load();   /* 08A2EAC8 -> 08A62274 */
@@ -1653,6 +1667,12 @@ static int cust_event(const ak_input *in)
     if (cust_return) open_hash(cust_return, false);
     return AK_FE_LOADOUT;
 }
+static const ak_widget *find_auto(const ak_widget *w)   /* a button that presses itself (0888D170: flags bit 1, +153, a time) */
+{
+    if (w->type == AK_GUI_BUTTON && (w->b_flags & 2) && w->b_flag8 && w->auto_time > 0) return w;
+    for (u32 i = 0; i < w->nchild; i++) { const ak_widget *r = find_auto(&w->child[i]); if (r) return r; }
+    return NULL;
+}
 int ak_fe_update(const ak_input *in, f32 dt)
 {
     if (!page) return AK_FE_NONE;
@@ -1669,7 +1689,7 @@ int ak_fe_update(const ak_input *in, f32 dt)
         AK_INFO("fe", "profile name set (%u characters)", n);
         return w ? activate_from(w, osk_next) : AK_FE_NONE;            /* the button's other actions, then its page */
     }
-    fe_clock += dt; clock_total += dt;
+    fe_clock += dt; clock_total += dt; page_t += dt;
     if (focus_fix_pending) {                                           /* the page's focus hidden or a title: its first shown control */
         focus_fix_pending = false;
         const ak_widget *f0 = focus ? find_visible(&page->root, focus) : NULL;
@@ -1685,6 +1705,16 @@ int ak_fe_update(const ak_input *in, f32 dt)
     if (in_cust()) { int e = cust_event(in); if (e >= 0) return e; }
     if (in_pers()) { int e = pers_event(in, dt); if (e >= 0) return e; }
     const ak_widget *f = focus ? find_id(&page->root, focus) : NULL;
+    {   /* a button's timers (0888D170), on the page's active time (08885CB4: the time since its open length ran out): it takes no
+           keys before ready_time; with flags bit 1 (and +153) it presses itself (key 16) at auto_time - MP_MSplashScreen's
+           W_BU_SelectProfile: ready 1 s, itself at 10 s (the profile prompt with no input) */
+        f32 active = page_t - PAGE_OPEN_S;
+        const ak_widget *ab = auto_fired ? NULL : find_auto(&page->root);
+        if (ab && active >= ab->auto_time) { auto_fired = true; return activate(ab); }
+        if (f && is_button(f->type) && f->ready_time > 0 && active < f->ready_time) return AK_FE_NONE;
+        if ((in->pressed & AK_BTN_START) && f && is_button(f->type))     /* (START: the actions' key 512 - "Press START button") */
+            for (u32 i = 0; i < f->nactions; i++) if (f->actions[i].key == 512) return run(&f->actions[i], -1);
+    }
     /* the buttons' keys (the game's: 16 cross, 32 square, 64 triangle - the spawn map's "\ue801 Customization Menu" runs on
        square, "\ue803 Personalization Menu" on triangle) */
     static const u32 keys[3][2] = { { AK_BTN_CROSS, 16 }, { AK_BTN_SQUARE, 32 }, { AK_BTN_TRIANGLE, 64 } };
