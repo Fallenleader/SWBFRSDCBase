@@ -1891,6 +1891,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 (2026-11-23): settled - the key lookup 0881BA44 inherits from parents (recurses on +8). The shot-rate gap is in the
     fire gating, not the burst values. Next: count per bot in the original how long it has a target and how long it fires
     (gdb on the fire node 0893F2F8 and the shot 08A1C5E4, a small cap - FinishBreakpoints per call stall the harness).
+  - M10 rhythm (2026-11-23): the original's rifle bots fire 2-3 shots then stop 1-4 s; Aurek's stream. Next: what ends the
+    original's run - gdb the trigger 08942AA4 / 08965A70 per frame for one bot (its want / ok inputs), or the fire node 0893F2F8's
+    exits; tools: a frame clock from 089EC900 (6 calls a frame on Boz Pity), weapon names from 08A16FD8.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

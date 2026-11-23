@@ -2181,7 +2181,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
             u32 bshot = ak_weapon_fire(&b->weapon, &p->bolts, &p->col, p->target, NT(p), muz, tgt, &b->seed);
             {   static int ds = -1; if (ds < 0) ds = ak_setting_int("AK_DEBUG_SHOTS", 0);   /* tests (2): the bots' shots too */
                 if (ds >= 2 && bshot && b->weapon.def) { const ak_target *et = b->enemy >= 0 && (u32)b->enemy < NT(p) ? &p->target[b->enemy] : NULL; f32 ed = et ? sqrtf((et->feet[0] - b->ch.pos[0]) * (et->feet[0] - b->ch.pos[0]) + (et->feet[2] - b->ch.pos[2]) * (et->feet[2] - b->ch.pos[2])) : -1;
-                    AK_INFO("shot", "bot %u %s at %d (%s, %.0f m, health %.0f)", idx, b->weapon.def->name ? b->weapon.def->name : "?", b->enemy, et ? (et->vehicle ? "vehicle" : "soldier") : "-", ed, et ? et->health : 0); } }
+                    AK_INFO("shot", "frame %u bot %u %s at %d (%s, %.0f m, health %.0f)", p->frame_no, idx, b->weapon.def->name ? b->weapon.def->name : "?", b->enemy, et ? (et->vehicle ? "vehicle" : "soldier") : "-", ed, et ? et->health : 0); } }
             b->shoot_t = 0;
         }
         bot_grenade(p, b, idx, dt);
