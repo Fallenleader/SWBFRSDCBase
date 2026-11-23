@@ -186,3 +186,5 @@ Reports fall after M5, M10 and M15.
   original's jump leaves one frame after the press and peaks 6 cm higher. Next: M7, weapons and damage.
 - 2026-11-23 M7 started: the default rifle fires every 18 frames as in the original; the weapon's 0.1 s raise from a lapsed
   stance (3 s after the trigger) found and ported - first shot, taps and re-presses now land on the original's frames.
+- 2026-11-23 M7: reload verified against the original (135 frames from the emptying shot to the next). The player's damage per
+  hit still needs a set-up where the original's player hits a bot (lock-on from the spawn hit nothing).

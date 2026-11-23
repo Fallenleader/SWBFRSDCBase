@@ -1822,6 +1822,9 @@ textures and how they are used. Section R lists only what must be in place so th
     axis; the original's soldier gets to 6.8 m - the original's walker collision shape is not known (Uncertain).
   - M7 weapon raise (2026-11-23): fire from a lapsed stance waits 0.1 s (soldier +356), the stance lasts 3 s (+352, bit 1 of
     +520; 0899851C / 08993D38). Uncertain: what else enters the stance (lock-on, zoom) and whether they also wait.
+  - M7 damage (2026-11-23): 089A7310's second argument is a 32-byte hit record - word 1 the attacker's handle, word 3 the
+    damage (float; seen 30, 25, 8 from bots); the target's +0x25C is not the health for those targets. The player's own hits are
+    not measured yet: lock-on (R) + fire from the Boz spawn or after a teleport hit nothing. Uncertain: the player's damage per hit.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
