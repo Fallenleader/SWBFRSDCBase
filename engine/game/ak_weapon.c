@@ -390,12 +390,19 @@ u32 ak_bolts_vertices(const ak_bolts *b, const f32 *eye, ak_vtx *out, u32 max)
     return n;
 }
 
+/* the AI's burst and pause read the Weapon's keys themselves, with their own defaults (traced, 08A24648 / 08A24740 via 0896CDCC):
+   WindupTime 0, OverheatPershot 5 (D_08AEF9E4; at least 1), RateOfFire 0.5 (D_08AEF9EC; at least 0.05), OverheatDecay 20
+   (D_08AEF9F4 / 9FC).  The defaults only matter for a weapon with no such key anywhere up its parents: the Weapon "Base" gives
+   OverheatPershot / Decay / WindupTime 0, so ALL_Blaster_Rifle (RateOfFire 0.3 from BlasterRifle) still streams 22.5 s bursts
+   [whether the original's key lookup also walks the parents is not traced] */
+static f32 ai_key(const ak_weapon_def *d, const char *k, f32 def) { return d->bp ? ak_bp_float(d->bp, k, def) : def; }
 f32 ak_ai_burst(const ak_weapon_def *d)
 {
-    f32 ops = d->heat_shot < 1.0f ? 1.0f : d->heat_shot, rof = d->rate_of_fire < 0.05f ? 0.05f : d->rate_of_fire;
-    return d->windup + 75.0f / (ops / rof - d->heat_decay);
+    f32 ops = ai_key(d, "OverheatPershot", 5.0f), rof = ai_key(d, "RateOfFire", 0.5f), dec = ai_key(d, "OverheatDecay", 20.0f);
+    if (ops < 1.0f) ops = 1.0f; if (rof < 0.05f) rof = 0.05f;
+    return ai_key(d, "WindupTime", 0.0f) + 75.0f / (ops / rof - dec);
 }
-f32 ak_ai_pause(const ak_weapon_def *d) { return d->heat_decay == 0 ? 0.0f : 75.0f / d->heat_decay; }
+f32 ak_ai_pause(const ak_weapon_def *d) { f32 dec = ai_key(d, "OverheatDecay", 20.0f); return dec <= 0 ? 0.0f : 75.0f / dec; }
 static void ai_fire_set(ak_ai_fire *c, const ak_weapon_def *d, int st, f32 r)
 {
     c->state = st;

@@ -219,3 +219,5 @@ Reports fall after M5, M10 and M15.
   burst rules read the same as the original's. Next: the loadout draw and the pistol's heat in a bot's hands.
 - 2026-11-23 M10: bot re-arm bug fixed (pistols fired every frame); the pistol rate now matches (10-22 vs 13 a minute). The
   rifles' rates still differ (Rebel rifle 10x too often, Boba's 3-4x too rarely). Next: the fire node's gating.
+- 2026-11-23 M10: the AI burst keys and their own defaults ported; the open question is whether the original inherits Base's
+  zero heat keys (gdb 08A24740's return for the Rebel rifle next).

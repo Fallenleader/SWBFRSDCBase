@@ -1885,6 +1885,9 @@ textures and how they are used. Section R lists only what must be in place so th
     ALL_Blaster_Rifle (no heat: 22.5 s bursts, no pause) 217-225 a minute in Aurek vs 22; Boba Fett's rifle 8-11 vs 36. Trace
     the fire node 0893F2F8 per bot in the original (gdb: when it calls the shot, and why it stops) - the burst values for a
     heatless weapon may not be what the original uses.
+  - M10 burst keys (2026-11-23): whether 0896CDCC / 0881BA44 walks a blueprint's parents decides the Rebel rifle's rate
+    (Base's 0s inherited: streams; own keys only: one shot per 3.75 s, as the original's 22 a minute suggests). Read 0881BA44,
+    or gdb 08A24740's return for ALL_Blaster_Rifle (expect 3.75 if no inheritance).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
