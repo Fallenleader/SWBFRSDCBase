@@ -1810,6 +1810,12 @@ textures and how they are used. Section R lists only what must be in place so th
     0.2 s crossfade) and matched within 0.22 m over 15 s. The slower Boz Pity onset is therefore likely the uneven ground:
     if the ground flag flickers in frames 30-90 the sprint / run choice toggles and the crossfade restarts. Next: rerun
     run_sprint and read the trace's ground column (5th) and the clip state per frame [hypothesis, not checked].
+  - Sprint onset cause found (checked): at the sprint's start Aurek's soldier leaves the ground over a crest for 9 frames
+    (trace ground flag 0 at frames 39-47; game y 1.080 -> 1.043, 4 cm above its line), then lands and re-blends - the slow ramp.
+    The original glides over the same crest within 1 cm (1.094 -> 1.081 -> 1.085 -> 1.099). So the original keeps a fast soldier
+    on the ground over crests (a ground snap / step-down in the body step, or the uphill velocity not carried past the crest);
+    PARITY 1.8 allows at most a one-frame lift there. Next: trace the original's ground follow (088C4CF4 / the soldier's move:
+    a downward probe distance or the vertical velocity reset) and port it.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
