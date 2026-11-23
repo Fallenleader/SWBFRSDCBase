@@ -3955,17 +3955,28 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     /* lock-on: L held; the facing turns toward the target (the nearest enemy in front within the targeting range) */
     if (in->held & AK_BTN_L) {
         if (p->lock < 0 || !p->target[p->lock].alive) {
-            f32 best = 0.5f; p->lock = -1; p->lock_t = 0;
-            f32 fx = -sinf(p->ch.yaw), fz = -cosf(p->ch.yaw);
+            /* the choice (traced, 089DD9CC): every candidate within the soldier's targeting range (+180: Controls' "targeting range",
+               50, measured from the eye to the target) and within 60 degrees of the facing across the ground (+176: 1.0472 rad),
+               whose line from the eye reaches it (a ray that must end in the target's own box), scores 100 x (1 - distance / range)
+               + 100 x (1 - angle / 60 degrees); the highest wins (a candidate on the soldier's list at +228 takes -200 - not traced
+               what fills it). [assumed: the eye and target points - Aurek's eye point and the target's chest] */
+            f32 best = -1e30f; p->lock = -1; p->lock_t = 0;
+            f32 fx = -sinf(p->ch.yaw), fz = -cosf(p->ch.yaw), max_ang = 1.0471976f;
             bool veh_only = p->armed && p->wdef.bp && ak_bp_int(p->wdef.bp, "OnlyLockOnToVehicles", 0);   /* the rocket launcher (STDTEXT 0x1A1 "the
                                                                                  rocket launcher can only auto lock onto vehicles, not infantry") */
             for (u32 i = 1; i < NP(p); i++) {                                 /* (the props are not locked [assumed]) */
                 if (!p->target[i].alive || p->target[i].team == p->team) continue;
                 if (veh_only && !p->target[i].vehicle) continue;
-                f32 dx = p->target[i].feet[0] - p->ch.pos[0], dz = p->target[i].feet[2] - p->ch.pos[2], d = sqrtf(dx * dx + dz * dz);
+                f32 chest[3] = { p->target[i].feet[0], p->target[i].feet[1] + 1.1f * S, p->target[i].feet[2] };
+                f32 ex = chest[0] - p->eye[0], ey = chest[1] - p->eye[1], ez = chest[2] - p->eye[2], d = sqrtf(ex * ex + ey * ey + ez * ez);
                 if (d > p->lock_range || d < 0.5f) continue;
-                f32 c = (dx * fx + dz * fz) / d;
-                if (c > best) { best = c; p->lock = (s32)i; }
+                f32 dx = p->target[i].feet[0] - p->ch.pos[0], dz = p->target[i].feet[2] - p->ch.pos[2], hd = sqrtf(dx * dx + dz * dz);
+                if (hd < 1e-3f) continue;
+                f32 c = (dx * fx + dz * fz) / hd; if (c > 1) c = 1; if (c < -1) c = -1;
+                f32 ang = acosf(c); if (ang > max_ang) continue;
+                if (!in_sight(p, p->eye, chest)) continue;
+                f32 score = 100.0f * (1.0f - d / p->lock_range) + 100.0f * (1.0f - ang / max_ang);
+                if (score > best) { best = score; p->lock = (s32)i; }
             }
         }
         if (p->lock >= 0) {

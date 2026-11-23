@@ -1845,6 +1845,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M8 lock timer (2026-11-23): 0899B62C - candidate +424, timer +376 at rate 1.0 (key 0x6e6b3925 absent from data), head
     after "lock on to head time"; the target's vfunc +24 keeps or drops it. Still to trace: who chooses +424 each frame
     (callers of the set-target vfunc +440: 08994C30, 089DD9CC, 089AE9DC, 089AEA7C, 089CC67C) and what vfunc +24 tests.
+  - M8 target choice (2026-11-23): 089DD9CC scores 100(1-d/50) + 100(1-angle/60 deg), line of sight required, -200 for the
+    soldier's +228 list; ported. Uncertain: the eye point (soldier vfunc +56) and the target point used, what fills +228, what
+    the candidate's vfunc +24 tests, when 089DD9CC runs (its a1 flag).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
