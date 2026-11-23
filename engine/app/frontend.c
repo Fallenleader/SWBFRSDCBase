@@ -618,7 +618,7 @@ static const u32 cust_desc_key[NCAT] = { 0xB208FD2Bu, 0x0B1E70F9u, 0xCA746A73u, 
 static const u32 cust_level_key[3][4] = { { 0xA40C5954u, 0xA354D5E1u, 0xA354D5E2u, 0xA354D5E3u }, { 0xA40C5954u, 0x6C2B49F0u, 0x6C2B49F1u, 0x6C2B49F2u },
                                           { 0xA40C5954u, 0xB671376Eu, 0xB671376Fu, 0xB6713770u } };
 static const int cust_level_cost[3][4] = { { 0, 10, 20, 30 }, { 0, 10, 20, 30 }, { 0, 15, 25, 35 } };
-#define CUST_CREDITS 200
+#define CUST_CREDITS cust_credits()   /* (08A34280: the allowance is 100 - the recomp's 200 is its own RS_CREDITS mod) */
 static int cust_sel[NCAT] = { 1, 0, 1, 0, 0, 1, 1, 0 }, cust_saved[NCAT], cust_cat; static u32 cust_return;
 static void cust_open(void);
 static const ak_blueprints *fe_bp; static ak_fe_model_fn model_fn; static f32 clock_total;
@@ -631,7 +631,7 @@ static const ak_bp_object *cust_item(int cat, int i)          /* the faction's v
     int fac = have_match ? match.faction[match.team & 1] : 2;
     if (ak_bp_int(w, "Faction Specific", 0)) {
         const ak_bp_type *t = ak_bp_find_type(fe_bp, "Weapon");
-        for (u32 k = 0; t && k < t->nobjects; k++) if (t->objects[k].parent == w && ak_bp_int(&t->objects[k], "Faction", -1) == fac) return &t->objects[k];
+        for (u32 k = 0; t && k < t->nobjects; k++) if (t->objects[k].parent == w && ak_bp_int(&t->objects[k], "Faction", 4) == fac) return &t->objects[k];
     }
     return w;
 }
@@ -648,6 +648,7 @@ static void cust_store(int c, int v)
     u32 o = 0x1B4 + 4 + 4 * (u32)c; if (ak_rd32(prof + o) != (u32)v) { prof[6] = 1; AK_INFO("fe", "loadout: category %d = %d (profile +0x%X)", c, v, o); } ak_wr32(prof + o, (u32)v);
 }
 static void cust_from_profile(void) { if (!prof_have) prof_new(); for (int c = 0; c < NCAT && c < 8; c++) cust_sel[c] = (int)ak_rd32(prof + 0x1B4 + 4 + 4 * (u32)c); }
+static int cust_credits(void) { int c = ak_setting_int("AK_CREDITS", 100); return c > 0 ? c : 100; }
 static int cust_spent(void) { int t = 0; for (int c = 0; c < NCAT; c++) t += cust_cost(c, cust_sel[c]); return t; }
 static const u16 *cust_name(int cat, int i, u32 *n)
 {

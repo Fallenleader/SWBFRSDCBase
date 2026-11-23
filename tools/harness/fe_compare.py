@@ -28,7 +28,7 @@ pad = []
 for f, k in ev: pad += ['%d:%x' % (f, PSP[k]), '%d:0' % (f + 4)]
 orig = os.path.join(a.out, 'orig')
 subprocess.run([sys.executable, os.path.join(HERE, 'boot_probe.py'), '--game', a.game, '--out', orig, '--frames', str(last), '--every', '2',
-                '--keep', '--pad', ','.join(sorted(pad, key=lambda s: int(s.split(':')[0])))] + (['--env', 'RS_SAVEDIR=' + a.hsave] if a.hsave else []) + sum((['--env', kv] for kv in a.henv), []) + ['--env', 'RS_GAME_PATCHES=0', '--env', 'RS_TWIN_STICK=0', '--env', 'RS_SAVE_MANAGER=1'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                '--keep', '--pad', ','.join(sorted(pad, key=lambda s: int(s.split(':')[0])))] + (['--env', 'RS_SAVEDIR=' + a.hsave] if a.hsave else []) + sum((['--env', kv] for kv in a.henv), []) + ['--env', 'RS_GAME_PATCHES=0', '--env', 'RS_TWIN_STICK=0', '--env', 'RS_CREDITS=100', '--env', 'RS_ANY_SLOT=0', '--env', 'RS_SAVE_MANAGER=1'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 aur_pad = ','.join('%d:%s' % (f - a.offset, k) for f, k in ev)
 env = dict(os.environ, AK_FIXED_DT='0.0166667', AK_INTRO_MOVIES='', AK_AUDIO='0', AK_VSYNC='0', AK_WIDTH='480', AK_HEIGHT='272',
            AK_DATA_DIR=a.data, AK_FE_PAD=aur_pad)

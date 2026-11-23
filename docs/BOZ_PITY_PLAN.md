@@ -147,3 +147,5 @@ Reports fall after M5, M10 and M15.
   vehicles, M13 the HUD. M3's loadout menu work (profile set 0, credits) carries into M4.
 - 2026-11-23 M4: the selection rules traced (no credit check on taking; sell gated; both mark the profile changed). Next: each
   faction's item versions against the blueprints, the spawn mapping on Boz Pity.
+- 2026-11-23 M4: the allowance is the original's 100 (the 200 was the recomp's mod); faction versions traced and matched;
+  comparisons now run the original without the recomp's loadout mods. Next: the spawn mapping on Boz Pity's factions.

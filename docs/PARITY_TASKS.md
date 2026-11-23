@@ -1669,6 +1669,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - Loadout limits: no credit check on taking an item (08A27F28); credits shown = total - remaining (08A27994, 08A34290); sell
     gated by 0x08C2CEA8 (08A27FD8). Uncertain: whether going over the total has any other consequence (no reader of the remaining
     credits besides the display was found yet); where the total (200) itself is set (0x08C2CEAC +0).
+  - Allowance 100 (08A34280); the 200 is the recomp's RS_CREDITS mod. Over 100: MP_CustomOverSpent on leaving. Faction versions
+    traced (08A23598). Uncertain: Aurek's menu faction outside a match is 2 always - the original keeps the last match's faction
+    (0x08B1BE00 is written by 08A28C68 while a player exists).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
