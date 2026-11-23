@@ -321,6 +321,7 @@ def main():
     ap.add_argument('--limit', type=int, default=40000, help='give up after this frame')
     ap.add_argument('--keep', action='store_true', help='keep every step frame after the match starts')
     ap.add_argument('--env', action='append', default=[], help='extra NAME=VALUE for the game (logs)')
+    ap.add_argument('--gdb', default='', help='a gdb script to run the game under (breakpoints that log and continue)')
     ap.add_argument('--buttons', default='0', help="the 'hold' program's buttons (hex), held from --at frames into the match")
     ap.add_argument('--at', type=int, default=60)
     ap.add_argument('--until', type=int, default=100000, help="the 'hold' program's buttons are let go after this many frames")
@@ -334,7 +335,8 @@ def main():
     env = dict(os.environ, LIBGL_ALWAYS_SOFTWARE='1', RS_FAST='1', RS_VCLOCK='1', RS_DRIVE=drv, RS_DRIVE_EVERY=str(STEP), RS_SAVEDIR=save)
     for kv in a.env: k, v = kv.split('=', 1); env[k] = v
     log = open(os.path.join(a.out, 'game.log'), 'w')
-    p = subprocess.Popen(['xvfb-run', '-a', 'setarch', '-R', os.path.abspath(a.bin)], cwd=a.game, env=env, stdout=log, stderr=log)
+    cmd = ['gdb', '-batch', '-x', os.path.abspath(a.gdb), '--args', os.path.abspath(a.bin)] if a.gdb else [os.path.abspath(a.bin)]
+    p = subprocess.Popen(['xvfb-run', '-a', 'setarch', '-R'] + cmd, cwd=a.game, env=env, stdout=log, stderr=log)
     queue, state, last, start, trace = [], {'team': ['auto', 'rebel', 'empire'].index(a.team), 'spawn': a.spawn, 'route': a.route}, -1, None, open(os.path.join(a.out, 'trace.txt'), 'w')
     states = open(os.path.join(a.out, 'state.log'), 'w')        # every step after the match starts: "frame N" then the units
     try:

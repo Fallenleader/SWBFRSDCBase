@@ -1786,6 +1786,11 @@ textures and how they are used. Section R lists only what must be in place so th
     call 08AB6830 - the list's add / remove, likely when a model resource with collision data loads. Next: the vehicle's physics
     body creation (the walker's class constructor -> its shape id -> the model's collision parts) - e.g. via the AT-AT class
     0x8014's setup, or gdb on the harness original (break on 08A05F60 while the AT-AT spawns, read a0 / a1).
+  - gdb on the harness original (drive.py --gdb, new; Boz Pity to the match start): 08A05F60 is called almost always with a0 = -1
+    (look up by id) and a1 = a shape id hash - 0x7FDD5A45 (144 calls), 0xFF09259 / 0xFF09258 / 0xF033BF30 / 0x7D7838E7 /
+    0x7AB15FDF / 0x58D15ED / 0x58D13BF (24 each), 0xF80A5246 (14), 0xCACEF359 / 0xB1F6006E (5), 0x1221A2CF (1); a0 = 0 with
+    0x5D42F1F0 (14). Every call comes from 0885EF6C. Next: which of those ids is the AT-AT's (break in 0885EF6C and print the
+    object's class / blueprint), then the shape's parts.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
