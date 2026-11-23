@@ -227,3 +227,7 @@ AK_AUTOSAVE=1
 
 # Front end: 1 = start in the game's own menus (main menu; Instant Action > Launch starts the match), 0 = straight into AK_LEVEL
 AK_FRONTEND=1
+# the movies played at start, as the original: OPENING_LOGOS then REBELLION (CROSS skips the one playing), from the converted
+# copies in converted/PSP_GAME/USRDIR/FMV/ (<NAME>.PMF.thp from the conversion tool; desktop builds with libavcodec also read
+# <NAME>.PMF.mp4 and the game's own PMF).  Empty = none.
+AK_INTRO_MOVIES=OPENING_LOGOS REBELLION

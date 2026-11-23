@@ -219,3 +219,7 @@ AK_FRONTEND=1
 #AK_SUPERSAMPLE=1
 # video memory for the renderer, MB
 AK_PS4_VIDEO_MB=1024
+# the movies played at start, as the original: OPENING_LOGOS then REBELLION (CROSS skips the one playing), from the converted
+# copies in converted/PSP_GAME/USRDIR/FMV/ (<NAME>.PMF.thp from the conversion tool; desktop builds with libavcodec also read
+# <NAME>.PMF.mp4 and the game's own PMF).  Empty = none.
+AK_INTRO_MOVIES=OPENING_LOGOS REBELLION

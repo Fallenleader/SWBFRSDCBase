@@ -50,7 +50,10 @@ ak_gfx_tex *ak_gfx_texture_kept(ak_texture *t);   /* the texture's pixels become
 #define ak_gfx_vertices_kept ak_gfx_vertices
 #define ak_gfx_indices_kept ak_gfx_indices
 #endif
-ak_gfx_tex *ak_gfx_texture(const ak_texture *t);                /* from the game's palette image (the back end picks the format) */
+ak_gfx_tex *ak_gfx_texture(const ak_texture *t);
+/* a picture in RGBA8888 (R in the low byte), w x h, one level, filtered, edges clamped (a movie's frame, engine/video/ak_movie.c);
+ * NULL where the back end has none (the movie then plays its sound over black) */
+ak_gfx_tex *ak_gfx_texture_rgba(int w, int h, const u32 *px);                /* from the game's palette image (the back end picks the format) */
 /* the same image with another palette (personalisation colours): shares the pixels where the back end can (GXM) */
 ak_gfx_tex *ak_gfx_texture_palette(ak_gfx_tex *base, const ak_texture *t, const u32 *palette);
 void ak_gfx_free_buf(ak_gfx_buf *b);

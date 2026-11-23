@@ -221,3 +221,7 @@ AK_OUTPUT=2160
 AK_ANISO=16
 # ray tracing (not used yet): log.txt says what RADV reports; 1 = also switch the extensions on (testing only)
 AK_VK_RT=0
+# the movies played at start, as the original: OPENING_LOGOS then REBELLION (CROSS skips the one playing), from the converted
+# copies in converted/PSP_GAME/USRDIR/FMV/ (<NAME>.PMF.thp from the conversion tool; desktop builds with libavcodec also read
+# <NAME>.PMF.mp4 and the game's own PMF).  Empty = none.
+AK_INTRO_MOVIES=OPENING_LOGOS REBELLION

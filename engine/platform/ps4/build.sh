@@ -27,7 +27,7 @@ OPT=(-O3 -march=btver2 -mtune=btver2 -ffast-math -fno-finite-math-only -fno-math
 BASE=(--target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -D_GNU_SOURCE -isysroot "$tc" -isystem "$tc/include")
 build_id=$(git -C "$engine" describe --always --dirty=+ 2>/dev/null || echo unknown)
 src=$(grep -o 'add_library(akcore STATIC [^)]*' "$engine/CMakeLists.txt" | cut -d' ' -f3-)
-src="$src app/viewer.c app/play.c app/play_sound.c app/hud.c app/frontend.c app/gc_screen.c platform/desktop/plat_desktop.c platform/ps4/plat_ps4.c platform/ps4/gfx_ps4gl.c"
+src="$src app/viewer.c app/play.c app/play_sound.c app/hud.c app/frontend.c app/gc_screen.c video/ak_movie.c platform/desktop/plat_desktop.c platform/ps4/plat_ps4.c platform/ps4/gfx_ps4gl.c"
 objs=()
 for f in $src; do
   o="$out/obj/$(echo "$f" | tr / _).o"; extra=()

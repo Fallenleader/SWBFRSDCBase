@@ -20,6 +20,7 @@
 #include "frontend.h"
 #include "../audio/ak_speech.h"
 #include "../platform/plat.h"
+#include "../video/ak_movie.h"
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -184,22 +185,35 @@ int main(int argc, char **argv)
         }
         else AK_WARN("audio", "no SOUNDS/GMSND.ASR (copy the game's SOUNDS folder next to ENVS): shared sounds missing"); }
     bool have_mus = ak_arena_init(&musmem, 64u << 10);                      /* (a track's header only: its delay and loop) */
-#ifdef AK_HAS_MOVIES
-    {   /* the movies at start (the game's "opening_logos", BOOT.BIN 0x2D7BA4 [assumed: the only one at start]), then AK_MOVIE_TEST's;
-         * from the converted copies (converted/PSP_GAME/USRDIR/FMV/<NAME>.PMF.thp), while the level's memory is still free */
-        char list[256]; snprintf(list, sizeof list, "%s %s", ak_setting_str("AK_INTRO_MOVIES", "OPENING_LOGOS"), ak_setting_str("AK_MOVIE_TEST", ""));
-        for (char *tok = strtok(list, " ,"); tok; tok = strtok(NULL, " ,")) {
+    {   /* the movies at start (func_089714A4, the first boot only - 0x08B1B8F8, cleared by func_08971558; Aurek runs this once a start):
+         * "opening_logos" then "rebellion" through the player (func_08A69188): the screen black for 3 frames first, CROSS skips the movie
+         * playing only, the language folder first.  Then AK_MOVIE_TEST's (tests).  From the converted copies, while the level's memory
+         * is still free: the GameCube its own THP path, elsewhere engine/video/ak_movie.c (THP; MP4 / PMF with libavcodec). */
+        static const char *const langs[6] = { "en", "fr", "ge", "it", "sp", "ru" };
+        int li = ak_setting_int("AK_LANGUAGE", 0); const char *lang = langs[li >= 0 && li < 6 ? li : 0];
+        char list[256]; snprintf(list, sizeof list, "%s %s", ak_setting_str("AK_INTRO_MOVIES", "OPENING_LOGOS REBELLION"), ak_setting_str("AK_MOVIE_TEST", ""));
+        bool quit = false;
+        for (char *tok = strtok(list, " ,"); tok && !quit; tok = strtok(NULL, " ,")) {
+            {   ak_m4 id; memset(&id, 0, sizeof id); id.m[0] = id.m[5] = id.m[10] = id.m[15] = 1; ak_gfx_env env = { { 0, 0, 0 }, 0, 0, 1.0f };
+                for (int k = 0; k < 3; k++) { ak_gfx_set_projection(NULL); ak_gfx_begin(0xFF000000u, &id, &env); ak_gfx_end(NULL); } }
+            char up[64]; int o = 0; for (const char *c = tok; *c && o < 63; c++) up[o++] = (char)toupper((unsigned char)*c); up[o] = 0;
+            u32 sw = 0, sh = 0;                                           /* the PMF's picture: the movie's part of a letterboxed THP */
+            {   char gp[128]; snprintf(gp, sizeof gp, "PSP_GAME/USRDIR/FMV/%s.PMF", up); ak_arena ta; ak_blob hb;
+                if (ak_arena_init(&ta, 4096)) { if (ak_vfs_read_part(vfs, gp, 0, 0x100, &ta, &hb)) ak_movie_pmf_shape(hb.data, hb.size, &sw, &sh); ak_arena_free(&ta); } }
             bool ok = false;
+#ifdef AK_HAS_MOVIES
+            (void)sw; (void)sh; (void)lang;
             for (int i = 0; i < nd && !ok; i++) {
-                char path[512]; int o = snprintf(path, sizeof path, "%s/converted/PSP_GAME/USRDIR/FMV/", dirs[i]);
-                for (const char *c = tok; *c && o < (int)sizeof path - 12; c++) path[o++] = (*c >= 'a' && *c <= 'z') ? (char)(*c - 32) : *c;
-                snprintf(path + o, sizeof path - (size_t)o, ".PMF.thp");
+                char path[512]; snprintf(path, sizeof path, "%s/converted/PSP_GAME/USRDIR/FMV/%s.PMF.thp", dirs[i], up);
                 FILE *t = fopen(path, "rb"); if (!t) continue; fclose(t);
                 ok = ak_plat_movie_play(path); }
-            if (!ok) AK_INFO("movie", "%s: no converted copy (the conversion tool's GameCube target writes converted/PSP_GAME/USRDIR/FMV/%s.PMF.thp)", tok, tok);
-        }
-    }
+#else
+            int r = ak_movie_play(dirs, nd, up, lang, sw, sh); ok = r != AK_MOVIE_NONE; quit = r == AK_MOVIE_QUIT;
 #endif
+            if (!ok) AK_INFO("movie", "%s: no converted copy (the conversion tool writes converted/PSP_GAME/USRDIR/FMV/%s.PMF.thp / .mp4)", up, up);
+        }
+        if (quit) return 0;
+    }
     FILE *dumpf = NULL; u32 dump_frames = 0; ak_blob b_level_keep = { 0 };
     if (getenv("AK_AUDIO_DUMP")) { dumpf = fopen(getenv("AK_AUDIO_DUMP"), "wb"); if (dumpf) { static const u8 z[44]; fwrite(z, 1, 44, dumpf); } }
     {   /* the level's arena: AK_LEVEL_MB, or 0 = all the memory left but AK_LEVEL_RESERVE_KB (the consoles with little memory) */

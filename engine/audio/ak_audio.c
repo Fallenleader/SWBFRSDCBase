@@ -398,6 +398,43 @@ void ak_audio_level_reset(void)
 }
 
 /* the mix: every live voice, resampled (linear) to 48 kHz, plus the music; s32 accumulators, clipped once */
+/* ---- a movie's sound: a ring of source frames, resampled into the mix (linear, as the voices) */
+#define MV_RING (1u << 17)
+static s16 *mv_ring; static volatile u32 mv_w, mv_r; static u64 mv_pos, mv_step; static volatile u64 mv_played; static f32 mv_gain; static bool mv_open;
+bool ak_audio_movie_open(u32 rate, f32 gain)
+{
+    if (!opened || !rate) return false;
+    if (!mv_ring && !(mv_ring = (s16 *)malloc(MV_RING * 4))) return false;
+    lock(); mv_w = mv_r = 0; mv_pos = 0; mv_played = 0; mv_step = ((u64)rate << 32) / AK_AUDIO_RATE; mv_gain = gain; mv_open = true; unlock();
+    return true;
+}
+u32 ak_audio_movie_push(const s16 *pcm, u32 frames)
+{
+    if (!mv_open) return 0;
+    u32 room = MV_RING - 1 - (mv_w - mv_r), n = frames < room ? frames : room, w = mv_w;
+    for (u32 i = 0; i < n; i++) { u32 k = (w + i) & (MV_RING - 1); mv_ring[2 * k] = pcm[2 * i]; mv_ring[2 * k + 1] = pcm[2 * i + 1]; }
+    __atomic_store_n(&mv_w, w + n, __ATOMIC_RELEASE);
+    return n;
+}
+u64 ak_audio_movie_played(void) { return mv_open ? __atomic_load_n(&mv_played, __ATOMIC_ACQUIRE) : 0; }
+u32 ak_audio_movie_queued(void) { return mv_open ? mv_w - mv_r : 0; }
+void ak_audio_movie_close(void) { lock(); mv_open = false; unlock(); }
+static void movie_mix(s32 *acc, u32 n)
+{
+    if (!mv_open) return;
+    s32 g = (s32)(mv_gain * user_master * 4096);
+    u32 r = mv_r, w = __atomic_load_n(&mv_w, __ATOMIC_ACQUIRE);
+    for (u32 k = 0; k < n; k++) {
+        u32 ip = (u32)(mv_pos >> 32);
+        if (w - r < ip + 2) break;                                    /* (starved: silence until more comes) */
+        u32 a = (r + ip) & (MV_RING - 1), b = (r + ip + 1) & (MV_RING - 1), fr = (u32)(mv_pos >> 20) & 4095;
+        for (int c = 0; c < 2; c++) { s32 x = mv_ring[2 * a + c], y = mv_ring[2 * b + c]; acc[2 * k + c] += ((x + (((y - x) * (s32)fr) >> 12)) * g) >> 12; }
+        mv_pos += mv_step;
+        u32 adv = (u32)(mv_pos >> 32); if (adv) { r += adv; mv_pos &= 0xFFFFFFFFull; mv_played += adv; }
+    }
+    __atomic_store_n(&mv_r, r, __ATOMIC_RELEASE);
+}
+
 void ak_audio_mix(s16 *out, u32 frames)
 {
     static s32 acc[2 * 1024];
@@ -429,6 +466,7 @@ void ak_audio_mix(s16 *out, u32 frames)
         f32 mv = user_master * user_music * music_volume * (mg >= 0 ? groups[mg].cur : 1.0f);
         unlock();
         ak_music_mix(acc, n, mv);
+        lock(); movie_mix(acc, n); unlock();
         for (u32 k = 0; k < 2 * n; k++) { s32 s = acc[k]; out[k] = (s16)(s > 32767 ? 32767 : s < -32768 ? -32768 : s); }
         out += 2 * n; frames -= n;
     }

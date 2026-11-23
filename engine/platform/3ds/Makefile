@@ -22,7 +22,7 @@ SRC := $(E)/app/viewer.c $(E)/app/play.c $(E)/app/play_sound.c $(E)/app/hud.c $(
        $(E)/assets/asura.c $(E)/assets/model.c $(E)/assets/entity.c $(E)/assets/blueprint.c $(E)/assets/gui.c $(E)/game/ak_soldier.c $(E)/game/ak_character.c \
        $(E)/game/ak_weapon.c $(E)/game/ak_conquest.c $(E)/game/ak_ctf.c $(E)/game/ak_vehicle.c $(E)/game/ak_space.c $(E)/game/ak_turret.c $(E)/game/ak_projectile.c $(E)/game/ak_pfx.c \
        $(E)/game/ak_path.c $(E)/game/ak_loco.c $(E)/world/ak_collision.c $(E)/world/ak_nav.c $(E)/render/ak_scene.c $(E)/audio/ak_audio.c \
-       $(E)/audio/ak_music.c $(E)/audio/ak_speech.c $(E)/audio/ak_adp.c $(E)/app/gc_screen.c $(E)/game/ak_gc.c $(E)/game/ak_gc_ai.c \
+       $(E)/audio/ak_music.c $(E)/audio/ak_speech.c $(E)/audio/ak_adp.c $(E)/app/gc_screen.c $(E)/video/ak_movie.c $(E)/video/ak_thp.c $(E)/game/ak_gc.c $(E)/game/ak_gc_ai.c \
        $(E)/game/ak_script.c $(P)/plat_3ds.c $(P)/gfx_c3d.c
 OBJ := $(patsubst $(E)/%.c,$(B)/%.o,$(SRC)) $(B)/aurek.shbin.o
 

@@ -46,8 +46,9 @@ AK_LEVEL=CLASSIC HOTH
 # SELECT + R shows / hides it while playing.
 AK_HIDE_DEBUG=1
 # the movies played at start, from the converted THP copies (the conversion tool's GameCube target:
-# converted/PSP_GAME/USRDIR/FMV/<NAME>.PMF.thp); START or A skips.  Empty = none.  AK_MOVIE_TEST=<NAME> plays one more.
-AK_INTRO_MOVIES=OPENING_LOGOS
+# converted/PSP_GAME/USRDIR/FMV/<NAME>.PMF.thp), as the original: OPENING_LOGOS then REBELLION; A skips the one playing.
+# Empty = none.  AK_MOVIE_TEST=<NAME> plays one more.
+AK_INTRO_MOVIES=OPENING_LOGOS REBELLION
 # 1 = start in the model gallery
 AK_GALLERY=0
 

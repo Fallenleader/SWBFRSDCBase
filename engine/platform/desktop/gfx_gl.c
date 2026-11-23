@@ -151,6 +151,18 @@ static ak_gfx_tex *texture_with(const ak_texture *t, const u32 *pal)
     cur_tex = 0;
     return x;
 }
+ak_gfx_tex *ak_gfx_texture_rgba(int w, int h, const u32 *px)
+{
+    ak_gfx_tex *x = (ak_gfx_tex *)calloc(1, sizeof *x); if (!x) return NULL;
+    glGenTextures(1, &x->id); glBindTexture(GL_TEXTURE_2D, x->id);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, px);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    cur_tex = 0;
+    return x;
+}
 void ak_gfx_free_tex(ak_gfx_tex *t) { if (t) { glDeleteTextures(1, &t->id); free(t); cur_tex = 0; } }
 void ak_gfx_wait_idle(void) { glFinish(); }
 

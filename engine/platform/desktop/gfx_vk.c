@@ -612,6 +612,11 @@ static ak_gfx_tex *texture_with(const ak_texture *t, const u32 *pal)
     return x;
 }
 ak_gfx_tex *ak_gfx_texture(const ak_texture *t) { return texture_with(t, t->palette); }
+ak_gfx_tex *ak_gfx_texture_rgba(int w, int h, const u32 *px)
+{
+    const u8 *lv[1] = { (const u8 *)px }; u32 by[1] = { (u32)w * (u32)h * 4 };
+    return tex_make(w, h, 1, VK_FORMAT_R8G8B8A8_UNORM, lv, by, samp_mip);
+}
 ak_gfx_tex *ak_gfx_texture_palette(ak_gfx_tex *base, const ak_texture *t, const u32 *pal) { (void)base; return texture_with(t, pal); }
 
 /* ---- the frame */

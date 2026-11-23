@@ -32,7 +32,7 @@ OPT=(-O3 -march=znver2 -mtune=znver2 -ffast-math -fno-finite-math-only -fno-math
      -fno-trapping-math -funroll-loops -fvectorize -fslp-vectorize -fomit-frame-pointer -fno-semantic-interposition
      -fmerge-all-constants -fno-common -fno-stack-protector -ffunction-sections -fdata-sections -flto=full)
 src=$(grep -o 'add_library(akcore STATIC [^)]*' "$engine/CMakeLists.txt" | cut -d' ' -f3-)
-src="$src app/viewer.c app/play.c app/play_sound.c app/hud.c app/frontend.c app/gc_screen.c platform/desktop/plat_desktop.c platform/ps5/plat_ps5.c platform/desktop/gfx_vk.c"
+src="$src app/viewer.c app/play.c app/play_sound.c app/hud.c app/frontend.c app/gc_screen.c video/ak_movie.c platform/desktop/plat_desktop.c platform/ps5/plat_ps5.c platform/desktop/gfx_vk.c"
 build_id=$(git -C "$engine" describe --always --dirty=+ 2>/dev/null || echo unknown)
 objs=()
 for f in $src; do

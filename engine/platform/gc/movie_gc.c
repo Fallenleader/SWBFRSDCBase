@@ -9,7 +9,7 @@
  * 1152-sample blocks; the voice's callback (in the DSP interrupt) only hands out filled blocks.  The picture follows the sound: a
  * frame is shown once the sound has reached its first sample (late frames are dropped, not decoded); without sound, the clock.
  *
- * START or A skips.  Memory: the textures (w x h x 1.5) and a few frames read ahead, from the heap; freed at the end. */
+ * CROSS (A) skips, as the original (START does not: measured, docs/BOZ_PITY_PLAN.md).  Memory: the textures (w x h x 1.5) and a few frames read ahead, from the heap; freed at the end. */
 #include <gccore.h>
 #include <aesndlib.h>
 #include <malloc.h>
@@ -185,7 +185,7 @@ bool ak_plat_movie_play(const char *path)
         ak_gfx_end(NULL);
         ak_plat_poll(&in);
         u32 newp = in.held & ~held0; held0 &= in.held;              /* (a button held from before the movie does not skip it) */
-        if (newp & (AK_BTN_START | AK_BTN_CROSS)) { skipped = true; break; }
+        if (newp & AK_BTN_CROSS) { skipped = true; break; }
         if (failed) break;
         if (eof && nshown >= nread && (!voice || blk_handed >= blk_written)) break;
     }

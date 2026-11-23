@@ -52,6 +52,16 @@ bool ak_audio_music_play(const char *game_path, const u8 *head, u32 hsize, bool 
 void ak_audio_music_stop(void);
 bool ak_audio_music_playing(void);
 
+/* a movie's sound (engine/video/ak_movie.c): interleaved stereo s16 at the movie's own rate, queued and resampled to the mix.
+ * open sets the rate and the gain (the game: 1.0 x the profile's volume x 0.7, func 08A69188); push returns the frames taken
+ * (the queue holds about 2 s); played: source frames the mixer has consumed since open (the movie's clock); false / 0 when the
+ * output is not open. */
+bool ak_audio_movie_open(u32 rate, f32 gain);
+u32  ak_audio_movie_push(const s16 *pcm, u32 frames);
+u64  ak_audio_movie_played(void);
+u32  ak_audio_movie_queued(void);
+void ak_audio_movie_close(void);
+
 /* the mixer itself (the platform's callback; tests call it to render to a file) */
 void ak_audio_mix(s16 *out, u32 frames);
 u32  ak_hash31(const char *s);                     /* the game's name hash: h = h * 31 + c over lower-case bytes */

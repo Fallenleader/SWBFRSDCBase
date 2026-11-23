@@ -230,3 +230,7 @@ AK_ANISO=8
 AK_VK_RT=0
 # 1 = the Vulkan validation layer (needs the Vulkan SDK installed; for bug reports about the picture: errors go to log.txt)
 AK_VK_VALIDATE=0
+# the movies played at start, as the original: OPENING_LOGOS then REBELLION (CROSS skips the one playing), from the converted
+# copies in converted/PSP_GAME/USRDIR/FMV/ (<NAME>.PMF.thp from the conversion tool; desktop builds with libavcodec also read
+# <NAME>.PMF.mp4 and the game's own PMF).  Empty = none.
+AK_INTRO_MOVIES=OPENING_LOGOS REBELLION

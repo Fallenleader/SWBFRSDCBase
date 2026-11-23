@@ -66,3 +66,8 @@ Reports fall after M5, M10 and M15.
   - Uncertain: the splash phases' exact lengths and the START rule there (to read from the page's own data, not the run's timing:
     movie playback runs on real time, so frame numbers drift between runs); what Aurek's MP_MSplashScreen shows at once (both
     phases together now).
+- 2026-11-23 (M1, movies done in Aurek): `video/ak_movie.c` plays OPENING_LOGOS then REBELLION everywhere but the GameCube (which keeps
+  its THP player; START no longer skips there).  Checked on desktop: both formats, every picture, sound = FFmpeg's x 0.697.
+  Uncertain: the Vita plays the THP conversion through the CPU decoder until its own MP4 path (sceAvPlayer) is written; the
+  subtitles (SUBTITLE\<NAME>.ASR: the US disc has them for some movies, e.g. ENDOR, BASICS; none for the two boot movies)
+  are not drawn yet (M-later: the in-game movies).  Next: MP_MSplashScreen.

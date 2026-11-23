@@ -28,7 +28,7 @@ OPT=(-O3 -mcpu=750 -meabi -mhard-float -DESPRESSO -fomit-frame-pointer -ffast-ma
 INC=(-I "$engine" -I "$out/gen" -I "$DKP/wut/include" -isystem "$DKP/wut/include")
 build_id=$(git -C "$engine" describe --always --dirty=+ 2>/dev/null || echo unknown)
 src=$(grep -o 'add_library(akcore STATIC [^)]*' "$engine/CMakeLists.txt" | cut -d' ' -f3-)
-src="$src app/viewer.c app/play.c app/play_sound.c app/hud.c app/frontend.c app/gc_screen.c platform/desktop/plat_desktop.c platform/wiiu/plat_wiiu.c platform/wiiu/gfx_gx2.c"
+src="$src app/viewer.c app/play.c app/play_sound.c app/hud.c app/frontend.c app/gc_screen.c video/ak_movie.c platform/desktop/plat_desktop.c platform/wiiu/plat_wiiu.c platform/wiiu/gfx_gx2.c"
 objs=()
 for f in $src; do
   o="$out/obj/$(echo "$f" | tr / _).o"; extra=()
