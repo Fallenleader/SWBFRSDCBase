@@ -1633,6 +1633,11 @@ textures and how they are used. Section R lists only what must be in place so th
     count from 0 as read here (a new profile shows Intro only, checked in Aurek, not yet against the original).
   - Self-pressing buttons (0888D170): bit 1 of +176, +153, active time >= +196, while shown; the original also requires the
     button's page to be the one in use (0888AC8C == page +144) and the button state != 4 - Aurek checks only the page it updates.
+  - Single Player entry: FE_CheckConquestState is a no-op (08A2EC80), FE_CheckCampaignState starts only with no progress (08A2EC10).
+    Uncertain: FE_SetIsInMultiplayerMenu (08A31FA8: a byte at 0x08C2D3D0, network shutdown when 0 in state 6) and
+    GC_RequestPlayerFaction (08A3BA64: 0x08B1C2EC) are not wired (multiplayer / Galactic Conquest are out of scope); whether the
+    original's "saved conquest" is only BFF.HasGalacticConquestBeenPlayed; the harness original takes no visible keyboard on the
+    new-profile name box (its system keyboard is not drawn), so Aurek's keyboard there is unchecked against a picture.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

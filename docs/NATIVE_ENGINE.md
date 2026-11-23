@@ -448,6 +448,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Autosave on leaving Options (M2) | MP_Options_FrontEnd's Back targets MP_OptionsAutosave. That page's OnOpen is FE_SavePlayerProfile "1" and its OnClose is FE_ExitAutoSaveMenu. Its "autoclick if not needed" and "autoclick if autosave success" buttons (flags 7, +153, time 0) press themselves as soon as their conditions show them. They go back to the main menu with the focus on W_BU_MMOptions, as the original does. The fix: self-pressing buttons (0888D170: flags bit 1, +153, the page's active time >= +196) are only considered while their conditions hold, since the original only updates shown widgets. A time of 0 now counts (it was skipped before). |
 
+| Single Player entry pages; M2 complete | (1) FE_CheckConquestState (08A2EC80) does nothing: the New button's target opens MP_Overwrite on "No". It no longer starts a conquest itself. (2) FE_CheckCampaignState (08A2EC10) starts the campaign only when the profile has no progress (0x08C29918 = profile +0x5DC is 0); otherwise the button's target, MP_Overwrite, asks first. (3) The name-based "W_BU_AutoClick*" rule ([assumed]) is removed. MP_GalacticConquest's W_BU_AutoClickWhenNoSavedConquest now presses itself by the traced rule (flags 3, +153, time 0, while BFF.HasGalacticConquestBeenPlayed == 0), and a log line names every self-pressing button. (4) Checked side by side with the harness original: splash -> new profile -> difficulty -> save page -> Continue Without Saving -> main menu -> Single Player -> Instant Action map list. Every page, its focus and the map list match. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |

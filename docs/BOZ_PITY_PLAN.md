@@ -121,3 +121,6 @@ Reports fall after M5, M10 and M15.
   then the Single Player entry pages up to the Instant Action map list.
 - 2026-11-23 M2, autosave on leaving Options: the Auto Saving page saves, presses itself on and returns to the main menu with
   the focus on Options (checked in Aurek's log; the original's behaviour seen earlier). Next: the Single Player entry pages.
+- 2026-11-23 M2 COMPLETE (intro movies + main menu): the Single Player entry pages up to the Instant Action map list match the
+  original side by side (new profile -> difficulty -> save page -> main menu -> Single Player -> Instant Action). Campaign /
+  Conquest "New" follow the original's checks. Next: M3, character customisation and all loadouts.

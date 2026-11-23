@@ -1599,10 +1599,15 @@ static int run(const ak_gui_action *a, int row)
         sd_delete_current(); }
     else if (!strcmp(fn, "FE_RequestMenuMode")) var_set("BFF.FE_MenuMode", atoi(a->arg));   /* (which of a dialogue's answers show) */
     else if (!strcmp(fn, "FE_ResumePlay")) { ak_fe_close(); return AK_FE_RESUME; }
-    else if (!strcmp(fn, "FE_StartGalacticConquest") || !strcmp(fn, "FE_CheckConquestState")) {
+    else if (!strcmp(fn, "FE_CheckConquestState")) {}                /* 08A2EC80: nothing - the New button's target opens MP_Overwrite (on
+                                                                         "No"); with no saved conquest MP_GalacticConquest's own
+                                                                         W_BU_AutoClickWhenNoSavedConquest starts a new one */
+    else if (!strcmp(fn, "FE_CheckCampaignState") && ak_rd32(prof + 0x5DC) != 0) {}   /* 08A2EC10: progress (0x08C29918, the profile's
+                                                                         +0x5DC) - the button's target asks first (MP_Overwrite) */
+    else if (!strcmp(fn, "FE_StartGalacticConquest")) {
         /* 08A2EE38: 08A3C574(new) sets the conquest up (1 new, 0 the saved one), then the GC mode (08A27544(6)); FE_CheckConquestState
            (New) asks before replacing a saved conquest [assumed: Aurek has no saved conquest yet - New starts one] */
-        gc_new_req = !strcmp(fn, "FE_CheckConquestState") ? 1 : atoi(a->arg); var_set("BFF.HasGalacticConquestBeenPlayed", 1); ak_fe_close(); return AK_FE_GC_START; }
+        gc_new_req = atoi(a->arg); var_set("BFF.HasGalacticConquestBeenPlayed", 1); ak_fe_close(); return AK_FE_GC_START; }
     else if (!strcmp(fn, "FE_StartCampaign") || !strcmp(fn, "FE_CheckCampaignState")) {
         /* 08A2ECB8: arg 1 (New) starts at level 0 (0x08C29918 = 0), else at the profile's level; the first level of the list
            0x08B1C060 (yavin_IV, space_alderaan, ord_mantell, space_kessel, tatooine, boz_pity, hoth_ion_cannon, space_hoth,
@@ -1919,12 +1924,6 @@ int ak_fe_update(const ak_input *in, f32 dt)
         bool dead = !fv || (fv->type == AK_GUI_TEXTBOX && !(fv->binding && fv->binding[0]) && !(fv->links[0] | fv->links[1] | fv->links[2] | fv->links[3]));
         if (dead && !nlayer) { const ak_widget *c = first_control(&page->root); if (c && c->id != focus) focus = c->id; }
     }
-    {   /* a page's W_BU_AutoClick* button runs at once while its conditions hold (MP_GalacticConquest's
-           W_BU_AutoClickWhenNoSavedConquest: no conquest played - a new one) [assumed: by its name; not traced] */
-        static const ak_gui_page *auto_done;
-        if (auto_done != page) { auto_done = page; const ak_widget *ac = find_named(&page->root, "W_BU_AutoClick");
-            if (ac && cond_holds(ac) && ac->nactions) { int e = run(&ac->actions[0], -1); if (e) return e; if (!page) return AK_FE_NONE; } }
-    }
     var_set("GUIMenu.ActiveWidget", (s32)focus); active_widget = focus;
     if (in_cust()) { int e = cust_event(in); if (e >= 0) return e; }
     if (in_pers()) { int e = pers_event(in, dt); if (e >= 0) return e; }
@@ -1934,7 +1933,10 @@ int ak_fe_update(const ak_input *in, f32 dt)
            W_BU_SelectProfile: ready 1 s, itself at 10 s (the profile prompt with no input) */
         f32 active = page_t - PAGE_OPEN_S;
         const ak_widget *ab = auto_fired ? NULL : find_auto(&page->root);
-        if (ab && active >= ab->auto_time) { auto_fired = true; return activate(ab); }
+        if (ab && active >= ab->auto_time) {
+            auto_fired = true;
+            AK_INFO("fe", "%s presses itself%s%s %s", ab->name ? ab->name : "?", ab->ncond ? " - while " : "", ab->ncond ? ab->cond[0].var : "", ab->ncond ? ab->cond[0].val : "");
+            return activate(ab); }
         if (f && is_button(f->type) && f->ready_time > 0 && active < f->ready_time) return AK_FE_NONE;
         if ((in->pressed & AK_BTN_START) && f && is_button(f->type))     /* (START: the actions' key 512 - "Press START button") */
             for (u32 i = 0; i < f->nactions; i++) if (f->actions[i].key == 512) return run(&f->actions[i], -1);
