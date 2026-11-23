@@ -807,13 +807,34 @@ int main(int argc, char **argv)
                 if (nm) { u32 k = fm.nnames[t]; fm.name[t][k] = nm; fm.name_len[t][k] = n; fm.bot[t][k] = true; fm.alive[t][k] = play.bot[i].alive;
                           if (i + 1 < 64) { fm.kills[t][k] = play.tally_kills[i + 1]; fm.deaths[t][k] = play.tally_deaths[i + 1]; } fm.nnames[t]++; }
             }
+            {   /* the score boards' order, seen on the original's game-over board (Boz Pity, 2026-11-23): each side by score (the first
+                   column) high to low, equal scores by deaths low to high (Empire: 2,2,1,1,0,0,0 with the 1-death row last; Alliance:
+                   1, then 0 / 0 deaths, 0 / 1, 0 / 2 x3) [assumed: equal score and deaths keep the list's order - the player first, as
+                   seen; the sort itself not read]. The player's row is followed for the yellow bar */
+                bool choosing2 = ak_fe_page() && !strcmp(ak_fe_page(), "MP_Team_Selection");
+                fm.me_row = choosing2 ? -1 : 0;
+                for (int t = 0; t < 2; t++)
+                    for (u32 i = 1; i < fm.nnames[t]; i++)                       /* (an insertion sort: stable) */
+                        for (u32 j = i; j > 0; j--) {
+                            u32 a = j - 1, b = j;
+                            bool swap = fm.kills[t][b] > fm.kills[t][a] || (fm.kills[t][b] == fm.kills[t][a] && fm.deaths[t][b] < fm.deaths[t][a]);
+                            if (!swap) break;
+                            const u16 *tn = fm.name[t][a]; fm.name[t][a] = fm.name[t][b]; fm.name[t][b] = tn;
+                            u32 tl = fm.name_len[t][a]; fm.name_len[t][a] = fm.name_len[t][b]; fm.name_len[t][b] = tl;
+                            bool tb = fm.bot[t][a]; fm.bot[t][a] = fm.bot[t][b]; fm.bot[t][b] = tb;
+                            u16 tk = fm.kills[t][a]; fm.kills[t][a] = fm.kills[t][b]; fm.kills[t][b] = tk;
+                            u16 td = fm.deaths[t][a]; fm.deaths[t][a] = fm.deaths[t][b]; fm.deaths[t][b] = td;
+                            bool ta = fm.alive[t][a]; fm.alive[t][a] = fm.alive[t][b]; fm.alive[t][b] = ta;
+                            if (t == (play.team & 1) && fm.me_row >= 0) { if ((u32)fm.me_row == a) fm.me_row = (s32)b; else if ((u32)fm.me_row == b) fm.me_row = (s32)a; }
+                        }
+            }
             {   /* the player killed by an AI soldier: "<killer> killed <player>" (STDTEXT 65) in the left queue, red (channel 2) - seen on
                    the original (Boz Pity: "Djuj Bellis killed Col Serra" at the death); bots killing bots showed nothing in 3 min
                    [assumed: the player's own kills - not seen] */
                 static bool was_alive = true; s32 la = play.target[0].last_attacker;
                 if (was_alive && !play.alive && la >= 1 && (u32)(la - 1) < play.nbots) {
                     u32 kn; const u16 *kname = ak_hud_bot_name(play.team_faction[play.bot[la - 1].team & 1], play.bot[la - 1].name, &kn);
-                    int t = play.team & 1; const u16 *me = fm.nnames[t] ? fm.name[t][0] : NULL; u32 mn = fm.nnames[t] ? fm.name_len[t][0] : 0;
+                    int t = play.team & 1; s32 mr = fm.me_row >= 0 ? fm.me_row : 0; const u16 *me = (u32)mr < fm.nnames[t] ? fm.name[t][mr] : NULL; u32 mn = me ? fm.name_len[t][mr] : 0;
                     if (kname && me) ak_hud_message2(2, 65, kname, kn, me, mn); }
                 was_alive = play.alive; }
             ak_fe_set_match(&fm);

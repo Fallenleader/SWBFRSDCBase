@@ -266,3 +266,5 @@ Reports fall after M5, M10 and M15.
   2-3 a bot's burst; the 1.95 s gap was the fire node's first pause. Next: the Rebel death rate, then the open items.
 - 2026-11-23 M10 death rate re-measured (idle player, 60 s from the match start): original Alliance -8 / Empire -19 tickets,
   Aurek -5 / -24 (one run each; more runs needed before calling it).
+- 2026-11-23 Score boards sorted as the original's (score, then deaths; the yellow bar follows the player). Death rate over
+  2 min: the original -12 / -30; Aurek swings (-29/-33 .. -21/-114) from 16-41 post captures. Next: capture frequency.

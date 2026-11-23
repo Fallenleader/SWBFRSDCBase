@@ -1984,6 +1984,9 @@ textures and how they are used. Section R lists only what must be in place so th
     between, RateOfFire after; ported (ak_weapon.owed). Open: whether the player's burst keeps firing with the trigger let go
     (assumed yes, as the AI's owed shots do); bots' weapons heating (bit 0x40 set on a bot's Boba rifle - Aurek heats only the
     player's).
+  - Score boards (2026-11-23): sorted by score then deaths, the bar on the player's row (seen; sort not read). Death rate over
+    120 s: original -12 / -30, Aurek -29/-33, -21/-114, -61/-28 with 16-41 captures - next: count the original's post owner
+    changes over the same 2 minutes (RS_DRIVE_POSTS, post +0x18) against Aurek's play.match.captures.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

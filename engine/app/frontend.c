@@ -440,6 +440,12 @@ static const ak_widget *find_name(const ak_widget *w, const char *name)   /* (id
     return NULL;
 }
 static const ak_widget *find_named_in(const ak_gui_page *pg, const char *name) { return pg ? find_name(&pg->root, name) : NULL; }
+static const ak_widget *find_fill(const ak_widget *w, const char *fn)     /* the widget a fill function feeds */
+{
+    if (w->fill.fn && !strcmp(w->fill.fn, fn)) return w;
+    for (u32 i = 0; i < w->nchild; i++) { const ak_widget *r = find_fill(&w->child[i], fn); if (r) return r; }
+    return NULL;
+}
 static u32 id_of(const char *name) { const ak_widget *w = page ? find_name(&page->root, name) : NULL; return w ? w->id : 0; }
 static bool is_button(u32 t) { return t >= 2000 && t < 3000 && t != AK_GUI_GROUP && t != AK_GUI_TEXTBOX && t != AK_GUI_TEXTLIST; }
 
@@ -796,6 +802,10 @@ static void draw_widget(const ak_widget *w, f32 ox, f32 oy, bool focused)
         else if (an->mode == 1 && an->type == 3) { x += v[0]; y += v[1]; }   /* (1: the position + the values: "flyon") */
     }
     if (spawn_point_pos(w, &x, &y)) { ox = 0; oy = 0; }
+    if (have_match && w->name && !strcmp(w->name, "E_IM_Player_Highlight") && match.me_row > 0 && page) {   /* the yellow bar on the
+                                                                                     player's row of the sorted list: its row height */
+        const ak_widget *fl = find_fill(&page->root, "FE_ListFriendlyEntities");
+        if (fl) { int shown = fl->rows_shown ? (int)fl->rows_shown : 8; f32 rh = fl->size[1] > 0 ? fl->size[1] / (f32)shown : 0; y += (f32)match.me_row * rh; } }
     if (have_match && w->name && !strcmp(w->name, "E_IM_SpawnLocal")) { ak_hud_2d_map(x, y, 200, 0xFFFFFFFFu); return; }
     if (have_match && w->name && !strcmp(w->name, "E_TX_StyleMenuTitle") && cur_file == 8) return;   /* (the campaign's title: none in a plain match) */
     if (w->is_template && lb_row < 0) return;                          /* (a list box's row: drawn by the list, once per row) */
