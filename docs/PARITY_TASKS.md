@@ -1694,6 +1694,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - Auto (FE_TeamSelection 0): 08A2F7F4 stores 4 into 0x08B1C148 (the team request: 1 / 2 the sides, 3 another path, 4 auto) and
     hands it to 08A09190(player 0x08C2C3E0, request) - a method of the match's player object (vtable 0x08B1473C family); the side
     for 4 is decided there (not read yet). Then 0888AF68(0x636B2446) opens the next page.
+  - 08A09190(player, request): only while the player's +4 == 1; stores the request at +24 and calls 08A0A890, which sends message
+    0x8029 {request} (088ACAD8, 4 bytes) and sets the player's state (08A0A178(2)). The side for request 4 is decided by the
+    receiver of message 0x8029 (not found yet). Evidence from the harness frames: on Boz Pity with 8 + 8 bots, the original's Auto
+    put the player on the side whose posts are on the right of the map (shown blue) - by Aurek's post layout the Rebels' side.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
