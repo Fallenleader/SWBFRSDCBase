@@ -184,3 +184,5 @@ Reports fall after M5, M10 and M15.
   0.32 m, standing jump forward 0.26 m; Hoth walk 0.28 m over 10 s. Uncertain, carried to M11: the AT-AT's collision
   shape (its model box stops Aurek's soldier 11.2 m along the walker, the original's at 6.8 m). Uncertain, minor: the
   original's jump leaves one frame after the press and peaks 6 cm higher. Next: M7, weapons and damage.
+- 2026-11-23 M7 started: the default rifle fires every 18 frames as in the original; the weapon's 0.1 s raise from a lapsed
+  stance (3 s after the trigger) found and ported - first shot, taps and re-presses now land on the original's frames.

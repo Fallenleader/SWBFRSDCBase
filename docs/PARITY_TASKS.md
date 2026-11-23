@@ -1820,6 +1820,8 @@ textures and how they are used. Section R lists only what must be in place so th
     the original's sprinting soldier gets no climb past a crest (gdb on 088C4CF4: +0.0028 = gravity only on the first frame
     over). Remaining: after ~105 frames on Boz Pity the AT-AT's model box stops Aurek's soldier 11.2 m along the walker's long
     axis; the original's soldier gets to 6.8 m - the original's walker collision shape is not known (Uncertain).
+  - M7 weapon raise (2026-11-23): fire from a lapsed stance waits 0.1 s (soldier +356), the stance lasts 3 s (+352, bit 1 of
+    +520; 0899851C / 08993D38). Uncertain: what else enters the stance (lock-on, zoom) and whether they also wait.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

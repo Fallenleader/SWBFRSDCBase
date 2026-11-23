@@ -4229,6 +4229,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     /* the weapon (reloads when empty, as in the game) */
     p->turret_fire = p->in_turret >= 0 && p->alive && (in->held & AK_BTN_R);
     p->alert_t -= dt; p->shoot_t += dt;                                       /* the alert pose: firing or locked on, and 3 s after */
+    /* the raise: fire held with the stance lapsed (soldier +520 bit 1 clear) waits 0.1 s before the first shot (0899851C sets +356
+       to 0.1 (0x08AEE7B4) and the stance's 3 s (+352, 0x08AEE7B0); 08993D38 counts +356 down each frame, the same frame included).
+       Measured: cross held from frame 30 fires at 35, then every 18 frames; pressed again within 3 s of letting go it fires at once;
+       a 4-frame tap from a lapsed stance fires nothing. [assumed: L (lock on) keeps the stance as Aurek's alert pose does] */
+    if (p->alive && p->in_veh < 0 && (in->held & AK_BTN_R) && p->alert_t <= 0) p->raise_t = 0.1f;
+    p->raise_t -= dt;
     if (p->alive && p->in_veh < 0 && (in->held & (AK_BTN_R | AK_BTN_L))) { p->alert_t = 3.0f; if (in->held & AK_BTN_R) p->shoot_t = 0; }
     {   int ht = p->hero[p->team].offered == 0 ? 1 : 0;                       /* an offer of the hero: up takes it, down declines */
         if (ht && (in->pressed & AK_BTN_UP)) p->hero_answer = 1; else if (ht && (in->pressed & AK_BTN_DOWN)) p->hero_answer = -1; }
@@ -4261,7 +4267,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
     } else if (p->armed) {
         ak_weapon_update(&p->weapon, dt, false);
         f32 gun[12], muz[3];
-        if ((in->held & AK_BTN_R) && p->alive && p->in_turret < 0 && p->aim_ok && ak_play_weapon_matrix(p, m, gun)) {   /* (the camera has aimed once) */
+        if ((in->held & AK_BTN_R) && p->alive && p->in_turret < 0 && p->aim_ok && p->raise_t <= 0.001f && ak_play_weapon_matrix(p, m, gun)) {   /* (the camera has aimed once) */
             muzzle_of(m, &p->wdef, gun, muz);
             f32 tgt[3]; memcpy(tgt, p->aim_point, 12);
             if (p->lock >= 0 && p->target[p->lock].alive) {                    /* locked on: the chest, then the head */
@@ -4277,7 +4283,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                         f32 dx = t->feet[0] - p->ch.pos[0], dz = t->feet[2] - p->ch.pos[2]; if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; bi = (s32)i; } }
                     if (bi >= 0) { const ak_target *t = &p->target[bi]; if (ta == 2) memcpy(tgt, t->head, 12); else { memcpy(tgt, t->feet, 12); tgt[1] += 1.1f * S; } }
                 } }
-            ak_weapon_fire(&p->weapon, &p->bolts, &p->col, p->target, nt, muz, tgt, &p->seed);
+            u32 shot = ak_weapon_fire(&p->weapon, &p->bolts, &p->col, p->target, nt, muz, tgt, &p->seed);
+            {   static int ds = -1; if (ds < 0) ds = ak_setting_int("AK_DEBUG_SHOTS", 0);   /* tests: the player's shots, by frame */
+                if (ds && shot) AK_INFO("shot", "frame %u %s ammo %d spare %d heat %.1f", p->frame_no, p->wdef.name ? p->wdef.name : "?", p->weapon.ammo, p->weapon.spare, p->weapon.heat.heat); }
         }
     }
     /* the bots */

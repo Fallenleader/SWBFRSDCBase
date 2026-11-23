@@ -268,7 +268,8 @@ void rs_drive_report(FILE *f){
         if (m) fprintf(f, " m %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
         if (cls == 0x8005 && getenv("RS_DRIVE_MAXHP")) fprintf(f, " mx %.2f", GF32(o + 0x34));
         if (me && cls == 0x8005 && GU32(o + 92) == me && getenv("RS_DRIVE_USE")) fprintf(f, " use %x %x %x", GU32(o + 220), GU32(o + 212), GU32(o + 216));   /* (089A64F4: the use zone 08A12950, +212 089D5B64, +216 089A86F8) */   /* the target panel's maximum (08A56570: object +52) */
-        if (me && cls == 0x8005 && GU32(o + 92) == me) { u32 w = GU32(o + 0x68); if (gok(w)) { fprintf(f, " ammo"); for (u32 j = 0x98; j <= 0xB0; j += 4) fprintf(f, " %d", (int)GU32(w + j)); } }   /* the weapon (soldier +0x68): clip at +0xA0 */
+        if (me && cls == 0x8005 && GU32(o + 92) == me) { u32 w = GU32(o + 0x68); if (gok(w)) { fprintf(f, " ammo"); for (u32 j = 0x98; j <= 0xB0; j += 4) fprintf(f, " %d", (int)GU32(w + j));
+            if (getenv("RS_DRIVE_WDUMP")) { fprintf(f, " w %x", w); for (u32 j = 0; j < 0x200; j += 4) fprintf(f, " %x", GU32(w + j)); fprintf(f, " s %x", o); for (u32 j = 0; j < 0x600; j += 4) fprintf(f, " %x", GU32(o + j)); } } }   /* the weapon (soldier +0x68): clip at +0xA0; tests: the weapon's and soldier's words */
         fprintf(f, "\n");
         if (me && cls == 0x8005 && GU32(o + 92) == me && getenv("RS_DRIVE_BODYSCAN")) {   /* finding the soldier's other bodies */
             for (u32 k = 0; k < 0x600; k += 4) { u32 w = GU32(o + k); if (!gok(w)) continue; u32 b = GU32(w + 12); if (!gok(b)) continue;
