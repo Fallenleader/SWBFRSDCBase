@@ -444,6 +444,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Difficulty page (M2) | MP_AIDifficulty's OnOpen FE_AIDifficultyOnInit (08A2EB9C) puts the focus on W_BU_NormalDifficulty (0xABD00B76) when the profile's +0x34 is below 2, otherwise on W_BU_EliteDifficulty (0x1370447A). The buttons' action BFF.SelectDifficulty (0897968C) stores 1 (normal) or 2 (elite) at +0x34; any other value is ignored, and +6 (profile changed) is set when the value differs. The single player's difficulty is +0x34 (08979DF4; multiplayer reads 0x08C294DC instead), so AK_DIFFICULTY now follows the profile, both when it is loaded and when this button is pressed. The handler names were found as UTF-16 strings in BOOT.BIN (0x08AE09C0, 0x08ADD554) registered by 08897664 / 088976C4. |
 
+| Delete profile and Cutscenes list (M2) | (1) FE_DeletePlayerProfile (08A2EB0C -> 08A62294 -> 08A6A234 -> 0890E49C) runs the save utility in mode 7: it deletes the profile's own save after the system asks first. It is not the list dialogue, and the profile in memory stays. Aurek now asks "Delete this profile?" on the current slot: Yes deletes it (result 2), No or Back cancels (result 4), and an empty slot fails (result 3). Before, it deleted at once and dropped the profile from memory. (2) FE_ListAvaliableCutscenes (08A2EF58) fills MP_MCutscenes' list (20 rows, 8 shown) from the movie table (0x08B1C08C). Row k is shown while k <= max(+0x5DC campaign level, +0x5E0 cutscenes unlocked), and its text is the table's. A new profile lists only Intro. The movie table moved ahead of the list fillers. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |

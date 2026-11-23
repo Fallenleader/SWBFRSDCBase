@@ -116,3 +116,6 @@ Reports fall after M5, M10 and M15.
   Next: Difficulty (MP_AIDifficulty), Profile Management pages, the Cutscenes list, the Single Player entry pages.
 - 2026-11-23 M2, Difficulty: MP_AIDifficulty's focus follows the profile, Normal / Elite are stored in the profile (+0x34) and set
   the game's difficulty; checked in Aurek (Elite chosen -> back to Options, the change logged). Next: Profile Management pages.
+- 2026-11-23 M2, Profile Management delete + Cutscenes list: delete asks first and removes only the profile's own save
+  (mode 7); the cutscenes list fills from the movie table by the profile's progress. Next: autosave on leaving Options,
+  then the Single Player entry pages up to the Instant Action map list.

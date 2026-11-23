@@ -1627,6 +1627,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - Difficulty traced (08A2EB9C / 0897968C / 08979DF4): the focus by the profile's +0x34, SelectDifficulty 1 / 2 into +0x34 with
     the change flag. Uncertain: the meaning of 08A2EB9C's first argument (the call does nothing unless it is 0; OnOpen is assumed to
     pass 0). The multiplayer bot difficulty (0x08C294DC) is not wired (multiplayer is out of scope).
+  - Delete profile = the save utility's mode 7 on the profile's own slot (0890E49C); the cutscenes list's rows <= max(+0x5DC, +0x5E0)
+    (08A2EF58). Uncertain: the PSP system dialogue's own look for mode 7 (Aurek draws its own question); how the list's row count
+    is asked (08A2EF58's a1 / a2 path, 08898108) - rows past the limit are simply left out; whether the profile's +0x5DC / +0x5E0
+    count from 0 as read here (a new profile shows Intro only, checked in Aurek, not yet against the original).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

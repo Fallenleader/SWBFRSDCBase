@@ -16,7 +16,7 @@ static bool osk_wait;
    until set the box shows its text widget's own words (MP_NewProfile: "Col Serra", as the original's frame) */
 static u16 tb_name[21]; static u32 tb_n; static bool tb_set, in_name_box, osk_box;                                                  /* (FE_SetProfileName opened the keyboard: the button's list waits) */
 enum { SD_LOAD = 4, SD_SAVE = 5, SD_DELETE = 6 };                       /* (the save dialogue's modes: below) */
-static void sd_open(int mode); static void sd_draw(void);
+static void sd_open(int mode); static void sd_draw(void); static void sd_delete_current(void);
 static const ak_widget *find_name_box(const ak_widget *w); static const u16 *tb_text(const ak_widget *box, u32 *n);
 static int run(const ak_gui_action *a, int row);
 #include <string.h>
@@ -912,6 +912,12 @@ static void fe_draw_page(void)
  * their effects here are read from those functions: the selection status, the play list, and the lists they close (08A275D0:
  * a "close" message, kind 5) and open (08A27590: open and focus) */
 static void open_widget(u32 id) { if (find_id(&page->root, id)) focus = id; }
+/* the movie table (0x08B1C08C: 20 {name, list text}) - FE_PlayMovie and the cutscenes list */
+static const struct { const char *name; u32 text; } movies[20] = {
+    { "intro", 0x169 }, { "yavin", 0x59 }, { "alderaan", 0x158 }, { "ordmantel", 0x55 }, { "kessel", 0x159 }, { "tatooine", 0x58 },
+    { "bozpity", 0x4B }, { "hoth", 0x152 }, { "hothspace", 0x154 }, { "korriban", 0x51 }, { "sullust", 0x57 }, { "endor", 0x4C },
+    { "outro", 0x16A }, { "SW_unleashed", 0x16B }, { "Credits", 0x16C }, { "gamemode", 0x16D }, { "customise", 0x16E },
+    { "spacecombat", 0x16F }, { "galaticconquest", 0x170 }, { "basics", 0x169 } };
 static void fill(const ak_widget *w)
 {
     list_rows *L = rows_of(w->id);
@@ -921,6 +927,11 @@ static void fill(const ak_widget *w)
     if (!fn || !fn[0]) return;
     if (!strcmp(fn, "FE_ListAllMaps")) {                              /* 08A31C38: every map */
         for (int i = 0; i < NMAPS; i++) row_std(maps[i].text, i);
+    } else if (!strcmp(fn, "FE_ListAvaliableCutscenes")) {            /* 08A2EF58: rows 0..19 of the movie table (0x08B1C08C), a row k shown
+                                                                         while k <= max(the profile's +0x5DC campaign level, +0x5E0 cutscenes
+                                                                         unlocked); its text is the table's (+4) */
+        u32 lim = ak_rd32(prof + 0x5DC), cu = ak_rd32(prof + 0x5E0); if (cu > lim) lim = cu;
+        for (u32 k = 0; k < 20 && k <= lim; k++) row_std(movies[k].text, (int)k);
     } else if (!strcmp(fn, "FE_ListValidModes") && sel_map >= 0) {   /* 08A31A94: the chosen map's modes */
         for (int m = 0; m < 4; m++) if (maps[sel_map].modes[m]) row_std(39 + 2 * (u32)m, m);
     } else if (!strcmp(fn, "FE_ListValidEras") && sel_map >= 0) {    /* 08A319F4: Galactic Civil War, Clone Wars */
@@ -1460,11 +1471,6 @@ static void pers_picker_draw(void)
 /* the game's movies (0x08B1C08C: 20 of {name, the text key it is listed by}); FE_PlayMovie plays by index (Learn To Play's
    buttons: 15 gamemode, 16 customise, 17 spacecombat, 18 galaticconquest, 19 basics; Videos: 13 SW_unleashed "Bonus Content",
    14 Credits) */
-static const struct { const char *name; u32 text; } movies[20] = {
-    { "intro", 0x169 }, { "yavin", 0x59 }, { "alderaan", 0x158 }, { "ordmantel", 0x55 }, { "kessel", 0x159 }, { "tatooine", 0x58 },
-    { "bozpity", 0x4B }, { "hoth", 0x152 }, { "hothspace", 0x154 }, { "korriban", 0x51 }, { "sullust", 0x57 }, { "endor", 0x4C },
-    { "outro", 0x16A }, { "SW_unleashed", 0x16B }, { "Credits", 0x16C }, { "gamemode", 0x16D }, { "customise", 0x16E },
-    { "spacecombat", 0x16F }, { "galaticconquest", 0x170 }, { "basics", 0x169 } };
 static int (*movie_player)(const char *name);
 void ak_fe_set_movie_player(int (*fn)(const char *name)) { movie_player = fn; }
 static int run(const ak_gui_action *a, int row)
@@ -1587,7 +1593,10 @@ static int run(const ak_gui_action *a, int row)
         else var_set("BFF.FE.ProfileLoadAndSaveResult", ak_fe_profile_save() ? 2 : 3);   /* (08A6A05C: to the slot in use) */
     }
     else if (!strcmp(fn, "FE_LoadPlayerProfile")) sd_open(SD_LOAD);      /* 08A2EAC8 -> 08A62274 -> 08A6A1DC: the save dialogue, list load */
-    else if (!strcmp(fn, "FE_DeletePlayerProfile")) { char pp[512], key[40]; prof_path(pp, sizeof pp); snprintf(key, sizeof key, "ULUS10292%s", slot_id()); ak_save_delete(key, pp); prof_have = false; }
+    else if (!strcmp(fn, "FE_DeletePlayerProfile")) {                 /* 08A2EB0C -> 08A62294 -> 08A6A234 -> 0890E49C: the save utility in mode 7
+                                                                         (delete the profile's own save, the system asking first); the profile
+                                                                         in memory stays (only the dialogue's flags are set) */
+        sd_delete_current(); }
     else if (!strcmp(fn, "FE_RequestMenuMode")) var_set("BFF.FE_MenuMode", atoi(a->arg));   /* (which of a dialogue's answers show) */
     else if (!strcmp(fn, "FE_ResumePlay")) { ak_fe_close(); return AK_FE_RESUME; }
     else if (!strcmp(fn, "FE_StartGalacticConquest") || !strcmp(fn, "FE_CheckConquestState")) {
@@ -1692,7 +1701,7 @@ static void osk_str(int big, f32 x0, f32 y, f32 x1, u32 argb, const char *s, int
  * the game's: Aurek draws its own (the slots with each profile's name or "Empty", up / down, CROSS chooses, CIRCLE goes back; an
  * empty slot cannot be loaded - "This slot is empty"; saving over or deleting a used slot asks first, No by default). */
 #define SD_SLOTS 5
-static struct { bool on; int mode, cur, confirm, yes; bool used[SD_SLOTS]; u16 name[SD_SLOTS][21]; u32 nlen[SD_SLOTS]; const char *note; } sd;
+static struct { bool on; int mode, cur, confirm, yes; bool single, used[SD_SLOTS]; u16 name[SD_SLOTS][21]; u32 nlen[SD_SLOTS]; const char *note; } sd;
 static void sd_slot_key(int i, char *key, size_t kn, char *path, size_t pn)
 {
     snprintf(key, kn, "ULUS10292%04d", i); snprintf(path, pn, "%s/ULUS10292%04d/DATA.BIN", prof_dir(), i);
@@ -1714,13 +1723,18 @@ static void sd_open(int mode)
     var_set("BFF.FE.ProfileLoadAndSaveResult", 1);
 }
 static void sd_done(int result) { sd.on = false; var_set("BFF.FE.ProfileLoadAndSaveResult", (f32)result); AK_INFO("fe", "save dialogue: result %d (slot %s)", result, slot_id()); }
+static void sd_delete_current(void)    /* (FE_DeletePlayerProfile: the profile's own slot, asked first; no / back = canceled) */
+{
+    sd_open(SD_DELETE); int c = atoi(slot_id()); sd.cur = c >= 0 && c < SD_SLOTS ? c : 0; sd.single = true;
+    if (sd.used[sd.cur]) { sd.confirm = 1; sd.yes = 0; } else sd_done(3);
+}
 static void sd_update(const ak_input *in)
 {
     if (sd.confirm) {
         if (in->pressed & (AK_BTN_UP | AK_BTN_DOWN | AK_BTN_LEFT | AK_BTN_RIGHT)) sd.yes = !sd.yes;
-        if (in->pressed & AK_BTN_CIRCLE) { sd.confirm = 0; return; }
+        if (in->pressed & AK_BTN_CIRCLE) { sd.confirm = 0; if (sd.single) sd_done(4); return; }
         if (!(in->pressed & AK_BTN_CROSS)) return;
-        sd.confirm = 0; if (!sd.yes) return;
+        sd.confirm = 0; if (!sd.yes) { if (sd.single) sd_done(4); return; }
     } else {
         if (in->pressed & AK_BTN_UP) { sd.cur = (sd.cur + SD_SLOTS - 1) % SD_SLOTS; sd.note = NULL; }
         if (in->pressed & AK_BTN_DOWN) { sd.cur = (sd.cur + 1) % SD_SLOTS; sd.note = NULL; }
