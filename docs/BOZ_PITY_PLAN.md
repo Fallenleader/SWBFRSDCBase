@@ -119,3 +119,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M2, Profile Management delete + Cutscenes list: delete asks first and removes only the profile's own save
   (mode 7); the cutscenes list fills from the movie table by the profile's progress. Next: autosave on leaving Options,
   then the Single Player entry pages up to the Instant Action map list.
+- 2026-11-23 M2, autosave on leaving Options: the Auto Saving page saves, presses itself on and returns to the main menu with
+  the focus on Options (checked in Aurek's log; the original's behaviour seen earlier). Next: the Single Player entry pages.

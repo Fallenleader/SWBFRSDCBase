@@ -1879,9 +1879,13 @@ static int cust_event(const ak_input *in)
     if (cust_return) open_hash(cust_return, false);
     return AK_FE_LOADOUT;
 }
-static const ak_widget *find_auto(const ak_widget *w)   /* a button that presses itself (0888D170: flags bit 1, +153, a time) */
+static const ak_widget *find_auto(const ak_widget *w)   /* a button that presses itself (0888D170: flags bit 1, +153, a time) - only
+                                                           while it is updated, i.e. while its conditions hold (MP_OptionsAutosave's
+                                                           "autoclick if not needed" / "... if autosave success": time 0, pressed as
+                                                           soon as the save's result shows them) */
 {
-    if (w->type == AK_GUI_BUTTON && (w->b_flags & 2) && w->b_flag8 && w->auto_time > 0) return w;
+    if (!cond_holds(w)) return NULL;
+    if (w->type == AK_GUI_BUTTON && (w->b_flags & 2) && w->b_flag8 && w->auto_time >= 0) return w;
     for (u32 i = 0; i < w->nchild; i++) { const ak_widget *r = find_auto(&w->child[i]); if (r) return r; }
     return NULL;
 }

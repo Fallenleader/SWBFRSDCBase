@@ -446,6 +446,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Delete profile and Cutscenes list (M2) | (1) FE_DeletePlayerProfile (08A2EB0C -> 08A62294 -> 08A6A234 -> 0890E49C) runs the save utility in mode 7: it deletes the profile's own save after the system asks first. It is not the list dialogue, and the profile in memory stays. Aurek now asks "Delete this profile?" on the current slot: Yes deletes it (result 2), No or Back cancels (result 4), and an empty slot fails (result 3). Before, it deleted at once and dropped the profile from memory. (2) FE_ListAvaliableCutscenes (08A2EF58) fills MP_MCutscenes' list (20 rows, 8 shown) from the movie table (0x08B1C08C). Row k is shown while k <= max(+0x5DC campaign level, +0x5E0 cutscenes unlocked), and its text is the table's. A new profile lists only Intro. The movie table moved ahead of the list fillers. |
 
+| Autosave on leaving Options (M2) | MP_Options_FrontEnd's Back targets MP_OptionsAutosave. That page's OnOpen is FE_SavePlayerProfile "1" and its OnClose is FE_ExitAutoSaveMenu. Its "autoclick if not needed" and "autoclick if autosave success" buttons (flags 7, +153, time 0) press themselves as soon as their conditions show them. They go back to the main menu with the focus on W_BU_MMOptions, as the original does. The fix: self-pressing buttons (0888D170: flags bit 1, +153, the page's active time >= +196) are only considered while their conditions hold, since the original only updates shown widgets. A time of 0 now counts (it was skipped before). |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |

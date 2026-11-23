@@ -1631,6 +1631,8 @@ textures and how they are used. Section R lists only what must be in place so th
     (08A2EF58). Uncertain: the PSP system dialogue's own look for mode 7 (Aurek draws its own question); how the list's row count
     is asked (08A2EF58's a1 / a2 path, 08898108) - rows past the limit are simply left out; whether the profile's +0x5DC / +0x5E0
     count from 0 as read here (a new profile shows Intro only, checked in Aurek, not yet against the original).
+  - Self-pressing buttons (0888D170): bit 1 of +176, +153, active time >= +196, while shown; the original also requires the
+    button's page to be the one in use (0888AC8C == page +144) and the button state != 4 - Aurek checks only the page it updates.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
