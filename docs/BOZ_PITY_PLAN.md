@@ -228,3 +228,4 @@ Reports fall after M5, M10 and M15.
   Uncertain: the AI firing rhythm (rifle runs of 2-3 shots in the original) and so the Rebel death rate. Next: M11, vehicles.
 - 2026-11-23 M11 started: the original's AT-AT body box is the same as Aurek's, but its soldiers walk 6.2 m inside it before
   stopping - something else (legs?) stops them. Tracing which body.
+- 2026-11-23 M11: the AT-AT's body box does not stop soldiers in the original; they stop about 6 m from its middle (a leg?).

@@ -1904,6 +1904,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M11 AT-AT (2026-11-23): its body box equals Aurek's (HSKN 11.7 x 27.5 x 30.7, flags 0x034081AA) but the original's player
     enters it 6.2 m and stops there. Next: RS_DRIVE_BODYSCAN-style scan of the AT-AT object's other bodies (legs?), or gdb on
     the body-vs-body pass for the player near the walker (which body stops it), and what flag 0x80 changes in 088C4CF4.
+  - M11 AT-AT (2026-11-23): its body box never stops a soldier; the stop is ~6.2 m from the middle along the walker (a leg?).
+    Next: the AT-AT model's HSBB per-bone boxes (and which bones are flagged) - place them on the walk animation's pose and
+    test soldiers against those instead of the body box; confirm against the 6.16 m stop.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
