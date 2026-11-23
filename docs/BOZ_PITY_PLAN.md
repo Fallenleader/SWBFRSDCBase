@@ -159,3 +159,6 @@ Reports fall after M5, M10 and M15.
   dying, the score board and the bot count.
 - 2026-11-23 M5: FE_TeamSelection traced in part (08A2F7F4): a side takes the player only while it has fewer than 8. Next:
   Auto's side rule, then the spawn map's first post, the rows' style, spawning, dying, the score board.
+- 2026-11-23 M5: Auto's side rule left UNCERTAIN (the request's receiver not found within the time set); Aurek keeps the
+  starting side. Next: why Aurek's spawn map opens on a red post (the own-post rule in frontend.c open_hash looks right - check
+  match.team against the posts' owners and the map's colours), the rows' dim style, spawning, dying, the score board.

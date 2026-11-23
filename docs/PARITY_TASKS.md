@@ -1700,6 +1700,9 @@ textures and how they are used. Section R lists only what must be in place so th
     put the player on the side whose posts are on the right of the map (shown blue) - by Aurek's post layout the Rebels' side.
   - Message 0x8029 (the team request): the message factory 0896F170 maps 0x8029 to 08A14A18, which builds a 56-byte message object
     (08A94784, then 08A148BC). Its handling method (the object's vtable, set in 08A148BC) is the next step for Auto's side rule.
+  - 0x8029's message object (vtable 0x08B15218: 08A14988, 08A149CC, 08A14A5C ...) only packs / unpacks the request; the side for
+    Auto is decided by the message's receiver in the match code - not found within the time set for it. Auto stays UNCERTAIN;
+    Aurek's Auto keeps the starting side.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
