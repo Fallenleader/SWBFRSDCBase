@@ -1888,6 +1888,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 burst keys (2026-11-23): whether 0896CDCC / 0881BA44 walks a blueprint's parents decides the Rebel rifle's rate
     (Base's 0s inherited: streams; own keys only: one shot per 3.75 s, as the original's 22 a minute suggests). Read 0881BA44,
     or gdb 08A24740's return for ALL_Blaster_Rifle (expect 3.75 if no inheritance).
+  - M10 (2026-11-23): settled - the key lookup 0881BA44 inherits from parents (recurses on +8). The shot-rate gap is in the
+    fire gating, not the burst values. Next: count per bot in the original how long it has a target and how long it fires
+    (gdb on the fire node 0893F2F8 and the shot 08A1C5E4, a small cap - FinishBreakpoints per call stall the harness).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

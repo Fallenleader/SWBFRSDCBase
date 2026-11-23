@@ -394,7 +394,7 @@ u32 ak_bolts_vertices(const ak_bolts *b, const f32 *eye, ak_vtx *out, u32 max)
    WindupTime 0, OverheatPershot 5 (D_08AEF9E4; at least 1), RateOfFire 0.5 (D_08AEF9EC; at least 0.05), OverheatDecay 20
    (D_08AEF9F4 / 9FC).  The defaults only matter for a weapon with no such key anywhere up its parents: the Weapon "Base" gives
    OverheatPershot / Decay / WindupTime 0, so ALL_Blaster_Rifle (RateOfFire 0.3 from BlasterRifle) still streams 22.5 s bursts
-   [whether the original's key lookup also walks the parents is not traced] */
+   (the original's lookup 0881BA44 does walk the parents: a key not on the object is looked up again at its +8, the parent) */
 static f32 ai_key(const ak_weapon_def *d, const char *k, f32 def) { return d->bp ? ak_bp_float(d->bp, k, def) : def; }
 f32 ak_ai_burst(const ak_weapon_def *d)
 {

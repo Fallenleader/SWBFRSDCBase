@@ -221,3 +221,4 @@ Reports fall after M5, M10 and M15.
   rifles' rates still differ (Rebel rifle 10x too often, Boba's 3-4x too rarely). Next: the fire node's gating.
 - 2026-11-23 M10: the AI burst keys and their own defaults ported; the open question is whether the original inherits Base's
   zero heat keys (gdb 08A24740's return for the Rebel rifle next).
+- 2026-11-23 M10: the key lookup inherits (as Aurek) - the burst values match; the rifle rate gap is in when bots fire.
