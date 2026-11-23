@@ -470,6 +470,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Instant Action flow, first check (M5) | Compared side by side from the Instant Action map list: the Planet, Mode (Conquest) and Era (Galactic Civil War) pages, the play list line ("Boz Pity - CQST - GCW"), Launch and the Team Selection page all match in layout and texts. Fixed: the team columns' faction logos (E_IM_StyleButtonH_Logo_* in GUIMENU_INGAMESP, flags 0, picked by faction in a match by 08A2A844) were hidden by the flag-0 picture rule. That rule now leaves "_Logo_" pictures alone during a match. Found: the original's Team Selection lists 8 + 8 bots, Aurek's 8 + 7 (AK_BOTS defaults to 15). The selected list row is dimmer in the original's mode, era and planet lists. |
 
+| Spawn map rows (M5) | The spawn map's Command Post / post-name rows are W_TB_StyleTextEntrySmall 1 / 2 (type 2004) with the colour 0.514 grey. The original draws them dim; Aurek drew them bright. A text box's own colour now tints what it holds. This is [assumed]: read from the original's frame, the draw itself not traced; boxes with colour 1 are unaffected. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |

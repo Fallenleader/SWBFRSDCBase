@@ -884,6 +884,11 @@ children:;
     const list_rows *keep = scroll; int keep_shown = scroll_shown; const char *keep_parent = parent_name; u32 keep_tint = child_tint; const char *keep_check = check_var; int keep_owner = spawn_owner;
     f32 keep_alpha = child_alpha; child_alpha *= anim_a; bool keep_nb = in_name_box;
     if (w->type == AK_GUI_TEXTBOX && w->binding && !strcmp(w->binding, "BFF.FE_ProfileName")) in_name_box = true;
+    if (w->type == AK_GUI_TEXTBOX && (w->rgba[0] < 1 || w->rgba[1] < 1 || w->rgba[2] < 1)) {   /* a text box's own colour tints what it holds (the spawn
+                                                                         map's W_TB_StyleTextEntrySmall rows: 0.514 grey, dim in the original's frame)
+                                                                         [assumed: read from the frame, the draw not traced] */
+        u32 t = child_tint, r = (u32)(((t >> 16) & 255) * w->rgba[0]), g = (u32)(((t >> 8) & 255) * w->rgba[1]), b = (u32)((t & 255) * w->rgba[2]);
+        child_tint = (t & 0xFF000000u) | (r << 16) | (g << 8) | b; }
     bool keep_se = in_slider_edit; if (w->type == AK_GUI_SPINNER) in_slider_edit = slider_edit && w->id == slider_edit;
     if (w->type == AK_GUI_BUTTON2 && w->binding && w->binding[0]) check_var = w->binding;
     if (w->type >= 2000) parent_name = w->name;

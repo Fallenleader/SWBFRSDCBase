@@ -162,3 +162,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M5: Auto's side rule left UNCERTAIN (the request's receiver not found within the time set); Aurek keeps the
   starting side. Next: why Aurek's spawn map opens on a red post (the own-post rule in frontend.c open_hash looks right - check
   match.team against the posts' owners and the map's colours), the rows' dim style, spawning, dying, the score board.
+- 2026-11-23 M5: the spawn map's rows dimmed as the original's (their text box colour, 0.514). Next: spawning, dying, the score
+  board, the bot count.
