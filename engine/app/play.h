@@ -117,7 +117,7 @@ typedef struct {                       /* a bot soldier */
 } ak_play_bot;
 
 typedef struct {
-    bool ready;
+    bool ready; bool warming;   /* warming: tests' world warm-up (ak_play_warmup) - the player stays put, no trace */
     ak_collision col; ak_nav nav; bool have_nav;
     ak_char_params cp; ak_character ch; ak_soldier_look look;
     s32 clip[PLAY_NCLIPS]; int state; f32 clip_t, land_t;
@@ -275,6 +275,9 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
 bool ak_play_entity_hidden(const ak_play *p, u32 id);
 bool ak_play_cut_view(const ak_play *p);    /* a cut-scene has the view: no control, no HUD */
 void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 dt);
+/* tests: the world runs `frames` steps of 1/60 s before the player starts (the original's match runs behind its team selection and
+   spawn map, so its world is older than the player) - the player is held where it is, no input, no trace */
+void ak_play_warmup(ak_play *p, const ak_model_set *m, int frames);
 /* the loadout settings again (the customisation menu's choice; the soldier is down - it takes them at the respawn) */
 void ak_play_loadout(ak_play *p, const ak_model_set *m, const ak_blueprints *bp);
 void ak_play_camera(ak_play *p, f32 dt, ak_v3 *eye, f32 *yaw, f32 *pitch, f32 *fovy);

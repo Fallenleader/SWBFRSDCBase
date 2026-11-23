@@ -171,3 +171,5 @@ Reports fall after M5, M10 and M15.
   never reaches. Next: those two causes.
 - 2026-11-23 M6: the walk's spawn shove is the placed AT-AT's box (8.7 m away, its box reaches the spawn); debug logs name the
   vehicle and print every vehicle's position (AK_DEBUG_BODY / AK_DEBUG_VEH). Next: the original's AT-AT collision.
+- 2026-11-23 M6: tests can warm the world up first (AK_TEST_WARMUP; the original's match runs behind team selection): Boz Pity's
+  walk now matches to 0.12 m for 2 s. Found: Aurek's player falls through the world after meeting the AT-AT (7 s). Next: fix.

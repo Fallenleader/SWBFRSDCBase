@@ -204,7 +204,7 @@ static void fe_test_pad(ak_input *in, int frame)
                        k == 'U' ? AK_BTN_UP : k == 'D' ? AK_BTN_DOWN : k == 'L' ? AK_BTN_LEFT : k == 'R' ? AK_BTN_RIGHT : 0; }
 }
 static int play_game_movie_subs(const char *name, bool subs);
-static int play_game_movie(const char *name) { return play_game_movie_subs(name, false); }
+__attribute__((unused)) static int play_game_movie(const char *name) { return play_game_movie_subs(name, false); }
 static int play_fe_movie(const char *name) { return play_game_movie_subs(name, true); }   /* (FE_PlayMovie: 08A69188 with the profile's +0x3F) */
 static int play_game_movie_subs(const char *name, bool subs)
 {
@@ -754,6 +754,7 @@ int main(int argc, char **argv)
                 }
             }
             if (!ak_play_init(&play, &level, &models, &bps, &lvl, soldier, st)) { AK_WARN("aurek", "no soldier for this level"); playing = false; }
+            else if (ak_setting_int("AK_TEST_WARMUP", 0) > 0) ak_play_warmup(&play, &models, ak_setting_int("AK_TEST_WARMUP", 0));   /* (tests: frames) */
             else AK_INFO("aurek", "playing as %s (%s, head %d) at %.1f %.1f %.1f; level memory %.1f MB", models.models[play.look.body].name, ak_faction_name(play.look.faction),
                          play.look.head_index + 1, play.ch.pos[0], play.ch.pos[1], play.ch.pos[2], lvl.used / 1048576.0);
             ak_arena_report();

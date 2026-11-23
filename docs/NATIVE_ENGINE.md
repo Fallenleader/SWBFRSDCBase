@@ -474,6 +474,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | M5 complete (Instant Action to Boz Pity flow) | Side by side with the unmodded original: Planet / Mode / Era / play list / Launch / Team Selection match (the team logos fixed), the spawn map's title, timer, prompts and map match (its rows dimmed as the original), the first post is the player's own as in the original's rule. The death -> score board (MP_RespawnScoreboard) -> spawn map order is in place from earlier work (viewer.c: three seconds of the death camera first). Test hook: AK_FE_PAD reaches the match's own pages. Open (PARITY_TASKS): Auto's side rule, the bot count with the player in, a side-by-side of the score board after a death. |
 
+| Test warm-up (M6) | AK_TEST_WARMUP=<frames>: the match world (vehicles, walkers, scripts) runs that long before the player starts, the player held still and untraced (play.c ak_play_warmup). The original's match runs behind its team selection and spawn map, so its world is older than its player. compare_walk.py --warmup passes it (Boz Pity: 590 frames, so the AT-AT stands where the original's does). With it, Boz Pity walk_forward matches the original within 0.12 m for the first 2 s. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |
