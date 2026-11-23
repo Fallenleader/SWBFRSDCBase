@@ -279,3 +279,5 @@ Reports fall after M5, M10 and M15.
   Empire 100006) with 1-3 squads, re-planned every 12 s. Next: its priority and mask functions, squad membership, then port.
 - 2026-11-23 M10: the commander's masks read - each side targets the posts linked to its own (capture) and holds its own front;
   squad-less soldiers are the vehicle-wanting ones. Next: the priority functions, then the port.
+- 2026-11-23 M10: the commander's priorities read and checked live - the original's bots fight over one pair of posts (100005 /
+  100006, the only weighted link). Next: why only that link counts, then port the commander.

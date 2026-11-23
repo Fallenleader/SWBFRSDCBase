@@ -2005,6 +2005,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - Commander masks (2026-11-23): +72 = posts linked to ours that are not ours (capture targets, 0x3F2), +73 = our posts linked
     to theirs (the front, 0x3F5); the 3.6 / 9.0 priorities are capture targets. Squad-less soldiers carry unit flag bit 5 (want a
     vehicle) and are skipped by the squad count (08926220). Next: 089284B4 / 08928980 in full, then the port.
+  - Commander priorities (2026-11-23): target = 0.5 x (two largest link weights at the post; 10 for a link to a nobody's post) x f20;
+    front = the same x 0.1 (2.0 with an enemy squad within 15 m). Boz Pity has one link object, 100005-100006 weight 9 -> 4.5 / 0.45
+    (checked live). Next: which type 22 records become link objects (the registry D_08C2A43C's constructor), then the port.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
