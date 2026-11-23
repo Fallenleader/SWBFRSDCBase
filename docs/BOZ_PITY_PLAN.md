@@ -179,3 +179,8 @@ Reports fall after M5, M10 and M15.
   overall (the AT-AT slowdown differs), Hoth unchanged. Next: the AT-AT slowdown, then the other movement programs.
 - 2026-11-23 M6: the crest hop fixed (the ground lay no longer stays in the velocity, read from the original with gdb):
   run_sprint within 0.13 m for 105 frames (was 1.17 m by 1 s), Hoth walk 0.28 m. Remaining gap: the AT-AT's collision box.
+- 2026-11-23 M6 done: every movement program on Boz Pity matches the original before the AT-AT region (4 s): walk 0.11 m,
+  half-stick walk 0.12 m, walk-and-stop 0.11 m, sprint 0.13 m (105 frames), roll 0.28 m, run jump 0.24 m, jump back
+  0.32 m, standing jump forward 0.26 m; Hoth walk 0.28 m over 10 s. Uncertain, carried to M11: the AT-AT's collision
+  shape (its model box stops Aurek's soldier 11.2 m along the walker, the original's at 6.8 m). Uncertain, minor: the
+  original's jump leaves one frame after the press and peaks 6 cm higher. Next: M7, weapons and damage.
