@@ -1771,6 +1771,12 @@ textures and how they are used. Section R lists only what must be in place so th
     7 s, so the sink is not that push. Ground normal before the entry step comes from the move (face 23185, vel y +0.591, uphill)
     - also fine. Remaining suspects: the AT-AT's horizontal push each frame (0.058 / 0.031) moving the box sideways into 23185's
     rising part without a sweep (pushes are applied directly to the position, no collision test), the order push -> move.
+  - Aurek pushes soldiers off vehicles by each model's whole bounding box (play.c vehicle_box -> model_box). Logged sizes on Boz Pity:
+    AT_AT -5.88..5.82 x -0.03..27.46 x -20.01..10.66 (11.7 x 27.5 x 30.7 m - legs, body and head as one solid block), T4B_tank 6.9 x
+    3.6 x 6.5, AT_ST 3.4 x 6.9 x 4.5, Carrion_Spat 0.9 x 3.4 x 3.7. The original's player walks past the AT-AT's legs with only a
+    slowdown, so the walker's push shape in the original is not this box. Next: trace the original's soldier-vs-vehicle
+    separation (which shape a walker offers: its physics body / per-part boxes) and use it; the AT_AT box is the likely cause of
+    both the push and the sink under Boz Pity's slope.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

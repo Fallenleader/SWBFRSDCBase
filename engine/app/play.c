@@ -116,6 +116,9 @@ static void soldier_box(const ak_model_set *m, const ak_soldier_look *look, cons
 static void vehicle_box(const ak_model_set *m, const ak_vehicle *vh, ak_box *b)
 {
     const f32 *mn, *mx; model_box(m, vh->def->model, &mn, &mx);
+    {   static int dbg = -1; static const void *seen[16]; static int ns; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
+        bool k = false; for (int i = 0; i < ns; i++) if (seen[i] == vh->def) k = true;
+        if (dbg && !k && ns < 16) { seen[ns++] = vh->def; AK_INFO("body", "vehicle box %s: %.2f %.2f %.2f .. %.2f %.2f %.2f", vh->def->name ? vh->def->name : "?", mn[0], mn[1], mn[2], mx[0], mx[1], mx[2]); } }
     f32 W[12]; ak_vehicle_matrix(vh, W); ak_box_place(b, mn, mx, W);
 }
 static void mover_box(const ak_play *p, u32 k, ak_box *b)   /* a moving hull's box at its place (type 19) */
