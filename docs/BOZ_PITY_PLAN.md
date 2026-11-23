@@ -136,3 +136,5 @@ Reports fall after M5, M10 and M15.
   Next: what sets 1..19 are, a byte check against the original's save, the loadouts in game by class and faction.
 - 2026-11-23 M3: traced - only loadout set 0 is ever used (all writers and readers); credits = total - the 8 chosen costs.
   Next: how the match reads set 0 (08A09928's side and the spawn), the byte check against the original's save.
+- 2026-11-23 M3: 08A09928 found to be a method of an object made by 08971770 (profile -> game settings); next its role and the
+  spawn's use of set 0.
