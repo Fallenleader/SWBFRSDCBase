@@ -2189,13 +2189,36 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
                (D_08AED6C8 / 6B4); bowcasters (124) hold it min(max(d - 6.5, 0) x 0.074, 1) x 3 s (the charge); every other weapon
                (ArcCaster, fusion cutter, carbonite gun, tri-shot, wrist rocket, snipers, particle pistol, grenade launcher, guided
                missile) is never fired by this node. The weapon then fires the shots asked as its own rate allows (08A17C64 counts
-               weapon +296 down), facing or not. [not ported: 08935D94's other checks - a friendly soldier in the line of fire
-               blocks the burst, and the 0x74 / 0x7A range test; the node's own activity - the original runs the pause only while
+               weapon +296 down), facing or not. [not ported: 08935D94's 0x74 / 0x7A test (flamethrowers / chainguns: heat and
+               range); the node's own activity - the original runs the pause only while
                the bot's AI runs its fire node, Aurek every frame] */
             const bool elite = p->difficulty >= 2;
             if (b->fire_fired) { b->fire_pause -= dt * (0.85f + 0.3f * rnd(&b->seed));
                 if (b->fire_pause < 0) { b->fire_fired = false; b->fire_pause = elite ? 2.0f : 6.0f; } }
-            if (en && b->react_t <= 0 && !b->fire_fired && b->weapon.def && b->weapon.def->bp && p->target[b->enemy].alive) {
+            /* 08935D94's friendly test (traced; constants read live): for each living soldier of the shooter's side (other than
+               itself), with T the line to the target (length dT) and F the line to the friend (dF): the angle between them
+               (acos, by 1 - asin(cos) x 2/pi times pi/2) under pi/2 (D_08AED6F4), the friend short of the target along the line
+               ((friend - target) . -T > 0), and dF x sin(angle) - its distance off the line - under 0.5 (D_08AED6E0): no burst.
+               [assumed: soldiers' origins (vfunc +44) for all three points - the shooter's point is its vfunc +148, not read;
+               the candidate list 08834FC0 / 08834E84 builds along the line taken as every friendly soldier] */
+            bool clear = true;
+            if (en && b->react_t <= 0 && !b->fire_fired) {
+                f32 T[3] = { en->feet[0] - b->ch.pos[0], en->feet[1] - b->ch.pos[1], en->feet[2] - b->ch.pos[2] };
+                f32 dT = sqrtf(T[0] * T[0] + T[1] * T[1] + T[2] * T[2]);
+                for (u32 k = 0; k < NS(p) && clear && dT > 0; k++) {
+                    const ak_target *f = &p->target[k];
+                    if (k == idx + 1 || !f->alive || f->team != b->team) continue;
+                    f32 F[3] = { f->feet[0] - b->ch.pos[0], f->feet[1] - b->ch.pos[1], f->feet[2] - b->ch.pos[2] };
+                    f32 dF = sqrtf(F[0] * F[0] + F[1] * F[1] + F[2] * F[2]); if (dF <= 0) continue;
+                    f32 c = (T[0] * F[0] + T[1] * F[1] + T[2] * F[2]) / (dT * dF); if (c > 1) c = 1; if (c < -1) c = -1;
+                    f32 ang = (1.0f - asinf(c) * 0.63661977236f) * 1.57079632679f;
+                    if (ang >= 1.5707963f) continue;
+                    f32 ft = (f->feet[0] - en->feet[0]) * -T[0] + (f->feet[1] - en->feet[1]) * -T[1] + (f->feet[2] - en->feet[2]) * -T[2];
+                    if (!(ft > 0)) continue;
+                    if (dF * sinf(ang) < 0.5f * S) clear = false;
+                }
+            }
+            if (en && b->react_t <= 0 && !b->fire_fired && clear && b->weapon.def && b->weapon.def->bp && p->target[b->enemy].alive) {
                 int wn = ak_bp_int(b->weapon.def->bp, "Weapon_Name", 0) - 110;
                 f32 d = sqrtf(to[0] * to[0] + to[1] * to[1] + to[2] * to[2]) / S;
                 switch (wn) {

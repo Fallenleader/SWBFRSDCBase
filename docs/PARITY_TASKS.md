@@ -1990,6 +1990,8 @@ textures and how they are used. Section R lists only what must be in place so th
   - Death rate corrected (2026-11-23): compare by match time (Aurek's frames are not 1/60 s in the test runs). 120 s: the
     original 0 captures, -12..-16 / -30; Aurek 1-2 captures from 75 s, -2..-5 / -22..-23. Next: the original over 6 minutes
     (with and without the harness's RS_AI_IDLE_FIX) for the capture rate.
+  - M10 friendly test (2026-11-23): 08935D94's line test ported (0.5 off the line, in front, short of the target). Open: the
+    shooter's point (vfunc +148), the query's reach, the flamethrower / chaingun branch.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

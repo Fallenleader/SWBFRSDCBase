@@ -270,3 +270,4 @@ Reports fall after M5, M10 and M15.
   2 min: the original -12 / -30; Aurek swings (-29/-33 .. -21/-114) from 16-41 post captures. Next: capture frequency.
 - 2026-11-23 Correction: the 2-minute Aurek numbers were 8-9 minutes of match time (frames, not seconds). By time, 120 s:
   original 0 captures, -12..-16 / -30; Aurek 1-2 captures, -2..-5 / -22..-23. Next: the original's capture rate over 6 min.
+- 2026-11-23 M10: the friendly-in-the-line test ported (a teammate within 0.5 of the line in front blocks a burst).
