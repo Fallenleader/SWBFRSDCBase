@@ -99,13 +99,16 @@ static void body_update(ak_character *c, const ak_char_params *p, const ak_colli
         c->vel[1] = 0; return; }
     if (!c->flying) c->vel[1] -= p->gravity * dt;                        /* physics gravity, always on (not under a jetpack's thrust) */
     f32 move[3] = { c->vel[0] * dt, c->vel[1] * dt, c->vel[2] * dt }, gn[3];
-    bool rest = false, ground = body_slide(c, col, move, gn, &rest);
+    bool rest = false, ground = body_slide(c, col, move, gn, &rest); int gsrc = ground ? 1 : 0;
     if (!ground && c->vel[1] <= 0.01f) {                                 /* resting on the ground below the skin: a short probe keeps the state steady */
         f32 ctr[3], ax[3][3], h[3], t, n[3], probe[3] = { 0, -(SKIN * 4 + 0.02f), 0 }; u16 fl; bool pe = false;
         body_place(c, ctr, ax, h);
-        if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, probe, BODY_IGNORE, &t, n, &fl, &pe) && n[1] >= WALKABLE) { ground = true; memcpy(gn, n, 12);
+        if (ak_col_box_sweep(col, ctr, (const f32 (*)[3])ax, h, probe, BODY_IGNORE, &t, n, &fl, &pe) && n[1] >= WALKABLE) { ground = true; memcpy(gn, n, 12); gsrc = 2;
             if ((pe ? n[1] >= 0.9848f : n[1] >= WALKABLE) || (fl & 0x0010)) rest = true; }
     }
+    {   static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
+        if (dbg >= 6) AK_INFO("body", "frame: ground %s, normal %.3f %.3f %.3f (was %.3f %.3f %.3f), vel %.3f %.3f %.3f", gsrc == 1 ? "from the move" : gsrc == 2 ? "from the probe" : "none",
+                              ground ? gn[0] : 0, ground ? gn[1] : 0, ground ? gn[2] : 0, c->ground_normal[0], c->ground_normal[1], c->ground_normal[2], c->vel[0], c->vel[1], c->vel[2]); }
     c->on_ground = ground; c->resting = rest;
     if (ground) { memcpy(c->ground_normal, gn, 12); if (c->vel[1] < 0) c->vel[1] = 0; c->jumped = false; }
     if (!ground && was) c->air_time = 0;
