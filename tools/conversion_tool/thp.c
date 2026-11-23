@@ -21,8 +21,9 @@
 #include "vfs.h"
 #include "rs_adpcm.h"
 #ifdef _WIN32
-#define popen _popen
-#define pclose _pclose
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
 #endif
 
 void *rs_at3p_alloc(int ch, int ba); int rs_at3p_decode(void *c, float *l, float *r, int *ns, const unsigned char *buf, int size); void rs_at3p_free(void *c);
@@ -108,14 +109,62 @@ static int demux_audio(const char *pmf, const char *wav, int *has_audio, int *ac
 
 /* ---- FFmpeg */
 static void q(char *o, size_t n, const char *s){ snprintf(o, n, "\"%s\"", s); }
-static FILE *run(const char *args, const char *mode){
-    char cmd[6000], ff[1100]; q(ff, sizeof ff, rs_thp_ffmpeg);
+/* FFmpeg as a child process: its standard output readable through child.out.
+ * Windows: started with CreateProcess and an explicit list of the handles it inherits (its stdin, the pipe, stderr).  _popen let the
+ * child inherit EVERY inheritable handle - the other workers' open output files among them (the C runtime opens files inheritable) -
+ * so while one movie's FFmpeg ran, another worker's finished .part file could not be renamed (error -11). */
+typedef struct { FILE *out; void *proc; } child_t;
+static int child_start(child_t *c, const char *args){
+    memset(c, 0, sizeof *c); char ff[1100]; q(ff, sizeof ff, rs_thp_ffmpeg);
 #ifdef _WIN32
-    snprintf(cmd, sizeof cmd, "\"%s %s\"", ff, args);     /* cmd.exe /c drops one pair of outer quotes */
+    char cmd[6000]; snprintf(cmd, sizeof cmd, "%s %s", ff, args);   /* (per call: the workers start FFmpeg at once; CreateProcess may write to it) */
+    SECURITY_ATTRIBUTES sa = { sizeof sa, NULL, TRUE };
+    HANDLE rd = NULL, wr = NULL, in = INVALID_HANDLE_VALUE, er = NULL;
+    if (!CreatePipe(&rd, &wr, &sa, 1 << 20)) return -1;
+    SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
+    in = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, NULL);
+    HANDLE se = GetStdHandle(STD_ERROR_HANDLE);
+    if (!se || se == INVALID_HANDLE_VALUE || !DuplicateHandle(GetCurrentProcess(), se, GetCurrentProcess(), &er, 0, TRUE, DUPLICATE_SAME_ACCESS))
+        er = CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, NULL);
+    HANDLE list[3]; int nl = 0; list[nl++] = wr; if (in != INVALID_HANDLE_VALUE) list[nl++] = in; if (er && er != INVALID_HANDLE_VALUE) list[nl++] = er;
+    SIZE_T asz = 0; InitializeProcThreadAttributeList(NULL, 1, 0, &asz);
+    LPPROC_THREAD_ATTRIBUTE_LIST al = (LPPROC_THREAD_ATTRIBUTE_LIST)malloc(asz);
+    STARTUPINFOEXA si; memset(&si, 0, sizeof si); si.StartupInfo.cb = sizeof si;
+    si.StartupInfo.dwFlags = STARTF_USESTDHANDLES; si.StartupInfo.hStdInput = in; si.StartupInfo.hStdOutput = wr; si.StartupInfo.hStdError = er;
+    PROCESS_INFORMATION pi; memset(&pi, 0, sizeof pi); BOOL ok = FALSE;
+    if (al && InitializeProcThreadAttributeList(al, 1, 0, &asz) && UpdateProcThreadAttribute(al, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, list, (SIZE_T)nl * sizeof(HANDLE), NULL, NULL)) {
+        si.lpAttributeList = al;
+        ok = CreateProcessA(NULL, cmd, NULL, NULL, TRUE, EXTENDED_STARTUPINFO_PRESENT, NULL, NULL, &si.StartupInfo, &pi);
+        DeleteProcThreadAttributeList(al); }
+    free(al); CloseHandle(wr); if (in != INVALID_HANDLE_VALUE) CloseHandle(in); if (er && er != INVALID_HANDLE_VALUE) CloseHandle(er);
+    if (!ok) { CloseHandle(rd); return -2; }
+    CloseHandle(pi.hThread); c->proc = pi.hProcess;
+    int fd = _open_osfhandle((intptr_t)rd, _O_RDONLY | _O_BINARY); c->out = fd >= 0 ? _fdopen(fd, "rb") : NULL;
+    if (!c->out) { if (fd >= 0) _close(fd); else CloseHandle(rd); }
+    return 0;
 #else
-    snprintf(cmd, sizeof cmd, "%s %s", ff, args);
+    char cmd[6000]; snprintf(cmd, sizeof cmd, "%s %s", ff, args);
+    c->out = popen(cmd, "r"); return c->out ? 0 : -1;
 #endif
-    return popen(cmd, mode); }
+}
+/* waits for it; its exit code (-1: could not tell) */
+static int child_end(child_t *c){
+#ifdef _WIN32
+    if (c->out) fclose(c->out);
+    DWORD code = (DWORD)-1;
+    if (c->proc) { WaitForSingleObject((HANDLE)c->proc, INFINITE); GetExitCodeProcess((HANDLE)c->proc, &code); CloseHandle((HANDLE)c->proc); }
+    return (int)code;
+#else
+    return c->out ? pclose(c->out) : -1;
+#endif
+}
+/* a finished file into place; Windows: a scanner or indexer may hold the new file a moment - a few tries */
+int rs_conv_rename(const char *from, const char *to){
+    for (int i = 0; ; i++) { remove(to); if (!rename(from, to)) return 0;
+#ifdef _WIN32
+        if (i < 40) { Sleep(250); continue; }
+#endif
+        return -1; } }
 
 /* a JPEG from FFmpeg -> THP's form; returns the new length (in place) */
 static int thp_jpeg(uint8_t *j, int n){
@@ -164,7 +213,7 @@ int rs_conv_thp_file(const char *src, const char *tmp, uint64_t *out_size, void 
     if (has_audio) {
         char a[3200], i1[1500], o1[1500]; q(i1, sizeof i1, w44); q(o1, sizeof o1, w32);
         snprintf(a, sizeof a, "-hide_banner -v error -y -i %s -ar %d -c:a pcm_s16le %s", i1, THP_RATE, o1);
-        FILE *p = run(a, "r"); if (!p || pclose(p) != 0) { fprintf(stderr, "[CONV] FFmpeg could not resample the sound of %s\n", src); rc = -20; goto out; }
+        child_t ch; if (child_start(&ch, a) || child_end(&ch) != 0) { fprintf(stderr, "[CONV] FFmpeg could not resample the sound of %s\n", src); rc = -20; goto out; }
         for (int c = 0; c < ach; c++) rs_adp_wav_coefs(w32, c, coef[c]);
         FILE *f = fopen(w32, "rb"); if (!f) { rc = -21; goto out; }
         uint8_t h[12]; fread(h, 1, 12, f);
@@ -179,14 +228,8 @@ int rs_conv_thp_file(const char *src, const char *tmp, uint64_t *out_size, void 
     snprintf(a, sizeof a, "-hide_banner -v error -i %s -an -vf \"scale=%d:-2:flags=lanczos,pad=%d:%d:0:(oh-ih)/2:black,setsar=1\" -r %d/%d "
              "-c:v mjpeg -pix_fmt yuvj420p -b:v %dk -maxrate %dk -bufsize %dk -f image2pipe -", i1, THP_W, THP_W, THP_H, FPS_NUM, FPS_DEN,
              rs_thp_video_kbps, rs_thp_video_kbps * 3 / 2, rs_thp_video_kbps);
-    pipe_t s; memset(&s, 0, sizeof s); s.p = run(a,
-#ifdef _WIN32
-        "rb"
-#else
-        "r"
-#endif
-        ); if (!s.p) { rc = -23; goto out; }
-    FILE *o = fopen(tmp, "wb"); if (!o) { pclose(s.p); rc = -4; goto out; }
+    pipe_t s; memset(&s, 0, sizeof s); child_t vch; if (child_start(&vch, a) || !vch.out) { child_end(&vch); rc = -23; goto out; } s.p = vch.out;
+    FILE *o = fopen(tmp, "wb"); if (!o) { child_end(&vch); rc = -4; goto out; }
     const uint32_t first_off = 0x60;
     uint8_t hdr[0x60]; memset(hdr, 0, sizeof hdr); fwrite(hdr, 1, sizeof hdr, o);
     uint8_t *prev = 0; int prev_len = 0, prev_cap = 0; uint32_t prev_total = 0, first_size = 0, max_size = 0, max_aud = 0, nframes = 0, last_off = first_off, aud_total = 0;
@@ -221,7 +264,7 @@ int rs_conv_thp_file(const char *src, const char *tmp, uint64_t *out_size, void 
         memcpy(prev, fb, (size_t)total); prev_len = total; prev_total = (uint32_t)total; if ((uint32_t)total > max_size) max_size = (uint32_t)total; nframes++;
         memmove(s.b, s.b + jl, (size_t)(s.len - jl)); s.len -= jl;
         if (nframes % 64 == 0) { uint64_t e = size / 2 * nframes / (nframes + 900); if (e > est) { work(e - est); est = e; } } }
-    int prc = pclose(s.p);
+    int prc = child_end(&vch);
     if (!rc && prc != 0) { fprintf(stderr, "[CONV] FFmpeg failed on the picture of %s (exit %d)\n", src, prc); rc = -26; }
     if (!rc && !nframes) rc = -27;
     if (!rc) { wbe32(prev, first_size); fwrite(prev, 1, (size_t)prev_len, o); last_off = pos; pos += (uint32_t)prev_len;
@@ -258,7 +301,7 @@ int rs_conv_mp4_file(const char *src, const char *tmp, uint64_t *out_size, void 
         if (has_audio) snprintf(a, sizeof a, "-hide_banner -v error -y -fflags +genpts -i %s -i %s -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -profile:a aac_low -b:a 160k -ar 44100 -ac 2 "
                                 "-movflags +faststart -f mp4 %s", i1, i2, o1);
         else snprintf(a, sizeof a, "-hide_banner -v error -y -fflags +genpts -i %s -map 0:v:0 -c:v copy -an -movflags +faststart -f mp4 %s", i1, o1);
-        FILE *p = run(a, "r"); int prc = p ? pclose(p) : -1;
+        child_t ch; int prc = child_start(&ch, a) ? -1 : child_end(&ch);
         if (prc != 0) { fprintf(stderr, "[CONV] FFmpeg could not write the movie %s (exit %d)\n", src, prc); rc = -26; }
         else { struct stat st; if (stat(tmp, &st) == 0 && st.st_size > 0) *out_size = (uint64_t)st.st_size; else rc = -10; }
         work(size - size / 3 * 2); }

@@ -55,6 +55,8 @@ int rs_conv_thp_file(const char *src, const char *tmp, uint64_t *out_size, void 
 /* the conversion tool's Vita target: the movies in the Vita movie format through FFmpeg's command-line tool (tools/conversion_tool/thp.c) */
 int rs_conv_mp4_cli;
 int rs_conv_mp4_file(const char *src, const char *tmp, uint64_t *out_size, void (*work)(uint64_t)) __attribute__((weak));
+int rs_conv_rename(const char *from, const char *to) __attribute__((weak));   /* the tool's (retries on Windows) */
+static int put_in_place(const char *from, const char *to){ if (rs_conv_rename) return rs_conv_rename(from, to); remove(to); return rename(from, to); }
 typedef struct { char rel[256]; char src[1100]; int kind; unsigned size; uint32_t sig; uint64_t out_size; int state; } job_t;   /* kind 0 audio, 1 video, 2 sound bundle; state 0 ok, 1 todo, 2 done, 3 failed */
 static job_t jobs[MAXJOB]; static int njobs, next_job;
 static char g_root[1024], g_out[1024], g_iso[1024];
@@ -441,11 +443,11 @@ static int conv_bundle(job_t *j, const char *tmp, uint64_t *out_size){
                 if (fwrite(pcm, 2u * (size_t)a.ch, (size_t)ns, o) != (size_t)ns) err = -5; }
             if (fclose(o)) err = -5;
 #ifdef RS_CONV_ADPCM
-            if (rs_conv_pcm) { if (!err) { remove(w); if (rename(wt, w)) err = -11; } else remove(wt); } else {
+            if (rs_conv_pcm) { if (!err) { if (put_in_place(wt, w)) err = -11; } else remove(wt); } else {
             if (!err) { uint64_t as = 0; remove(w); if (rs_adp_from_wav(wt, w, &as)) err = -6; else data_bytes = (uint32_t)as - 44u; }
             remove(wt); }
 #else
-            if (!err) { remove(w); if (rename(wt, w)) err = -11; } else remove(wt);
+            if (!err) { if (put_in_place(wt, w)) err = -11; } else remove(wt);
 #endif
             fprintf(idx, "%08X %d %u\n", i, a.ch, nframes); total += 44ull + data_bytes; nsound++; }
         pthread_mutex_lock(&dec_mx); if (a.codec) rs_at3p_free(dec); else rs_at3_free(dec); pthread_mutex_unlock(&dec_mx);
@@ -472,7 +474,7 @@ static void *worker(void *arg){
         if (j->kind == 0 && !rs_conv_pcm) { char tw[1340]; snprintf(tw, sizeof tw, "%s.wav", t); rc = conv_audio(j, tw, &sz); if (!rc) rc = rs_adp_from_wav(tw, t, &sz) ? -6 : 0; remove(tw); } else
 #endif
         rc = j->kind == 1 ? (rs_conv_thp ? rs_conv_thp_file(j->src, t, &sz, add_work) : rs_conv_mp4_cli ? rs_conv_mp4_file(j->src, t, &sz, add_work) : conv_video(j, t, &sz)) : (j->kind == 2 ? conv_bundle(j, t, &sz) : conv_audio(j, t, &sz));
-        if (rc == 0) { remove(o); if (rename(t, o)) rc = -11; }
+        if (rc == 0) { if (put_in_place(t, o)) rc = -11; }
         if (rc) { remove(t); fprintf(stderr, "[CONV] %s failed (%d)\n", j->rel, rc); }
         else fprintf(stderr, "[CONV] %s -> %llu bytes\n", j->rel, (unsigned long long)sz);
         pthread_mutex_lock(&mx); st.current[slot][0] = 0;
