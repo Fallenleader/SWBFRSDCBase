@@ -157,3 +157,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M5: Team Selection -> spawn map now runs in Aurek's tests too (AK_FE_PAD reaches the match pages). Spawn map
   differences found: the first post chosen (original: the player's own), the rows' dim style. Next: those, then spawning,
   dying, the score board and the bot count.
+- 2026-11-23 M5: FE_TeamSelection traced in part (08A2F7F4): a side takes the player only while it has fewer than 8. Next:
+  Auto's side rule, then the spawn map's first post, the rows' style, spawning, dying, the score board.

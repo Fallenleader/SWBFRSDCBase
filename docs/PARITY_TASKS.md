@@ -1686,6 +1686,11 @@ textures and how they are used. Section R lists only what must be in place so th
     ("Ruined Gatehouse") - the team after Auto or the post colours / ownership differ (Aurek logged the player as Empire);
     (2) the original's Command Post / post-name rows look disabled (dim), Aurek's bright; (3) the level behind is lit brighter
     in the original (a rendering item for later). Not yet seen: spawning, dying, the score board, the bot count.
+  - FE_TeamSelection = 08A2F7F4 (handler of the UTF-16 name at 0x08AE0558). Traced so far: it counts each side's players
+    (08A26FC0 per player: s2 the good side, s3 the evil side); choosing side 1 or 2 joins only while that side has fewer than 8
+    (s2 / s3 < 8) - so 8 per side is the cap, which fits the original's 8 + 8 list with the player not yet counted. Auto (0)
+    goes through 0x08B1BB5C / 0x08B1C148 (a state value 4 / 0) and 08978770 + 08838148 - its side rule is not read yet.
+    Aurek's Auto keeps the match's starting side (viewer.c AK_FE_TEAM) - unproven.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
