@@ -1,35 +1,33 @@
 #!/usr/bin/env python3
-"""Builds a GameCube disc image (.iso, the GCM layout) of Aurek with the game inside, for Dolphin, Swiss or a burned disc.
+r"""Builds a GameCube disc image (.iso, the GCM layout) of Aurek with the game inside, for Dolphin, Swiss or a burned disc.
 
-Put this script in a folder with:
+It needs four things, and says which is missing or wrong:
+    the game files       the UMD's GAME (or PSP_GAME) folder as extracted, or the UMD image (.iso; its files are unpacked onto the disc)
+    the Converted folder the game's media in the GameCube's own formats (music, voices, effects as DSP-ADPCM, the movies as THP):
+                         Converted\GameCube, written by Convert_GameCube.bat in the SWBFRS Conversion Tool's folder
     aurek.dol            the GameCube build
-    settings.txt         its settings (optional: without it the build's defaults)
-    the game, one of:    GAME/PSP_GAME/...  (the UMD's files, as extracted)
-                         PSP_GAME/...       (the same without the GAME folder)
-                         game.iso           (or any other PSP .iso: the UMD image; its files are unpacked onto the disc)
-                         - here, or in the folder above, or in a folder beside this one (the conversion tool's folder, say)
-    converted/           (optional) the game's media in the GameCube's own formats (music, voices and effects as DSP-ADPCM .adp,
-                         the movies as THP), as the SWBFRS Conversion Tool writes it: Converted/GameCube here, or in the tool's
-                         folder beside this one (its Convert_GameCube script), or converted/ here
-and run it with no arguments:
+    settings.txt         its settings
 
-    python make_gcm.py                       ->  Aurek_GC.iso next to it
+Double-click it (or run "python make_gcm.py"): a window opens.  Drop the four items on it - one at a time, all at once, or a folder
+holding them - or use Browse; each is recognised by what it is and checked (a tick, or what is wrong in red).  What sits next to the
+script, in the folder above or in a folder beside it is filled in at the start.  When all four check out, Convert builds Aurek_GC.iso
+(next to the script unless you choose another place).  The window stays open: the result or the problem is shown in it.
+Items dropped onto make_gcm.py itself are filled in the same way.  Drag and drop in the window needs the tkinterdnd2 package: the
+script installs it for you (pip, once) the first time; without it, Browse works.
+
+Without a window: python make_gcm.py --cli [the items, any order] [--out file.iso] [--region usa|pal|japan] [--id AURE01] [--pause]
+(or --game / --converted / --dol / --settings to name each).  It lists the four items with OK / NO and builds only when all are OK.
 
 What goes on the disc is what aurek.dol looks for when no SD card has an "aurek" folder: /aurek/settings.txt, /aurek/GAME/PSP_GAME
-and /aurek/converted.  A PSP .iso is unpacked onto the disc (its files read straight out of the image).  The PSP's own firmware update
-(PSP_GAME/SYSDIR/UPDATE) is left out: it is never read.  With converted/ present, what it replaces is left out too:
+and /aurek/converted.  The PSP's own firmware update (PSP_GAME/SYSDIR/UPDATE) is left out: it is never read.  What the converted
+files replace is left out too:
     X.PMF        when converted/.../X.PMF.thp exists (the engine never reads the original movie)
     X.AT3        cut to its first 4 KB when converted/.../X.AT3.adp exists (the engine reads only the RIFF header: the encoder
                  delay and the loop points)
-    GMSND.AM     cut to its first 256 KB when converted/.../GMSND.AM.d exists (the engine reads only its index: the lines and the
-                 bundle's table)
-The converter's manifest.txt is left out as well (only the converter reads it).
-The boot program is Aurek's own small apploader (platform/gc/apploader); no Nintendo code is used.
-
-Options: --dir <folder> (default: this script's folder), --dol, --settings, --game (a GAME / PSP_GAME folder or a PSP .iso),
---converted, --out, --region usa|pal|japan (default usa: the disc's region, which a console's own boot menu checks; Swiss and
-Dolphin don't mind), --id (six characters; the fourth is set from the region)."""
-import argparse, os, struct, sys, subprocess
+    GMSND.AM     cut to its first 256 KB when converted/.../GMSND.AM.d exists (the engine reads only its index)
+The converter's manifest.txt is left out as well.  The region (default usa) is the disc's, which a console's own boot menu checks;
+Swiss and Dolphin don't mind.  The boot program is Aurek's own small apploader (platform/gc/apploader); no Nintendo code is used."""
+import argparse, os, struct, sys, subprocess, threading
 
 DISC_MAX = 1459978240
 ALIGN = 0x8000                                   # files start on 32 KB boundaries (the drive reads whole blocks)
@@ -146,87 +144,154 @@ def is_psp_iso(path):
     except OSError:
         return False
 
-def main():
-    here = os.path.dirname(os.path.abspath(__file__))
-    ap = argparse.ArgumentParser(description='Builds a GameCube disc image of Aurek with the game inside (see the top of this file).')
-    ap.add_argument('--dir', default=here, help='the folder holding aurek.dol, settings.txt and the game (default: this script\'s)')
-    ap.add_argument('--dol'); ap.add_argument('--settings'); ap.add_argument('--game'); ap.add_argument('--converted')
-    ap.add_argument('--out'); ap.add_argument('--region', default='usa', choices=sorted(REGIONS))
-    ap.add_argument('--id', default='AURE01', help='six-character game ID (default AURE01; the fourth character follows --region)')
-    ap.add_argument('--rebuild-apploader', action='store_true', help='build the apploader from apploader/ (devkitPPC) instead of the copy here')
-    a = ap.parse_args()
-    d = os.path.abspath(a.dir)
-    out = os.path.abspath(a.out or os.path.join(d, 'Aurek_GC.iso'))
+class BuildError(Exception):
+    pass
 
-    # ---- what goes in
-    dol_path = a.dol or find_ci(d, 'aurek.dol')
-    if not dol_path or not os.path.isfile(dol_path): sys.exit('no aurek.dol in %s (or give --dol)' % d)
-    settings = a.settings or find_ci(d, 'settings.txt')
-    if settings and not os.path.isfile(settings): sys.exit('%s: not found' % settings)
+# ---------------------------------------------------------------- the four inputs: what each is, and whether it is usable
+# Each check returns (ok, note): note says what is wrong, or what was found.
 
-    files = []                                  # (disc path under /aurek, host path, offset in it, size)
-    game = a.game
-    def game_in(folder):
-        g = find_ci(folder, 'GAME')
-        if g and os.path.isdir(g) and find_ci(g, 'PSP_GAME'): return g
-        p = find_ci(folder, 'PSP_GAME')
-        if p and os.path.isdir(p): return p
-        isos = [os.path.join(folder, n) for n in sorted(os.listdir(folder)) if n.lower().endswith('.iso') and os.path.abspath(os.path.join(folder, n)) != out]
-        isos = [p for p in isos if os.path.isfile(p) and is_psp_iso(p)]
-        if len(isos) > 1: sys.exit('more than one PSP .iso in %s: %s (give --game)' % (folder, ', '.join(os.path.basename(p) for p in isos)))
-        return isos[0] if isos else None
-    if not game:
-        # here, else the folder above, else a folder beside this one (the conversion tool's, say) - as the conversion tool looks
-        game = game_in(d)
-        up = os.path.dirname(os.path.abspath(d))
-        if not game and os.path.isdir(up): game = game_in(up)
-        if not game and os.path.isdir(up):
-            for n in sorted(os.listdir(up)):
-                sd = os.path.join(up, n)
-                if os.path.isdir(sd) and os.path.abspath(sd) != os.path.abspath(d):
-                    game = game_in(sd)
-                    if game: break
-    if not game: sys.exit('no game in %s, the folder above it or a folder beside it: put the UMD\'s GAME/PSP_GAME folder (or PSP_GAME, or its .iso) there, or give --game' % d)
-    game = os.path.abspath(game)
+def check_dol(p):
+    if not p or not os.path.isfile(p): return False, 'missing: drop aurek.dol (the GameCube build) here'
+    try:
+        with open(p, 'rb') as f: h = f.read(0x100)
+    except OSError as e: return False, str(e)
+    entry = struct.unpack('>I', h[0xE0:0xE4])[0] if len(h) >= 0xE4 else 0
+    if len(h) < 0x100 or not (0x80000000 <= entry < 0x81800000): return False, 'not a GameCube program (.dol)'
+    return True, '%.1f MB' % (os.path.getsize(p) / 1048576)
+
+def check_settings(p):
+    if not p or not os.path.isfile(p): return False, 'missing: drop settings.txt (the GameCube build\'s settings) here'
+    try:
+        t = open(p, 'r', encoding='utf-8', errors='replace').read(200000)
+    except OSError as e: return False, str(e)
+    if 'AK_' not in t: return False, 'not an Aurek settings.txt (no AK_ settings in it)'
+    return True, '%d settings' % sum(1 for l in t.splitlines() if l.strip().startswith('AK_') and '=' in l)
+
+GAME_NEED = ['USRDIR/MISC/COMMON.ASR', 'USRDIR/SOUNDS/GMSND.ASR', 'USRDIR/ENVS']
+def game_files(game):
+    """(the disc's files of the game, the PSP_GAME folder or image, a description); raises BuildError"""
+    files = []
     if os.path.isfile(game):
-        if not is_psp_iso(game): sys.exit('%s is not a PSP UMD image' % game)
+        if not is_psp_iso(game): raise BuildError('%s is not a PSP UMD image' % game)
         files += iso_tree(game, 'GAME/PSP_GAME', skip_update=True); psp = game; what = 'the UMD image %s (unpacked)' % os.path.basename(game)
     else:
-        if os.path.basename(game).upper() == 'PSP_GAME': psp = game
+        if os.path.basename(os.path.normpath(game)).upper() == 'PSP_GAME': psp = game
         else:
             psp = find_ci(game, 'PSP_GAME')
-            if not psp: sys.exit('%s has no PSP_GAME folder' % game)
+            if not psp: raise BuildError('%s has no PSP_GAME folder' % game)
         files += tree_of(psp, 'GAME/PSP_GAME', skip_update=True)
-        umd = find_ci(os.path.dirname(psp), 'UMD_DATA.BIN')
-        if umd and os.path.basename(os.path.dirname(psp)).upper() == 'GAME': files.append(('GAME/UMD_DATA.BIN', umd, 0, os.path.getsize(umd)))
+        umd = find_ci(os.path.dirname(os.path.normpath(psp)), 'UMD_DATA.BIN')
+        if umd and os.path.basename(os.path.dirname(os.path.normpath(psp))).upper() == 'GAME': files.append(('GAME/UMD_DATA.BIN', umd, 0, os.path.getsize(umd)))
         what = 'the game folder %s' % psp
-    need = ['USRDIR/MISC/COMMON.ASR', 'USRDIR/SOUNDS/GMSND.ASR', 'USRDIR/ENVS']
     have = {t[0].upper() for t in files}
-    missing = [n for n in need if not any(h.startswith(('GAME/PSP_GAME/' + n).upper()) for h in have)]
-    if missing: sys.exit('the game %s lacks %s: is it the whole UMD?' % (psp, ', '.join(missing)))
-    conv = a.converted or find_converted(d)
+    missing = [n for n in GAME_NEED if not any(h.startswith(('GAME/PSP_GAME/' + n).upper()) for h in have)]
+    if missing: raise BuildError('the game lacks %s: is it the whole UMD?' % ', '.join(missing))
+    return files, psp, what
+
+def check_game(p):
+    if not p or not os.path.exists(p): return False, 'missing: drop the game here (its GAME or PSP_GAME folder, or the UMD .iso)'
+    if os.path.isfile(p) and not is_psp_iso(p): return False, 'not a PSP UMD image'
+    psp = p if os.path.isfile(p) or os.path.basename(os.path.normpath(p)).upper() == 'PSP_GAME' else find_ci(p, 'PSP_GAME')
+    if not psp: return False, 'no PSP_GAME folder in it'
+    if os.path.isdir(psp):
+        miss = [n for n in GAME_NEED if not os.path.exists(os.path.join(psp, *n.split('/'))) and not _exists_ci(psp, n)]
+        if miss: return False, 'incomplete: no %s (is it the whole UMD?)' % ', '.join(miss)
+        return True, 'game folder'
+    return True, 'UMD image, %.0f MB' % (os.path.getsize(p) / 1048576)
+
+def _exists_ci(base, rel):
+    cur = base
+    for part in rel.split('/'):
+        cur = find_ci(cur, part)
+        if not cur: return False
+    return True
+
+def check_converted(p):
+    if not p or not os.path.isdir(p): return False, 'missing: drop the Converted folder here (Convert_GameCube.bat in the conversion tool writes Converted\\GameCube)'
+    man = find_ci(p, 'manifest.txt')
+    if not man: return False, 'no manifest.txt: not a folder the conversion tool wrote (or not finished)'
+    head = open(man, 'r', errors='replace').readline().strip()
+    if head.startswith('rsconv 3a'): return False, 'this is the 3DS conversion: use Converted\\GameCube'
+    if head == 'rsconv 3' or (head.startswith('rsconv') and not head.startswith('rsconv 3g')): return False, 'this is the Vita conversion: use Converted\\GameCube'
+    if not find_ci(p, 'PSP_GAME'): return False, 'empty: no PSP_GAME folder in it'
+    parts = 0; thp = 0; adp = 0
+    for dp, dn, fn in os.walk(p):
+        for f in fn:
+            u = f.upper()
+            if u.endswith('.PART') or '.PART.' in u: parts += 1
+            elif u.endswith('.THP'): thp += 1
+            elif u.endswith('.ADP'): adp += 1
+    if parts: return False, 'unfinished (%d files still being written): let the conversion finish, or run Convert_GameCube again' % parts
+    return True, '%d movies, %d sounds' % (thp, adp)
+
+CHECKS = {'game': check_game, 'converted': check_converted, 'dol': check_dol, 'settings': check_settings}
+NAMES = {'game': 'Game files', 'converted': 'Converted folder', 'dol': 'aurek.dol', 'settings': 'settings.txt'}
+
+def classify(p, depth=0):
+    """what a dropped path is: {kind: path} (a folder holding several of them gives several)"""
+    out = {}
+    p = os.path.abspath(p)
+    if os.path.isfile(p):
+        n = os.path.basename(p).lower()
+        if n.endswith('.dol'): out['dol'] = p
+        elif n.endswith('.txt') and (n == 'settings.txt' or check_settings(p)[0]): out['settings'] = p   # (not a README)
+        elif n.endswith('.iso') and is_psp_iso(p): out['game'] = p
+        return out
+    if not os.path.isdir(p): return out
+    if find_ci(p, 'manifest.txt') and find_ci(p, 'PSP_GAME'): out['converted'] = p; return out     # a conversion's folder
+    g = find_ci(p, 'GameCube')
+    if g and os.path.isdir(g) and find_ci(g, 'manifest.txt'): out['converted'] = g; return out      # the tool's Converted folder
+    if os.path.basename(p).upper() == 'PSP_GAME' or find_ci(p, 'PSP_GAME'): out['game'] = p; return out
+    if depth < 2:                                                                                     # a folder holding them
+        for n in sorted(os.listdir(p)):
+            for k, v in classify(os.path.join(p, n), depth + 1).items():
+                out.setdefault(k, v)
+    return out
+
+def autodetect(d):
+    """what sits by the script: its folder, the folder above, a folder beside it (as the conversion tool looks)"""
+    found = {}
+    def take(folder, depth):
+        if not os.path.isdir(folder): return
+        for k, v in classify(folder, depth).items(): found.setdefault(k, v)
+    take(d, 1)
+    up = os.path.dirname(os.path.abspath(d))
+    for n in sorted(os.listdir(up)) if os.path.isdir(up) else []:
+        sd = os.path.join(up, n)
+        if os.path.isdir(sd) and os.path.abspath(sd) != os.path.abspath(d): take(sd, 1)
+    if not found.get('converted'):
+        c = find_converted(d)
+        if c: found['converted'] = c
+    return found
+
+# ---------------------------------------------------------------- the build
+def build(dol_path, settings, game, conv, out, region_name='usa', gid='AURE01', progress=None, rebuild_apploader=False):
+    """writes the disc image; returns a summary.  progress(done, total) is called as files are written.  raises BuildError"""
+    for k, v in (('dol', dol_path), ('settings', settings), ('game', game), ('converted', conv)):
+        ok, note = CHECKS[k](v)
+        if not ok: raise BuildError('%s: %s' % (NAMES[k], note))
+    here = os.path.dirname(os.path.abspath(__file__))
+    files, psp, what = game_files(os.path.abspath(game))
     saved = 0; replaced = 0
-    if conv and os.path.isdir(conv):
-        cfiles = [t for t in tree_of(conv, 'converted') if t[0].upper() != 'CONVERTED/MANIFEST.TXT' and not t[0].upper().endswith('.PART')]
-        cset = {t[0].upper() for t in cfiles}
-        cdirs = {t[0].upper().rsplit('/', 1)[0] for t in cfiles}
-        kept = []
-        for dp, hp, off, size in files:
-            u = dp.upper()
-            c = u.startswith('GAME/') and 'CONVERTED/' + u[len('GAME/'):] or None
-            if c and u.endswith('.PMF') and c + '.THP' in cset:
-                saved += size; replaced += 1; continue
-            if c and u.endswith('.AT3') and c + '.ADP' in cset and size > 4096:
-                saved += size - 4096; replaced += 1; kept.append((dp, hp, off, 4096)); continue
-            if c and u.endswith('/GMSND.AM') and c + '.D' in cdirs and size > (256 << 10):
-                saved += size - (256 << 10); replaced += 1; kept.append((dp, hp, off, 256 << 10)); continue
-            kept.append((dp, hp, off, size))
-        files = kept + cfiles
-    else: conv = None
-    if settings: files.append(('settings.txt', settings, 0, os.path.getsize(settings)))
+    cfiles = [t for t in tree_of(conv, 'converted') if t[0].upper() != 'CONVERTED/MANIFEST.TXT' and not t[0].upper().endswith('.PART')]
+    cset = {t[0].upper() for t in cfiles}
+    cdirs = {t[0].upper().rsplit('/', 1)[0] for t in cfiles}
+    kept = []
+    for dp, hp, off, size in files:
+        u = dp.upper()
+        c = u.startswith('GAME/') and 'CONVERTED/' + u[len('GAME/'):] or None
+        if c and u.endswith('.PMF') and c + '.THP' in cset:
+            saved += size; replaced += 1; continue
+        if c and u.endswith('.AT3') and c + '.ADP' in cset and size > 4096:
+            saved += size - 4096; replaced += 1; kept.append((dp, hp, off, 4096)); continue
+        if c and u.endswith('/GMSND.AM') and c + '.D' in cdirs and size > (256 << 10):
+            saved += size - (256 << 10); replaced += 1; kept.append((dp, hp, off, 256 << 10)); continue
+        kept.append((dp, hp, off, size))
+    files = kept + cfiles
+    files.append(('settings.txt', settings, 0, os.path.getsize(settings)))
     files.sort(key=lambda t: t[0].upper())
 
-    apl, apl_entry = build_apploader(here) if a.rebuild_apploader else (APPLOADER_BIN, APPLOADER_ENTRY)
+    apl, apl_entry = build_apploader(here) if rebuild_apploader else (APPLOADER_BIN, APPLOADER_ENTRY)
     dol = open(dol_path, 'rb').read()
 
     # ---- the FST: / -> aurek -> the files' folders (each folder's entries sorted by name, any case, as the format expects)
@@ -267,11 +332,11 @@ def main():
             if secs > 0:
                 now = tb * 8 / secs / 1000 - 293        # (the sound: 32 kHz stereo DSP-ADPCM, 293 kbit/s)
                 fit = int((now - (total - DISC_MAX + (16 << 20)) * 8 / secs / 1000) / 50) * 50
-                hint = '; the movies run at about %d kbit/s: convert them again at %d or less (delete converted/PSP_GAME/USRDIR/FMV, then SWBFRS_ConversionTool gc --video-kbps %d)' % (now, fit, fit)
-        sys.exit('the image would be %.0f MB: more than a GameCube disc holds (1392 MB)%s' % (total / 1048576, hint))
+                hint = '. The movies run at about %d kbit/s: convert them again at %d or less (delete Converted\\GameCube\\PSP_GAME\\USRDIR\\FMV, then SWBFRS_ConversionTool gc --video-kbps %d)' % (now, fit, fit)
+        raise BuildError('the image would be %.0f MB: more than a GameCube disc holds (1392 MB)%s' % (total / 1048576, hint))
 
-    region, rc = REGIONS[a.region]
-    gid = (a.id.upper() + '000000')[:6]; gid = gid[:3] + rc + gid[4:]
+    region, rc = REGIONS[region_name]
+    gid = (gid.upper() + '000000')[:6]; gid = gid[:3] + rc + gid[4:]
     boot = bytearray(0x440)
     boot[0:6] = gid.encode(); boot[0x1C:0x20] = be32(0xC2339F3D)
     title = b'Aurek (Star Wars Battlefront: Renegade Squadron)'; boot[0x20:0x20 + len(title)] = title
@@ -282,25 +347,187 @@ def main():
     fst += names
 
     tmp = out + '.part'
-    with open(tmp, 'wb') as o:
-        o.write(boot); o.write(bi2); o.write(apl_hdr); o.write(apl)
-        o.seek(dol_off); o.write(dol)
-        o.seek(fst_off); o.write(fst)
-        for n, (i, (p, off, size)) in enumerate(placed):
-            o.seek(entries[i][2])
-            with open(p, 'rb') as f:
-                f.seek(off); left = size
-                while left > 0:
-                    b = f.read(min(left, 4 << 20))
-                    if not b: sys.exit('%s: shorter than expected' % p)
-                    o.write(b); left -= len(b)
-            if n % 200 == 0: print('  %d / %d files' % (n, len(placed)), end='\r', flush=True)
-        o.truncate(total)
-    os.replace(tmp, out)
-    print('%s: %.1f MB (%s, ID %s)' % (out, total / 1048576, a.region, gid))
-    print('  in it: %s, %s%s; %d files under /aurek' % (os.path.basename(dol_path), what,
-          (', settings.txt' if settings else ', no settings.txt (the defaults)') + (', converted media from %s' % conv if conv else ', no converted media (no music, voices or movies)'), len(placed)))
-    if conv: print('  %d originals left out or cut to what the engine reads (their converted copies are on the disc): %.1f MB saved' % (replaced, saved / 1048576))
+    try:
+        with open(tmp, 'wb') as o:
+            o.write(boot); o.write(bi2); o.write(apl_hdr); o.write(apl)
+            o.seek(dol_off); o.write(dol)
+            o.seek(fst_off); o.write(fst)
+            for n, (i, (p, off, size)) in enumerate(placed):
+                o.seek(entries[i][2])
+                with open(p, 'rb') as f:
+                    f.seek(off); left = size
+                    while left > 0:
+                        b = f.read(min(left, 4 << 20))
+                        if not b: raise BuildError('%s: shorter than expected' % p)
+                        o.write(b); left -= len(b)
+                if progress and (n % 20 == 0 or n == len(placed) - 1): progress(n + 1, len(placed))
+            o.truncate(total)
+        os.replace(tmp, out)
+    except BaseException:
+        try: os.remove(tmp)
+        except OSError: pass
+        raise
+    return ('%s: %.1f MB (%s, ID %s)\n  in it: %s, %s, settings.txt, converted media from %s; %d files under /aurek\n'
+            '  %d originals left out or cut to what the engine reads (their converted copies are on the disc): %.1f MB saved'
+            % (out, total / 1048576, region_name, gid, os.path.basename(dol_path), what, conv, len(placed), replaced, saved / 1048576))
+
+# ---------------------------------------------------------------- the window
+def gui(here, dropped):
+    import tkinter as tk
+    from tkinter import ttk, filedialog, messagebox
+    dnd = None
+    try:
+        import tkinterdnd2 as dnd
+    except ImportError:
+        try:      # drag and drop needs tkinterdnd2 (it brings the tkdnd extension): installed once, for this user
+            subprocess.run([sys.executable, '-m', 'pip', 'install', '--user', '--quiet', 'tkinterdnd2'], check=True, timeout=300,
+                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            import site, importlib; importlib.invalidate_caches()
+            if site.getusersitepackages() not in sys.path: sys.path.append(site.getusersitepackages())
+            import tkinterdnd2 as dnd
+        except Exception:
+            dnd = None
+    root = dnd.Tk() if dnd else tk.Tk()
+    root.title('Aurek - GameCube disc image'); root.minsize(760, 0)
+    state = {k: None for k in CHECKS}
+    state.update(autodetect(here))
+    for k, v in classify_many(dropped).items(): state[k] = v
+    out_var = tk.StringVar(value=os.path.join(here, 'Aurek_GC.iso'))
+    region_var = tk.StringVar(value='usa')
+    busy = {'on': False}
+
+    frm = ttk.Frame(root, padding=12); frm.pack(fill='both', expand=True)
+    drop = tk.Label(frm, relief='groove', bd=2, height=3, bg='#eef3f8', font=('Segoe UI', 10),
+                    text=('Drop the game files, the Converted folder, aurek.dol and settings.txt here\n(one at a time, all at once, or a folder that holds them)'
+                          if dnd else 'Drag and drop needs the tkinterdnd2 package (pip install tkinterdnd2).\nUse the Browse buttons, or drop the items onto make_gcm.py itself.'))
+    drop.grid(row=0, column=0, columnspan=4, sticky='ew', pady=(0, 10))
+    rows = {}
+    for r, k in enumerate(['game', 'converted', 'dol', 'settings'], start=1):
+        mark = tk.Label(frm, width=2, font=('Segoe UI', 12, 'bold')); mark.grid(row=r * 2 - 1, column=0, sticky='w')
+        ttk.Label(frm, text=NAMES[k], width=16, font=('Segoe UI', 10, 'bold')).grid(row=r * 2 - 1, column=1, sticky='w')
+        path = ttk.Label(frm, text='', width=70); path.grid(row=r * 2 - 1, column=2, sticky='w')
+        def browse(k=k):
+            if k in ('dol', 'settings'):
+                p = filedialog.askopenfilename(filetypes=[('aurek.dol', '*.dol')] if k == 'dol' else [('settings.txt', '*.txt')])
+            elif k == 'game':
+                p = filedialog.askdirectory(title='The game: its GAME or PSP_GAME folder (Cancel to pick a .iso)') or \
+                    filedialog.askopenfilename(filetypes=[('PSP UMD image', '*.iso')])
+            else:
+                p = filedialog.askdirectory(title='The Converted folder (Converted\\GameCube)')
+            if p:
+                got = classify(p) if k != 'settings' else {'settings': p}
+                state[k] = got.get(k, p); refresh()
+        ttk.Button(frm, text='Browse...', command=browse).grid(row=r * 2 - 1, column=3, padx=(6, 0))
+        note = tk.Label(frm, text='', fg='#a00', anchor='w', justify='left', wraplength=620)
+        note.grid(row=r * 2, column=1, columnspan=3, sticky='w', pady=(0, 6))
+        rows[k] = (mark, path, note)
+    r0 = 9
+    ttk.Separator(frm).grid(row=r0, column=0, columnspan=4, sticky='ew', pady=8)
+    ttk.Label(frm, text='Disc image', font=('Segoe UI', 10, 'bold')).grid(row=r0 + 1, column=1, sticky='w')
+    ttk.Entry(frm, textvariable=out_var, width=70).grid(row=r0 + 1, column=2, sticky='w')
+    def browse_out():
+        p = filedialog.asksaveasfilename(defaultextension='.iso', initialfile='Aurek_GC.iso', filetypes=[('GameCube disc image', '*.iso')])
+        if p: out_var.set(p)
+    ttk.Button(frm, text='Browse...', command=browse_out).grid(row=r0 + 1, column=3, padx=(6, 0))
+    ttk.Label(frm, text='Region', font=('Segoe UI', 10, 'bold')).grid(row=r0 + 2, column=1, sticky='w', pady=(6, 0))
+    ttk.Combobox(frm, textvariable=region_var, values=sorted(REGIONS), state='readonly', width=10).grid(row=r0 + 2, column=2, sticky='w', pady=(6, 0))
+    prog = ttk.Progressbar(frm, maximum=100); prog.grid(row=r0 + 3, column=0, columnspan=4, sticky='ew', pady=(12, 4))
+    status = tk.Label(frm, text='', anchor='w', justify='left', wraplength=730); status.grid(row=r0 + 4, column=0, columnspan=4, sticky='w')
+    btn = ttk.Button(frm, text='Convert')
+    btn.grid(row=r0 + 5, column=0, columnspan=4, pady=(10, 0), ipadx=30, ipady=4)
+
+    def refresh():
+        all_ok = True
+        for k, (mark, path, note) in rows.items():
+            ok, msg = CHECKS[k](state[k])
+            all_ok &= ok
+            mark.config(text='✔' if ok else '✘', fg='#080' if ok else '#c00')
+            path.config(text=state[k] or '-')
+            note.config(text=msg, fg='#555' if ok else '#a00')
+        btn.config(state='normal' if all_ok and not busy['on'] else 'disabled')
+        if not busy['on']:
+            status.config(text='Everything checks out: press Convert.' if all_ok else 'Something is missing or wrong (red above): drop or browse for it.', fg='#080' if all_ok else '#a00')
+    def on_drop(ev):
+        if busy['on']: return
+        paths = root.tk.splitlist(ev.data)
+        got = classify_many(paths)
+        if not got: status.config(text='Not recognised: %s' % ', '.join(paths), fg='#a00'); return
+        state.update(got); refresh()
+    if dnd:
+        drop.drop_target_register(dnd.DND_FILES); drop.dnd_bind('<<Drop>>', on_drop)
+        root.drop_target_register(dnd.DND_FILES); root.dnd_bind('<<Drop>>', on_drop)
+    def run():
+        busy['on'] = True; btn.config(state='disabled'); prog['value'] = 0
+        status.config(text='Reading the game and the converted files...', fg='#000')
+        out = os.path.abspath(out_var.get()); reg = region_var.get()
+        def prog_cb(n, t): root.after(0, lambda: (prog.configure(value=100.0 * n / t), status.config(text='Writing: %d of %d files' % (n, t), fg='#000')))
+        def work():
+            try:
+                msg = build(state['dol'], state['settings'], state['game'], state['converted'], out, reg, progress=prog_cb); err = None
+            except BuildError as e: msg, err = None, str(e)
+            except Exception as e: msg, err = None, '%s: %s' % (type(e).__name__, e)
+            def done():
+                busy['on'] = False; refresh()
+                if err: status.config(text='Failed: ' + err, fg='#a00'); messagebox.showerror('Aurek - GameCube disc image', err)
+                else: prog['value'] = 100; status.config(text=msg, fg='#080'); messagebox.showinfo('Aurek - GameCube disc image', 'Done: ' + msg.splitlines()[0])
+            root.after(0, done)
+        threading.Thread(target=work, daemon=True).start()
+    btn.config(command=run)
+    refresh()
+    root.mainloop()
+
+def classify_many(paths):
+    got = {}
+    for p in paths:
+        for k, v in classify(p).items(): got[k] = v
+    return got
+
+def main():
+    here = os.path.dirname(os.path.abspath(__file__))
+    argv = sys.argv[1:]
+    # no options: the window (items dropped onto the script arrive as plain paths: they are filled in)
+    if all(not a.startswith('-') for a in argv) and '--cli' not in argv:
+        try:
+            gui(here, argv); return
+        except Exception as e:     # no tkinter (some Linux Pythons): the console way, which waits before closing
+            print('(no window: %s)' % e)
+            return console(here, argv, pause=True)
+    ap = argparse.ArgumentParser(description='Builds a GameCube disc image of Aurek with the game inside (see the top of this file).')
+    ap.add_argument('--cli', action='store_true', help='no window')
+    ap.add_argument('--dir', default=here, help='where to look for what is not given (default: this script\'s folder, the one above, the ones beside)')
+    ap.add_argument('--dol'); ap.add_argument('--settings'); ap.add_argument('--game'); ap.add_argument('--converted')
+    ap.add_argument('--out'); ap.add_argument('--region', default='usa', choices=sorted(REGIONS))
+    ap.add_argument('--id', default='AURE01', help='six-character game ID (default AURE01; the fourth character follows --region)')
+    ap.add_argument('--pause', action='store_true', help='wait for Enter before closing')
+    ap.add_argument('--rebuild-apploader', action='store_true', help='build the apploader from apploader/ (devkitPPC) instead of the copy here')
+    ap.add_argument('paths', nargs='*', help='the game, the Converted folder, aurek.dol, settings.txt (any order; recognised by what they are)')
+    a = ap.parse_args()
+    given = {'dol': a.dol, 'settings': a.settings, 'game': a.game, 'converted': a.converted}
+    return console(os.path.abspath(a.dir), a.paths, pause=a.pause, given=given, out=a.out, region=a.region, gid=a.id, rebuild=a.rebuild_apploader)
+
+def console(d, paths, pause=False, given=None, out=None, region='usa', gid='AURE01', rebuild=False):
+    state = autodetect(d); state.update(classify_many(paths))
+    for k, v in (given or {}).items():
+        if v: state[k] = os.path.abspath(v)
+    bad = 0
+    print('Aurek - GameCube disc image\n')
+    for k in ['game', 'converted', 'dol', 'settings']:
+        ok, note = CHECKS[k](state.get(k)); bad += not ok
+        print('  %s %-17s %s\n      %s' % ('OK ' if ok else 'NO ', NAMES[k], state.get(k) or '-', note))
+    code = 0
+    if bad:
+        print('\nNot built: %d of the 4 items are missing or wrong (see above).' % bad); code = 1
+    else:
+        out = os.path.abspath(out or os.path.join(d, 'Aurek_GC.iso'))
+        try:
+            print(); print(build(state['dol'], state['settings'], state['game'], state['converted'], out, region, gid,
+                                 progress=lambda n, t: print('  writing %d / %d files' % (n, t), end='\r', flush=True), rebuild_apploader=rebuild))
+        except BuildError as e:
+            print('\nFailed: %s' % e); code = 1
+    if pause:
+        try: input('\nPress Enter to close.')
+        except EOFError: pass
+    return code
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main() or 0)
