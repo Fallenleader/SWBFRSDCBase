@@ -164,3 +164,5 @@ Reports fall after M5, M10 and M15.
   match.team against the posts' owners and the map's colours), the rows' dim style, spawning, dying, the score board.
 - 2026-11-23 M5: the spawn map's rows dimmed as the original's (their text box colour, 0.514). Next: spawning, dying, the score
   board, the bot count.
+- 2026-11-23 M5 COMPLETE (Instant Action to Boz Pity flow), three items on the Uncertain list. Report 1 written (after M5).
+  Next: M6, infantry movement and physics against the harness.

@@ -472,6 +472,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Spawn map rows (M5) | The spawn map's Command Post / post-name rows are W_TB_StyleTextEntrySmall 1 / 2 (type 2004) with the colour 0.514 grey. The original draws them dim; Aurek drew them bright. A text box's own colour now tints what it holds. This is [assumed]: read from the original's frame, the draw itself not traced; boxes with colour 1 are unaffected. |
 
+| M5 complete (Instant Action to Boz Pity flow) | Side by side with the unmodded original: Planet / Mode / Era / play list / Launch / Team Selection match (the team logos fixed), the spawn map's title, timer, prompts and map match (its rows dimmed as the original), the first post is the player's own as in the original's rule. The death -> score board (MP_RespawnScoreboard) -> spawn map order is in place from earlier work (viewer.c: three seconds of the death camera first). Test hook: AK_FE_PAD reaches the match's own pages. Open (PARITY_TASKS): Auto's side rule, the bot count with the player in, a side-by-side of the score board after a death. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |

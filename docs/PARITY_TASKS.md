@@ -1707,6 +1707,10 @@ textures and how they are used. Section R lists only what must be in place so th
     holds posts 1-4 and the map opens on post 1. The original's player (after Auto) was on the side holding the 2 posts on the
     right (owner 1 here), so the difference is Auto's side rule (UNCERTAIN above), not the spawn map. Not yet known: whether the
     map's blue means "the player's side" or "the Rebels".
+  - M5 closed with these uncertain: (1) Auto's side rule (the 0x8029 request's receiver not found; the original's Auto put the
+    player on the side holding Boz Pity's two right-hand posts); (2) the bot count with the player in (the original lists 8 + 8
+    before joining, the cap is 8 a side; Aurek runs 15); (3) the score board after a death not compared side by side (the harness
+    route would need the player to die).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
