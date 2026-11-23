@@ -1681,6 +1681,11 @@ textures and how they are used. Section R lists only what must be in place so th
   - M5 open: (1) bot count - the original's Team Selection on Boz Pity lists 8 Rebels + 8 Empire before the player joins; Aurek
     runs 15 (AK_BOTS) split 8 / 7. Whether a bot leaves when the player joins is not seen yet (check the score board after joining);
     (2) the list's selected row colour on Mode / Era / Planet is dimmer in the original (focus state of the list, not traced).
+  - M5 spawn map side by side (Auto chosen on Team Selection): title, timer, prompts and map shape match. Differences: (1) the
+    original's spawn map opens on the player's own post (the rightmost, blue, "Plains"); Aurek opens on a red post at the top
+    ("Ruined Gatehouse") - the team after Auto or the post colours / ownership differ (Aurek logged the player as Empire);
+    (2) the original's Command Post / post-name rows look disabled (dim), Aurek's bright; (3) the level behind is lit brighter
+    in the original (a rendering item for later). Not yet seen: spawning, dying, the score board, the bot count.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

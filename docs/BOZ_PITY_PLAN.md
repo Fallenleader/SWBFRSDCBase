@@ -154,3 +154,6 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M5 started: Planet / Mode / Era / play list / Launch / Team Selection match side by side; the team logos fixed.
   Open: the bot count (original 8 + 8 at team selection, Aurek 8 + 7), the list row colour. Next: joining, the spawn map,
   spawning, dying, the score board.
+- 2026-11-23 M5: Team Selection -> spawn map now runs in Aurek's tests too (AK_FE_PAD reaches the match pages). Spawn map
+  differences found: the first post chosen (original: the player's own), the rows' dim style. Next: those, then spawning,
+  dying, the score board and the bot count.
