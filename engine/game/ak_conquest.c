@@ -288,6 +288,9 @@ bool ak_conquest_update(const ak_conquest_map *m, const ak_cq_rules *r, ak_conqu
     for (u32 i = 0; i < m->nposts; i++) {
         ak_post_state *p = &s->post[i];
         if (m->post[i].disabled) continue;
+        /* a vehicle-carried post (Boz Pity's / Hoth's AT-AT) cannot be captured: the enemy must destroy the vehicle, and only then is
+           the post gone (the owner, 2026-11-23: the one exception to the win / loss rules) */
+        if (m->post[i].mobile) continue;
         int team = AK_CQ_NEUTRAL; f32 rate = 0; bool contested = false;
         for (u32 k = 0; k < n; k++) {
             if (!sol[k].alive) continue;

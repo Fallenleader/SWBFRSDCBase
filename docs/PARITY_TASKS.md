@@ -1952,6 +1952,10 @@ textures and how they are used. Section R lists only what must be in place so th
     reinforcement) win; the same for the other side, and the player killed after a full enemy capture is an instant defeat
     (no fast timer). Aurek has the structure (ak_conquest.c: loss_t 60 s [assumed], x11 with no one alive, reset on any change
     of the full holder, tickets) - the timer's length, the fast rate, its display and the instant-defeat case to measure.
+  - The owner (2026-11-23 13:38): maps with a mobile command post (Hoth, Boz Pity: the AT-AT) are the exception - the enemy
+    cannot capture it, only destroy the vehicle (large health), and the post disappears with it. Aurek: the carried post counts
+    for its vehicle's side while the vehicle lives (ak_conquest_mobile) and is now skipped by the capture loop (it could be
+    drained before). To test on the original with the win / loss timers.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
