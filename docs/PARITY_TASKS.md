@@ -1799,6 +1799,12 @@ textures and how they are used. Section R lists only what must be in place so th
     (frame 116: -0.060 vs +0.080; 132: 1.076 vs 1.284) - a rough fit from the apex gives 9.5 m/s^2 for the original and 10.2 for
     Aurek (the ground under it differs slightly too). Next: the jump's vertical speed and gravity in the original (the jump
     impulse, a lower gravity while rising / held?), against Aurek's ak_character jump.
+  - Boz Pity run_sprint (--warmup 590; the sprint pressed at frame 30): steady sprint speed matches (10.6-10.9 m/s both), but the
+    original is at sprint speed within 18 frames (frame 48: 10.0 m/s) while Aurek ramps over ~54 frames (7.76 / 8.21 / 9.6 /
+    10.49 at frames 48 / 60 / 72 / 84) - a 1.1-1.9 m gap opens in the first 2 s. The 0.2 s clip crossfade (1.1) alone would give
+    ~12 frames: check Aurek's sprint start (when the sprint begins after the press, a stamina / speed ramp, the clip choice).
+    run_jump note: the jump rule is traced (1.5: impulse 6 along the ground, gravity 10); the 0.06 m apex difference on Boz Pity
+    is within the take-off's 0.1-0.2 m offset on the slope - not a separate rule difference (kept open with the offset).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
