@@ -203,3 +203,5 @@ Reports fall after M5, M10 and M15.
   the soldier's +228 list (-200), the weapon bits in 089DCAAC, when the choice pass runs. Next: M9, Conquest rules.
 - 2026-11-23 M9 started: Boz Pity's starting tickets (100 / 125) and the bleed (1 per 4 s) match the original; capture timing next.
 - 2026-11-23 M9: capture differs - the original's player alone on an enemy post for 23 s took nothing, Aurek's took it. Tracing.
+- 2026-11-23 M9 done: tickets, bleed and the capture structure (drain then flip, 30 s contest, per-post amounts) match the
+  original; Uncertain: the player's capture rate (0.5 / s measured here, Aurek 1.0). Next: M10, AI soldiers.

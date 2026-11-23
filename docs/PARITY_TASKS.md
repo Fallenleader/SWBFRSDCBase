@@ -1859,6 +1859,9 @@ textures and how they are used. Section R lists only what must be in place so th
     update) / 089ED04C (participant test: 5 m, alive, +84 != 999, post +192 bit 2) partly read. Next: gdb on 089ED04C's return
     for the player soldier (0x0afe9910) and on the list 089EC900 walks; --tp lands +4.5 x, +12.8 y (game), -0.2 z off the
     given point (pass -19.6, 16.3, 168.8 for post 1's centre).
+  - M9 capture solved (2026-11-23): the original's lone player drained post 1 at 0.5 / s and stalled under the 30 s contest
+    timer while Rebels were near - no rule difference in structure. Open (Uncertain): the player's rate 0.5 here vs 1.0 measured
+    on Hoth (read the profile's third attribute, +0x1D4 / 089782A8, in this route).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
