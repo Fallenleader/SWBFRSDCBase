@@ -124,3 +124,6 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M2 COMPLETE (intro movies + main menu): the Single Player entry pages up to the Instant Action map list match the
   original side by side (new profile -> difficulty -> save page -> main menu -> Single Player -> Instant Action). Campaign /
   Conquest "New" follow the original's checks. Next: M3, character customisation and all loadouts.
+- 2026-11-23 M3 started: Customization menu matches (faction logos fixed); the load-out page's lists, costs and credits match the
+  original side by side. Next: the carousel's 3D items and the soldier preview (FE_Customisation_ListCarouselAnims / the model
+  widgets), then personalisation, then the loadouts in game.

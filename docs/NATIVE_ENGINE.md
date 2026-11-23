@@ -450,6 +450,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Single Player entry pages; M2 complete | (1) FE_CheckConquestState (08A2EC80) does nothing: the New button's target opens MP_Overwrite on "No". It no longer starts a conquest itself. (2) FE_CheckCampaignState (08A2EC10) starts the campaign only when the profile has no progress (0x08C29918 = profile +0x5DC is 0); otherwise the button's target, MP_Overwrite, asks first. (3) The name-based "W_BU_AutoClick*" rule ([assumed]) is removed. MP_GalacticConquest's W_BU_AutoClickWhenNoSavedConquest now presses itself by the traced rule (flags 3, +153, time 0, while BFF.HasGalacticConquestBeenPlayed == 0), and a log line names every self-pressing button. (4) Checked side by side with the harness original: splash -> new profile -> difficulty -> save page -> Continue Without Saving -> main menu -> Single Player -> Instant Action map list. Every page, its focus and the map list match. |
 
+| Customization menu logos (M3) | Each Personalize button on MP_MCustomisationMenu holds four faction logos from gc_tech_elements.tga. One has flags 0x43F and the other three have flags 0. Aurek drew all four on top of each other, which read as a white circle. Pictures with no flags at all are now hidden, so each button shows its own faction's emblem as in the original's frame. Compared side by side: the Customization menu and the load-out page now match. Still missing: the carousel's 3D item models and the soldier preview. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |

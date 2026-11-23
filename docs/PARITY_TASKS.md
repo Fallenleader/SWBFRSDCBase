@@ -1638,6 +1638,9 @@ textures and how they are used. Section R lists only what must be in place so th
     GC_RequestPlayerFaction (08A3BA64: 0x08B1C2EC) are not wired (multiplayer / Galactic Conquest are out of scope); whether the
     original's "saved conquest" is only BFF.HasGalacticConquestBeenPlayed; the harness original takes no visible keyboard on the
     new-profile name box (its system keyboard is not drawn), so Aurek's keyboard there is unchecked against a picture.
+  - Pictures with flags 0 are hidden (the Personalize logos). Uncertain: the original's draw check itself is not traced; the rule
+    is read from frames. Other flag-0 widgets: Multiplayer status labels, MP_SelectControls' nav D pictures, CUSTOMISATION's
+    E_TXT_Prompts (texts; left as they were).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
