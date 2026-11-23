@@ -160,7 +160,8 @@ static void bodies_push(ak_play *p, const ak_model_set *m)
             else if (j >= p->nbots + p->nveh + p->nturret) mover_box(p, j - p->nbots - p->nveh - p->nturret, &o);
             else { const ak_turret *t = &p->turret[j - p->nbots - p->nveh]; if (!t->alive) continue; const f32 *mn, *mx; model_box(m, t->def->base, &mn, &mx); ak_box_place(&o, mn, mx, t->base); }
             if (!ak_box_push(&me, &o, push)) continue;
-            if (ak_setting_int("AK_DEBUG_BODY", 0)) AK_INFO("body", "player pushed %.3f %.3f %.3f by body %u", push[0], push[1], push[2], j);
+            if (ak_setting_int("AK_DEBUG_BODY", 0)) AK_INFO("body", "player pushed %.3f %.3f %.3f by body %u (%s)", push[0], push[1], push[2], j,
+                j < p->nbots ? "soldier" : j < p->nbots + p->nveh ? "vehicle" : j < p->nbots + p->nveh + p->nturret ? "turret" : "mover");
             for (int k = 0; k < 3; k++) ch->pos[k] += push[k];
             f32 l2 = push[0] * push[0] + push[1] * push[1] + push[2] * push[2];
             if (l2 > 1e-10f) { f32 vn = (ch->vel[0] * push[0] + ch->vel[1] * push[1] + ch->vel[2] * push[2]) / l2;

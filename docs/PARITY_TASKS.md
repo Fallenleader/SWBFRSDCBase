@@ -1722,6 +1722,10 @@ textures and how they are used. Section R lists only what must be in place so th
     frame 0 -> 1 the player jumps 0.57 m at 62 deg (+0.27 x, +0.51 z) - a push-out on the first step (the original's first
     frames move 0.1 m in the facing); after it, the heading is 152 deg for frames 2-60 (original 157) and drifts to 146 deg
     over 1-2 s. Next: what the 0.6 x 1.8 x 0.6 body overlaps at the spawn (level faces? an object box?), and the 5 deg left.
+  - The first-step shove is a VEHICLE: AK_DEBUG_BODY logs "player pushed 0.276 0 -0.503 by body 3 (vehicle)" on frame 1, then
+    small pushes by the same body every frame (the heading drift). With AK_BOTS=0, body 3 = vehicle index 3 - Boz Pity's post-3
+    vehicles are Carrion_Spat (x3) and T4B_tank / AT_ST. So Aurek stands one of them where the original's player spawns freely;
+    next: the vehicle spawns' positions in Aurek against the original's state.log objects near (152.2, 106.8), and their boxes.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
