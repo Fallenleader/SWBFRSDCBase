@@ -1760,6 +1760,13 @@ textures and how they are used. Section R lists only what must be in place so th
     counts as touching) is its own [assumed]. So the fall comes from Aurek letting the box overlap face 23185 in the first place:
     look at the frames before 129.08 (the t = 0 contact with the other face, n -0.03 0.99 -0.10, the SKIN back-out along that
     normal, the slide's next pass) against 088C4CF4's response (088C5354..088C55B8) to see which step differs.
+  - The entry step found (AK_DEBUG_BODY=6 logs sweep misses too): up to 129.125 each frame lands on face 23185 (pass 0 t ~0.32)
+    and moves its rest along it; at 129.115 pass 0 moves the WHOLE step (-0.0928, +0.0025, -0.0285) with no hit - on 23185
+    (n 0.14 0.99 -0.10) that horizontal step rises 0.0102, so the move climbs 0.0077 too little and the box's leading corner goes
+    under the face: every later sweep against 23185 is "inside" and skipped. The move's vertical part comes from body_update's
+    ground projection (vel laid along c->ground_normal, then gravity) - a flatter normal than 23185 was in use (the short
+    ground probe's face or the other faces at 129.08 / 129.00?). Next: log ground_normal per frame and where it came from, and
+    read the original's rule for the ground normal / the move on ground (088C4CF4 / the soldier's move).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
