@@ -1755,6 +1755,11 @@ textures and how they are used. Section R lists only what must be in place so th
     the box has sunk more than 2 cm into face 23185's plane, so every sweep against it returns "inside" (-1), which Aurek ignores
     (ak_collision.c box_tri_sweep_game: only a sink under 2 cm counts as touching) - the body falls through. The original's
     handling of "inside" (088B6510, PARITY 1.3b) is the missing piece: read it and port it.
+  - Read: 088B6510 is an empty function. The body step's triangle loop (088C4CF4, around 088C623C) keeps a sweep result only when
+    t >= f25 with f25 = 0, so the original ALSO skips "inside" (-1) - Aurek's base rule matches; Aurek's extra (a sink under 2 cm
+    counts as touching) is its own [assumed]. So the fall comes from Aurek letting the box overlap face 23185 in the first place:
+    look at the frames before 129.08 (the t = 0 contact with the other face, n -0.03 0.99 -0.10, the SKIN back-out along that
+    normal, the slide's next pass) against 088C4CF4's response (088C5354..088C55B8) to see which step differs.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
