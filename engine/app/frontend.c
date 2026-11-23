@@ -351,6 +351,10 @@ static bool open_hash(u32 h, bool push)
         if (page && page != pg && page->on_close.fn && page->on_close.fn[0]) { const ak_gui_page *was = page; run(&was->on_close, -1); }   /* (its OnClose) */
         page = pg; focus = pg->focus; fe_clock = 0; page_t = 0; auto_fired = false;
         focus_fix_pending = true;
+        if (have_match && h == ak_gui_hash("MP_Spawn_Location") && ak_log_level_now() >= 2) {   /* (tests: the posts' owners) */
+            char b[96]; int o = snprintf(b, sizeof b, "spawn map: team %d, owners", match.team);
+            for (u32 k = 0; k < match.nposts && o < 90; k++) o += snprintf(b + o, sizeof b - (size_t)o, " %d", match.post_owner[k]);
+            AK_INFO("fe", "%s", b); }
         if (have_match && h == ak_gui_hash("MP_Spawn_Location"))     /* the first post the player's side holds */
             for (u32 k = 0; k < match.nposts; k++) if (match.post_owner[k] == match.team) { char nm[32]; snprintf(nm, sizeof nm, "W_BU_SpawnPoint%u", k); if (id_of(nm)) focus = id_of(nm); break; }
         if (!layering) nlists = 0;

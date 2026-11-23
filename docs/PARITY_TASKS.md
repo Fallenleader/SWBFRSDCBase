@@ -1703,6 +1703,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - 0x8029's message object (vtable 0x08B15218: 08A14988, 08A149CC, 08A14A5C ...) only packs / unpacks the request; the side for
     Auto is decided by the message's receiver in the match code - not found within the time set for it. Auto stays UNCERTAIN;
     Aurek's Auto keeps the starting side.
+  - Spawn map first post: Aurek's rule is right for its team - logged "team 0, owners 1 0 0 0 0 1": the player (team 0, Empire)
+    holds posts 1-4 and the map opens on post 1. The original's player (after Auto) was on the side holding the 2 posts on the
+    right (owner 1 here), so the difference is Auto's side rule (UNCERTAIN above), not the spawn map. Not yet known: whether the
+    map's blue means "the player's side" or "the Rebels".
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
