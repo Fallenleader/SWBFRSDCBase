@@ -283,3 +283,5 @@ Reports fall after M5, M10 and M15.
   100006, the only weighted link). Next: why only that link counts, then port the commander.
 - 2026-11-23 M10: the AI commander ported - Aurek's sides now score posts exactly as the original's (3.6 / 9.0 / 0.45) and fight
   over the same pair; captures fell from ~20 to 6-13 in ~6 min (original 2-3). Next: squad membership and pace.
+- 2026-11-23 M10: squad membership as the original's (vehicle-wanting soldiers out of squads). 360 s: Alliance losses now in
+  the original's range; the Empire still takes its target too early (70-80 s vs 146-300 s). Report 4 next.

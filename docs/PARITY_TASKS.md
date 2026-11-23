@@ -2011,6 +2011,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - Commander ported (2026-11-23): priorities match the original live (3.6 / 9.0 / 0.45). Captures in ~340 s: 6-13 (was ~20;
     original 2-3); first capture 72-117 s (original 146-300 s). Next: squad membership and sizes against the original (most
     original soldiers are outside squads), the squads' pace to the post, and how long fights hold them.
+  - Squad membership (2026-11-23): vehicle-wanting / bound / riding bots out of squads, rebuilt on change (08926220 every frame).
+    360 s: 6-11 changes (original 2-3); Alliance tickets now in range, the Empire's not - its first capture (100006) comes at 70-80 s
+    against the original's 146-300 s. Next: the Empire's squads at 100006 in the original (who, how many, when they arrive, what
+    holds them) - RS_AI_BOTS=1 with positions.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

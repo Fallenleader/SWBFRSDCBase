@@ -1597,9 +1597,37 @@ static void commander_plan(ak_play *p, int team)
                    char q[160] = ""; int ql = 0; for (int s2 = 0; s2 < 64 && ql < 140; s2++) if (sp[s2] >= 0) ql += snprintf(q + ql, sizeof q - ql, " sq%d->%d", s2, sp[s2]);
                    AK_INFO("ai", "commander %d plan at %.1f s (tickets %d / %d):%s |%s", team, p->match.time, p->match.tickets[0], p->match.tickets[1], b, q); } }
 }
+/* squad membership (traced: the commander's update 0892774C calls 08926220 every frame - the side's units are counted, skipping those
+   whose flags +0xC8 bit 5 is set (wanting a vehicle: the spawner's chance, cleared when 089269AC finds none), and the size row for the
+   count is taken). Measured on the original (Boz Pity, 3 min): 65 % of the Alliance's living soldiers and 37 % of the Empire's had
+   no squad, their flags 0x20 / 0x28. Aurek: the bots that want a vehicle, are bound for one or ride one, the heroes and the pilots
+   are out; the rest fill the size row in their list order, rebuilt when that set changes.  [assumed: the members are taken in the
+   unit list's order - how 08926220's slots pick their members is not read] */
+static void squads_rebuild(ak_play *p)
+{
+    static const u8 sizes[17][5] = { {0}, {1}, {2}, {2,1}, {2,1,1}, {2,2,1}, {2,2,1,1}, {2,2,2,1}, {2,2,2,1,1}, {3,2,2,1,1},
+        {2,2,2,2,2}, {3,2,2,2,2}, {3,3,2,2,2}, {3,3,3,2,2}, {3,3,3,3,2}, {3,3,3,2,1}, {4,3,3,3,3} };
+    static u64 last[2] = { ~0ull, ~0ull };
+    for (int t = 0; t < 2; t++) {
+        u64 set = 0; u32 n = 0;
+        for (u32 i = 0; i < p->nbots && i < 64; i++) { const ak_play_bot *b = &p->bot[i];
+            if (b->team != t || b->hero || b->pilot || b->wants_veh || b->want_veh >= 0 || b->veh >= 0) continue; set |= 1ull << i; n++; }
+        if (set == last[t]) continue;
+        last[t] = set;
+        const u8 *row = sizes[n > 16 ? 16 : n]; u32 sq = 0, left = row[0], made = 0;
+        for (u32 i = 0; i < p->nbots && i < 64; i++) { ak_play_bot *b = &p->bot[i]; if (b->team != t) continue;
+            s8 was = b->squad;
+            if (!(set >> i & 1)) { b->squad = -1; continue; }
+            while (!left) { if (++sq >= 5 || !row[sq]) { sq = 0; made += 5; } left = row[sq]; }
+            b->squad = (s8)(made + sq); left--;
+            if (b->squad != was) { b->sq_slot = 0; b->sq_t = 0; b->goal = -1; }
+        }
+    }
+}
 static void commander_update(ak_play *p, f32 dt)
 {
     if (!p->have_cq || !p->cmd_on) return;
+    if (ak_setting_int("AK_BOT_SQUADS", 1)) squads_rebuild(p);
     for (int t = 0; t < 2; t++) {
         p->cmdr[t].t += dt;
         u32 own = 0, foe = 0; for (u32 i = 0; i < p->cq.nposts && i < 32; i++) { if (p->cq.post[i].absent || p->cq.post[i].mobile || p->cq.post[i].disabled) continue;
