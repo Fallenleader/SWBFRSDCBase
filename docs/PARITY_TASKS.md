@@ -1726,6 +1726,12 @@ textures and how they are used. Section R lists only what must be in place so th
     small pushes by the same body every frame (the heading drift). With AK_BOTS=0, body 3 = vehicle index 3 - Boz Pity's post-3
     vehicles are Carrion_Spat (x3) and T4B_tank / AT_ST. So Aurek stands one of them where the original's player spawns freely;
     next: the vehicle spawns' positions in Aurek against the original's state.log objects near (152.2, 106.8), and their boxes.
+  - The body is Boz Pity's placed AT-AT (vehicle 0, "- / AT_AT, placed", a walker on a 38-point 471 m path): it stands at
+    143.72 1.39 105.04 (game axes), yaw 1.069, 8.7 m from the player's spawn, and its box reaches the spawn (push 0.276 / -0.503
+    on frame 1, then small pushes each frame as it walks). The original's player at the same spawn is not pushed. To find: the
+    original's AT-AT position at the match start (state.log obj lines; class 8008 / walker), and how the original collides a
+    soldier with a walker (its legs / body parts rather than one box?) - the walker's collision in src/game (08A04xxx physics,
+    the walker's parts).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

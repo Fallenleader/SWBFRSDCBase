@@ -160,6 +160,8 @@ static void bodies_push(ak_play *p, const ak_model_set *m)
             else if (j >= p->nbots + p->nveh + p->nturret) mover_box(p, j - p->nbots - p->nveh - p->nturret, &o);
             else { const ak_turret *t = &p->turret[j - p->nbots - p->nveh]; if (!t->alive) continue; const f32 *mn, *mx; model_box(m, t->def->base, &mn, &mx); ak_box_place(&o, mn, mx, t->base); }
             if (!ak_box_push(&me, &o, push)) continue;
+            if (ak_setting_int("AK_DEBUG_BODY", 0) && j >= p->nbots && j < p->nbots + p->nveh) { const ak_vehicle *vv = &p->veh[j - p->nbots]; f32 g[3]; ak_from_game(vv->pos, g);
+                AK_INFO("body", "  (vehicle %u: %s at %.2f %.2f %.2f, yaw %.3f)", j - p->nbots, vv->def && vv->def->name ? vv->def->name : "?", g[0], g[1], g[2], vv->yaw); }
             if (ak_setting_int("AK_DEBUG_BODY", 0)) AK_INFO("body", "player pushed %.3f %.3f %.3f by body %u (%s)", push[0], push[1], push[2], j,
                 j < p->nbots ? "soldier" : j < p->nbots + p->nveh ? "vehicle" : j < p->nbots + p->nveh + p->nturret ? "turret" : "mover");
             for (int k = 0; k < 3; k++) ch->pos[k] += push[k];
@@ -1386,6 +1388,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     if (ak_setting_int("AK_DEBUG_VEH", 0))
         for (u32 v = 0; v < p->nveh; v++) AK_INFO("veh", "vehicle %u (%x): %s / %s, post %d, respawn %.1f s, %s%s", v + 1, p->vspawn[v].eid, p->vspawn[v].def[0] >= 0 ? p->vdef[p->vspawn[v].def[0]].name : "-",
                                                 p->vspawn[v].def[1] >= 0 ? p->vdef[p->vspawn[v].def[1]].name : "-", p->vspawn[v].post, p->vspawn[v].respawn, p->veh[v].alive ? "up" : "waiting", p->vspawn[v].fixed ? ", placed" : "");
+        if (ak_setting_int("AK_DEBUG_VEH", 0)) for (u32 v = 0; v < p->nveh; v++) {   /* (tests: where each stands, in game axes) */
+            f32 g[3]; ak_from_game(p->vspawn[v].pos, g);   /* (the same flip both ways) */ AK_INFO("veh", "vehicle %u at %.2f %.2f %.2f, yaw %.3f", v + 1, g[0], g[1], g[2], p->vspawn[v].yaw); }
     /* placed craft in flight (space levels' type 13 flyers): in the original they fly from the first frame (harness state.log,
        Space Hoth: 30d44 / 30d46 / 30d48 / 30d4a / 30d4c move at 60-80 m/s from the start) - here a bot of the craft's side starts
        in each, flying at its cruise speed [assumed: who pilots them in the game is not traced] */

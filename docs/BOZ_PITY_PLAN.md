@@ -169,3 +169,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M6 started: compare_walk.py now runs Aurek without the front end (AK_FRONTEND=0); Boz Pity walk compared - Aurek's
   first frames shove 0.58 m sideways and its heading settles 12 degrees off the original's; the original meets obstacles Aurek
   never reaches. Next: those two causes.
+- 2026-11-23 M6: the walk's spawn shove is the placed AT-AT's box (8.7 m away, its box reaches the spawn); debug logs name the
+  vehicle and print every vehicle's position (AK_DEBUG_BODY / AK_DEBUG_VEH). Next: the original's AT-AT collision.
