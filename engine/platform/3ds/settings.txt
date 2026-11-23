@@ -226,4 +226,4 @@ AK_SAVE_SLOT=0000
 AK_AUTOSAVE=1
 
 # Front end: 1 = start in the game's own menus (main menu; Instant Action > Launch starts the match), 0 = straight into AK_LEVEL
-AK_FRONTEND=0
+AK_FRONTEND=1

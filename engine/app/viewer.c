@@ -240,7 +240,7 @@ int main(int argc, char **argv)
     u64 last = ak_plat_time_us(), fps_t0 = last; int fps_frames = 0; f32 fps = 0, frame_ms = 0, load_ms = 0;
     ak_gfx_stats gs; memset(&gs, 0, sizeof gs);
     /* the front end (PARITY 8.2): the game's menus first (AK_FRONTEND=1; AK_FE_PAGE the first page), the level once launched */
-    bool fe_on = ak_setting_int("AK_FRONTEND", 0) && ak_fe_init(vfs) && ak_fe_open(ak_setting_str("AK_FE_PAGE", "MP_MainMenu"));
+    bool fe_on = ak_setting_int("AK_FRONTEND", AK_SMALL_MEMORY ? 0 : 1) && ak_fe_init(vfs) && ak_fe_open(ak_setting_str("AK_FE_PAGE", "MP_MainMenu"));
     if (ak_setting_int("AK_TEST_PROFILE_SAVE", 0) && ak_fe_init(vfs)) ak_fe_profile_save();   /* tests: the profile written back at once */
     { char sv[400]; snprintf(sv, sizeof sv, "%s/gc_conquest.sav", ak_plat_user_dir()); u32 m = 0;   /* a saved conquest: New / Resume */
       if (ak_save_read("conquest", sv, &m, 4) == 4 && fe_on) ak_fe_var("BFF.HasGalacticConquestBeenPlayed", 1); }
@@ -388,6 +388,29 @@ int main(int argc, char **argv)
             loaded = true;
         }
         if (!ak_plat_poll(&in)) break;
+        {   /* tests: AK_TEST_INPUT="2.0:UP;3.5-5.0:CROSS+R;6:LY=-1-8" - buttons pressed at a time, or held from..to, or a stick axis
+             * (LX LY RX RY) set over a span; times in seconds since the level was ready */
+            static double t0; static bool t0set; const char *ti = ak_setting_str("AK_TEST_INPUT", NULL);
+            if (ti && play.ready) {
+                if (!t0set) { t0 = ak_plat_time_us() / 1e6; t0set = true; }
+                double t = ak_plat_time_us() / 1e6 - t0; static double tprev = -1;
+                for (const char *c = ti; c && *c;) {
+                    double a = strtod(c, (char **)&c), b = a; if (*c == '-') b = strtod(c + 1, (char **)&c);
+                    if (*c != ':') break; c++;
+                    char tok[64]; size_t n = strcspn(c, ";"); if (n >= sizeof tok) n = sizeof tok - 1; memcpy(tok, c, n); tok[n] = 0; c += n; if (*c == ';') c++;
+                    bool span = b > a, on = span ? (t >= a && t < b) : (tprev < a && t >= a);
+                    if (!on) continue;
+                    if (tok[1] && (tok[0] == 'L' || tok[0] == 'R') && (tok[1] == 'X' || tok[1] == 'Y') && tok[2] == '=') {
+                        f32 v = (f32)atof(tok + 3); if (tok[0] == 'L') { if (tok[1] == 'X') in.lx = v; else in.ly = v; } else { if (tok[1] == 'X') in.rx = v; else in.ry = v; } continue; }
+                    static const struct { const char *n; u32 b; } nb[] = { { "CROSS", AK_BTN_CROSS }, { "CIRCLE", AK_BTN_CIRCLE }, { "SQUARE", AK_BTN_SQUARE },
+                        { "TRIANGLE", AK_BTN_TRIANGLE }, { "L", AK_BTN_L }, { "R", AK_BTN_R }, { "START", AK_BTN_START }, { "SELECT", AK_BTN_SELECT },
+                        { "UP", AK_BTN_UP }, { "DOWN", AK_BTN_DOWN }, { "LEFT", AK_BTN_LEFT }, { "RIGHT", AK_BTN_RIGHT } };
+                    for (char *k = strtok(tok, "+"); k; k = strtok(NULL, "+"))
+                        for (u32 i = 0; i < sizeof nb / sizeof *nb; i++) if (!strcmp(k, nb[i].n)) { in.held |= nb[i].b; if (!span || t - a < 0.02) in.pressed |= nb[i].b; }
+                }
+                tprev = t;
+            }
+        }
         u64 now = ak_plat_time_us(); f32 dt = (now - last) / 1e6f; last = now;
         if (dt > 0.1f) dt = 0.1f;
         { f32 fdt = ak_setting_float("AK_FIXED_DT", 0); if (fdt > 0) dt = fdt; }   /* tests: a fixed step per frame */

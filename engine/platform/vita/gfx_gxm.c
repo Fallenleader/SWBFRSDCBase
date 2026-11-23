@@ -32,7 +32,7 @@
 #define ALIGN(x, a) (((x) + ((a) - 1)) & ~((size_t)(a) - 1))
 
 struct ak_gfx_buf { void *mem; };
-struct ak_gfx_tex { SceGxmTexture tex; u8 *px; };
+struct ak_gfx_tex { SceGxmTexture tex; u8 *px; u32 *pal; bool own_px; };
 
 static SceGxmContext *ctx; static SceGxmRenderTarget *rt; static SceGxmShaderPatcher *patcher;
 static SceGxmColorSurface surf[NBUF]; static SceGxmSyncObject *sync_[NBUF]; static void *fb[NBUF];
@@ -68,16 +68,44 @@ static void *usse_alloc(size_t size, bool frag, unsigned *off)
     return p;
 }
 
-/* level pool: bump allocation in CDRAM; reset when everything from it has been freed (a level change) */
-static u8 *pool; static size_t pool_size, pool_used; static int pool_live;
+/* the video memory pool (CDRAM): first fit with coalescing, every block freed on its own.  (It was a bump allocator reset when every
+ * block had been freed - but the HUD's and the front end's textures live for the whole run, so it never reset: each level change
+ * added the new level's textures and buffers on top until it was full, and the next level drew with models and textures missing.) */
+#define POOL_BLOCKS 16384
+static u8 *pool; static size_t pool_size, pool_used, pool_peak;
+static struct pblk { u32 off, size; bool used; } pb[POOL_BLOCKS]; static int npb;
+static void pool_init(void) { npb = 1; pb[0].off = 0; pb[0].size = (u32)pool_size; pb[0].used = false; pool_used = 0; }
 static void *pool_alloc(size_t size, size_t align)
 {
-    size_t o = ALIGN(pool_used, align);
-    if (o + size > pool_size) { AK_ERROR("gxm", "video memory pool full (%zu + %zu of %zu)", pool_used, size, pool_size); return NULL; }
-    pool_used = o + size; pool_live++;
-    return pool + o;
+    size = ALIGN(size, 16);
+    for (int i = 0; i < npb; i++) {
+        if (pb[i].used) continue;
+        u32 a = (u32)ALIGN(pb[i].off, align), pad = a - pb[i].off;
+        if (pb[i].size < pad + size) continue;
+        int need = (pad ? 1 : 0) + (pb[i].size > pad + size ? 1 : 0);
+        if (npb + need > POOL_BLOCKS) break;
+        struct pblk b = pb[i];
+        memmove(&pb[i + 1 + need], &pb[i + 1], sizeof *pb * (size_t)(npb - i - 1)); npb += need;
+        int k = i;
+        if (pad) { pb[k].off = b.off; pb[k].size = pad; pb[k].used = false; k++; }
+        pb[k].off = a; pb[k].size = (u32)size; pb[k].used = true;
+        if (b.size > pad + size) { pb[k + 1].off = a + (u32)size; pb[k + 1].size = b.size - pad - (u32)size; pb[k + 1].used = false; }
+        pool_used += size; if (pool_used > pool_peak) pool_peak = pool_used;
+        return pool + a;
+    }
+    AK_ERROR("gxm", "video memory pool full (%u KB in use, %u KB asked, %u KB in all)", (unsigned)(pool_used >> 10), (unsigned)(size >> 10), (unsigned)(pool_size >> 10));
+    return NULL;
 }
-static void pool_release(void) { if (--pool_live <= 0) { pool_live = 0; pool_used = 0; } }
+static void pool_free(void *p)
+{
+    if (!p) return;
+    u32 off = (u32)((u8 *)p - pool); int lo = 0, hi = npb - 1, i = -1;
+    while (lo <= hi) { int m = (lo + hi) / 2; if (pb[m].off == off) { i = m; break; } if (pb[m].off < off) lo = m + 1; else hi = m - 1; }
+    if (i < 0 || !pb[i].used) { AK_ERROR("gxm", "video memory pool: a block freed twice or never given (%u)", (unsigned)off); return; }
+    pb[i].used = false; pool_used -= pb[i].size;
+    if (i + 1 < npb && !pb[i + 1].used) { pb[i].size += pb[i + 1].size; memmove(&pb[i + 1], &pb[i + 2], sizeof *pb * (size_t)(npb - i - 2)); npb--; }
+    if (i > 0 && !pb[i - 1].used) { pb[i - 1].size += pb[i].size; memmove(&pb[i], &pb[i + 1], sizeof *pb * (size_t)(npb - i - 1)); npb--; }
+}
 
 /* ------------------------------------------------------------------ shaders */
 static u64 fnv64(const char *s) { u64 h = 14695981039346656037ull; for (; *s; s++) { h ^= (u8)*s; h *= 1099511628211ull; } return h; }
@@ -278,6 +306,7 @@ bool ak_gfx_init(const ak_gfx_config *c)
     pool_size = (size_t)ak_setting_int("AK_VRAM_POOL_MB", 64) << 20;
     pool = (u8 *)gpu_alloc(pool_size, true);
     if (!pool) { AK_ERROR("gxm", "no video memory for the level pool"); return false; }
+    pool_init();
     snprintf(name, sizeof name, "GXM %dx%d", W, H);
     back = 0; front = NBUF - 1;
     return true;
@@ -302,7 +331,7 @@ ak_gfx_buf *ak_gfx_indices(const u32 *i, u32 n)
     memcpy(b->mem, i, 4u * n);
     return b;
 }
-void ak_gfx_free_buf(ak_gfx_buf *b) { if (b) { pool_release(); free(b); } }
+void ak_gfx_free_buf(ak_gfx_buf *b) { if (b) { pool_free(b->mem); free(b); } }
 
 ak_gfx_tex *ak_gfx_texture(const ak_texture *t)
 {
@@ -310,15 +339,14 @@ ak_gfx_tex *ak_gfx_texture(const ak_texture *t)
     int w = t->width, h = t->height, stride = (int)ALIGN(w, 8);
     u8 *px = (u8 *)pool_alloc((size_t)stride * h, SCE_GXM_TEXTURE_ALIGNMENT);
     u32 *pal = (u32 *)pool_alloc(256 * 4, SCE_GXM_PALETTE_ALIGNMENT);
-    if (!px || !pal) { free(x); return NULL; }
-    pool_live--;                                                       /* one release frees both blocks */
+    if (!px || !pal) { pool_free(px); pool_free(pal); free(x); return NULL; }
     for (int y = 0; y < h; y++) {
         u8 *d = px + (size_t)y * stride;
         if (t->bpp == 8) memcpy(d, t->pixels[0] + (size_t)y * w, (size_t)w);
         else for (int i = 0; i < w; i++) { u8 b = t->pixels[0][((size_t)y * w + i) >> 1]; d[i] = (u8)((i & 1) ? b >> 4 : b & 15); }
     }
     memcpy(pal, t->palette, (t->bpp == 8 ? 256 : 16) * 4);
-    x->px = px;
+    x->px = px; x->pal = pal; x->own_px = true;
     sceGxmTextureInitLinear(&x->tex, px, SCE_GXM_TEXTURE_FORMAT_P8_ABGR, (unsigned)w, (unsigned)h, 0);
     sceGxmTextureSetPalette(&x->tex, pal);
     sceGxmTextureSetMinFilter(&x->tex, SCE_GXM_TEXTURE_FILTER_LINEAR); sceGxmTextureSetMagFilter(&x->tex, SCE_GXM_TEXTURE_FILTER_LINEAR);
@@ -330,13 +358,13 @@ ak_gfx_tex *ak_gfx_texture_palette(ak_gfx_tex *base, const ak_texture *t, const 
 {
     ak_gfx_tex *x = (ak_gfx_tex *)calloc(1, sizeof *x);
     u32 *pal = (u32 *)pool_alloc(256 * 4, SCE_GXM_PALETTE_ALIGNMENT);
-    if (!x || !pal) { free(x); return NULL; }
+    if (!x || !pal) { pool_free(pal); free(x); return NULL; }
     memcpy(pal, palette, (t->bpp == 8 ? 256 : 16) * 4);
-    x->tex = base->tex; x->px = base->px;
+    x->tex = base->tex; x->px = base->px; x->pal = pal; x->own_px = false;
     sceGxmTextureSetPalette(&x->tex, pal);
     return x;
 }
-void ak_gfx_free_tex(ak_gfx_tex *t) { if (t) { pool_release(); free(t); } }
+void ak_gfx_free_tex(ak_gfx_tex *t) { if (t) { pool_free(t->pal); if (t->own_px) pool_free(t->px); free(t); } }
 void ak_gfx_wait_idle(void) { sceGxmFinish(ctx); }
 
 static bool cull_on = true; static int cull_state = -1;

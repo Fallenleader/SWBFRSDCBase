@@ -211,7 +211,7 @@ AK_SAVE_SLOT=0000
 AK_AUTOSAVE=1
 
 # Front end: 1 = start in the game's own menus (main menu; Instant Action > Launch starts the match), 0 = straight into AK_LEVEL
-AK_FRONTEND=0
+AK_FRONTEND=1
 
 # ---- PS4: the renderer (PS4GL_GNM, 1920x1080 output)
 # supersampling: 2 = draw at 3840x2160 and average down to 1080p (smoother edges, 4x the pixels), 1 = off.  Default: 2 on a PS4 Pro

@@ -216,7 +216,7 @@ AK_SAVE_SLOT=0000
 AK_AUTOSAVE=1
 
 # Front end: 1 = start in the game's own menus (main menu; Instant Action > Launch starts the match), 0 = straight into AK_LEVEL
-AK_FRONTEND=0
+AK_FRONTEND=1
 
 # ---- Steam Deck: the window and the Vulkan renderer
 # window size in pixels (the drawing size follows the window when it is resized); fullscreen: 1 = borderless at the desktop's size

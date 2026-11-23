@@ -1966,6 +1966,25 @@ textures and how they are used. Section R lists only what must be in place so th
   format its AX voices take (DSP-ADPCM as the GameCube's, or 16-bit PCM), the movie format and player (THP decoded on the CPU as on
   the GameCube, or H.264 through the console's own decoder), a `wiiu` target in the conversion tool and a Convert_WiiU script writing
   Converted/WiiU.
+## 12. Owner's play test on the Vita (2026-11-22, build 462fb78) - to trace and fix
+
+The owner's verdict: about 20% of the way to the original; not ready for bug fixing.  Reported, each to be measured against the
+original (PPSSPP harness) before it is changed:
+- [ ] **12.1** Space: ship controls need adjusting (handling against the original's).
+- [ ] **12.2** Space: enemy ships cannot be stolen (boarding an enemy craft).
+- [ ] **12.3** Space: ships cannot dock (landing in a hangar).
+- [ ] **12.4** Space: ship placement does not match the original.
+- [ ] **12.5** Enemies fire far faster than the player ("a hailstorm"): the AI's rate of fire / burst rules against the weapon's.
+- [ ] **12.6** Physics issues (many; specifics to collect).
+- [ ] **12.7** Audio stutters; other sound effect issues.
+- [ ] **12.8** A thrown grenade shows the wrong model.
+- [ ] **12.9** Hoth: after death, spawning at the AT-AT puts the player under the map.
+- [ ] **12.10** After death: no spawn point choice, no stats (the score board and spawn map - 1.10b - only with AK_FRONTEND=1).
+- [ ] **12.11** Lock-on: ignored by enemies in space; through walls in infantry battles (no line-of-sight test).
+- [x] **12.12** Boarding from beside a vehicle (pressed against an AT-ST's side, d-pad up did nothing) - fixed 2026-11-22 [assumed rule].
+- [x] **12.13** Vita: the video memory pool filled after several level changes (models and textures missing) - fixed 2026-11-22.
+- [x] **12.14** No menus: the front end was off by default - on by default now (not on the GameCube).
+
 - [ ] **11.4** The script FMV node (type 28, `fmv/<name>.pmf`) plays the movie on devices that can (its name is not parsed yet).
 
 ---

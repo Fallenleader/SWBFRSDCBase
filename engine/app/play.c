@@ -3854,6 +3854,18 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 if (p->vspawn[v].lone && ak_setting_int("AK_DEBUG_VEH", 0)) { f32 g[3]; ak_from_game(at, g); AK_INFO("veh", "placed craft %u: its get-in spot %.2f %.2f %.2f (game)", v, g[0], g[1], g[2]); }
                 f32 dx = at[0] - p->ch.pos[0], dz = at[2] - p->ch.pos[2], d2 = dx * dx + dz * dz, r = spot ? 2.2f * S : vh->def->radius + 3.0f;
                 if (d2 < r * r && d2 < bd && fabsf(at[1] - p->ch.pos[1]) < 4) { bd = d2; best = (s32)v; }
+                /* also: standing against it - within 1 m of its footprint (its box, turned with it).  [assumed: the measured rule above
+                   (from behind, 2.2 m of the exit spot) left a soldier pressed against an AT-ST's side unable to board; the harness found
+                   "3.5 m to its side: no", which is 1.8 m from that box - outside this 1 m] */
+                else if (vh->def->kind != AK_VEH_CREATURE && fabsf(vh->pos[1] - p->ch.pos[1]) < 4 * S) {
+                    f32 M[12]; ak_vehicle_matrix(vh, M);
+                    f32 wx = p->ch.pos[0] - M[3], wy = p->ch.pos[1] - M[7], wz = p->ch.pos[2] - M[11];
+                    f32 lx = M[0] * wx + M[4] * wy + M[8] * wz, lz = M[2] * wx + M[6] * wy + M[10] * wz, m = 1.0f * S;
+                    f32 ex = lx < vh->def->box_min[0] ? vh->def->box_min[0] - lx : lx > vh->def->box_max[0] ? lx - vh->def->box_max[0] : 0;
+                    f32 ez = lz < vh->def->box_min[2] ? vh->def->box_min[2] - lz : lz > vh->def->box_max[2] ? lz - vh->def->box_max[2] : 0;
+                    f32 e2 = ex * ex + ez * ez;
+                    if (e2 < m * m && e2 < bd) { bd = e2; best = (s32)v; }
+                }
             }
             if (ak_setting_int("AK_DEBUG_VEH", 0)) AK_INFO("veh", "get in: nearest %d (soldier at %.1f %.1f %.1f)", best, p->ch.pos[0], p->ch.pos[1], p->ch.pos[2]);
             if (best >= 0) {
