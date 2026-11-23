@@ -151,3 +151,6 @@ Reports fall after M5, M10 and M15.
   comparisons now run the original without the recomp's loadout mods. Next: the spawn mapping on Boz Pity's factions.
 - 2026-11-23 M4 COMPLETE (loadouts): selection rules, the original's 100 allowance, faction versions and the spawn kit path
   traced; three kit details on the Uncertain list. Next: M5, Instant Action to Boz Pity (the flow), then the PDF report.
+- 2026-11-23 M5 started: Planet / Mode / Era / play list / Launch / Team Selection match side by side; the team logos fixed.
+  Open: the bot count (original 8 + 8 at team selection, Aurek 8 + 7), the list row colour. Next: joining, the spawn map,
+  spawning, dying, the score board.

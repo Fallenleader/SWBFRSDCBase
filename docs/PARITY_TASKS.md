@@ -1678,6 +1678,9 @@ textures and how they are used. Section R lists only what must be in place so th
     two values (a 100..200 one and the 0.5..2 capture multiplier) - which drives capture, and what the other is; Aurek maps
     level 0 of category 7 to 1.0 [assumed earlier from a measurement], the table's level 0 is 0.5; (3) with +0x1B0 clear the kit
     has no items from the profile - what the soldier gets then.
+  - M5 open: (1) bot count - the original's Team Selection on Boz Pity lists 8 Rebels + 8 Empire before the player joins; Aurek
+    runs 15 (AK_BOTS) split 8 / 7. Whether a bot leaves when the player joins is not seen yet (check the score board after joining);
+    (2) the list's selected row colour on Mode / Era / Planet is dimmer in the original (focus state of the list, not traced).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

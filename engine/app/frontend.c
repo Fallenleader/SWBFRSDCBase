@@ -450,7 +450,8 @@ static bool shows(const ak_widget *w, bool focused)
         if ((w->name[l - 1] == 'C') != on) return false;
         u32 f = w->flags & 6; return !f ? true : focused ? (f & 4) != 0 : (f & 2) != 0;
     }
-    if (w->type == AK_GUI_IMAGE && w->flags == 0) return false;      /* (a picture with no flags at all: hidden - each Personalize button's
+    if (w->type == AK_GUI_IMAGE && w->flags == 0 && !(have_match && w->name && strstr(w->name, "_Logo_"))) return false;   /* (in a match the team logos are
+                                                                         picked by faction, 08A2A844 - they keep flags 0) */      /* (a picture with no flags at all: hidden - each Personalize button's
                                                                          four logos have one 0x43F, three 0; the original shows that one) [assumed:
                                                                          read from the original's frame, the draw check not traced] */
     if (w->type < 2000 && w->flags == 0x20) return focused;           /* (a button's picture for its focus alone: the colour and insignia pickers' frames) [assumed] */

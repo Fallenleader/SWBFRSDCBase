@@ -468,6 +468,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Spawn kit path (M4 complete) | The original's path from profile set 0 to the soldier is now traced. A method of the match's player object, 08A08EF8 (vtable 0x08B1473C, the object built by 08A089B8 from 08971770), fills a kit record. It holds four values from the profile's levels: +168 = 08978170, from category 5 (+24) through 0x08AEE3B8 {100, 133, 166, 200}; +172 = 089781D8, from category 7 (+32) through 0x08AEE3C8 {100, 133, 166, 200}; +176 = 08978240, from category 6 (+28) through 0x08AEE3D8 {0.85, 1, 1.15, 1.3}; +180 = 089782A8, from category 7 (+32) through 0x08AEE3E8 {0.5, 1, 1.5, 2}. Then 08978310 adds the 5 item ids: categories 0..4 through the tables 0x08ADC5E8 / 610 / 630 / 648 / 668, only while the profile's +0x1B0 flag is set. Level 0 takes each table's first value. Aurek's level tables (play.c loadout_levels) are the same values. |
 
+| Instant Action flow, first check (M5) | Compared side by side from the Instant Action map list: the Planet, Mode (Conquest) and Era (Galactic Civil War) pages, the play list line ("Boz Pity - CQST - GCW"), Launch and the Team Selection page all match in layout and texts. Fixed: the team columns' faction logos (E_IM_StyleButtonH_Logo_* in GUIMENU_INGAMESP, flags 0, picked by faction in a match by 08A2A844) were hidden by the flag-0 picture rule. That rule now leaves "_Logo_" pictures alone during a match. Found: the original's Team Selection lists 8 + 8 bots, Aurek's 8 + 7 (AK_BOTS defaults to 15). The selected list row is dimmer in the original's mode, era and planet lists. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |
