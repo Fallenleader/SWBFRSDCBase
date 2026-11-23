@@ -1956,6 +1956,16 @@ textures and how they are used. Section R lists only what must be in place so th
     cannot capture it, only destroy the vehicle (large health), and the post disappears with it. Aurek: the carried post counts
     for its vehicle's side while the vehicle lives (ak_conquest_mobile) and is now skipped by the capture loop (it could be
     drained before). To test on the original with the win / loss timers.
+  - Win / loss tests, part 1 (2026-11-23): harness RS_DRIVE_POSTS (a command post's object and words), RS_DRIVE_TEAM (a soldier's
+    team +12). Boz Pity's post owner is the faction at post +0x18 / +0x54 (Empire 3, Alliance 2; posts afbb2a0 / afbbab0 /
+    afbcb60 / afbdb20 the Alliance's, afb9640 and the AT-AT's afbb590 the Empire's), the held counts 0x08C28F74 / 78 (recounted
+    by 0897367C from the posts - a recount restored the real owners after 36 s, so poking the faction words is not the real
+    owner). With the counts poked to Alliance 0 / Empire 6 and the Alliance's tickets to 9999: the Alliance lost a ticket every
+    0.1 s (08987C80: a team holding no post loses one every D_08AEE590 = 0.1 s unless 08984034(team) - a per-team word at
+    0x08C2A09C / A0 - is non-zero; that word read Alliance 0 / Empire 2 -> 6 while soldiers of both lived: it is not the living
+    count - what it counts is not read), and no total-loss end came in 36 s. The 4 s bleed is D_08AEE594. Teleporting the
+    player to the Alliance's posts did not work (the harness's player line jumped elsewhere / landed 16 m up on the Monuments
+    post) - real captures still to be driven.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

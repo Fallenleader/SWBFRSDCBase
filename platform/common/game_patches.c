@@ -275,6 +275,8 @@ void rs_drive_report(FILE *f){
         fprintf(f, "obj %x %x %.4f %.4f %.4f %.2f %d", GU32(info + 4), cls, p[0], p[1], p[2], (cls == 0x8005 ? GF32(o + 0x25C) : GF32(plc + 0x28)), me && cls == 0x8005 && GU32(o + 92) == me);
         if (m) fprintf(f, " m %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
         if (cls == 0x8005 && getenv("RS_DRIVE_MAXHP")) fprintf(f, " mx %.2f", GF32(o + 0x34));
+        if (cls == 0x8005 && getenv("RS_DRIVE_TEAM")) fprintf(f, " team %u", GU32(o + 12));
+        if (cls == 0x8008 && getenv("RS_DRIVE_POSTS")) { fprintf(f, " post o %x own %d", o, (int)GU32(o + 12)); if (getenv("RS_DRIVE_POSTDUMP")) { fprintf(f, " d"); for (u32 j = 0; j < 0x300; j += 4) fprintf(f, " %x", GU32(o + j)); } }   /* (a command post: its owner +12, as 0897367C counts) */
         if (me && cls == 0x8005 && GU32(o + 92) == me && getenv("RS_DRIVE_USE")) fprintf(f, " use %x %x %x", GU32(o + 220), GU32(o + 212), GU32(o + 216));   /* (089A64F4: the use zone 08A12950, +212 089D5B64, +216 089A86F8) */   /* the target panel's maximum (08A56570: object +52) */
         if (me && cls == 0x8005 && GU32(o + 92) == me) { u32 w = GU32(o + 0x68); if (gok(w)) { fprintf(f, " ammo"); for (u32 j = 0x98; j <= 0xB0; j += 4) fprintf(f, " %d", (int)GU32(w + j));
             if (getenv("RS_DRIVE_WDUMP")) { fprintf(f, " w %x", w); for (u32 j = 0; j < 0x200; j += 4) fprintf(f, " %x", GU32(w + j)); fprintf(f, " s %x", o); for (u32 j = 0; j < 0x600; j += 4) fprintf(f, " %x", GU32(o + j)); } } }   /* the weapon (soldier +0x68): clip at +0xA0; tests: the weapon's and soldier's words */
