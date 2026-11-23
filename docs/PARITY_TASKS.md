@@ -1698,6 +1698,8 @@ textures and how they are used. Section R lists only what must be in place so th
     0x8029 {request} (088ACAD8, 4 bytes) and sets the player's state (08A0A178(2)). The side for request 4 is decided by the
     receiver of message 0x8029 (not found yet). Evidence from the harness frames: on Boz Pity with 8 + 8 bots, the original's Auto
     put the player on the side whose posts are on the right of the map (shown blue) - by Aurek's post layout the Rebels' side.
+  - Message 0x8029 (the team request): the message factory 0896F170 maps 0x8029 to 08A14A18, which builds a 56-byte message object
+    (08A94784, then 08A148BC). Its handling method (the object's vtable, set in 08A148BC) is the next step for Auto's side rule.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
