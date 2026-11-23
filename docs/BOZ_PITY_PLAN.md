@@ -149,3 +149,5 @@ Reports fall after M5, M10 and M15.
   faction's item versions against the blueprints, the spawn mapping on Boz Pity.
 - 2026-11-23 M4: the allowance is the original's 100 (the 200 was the recomp's mod); faction versions traced and matched;
   comparisons now run the original without the recomp's loadout mods. Next: the spawn mapping on Boz Pity's factions.
+- 2026-11-23 M4 COMPLETE (loadouts): selection rules, the original's 100 allowance, faction versions and the spawn kit path
+  traced; three kit details on the Uncertain list. Next: M5, Instant Action to Boz Pity (the flow), then the PDF report.

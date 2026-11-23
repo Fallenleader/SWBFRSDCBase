@@ -1672,6 +1672,12 @@ textures and how they are used. Section R lists only what must be in place so th
   - Allowance 100 (08A34280); the 200 is the recomp's RS_CREDITS mod. Over 100: MP_CustomOverSpent on leaving. Faction versions
     traced (08A23598). Uncertain: Aurek's menu faction outside a match is 2 always - the original keeps the last match's faction
     (0x08B1BE00 is written by 08A28C68 while a player exists).
+  - RESOLVED: the set-0-to-spawn path = 08A08EF8 (the match's player object) -> 08978170 / 089781D8 / 08978240 / 089782A8 /
+    08978310. Uncertain (M4): (1) where the kit record (+168..+204, then message 0x8027?) is consumed - so whether the soldier's
+    health is the level table's value or the blueprint's "Health" (Aurek takes the blueprint's when present); (2) category 7 feeds
+    two values (a 100..200 one and the 0.5..2 capture multiplier) - which drives capture, and what the other is; Aurek maps
+    level 0 of category 7 to 1.0 [assumed earlier from a measurement], the table's level 0 is 0.5; (3) with +0x1B0 clear the kit
+    has no items from the profile - what the soldier gets then.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
