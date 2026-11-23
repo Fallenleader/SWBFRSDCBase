@@ -192,6 +192,17 @@ static void fe_loadout_settings(void)
     snprintf(v, sizeof v, "%d", sel[7] ? sel[7] : 1); ak_setting_set("AK_CAPTURE_LEVEL", v);
     AK_INFO("aurek", "loadout: %s / %s / %s, health %d speed %d capture %d", nm[0] ? nm[0] : "-", nm[1] ? nm[1] : "-", nm[2] ? nm[2] : "-", sel[5], sel[6], sel[7]);
 }
+/* tests: AK_FE_PAD="170:X,240:D,250:S" - a button pressed on a given frame (X cross, O circle, S start, Q square, T triangle,
+   U D L R the pad), on the front end's pages and the match's own */
+static void fe_test_pad(ak_input *in, int frame)
+{
+    const char *pad = ak_setting_str("AK_FE_PAD", NULL);
+    for (const char *q = pad; q && *q;) {
+        int fr = (int)strtol(q, (char **)&q, 10); if (*q != ':') break; char k = q[1]; q += 2; if (*q == ',') q++;
+        if (fr != frame) continue;
+        in->pressed |= k == 'X' ? AK_BTN_CROSS : k == 'O' ? AK_BTN_CIRCLE : k == 'S' ? AK_BTN_START : k == 'Q' ? AK_BTN_SQUARE : k == 'T' ? AK_BTN_TRIANGLE :
+                       k == 'U' ? AK_BTN_UP : k == 'D' ? AK_BTN_DOWN : k == 'L' ? AK_BTN_LEFT : k == 'R' ? AK_BTN_RIGHT : 0; }
+}
 static int play_game_movie_subs(const char *name, bool subs);
 static int play_game_movie(const char *name) { return play_game_movie_subs(name, false); }
 static int play_fe_movie(const char *name) { return play_game_movie_subs(name, true); }   /* (FE_PlayMovie: 08A69188 with the profile's +0x3F) */
@@ -357,12 +368,7 @@ int main(int argc, char **argv)
                   if (*q && ph == 0) { u32 m = *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : *q == 'S' ? AK_BTN_SQUARE : *q == 'T' ? AK_BTN_TRIANGLE : 0; in.pressed |= m; } } }
             {   /* tests: AK_FE_PAD="170:X,240:D,250:S" - a button pressed on a front-end frame (X cross, O circle, S start, Q square,
                    T triangle, U D L R the pad) */
-                const char *pad = ak_setting_str("AK_FE_PAD", NULL);
-                for (const char *q = pad; q && *q;) {
-                    int fr = (int)strtol(q, (char **)&q, 10); if (*q != ':') break; char k = q[1]; q += 2; if (*q == ',') q++;
-                    if (fr != frame) continue;
-                    in.pressed |= k == 'X' ? AK_BTN_CROSS : k == 'O' ? AK_BTN_CIRCLE : k == 'S' ? AK_BTN_START : k == 'Q' ? AK_BTN_SQUARE : k == 'T' ? AK_BTN_TRIANGLE :
-                                  k == 'U' ? AK_BTN_UP : k == 'D' ? AK_BTN_DOWN : k == 'L' ? AK_BTN_LEFT : k == 'R' ? AK_BTN_RIGHT : 0; } }
+                fe_test_pad(&in, frame); }
             int ev = ak_fe_update(&in, dt);
             ak_m4 id; memset(&id, 0, sizeof id); id.m[0] = id.m[5] = id.m[10] = id.m[15] = 1;
             ak_gfx_env env = { { 0, 0, 0 }, 0, 0, 1.0f };
@@ -822,6 +828,7 @@ int main(int argc, char **argv)
                       if (kf > 20) { k = (kf - 21) / 4; ph = (kf - 21) % 4; q = keys; for (int j = 0; j < k && *q; j++) { q = strchr(q, ','); q = q ? q + 1 : ""; } }
                       if (*q && ph == 0 && kf > 20) { u32 m = *q == 'U' ? AK_BTN_UP : *q == 'D' ? AK_BTN_DOWN : *q == 'L' ? AK_BTN_LEFT : *q == 'R' ? AK_BTN_RIGHT : *q == 'X' ? AK_BTN_CROSS : *q == 'O' ? AK_BTN_CIRCLE : *q == 'S' ? AK_BTN_SQUARE : *q == 'T' ? AK_BTN_TRIANGLE : 0; in.pressed |= m; }
                       if (kf <= 20 || ph == 0) {} kf++; } }
+                fe_test_pad(&in, frame);                                       /* (tests: AK_FE_PAD also reaches the match's own pages) */
                 int ev = ak_fe_update(&in, dt);
                 if (ev == AK_FE_TEAM) {
                     /* 1 the good side, 2 the evil side, 0 auto (stays); each side's soldier: the era's faction's trooper [assumed:
