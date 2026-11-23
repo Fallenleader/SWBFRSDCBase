@@ -39,6 +39,7 @@ void ak_play_sound_start(ak_play *p, const ak_level *l, const ak_blueprints *bp)
     for (int i = 0; i < 10; i++) p->snd.surf[i] = ak_bp_find(bp, "Material", surf_names[i]);
     for (u32 i = 0; i < AK_MAX_POSTS; i++) p->snd.post_owner[i] = -2;
     for (u32 i = 0; i < PLAY_MAX_VEH; i++) p->snd.vclip[i] = -1;
+    p->snd.reload_t = -1;
     for (u32 i = 0; i < 129; i++) { p->snd.enemy[i] = -1; p->snd.hp[i] = 1e9f; }
     p->snd.rng = 0x13579BDu;
     p->snd.winner = -1;
@@ -64,6 +65,13 @@ void ak_play_vehicle_clip_sounds(ak_play *p, const ak_model_set *m, u32 v)
         f32 t = c->ev_t[i]; bool hit = from <= ph ? (t > from && t <= ph) : (t > from || t <= ph);   /* (wrapped past the loop's end) */
         if (hit) ak_audio_clip_sound(c->name, c->ev_id[i], pos);
     }
+}
+
+void ak_play_clip_events(const ak_anim_clip *c, f32 from, f32 to, const f32 *pos)
+{
+    if (!c || !c->nev || to <= from) return;
+    f32 dur = c->duration > 1e-4f ? c->duration : 1e-4f;
+    for (u32 i = 0; i < c->nev; i++) { f32 t = c->ev_t[i] * dur; if (t > from && t <= to) ak_audio_clip_sound(c->name, c->ev_id[i], pos); }
 }
 
 u16 ak_play_ground_material(const ak_play *p, const f32 *pos)

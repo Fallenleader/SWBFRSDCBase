@@ -226,7 +226,7 @@ static bool clip_parse(const ak_chunk *c, ak_arena *a, ak_anim_clip *k)
     o += 2 * A;
     for (u32 i = 0; i < B; i++) { f32 g[3] = { ak_rdf32(b + o + 12 * i), ak_rdf32(b + o + 12 * i + 4), ak_rdf32(b + o + 12 * i + 8) }; ak_from_game(g, k->pos[i]); }
     o += 12 * B;
-    {   u32 e = o + 4 * nch;                           /* the events (model.h); kept only when they end the chunk exactly */
+    {   u32 e = o + 4 * (nb + 1);                      /* the events (model.h); kept only when they end the chunk exactly */
         if ((size_t)e + 4 <= c->size) { u32 n = ak_rd32(b + e);
             if (n && n < 256 && (size_t)e + 4 + 8u * n == c->size && (k->ev_t = AK_NEW(a, f32, n)) && (k->ev_id = AK_NEW(a, u32, n))) {
                 k->nev = n; for (u32 i = 0; i < n; i++) { k->ev_t[i] = ak_rdf32(b + e + 4 + 8 * i); k->ev_id[i] = ak_rd32(b + e + 8 + 8 * i); } } } }

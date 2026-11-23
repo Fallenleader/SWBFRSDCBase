@@ -4249,6 +4249,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
         else if (p->idle_var >= 0) pose(m, &p->look, p->idle_var, p->idle_vt, false, p->bones);
         else                                                                   /* the body clips crossfading; alert: the shoot layer while firing */
         {   bool rl = !ph && p->armed && p->weapon.reload_t > 0 && p->reload_clip >= 0;   /* reloading: the set's reload layer (column 2) */
+            {   f32 rt = rl ? p->wdef.reload_time - p->weapon.reload_t : -1;     /* its sounds (HSND: Reload_Med_01 / _02 for a rifle...) */
+                if (rl && (u32)p->reload_clip < m->nclips) ak_play_clip_events(&m->clips[p->reload_clip], p->snd.reload_t < 0 || rt < p->snd.reload_t ? -1e-6f : p->snd.reload_t, rt, p->ch.pos);
+                p->snd.reload_t = rt; }
             pose_mix(m, &p->look, p->loco.prev, p->loco.prev_t, p->loco.cur, p->loco.t, p->loco.w, p->state != PLAY_JUMP && p->state != PLAY_LAND,
                      rl ? p->reload_clip : !ph && p->alert_t > 0 && p->shoot_t < 0.3f ? p->shoot_clip : -1,
                      rl ? p->wdef.reload_time - p->weapon.reload_t : p->shoot_t, p->bones); }

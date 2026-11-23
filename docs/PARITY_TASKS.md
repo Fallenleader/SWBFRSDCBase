@@ -1928,7 +1928,7 @@ textures and how they are used. Section R lists only what must be in place so th
     at a post-side spawn; 089E9A24 starts it only while its object's +100 < +96 (+96 = 1.0, +100 starts 0) - which object and
     what +100 counts not read. AI soldiers' footsteps: the original keyed none in 60 s idle (one bot within 15 m, standing);
     the player's own play (a 1.9 m stride, 0.8 x the 2-20 m ramp: measured 0.544 at about 3.7 m) - whether bots step at all is
-    not settled. HSND's four floats per entry (1, 1, 20, 1) not read; soldiers' reload / throw clip sounds not hooked; the
+    not settled. HSND's four floats per entry (1, 1, 20, 1) not read; the player's reload layer plays its clip sounds (Reload_Med_01 / _02 on a rifle), throws and bots' reloads do not yet; the
     AT-AT chin blaster's Exp_blaster and how often it fires (AI). The original re-keys looping voices under voice pressure (32
     SAS voices) - Aurek mixes 48 and never re-keys.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
