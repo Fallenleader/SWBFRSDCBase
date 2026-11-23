@@ -1907,6 +1907,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M11 AT-AT (2026-11-23): its body box never stops a soldier; the stop is ~6.2 m from the middle along the walker (a leg?).
     Next: the AT-AT model's HSBB per-bone boxes (and which bones are flagged) - place them on the walk animation's pose and
     test soldiers against those instead of the body box; confirm against the 6.16 m stop.
+  - M11 AT-AT legs (2026-11-23): the HSBB leg boxes are known (AK_DEBUG_HSBB); a back leg could account for the 6.2 m stop in
+    the walk pose. To settle: read the original's soldier-vs-walker test (088C4CF4's body pass and the AT-AT body's 0x80 bit), or
+    pose Aurek's walker and push soldiers by its leg boxes, then compare the sprint stop (133.89, 114.11 game, frames 135-175).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -119,6 +119,16 @@ static void vehicle_box(const ak_model_set *m, const ak_vehicle *vh, ak_box *b)
     {   static int dbg = -1; static const void *seen[16]; static int ns; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_BODY", 0);
         bool k = false; for (int i = 0; i < ns; i++) if (seen[i] == vh->def) k = true;
         if (dbg && !k && ns < 16) { seen[ns++] = vh->def; AK_INFO("body", "vehicle box %s: %.2f %.2f %.2f .. %.2f %.2f %.2f", vh->def->name ? vh->def->name : "?", mn[0], mn[1], mn[2], mx[0], mx[1], mx[2]); } }
+    {   static int dh = -1; static const void *seen2[16]; static int ns2; if (dh < 0) dh = ak_setting_int("AK_DEBUG_HSBB", 0);   /* tests: a vehicle's bone boxes */
+        bool k = false; for (int i = 0; i < ns2; i++) if (seen2[i] == vh->def) k = true;
+        s32 mi = vh->def->model;
+        if (dh && !k && ns2 < 16 && mi >= 0 && m->models[mi].skeleton >= 0) { seen2[ns2++] = vh->def;
+            const ak_skeleton *sk = &m->skels[m->models[mi].skeleton];
+            AK_INFO("hsbb", "%s: %u bones, collision box %.2f %.2f %.2f .. %.2f %.2f %.2f (from %d)", vh->def->name ? vh->def->name : "?", sk->nbones,
+                    sk->col_min[0], sk->col_min[1], sk->col_min[2], sk->col_max[0], sk->col_max[1], sk->col_max[2], sk->col_from);
+            for (u32 i = 0; sk->bb && sk->bbf && i < sk->nbones; i++)
+                AK_INFO("hsbb", "  bone %u (parent %d) flags %u at %.2f %.2f %.2f, box %.2f %.2f %.2f .. %.2f %.2f %.2f", i, sk->parent[i], sk->bbf[i],
+                        sk->world_t[i][0], sk->world_t[i][1], sk->world_t[i][2], sk->bb[i][0], sk->bb[i][1], sk->bb[i][2], sk->bb[i][3], sk->bb[i][4], sk->bb[i][5]); } }
     f32 W[12]; ak_vehicle_matrix(vh, W); ak_box_place(b, mn, mx, W);
 }
 static void mover_box(const ak_play *p, u32 k, ak_box *b)   /* a moving hull's box at its place (type 19) */
