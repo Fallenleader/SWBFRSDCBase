@@ -1941,6 +1941,10 @@ textures and how they are used. Section R lists only what must be in place so th
     at 1 lost no soldier in 60 s - not seen; the page's Defeat text and the same sequence assumed); the post mark glyph in the
     team lines (not drawn); "Changing Map" over black (Aurek shows it 0.5 s over the frozen view, then its loading screen); the
     end music; the respawn board's bars; what decides 08A2B410's state 19 -> 20 vs the dialogue (15) - observed only for IA.
+  - M15 (2026-11-23): the classic camera matches the original's placement (0.21 m higher - the original's eye 1.60 m above
+    the soldier's origin at Boz Pity, 1.9 m measured on Hoth: not settled); the equipment prompt's radius - the original keeps
+    it at 4.7 m from the post, Aurek's capture radius (5 m) checked from the soldier's origin - not read; a harness health set
+    to 0 does not kill the original's soldier (no death, no ticket).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

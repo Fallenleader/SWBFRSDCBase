@@ -4803,6 +4803,8 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             if (!p->have_cq) { memcpy(sp, p->ch.pos, 12); ok = true; }
             if (ok) {
                 hero_unmake_player(p, m);
+                {   const char *ts = ak_setting_str("AK_TEST_SPAWN", NULL); f32 g[5];   /* (tests: the first spawn where the harness's original stood) */
+                    if (ts && !p->deaths && sscanf(ts, "%f,%f,%f,%f,%f", &g[0], &g[1], &g[2], &g[3], &g[4]) == 5) { ak_from_game(g, sp); syaw = atan2f(-g[3], g[4]); } }
                 ak_char_spawn(&p->ch, sp, syaw); p->alive = true; p->health = p->max_health; p->dead_t = 0; p->state = PLAY_IDLE; p->clip_t = 0;
                 AK_VERBOSE("player", "spawn at %.1f %.1f %.1f (post %d)", sp[0], sp[1], sp[2], p->spawn_post);
                 if (p->have_cq) { f32 bd = 1e30f; p->player_post = -1;       /* (the post it came in at: the nearest owned one) */
