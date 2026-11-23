@@ -1805,6 +1805,11 @@ textures and how they are used. Section R lists only what must be in place so th
     ~12 frames: check Aurek's sprint start (when the sprint begins after the press, a stamina / speed ramp, the clip choice).
     run_jump note: the jump rule is traced (1.5: impulse 6 along the ground, gravity 10); the 0.06 m apex difference on Boz Pity
     is within the take-off's 0.1-0.2 m offset on the slope - not a separate rule difference (kept open with the offset).
+  - Sprint onset, read so far: Aurek sets ch.sprinting on the ground only (ak_character.c line 173: in->sprint and stick
+    forward > 0.3) and plays PLAY_SPRINT through ak_loco's crossfade; PARITY 1.8 measured the same rule on Hoth (0.1 s after L,
+    0.2 s crossfade) and matched within 0.22 m over 15 s. The slower Boz Pity onset is therefore likely the uneven ground:
+    if the ground flag flickers in frames 30-90 the sprint / run choice toggles and the crossfade restarts. Next: rerun
+    run_sprint and read the trace's ground column (5th) and the clip state per frame [hypothesis, not checked].
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
