@@ -1691,6 +1691,9 @@ textures and how they are used. Section R lists only what must be in place so th
     (s2 / s3 < 8) - so 8 per side is the cap, which fits the original's 8 + 8 list with the player not yet counted. Auto (0)
     goes through 0x08B1BB5C / 0x08B1C148 (a state value 4 / 0) and 08978770 + 08838148 - its side rule is not read yet.
     Aurek's Auto keeps the match's starting side (viewer.c AK_FE_TEAM) - unproven.
+  - Auto (FE_TeamSelection 0): 08A2F7F4 stores 4 into 0x08B1C148 (the team request: 1 / 2 the sides, 3 another path, 4 auto) and
+    hands it to 08A09190(player 0x08C2C3E0, request) - a method of the match's player object (vtable 0x08B1473C family); the side
+    for 4 is decided there (not read yet). Then 0888AF68(0x636B2446) opens the next page.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
