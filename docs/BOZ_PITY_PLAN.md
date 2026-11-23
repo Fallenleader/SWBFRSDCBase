@@ -205,3 +205,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M9: capture differs - the original's player alone on an enemy post for 23 s took nothing, Aurek's took it. Tracing.
 - 2026-11-23 M9 done: tickets, bleed and the capture structure (drain then flip, 30 s contest, per-post amounts) match the
   original; Uncertain: the player's capture rate (0.5 / s measured here, Aurek 1.0). Next: M10, AI soldiers.
+- 2026-11-23 M10 started: the original's Imperial bots carry a 25-damage rifle (BobaFett_Blaster_Rifle) where Aurek's carry
+  EMP_Blaster_Rifle (15) - the likely cause of the Rebel death gap. Tracing where the original picks it.
