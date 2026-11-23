@@ -173,3 +173,5 @@ Reports fall after M5, M10 and M15.
   vehicle and print every vehicle's position (AK_DEBUG_BODY / AK_DEBUG_VEH). Next: the original's AT-AT collision.
 - 2026-11-23 M6: tests can warm the world up first (AK_TEST_WARMUP; the original's match runs behind team selection): Boz Pity's
   walk now matches to 0.12 m for 2 s. Found: Aurek's player falls through the world after meeting the AT-AT (7 s). Next: fix.
+- 2026-11-23 M6: the fall-through's cause found - a body sunk over 2 cm into a face gets "inside" from the sweep and Aurek
+  ignores it (PARITY 1.3b, 088B6510 not read yet). Next: port the original's "inside" handling.

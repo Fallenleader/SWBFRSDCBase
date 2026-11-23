@@ -1750,6 +1750,11 @@ textures and how they are used. Section R lists only what must be in place so th
     player was at game y 0.78 at 129.60 / 115.00, then 0.93 at 128.85 - 0.18 m UNDER the face - and fell. So the body went
     through the face's edge or got under it from the slope before (sweep "inside" / edge case, ak_col_box_sweep). Next: step
     frame by frame between 129.6 and 128.8 (AK_DEBUG_BODY=3 every frame), find which face the body crosses and why the sweep misses.
+  - Cause of the Boz Pity fall (frame by frame, AK_DEBUG_BODY=5): the body walks on face 23185 (contacts t 0.3-0.4 every frame),
+    meets two other faces at 129.08 (t 0, n -0.03 0.99 -0.10) and 129.00 (n 0 1 -0.10), and from there NO sweep hits anything:
+    the box has sunk more than 2 cm into face 23185's plane, so every sweep against it returns "inside" (-1), which Aurek ignores
+    (ak_collision.c box_tri_sweep_game: only a sink under 2 cm counts as touching) - the body falls through. The original's
+    handling of "inside" (088B6510, PARITY 1.3b) is the missing piece: read it and port it.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
