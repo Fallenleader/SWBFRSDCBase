@@ -1971,6 +1971,11 @@ textures and how they are used. Section R lists only what must be in place so th
     a bar at the bottom for both sides, then Defeat / Victory 5 s, the score board 5 s, Changing Map. Aurek matches (the bar
     added). Not measured, from the code only: the x11 rate with nobody of the other side alive, and the owner's "instant
     defeat" when the last soldier dies after a full capture (in the code: x11 plus the 0.1 s no-post drain - no other end).
+  - M10 rhythm, measured (2026-11-23): per bot on the original - Imperial (Boba's rifle) presses ~1.95 s apart, each press 3 shots
+    0.1 s apart (BurstTime); Rebel rifle 2-3 shots 0.3 s apart then 2.5-7.4 s idle with a slot change between. The AI burst state
+    (08965A70 / 08965EA4 / 08966050) is the AT-AT's only; infantry fire through 0899B7D8 -> 08A17C64 (weapon +364 bit 1). Next:
+    what sets that bit for a bot (the humanoid's input from its AI controller - 08993D38's callers / the control +120 / +160),
+    then replace ak_ai_fire for bots on foot; and the BurstTime spacing of multishot weapons in Aurek (now all at once).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

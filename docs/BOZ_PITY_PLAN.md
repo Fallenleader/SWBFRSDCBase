@@ -257,3 +257,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 Win / loss tests part 2: the total-loss timer measured on the original (real time, 60 s, then Defeat / Victory and
   the usual end); its "Game over in N seconds" bar ported and matched to the pixel. Still from the code only: the x11 rate and
   the instant defeat. Next: the M10 AI leftovers (firing rhythm, death rate).
+- 2026-11-23 M10 rhythm measured per bot on the original: Imperial presses ~1.95 s apart (3 shots 0.1 s apart each, BurstTime),
+  Rebel rifle 2-3 shots then 2.5-7.4 s; the AI burst/pause machine is the AT-AT's only. Next: the infantry trigger's source.
