@@ -1966,6 +1966,11 @@ textures and how they are used. Section R lists only what must be in place so th
     count - what it counts is not read), and no total-loss end came in 36 s. The 4 s bleed is D_08AEE594. Teleporting the
     player to the Alliance's posts did not work (the harness's player line jumped elsewhere / landed 16 m up on the Monuments
     post) - real captures still to be driven.
+    Total-loss countdown (2026-11-23, part 2): poking the total-capture state (0x08C28F6C team, 0x08C28F48 60.0, 0x08C28F3C 2)
+    gives the full sequence: the timer at real time with enemies alive, "Game over in N seconds" (STDTEXT 32, N = floor + 1) in
+    a bar at the bottom for both sides, then Defeat / Victory 5 s, the score board 5 s, Changing Map. Aurek matches (the bar
+    added). Not measured, from the code only: the x11 rate with nobody of the other side alive, and the owner's "instant
+    defeat" when the last soldier dies after a full capture (in the code: x11 plus the 0.1 s no-post drain - no other end).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -902,6 +902,28 @@ static void target_panel(const ak_hud_state *s)
     } else pic(b, 240, 15, true, 0xFFFFFFFFu, 1);
 }
 
+/* the total-loss countdown's bar (func 08A0AC2C, from 08A096A8 in game state 3): a box at (0.1 w, 0.9 h) of 0.8 w x 0.05 h (0x08AEF6E8..
+ * F6F4: 48, 244.8, 384 x 13.6 on the 480 x 272 screen) in 0xC0101010, then the text white (-1), flags 69 (centred both ways) in the box
+ * (0.1, 0.9)..(0.9, 0.95), scale 0.049 h / the font's height (0x08AEF6FC; 088CD39C: the current font's +0 x its +0x70 x 0x08AED090 -
+ * read on the original: font 0, 21 x 1 x 1 - Cond 13, our fonts[1]; so 0.635), at most 1.5 (0x08AEF700). STDTEXT 32's "%d" replaced
+ * by the seconds (its text 1.10x wider than Cond 9 at 13.6 / 16 would be: measured on the original's frame). */
+static void gameover_bar(s32 secs)
+{
+    u32 n; const u16 *w = stdtext_get(32, &n);
+    fontdef *keep = fontp; fontp = &fonts[1];
+    if (!w || !font.tex) { fontp = keep; return; }
+    u16 buf[96]; u32 k = 0; char d[16]; snprintf(d, sizeof d, "%d", (int)secs);
+    for (u32 i = 0; i < n && k < 80; i++) {
+        if (w[i] == '%' && i + 1 < n && w[i + 1] == 'd') { for (const char *p = d; *p; p++) buf[k++] = (u16)*p; i++; }
+        else if (w[i]) buf[k++] = w[i];
+    }
+    quad(NULL, 48.0f, 244.8f, 432.0f, 258.4f, 0, 0, 0, 0, 0xC0101010u);
+    f32 sc = 272.0f * 0.049f / font.line; if (sc > 1.5f) sc = 1.5f;
+    f32 lh = font.line * sc;
+    text16_box(48.0f, 244.8f + (13.6f - lh) * 0.5f, 432.0f, sc, 0xFFFFFFFFu, buf, k, true, true);
+    fontp = keep;
+}
+
 void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
 {
     (void)sw; (void)sh;
@@ -942,6 +964,7 @@ void ak_hud_draw(const ak_hud_state *s, int sw, int sh)
     anchor(1, 0);                                                    /* (the missile warning: top middle; messages set their own) */
     if (!missile_warning(s)) messages(s->dt, s->alive);
     anchor(1, 1);
+    if (s->gameover_s >= 0 && s->alive) gameover_bar(s->gameover_s);
     if (s->use_text && s->alive) { u32 n; const u16 *w = stdtext_get(s->use_text, &n);   /* a use zone's prompt [assumed: white, centred at y 200] */
         if (w) text16_box(0, 200, 480, 1.0f, 0xFFFFFFFFu, w, n, true, true); }
     if (s->alive) hit_marks(s); else nhits = 0;

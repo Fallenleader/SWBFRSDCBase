@@ -1078,6 +1078,7 @@ int main(int argc, char **argv)
         if (playing && play.ready) {
             ak_play_draw(&play, &mscene, &models, &vp, &ss);
             {   ak_hud_state hs; memset(&hs, 0, sizeof hs);                     /* the game's HUD (app/hud.c) */
+                hs.gameover_s = -1;
                 hs.alive = play.alive; hs.use_text = 0; hs.counter_val = play.counter_val; hs.counter_total = play.counter_total; hs.timer = play.hud_timer; hs.timer_on = play.hud_timer_on; hs.reticle = play.in_veh < 0 && play.in_turret < 0;
                 hs.health = play.health; hs.health_max = play.max_health; hs.weapon_name_t = -1; hs.weapon_name = hs.weapon2_name = -1; hs.weapon2_text = -1;
                 if (play.armed && play.weapon.def && play.in_veh < 0 && play.in_turret < 0) {
@@ -1097,6 +1098,8 @@ int main(int argc, char **argv)
                 hs.prequel = strstr(levels[cur].path, "PREQUEL") != NULL;
                 if (play.have_cq && !play.rules.no_bleed) { hs.tickets = true; hs.tickets_own = play.match.tickets[play.team]; hs.tickets_enemy = play.match.tickets[1 - play.team];
                                     hs.faction_own = play.team_faction[play.team]; hs.faction_enemy = play.team_faction[1 - play.team]; }
+                if (play.have_cq && play.rules.ticket_mode && play.match.all_team != AK_CQ_NEUTRAL && play.match.winner < 0)   /* the total-loss countdown (08A096A8: either side's) */
+                    hs.gameover_s = (s32)(play.match.loss_t + 1.0f);
                 if (play.have_ctf) { hs.tickets_own = play.ctf.score[play.team]; hs.tickets_enemy = play.ctf.score[1 - play.team]; }   /* CTF: the captures in their place (08A5B80C) */
                 static ak_hud_blip blips[256]; u32 nb = 0;                   /* the radar's blips */
                 hs.radar = true; hs.space = play.is_space; hs.team = play.team; memcpy(hs.fwd, play.aim, 12);

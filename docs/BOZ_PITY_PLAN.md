@@ -254,3 +254,6 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 Report 3 written and sent (after M15; overall estimate 79%).
 - 2026-11-23 Win / loss tests part 1: post owner storage and the held counts found; the no-post drain (0.1 s) measured; its
   "living" condition word is not the living count (not read); the total-loss timer not yet measured (needs real captures).
+- 2026-11-23 Win / loss tests part 2: the total-loss timer measured on the original (real time, 60 s, then Defeat / Victory and
+  the usual end); its "Game over in N seconds" bar ported and matched to the pixel. Still from the code only: the x11 rate and
+  the instant defeat. Next: the M10 AI leftovers (firing rhythm, death rate).

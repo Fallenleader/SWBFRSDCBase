@@ -281,6 +281,15 @@ bool ak_conquest_update(const ak_conquest_map *m, const ak_cq_rules *r, ak_conqu
         s->winner = s->tickets[0] > s->tickets[1] ? 0 : s->tickets[1] > s->tickets[0] ? 1 : AK_CQ_NEUTRAL;
         return false;
     }
+    {   /* test hook: AK_TEST_OWN_ALL="seconds:team" gives every post that exists to the team at that match time (the original's
+           harness poke of 0x08C28F6C / 0x08C28F3C, its total-capture state, has no Aurek equivalent but the posts themselves) */
+        static int own_t = -2, own_team = -1;
+        if (own_t == -2) { own_t = -1; const char *v = ak_setting_str("AK_TEST_OWN_ALL", ""); if (v && *v) sscanf(v, "%d:%d", &own_t, &own_team); }
+        if (own_t >= 0 && own_team >= 0 && own_team < 2 && s->time >= (f32)own_t) {
+            for (u32 i = 0; i < m->nposts; i++) if (!m->post[i].absent) { s->post[i].owner = own_team; s->post[i].progress = m->post[i].amount; s->post[i].capturing = AK_CQ_NEUTRAL; }
+            recount(m, s); own_t = -1;
+        }
+    }
     s->living[0] = s->living[1] = 0;
     for (u32 k = 0; k < n; k++) if (sol[k].alive && sol[k].team >= 0 && sol[k].team < 2) s->living[sol[k].team]++;
     /* the posts */
@@ -338,6 +347,8 @@ bool ak_conquest_update(const ak_conquest_map *m, const ak_cq_rules *r, ak_conqu
     if (all != AK_CQ_NEUTRAL && s->winner < 0 && r->ticket_mode) {     /* [PARITY(5.4) assumed: no total loss without tickets] */
         s->loss_t -= dt * (s->living[1 - all] ? 1.0f : 11.0f);
         if (s->loss_t <= 0) { s->loss_t = 0; s->winner = all; }
+        static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_LOSS", 0);
+        if (dbg) { static f32 next; if (s->time >= next) { next = s->time + 1.0f; AK_INFO("conquest", "total loss: team %d holds all, %.2f s left (match %.2f s, %u of theirs alive)", all, s->loss_t, s->time, s->living[1 - all]); } }
     }
     /* spawn waves */
     s->respawn_t -= dt;

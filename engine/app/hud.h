@@ -54,6 +54,9 @@ typedef struct {
     s32 missile;                       /* space, in a flyer: an incoming guided missile's distance (game units), < 0 none */
     f32 timer; bool timer_on;          /* the script's countdown under the radar (0x8015 {u32, f32 seconds}; 0x8016 ends it): "1:23" */
     s32 counter_val, counter_total;    /* the script's counter under the radar (0x8017 {1, total, add}: "0/4"); total 0 = none */
+    /* the total-loss countdown (element 08A096A8, game state 3): "Game over in %d seconds" (STDTEXT 32) with d = trunc(t + 0.5 + 0.5)
+     * (0x08AEF6D4 = 0.5: floor + 1), in the bar 08A0AC2C; < 0 = none */
+    s32 gameover_s;
     u32 use_text;                      /* a use zone's prompt (STDTEXT, e.g. 0x47 "\ue813 Use"); 0 none */
     bool target; const u16 *target_name; u32 target_name_len; f32 target_health, target_max; s32 target_dist;   /* target_dist: metres after the name, -1 none */
 } ak_hud_state;
