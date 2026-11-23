@@ -164,6 +164,8 @@ void ak_projs_update(ak_projs *ps, const ak_collision *col, ak_target *tg, u32 n
         ak_proj *p = &ps->p[i]; if (!p->alive) continue;
         const ak_proj_def *d = p->d;
         p->t += dt;
+        {   static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_PROJ", 0);   /* tests (2): every frame of its flight */
+            if (dbg >= 2) AK_INFO("proj", "%s t %.3f at %.3f %.3f %.3f vel %.3f %.3f %.3f", d->name, p->t, p->pos[0], p->pos[1], p->pos[2], p->vel[0], p->vel[1], p->vel[2]); }
         if (p->t >= d->life) { if (d->on_timer) explode(ps, p, tg, nt, boom, ctx, col); else p->alive = false; continue; }
         if (d->drop_time > 0 && !p->dropped && p->t >= d->drop_time) { p->dropped = true; for (int k = 0; k < 3; k++) p->vel[k] += p->dir[k] * d->speed; }
         /* guidance (traced, the projectile update 08A005B0: with WillTrack (+168) and a living target (+140, health > 0) the velocity

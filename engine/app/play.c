@@ -4050,7 +4050,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             f32 at[3] = { p->ch.pos[0] + fx * 1.0f * S, p->ch.pos[1] + 2.1f * S, p->ch.pos[2] + fz * 1.0f * S };
             f32 v[3]; throw_vel(p->gren_ps, p->gren_vts, 0.1432f, fx, fz, v);   /* (the aim frame's 8.2 degrees down, from the harness log) */
             ak_proj_throw(&p->projs, &p->gren_def, at, v, p->team, 0, 8.0f / 60.0f);
-            if (ak_setting_int("AK_LOG_GRENADES", 0)) AK_INFO("play", "player throws at %.1f %.1f %.1f", at[0], at[1], at[2]);
+            if (ak_setting_int("AK_LOG_GRENADES", 0)) AK_INFO("play", "player throws at %.1f %.1f %.1f, aim pitch %.4f, v %.2f %.2f %.2f", at[0], at[1], at[2], p->ch.pitch, v[0], v[1], v[2]);
             p->gren_t = -1;
         }
     }
