@@ -16,6 +16,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 /* ---- memory, time, threads */
 void *ak_plat_alloc(size_t size, size_t align) { return memalign(align < 32 ? 32 : align, size); }   /* (32: the GPU's and DSP's DMA) */
@@ -40,6 +41,7 @@ void ak_plat_thread_join(ak_thread *t) { if (!t) return; LWP_JoinThread(t->t, NU
 /* ---- files */
 static char app_dir[64];
 /* the last log lines, drawn over the picture when there is no log file to write (the game on a disc, no SD card): gfx_gx.c */
+static char image_path[256];                          /* the disc image on the SD card the game is read from, if so */
 #define CON_LINES 24
 static char con[CON_LINES][96]; static u32 con_n; static bool con_shown;
 u32 gc_heap_free(void)                               /* malloc's free blocks + the arena not yet taken */
@@ -68,7 +70,10 @@ void ak_plat_log_write(const char *line)
         }
         if (pass) {   /* (the on-screen console's copy) */
             u32 k = con_n++ % CON_LINES; snprintf(con[k], sizeof con[k], "%s", line); } }
-    if (!lf && !tried && app_dir[0] && strncmp(app_dir, "dvd:", 4)) { char p[96]; snprintf(p, sizeof p, "%s/log.txt", app_dir); lf = fopen(p, "w"); tried = true; }
+    if (!lf && !tried && app_dir[0]) {   /* the log: aurek/log.txt on the SD card, or beside the disc image read from it (<image>.log.txt) */
+        char p[300]; tried = true;
+        if (strncmp(app_dir, "dvd:", 4)) { snprintf(p, sizeof p, "%s/log.txt", app_dir); lf = fopen(p, "w"); }
+        else if (image_path[0]) { snprintf(p, sizeof p, "%s.log.txt", image_path); lf = fopen(p, "w"); } }
     con_shown = !lf;
     if (lf) {
         static u32 n; fprintf(lf, "%s\n", line);
@@ -77,17 +82,31 @@ void ak_plat_log_write(const char *line)
 }
 
 bool gc_dvd_mount(void);
+bool gc_dvd_mount_image(const char *const *roots, int nroots, char *found, size_t cap);
 bool ak_plat_init(void)
 {
     VIDEO_Init(); PAD_Init();
+    /* where the game is, in this order:
+     *   1. an "aurek" folder on an SD card (SD2SP2, SD Gecko): aurek.dol started from Swiss, the files beside it
+     *   2. an Aurek disc image on an SD card (Swiss starting Aurek_GC.iso): read as a file - Swiss's drive emulation is for Nintendo
+     *      SDK games and is gone once libogc sets up its own exception vectors, so the drive itself is not asked
+     *   3. the disc in the drive (a burned disc) or Dolphin's */
+    static const char *const roots[] = { "sd:", "sp2:", "carda:", "cardb:" };
+    char mounted[4][8]; int nm = 0;
     if (fatInitDefault()) {
-        static const char *const roots[] = { "sd:", "sp2:", "carda:", "cardb:" };
-        for (u32 i = 0; i < sizeof roots / sizeof *roots && !app_dir[0]; i++) {
-            char p[64]; snprintf(p, sizeof p, "%s/aurek", roots[i]); struct stat s;
-            if (stat(p, &s) == 0) snprintf(app_dir, sizeof app_dir, "%s", p);
+        for (u32 i = 0; i < sizeof roots / sizeof *roots; i++) {
+            char p[64]; snprintf(p, sizeof p, "%s/", roots[i]); DIR *d = opendir(p); if (!d) continue; closedir(d);
+            snprintf(mounted[nm++], sizeof mounted[0], "%s", roots[i]);
+            snprintf(p, sizeof p, "%s/aurek", roots[i]); struct stat s;
+            if (!app_dir[0] && stat(p, &s) == 0 && S_ISDIR(s.st_mode)) snprintf(app_dir, sizeof app_dir, "%s", p);
         }
     }
-    if (!app_dir[0] && gc_dvd_mount()) {               /* the game on a disc image (Swiss, Dolphin): its files/aurek */
+    if (!app_dir[0] && nm) {
+        const char *r[4]; for (int i = 0; i < nm; i++) r[i] = mounted[i];
+        struct stat s;
+        if (gc_dvd_mount_image(r, nm, image_path, sizeof image_path) && stat("dvd:/aurek", &s) == 0) snprintf(app_dir, sizeof app_dir, "dvd:/aurek");
+    }
+    if (!app_dir[0] && gc_dvd_mount()) {               /* the disc in the drive, or Dolphin's: its files/aurek */
         struct stat s; if (stat("dvd:/aurek", &s) == 0) snprintf(app_dir, sizeof app_dir, "dvd:/aurek");
     }
     if (!app_dir[0]) snprintf(app_dir, sizeof app_dir, "sd:/aurek");

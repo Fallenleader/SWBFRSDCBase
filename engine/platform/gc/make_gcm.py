@@ -25,7 +25,13 @@ files replace is left out too:
     X.AT3        cut to its first 4 KB when converted/.../X.AT3.adp exists (the engine reads only the RIFF header: the encoder
                  delay and the loop points)
     GMSND.AM     cut to its first 256 KB when converted/.../GMSND.AM.d exists (the engine reads only its index)
-The converter's manifest.txt is left out as well.  The region (default usa) is the disc's, which a console's own boot menu checks;
+The converter's manifest.txt is left out as well.  The image is padded to the full disc size (1,459,978,240 bytes) like an image of a
+pressed disc; --no-pad (or untick it in the window) stops at the last file.
+
+On a GameCube with an SD card (SD2SP2, SD Gecko) and Swiss, either works:
+    - aurek.dol started from Swiss, with the game in an "aurek" folder on the card (aurek/GAME, aurek/converted, aurek/settings.txt)
+    - Aurek_GC.iso on the card, started from Swiss: aurek.dol finds the image on the card (the newest Aurek image in the card's top
+      two folder levels) and reads it as a file - Swiss's drive emulation serves Nintendo SDK games, not libogc programs  The region (default usa) is the disc's, which a console's own boot menu checks;
 Swiss and Dolphin don't mind.  The boot program is Aurek's own small apploader (platform/gc/apploader); no Nintendo code is used."""
 import argparse, os, struct, sys, subprocess, threading
 
@@ -265,7 +271,7 @@ def autodetect(d):
     return found
 
 # ---------------------------------------------------------------- the build
-def build(dol_path, settings, game, conv, out, region_name='usa', gid='AURE01', progress=None, rebuild_apploader=False):
+def build(dol_path, settings, game, conv, out, region_name='usa', gid='AURE01', progress=None, rebuild_apploader=False, pad=True):
     """writes the disc image; returns a summary.  progress(done, total) is called as files are written.  raises BuildError"""
     for k, v in (('dol', dol_path), ('settings', settings), ('game', game), ('converted', conv)):
         ok, note = CHECKS[k](v)
@@ -361,12 +367,13 @@ def build(dol_path, settings, game, conv, out, region_name='usa', gid='AURE01', 
                         if not b: raise BuildError('%s: shorter than expected' % p)
                         o.write(b); left -= len(b)
                 if progress and (n % 20 == 0 or n == len(placed) - 1): progress(n + 1, len(placed))
-            o.truncate(total)
+            o.truncate(DISC_MAX if pad else total)        # (pad: the full disc size, 1,459,978,240 bytes, as a pressed disc's image)
         os.replace(tmp, out)
     except BaseException:
         try: os.remove(tmp)
         except OSError: pass
         raise
+    if pad: total = DISC_MAX
     return ('%s: %.1f MB (%s, ID %s)\n  in it: %s, %s, settings.txt, converted media from %s; %d files under /aurek\n'
             '  %d originals left out or cut to what the engine reads (their converted copies are on the disc): %.1f MB saved'
             % (out, total / 1048576, region_name, gid, os.path.basename(dol_path), what, conv, len(placed), replaced, saved / 1048576))
@@ -393,7 +400,7 @@ def gui(here, dropped):
     state.update(autodetect(here))
     for k, v in classify_many(dropped).items(): state[k] = v
     out_var = tk.StringVar(value=os.path.join(here, 'Aurek_GC.iso'))
-    region_var = tk.StringVar(value='usa')
+    region_var = tk.StringVar(value='usa'); pad_var = tk.BooleanVar(value=True)
     busy = {'on': False}
 
     frm = ttk.Frame(root, padding=12); frm.pack(fill='both', expand=True)
@@ -431,6 +438,7 @@ def gui(here, dropped):
     ttk.Button(frm, text='Browse...', command=browse_out).grid(row=r0 + 1, column=3, padx=(6, 0))
     ttk.Label(frm, text='Region', font=('Segoe UI', 10, 'bold')).grid(row=r0 + 2, column=1, sticky='w', pady=(6, 0))
     ttk.Combobox(frm, textvariable=region_var, values=sorted(REGIONS), state='readonly', width=10).grid(row=r0 + 2, column=2, sticky='w', pady=(6, 0))
+    ttk.Checkbutton(frm, text='Full disc size (1,459,978,240 bytes, as an image of a pressed disc)', variable=pad_var).grid(row=r0 + 2, column=2, sticky='e', pady=(6, 0))
     prog = ttk.Progressbar(frm, maximum=100); prog.grid(row=r0 + 3, column=0, columnspan=4, sticky='ew', pady=(12, 4))
     status = tk.Label(frm, text='', anchor='w', justify='left', wraplength=730); status.grid(row=r0 + 4, column=0, columnspan=4, sticky='w')
     btn = ttk.Button(frm, text='Convert')
@@ -459,11 +467,11 @@ def gui(here, dropped):
     def run():
         busy['on'] = True; btn.config(state='disabled'); prog['value'] = 0
         status.config(text='Reading the game and the converted files...', fg='#000')
-        out = os.path.abspath(out_var.get()); reg = region_var.get()
+        out = os.path.abspath(out_var.get()); reg = region_var.get(); pad = pad_var.get()
         def prog_cb(n, t): root.after(0, lambda: (prog.configure(value=100.0 * n / t), status.config(text='Writing: %d of %d files' % (n, t), fg='#000')))
         def work():
             try:
-                msg = build(state['dol'], state['settings'], state['game'], state['converted'], out, reg, progress=prog_cb); err = None
+                msg = build(state['dol'], state['settings'], state['game'], state['converted'], out, reg, progress=prog_cb, pad=pad); err = None
             except BuildError as e: msg, err = None, str(e)
             except Exception as e: msg, err = None, '%s: %s' % (type(e).__name__, e)
             def done():
@@ -499,13 +507,14 @@ def main():
     ap.add_argument('--out'); ap.add_argument('--region', default='usa', choices=sorted(REGIONS))
     ap.add_argument('--id', default='AURE01', help='six-character game ID (default AURE01; the fourth character follows --region)')
     ap.add_argument('--pause', action='store_true', help='wait for Enter before closing')
+    ap.add_argument('--no-pad', action='store_true', help='stop at the last file instead of padding to the full disc size')
     ap.add_argument('--rebuild-apploader', action='store_true', help='build the apploader from apploader/ (devkitPPC) instead of the copy here')
     ap.add_argument('paths', nargs='*', help='the game, the Converted folder, aurek.dol, settings.txt (any order; recognised by what they are)')
     a = ap.parse_args()
     given = {'dol': a.dol, 'settings': a.settings, 'game': a.game, 'converted': a.converted}
-    return console(os.path.abspath(a.dir), a.paths, pause=a.pause, given=given, out=a.out, region=a.region, gid=a.id, rebuild=a.rebuild_apploader)
+    return console(os.path.abspath(a.dir), a.paths, pause=a.pause, given=given, out=a.out, region=a.region, gid=a.id, rebuild=a.rebuild_apploader, pad=not a.no_pad)
 
-def console(d, paths, pause=False, given=None, out=None, region='usa', gid='AURE01', rebuild=False):
+def console(d, paths, pause=False, given=None, out=None, region='usa', gid='AURE01', rebuild=False, pad=True):
     state = autodetect(d); state.update(classify_many(paths))
     for k, v in (given or {}).items():
         if v: state[k] = os.path.abspath(v)
@@ -521,7 +530,7 @@ def console(d, paths, pause=False, given=None, out=None, region='usa', gid='AURE
         out = os.path.abspath(out or os.path.join(d, 'Aurek_GC.iso'))
         try:
             print(); print(build(state['dol'], state['settings'], state['game'], state['converted'], out, region, gid,
-                                 progress=lambda n, t: print('  writing %d / %d files' % (n, t), end='\r', flush=True), rebuild_apploader=rebuild))
+                                 progress=lambda n, t: print('  writing %d / %d files' % (n, t), end='\r', flush=True), rebuild_apploader=rebuild, pad=pad))
         except BuildError as e:
             print('\nFailed: %s' % e); code = 1
     if pause:

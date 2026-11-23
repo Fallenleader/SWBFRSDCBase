@@ -13,14 +13,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <dirent.h>
+#include <time.h>
 
 typedef struct { u8 dir; u32 name, off, len; } fst_e;   /* dir: len = the index after its last child; file: off, len */
 static fst_e *fe; static u32 nfe; static const char *names; static dvdcmdblk cmd; static mutex_t mx = LWP_MUTEX_NULL;
 static u8 cache[32u << 10] __attribute__((aligned(32))); static u32 c_off = 0xFFFFFFFFu, c_len;
 
 static u32 be32(const u8 *p) { return (u32)p[0] << 24 | (u32)p[1] << 16 | (u32)p[2] << 8 | p[3]; }
+static FILE *img;                                    /* the disc image as a file on the SD card (gc_dvd_mount_image), else the drive */
 static bool raw(void *dst, u32 off, u32 len)         /* (dst 32-aligned, off 4-aligned, len a multiple of 32) */
 {
+    if (img) {                                       /* (reading past the image's end - the last block of a file - gives zeros) */
+        if (fseek(img, (long)off, SEEK_SET)) return false;
+        size_t got = fread(dst, 1, len, img); if (got < len) memset((u8 *)dst + got, 0, len - got);
+        return got > 0 || len == 0;
+    }
     DCInvalidateRange(dst, len);
     return DVD_ReadPrio(&cmd, dst, len, off, 2) >= 0;
 }
@@ -116,10 +124,8 @@ static const devoptab_t dvd_dev = {
     .dirnext_r = d_dirnext, .dirclose_r = d_dirclose, .lstat_r = d_stat, .chdir_r = d_chdir,
 };
 
-bool gc_dvd_mount(void)                              /* true: "dvd:" is there */
+static bool mount_fst(void)                           /* the FST from the image's header: "dvd:" */
 {
-    DVD_Init();
-    if (DVD_Mount() < 0) return false;
     static u8 hdr[0x440] __attribute__((aligned(32)));
     if (!raw(hdr, 0, sizeof hdr) || be32(hdr + 0x1C) != 0xC2339F3Du) return false;   /* (the GameCube disc magic) */
     u32 fo = be32(hdr + 0x424), fs = be32(hdr + 0x428);
@@ -131,4 +137,48 @@ bool gc_dvd_mount(void)                              /* true: "dvd:" is there */
     fe[0].name = 0; names = (const char *)f + 12 * nfe;
     LWP_MutexInit(&mx, false);
     return AddDevice(&dvd_dev) >= 0;
+}
+
+bool gc_dvd_mount(void)                              /* the disc in the drive (a burned disc; Dolphin): true when "dvd:" is there */
+{
+    DVD_Init();
+    if (DVD_Mount() < 0) return false;
+    return mount_fst();
+}
+
+/* The disc image as a FILE on the SD card, read by us.  Swiss boots a disc image from the SD card by emulating the drive for the
+ * game it starts - by patching the game's own (Nintendo SDK) drive code and catching its register accesses.  A libogc program puts
+ * its own exception vectors and drive code in place, so that emulation is gone and the real (empty) drive answers.  So, before
+ * touching the drive: an Aurek image on the SD card (the newest whose ID starts "AUR"), read through libfat like any file. */
+static bool is_aurek_image(const char *p)
+{
+    FILE *f = fopen(p, "rb"); if (!f) return false;
+    u8 h[0x20]; bool ok = fread(h, 1, sizeof h, f) == sizeof h && !memcmp(h, "AUR", 3) && be32(h + 0x1C) == 0xC2339F3Du;
+    fclose(f); return ok;
+}
+static void scan(const char *dir, int depth, char *best, size_t cap, time_t *best_t)
+{
+    DIR *d = opendir(dir); if (!d) return;
+    struct dirent *e; char p[512];
+    while ((e = readdir(d))) {
+        if (e->d_name[0] == '.') continue;
+        snprintf(p, sizeof p, "%s/%s", dir, e->d_name);
+        struct stat st; if (stat(p, &st)) continue;
+        if (S_ISDIR(st.st_mode)) { if (depth < 2) scan(p, depth + 1, best, cap, best_t); continue; }
+        size_t n = strlen(e->d_name);
+        if (n < 5 || (strcasecmp(e->d_name + n - 4, ".iso") && strcasecmp(e->d_name + n - 4, ".gcm"))) continue;
+        if (st.st_size < (off_t)(1u << 20) || !is_aurek_image(p)) continue;
+        if (!best[0] || st.st_mtime > *best_t) { snprintf(best, cap, "%s", p); *best_t = st.st_mtime; }
+    }
+    closedir(d);
+}
+bool gc_dvd_mount_image(const char *const *roots, int nroots, char *found, size_t cap)
+{
+    found[0] = 0; time_t t = 0;
+    for (int i = 0; i < nroots; i++) { char r[16]; snprintf(r, sizeof r, "%s/", roots[i]); scan(roots[i], 0, found, cap, &t); (void)r; }
+    if (!found[0]) return false;
+    img = fopen(found, "rb"); if (!img) return false;
+    setvbuf(img, NULL, _IOFBF, 64u << 10);
+    if (!mount_fst()) { fclose(img); img = NULL; return false; }
+    return true;
 }
