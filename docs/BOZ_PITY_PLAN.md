@@ -130,3 +130,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M3: the menus' own models (BFF_MAINMENU.GUI, 234 meshes) load with the front end, as the original's (no level
   opened for the menus). Next: check the carousel items against the original, the soldier preview without a level, then
   personalisation and the loadouts in game.
+- 2026-11-23 M3: menu item models found by path or bare name (the Empire rifle and the grenades had none). Next: placement
+  against the original, the soldier preview without a level, the saved loadout, the loadouts in game.

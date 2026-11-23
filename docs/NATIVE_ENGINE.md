@@ -454,6 +454,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Menu models (M3) | The original opens no level for the menus (strace on the harness original as far as the load-out page: no ENVS file read). The customisation menu's models are in BFF_MAINMENU.GUI itself: 234 meshes (soldiers by faction and class with their L1 / L2 levels of detail, skeletons, the items). Aurek now loads them at front-end start into their own arena (AK_FE_MODELS, AK_FE_MODELS_MB 12). The file has no level geometry, so ak_level_parse's false is ignored once its textures are read. Only its textures go to the GPU, as a scene level of textures alone (viewer.c fe_scene_textures). The model widgets (carousel items, second weapon) draw from these models when no level is loaded. Before, they were empty until a level had been played. |
 
+| Menu item model names (M3) | Some items' WeaponModel is a path ("Objects\\Weapons\\EMP_Blaster_rifle\\EMP_Blaster_rifle.ASR"), while the menu file names its mesh bare ("EMP_Blaster_rifle"). The menu's model lookup now also tries the path's last part without .ASR. Under AK_LOG=2, every menu item's model is logged once as found or MISSING. Before this, the Empire rifle, thermal detonator, detpack and auto-turret pack had no model in the menu. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |

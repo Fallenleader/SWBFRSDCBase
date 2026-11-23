@@ -114,7 +114,15 @@ static void fe_model_draw(const void *weapon, bool soldier, const ak_fe_look *lo
         if (!lk_ok) return;
     }
     const ak_bp_object *w = (const ak_bp_object *)weapon;   /* (weapons whose models the level lacks are not drawn) */
-    s32 mi = soldier ? -1 : ak_models_find(fe_models, ak_bp_string(w, "WeaponModel", "")); if (mi < 0 && !soldier) return;
+    s32 mi = soldier ? -1 : ak_models_find(fe_models, ak_bp_string(w, "WeaponModel", ""));
+    if (mi < 0 && !soldier) {                                          /* (a path "Objects\Weapons\X\X.ASR": the mesh is named X) */
+        const char *p = ak_bp_string(w, "WeaponModel", ""), *b = p; for (const char *q = p; *q; q++) if (*q == '\\' || *q == '/') b = q + 1;
+        char nm[96]; size_t n = strlen(b); if (n > 4 && !strcasecmp(b + n - 4, ".ASR")) n -= 4; if (n >= sizeof nm) n = sizeof nm - 1;
+        memcpy(nm, b, n); nm[n] = 0; if (n && b != p) mi = ak_models_find(fe_models, nm);
+    }
+    if (!soldier && ak_log_level_now() >= 2) { static const void *seen[64]; static int ns; bool k = false; for (int i = 0; i < ns; i++) if (seen[i] == w) k = true;
+        if (!k && ns < 64) { seen[ns++] = w; AK_INFO("fe", "menu item model %s: %s", ak_bp_string(w, "WeaponModel", "?"), mi >= 0 ? "found" : "MISSING"); } }
+    if (mi < 0 && !soldier) return;
     if (soldier && (!fe_play || !fe_play->ready)) return;
     f32 aspect = rect[3] > 0 ? rect[2] / rect[3] : 1;
     f32 fx = fov > 0.05f ? fov : 0.65f, fovy = 2.0f * atanf(tanf(fx * 0.5f) / aspect);   /* (0881D084: the angle across, as the game camera's) */
