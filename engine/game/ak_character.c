@@ -222,3 +222,13 @@ void ak_char_update(ak_character *c, const ak_char_params *p, const ak_collision
         ground(c, p, col, h);
     }
 }
+
+/* a push from another body (play.c bodies_push) moved through the level like any move: the box slides along the faces it meets
+   rather than being set inside them [assumed: the original's soldier never sinks into the level when a vehicle's box pushes it -
+   Boz Pity's AT-AT against a slope; its own response is not read] */
+void ak_char_push(ak_character *c, const ak_collision *col, const f32 push[3])
+{
+    f32 mv[3] = { push[0], push[1], push[2] }, gn[3]; bool rest;
+    if (!col) { for (int k = 0; k < 3; k++) c->pos[k] += push[k]; return; }
+    body_slide(c, col, mv, gn, &rest);
+}

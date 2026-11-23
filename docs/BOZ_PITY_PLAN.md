@@ -175,3 +175,5 @@ Reports fall after M5, M10 and M15.
   walk now matches to 0.12 m for 2 s. Found: Aurek's player falls through the world after meeting the AT-AT (7 s). Next: fix.
 - 2026-11-23 M6: the fall-through's cause found - a body sunk over 2 cm into a face gets "inside" from the sweep and Aurek
   ignores it (PARITY 1.3b, 088B6510 not read yet). Next: port the original's "inside" handling.
+- 2026-11-23 M6: the Boz Pity fall-through fixed (pushes slide through the level); walk within 0.12 m for 2 s, within 4.5 m
+  overall (the AT-AT slowdown differs), Hoth unchanged. Next: the AT-AT slowdown, then the other movement programs.

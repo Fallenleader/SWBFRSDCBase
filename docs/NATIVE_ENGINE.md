@@ -476,6 +476,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Test warm-up (M6) | AK_TEST_WARMUP=<frames>: the match world (vehicles, walkers, scripts) runs that long before the player starts, the player held still and untraced (play.c ak_play_warmup). The original's match runs behind its team selection and spawn map, so its world is older than its player. compare_walk.py --warmup passes it (Boz Pity: 590 frames, so the AT-AT stands where the original's does). With it, Boz Pity walk_forward matches the original within 0.12 m for the first 2 s. |
 
+| Pushes through the level (M6) | A push from another body (vehicle, soldier, mover) now moves the soldier through the level sweep (ak_character.c ak_char_push -> body_slide) rather than straight onto its position, so the box slides along faces instead of being set inside them. This is [assumed]: the original's own response is not read. On Boz Pity, the AT-AT's box (its HSKN box, the same rule as the original's 08817C14 path) pushed the player 3 mm a frame into a rising slope until the sweep gave "inside" and the player fell through the world. With the change, the Boz Pity walk_forward (--warmup 590) never falls: the largest gap is 4.5 m, at the AT-AT, where the original slows differently, and height stays within 0.31 m. Hoth's walk is unchanged (0.22 m). Shape ids found on the way: the physics shape lookups use the vehicle names' hashes (AT_AT 0x058D13BF, AT_ST 0x058D15ED, Carrion_Spat 0x7FDD5A45, T4B_tank 0x7D7838E7). Boz Pity has no SHAP of those, so the model's own box is used, as Aurek does. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |

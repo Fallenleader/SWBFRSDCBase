@@ -54,6 +54,7 @@ void ak_char_spawn(ak_character *c, const f32 *pos, f32 yaw);
 /* one step: turns, moves relative to the facing, jumps, falls, collides */
 void ak_char_update(ak_character *c, const ak_char_params *p, const ak_collision *col, const ak_char_input *in, f32 dt);
 /* drop a point onto the ground below it (spawning): false when there is none within `range` */
+void ak_char_push(ak_character *c, const ak_collision *col, const f32 push[3]);   /* moved through the level (no sinking into faces) */
 bool ak_char_ground_below(const ak_collision *col, const f32 *pos, f32 range, f32 *ground);
 
 #endif

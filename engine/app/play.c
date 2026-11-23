@@ -167,7 +167,7 @@ static void bodies_push(ak_play *p, const ak_model_set *m)
                 AK_INFO("body", "  (vehicle %u: %s at %.2f %.2f %.2f, yaw %.3f)", j - p->nbots, vv->def && vv->def->name ? vv->def->name : "?", g[0], g[1], g[2], vv->yaw); }
             if (ak_setting_int("AK_DEBUG_BODY", 0)) AK_INFO("body", "player pushed %.3f %.3f %.3f by body %u (%s)", push[0], push[1], push[2], j,
                 j < p->nbots ? "soldier" : j < p->nbots + p->nveh ? "vehicle" : j < p->nbots + p->nveh + p->nturret ? "turret" : "mover");
-            for (int k = 0; k < 3; k++) ch->pos[k] += push[k];
+            ak_char_push(ch, &p->col, push);                                 /* (through the level's faces, not into them) */
             f32 l2 = push[0] * push[0] + push[1] * push[1] + push[2] * push[2];
             if (l2 > 1e-10f) { f32 vn = (ch->vel[0] * push[0] + ch->vel[1] * push[1] + ch->vel[2] * push[2]) / l2;
                 if (vn < 0) for (int k = 0; k < 3; k++) ch->vel[k] -= vn * push[k]; }
