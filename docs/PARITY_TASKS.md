@@ -1777,6 +1777,10 @@ textures and how they are used. Section R lists only what must be in place so th
     slowdown, so the walker's push shape in the original is not this box. Next: trace the original's soldier-vs-vehicle
     separation (which shape a walker offers: its physics body / per-part boxes) and use it; the AT_AT box is the likely cause of
     both the push and the sink under Boz Pity's slope.
+  - 08A05F60 (the physics shape lookup): ids 0 / 1 are the built-in shapes (soldier box, 0.2 m cube) at 0x08C2C29C + 40 x id;
+    other ids are looked up by a1 in a linked list from 0x08B3071C (+0 the id, +4 / +36 / +40 its parts) - shapes made from the
+    models' own data. Next: who creates those shapes for a walker (the AT-AT's physics body: its id and the parts' sizes) and
+    which shape a soldier is separated from - then port it in place of the whole-model box.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
