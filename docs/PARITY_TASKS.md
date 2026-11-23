@@ -1718,6 +1718,10 @@ textures and how they are used. Section R lists only what must be in place so th
     (133.4, 113.0 and 127.4, 112.6) that Aurek's path never reaches. Speeds after the start: original 5.6-6.3 m/s, Aurek
     5.2-6.3. Next: the cause of Aurek's first-frame shove and of the heading offset (the camera's yaw at spawn vs the
     soldier's? the spawn inside a collider?).
+  - M6 walk_forward, Aurek alone with the same spawn (AK_TEST_SPAWN 152.2009,1.4943,106.8308, facing -0.9289,0.3704):
+    frame 0 -> 1 the player jumps 0.57 m at 62 deg (+0.27 x, +0.51 z) - a push-out on the first step (the original's first
+    frames move 0.1 m in the facing); after it, the heading is 152 deg for frames 2-60 (original 157) and drifts to 146 deg
+    over 1-2 s. Next: what the 0.6 x 1.8 x 0.6 body overlaps at the spawn (level faces? an object box?), and the 5 deg left.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
