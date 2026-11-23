@@ -4285,7 +4285,7 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 } }
             u32 shot = ak_weapon_fire(&p->weapon, &p->bolts, &p->col, p->target, nt, muz, tgt, &p->seed);
             {   static int ds = -1; if (ds < 0) ds = ak_setting_int("AK_DEBUG_SHOTS", 0);   /* tests: the player's shots, by frame */
-                if (ds && shot) AK_INFO("shot", "frame %u %s ammo %d spare %d heat %.1f", p->frame_no, p->wdef.name ? p->wdef.name : "?", p->weapon.ammo, p->weapon.spare, p->weapon.heat.heat); }
+                if (ds && shot) AK_INFO("shot", "frame %u %s ammo %d spare %d heat %.1f dmg %.1f/%.1f speed %.1f spread %.2f", p->frame_no, p->wdef.name ? p->wdef.name : "?", p->weapon.ammo, p->weapon.spare, p->weapon.heat.heat, p->wdef.dmg_infantry, p->wdef.dmg_vehicle, p->wdef.speed, p->wdef.spread_deg); }
         }
     }
     /* the bots */

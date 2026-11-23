@@ -1825,6 +1825,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M7 damage (2026-11-23): 089A7310's second argument is a 32-byte hit record - word 1 the attacker's handle, word 3 the
     damage (float; seen 30, 25, 8 from bots); the target's +0x25C is not the health for those targets. The player's own hits are
     not measured yet: lock-on (R) + fire from the Boz spawn or after a teleport hit nothing. Uncertain: the player's damage per hit.
+  - M7 player hit (2026-11-23): the original's player hit record = { 0x161faf77, 0x30d63, 0x3e8, 15.0, -1, 4 } - damage 15 as
+    Aurek's rifle. The bots' records carry 30 / 25 / 20 / 10 / 8 (their own weapons). --tp's y lands ~12.9 m above the given
+    value (the drop seen twice) - Uncertain: the --tp axis convention.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

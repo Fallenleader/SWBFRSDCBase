@@ -188,3 +188,4 @@ Reports fall after M5, M10 and M15.
   stance (3 s after the trigger) found and ported - first shot, taps and re-presses now land on the original's frames.
 - 2026-11-23 M7: reload verified against the original (135 frames from the emptying shot to the next). The player's damage per
   hit still needs a set-up where the original's player hits a bot (lock-on from the spawn hit nothing).
+- 2026-11-23 M7: the player's rifle damage per hit measured in the original (15) - Aurek's the same. Next: headshot, grenades.
