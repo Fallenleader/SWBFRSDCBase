@@ -39,6 +39,8 @@ void ak_fe_trophies_sync(void);                          /* the trophies of the 
 const u16 *ak_fe_profile_name(u32 *len);       /* its name, NULL none */
 void ak_fe_campaign_won(void);                 /* a won campaign mission: the profile's level on (08973468), saved */                  /* the page index and the menu texts; false = no GUIMENU files */
 bool ak_fe_open(const char *page);             /* "MP_MainMenu" */
+/* the movies the menus play (FE_PlayMovie): the caller's player by the game's movie name ("credits", "basics"); blocks */
+void ak_fe_set_movie_player(int (*fn)(const char *name));
 int ak_fe_update(const ak_input *in, f32 dt);  /* AK_FE_START: a match was launched (FE_HostGame) */
 void ak_fe_draw(void);                         /* between ak_gfx_begin and ak_gfx_end */
 /* the on-screen keyboard (the profile's name; drawn by ak_fe_draw while open, or alone with ak_osk_draw) */

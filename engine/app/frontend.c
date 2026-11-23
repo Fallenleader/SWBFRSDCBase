@@ -17,6 +17,7 @@ static bool osk_wait;
 static u16 tb_name[21]; static u32 tb_n; static bool tb_set, in_name_box, osk_box;                                                  /* (FE_SetProfileName opened the keyboard: the button's list waits) */
 enum { SD_LOAD = 4, SD_SAVE = 5, SD_DELETE = 6 };                       /* (the save dialogue's modes: below) */
 static void sd_open(int mode); static void sd_draw(void);
+static const ak_widget *find_name_box(const ak_widget *w); static const u16 *tb_text(const ak_widget *box, u32 *n);
 static int run(const ak_gui_action *a, int row);
 #include <string.h>
 #include <ctype.h>
@@ -93,7 +94,7 @@ static u16 medal_msg[96]; static u32 medal_msg_n;              /* (the medals: b
 #define PROF_SIZE 0x80C
 static u8 prof[PROF_SIZE]; static bool prof_have;
 static const struct { const char *name; u16 off; u8 kind; } prof_map[] = {   /* kind: 0 u8, 1 s32, 2 f32 */
-    { "BFF.Subtitles", 0x3F, 0 }, { "BFF.InfantryControlAimPitchSensitivity", 0x40, 2 }, { "BFF.InfantryControlAimYawSensitivity", 0x44, 2 },
+    { "BFF.Subtitles", 0x3F, 0 }, { "BFF.ControlMethod", 0x58, 1 }, { "BFF.InfantryControlAimPitchSensitivity", 0x40, 2 }, { "BFF.InfantryControlAimYawSensitivity", 0x44, 2 },
     { "BFF.InfantryControlPitchSensitivity", 0x48, 2 }, { "BFF.InfantryControlYawSensitivity", 0x4C, 2 },
     { "BFF.InfantryControlInvertYAxis", 0x51, 0 }, { "BFF.VehicleControlInvertYAxis", 0x6D, 0 }, { "BFF.SpacecraftControlInvertYAxis", 0x89, 0 },
     { "BFF.SpacecraftControlAutoLevelling", 0x8A, 0 }, { "BFF.VolumeMaster", 0x94, 2 }, { "BFF.VolumeMusic", 0x98, 2 }, { "BFF.VolumeSFX", 0x9C, 2 },
@@ -354,6 +355,11 @@ static bool open_hash(u32 h, bool push)
         if (!layering) nlists = 0;
         refill();
         AK_INFO("fe", "%s", idx[i].name);
+        {   /* the name box's text from its own words when first seen (MP_NewProfile: "Col Serra" - what the original saves when the
+               name is not typed; an empty name is what Aurek saved before) */
+            const ak_widget *nb = find_name_box(&pg->root);
+            if (nb && !tb_set) { u32 n = 0; const u16 *t = tb_text(nb, &n); if (t && n) { tb_n = n > 20 ? 20 : n; memcpy(tb_name, t, tb_n * 2); tb_set = true; } }
+        }
         if (pg->on_open.fn && pg->on_open.fn[0]) run(&pg->on_open, -1);   /* (the page's own OnOpen, run as it opens: 08885168 -> 0887DED0 - seen with gdb on MP_LoadProfile) */
         return true;
     }
@@ -1450,6 +1456,16 @@ static void pers_picker_draw(void)
         if (pick.elem == 0) frame_rect(t, X0, Y0, X0 + W, Y0 + HS, 2, c); else frame_rect(t, SX, Y0, SX + SW, Y0 + HS, 2, c);
     }
 }
+/* the game's movies (0x08B1C08C: 20 of {name, the text key it is listed by}); FE_PlayMovie plays by index (Learn To Play's
+   buttons: 15 gamemode, 16 customise, 17 spacecombat, 18 galaticconquest, 19 basics; Videos: 13 SW_unleashed "Bonus Content",
+   14 Credits) */
+static const struct { const char *name; u32 text; } movies[20] = {
+    { "intro", 0x169 }, { "yavin", 0x59 }, { "alderaan", 0x158 }, { "ordmantel", 0x55 }, { "kessel", 0x159 }, { "tatooine", 0x58 },
+    { "bozpity", 0x4B }, { "hoth", 0x152 }, { "hothspace", 0x154 }, { "korriban", 0x51 }, { "sullust", 0x57 }, { "endor", 0x4C },
+    { "outro", 0x16A }, { "SW_unleashed", 0x16B }, { "Credits", 0x16C }, { "gamemode", 0x16D }, { "customise", 0x16E },
+    { "spacecombat", 0x16F }, { "galaticconquest", 0x170 }, { "basics", 0x169 } };
+static int (*movie_player)(const char *name);
+void ak_fe_set_movie_player(int (*fn)(const char *name)) { movie_player = fn; }
 static int run(const ak_gui_action *a, int row)
 {
     if (!a->fn || !a->fn[0]) return AK_FE_NONE;
@@ -1540,6 +1556,16 @@ static int run(const ak_gui_action *a, int row)
     }
     else if (!strcmp(fn, "FE_ProfileNameOnInit")) { u32 n; const u16 *t = ak_fe_profile_name(&n); tb_n = n > 20 ? 20 : n; if (t) memcpy(tb_name, t, tb_n * 2); tb_set = true; }   /* 08A2E9A0 */
     else if (!strcmp(fn, "FE_ForceProfileChangeState")) { if (!prof_have) prof_new(); prof[6] = (u8)atoi(a->arg); }   /* 08A2EB50: +6 = the argument */
+    else if (!strcmp(fn, "ControlMethod")) {                         /* 08979C58: the scheme flips 0 <-> 1 (0 "Default", 1 "Alternate"),
+                                                                         written to the profile's +0x58, +0x74, +0x90; the profile changed */
+        if (!prof_have) prof_new();
+        u32 v = var_get("BFF.ControlMethod") != 0 ? 0 : 1; var_set("BFF.ControlMethod", (f32)v);
+        pw32(0x58, v); pw32(0x74, v); pw32(0x90, v); prof[6] = 1;
+    }
+    else if (!strcmp(fn, "FE_PlayMovie")) {                           /* the movie by its index: the argument, else the list's row */
+        int k = a->arg && a->arg[0] ? atoi(a->arg) : row;
+        if (k >= 0 && k < 20 && movie_player) { AK_INFO("fe", "movie %d: %s", k, movies[k].name); movie_player(movies[k].name); }
+    }
     else if (!strcmp(fn, "FE_OpenProfileMenu")) {                    /* 08A2E8B4: from MP_MSplashScreen only - it closes, the profile page opens */
         if (page && page->root.id == 0x818BCCE4u) open_hash(0x5B53EB0Du, false); }
     else if (!strcmp(fn, "FE_ExitAutoSaveMenu")) {                    /* 08A2F624: a canceled save turns the autosave off */

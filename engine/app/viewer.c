@@ -138,6 +138,34 @@ static void fe_model_draw(const void *weapon, bool soldier, const ak_fe_look *lo
     ak_gfx_set_projection(NULL);
 }
 
+/* a game movie by its name ("opening_logos", "credits") through the player (func_08A69188): the screen black for 3 frames first,
+ * CROSS skips it, the language folder first; from the converted copies - the GameCube its own THP path, elsewhere
+ * engine/video/ak_movie.c (THP; MP4 / PMF with libavcodec or the device's player) */
+static const char *const *mv_dirs; static int mv_nd; static ak_vfs *mv_vfs;
+static int play_game_movie(const char *name)
+{
+    static const char *const langs[6] = { "en", "fr", "ge", "it", "sp", "ru" };
+    int li = ak_setting_int("AK_LANGUAGE", 0); const char *lang = langs[li >= 0 && li < 6 ? li : 0];
+    {   ak_m4 id; memset(&id, 0, sizeof id); id.m[0] = id.m[5] = id.m[10] = id.m[15] = 1; ak_gfx_env env = { { 0, 0, 0 }, 0, 0, 1.0f };
+        for (int k = 0; k < 3; k++) { ak_gfx_set_projection(NULL); ak_gfx_begin(0xFF000000u, &id, &env); ak_gfx_end(NULL); } }
+    char up[64]; int o = 0; for (const char *c = name; *c && o < 63; c++) up[o++] = (char)toupper((unsigned char)*c); up[o] = 0;
+    u32 sw = 0, sh = 0;                                                   /* the PMF's picture: the movie's part of a letterboxed THP */
+    {   char gp[128]; snprintf(gp, sizeof gp, "PSP_GAME/USRDIR/FMV/%s.PMF", up); ak_arena ta; ak_blob hb;
+        if (mv_vfs && ak_arena_init(&ta, 4096)) { if (ak_vfs_read_part(mv_vfs, gp, 0, 0x100, &ta, &hb)) ak_movie_pmf_shape(hb.data, hb.size, &sw, &sh); ak_arena_free(&ta); } }
+    int r = AK_MOVIE_NONE;
+#ifdef AK_HAS_MOVIES
+    (void)sw; (void)sh; (void)lang;
+    for (int i = 0; i < mv_nd && r == AK_MOVIE_NONE; i++) {
+        char path[512]; snprintf(path, sizeof path, "%s/converted/PSP_GAME/USRDIR/FMV/%s.PMF.thp", mv_dirs[i], up);
+        FILE *t = fopen(path, "rb"); if (!t) continue; fclose(t);
+        if (ak_plat_movie_play(path)) r = AK_MOVIE_PLAYED; }
+#else
+    r = ak_movie_play(mv_dirs, mv_nd, up, lang, sw, sh);
+#endif
+    if (r == AK_MOVIE_NONE) AK_INFO("movie", "%s: no converted copy (the conversion tool writes converted/PSP_GAME/USRDIR/FMV/%s.PMF.thp / .mp4)", up, up);
+    return r;
+}
+
 int main(int argc, char **argv)
 {
     if (!ak_plat_init()) return 1;
@@ -186,33 +214,13 @@ int main(int argc, char **argv)
         else AK_WARN("audio", "no SOUNDS/GMSND.ASR (copy the game's SOUNDS folder next to ENVS): shared sounds missing"); }
     bool have_mus = ak_arena_init(&musmem, 64u << 10);                      /* (a track's header only: its delay and loop) */
     {   /* the movies at start (func_089714A4, the first boot only - 0x08B1B8F8, cleared by func_08971558; Aurek runs this once a start):
-         * "opening_logos" then "rebellion" through the player (func_08A69188): the screen black for 3 frames first, CROSS skips the movie
-         * playing only, the language folder first.  Then AK_MOVIE_TEST's (tests).  From the converted copies, while the level's memory
-         * is still free: the GameCube its own THP path, elsewhere engine/video/ak_movie.c (THP; MP4 / PMF with libavcodec). */
-        static const char *const langs[6] = { "en", "fr", "ge", "it", "sp", "ru" };
-        int li = ak_setting_int("AK_LANGUAGE", 0); const char *lang = langs[li >= 0 && li < 6 ? li : 0];
+         * "opening_logos" then "rebellion" through the player (play_game_movie).  Then AK_MOVIE_TEST's (tests). */
+        mv_dirs = dirs; mv_nd = nd; mv_vfs = vfs;
         char list[256]; snprintf(list, sizeof list, "%s %s", ak_setting_str("AK_INTRO_MOVIES", "OPENING_LOGOS REBELLION"), ak_setting_str("AK_MOVIE_TEST", ""));
         bool quit = false;
-        for (char *tok = strtok(list, " ,"); tok && !quit; tok = strtok(NULL, " ,")) {
-            {   ak_m4 id; memset(&id, 0, sizeof id); id.m[0] = id.m[5] = id.m[10] = id.m[15] = 1; ak_gfx_env env = { { 0, 0, 0 }, 0, 0, 1.0f };
-                for (int k = 0; k < 3; k++) { ak_gfx_set_projection(NULL); ak_gfx_begin(0xFF000000u, &id, &env); ak_gfx_end(NULL); } }
-            char up[64]; int o = 0; for (const char *c = tok; *c && o < 63; c++) up[o++] = (char)toupper((unsigned char)*c); up[o] = 0;
-            u32 sw = 0, sh = 0;                                           /* the PMF's picture: the movie's part of a letterboxed THP */
-            {   char gp[128]; snprintf(gp, sizeof gp, "PSP_GAME/USRDIR/FMV/%s.PMF", up); ak_arena ta; ak_blob hb;
-                if (ak_arena_init(&ta, 4096)) { if (ak_vfs_read_part(vfs, gp, 0, 0x100, &ta, &hb)) ak_movie_pmf_shape(hb.data, hb.size, &sw, &sh); ak_arena_free(&ta); } }
-            bool ok = false;
-#ifdef AK_HAS_MOVIES
-            (void)sw; (void)sh; (void)lang;
-            for (int i = 0; i < nd && !ok; i++) {
-                char path[512]; snprintf(path, sizeof path, "%s/converted/PSP_GAME/USRDIR/FMV/%s.PMF.thp", dirs[i], up);
-                FILE *t = fopen(path, "rb"); if (!t) continue; fclose(t);
-                ok = ak_plat_movie_play(path); }
-#else
-            int r = ak_movie_play(dirs, nd, up, lang, sw, sh); ok = r != AK_MOVIE_NONE; quit = r == AK_MOVIE_QUIT;
-#endif
-            if (!ok) AK_INFO("movie", "%s: no converted copy (the conversion tool writes converted/PSP_GAME/USRDIR/FMV/%s.PMF.thp / .mp4)", up, up);
-        }
+        for (char *tok = strtok(list, " ,"); tok && !quit; tok = strtok(NULL, " ,")) quit = play_game_movie(tok) == AK_MOVIE_QUIT;
         if (quit) return 0;
+        ak_fe_set_movie_player(play_game_movie);                          /* (the menus' FE_PlayMovie) */
     }
     FILE *dumpf = NULL; u32 dump_frames = 0; ak_blob b_level_keep = { 0 };
     if (getenv("AK_AUDIO_DUMP")) { dumpf = fopen(getenv("AK_AUDIO_DUMP"), "wb"); if (dumpf) { static const u8 z[44]; fwrite(z, 1, 44, dumpf); } }
