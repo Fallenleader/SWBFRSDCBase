@@ -1649,6 +1649,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - Loadout = profile set 0 (+0x1B8..+0x1D4, 08977A34). Uncertain: what sets 1..19 hold (other factions / classes? not read
     yet); the 4 bytes at +0x1B4 (0) and +0x1D8 (0); a byte check against the original's own save after a loadout change is still
     to do (the harness route needs the carousel steps).
+  - Loadout sets: every writer (08977A34: 08A27F28, 08A27FD8, 08A09928) and every reader (08977918: 20 calls in 08A2809C,
+    08A287CC, 08A28BCC, 08A342E8, 08A34440, 08A3646C, 08A36BA0) passes set 0 - sets 1..19 are never used. Credits left
+    (08A34290) = the total minus the 8 categories' chosen costs (08A342E8 -> 08A3454C). 08A09928 also stores into set 0 from a
+    game structure (+24: {category, value}); its caller is not traced yet (possibly the in-match customisation).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

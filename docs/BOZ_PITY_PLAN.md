@@ -134,3 +134,5 @@ Reports fall after M5, M10 and M15.
   against the original, the soldier preview without a level, the saved loadout, the loadouts in game.
 - 2026-11-23 M3: the loadout is stored in the profile (set 0 at +0x1B8, 08977A34) and read back by the menu and the spawn.
   Next: what sets 1..19 are, a byte check against the original's save, the loadouts in game by class and faction.
+- 2026-11-23 M3: traced - only loadout set 0 is ever used (all writers and readers); credits = total - the 8 chosen costs.
+  Next: how the match reads set 0 (08A09928's side and the spawn), the byte check against the original's save.
