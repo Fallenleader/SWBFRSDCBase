@@ -807,6 +807,15 @@ int main(int argc, char **argv)
                 if (nm) { u32 k = fm.nnames[t]; fm.name[t][k] = nm; fm.name_len[t][k] = n; fm.bot[t][k] = true; fm.alive[t][k] = play.bot[i].alive;
                           if (i + 1 < 64) { fm.kills[t][k] = play.tally_kills[i + 1]; fm.deaths[t][k] = play.tally_deaths[i + 1]; } fm.nnames[t]++; }
             }
+            {   /* the player killed by an AI soldier: "<killer> killed <player>" (STDTEXT 65) in the left queue, red (channel 2) - seen on
+                   the original (Boz Pity: "Djuj Bellis killed Col Serra" at the death); bots killing bots showed nothing in 3 min
+                   [assumed: the player's own kills - not seen] */
+                static bool was_alive = true; s32 la = play.target[0].last_attacker;
+                if (was_alive && !play.alive && la >= 1 && (u32)(la - 1) < play.nbots) {
+                    u32 kn; const u16 *kname = ak_hud_bot_name(play.team_faction[play.bot[la - 1].team & 1], play.bot[la - 1].name, &kn);
+                    int t = play.team & 1; const u16 *me = fm.nnames[t] ? fm.name[t][0] : NULL; u32 mn = fm.nnames[t] ? fm.name_len[t][0] : 0;
+                    if (kname && me) ak_hud_message2(2, 65, kname, kn, me, mn); }
+                was_alive = play.alive; }
             ak_fe_set_match(&fm);
             if (!ak_fe_page() && !play.alive && play.dead_t >= 3.0f) ak_fe_open_ingame(play.deaths ? "MP_RespawnScoreboard" : "MP_Spawn_Location");   /* (the original: three seconds of the death camera, the score board, then the spawn map) */
             if (frame == ak_setting_int("AK_FE_START_AT", -1)) in.pressed |= AK_BTN_START;   /* (tests) */

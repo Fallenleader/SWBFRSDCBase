@@ -533,6 +533,18 @@ static msg_slot *msg_push(int ch, const u16 *f, u32 fn, const u16 *arg, u32 an)
                                              AK_INFO("hud", "message %d (%.0f s): %s", ch, s->life, a); }
     return s;
 }
+/* a text with two "%s" (STDTEXT 65 "%s killed %s"): the first filled with a1, the second with a2 */
+void ak_hud_message2(int ch, u32 id, const u16 *a1, u32 n1, const u16 *a2, u32 n2)
+{
+    if (ch < 0 || ch > 4 || !stdtext || id >= nstd || !stdtext[id]) return;
+    u16 t[MSG_LEN]; u32 n = 0, k = 0; const u16 *f = stdtext[id]; u32 fn = stdlen[id];
+    for (u32 i = 0; i < fn && n < MSG_LEN - 1; i++) {
+        if (f[i] == '%' && i + 1 < fn && f[i + 1] == 's') { const u16 *a = k ? a2 : a1; u32 an = k ? n2 : n1; k++;
+            for (u32 j = 0; a && j < an && n < MSG_LEN - 1; j++) t[n++] = a[j]; i++; }
+        else t[n++] = f[i];
+    }
+    msg_push(ch, t, n, NULL, 0);
+}
 void ak_hud_message(int ch, u32 id, const u16 *arg, u32 an)
 {
     if (ch < 0 || ch > 4 || !stdtext || id >= nstd || !stdtext[id]) return;

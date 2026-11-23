@@ -63,6 +63,7 @@ bool ak_hud_load(ak_vfs *vfs);
  * replaced by `arg` (UTF-16, e.g. a post's name; NULL none); it stays 4 s a line, less 1 */
 void ak_hud_message(int channel, u32 text, const u16 *arg, u32 arg_len);
 void ak_hud_messages_clear(void);
+void ak_hud_message2(int channel, u32 text, const u16 *a1, u32 n1, const u16 *a2, u32 n2);   /* two "%s" */
 /* the campaign's objective line (style 4's box, staying while set; NULL / 0 clears) [assumed: style 4 - its box sits where the
    original's frame shows it] */
 void ak_hud_tip(u32 id, f32 secs);          /* the campaign's tip: secs <= 0 stays until ak_hud_tip_clear */

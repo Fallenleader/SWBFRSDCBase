@@ -248,3 +248,6 @@ Reports fall after M5, M10 and M15.
   Next: M14 match end.
 - 2026-11-23 M14 COMPLETE (match end): the original's won-match sequence (Victory 5 s, the frozen world, the score board's
   5 .. 1 count, Changing Map, the same map again) measured with ticket pokes and ported. Next: M15 side-by-side acceptance.
+- 2026-11-23 M15 COMPLETE (acceptance, with open items): walk, camera, match end (victory and defeat) checked; the player's
+  "X killed Y" line added. Report 3 sent. Next: the owner's win / loss conditions tested on the original and matched, then
+  the M10 AI leftovers.

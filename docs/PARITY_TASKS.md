@@ -1945,6 +1945,13 @@ textures and how they are used. Section R lists only what must be in place so th
     the soldier's origin at Boz Pity, 1.9 m measured on Hoth: not settled); the equipment prompt's radius - the original keeps
     it at 4.7 m from the post, Aurek's capture radius (5 m) checked from the soldier's origin - not read; a harness health set
     to 0 does not kill the original's soldier (no death, no ticket).
+  - M15 defeat (2026-11-23): seen (NATIVE_ENGINE). Open: the score board's order (by score, then? - Aurek keeps the player
+    first), the red killer bar, whether the player's own kills queue a line, the world during "Defeat" (the death camera ran).
+  - The owner's win / loss rules (2026-11-23, to test on the original and match): all posts captured -> a timer to zero, fast
+    when no enemy is alive, slow while any is; an enemy capture stops and resets it; tickets reaching zero (kills / the last
+    reinforcement) win; the same for the other side, and the player killed after a full enemy capture is an instant defeat
+    (no fast timer). Aurek has the structure (ak_conquest.c: loss_t 60 s [assumed], x11 with no one alive, reset on any change
+    of the full holder, tickets) - the timer's length, the fast rate, its display and the instant-defeat case to measure.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
