@@ -259,3 +259,6 @@ Reports fall after M5, M10 and M15.
   the instant defeat. Next: the M10 AI leftovers (firing rhythm, death rate).
 - 2026-11-23 M10 rhythm measured per bot on the original: Imperial presses ~1.95 s apart (3 shots 0.1 s apart each, BurstTime),
   Rebel rifle 2-3 shots then 2.5-7.4 s; the AI burst/pause machine is the AT-AT's only. Next: the infantry trigger's source.
+- 2026-11-23 M10: the infantry trigger traced (fire node pause 2 / 6 s, bursts by Weapon_Name: rifles 2-3, pistols 1) and
+  ported for bots on foot; rifles and pistols now fire in the original's rhythm. Open: Boba's rifle spacing, the friendly-fire
+  test. Next: Boba's rifle (BurstTime), then the Rebel death rate.

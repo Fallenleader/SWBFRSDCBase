@@ -1976,6 +1976,10 @@ textures and how they are used. Section R lists only what must be in place so th
     (08965A70 / 08965EA4 / 08966050) is the AT-AT's only; infantry fire through 0899B7D8 -> 08A17C64 (weapon +364 bit 1). Next:
     what sets that bit for a bot (the humanoid's input from its AI controller - 08993D38's callers / the control +120 / +160),
     then replace ak_ai_fire for bots on foot; and the BurstTime spacing of multishot weapons in Aurek (now all at once).
+  - M10 trigger (2026-11-23): traced - the fire node's sub-object (08934D40 pause 2.0 then 6.0 s x U(0.85, 1.15); 08934E38 /
+    08935D94 / the Weapon_Name table D_08AD9C90) sends 0x805F (shots owed, weapon +296) or 0x8060 (time held, +300). Ported to
+    play.c for bots on foot. Open: 08935D94's friendly-in-the-line test; when the node runs (the pause only advances while it
+    does); Boba Fett's rifle (BurstTime 0.1: 3 projectiles a press spaced, presses ~1.95 s apart) - Aurek fires the 3 at once.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -615,6 +615,7 @@ placed:
     t->headshot_mult = ak_bp_float(b->look.bp, "Headshot multiplier", 4.0f);
     t->alive = true; t->team = b->team; t->last_attacker = -1;
     b->held = -1;
+    b->fire_pause = 2.0f; b->fire_fired = false; b->fire_shots = 0; b->fire_hold = 0;   /* a new fire node (08934D24: 2.0 s) */
     if (ak_setting_int("AK_BOT_LOADOUTS", 1) && p->ai_armed[b->team][2]) {   /* the game's AI loadouts: its first weapon in hand */
         b->loadout = (s8)ai_loadout_pick(p, b->team, &b->seed);
         int first = ai_weapon_choice(p, b, false, 50.0f); ai_hold(p, b, idx, first);
@@ -2168,8 +2169,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
             else { f32 ex = en->feet[0] - b->ch.pos[0], ey = en->feet[1] - b->ch.pos[1], ez = en->feet[2] - b->ch.pos[2], d = sqrtf(ex * ex + ey * ey + ez * ez);
                    b->react_t -= dt / (d < 30.0f ? 0.03f * d + 0.1f : 1.0f); }
         }
-        /* the trigger (traced, 08942AA4 -> 08965A70, ak_ai_fire): wanting to fire once the reaction has run out, in bursts by
-           the weapon's heat values, with the target within 40 m and 7.5 degrees of the facing across the ground */
+        /* the trigger: the fire node's bursts (below; 2026-11-23 - before, ak_ai_fire's heat bursts, the vehicles' machine) */
         bool held = false;
         {   f32 fwd[3] = { -sinf(b->ch.yaw), 0, -cosf(b->ch.yaw) }, to[3] = { 0, 0, 0 };
             if (en) { to[0] = en->feet[0] - b->ch.pos[0]; to[1] = en->feet[1] - b->ch.pos[1]; to[2] = en->feet[2] - b->ch.pos[2]; }
@@ -2177,7 +2177,39 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
                target's vfunc +104 (soldiers: 08A05718), which solves a lead-aim point from the target's velocity (its vfunc +20) and
                the shot (f12 = 1000, D_08B1B740) and fails only without an intercept - so near enough always true against soldiers
                [assumed: always true here; the lead point itself is not used by Aurek's aim yet] */
-            held = ak_ai_fire_update(&b->fire_ai, b->weapon.def, en && b->react_t <= 0, en && ak_ai_fire_ok(fwd, to, 40.0f * S, 7.5f * 0.017453293f, true), rnd(&b->seed), dt);
+            (void)fwd; (void)to;
+            /* the shooting (traced; measured per bot on the original, harness gdb tools/harness/gdb/ai_shots_by_bot.py): the AI on foot
+               does not use the burst / pause machine (08965A70 - the AT-AT's guns only). Each frame the fire node's sub-object
+               (08934D40) runs its pause while a burst has been asked: pause -= dt x U(0.85, 1.15) (D_08AED688 / 68C, a new draw each
+               frame); below 0 the flag clears and the next pause is 2 x 3.0 (the bot weapon record's +32, 3.0 read live for every
+               weapon seen) - 2.0 at the elite difficulty (D_08AED694). With the flag clear, once the reaction (react_t, +104) has run
+               out, the node asks for a burst by the weapon's Weapon_Name (08934E38's table D_08AD9C90, by Weapon_Name - 110):
+               rifles (110) 2 shots (75 %, D_08AED6B0) or 3 - elite 3 or 4 (D_08AD9CE0 / E4); pistols (111), shotguns (118),
+               Emp_Launcher (119), rocket launchers (126) 1 shot; flamethrowers (116) and chainguns (122) hold the trigger 8 s
+               (D_08AED6C8 / 6B4); bowcasters (124) hold it min(max(d - 6.5, 0) x 0.074, 1) x 3 s (the charge); every other weapon
+               (ArcCaster, fusion cutter, carbonite gun, tri-shot, wrist rocket, snipers, particle pistol, grenade launcher, guided
+               missile) is never fired by this node. The weapon then fires the shots asked as its own rate allows (08A17C64 counts
+               weapon +296 down), facing or not. [not ported: 08935D94's other checks - a friendly soldier in the line of fire
+               blocks the burst, and the 0x74 / 0x7A range test; the node's own activity - the original runs the pause only while
+               the bot's AI runs its fire node, Aurek every frame] */
+            const bool elite = p->difficulty >= 2;
+            if (b->fire_fired) { b->fire_pause -= dt * (0.85f + 0.3f * rnd(&b->seed));
+                if (b->fire_pause < 0) { b->fire_fired = false; b->fire_pause = elite ? 2.0f : 6.0f; } }
+            if (en && b->react_t <= 0 && !b->fire_fired && b->weapon.def && b->weapon.def->bp && p->target[b->enemy].alive) {
+                int wn = ak_bp_int(b->weapon.def->bp, "Weapon_Name", 0) - 110;
+                f32 d = sqrtf(to[0] * to[0] + to[1] * to[1] + to[2] * to[2]) / S;
+                switch (wn) {
+                case 0: b->fire_shots += rnd(&b->seed) < 0.75f ? (elite ? 3 : 2) : (elite ? 4 : 3); b->fire_fired = true; break;
+                case 1: case 8: case 9: case 16: b->fire_shots += 1; b->fire_fired = true; break;
+                case 6: case 12: b->fire_hold += 8.0f; b->fire_fired = true; break;
+                case 14: { f32 k = (d - 6.5f) * 0.074f; if (k < 0) k = 0; if (k > 1) k = 1; b->fire_hold += k * 3.0f; b->fire_fired = true; } break;
+                default: break;
+                }
+                if (b->fire_fired) b->fire_ai.began = true;
+            } else b->fire_ai.began = false;
+            if (b->fire_hold > 0) b->fire_hold -= dt;
+            if (!en) { b->fire_shots = 0; b->fire_hold = 0; }
+            held = en && (b->fire_shots > 0 || b->fire_hold > 0);
             /* Speech_BC_Rocket (089395E4): an AI that starts firing a weapon of the "Rocket" kind (the rocket launchers' Projectile
                "rocket") says it once, until it lets go */
             if (b->fire_ai.began && b->weapon.def && b->weapon.def->bp) { const char *pj = ak_bp_string(b->weapon.def->bp, "Projectile", "");
@@ -2193,6 +2225,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
             f32 acc = p->bot_aim_set ? p->bot_aim : b->weapon.def->ai_acc[p->difficulty >= 2 ? 1 : 0] * 0.017453293f;
             aim_cap(&b->seed, muz, tgt, acc);
             u32 bshot = ak_weapon_fire(&b->weapon, &p->bolts, &p->col, p->target, NT(p), muz, tgt, &b->seed);
+            if (bshot && b->fire_shots > 0) b->fire_shots--;
             {   static int ds = -1; if (ds < 0) ds = ak_setting_int("AK_DEBUG_SHOTS", 0);   /* tests (2): the bots' shots too */
                 if (ds >= 2 && bshot && b->weapon.def) { const ak_target *et = b->enemy >= 0 && (u32)b->enemy < NT(p) ? &p->target[b->enemy] : NULL; f32 ed = et ? sqrtf((et->feet[0] - b->ch.pos[0]) * (et->feet[0] - b->ch.pos[0]) + (et->feet[2] - b->ch.pos[2]) * (et->feet[2] - b->ch.pos[2])) : -1;
                     AK_INFO("shot", "frame %u bot %u %s at %d (%s, %.0f m, health %.0f)", p->frame_no, idx, b->weapon.def->name ? b->weapon.def->name : "?", b->enemy, et ? (et->vehicle ? "vehicle" : "soldier") : "-", ed, et ? et->health : 0); } }
