@@ -271,3 +271,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 Correction: the 2-minute Aurek numbers were 8-9 minutes of match time (frames, not seconds). By time, 120 s:
   original 0 captures, -12..-16 / -30; Aurek 1-2 captures, -2..-5 / -22..-23. Next: the original's capture rate over 6 min.
 - 2026-11-23 M10: the friendly-in-the-line test ported (a teammate within 0.5 of the line in front blocks a burst).
+- 2026-11-23 Measured over 6 minutes: the original's posts change hands 2-3 times (first at 146-300 s) and both sides lose
+  50-90 tickets; Aurek's ~20 times (first at 75-86 s) with ~30 lost each. Next: the AI's goal choice and fighting time.
