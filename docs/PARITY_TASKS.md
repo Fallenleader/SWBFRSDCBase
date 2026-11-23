@@ -2002,6 +2002,9 @@ textures and how they are used. Section R lists only what must be in place so th
     free squad; own post -> 0x3F2, enemy -> 0x3F5; 0x3F0 on +164); priorities live: Alliance 100005 3.6 / 100006 0.45, Empire
     100006 9.0 / 100005 0.45. Next: 08928170 (masks +72 / +73), 089284B4 / 08928980, D_08AED474..47C, squad membership (why
     most soldiers have none); then port the commander to Aurek in place of bot_choose_goal's nearest-post rule.
+  - Commander masks (2026-11-23): +72 = posts linked to ours that are not ours (capture targets, 0x3F2), +73 = our posts linked
+    to theirs (the front, 0x3F5); the 3.6 / 9.0 priorities are capture targets. Squad-less soldiers carry unit flag bit 5 (want a
+    vehicle) and are skipped by the squad count (08926220). Next: 089284B4 / 08928980 in full, then the port.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -277,3 +277,5 @@ Reports fall after M5, M10 and M15.
   sends most to one post; Aurek sends every bot to the nearest post it lacks. Next: the commander 089279D4.
 - 2026-11-23 M10: the original's commander read and watched - each side mostly guards one front post (Alliance 100005,
   Empire 100006) with 1-3 squads, re-planned every 12 s. Next: its priority and mask functions, squad membership, then port.
+- 2026-11-23 M10: the commander's masks read - each side targets the posts linked to its own (capture) and holds its own front;
+  squad-less soldiers are the vehicle-wanting ones. Next: the priority functions, then the port.
