@@ -1660,6 +1660,12 @@ textures and how they are used. Section R lists only what must be in place so th
   - Loadout at match start: Aurek now spawns with the profile's set 0. Uncertain: the original's own path from set 0 to the
     spawned soldier (no reader of 08977918 outside the front end was found; 08A09928's object, built by 08971770, may hold the
     match's copy) - Aurek's mapping of the 8 categories to the soldier's equipment is the earlier traced one (play.c).
+  - M3 closed with these uncertain (evidence): (1) the original's path from loadout set 0 to the spawned soldier - every 08977918
+    caller is front-end code; 08A09928's object (built by 08971770) runs a large per-match update (08A093C0: 08A0AF14 / 08A0B070 /
+    08A0B1A0, reads 0x08C29324 / 0x08C29328) and pushes {category, value} pairs back into set 0, so it likely holds the match's copy
+    - not proven; (2) no byte check of the saved loadout against the original's own save (the layout is traced exactly: 08977A34);
+    (3) the soldier preview (E_Anim_AppDisplay, 08A36BA0) still needs a running level in Aurek; the carousel item placement is not
+    compared against the original's frame.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

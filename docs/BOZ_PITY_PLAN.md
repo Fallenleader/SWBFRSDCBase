@@ -140,3 +140,5 @@ Reports fall after M5, M10 and M15.
   spawn's use of set 0.
 - 2026-11-23 M3: the saved loadout now reaches the soldier at every match start (it only did after using the menu in a match).
   Next: the original's own path from set 0 to the spawn, the byte check against the original's save.
+- 2026-11-23 M3 COMPLETE (customisation and loadouts), with four items on the Uncertain list (PARITY_TASKS). Next: M4, Boz Pity
+  Conquest - the map, its posts, the bots and the vehicles against the original.

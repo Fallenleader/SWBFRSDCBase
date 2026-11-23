@@ -460,6 +460,8 @@ Aurek: each spawn gets 3 more slots after all spawns are loaded (PLAY_MAX_VEH is
 
 | Loadout at match start (M3) | Aurek applied the customisation menu's loadout only when that menu closed during a match (AK_FE_LOADOUT). A match started from the menus, or the next map of a play list, spawned the soldier with the settings' defaults instead of the saved profile loadout. viewer.c's new fe_loadout_settings() turns set 0 of the profile (via ak_fe_loadout) into the soldier's equipment settings: weapons, explosive, special item, power-up, and the health, speed and capture levels. It runs on FE_HostGame's start, on the play list's next map, and before ak_play_loadout when the menu closes in a match. |
 
+| M3 complete (customisation and loadouts) | Customization menu (faction logos), load-out lists, costs and credits match the original side by side; the menus' own models load from BFF_MAINMENU.GUI (no level needed); item models are found by path or name; the loadout lives in the profile as the original's (set 0 at +0x1B8, 08977A34; credits = total - chosen costs, 08A34290) and reaches the soldier at every match start. Open (PARITY_TASKS): the original's own set-0-to-spawn path, a byte check against the original's save, the soldier preview without a level, the carousel placement. |
+
 ## Known issues (cleanup pass once gameplay reaches parity)
 
 | Seen | Issue | Lead |
