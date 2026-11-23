@@ -177,3 +177,5 @@ Reports fall after M5, M10 and M15.
   ignores it (PARITY 1.3b, 088B6510 not read yet). Next: port the original's "inside" handling.
 - 2026-11-23 M6: the Boz Pity fall-through fixed (pushes slide through the level); walk within 0.12 m for 2 s, within 4.5 m
   overall (the AT-AT slowdown differs), Hoth unchanged. Next: the AT-AT slowdown, then the other movement programs.
+- 2026-11-23 M6: the crest hop fixed (the ground lay no longer stays in the velocity, read from the original with gdb):
+  run_sprint within 0.13 m for 105 frames (was 1.17 m by 1 s), Hoth walk 0.28 m. Remaining gap: the AT-AT's collision box.

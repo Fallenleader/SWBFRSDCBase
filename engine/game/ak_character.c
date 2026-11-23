@@ -88,17 +88,21 @@ static void body_update(ak_character *c, const ak_char_params *p, const ak_colli
         else c->pos[1] -= 0.5f;
     }
     bool was = c->on_ground;
-    if (c->on_ground && c->vel[1] <= 0) {                                /* on the ground the move is laid along it, keeping its */
+    f32 lay = 0;
+    if (c->on_ground && !c->jumped) {                                    /* on the ground the move is laid along it, keeping its */
         const f32 *n = c->ground_normal; c->vel[1] = 0;                  /* horizontal speed and heading (measured on Hoth's     */
         f32 d = c->vel[0] * n[0] + c->vel[2] * n[2];                     /* slopes: a projection onto the plane would turn and   */
-        if (n[1] > 0.1f) c->vel[1] = -d / n[1];                          /* slow it; the original's heading matches this to      */
+        if (n[1] > 0.1f) lay = -d / n[1];                                /* slow it; the original's heading matches this to      */
     }                                                                    /* 0.05 degrees) [PARITY(1.1d): 0.5 % on slopes]       */
+    /* the lay moves the body but is not kept in its velocity, so no climb is carried over a crest: the original's sprinting soldier (gdb on
+       088C4CF4, Boz Pity) climbs at -0.0121 m/frame and on the first frame past the crest moves by gravity alone (+0.0028 =
+       10 * dt^2); on Hoth's steady downhill it stays laid along the slope (+0.0122..0.016 m/frame, no hops) */
     /* at rest: a resting body (above) whose velocity across gravity is under 3.2e-7 stops (088C5564..088C55B8) - a soldier standing
        on a slope it could walk does not slide down it */
     if (c->on_ground && c->resting && c->vel[0] * c->vel[0] + c->vel[2] * c->vel[2] < 3.2e-7f && c->vel[1] <= 0) {
         c->vel[1] = 0; return; }
     if (!c->flying) c->vel[1] -= p->gravity * dt;                        /* physics gravity, always on (not under a jetpack's thrust) */
-    f32 move[3] = { c->vel[0] * dt, c->vel[1] * dt, c->vel[2] * dt }, gn[3];
+    f32 move[3] = { c->vel[0] * dt, (c->vel[1] + lay) * dt, c->vel[2] * dt }, gn[3];
     bool rest = false, ground = body_slide(c, col, move, gn, &rest); int gsrc = ground ? 1 : 0;
     if (!ground && c->vel[1] <= 0.01f) {                                 /* resting on the ground below the skin: a short probe keeps the state steady */
         f32 ctr[3], ax[3][3], h[3], t, n[3], probe[3] = { 0, -(SKIN * 4 + 0.02f), 0 }; u16 fl; bool pe = false;

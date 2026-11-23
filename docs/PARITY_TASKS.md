@@ -1816,6 +1816,10 @@ textures and how they are used. Section R lists only what must be in place so th
     on the ground over crests (a ground snap / step-down in the body step, or the uphill velocity not carried past the crest);
     PARITY 1.8 allows at most a one-frame lift there. Next: trace the original's ground follow (088C4CF4 / the soldier's move:
     a downward probe distance or the vertical velocity reset) and port it.
+  - M6 crest (2026-11-23): the ground lay is redone each grounded frame and moves the body without staying in its velocity -
+    the original's sprinting soldier gets no climb past a crest (gdb on 088C4CF4: +0.0028 = gravity only on the first frame
+    over). Remaining: after ~105 frames on Boz Pity the AT-AT's model box stops Aurek's soldier 11.2 m along the walker's long
+    axis; the original's soldier gets to 6.8 m - the original's walker collision shape is not known (Uncertain).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
