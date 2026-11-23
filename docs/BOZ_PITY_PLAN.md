@@ -226,3 +226,5 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M10: the want-to-fire flag needs the target's ray test (ported as sight); the Rebel rifle rate is still ~10x.
 - 2026-11-23 M10 closed (60%): bot weapons, multishot fan, the pistol re-arm bug, burst keys and inheritance match the original;
   Uncertain: the AI firing rhythm (rifle runs of 2-3 shots in the original) and so the Rebel death rate. Next: M11, vehicles.
+- 2026-11-23 M11 started: the original's AT-AT body box is the same as Aurek's, but its soldiers walk 6.2 m inside it before
+  stopping - something else (legs?) stops them. Tracing which body.

@@ -1901,6 +1901,9 @@ textures and how they are used. Section R lists only what must be in place so th
     Aurek's stream; the want flag's vfunc +104 is a lead-aim solver (08A05718), not a sight ray (sight test removed). Leads
     for later: the fire node 0893F2F8's other exits (target re-choice each run?), the aim turn (a bot must face within 7.5
     degrees: its turning speed may break the gate), the lead point itself.
+  - M11 AT-AT (2026-11-23): its body box equals Aurek's (HSKN 11.7 x 27.5 x 30.7, flags 0x034081AA) but the original's player
+    enters it 6.2 m and stops there. Next: RS_DRIVE_BODYSCAN-style scan of the AT-AT object's other bodies (legs?), or gdb on
+    the body-vs-body pass for the player near the walker (which body stops it), and what flag 0x80 changes in 088C4CF4.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
