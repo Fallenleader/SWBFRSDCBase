@@ -755,6 +755,14 @@ int main(int argc, char **argv)
             }
             if (!ak_play_init(&play, &level, &models, &bps, &lvl, soldier, st)) { AK_WARN("aurek", "no soldier for this level"); playing = false; }
             else if (ak_setting_int("AK_TEST_WARMUP", 0) > 0) ak_play_warmup(&play, &models, ak_setting_int("AK_TEST_WARMUP", 0));   /* (tests: frames) */
+            if (playing && ak_setting_str("AK_DEBUG_GROUND_AT", NULL)) {    /* tests: "gx,gz" - every collision face down the column there (game axes) */
+                f32 gx, gz; if (sscanf(ak_setting_str("AK_DEBUG_GROUND_AT", ""), "%f,%f", &gx, &gz) == 2) {
+                    f32 o[3] = { gx, 50.0f, -gz }, d[3] = { 0, -1, 0 }; f32 travelled = 0;
+                    for (int k = 0; k < 8; k++) { ak_col_hit h; if (!ak_col_raycast(&play.col, o, d, 150.0f - travelled, 0, &h)) break;
+                        AK_INFO("ground", "at game %.2f / %.2f: face %u at game y %.3f, normal %.2f %.2f %.2f, flags 0x%04x, material %u",
+                                gx, gz, h.tri, -h.pos[1], h.normal[0], h.normal[1], h.normal[2], h.flags, h.material);
+                        travelled += h.t + 0.01f; o[1] = h.pos[1] - 0.01f; }
+                    AK_INFO("ground", "(end of the column)"); } }
             else AK_INFO("aurek", "playing as %s (%s, head %d) at %.1f %.1f %.1f; level memory %.1f MB", models.models[play.look.body].name, ak_faction_name(play.look.faction),
                          play.look.head_index + 1, play.ch.pos[0], play.ch.pos[1], play.ch.pos[2], lvl.used / 1048576.0);
             ak_arena_report();

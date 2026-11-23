@@ -1745,6 +1745,11 @@ textures and how they are used. Section R lists only what must be in place so th
     player loses the ground ("air", vel y -2) and free-falls (12 m/s down after 1 s, 89 m by the end) - Aurek's collision has no
     floor there, while the original walks on at y 0.6-0.9. Next: what the original stands on at 128.7 / 114.7 (the level mesh's
     faces there in Aurek's collision; a placed object / bridge / mover the original collides with and Aurek does not).
+  - The floor exists: AK_DEBUG_GROUND_AT="128.85,114.98" finds one face (23185) at game y 0.748, normal up (0.14, 0.99, -0.10),
+    flags 0x0010 (rest on it whatever the slope - ak_character.c), material 7 - the original's 0.6-0.9 walk is on it. Aurek's
+    player was at game y 0.78 at 129.60 / 115.00, then 0.93 at 128.85 - 0.18 m UNDER the face - and fell. So the body went
+    through the face's edge or got under it from the slope before (sweep "inside" / edge case, ak_col_box_sweep). Next: step
+    frame by frame between 129.6 and 128.8 (AK_DEBUG_BODY=3 every frame), find which face the body crosses and why the sweep misses.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
