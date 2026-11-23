@@ -4322,6 +4322,9 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                 if (ds && shot) AK_INFO("shot", "frame %u %s ammo %d spare %d heat %.1f dmg %.1f/%.1f speed %.1f spread %.2f rof %.3f heat/shot %.2f decay %.2f windup %.2f ai burst %.3f pause %.3f", p->frame_no, p->wdef.name ? p->wdef.name : "?", p->weapon.ammo, p->weapon.spare, p->weapon.heat.heat, p->wdef.dmg_infantry, p->wdef.dmg_vehicle, p->wdef.speed, p->wdef.spread_deg, p->wdef.rate_of_fire, p->wdef.heat_shot, p->wdef.heat_decay, p->wdef.windup, ak_ai_burst(&p->wdef), ak_ai_pause(&p->wdef)); }
         }
     }
+    {   static int dv = -1; if (dv < 0) dv = ak_setting_int("AK_DEBUG_VEH", 0);   /* tests: every vehicle's place each 5 s (game axes) */
+        if (dv && p->frame_no % 300 == 0) for (u32 v = 0; v < p->nveh; v++) { const ak_vehicle *vv = &p->veh[v]; if (!vv->def) continue; f32 g[3]; ak_from_game(vv->pos, g);
+            AK_INFO("veh", "frame %u vehicle %u %s at %.1f %.1f %.1f%s", p->frame_no, v, vv->def->name ? vv->def->name : "?", g[0], g[1], g[2], vv->alive ? "" : " (dead)"); } }
     /* the bots */
     for (u32 i = 0; i < p->nbots; i++) bot_update(p, m, &p->bot[i], i, dt, NULL);
     {   const char *tw = ak_setting_str("AK_TEST_WEAPON_AT", NULL);         /* tests: "frame:Weapon" puts that weapon in the player's hands */

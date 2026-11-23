@@ -231,3 +231,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M11: the AT-AT's body box does not stop soldiers in the original; they stop about 6 m from its middle (a leg?).
 - 2026-11-23 M11: the AT-AT's leg boxes read; a leg is the likely stop for soldiers inside the walker (not yet shown). Next: the
   walkers' walk and slowdown, then the T4B; the leg collision stays Uncertain until the walker's pose reaches the push pass.
+- 2026-11-23 M11: the AT-AT's walk matches the original (route and 2.0 m/s within 0.1 m); the AT-ST starts later in Aurek.
