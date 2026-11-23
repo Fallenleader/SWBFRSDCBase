@@ -68,6 +68,7 @@ void ak_hud_messages_clear(void);
 void ak_hud_tip(u32 id, f32 secs);          /* the campaign's tip: secs <= 0 stays until ak_hud_tip_clear */
 void ak_hud_tip_more(u32 id);                /* another box under the tip, kept until ak_hud_tip_clear */
 void ak_hud_tip_clear(void);
+void ak_hud_tip_hold(u32 id);                /* a prompt kept up while called (each frame); queued when not up */
 void ak_hud_objective(const u16 *t, u32 n);
 const u16 *ak_hud_mission_text(u32 id, u32 *len);   /* TEXT/MISSIONOBJECTIVES.ASR entry */
 /* the player was hurt from `src` (engine space; the attacker's position: message 0x8050, 089E3868) - the hit-direction marks */

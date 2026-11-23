@@ -244,3 +244,5 @@ Reports fall after M5, M10 and M15.
   the 3D pan law (matches the original to 0.002), the 0.75 voice volume, the AT-AT's / creatures' clip sounds (HCAN events +
   HSND), bolt fly-bys. Open: the post hum's condition, bots' footsteps.
 - 2026-11-23 M12 COMPLETE (sound): the player's reload sounds from its reload clip too. Next: M13 HUD and messages.
+- 2026-11-23 M13 COMPLETE (HUD and messages): layout and messages match; the equipment prompt is held as the original's.
+  Next: M14 match end.

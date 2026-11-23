@@ -826,7 +826,8 @@ int main(int argc, char **argv)
                                                                                    engaged" / "Auto-pilot engaged" while on) [assumed: the use prompts' box] */
                 static f32 use_t = 0;
                 if (use_id && !ak_fe_page()) { use_t -= dt; if (use_t <= 0) { ak_hud_message(3, use_id, NULL, 0); use_t = 3.0f; } } else use_t = 0;
-                if (at_own && !ak_fe_page() && !use_id) { tip_t -= dt; if (tip_t <= 0) { ak_hud_message(3, 328, NULL, 0); tip_t = 3.0f; } } else tip_t = 0;
+                if (at_own && !ak_fe_page() && !use_id) ak_hud_tip_hold(328);          /* (held, unbroken, as the original's) */
+                (void)tip_t;
                 if (frame == ak_setting_int("AK_TEST_EQUIP_AT", -1)) { play.want_equipment = true; at_own = true; }   /* (tests) */
                 if (frame == ak_setting_int("AK_TEST_TIP_AT", -1)) ak_hud_message(3, 328, NULL, 0);
                 if (play.want_equipment) { play.want_equipment = false; if (at_own && !ak_fe_page()) ak_fe_open_customisation(); }

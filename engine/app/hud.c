@@ -554,6 +554,16 @@ void ak_hud_tip_more(u32 id)
     if (!stdtext || id >= nstd || !stdtext[id]) return;
     msg_slot *s = msg_push(3, stdtext[id], stdlen[id], NULL, 0); s->life = 1e30f;
 }
+/* a prompt held while its condition lasts (the equipment prompt at an own post: the original's box stays up, unbroken, all the time
+ * the soldier stands at the post - measured: present in every tenth frame of a 60 s idle at Boz Pity's spawn post): the same
+ * text already up on the tip queue has its time restarted, else it is queued */
+void ak_hud_tip_hold(u32 id)
+{
+    if (!stdtext || id >= nstd || !stdtext[id]) return;
+    for (u32 k = 0; k < 4; k++) { msg_slot *s = &msgs[3][k];
+        if (s->on && s->n == stdlen[id] && !memcmp(s->text, stdtext[id], stdlen[id] * sizeof(u16))) { s->t = 0; return; } }
+    msg_push(3, stdtext[id], stdlen[id], NULL, 0);
+}
 void ak_hud_tip_clear(void) { for (u32 k = 0; k < 4; k++) msgs[3][k].on = false; }
 void ak_hud_objective(const u16 *t, u32 n)
 {

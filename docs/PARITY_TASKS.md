@@ -1931,6 +1931,12 @@ textures and how they are used. Section R lists only what must be in place so th
     not settled. HSND's four floats per entry (1, 1, 20, 1) not read; the player's reload layer plays its clip sounds (Reload_Med_01 / _02 on a rifle), throws and bots' reloads do not yet; the
     AT-AT chin blaster's Exp_blaster and how often it fires (AI). The original re-keys looping voices under voice pressure (32
     SAS voices) - Aurek mixes 48 and never re-keys.
+  - M13 HUD (2026-11-23): layout matches; post / reinforcement messages match (channel 1); equipment prompt now held. Open:
+    the reinforcement line was queued with a third argument 60 (08A4EE08 a2; the post lines 0) - its use not read; tickets: the
+    original's Empire showed 125 at its first frame of play and lost the first ticket about 5 s later (125, 124 at +5 s, 120 at
+    +18 s, 107 at +60 s), Aurek's test start (590 warm-up frames) had already lost 5 - whether the original's bleed waits for
+    the player's first spawn is not read; the camera framing differs (Aurek's soldier sits lower-left and larger at the same
+    spawn and facing) - for M15.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
