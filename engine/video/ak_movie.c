@@ -42,7 +42,10 @@ static void yuv_to_rgba(const u8 *y, int ys, const u8 *cb, const u8 *cr, int cs,
 typedef struct { ak_gfx_tex *t[KEEP]; u32 n; } tex_ring;
 static void ring_put(tex_ring *r, ak_gfx_tex *t) { u32 k = r->n++ % KEEP; if (r->t[k]) ak_gfx_free_tex(r->t[k]); r->t[k] = t; }
 static void ring_free(tex_ring *r) { ak_gfx_wait_idle(); for (int k = 0; k < KEEP; k++) if (r->t[k]) { ak_gfx_free_tex(r->t[k]); r->t[k] = NULL; } }
-static void present(ak_gfx_tex *t, f32 u0, f32 v0, f32 u1, f32 v1, f32 aspect)
+/* the overlay drawn over each picture (the game's subtitles): the movie's time in seconds, the window */
+static void (*ov_fn)(double t, int w, int h, void *ud); static void *ov_ud;
+void ak_movie_set_overlay(void (*fn)(double t, int w, int h, void *ud), void *ud) { ov_fn = fn; ov_ud = ud; }
+static void present(ak_gfx_tex *t, f32 u0, f32 v0, f32 u1, f32 v1, f32 aspect, double mt)
 {
     int W, H; ak_gfx_size(&W, &H); if (W <= 0 || H <= 0) { W = 480; H = 272; }
     ak_m4 id; memset(&id, 0, sizeof id); id.m[0] = id.m[5] = id.m[10] = id.m[15] = 1;
@@ -58,6 +61,7 @@ static void present(ak_gfx_tex *t, f32 u0, f32 v0, f32 u1, f32 v1, f32 aspect)
         for (int i = 0; i < 6; i++) { v[i].pos[0] = xs[i]; v[i].pos[1] = ys[i]; v[i].uv[0] = us[i]; v[i].uv[1] = vs[i]; v[i].col[0] = v[i].col[1] = v[i].col[2] = v[i].col[3] = 255; }
         ak_gfx_draw_immediate(AK_PIPE_HUD, t, v, 6);
     }
+    if (ov_fn) ov_fn(mt, W, H, ov_ud);
     ak_gfx_end(NULL);
     {   static const char *shot; static int init, n; if (!init) { init = 1; shot = getenv("AK_MOVIE_SHOT"); }   /* (tests: every 30th frame) */
         if (shot && n++ % 30 == 15) { char p[512]; snprintf(p, sizeof p, "%s_%03d.ppm", shot, n / 30); ak_gfx_screenshot(p); } }
@@ -125,7 +129,7 @@ static int play_thp(const char *path, u32 src_w, u32 src_h)
                 nshown++;
             }
         }
-        present(cur, u0, v0, u1, v1, aspect);
+        present(cur, u0, v0, u1, v1, aspect, (double)clock / rate);
         skip_poll(&sk);
         if (sk.skip || failed) break;
         if (eof && nshown >= nread && (!snd || ak_audio_movie_queued() < 2)) break;
@@ -213,7 +217,7 @@ static int play_av(const char *path)
             have_pic = false; av_frame_unref(pic);
         }
         f32 u0 = pw ? 0.5f / pw : 0, v0 = ph ? 0.5f / ph : 0, aspect = pw && ph ? (f32)pw / ph : 16.0f / 9.0f;
-        present(cur, u0, v0, 1 - u0, 1 - v0, aspect);
+        present(cur, u0, v0, 1 - u0, 1 - v0, aspect, clock);
         skip_poll(&sk);
         if (sk.skip) break;
         if (vdone && !have_pic && (!snd || ak_audio_movie_queued() < 2)) break;
@@ -250,7 +254,7 @@ static int play_plat_mp4(const char *path)
     ak_plat_mp4 *m = ak_plat_mp4_open(path); if (!m) return AK_MOVIE_NONE;
     enum { CAP = 4096 }; s16 *pcm = (s16 *)malloc(CAP * 4); u32 *rgba = NULL; u32 pw = 0, ph = 0, shown = 0; bool snd = false; u32 snd_rate = 0;
     tex_ring ring; memset(&ring, 0, sizeof ring); ak_gfx_tex *cur = NULL;
-    skipper sk; skip_init(&sk);
+    skipper sk; skip_init(&sk); u64 t0 = ak_plat_time_us();
     AK_INFO("movie", "%s: the device's player", path);
     for (;;) {
         u32 rate = 0, n;
@@ -265,7 +269,8 @@ static int play_plat_mp4(const char *path)
             if (rgba) { nv12_to_rgba(nv, stride, yr, (int)w, (int)h, rgba); ak_gfx_tex *nt = ak_gfx_texture_rgba((int)w, (int)h, rgba); if (nt) { ring_put(&ring, nt); cur = nt; } shown++; }
         }
         f32 u0 = pw ? 0.5f / pw : 0, v0 = ph ? 0.5f / ph : 0;
-        present(cur, u0, v0, 1 - u0, 1 - v0, pw && ph ? (f32)pw / ph : 16.0f / 9.0f);
+        double mt = snd && snd_rate ? (double)ak_audio_movie_played() / snd_rate : (ak_plat_time_us() - t0) / 1e6;
+        present(cur, u0, v0, 1 - u0, 1 - v0, pw && ph ? (f32)pw / ph : 16.0f / 9.0f, mt);
         skip_poll(&sk);
         if (sk.skip || sk.quit) break;
     }

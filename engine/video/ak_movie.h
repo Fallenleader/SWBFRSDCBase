@@ -17,5 +17,7 @@ int ak_movie_play(const char *const *dirs, int ndirs, const char *name, const ch
 /* the PMF header's picture size (bytes 0x8E / 0x8F: width / 16, height / 16; "PSMF" at 0) */
 bool ak_movie_pmf_shape(const u8 *head, u32 n, u32 *w, u32 *h);
 /* one file (tests): its format by its extension */
+/* drawn over every picture after this (NULL: none): the movie's time in seconds and the window's size (the game's subtitles) */
+void ak_movie_set_overlay(void (*fn)(double t, int w, int h, void *ud), void *ud);
 int ak_movie_play_file(const char *path, u32 src_w, u32 src_h);
 #endif

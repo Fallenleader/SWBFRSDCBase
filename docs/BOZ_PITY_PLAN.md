@@ -110,4 +110,7 @@ Reports fall after M5, M10 and M15.
   - Uncertain: button marks \ue80a/b/d, \ue812, \ue814-\ue816, \ue818+ (order inferred, not seen); the marks sit ~3 px lower
     than the original's in 32-tall boxes; Alternate scheme's in-game controls (gameplay milestone).
   Next: Difficulty (MP_AIDifficulty), Profile Management pages, the Cutscenes list (FE_ListAvaliableCutscenes,
-  BFF.CutscenesUnlocked), subtitles (SUBTITLE\\*.ASR), the Single Player entry pages.
+  BFF.CutscenesUnlocked), the Single Player entry pages.
+- 2026-11-23 M2, movie subtitles: SUBTITLE\*.ASR + CUTSCENE_AM texts drawn over FE_PlayMovie's movies when BFF.Subtitles is on,
+  timing/fade/place/size from 0884999C / 08849AA8 / 08A6994C; checked on BASICS (first line at the bottom, centred).
+  Next: Difficulty (MP_AIDifficulty), Profile Management pages, the Cutscenes list, the Single Player entry pages.

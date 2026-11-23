@@ -1564,7 +1564,7 @@ static int run(const ak_gui_action *a, int row)
     }
     else if (!strcmp(fn, "FE_PlayMovie")) {                           /* the movie by its index: the argument, else the list's row */
         int k = a->arg && a->arg[0] ? atoi(a->arg) : row;
-        if (k >= 0 && k < 20 && movie_player) { AK_INFO("fe", "movie %d: %s", k, movies[k].name); movie_player(movies[k].name); }
+        if (k >= 0 && k < 20 && movie_player) { AK_INFO("fe", "movie %d: %s", k, movies[k].name); ak_setting_set("AK_SUBTITLES", var_get("BFF.Subtitles") != 0 ? "1" : "0"); movie_player(movies[k].name); }   /* (the subtitles: the profile's +0x3F now) */
     }
     else if (!strcmp(fn, "FE_OpenProfileMenu")) {                    /* 08A2E8B4: from MP_MSplashScreen only - it closes, the profile page opens */
         if (page && page->root.id == 0x818BCCE4u) open_hash(0x5B53EB0Du, false); }

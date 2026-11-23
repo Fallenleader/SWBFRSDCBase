@@ -21,6 +21,7 @@
 #include "../audio/ak_speech.h"
 #include "../platform/plat.h"
 #include "../video/ak_movie.h"
+#include "../assets/gui.h"
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -142,7 +143,31 @@ static void fe_model_draw(const void *weapon, bool soldier, const ak_fe_look *lo
  * CROSS skips it, the language folder first; from the converted copies - the GameCube its own THP path, elsewhere
  * engine/video/ak_movie.c (THP; MP4 / PMF with libavcodec or the device's player) */
 static const char *const *mv_dirs; static int mv_nd; static ak_vfs *mv_vfs;
-static int play_game_movie(const char *name)
+/* the movie's subtitles (08A69188, 0884999C, 08849AA8): SUBTITLE/<NAME>.ASR, one SUBT chunk {u32 count, count x {f32 start, f32 end,
+ * u32 text key}}, its texts in MISC/CUTSCENE/CUTSCENE_AM.ASR (HTXT, table 0x25C2AF8A).  The line whose start <= t < end, faded in and
+ * out over 0.25 s (min(t - start, end - t) x 4, at most 1), white at that alpha, Franklin Gothic Medium Cond 9 at 0.8, centred in
+ * x 0.075..0.925, y 0.89..0.98 of the screen, the middle of it (08A6994C: flags 0x44).  A line starting with '{' or '}' always shows
+ * (the mark dropped); the others only with BFF.Subtitles (0897A350, the profile's +0x3F). */
+typedef struct { u32 n; const u8 *e; ak_gui_texts tx; bool on; } subs_t;
+static void subs_draw(double t, int w, int h, void *ud)
+{
+    (void)w; (void)h; const subs_t *S = (const subs_t *)ud;
+    for (u32 i = 0; i < S->n; i++) {
+        f32 st = ak_rdf32(S->e + i * 12), en = ak_rdf32(S->e + i * 12 + 4); if (!(st <= (f32)t && (f32)t < en)) continue;
+        f32 fade = ((f32)t - st < en - (f32)t ? (f32)t - st : en - (f32)t) * 4.0f; if (fade > 1.0f) fade = 1.0f;
+        u32 n = 0; const u16 *s = ak_gui_text(&S->tx, ak_rd32(S->e + i * 12 + 8), &n); if (!s || !n) return;
+        if (s[0] == '{' || s[0] == '}') { s++; n--; } else if (!S->on) return;
+        u32 a = (u32)(int)(255.0f * fade + 0.5f); if (!a || !n) return;
+        f32 x0 = 0.075f * 480, x1 = 0.925f * 480, y0 = 0.89f * 272, y1 = 0.98f * 272;
+        f32 th = ak_hud_2d_text_height(0, x0, x1, 0.8f, s, n);
+        ak_hud_2d_begin(); ak_hud_2d_text(0, x0, y0 + (y1 - y0 - th) * 0.5f, x1, 0.8f, (a << 24) | 0xFFFFFFu, s, n, 1); ak_hud_2d_end();
+        return;
+    }
+}
+static int play_game_movie_subs(const char *name, bool subs);
+static int play_game_movie(const char *name) { return play_game_movie_subs(name, false); }
+static int play_fe_movie(const char *name) { return play_game_movie_subs(name, true); }   /* (FE_PlayMovie: 08A69188 with the profile's +0x3F) */
+static int play_game_movie_subs(const char *name, bool subs)
 {
     static const char *const langs[6] = { "en", "fr", "ge", "it", "sp", "ru" };
     int li = ak_setting_int("AK_LANGUAGE", 0); const char *lang = langs[li >= 0 && li < 6 ? li : 0];
@@ -153,6 +178,17 @@ static int play_game_movie(const char *name)
     {   char gp[128]; snprintf(gp, sizeof gp, "PSP_GAME/USRDIR/FMV/%s.PMF", up); ak_arena ta; ak_blob hb;
         if (mv_vfs && ak_arena_init(&ta, 4096)) { if (ak_vfs_read_part(mv_vfs, gp, 0, 0x100, &ta, &hb)) ak_movie_pmf_shape(hb.data, hb.size, &sw, &sh); ak_arena_free(&ta); } }
     int r = AK_MOVIE_NONE;
+    ak_arena sa; bool sa_on = false; static subs_t S;
+    if (subs && ak_setting_int("AK_SUBTITLES", 0) && mv_vfs && ak_arena_init(&sa, 256u << 10)) {   /* (08A69188: loaded only with the flag) */
+        sa_on = true; memset(&S, 0, sizeof S); S.on = true;
+        char sp[128]; snprintf(sp, sizeof sp, "PSP_GAME/USRDIR/SUBTITLE/%s.ASR", up); ak_blob sb, tb;
+        if (ak_vfs_read(mv_vfs, sp, &sa, &sb) && ak_asura_check(&sb) && ak_vfs_read(mv_vfs, "PSP_GAME/USRDIR/MISC/CUTSCENE/CUTSCENE_AM.ASR", &sa, &tb) && ak_gui_texts_load(&tb, &sa, &S.tx)) {
+            u32 pos = 8; ak_chunk c;
+            while (ak_asura_next(&sb, &pos, &c)) if (ak_chunk_tag(&c) == AK_TAG('S', 'U', 'B', 'T') && c.size >= 4) {
+                u32 n = ak_rd32(c.body); if (4 + (u64)n * 12 <= c.size) { S.n = n; S.e = c.body + 4; } break; }
+            if (S.n) { ak_movie_set_overlay(subs_draw, &S); AK_INFO("movie", "%s: %u subtitles", up, S.n); }
+        }
+    }
 #ifdef AK_HAS_MOVIES
     (void)sw; (void)sh; (void)lang;
     for (int i = 0; i < mv_nd && r == AK_MOVIE_NONE; i++) {
@@ -162,6 +198,7 @@ static int play_game_movie(const char *name)
 #else
     r = ak_movie_play(mv_dirs, mv_nd, up, lang, sw, sh);
 #endif
+    ak_movie_set_overlay(NULL, NULL); if (sa_on) ak_arena_free(&sa);
     if (r == AK_MOVIE_NONE) AK_INFO("movie", "%s: no converted copy (the conversion tool writes converted/PSP_GAME/USRDIR/FMV/%s.PMF.thp / .mp4)", up, up);
     return r;
 }
@@ -218,9 +255,9 @@ int main(int argc, char **argv)
         mv_dirs = dirs; mv_nd = nd; mv_vfs = vfs;
         char list[256]; snprintf(list, sizeof list, "%s %s", ak_setting_str("AK_INTRO_MOVIES", "OPENING_LOGOS REBELLION"), ak_setting_str("AK_MOVIE_TEST", ""));
         bool quit = false;
-        for (char *tok = strtok(list, " ,"); tok && !quit; tok = strtok(NULL, " ,")) quit = play_game_movie(tok) == AK_MOVIE_QUIT;
+        for (char *tok = strtok(list, " ,"); tok && !quit; tok = strtok(NULL, " ,")) quit = play_game_movie_subs(tok, ak_setting_int("AK_MOVIE_TEST_SUBS", 0) != 0) == AK_MOVIE_QUIT;   /* (tests: AK_MOVIE_TEST_SUBS=1 + AK_SUBTITLES=1) */
         if (quit) return 0;
-        ak_fe_set_movie_player(play_game_movie);                          /* (the menus' FE_PlayMovie) */
+        ak_fe_set_movie_player(play_fe_movie);                          /* (the menus' FE_PlayMovie) */
     }
     FILE *dumpf = NULL; u32 dump_frames = 0; ak_blob b_level_keep = { 0 };
     if (getenv("AK_AUDIO_DUMP")) { dumpf = fopen(getenv("AK_AUDIO_DUMP"), "wb"); if (dumpf) { static const u8 z[44]; fwrite(z, 1, 44, dumpf); } }
