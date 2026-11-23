@@ -1732,6 +1732,11 @@ textures and how they are used. Section R lists only what must be in place so th
     original's AT-AT position at the match start (state.log obj lines; class 8008 / walker), and how the original collides a
     soldier with a walker (its legs / body parts rather than one box?) - the walker's collision in src/game (08A04xxx physics,
     the walker's parts).
+  - Not a collision bug: Aurek's AT-AT starts at its placement (143.7 1.4 105.1) and walks to its path's start at ~2 m/s
+    (reaches 130.3 / 114.3 at 10 s, AK_DEBUG_WALKER); the original's AT-AT is already at 130.61 1.01 114.88 when its player
+    spawns (state.log, class 0x8014 id 30d44) - the original's match runs behind Team Selection and the spawn map, so the
+    world is ~10 s older than the player. compare_walk starts Aurek's world with the player: the walker is still beside the
+    spawn. Fix for the test: run Aurek's world first (a warm-up of the original's elapsed match time) before the player spawns.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
