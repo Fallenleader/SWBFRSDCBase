@@ -1894,6 +1894,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 rhythm (2026-11-23): the original's rifle bots fire 2-3 shots then stop 1-4 s; Aurek's stream. Next: what ends the
     original's run - gdb the trigger 08942AA4 / 08965A70 per frame for one bot (its want / ok inputs), or the fire node 0893F2F8's
     exits; tools: a frame clock from 089EC900 (6 calls a frame on Boz Pity), weapon names from 08A16FD8.
+  - M10 want (2026-11-23): 08943020 sets the want flag from the target's vfunc +104 ray test (reach 1000). Sight alone does not
+    explain the 2-3 shot runs. Next: read the soldier class's vfunc +104 (what it tests) - if not quick, carry this to the
+    Uncertain list and move on to M11.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

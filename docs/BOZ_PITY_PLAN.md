@@ -223,3 +223,4 @@ Reports fall after M5, M10 and M15.
   zero heat keys (gdb 08A24740's return for the Rebel rifle next).
 - 2026-11-23 M10: the key lookup inherits (as Aurek) - the burst values match; the rifle rate gap is in when bots fire.
 - 2026-11-23 M10: the original's rifle bots fire in 2-3 shot runs with 1-4 s gaps; Aurek's stream - finding what stops them next.
+- 2026-11-23 M10: the want-to-fire flag needs the target's ray test (ported as sight); the Rebel rifle rate is still ~10x.
