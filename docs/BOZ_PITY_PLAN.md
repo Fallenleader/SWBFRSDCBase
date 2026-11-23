@@ -104,3 +104,10 @@ Reports fall after M5, M10 and M15.
     sometimes loses all its texts on a page (a harness fault - rerun).
   Next: the Options sub-pages' own sub-pages (control schemes and sensitivities, AI difficulty, profile management actions,
   name edit), the Cutscenes list and Credits / Bonus movies, Learn To Play movies with subtitles, Single Player entry pages.
+- 2026-11-23 (M2, Controls): the control scheme toggles as the original (profile +0x58...), the Controls pages' button pictures
+  match (mark table and sizes), the new profile Aurek saves is byte-identical to the original's; menu movies play (FE_PlayMovie).
+  - Hard facts: the movie table (0x08B1C08C); scheme storage; button-mark sizes (sheet pixels).
+  - Uncertain: button marks \ue80a/b/d, \ue812, \ue814-\ue816, \ue818+ (order inferred, not seen); the marks sit ~3 px lower
+    than the original's in 32-tall boxes; Alternate scheme's in-game controls (gameplay milestone).
+  Next: Difficulty (MP_AIDifficulty), Profile Management pages, the Cutscenes list (FE_ListAvaliableCutscenes,
+  BFF.CutscenesUnlocked), subtitles (SUBTITLE\\*.ASR), the Single Player entry pages.

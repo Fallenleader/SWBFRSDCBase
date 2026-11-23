@@ -313,21 +313,19 @@ static const sprite *idx(int i) { return i >= 0 && i < (int)S_COUNT && by_index[
  * ("\ue813 Use" is button_x, the 20th), except U+E800..E803, which the menu texts use as cross, square, circle, triangle
  * ("\ue800 Select", "\ue801 Clear", "\ue802 Back", "\ue803 Cancel"; MENU_AM's key list names them BU_CROSS, BU_SQUARE,
  * BU_CIRCLE, BU_TRIANGLE) - in the sheet those places hold the analog stick and the big circle, square, triangle */
+/* the button marks: \ue800 + k -> the button sheet's picture (graphics/pspbuttons.asr, its own order: 0 analog, 1-4 big circle /
+ * square / triangle / x, 5 d_pad, 6-9 d_pad dn / lf / rt / up, 10 l1, 11 r1, 12 select, 13 start, 14 arrow_lock, 15 analog_Small,
+ * 16-19 circle / square / triangle / x, 20-23 d_pad dn / lf / rt / up _Small, 24 Sabre, 25 CP, 26 CS, 27 Bot_Symbol, 28 Skull).
+ * Read off the original's frames (Options > Controls: \ue804-\ue807 the d-pad up / down / left / right, \ue808 / 9 L / R, \ue80c the
+ * analog stick, \ue80e-\ue811 the big x / square / circle / triangle; the menus' \ue800-\ue803 x / square / circle / triangle;
+ * the training tips' \ue813 d_pad_up_Small, \ue817 analog_Small); the rest follows the same order [\ue80a select, \ue80b start,
+ * \ue80d d_pad, \ue812 arrow_lock, \ue814-\ue816 the other small d-pad arrows, \ue818.. the icons: not seen] */
 static const sprite *button_mark(u16 c)
 {
-    static const char *const first4[] = { "button_x.tga", "button_square.tga", "button_circle.tga", "button_triangle.tga" };
-    if (c < 0xE800 || !btn_n || c >= 0xE800 + btn_n) return NULL;
-    if (c < 0xE804) return find(h31(first4[c - 0xE800]), btn_first, btn_n);
-    /* \ue813 (button_x) marks the "use" action, which the PSP controls put on the d-pad's up: the original draws its "Press \ue813
-       to change equipment" with d_pad_up_Small (place 23) */
-    if (c == 0xE813 && btn_n > 23) c = 0xE817;
-    /* the campaign tips (seen in the original's training frames, harness route cmpn): \ue808 is drawn as the L button ("Tap L to
-       jump", "hold L to sprint"), \ue809 as R ("Lock onto enemies by holding down R"), \ue817 as the small analog stick ("Use .. to
-       move and turn") - the game's table from the code to the picture is not traced; the others keep the sheet's place */
-    else if (c == 0xE808) return find(h31("button_l1.tga"), btn_first, btn_n);
-    else if (c == 0xE809) return find(h31("button_r1.tga"), btn_first, btn_n);
-    else if (c == 0xE817) return find(h31("analog_Small.tga"), btn_first, btn_n);
-    return &spr[btn_first + (c - 0xE800)];
+    static const s8 place[29] = { 19, 17, 16, 18, 9, 6, 7, 8, 10, 11, 12, 13, 0, 5, 4, 2, 1, 3, 14, 23, 20, 21, 22, 15, 24, 25, 26, 27, 28 };
+    if (c < 0xE800 || c >= 0xE800 + 29 || !btn_n) return NULL;
+    int k = place[c - 0xE800]; if (k >= (int)btn_n) return NULL;
+    return &spr[btn_first + k];
 }
 static const glyph *glyph_of(u16 c) { for (u32 i = 0; i < font.n; i++) if (font.g[i].ch == c) return &font.g[i]; return NULL; }
 static f32 text_width(const char *s) { f32 w = 0; for (; *s; s++) { const glyph *g = glyph_of((u8)*s); if (g) w += g->w; } return w; }
@@ -457,7 +455,7 @@ static f32 text16_box(f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s,
     while (i < n) {
         u32 j = i, brk = i; f32 w = 0, wb = 0;                                   /* one line: as many words as fit */
         while (j < n) {
-            const glyph *g = glyph_of(s[j]); f32 gw = g ? g->w * scale : button_mark(s[j]) ? font.line * scale : 0;
+            const glyph *g = glyph_of(s[j]); const sprite *bm = g ? NULL : button_mark(s[j]); f32 gw = g ? g->w * scale : bm ? (bm->u1 - bm->u0) * bm->w * scale : 0;
             if (s[j] == ' ') { brk = j; wb = w; }
             if (w + gw > bw && j > i) { if (brk > i) { j = brk; w = wb; } break; }
             w += gw; j++;
@@ -466,7 +464,8 @@ static f32 text16_box(f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u16 *s,
             f32 x = centre ? x0 + (bw - w) * 0.5f : x0;                   /* (flag 4: centred; else from the left) */
             for (u32 k = i; k < j; k++) {
                 const glyph *g = glyph_of(s[k]);
-                if (!g) { const sprite *m = button_mark(s[k]); if (m) { quad(m->tex, x, y, x + lh, y + lh, m->u0, m->v0, m->u1, m->v1, argb | 0x00FFFFFFu); x += lh; } continue; }
+                if (!g) { const sprite *m = button_mark(s[k]); if (m) { f32 mw = (m->u1 - m->u0) * m->w * scale, mh = (m->v1 - m->v0) * m->h * scale, my = y + (lh - mh) * 0.5f;   /* (at the picture's own pixels - the 128 sheet's 32 / 16 - on the line's middle: the original's frames) */
+                    quad(m->tex, x, my, x + mw, my + mh, m->u0, m->v0, m->u1, m->v1, argb | 0x00FFFFFFu); x += mw; } continue; }
                 quad(font.tex, x, y, x + g->w * scale, y + lh, g->u, g->v, g->u + g->w / font.tw, g->v + font.line / font.th, argb);
                 x += g->w * scale;
             }
@@ -977,7 +976,7 @@ f32 ak_hud_2d_text(int big, f32 x0, f32 y0, f32 x1, f32 scale, u32 argb, const u
     fontdef *keep = fontp; fontp = &fonts[big ? 1 : 0];
     f32 h;
     if (align == 2) {                                                   /* right: measure one line */
-        f32 w = 0; for (u32 i = 0; i < n; i++) { const glyph *g = glyph_of(s[i]); if (g) w += g->w * scale; else if (button_mark(s[i])) w += fontp->line * scale; }   /* (button marks: a line square) */
+        f32 w = 0; for (u32 i = 0; i < n; i++) { const glyph *g = glyph_of(s[i]); const sprite *bm = g ? NULL : button_mark(s[i]); if (g) w += g->w * scale; else if (bm) w += (bm->u1 - bm->u0) * bm->w * scale; }   /* (button marks: their own width) */
         h = text16_box(x1 - w, y0, x1 + 1, scale, argb, s, n, true, false);
     } else h = text16_box(x0, y0, x1, scale, argb, s, n, true, align == 1);
     fontp = keep; return h;

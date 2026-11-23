@@ -1619,6 +1619,7 @@ textures and how they are used. Section R lists only what must be in place so th
   - Vita movies (2026-11-23, M1): sceAvPlayer plays the Vita conversion's MP4 (platform/vita/movie_vita.c); built, not yet run on hardware.
   - Profile prompt flows (2026-11-23, M2): save dialogue (Aurek's own, the game's 5 slots), load/save results and autosave state as the game registers them, page OnOpen/OnClose, the name box and its keyboard, cross-file targets; checked side by side through to the main menu.
   - Options pages (2026-11-23, M2): slider editing as the original, language numbers (US 6, Italian 3), other files' pictures; first pages of every Options entry match.
+  - Controls pages / button marks / profile (2026-11-23, M2): scheme toggle (profile +0x58/+0x74/+0x90), button-mark table and sizes from the original's frames, new profile saved byte-identical, FE_PlayMovie table 0x08B1C08C.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

@@ -47,3 +47,6 @@ for i, s in enumerate(shots):
     op = os.path.join(orig, 'f_%05d.png' % f)
     if os.path.exists(op): m.paste(Image.open(op).resize((W, H)), (W, i * H))
 m.save(os.path.join(a.out, 'cmp.png')); print(os.path.join(a.out, 'cmp.png'))
+keep = {'f_%05d.png' % (s if s % 2 == 0 else s + 1) for s in shots}            # (only the frames shown: the rest would fill the disk)
+for f in os.listdir(orig):
+    if f.startswith('f_') and f not in keep: os.remove(os.path.join(orig, f))
