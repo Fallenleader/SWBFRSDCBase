@@ -301,3 +301,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-24 M10: the AT-AT head's real trigger (60 m, 12.5 degrees, 2.34 s on, 4.69 s off) read live and ported - owner changes 2 / 3 / 7 over 6.5 min (original 2-3).
 - 2026-11-24 M10: the AT-AT head is the soldiers' fight node (read live); its pick ported as the 55 m soldier sensor; six seeds give owner changes 2-8, first capture 70-124 s.
 - 2026-11-24 M10: original baseline over 5 runs - 0-7 owner changes, first change 87-300 s or none; Aurek's counts overlap, its first capture is early and its Empire loses too few tickets.
+- 2026-11-24 M10: capture radius 5 m confirmed in the binary; the original's early fall of 100006 came from one mounted soldier, while Aurek's Empire infantry arrives on foot in numbers from ~70 s.
