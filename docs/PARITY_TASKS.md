@@ -2063,6 +2063,8 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 (2026-11-24): the AT-AT head runs the soldiers' fight node 0x457 (its triggers from 089514C8); pick ported as the soldier
     sensor's 55 m. Outcomes are seed-dominated now (six seeds: owner changes 2-8, first capture 70-124 s); a fair comparison needs
     more seeds of the original too (only 2-3 runs measured: 2-3 changes, 146-300 s).
+  - M10 (2026-11-24): original baseline widened (5 runs: 0-7 owner changes, first change 87-300 s or none, Empire tickets lost
+    56-78). Aurek overlaps on counts; still off: first capture always 70-124 s, Empire losses 20-55. Vary original runs by --spawn.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
