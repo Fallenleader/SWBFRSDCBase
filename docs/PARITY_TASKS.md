@@ -2099,6 +2099,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 (2026-11-24): 0x3F5 (089266D4) also comes from the commander (Empire squads to 100005). The order for 100009 in g0 is
     unexplained (no raid in the traced runs). Aurek's vehicle-wanter stops 5 m from its creature - the wait is original (no time
     limit), the stop distance is not explained.
+  - M10 (2026-11-24): raiders read and ported (0892745C: a unit with +329 - set when an AI gets out of a vehicle - sends its squad
+    to the nearest post its side does not hold). Next: the AI driver's goal (where the original's creature riders go and where they
+    get out: 30d48 drove past 100006 toward 100007) - the vehicle AI's node for a driver (goal kinds 08942448: 2 -> 0x486, 4 -> 0x455,
+    5 -> 0x450 ... ; the landing 0894B2C4) - then port in place of Aurek's 'nearest post not held'.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

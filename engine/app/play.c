@@ -606,7 +606,7 @@ placed:
     AK_VERBOSE("bot", "bot %u (team %d) spawns at %.1f %.1f %.1f", idx, b->team, pos[0], pos[1], pos[2]);
     b->alive = true; b->dead_t = 0; b->state = PLAY_IDLE; b->clip_t = rnd(&b->seed); b->land_t = 0; b->was_ground = true; b->idle_var = -1; b->idle_t = (rnd(&b->seed) + 0.5f) * 2.5f;
     b->rt_i = 0; b->rt_q = 0; b->rt_wait = -1; b->rt_on = b->uspawn >= 0 && (u32)b->uspawn < p->nuspawn && p->uspawn[b->uspawn].route;
-    b->goal = -1; b->link_goal = -1; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->fenemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
+    b->goal = -1; b->link_goal = -1; b->raider = false; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->fenemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
     b->stuck_t = 0; memcpy(b->stuck_pos, pos, 12); b->veh = b->want_veh = -1; b->rev_t = 0; b->vstucks = 0; b->veh_cool = 0;
     b->wants_veh = p->bot_drive > 0 && rnd(&b->seed) < p->bot_drive;   /* the spawner's chance (089800C8: random % 100 < +0xEC, 100 by default - 0897E594) */
     ak_target *t = &p->target[1 + idx];
@@ -1666,7 +1666,7 @@ static void bot_choose_goal(ak_play *p, ak_play_bot *b)
 {
     if (p->have_ctf && b->veh < 0 && bot_ctf_goal(p, b, (u32)(b - p->bot))) return;
     if (b->veh < 0 && b->want_veh < 0 && bot_take_vehicle(p, b)) return;
-    s32 best = -1; f32 bs = 1e30f;
+    s32 best = -1; f32 bs = 1e30f; bool raid = false;
     if (p->have_cq && p->cmd_on && !p->have_ctf && b->veh < 0) {
         /* (a driver is in no squad and is not held: it goes to a post as before - measured on the original, Boz Pity 2 min: bot-
            driven Carrion_Spat moved for 12-79 s at a time; Aurek's drivers had stood where they boarded for the whole match, 9 of
@@ -1676,6 +1676,21 @@ static void bot_choose_goal(ak_play *p, ak_play_bot *b)
            the Alliance's front post 100006, squads under 0x3F2 with no post (999) stood (median 0 m per 2 s, 126 samples), as did
            soldiers in no squad not wanting a vehicle (60) [assumed: they hold their spot; re-checked each second] */
         s32 k = b->squad >= 0 && b->squad < 64 && p->cmdr[b->team & 1].planned ? p->cmdr[b->team & 1].sq_post[(int)b->squad] : -1;
+        /* a squad with a dismounted soldier in it goes for the post nearest that soldier that its side does not hold (read: the
+           commander's update 0892745C, for each unit of its side on foot whose +329 is set - set with the vehicle wish when an AI
+           gets out (0894B2C4), cleared when it boards or dies - gives the unit's squad 0x3F2 (+76 = 1010) for 08926DF0(pos, 1): the
+           nearest post not its side's, no distance limit; seen live: the Imperial 30d9c, squadless by the Alliance's 100007, put in a
+           squad under 0x3F2 for 100007 at 92 s, which fell at 113 s with no commander order for it) [assumed: Aurek's raider flag is
+           set where its bots get out; the unit's vfunc +168 test not read] */
+        if (b->squad >= 0) for (u32 j = 0; j < p->nbots; j++) {
+            const ak_play_bot *o = &p->bot[j];
+            if (!o->alive || !o->raider || o->veh >= 0 || o->team != b->team || o->squad != b->squad) continue;
+            s32 nb = -1; f32 nd = 1e30f;
+            for (u32 i = 0; i < p->cq.nposts; i++) { if (p->match.post[i].owner == o->team || p->cq.post[i].disabled || p->cq.post[i].absent) continue;
+                f32 dx = p->cq.post[i].pos[0] - o->ch.pos[0], dz = p->cq.post[i].pos[2] - o->ch.pos[2]; if (dx * dx + dz * dz < nd) { nd = dx * dx + dz * dz; nb = (s32)i; } }
+            if (nb >= 0) { k = nb; raid = true; }   /* (no link walk: this order carries no link) */
+            break;
+        }
         if (k >= 0) best = k;
         else { b->goal = -2; b->holding = true; b->goal_t = 1.0f; memcpy(b->hold, b->ch.pos, 12); b->npath = b->path_i = 0; return; }
     }
@@ -1700,7 +1715,7 @@ static void bot_choose_goal(ak_play *p, ak_play_bot *b)
            RS_MOVE_LOG; its soldiers were seen on the link's waypoints (113.5, 118.7) / (48.9, 152.8)).  The own post: the nearest
            post to the soldier (08926DF0 not read) [assumed: the path runs through the waypoints in order, then to the post] */
         static int lw = -1; if (lw < 0) lw = ak_setting_int("AK_SQUAD_LINK_WAYPOINTS", 1);
-        if (lw && b->squad >= 0 && p->cmd_on) {
+        if (lw && b->squad >= 0 && p->cmd_on && !raid) {
             /* (read live, gdb on the soldier's node chain: the original's attackers standing at the link's far end run their top node
                0x3E8 (vtable 0x08AF8780, start 08938718) with its default child 1002 / 0x3EA - the stand-and-fight node holding the infantry
                fire node 0893F2F8 - not the move child 1001 that a 0x8035 makes; so the move along the link had ended there, and the
@@ -2865,7 +2880,7 @@ static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v)
     ak_vehicle *vh = &p->veh[v];
     vh->driver = (s32)(1 + idx); vh->aim_yaw = vh->aim_pitch = 0; vh->volley_t = 0;
     vh->team = b->team; vh->open = false; p->target[VT(p, v)].team = b->team;   /* (the vehicle takes its occupant's side, 089D29D8) */
-    b->veh = (s32)v; b->want_veh = -1; b->enemy = -1; b->rev_t = 0; b->vstuck_t = 0; b->vstucks = 0; b->run_t = 0;
+    b->veh = (s32)v; b->want_veh = -1; b->raider = false; b->enemy = -1; b->rev_t = 0; b->vstuck_t = 0; b->vstucks = 0; b->run_t = 0;
     memcpy(b->ch.pos, vh->pos, 12); memcpy(b->vstuck_pos, vh->pos, 12);
     b->fly_alt = vh->pos[1]; b->role = 0; b->role_obj = -1; b->role_leg = 0; b->fly_phase = 0; b->fly_t = rnd(&b->seed) * 2.0f;
     p->target[1 + idx].alive = false;                                         /* the soldier is inside: the vehicle is the target now */
@@ -2883,7 +2898,7 @@ static void bot_exit(ak_play *p, ak_play_bot *b, u32 idx)
     }
     ak_char_spawn(&b->ch, out, vh->yaw);
     vh->driver = -1; vh->open = true; vh->throttle = vh->steer = vh->strafe = 0; vh->brake = false;
-    b->veh = -1; b->veh_cool = 20.0f; b->wants_veh = true; b->state = PLAY_IDLE;   /* (out: wanting one again, 0894B2C4 case 4; the 20 s wait is Aurek's [assumed]) */ b->clip_t = 0; b->stuck_t = 0; memcpy(b->stuck_pos, out, 12);
+    b->veh = -1; b->veh_cool = 20.0f; b->wants_veh = true; b->raider = true; b->state = PLAY_IDLE;   /* (out: wanting one again, 0894B2C4 case 4 - which also sets the unit's +329, b->raider; the 20 s wait is Aurek's [assumed]) */ b->clip_t = 0; b->stuck_t = 0; memcpy(b->stuck_pos, out, 12);
     ak_target *t = &p->target[1 + idx]; t->alive = true; t->team = b->team;
     b->goal_t = 0; bot_choose_goal(p, b);                                      /* (keeps its goal post if still not held) */
     if (ak_setting_int("AK_DEBUG_BOTVEH", 0)) AK_INFO("botveh", "%.1f s: bot %u gets out of %s at %.0f %.0f %.0f (stucks %u)", p->clock, idx, vh->def->name, vh->pos[0], vh->pos[1], vh->pos[2], b->vstucks);
