@@ -176,7 +176,7 @@ static void hurt(ak_target *T, f32 dmg_inf, f32 dmg_veh, bool head, bool allow_h
        x0.5 (D_08AEEA10) when its own has Rally (vfunc +0x9C) - fixed factors, the Weapons' Damage_Multiplier / Damage_Reduction
        are not read (2.3p) */
     if (!T->vehicle) { if (rage) d *= 2.0f; if (T->rally) d *= 0.5f; }
-    {   static int lh2 = -1; if (lh2 < 0) lh2 = ak_setting_int("AK_LOG_HITS", 0); if (lh2 >= 2) AK_INFO("hit", "owner %d damage %.2f%s health %.1f -> %.1f", owner, d, head && allow_head && !T->vehicle ? " (head)" : "", T->health, T->health - d); }
+    {   static int lh2 = -1; if (lh2 < 0) lh2 = ak_setting_int("AK_LOG_HITS", 0); if (lh2 >= 2) AK_INFO("hit", "owner %d damage %.2f%s health %.1f -> %.1f at %.1f %.1f team %d", owner, d, head && allow_head && !T->vehicle ? " (head)" : "", T->health, T->health - d, T->feet[0], T->feet[2], T->team); }
     T->health -= d; T->hits++;
     memcpy(T->last_hit_dir, dir, 12);
     if (T->health <= 0) { T->health = 0; T->alive = false; }

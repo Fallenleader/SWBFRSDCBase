@@ -295,3 +295,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-24 M10: the AT-AT now has its head's guns and fires them with nobody aboard, as the original (23 of 65 soldier hits in 54 s); soldier hits a minute 46 (original 43, before 16).
 - 2026-11-24 M10: measured - Empire losses are the bleed, not kills; all early spawns at the front posts in both games; the AT-AT walks the same line, Aurek's ~6 s late; the gap left is the Empire reaching 100006's middle.
 - 2026-11-24 M10: arrival radius ruled out (leaders go to the posts exactly); the AT-AT start offset is a clock-zero question, left.
+- 2026-11-24 M10: the AT-AT's hits on 100006's defenders at 30-60 s are 2-3x the original's (total a minute equal); the turrets' burst rule on its head was tried and reverted (a third of the hits).

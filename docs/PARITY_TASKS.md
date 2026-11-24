@@ -2047,6 +2047,10 @@ textures and how they are used. Section R lists only what must be in place so th
     Aurek's AT_AT is made at its placed spot (game 143.7, 105.1) and walks 15 m to its path's first point (130.3, 114.5) by 10 s;
     the original's state.log has it at (130.3, 115.0) 10 drive frames after the match start - but M11 matched the path within
     0.7 m at 0 / 10 / 30 / 50 s, so the two clocks' zero (the spawn screen) is unsettled; not changed. AK_DEBUG_WALKER prints yaw.
+  - M10 (2026-11-24): the AT-AT's head is not on the turrets' burst rule (tried: a third of the original's hits). Its hits on
+    100006's defenders at 30-60 s are 2-3x the original's in Aurek; the original's land earlier and on soldiers in the open. Next:
+    the head's target choice (the 0x801E head's controller / sensor score 08960750) and whether Aurek's Alliance vehicle-wanters
+    walk east as the original's do.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
