@@ -1643,7 +1643,12 @@ static void squads_rebuild(ak_play *p)
     for (int t = 0; t < 2; t++) {
         u64 set = 0; u32 n = 0;
         for (u32 i = 0; i < p->nbots && i < 64; i++) { const ak_play_bot *b = &p->bot[i];
-            if (b->team != t || b->hero || b->pilot || b->wants_veh || b->want_veh >= 0 || b->veh >= 0) continue; set |= 1ull << i; n++; }
+            /* (a raider - out of a vehicle, wanting one again - is in a squad: measured on the original, Boz Pity c2 / r1 / h1 / g0, RS_AI_BOTS:
+               every squad member on foot had either flags +0xC8 bit 5 clear and +0x149 0, or bit 5 set with +0x149 (the raider byte) 1 -
+               Alliance 18-122 raider samples a run in squads, none with bit 5 and no +0x149) [assumed: which pass puts the raider in a
+               squad - 08926220 skips bit 5 - not read; AK_RAIDER_SQUADS=0 restores the old rule] */
+            static int rs = -1; if (rs < 0) rs = ak_setting_int("AK_RAIDER_SQUADS", 1);
+            if (b->team != t || b->hero || b->pilot || (b->wants_veh && !(rs && b->raider)) || b->want_veh >= 0 || b->veh >= 0) continue; set |= 1ull << i; n++; }
         if (set == last[t]) continue;
         last[t] = set;
         /* the squads re-formed: their orders lapse until the commander's next plan - measured on the original (Boz Pity, 2 min,
@@ -2887,7 +2892,7 @@ static bool bot_take_vehicle(ak_play *p, ak_play_bot *b)
     b->want_veh = best; b->goal = -1; b->holding = false; b->goal_t = 0;
     memcpy(b->hold, p->veh[best].pos, 12);
     bot_route(p, b, b->hold);
-    if (ak_setting_int("AK_DEBUG_BOTVEH", 0)) AK_INFO("botveh", "%.1f s: bot %d (team %d) heads for vehicle %d, %.0f m", p->clock, (int)(b - p->bot), b->team, best, sqrtf(bd));
+    if (ak_setting_int("AK_DEBUG_BOTVEH", 0)) AK_INFO("botveh", "%.1f s: bot %d (team %d) heads for vehicle %d, %.0f m (%s team %d%s at %.0f %.0f)", p->clock, (int)(b - p->bot), b->team, best, sqrtf(bd), p->veh[best].def->name, p->veh[best].team, p->veh[best].open ? " open" : "", p->veh[best].pos[0], -p->veh[best].pos[2]);
     return true;
 }
 

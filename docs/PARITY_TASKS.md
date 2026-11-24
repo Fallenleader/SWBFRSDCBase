@@ -2113,6 +2113,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - The hunt (M10, 2026-11-24): 0x3F0 = the commander's last squad sent at the lone enemy human (0892774C +164 / +172, 08927F14,
     089263D8); ported (AK_HUNT_SQUAD). Open: the byte 0x08B1B779 (assumed set in single player), which squad is "last" in Aurek's
     numbering, the 0x3F0 move's re-send rule (assumed 2.5 s), and the Alliance's vehicle overuse that leaves it no squads.
+  - Vehicle use (M10, 2026-11-24): raiders join squads (AK_RAIDER_SQUADS). Open: why Aurek's Alliance is aboard 55-67 % (the
+    original 11-42 %) - Aurek's bound bots die en route and the reservation frees at once; the original's runners survive. Next:
+    the bound unit's node (does it fight while running?), 089269AC's +228 bit 5 and seat vfuncs +232 / +236.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
