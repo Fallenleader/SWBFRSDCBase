@@ -53,7 +53,7 @@ typedef struct { f32 pos[3]; bool ammo; } ak_droid;   /* a health (class 0x800F)
 /* a post-to-post link (ENTI type 22, class 0x8016: the AI's link objects, list D_08C2A43C): the two posts (indices) and the weight the
    commander scores with (+164; the record's word 22 - 9 / 8 on Boz Pity) */
 #define AK_MAX_LINKS 32
-typedef struct { s32 a, b; f32 weight; } ak_post_link;
+typedef struct { s32 a, b; f32 weight; u32 nwp; f32 wp[8][3]; } ak_post_link;   /* wp: the link's waypoints from post a toward b (engine axes) */
 typedef struct { ak_post post[AK_MAX_POSTS]; u32 nposts; u32 nregions; u32 post_id[AK_MAX_POSTS]; u32 ticket_id;   /* ticket_id: the ticket entity (ENTI type 9) */
                  ak_post_link link[AK_MAX_LINKS]; u32 nlinks;
                  ak_vspawn_link vlink[AK_MAX_VSPAWN_LINKS]; u32 nvlink; ak_droid droid[AK_MAX_DROIDS]; u32 ndroid; } ak_conquest_map;

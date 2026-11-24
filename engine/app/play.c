@@ -1486,6 +1486,19 @@ static void bot_route(ak_play *p, ak_play_bot *b, const f32 *to)
     b->path_i = 0;
 }
 
+/* the way to `to` through `n` points first (each leg a navigation path between the points' nearest nodes, joined) */
+static void bot_route_via(ak_play *p, ak_play_bot *b, const f32 (*via)[3], u32 n, const f32 *to)
+{
+    s32 cur = ak_nav_nearest(&p->nav, b->ch.pos, 40.0f); u32 np = 0; f32 cost;
+    for (u32 k = 0; k <= n && cur >= 0; k++) {
+        s32 g = ak_nav_nearest(&p->nav, k < n ? via[k] : to, 40.0f); if (g < 0) continue;
+        u32 seg[128]; u32 ns = ak_nav_path(&p->nav, (u32)cur, (u32)g, 0, seg, 128, &cost, &p->scratch);
+        for (u32 i = (np && ns && b->path[np - 1] == seg[0]) ? 1 : 0; i < ns && np < 128; i++) b->path[np++] = seg[i];
+        cur = g;
+    }
+    b->npath = np; b->path_i = 0;
+}
+
 static bool bot_take_vehicle(ak_play *p, ak_play_bot *b);
 static void bot_drive(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx, f32 dt);
 static bool vehicle_exit_spot(const ak_play *p, const ak_vehicle *vh, f32 out[3]);
@@ -1675,6 +1688,21 @@ static void bot_choose_goal(ak_play *p, ak_play_bot *b)
     if (best >= 0) {
         f32 a = rnd(&b->seed) * 6.2831853f, r = rnd(&b->seed) * 3.0f;         /* a spot inside the capture radius */
         b->hold[0] = p->cq.post[best].pos[0] + cosf(a) * r; b->hold[1] = p->cq.post[best].pos[1]; b->hold[2] = p->cq.post[best].pos[2] + sinf(a) * r;
+        /* a squad sent by the commander goes along the post link from its own post (the original: 08926478 stores the chosen link at
+           squad +80, and the leader's move message 0x8035 to the post carries the link id - 100167 for 100005-100006 - as its node,
+           RS_MOVE_LOG; its soldiers were seen on the link's waypoints (113.5, 118.7) / (48.9, 152.8)).  The own post: the nearest
+           post to the soldier (08926DF0 not read) [assumed: the path runs through the waypoints in order, then to the post] */
+        static int lw = -1; if (lw < 0) lw = ak_setting_int("AK_SQUAD_LINK_WAYPOINTS", 1);
+        if (lw && b->squad >= 0 && p->cmd_on) {
+            s32 cur = -1; f32 cd = 1e30f;
+            for (u32 i = 0; i < p->cq.nposts; i++) { f32 dx = p->cq.post[i].pos[0] - b->ch.pos[0], dz = p->cq.post[i].pos[2] - b->ch.pos[2]; if (dx * dx + dz * dz < cd) { cd = dx * dx + dz * dz; cur = (s32)i; } }
+            for (u32 k = 0; cur >= 0 && cur != best && k < p->cq.nlinks; k++) {
+                const ak_post_link *L = &p->cq.link[k];
+                if (!L->nwp || !((L->a == cur && L->b == best) || (L->b == cur && L->a == best))) continue;
+                f32 via[8][3]; for (u32 w = 0; w < L->nwp; w++) memcpy(via[w], L->wp[L->a == cur ? w : L->nwp - 1 - w], 12);
+                bot_route_via(p, b, (const f32 (*)[3])via, L->nwp, b->hold); return;
+            }
+        }
     } else {                                                                 /* no posts (or none to take): roam */
         u32 n = (u32)(rnd(&b->seed) * p->nav.nnode) % p->nav.nnode; memcpy(b->hold, p->nav.node[n].pos, 12);
     }

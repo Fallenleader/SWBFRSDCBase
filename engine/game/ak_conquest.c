@@ -97,7 +97,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
     enum { MAXLOC = 512 }; static u32 lid[MAXLOC]; static f32 lpos[MAXLOC][4]; static bool lown[MAXLOC]; u32 nl = 0;
     static u32 link_id[AK_MAX_POSTS][AK_POST_LOCS]; static s32 link_w[AK_MAX_POSTS][AK_POST_LOCS]; u32 nlink[AK_MAX_POSTS];
     memset(nlink, 0, sizeof nlink);
-    static u32 link_a[128], link_b[128]; static f32 lnk_w[128]; u32 nlinks = 0;
+    static u32 link_a[128], link_b[128], lnk_n[128]; static f32 lnk_w[128], lnk_wp[128][8][3]; u32 nlinks = 0;
     ak_chunk c; u32 pos = 8;
     while (ak_asura_next(&l->file, &pos, &c)) {
         if (ak_chunk_tag(&c) != AK_TAG('E', 'N', 'T', 'I') || c.size < 12) continue;
@@ -138,6 +138,12 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
         } else if (type == 22 && c.size >= 22 * 4 && nlinks < 128) {         /* post-to-post links (words 20, 21: the two posts) */
             link_a[nlinks] = ak_rd32(c.body + 80); link_b[nlinks] = ak_rd32(c.body + 84);
             lnk_w[nlinks] = ak_rdf32(c.body + 88);        /* word 22: the weight (a float: 9.0 in record 100167, read live as the link object's +164) */
+            {   /* word 23: the waypoint count, words 24..: the waypoints (game axes) - from post a toward b (100005-100006: (113.5, 118.7),
+                   (48.9, 152.8)); the original's squads under 0x3F2 walk them (the leader's move message carries the link id 100167 as
+                   its node) */
+                u32 nw = c.size >= 24 * 4 ? ak_rd32(c.body + 92) : 0; if (nw > 8) nw = 8; lnk_n[nlinks] = 0;
+                for (u32 w = 0; w < nw && (24 + 3 * w + 3) * 4 <= c.size; w++) { f32 g[3] = { ak_rdf32(c.body + 96 + 12 * w), ak_rdf32(c.body + 100 + 12 * w), ak_rdf32(c.body + 104 + 12 * w) };
+                    ak_from_game(g, lnk_wp[nlinks][w]); lnk_n[nlinks]++; } }
             if (ak_setting_int("AK_DEBUG_POSTS", 0) > 1) { char b[1024]; int o = 0; for (u32 w = 0; w * 4 < c.size && w < 40 && o < 1000; w++) o += snprintf(b + o, sizeof b - o, " %u:%08x(%g)", w, ak_rd32(c.body + 4 * w), ak_rdf32(c.body + 4 * w)); AK_INFO("conquest", "link record%s", b); }
             nlinks++;
         } else if ((type == 15 || type == 16) && find_pos_quat(&c, gp, gq)) {
@@ -176,7 +182,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
         s32 a = -1, b = -1;
         for (u32 i = 0; i < out->nposts; i++) { if (out->post_id[i] == link_a[k]) a = (s32)i; if (out->post_id[i] == link_b[k]) b = (s32)i; }
         if (a >= 0 && b >= 0 && a < 32 && b < 32) { out->post[a].adj |= 1u << b; out->post[b].adj |= 1u << a;
-            if (out->nlinks < AK_MAX_LINKS) { ak_post_link *L = &out->link[out->nlinks++]; L->a = a; L->b = b; L->weight = lnk_w[k]; } }
+            if (out->nlinks < AK_MAX_LINKS) { ak_post_link *L = &out->link[out->nlinks++]; L->a = a; L->b = b; L->weight = lnk_w[k]; L->nwp = lnk_n[k]; memcpy(L->wp, lnk_wp[k], sizeof L->wp); } }
     }
     return out->nposts > 0;
 }
