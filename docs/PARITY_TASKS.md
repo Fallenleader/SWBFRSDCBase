@@ -2019,6 +2019,10 @@ textures and how they are used. Section R lists only what must be in place so th
     squads and squad-less soldiers standing). Ported: unplanned squads / squad-less soldiers hold their spot. 350 s: 9-13 changes
     (orig 2-3), Empire tickets -38..-61 (orig -56..-92), Alliance -13..-33 (orig -46..-62). Next: capture speed at a contested post
     (the original's 30 s contest and the drain with defenders present) and the vehicle-wanters' movement.
+  - Contested capture (2026-11-23, not yet found): peeking the five post objects' +0xB4..+0xC0 gave orientation values (not
+    the progress); the post update 089EC900 keeps its timer / progress on another object (its s1, +180; the participants' capture
+    rates at soldier +312). A pure-AI run of 180 s again had no owner change (tickets 80 / 85 at 180 s). Next: gdb on 089EC900
+    logging s1, s1+180 and the participants per post each second around the first capture (146-300 s).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

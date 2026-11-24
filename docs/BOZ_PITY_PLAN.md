@@ -287,3 +287,4 @@ Reports fall after M5, M10 and M15.
   the original's range; the Empire still takes its target too early (70-80 s vs 146-300 s). Report 4 next.
 - 2026-11-23 M10: unplanned squads and squad-less soldiers now stand as the original's; the Empire's losses moved into range
   (38-61 vs 56-92), captures still 9-13 vs 2-3. Next: capture speed at contested posts.
+- 2026-11-23 M10: the original's capture progress field not found by peeking (post +0xB4.. are orientation); next via gdb on 089EC900.
