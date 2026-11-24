@@ -2090,6 +2090,9 @@ textures and how they are used. Section R lists only what must be in place so th
     not follow the owner: the original's spawn-0 run lost and retook 100007 (Empire 92.9-116.9 s). Next: who took 100007 (an Empire
     squad under 0x3F2 for 100007 was seen in c1 at 60-90 s; Carrion riders?) and how the Empire's commander targets a post not
     linked to 100005 (the AT-AT's carried post 200007 / its links?). Redo the original baseline with post_states.py (spawn 1 / 2).
+  - M10 (2026-11-24): the Empire's raids on far posts come from lone vehicle-wanters who walk to Alliance creature spawns and
+    then, put in a squad there, take the nearby post (30d67: 0x3F2 then 0x3F5 for 100009). Read next: how 089279D4 / 08926478
+    assign a squad standing by a non-target post (its current post 08926DF0?) - then port.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

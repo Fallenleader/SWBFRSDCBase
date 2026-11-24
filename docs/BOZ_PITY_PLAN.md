@@ -307,3 +307,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-24 M10: the original's AT-AT body stays at its spawn spot and blocks no soldier; Aurek's walker no longer pushes the player. The attackers' stall is not collision.
 - 2026-11-24 M10: attacking squads stop at the link's far waypoint (read live) - Aurek now captures as rarely as the original's quietest run, but its Empire bleeds all match; the original's bleed pauses - next to trace.
 - 2026-11-24 M10: bleed rule read (matches); the original's live post states show the Empire raiding 100007 (not linked to its base) - the earlier record-word baseline was wrong; Aurek's tickets now fall inside the original's range.
+- 2026-11-24 M10: the original's far-post raids come from lone vehicle-wanting Imperials who walk to Alliance creature spawns, then are squaded and take the nearby post.
