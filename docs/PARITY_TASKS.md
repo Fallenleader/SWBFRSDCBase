@@ -2082,6 +2082,10 @@ textures and how they are used. Section R lists only what must be in place so th
     player. The attackers' stall at the link's far waypoint is not collision: next read what a 0x3F2 leader does at a waypoint
     (wait for members? the formation's 1 s re-slot, the 2.5 s restart) - gdb on 08931BAC with its caller to see when the leader
     is re-sent, or on the leader's path node 0893D4E8.
+  - M10 (2026-11-24): squads now stop at the link's far waypoint (read: the attackers' node chain is 0x3E8 -> 1002 stand-and-fight,
+    the move had ended). Aurek now captures nothing in 6.5 min (seeds 1-3) and the Empire bleeds ~103 tickets (original 56-78):
+    next find what pauses the original's bleed (b0: 50 s / 43 s / 56 s pauses with no 100005/100006 owner change) - gdb on the post
+    update 089EC900 to list the post objects, then peek every post's owner (+12), capturer (+176), contest (+180) and progress (+184).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

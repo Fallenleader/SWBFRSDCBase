@@ -606,7 +606,7 @@ placed:
     AK_VERBOSE("bot", "bot %u (team %d) spawns at %.1f %.1f %.1f", idx, b->team, pos[0], pos[1], pos[2]);
     b->alive = true; b->dead_t = 0; b->state = PLAY_IDLE; b->clip_t = rnd(&b->seed); b->land_t = 0; b->was_ground = true; b->idle_var = -1; b->idle_t = (rnd(&b->seed) + 0.5f) * 2.5f;
     b->rt_i = 0; b->rt_q = 0; b->rt_wait = -1; b->rt_on = b->uspawn >= 0 && (u32)b->uspawn < p->nuspawn && p->uspawn[b->uspawn].route;
-    b->goal = -1; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->fenemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
+    b->goal = -1; b->link_goal = -1; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->fenemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
     b->stuck_t = 0; memcpy(b->stuck_pos, pos, 12); b->veh = b->want_veh = -1; b->rev_t = 0; b->vstucks = 0; b->veh_cool = 0;
     b->wants_veh = p->bot_drive > 0 && rnd(&b->seed) < p->bot_drive;   /* the spawner's chance (089800C8: random % 100 < +0xEC, 100 by default - 0897E594) */
     ak_target *t = &p->target[1 + idx];
@@ -1701,15 +1701,28 @@ static void bot_choose_goal(ak_play *p, ak_play_bot *b)
            post to the soldier (08926DF0 not read) [assumed: the path runs through the waypoints in order, then to the post] */
         static int lw = -1; if (lw < 0) lw = ak_setting_int("AK_SQUAD_LINK_WAYPOINTS", 1);
         if (lw && b->squad >= 0 && p->cmd_on) {
+            /* (read live, gdb on the soldier's node chain: the original's attackers standing at the link's far end run their top node
+               0x3E8 (vtable 0x08AF8780, start 08938718) with its default child 1002 / 0x3EA - the stand-and-fight node holding the infantry
+               fire node 0893F2F8 - not the move child 1001 that a 0x8035 makes; so the move along the link had ended there, and the
+               order 0x3F2 re-sends 0x8035 only when its goal moves (2.5 s / 3 m) - the leader waits at the far waypoint until the squad
+               changes) [assumed: a move given a link node walks the link's waypoints and ends at the last; the squad's current post
+               (08926DF0) is the nearest post its side holds] */
+            if (b->link_goal == best && b->npath) { memcpy(b->hold, b->link_end, 12); return; }   /* the same order: no new move */
             s32 cur = -1; f32 cd = 1e30f;
-            for (u32 i = 0; i < p->cq.nposts; i++) { f32 dx = p->cq.post[i].pos[0] - b->ch.pos[0], dz = p->cq.post[i].pos[2] - b->ch.pos[2]; if (dx * dx + dz * dz < cd) { cd = dx * dx + dz * dz; cur = (s32)i; } }
+            for (u32 i = 0; i < p->cq.nposts; i++) { if (p->match.post[i].owner != b->team || p->cq.post[i].mobile || p->cq.post[i].absent || p->cq.post[i].disabled) continue;
+                f32 dx = p->cq.post[i].pos[0] - b->ch.pos[0], dz = p->cq.post[i].pos[2] - b->ch.pos[2]; if (dx * dx + dz * dz < cd) { cd = dx * dx + dz * dz; cur = (s32)i; } }
             for (u32 k = 0; cur >= 0 && cur != best && k < p->cq.nlinks; k++) {
                 const ak_post_link *L = &p->cq.link[k];
                 if (!L->nwp || !((L->a == cur && L->b == best) || (L->b == cur && L->a == best))) continue;
                 f32 via[8][3]; for (u32 w = 0; w < L->nwp; w++) memcpy(via[w], L->wp[L->a == cur ? w : L->nwp - 1 - w], 12);
-                bot_route_via(p, b, (const f32 (*)[3])via, L->nwp, b->hold); return;
+                memcpy(b->hold, via[L->nwp - 1], 12); memcpy(b->link_end, b->hold, 12);
+                bot_route_via(p, b, (const f32 (*)[3])via, L->nwp - 1, b->hold); b->link_goal = best;
+                if (ak_setting_int("AK_DEBUG_LINKS", 0)) AK_INFO("link", "%.1f s: bot %d (team %d, squad %d) to post %d along link %u, end %.0f %.0f, %u nodes", p->clock, (int)(b - p->bot), b->team, b->squad, best, k, b->hold[0], -b->hold[2], b->npath);
+                return;
             }
         }
+        if (ak_setting_int("AK_DEBUG_LINKS", 0) && b->link_goal >= 0) AK_INFO("link", "%.1f s: bot %d off its link (goal %d)", p->clock, (int)(b - p->bot), best);
+        b->link_goal = -1;
     } else {                                                                 /* no posts (or none to take): roam */
         u32 n = (u32)(rnd(&b->seed) * p->nav.nnode) % p->nav.nnode; memcpy(b->hold, p->nav.node[n].pos, 12);
     }

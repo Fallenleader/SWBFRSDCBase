@@ -97,7 +97,7 @@ typedef struct {                       /* a bot soldier */
     f32 respawn_t; bool respawn_set;   /* its spawner's timer (0897F158: 5-15 s), set when it falls */
     s32 idle_var; f32 idle_t, idle_vt;   /* an idle variation playing (-1 none), the wait before the next, its time */
     /* the mind */
-    s32 goal; s8 ctf_role; u32 path[128];   /* goal: a post, -1 none, -2 a CTF goal; ctf_role: 1 attack, 0 guard, -1 not chosen (each life) */ u32 npath, path_i; f32 hold[3]; bool holding;
+    s32 goal, link_goal; f32 link_end[3]; s8 ctf_role; u32 path[128];   /* goal: a post, -1 none, -2 a CTF goal; ctf_role: 1 attack, 0 guard, -1 not chosen (each life) */ u32 npath, path_i; f32 hold[3]; bool holding;
     ak_ai_fire fire_ai;   /* the AI's trigger on foot (ak_weapon.h: 40 m, 7.5 degrees across the ground) */
     /* the fire node's shooting on foot (traced: 0893F2F8 -> 08934D40 / 08934E38 -> 08935638 ..., sub-object node +32): the pause
        left (2.0 s when the node is made, 08934D24), whether a burst has been asked since (+8), the shots still asked (weapon +296,
