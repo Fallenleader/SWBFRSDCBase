@@ -2060,6 +2060,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 (2026-11-24): the AT-AT head's trigger read live (60 m, 12.5 degrees, 2.34375 s burst, 4.6875 s pause) and ported.
     Hits now fewer than the original's (about 14 vs 25 a minute; the original's land early) - the head's pick and aim remain
     Aurek's own. The Empire still bleeds little (2-6 tickets in 6.5 min vs 56-92): the Alliance does not hold 4 posts long enough.
+  - M10 (2026-11-24): the AT-AT head runs the soldiers' fight node 0x457 (its triggers from 089514C8); pick ported as the soldier
+    sensor's 55 m. Outcomes are seed-dominated now (six seeds: owner changes 2-8, first capture 70-124 s); a fair comparison needs
+    more seeds of the original too (only 2-3 runs measured: 2-3 changes, 146-300 s).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

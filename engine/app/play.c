@@ -4666,7 +4666,12 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                                        own aim - the nearest enemy in range within the head's reach, 1 rad/s - the gun object's AI not read;
                                        Hoth's walkers not measured] */
                 static s32 cached[PLAY_MAX_VEH]; static f32 next[PLAY_MAX_VEH];   /* (looked for every half second) */
-                if ((next[v] -= dt) <= 0) { next[v] = 0.5f; cached[v] = find_enemy(p, vh->team, vh->pos, vh->yaw, vh->def->hover + vh->def->height * 0.8f, vh->def->target_range > 0 ? vh->def->target_range : 100.0f, true); }
+                if ((next[v] -= dt) <= 0) { next[v] = 0.5f; { /* the head's AI is the soldiers' fight node 0x457 (gdb: its triggers are built by 089514C8 under 08955410 <- 089528F8 / 089526EC,
+                       node 0x457's switch / update), whose target is the soldier sensor's record - 55 m x 1.0, +-45 degrees about the
+                       facing (see bot_find_enemy) [assumed: the head's sensor faces the head's aim; Aurek's nearest within it] */
+                    static int hs = -1; if (hs < 0) hs = ak_setting_int("AK_WALKER_HEAD_SENSOR", 1);
+                    cached[v] = hs ? find_enemy(p, vh->team, vh->pos, vh->yaw + vh->aim_yaw, vh->def->hover + vh->def->height * 0.8f, 55.0f * p->sense_mult, false)
+                                   : find_enemy(p, vh->team, vh->pos, vh->yaw, vh->def->hover + vh->def->height * 0.8f, vh->def->target_range > 0 ? vh->def->target_range : 100.0f, true); } }
                 s32 e = cached[v]; if (e >= 0 && !p->target[e].alive) e = cached[v] = -1;
                 if (ak_setting_int("AK_DEBUG_WALKER_GUNS", 0) && (int)(p->clock * 2) != (int)((p->clock - dt) * 2)) AK_INFO("veh", "%.1f s: walker %u team %d driver %d armed %d range %.0f enemy %d", p->clock, v, vh->team, vh->driver, vh->def->armed, vh->def->target_range, e);
                 if (e >= 0 && vh->def->armed) {
