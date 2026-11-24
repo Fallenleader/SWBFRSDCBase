@@ -2042,6 +2042,11 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 (2026-11-24): the Empire's ticket loss is the bleed (only 10 hits on Empire soldiers in 54 s); fix the early capture and
     it follows. Next trace: the move order 0x8035's arrival radius (08931BAC sends it; the original's Empire leaders stopped 8-11 m
     from 100006) and the AT-AT's ~6 s later start in Aurek.
+  - M10 (2026-11-24): the move order's arrival is not the cause - already settled 2026-11-21 (RS_MOVE_LOG): leaders are sent
+    to the posts exactly; 08931BAC packs the 0x8035 message as position + flag byte + node id, no radius. The AT-AT "6 s late":
+    Aurek's AT_AT is made at its placed spot (game 143.7, 105.1) and walks 15 m to its path's first point (130.3, 114.5) by 10 s;
+    the original's state.log has it at (130.3, 115.0) 10 drive frames after the match start - but M11 matched the path within
+    0.7 m at 0 / 10 / 30 / 50 s, so the two clocks' zero (the spawn screen) is unsettled; not changed. AK_DEBUG_WALKER prints yaw.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
