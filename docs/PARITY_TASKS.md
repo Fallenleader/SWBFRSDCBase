@@ -2093,6 +2093,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 (2026-11-24): the Empire's raids on far posts come from lone vehicle-wanters who walk to Alliance creature spawns and
     then, put in a squad there, take the nearby post (30d67: 0x3F2 then 0x3F5 for 100009). Read next: how 089279D4 / 08926478
     assign a squad standing by a non-target post (its current post 08926DF0?) - then port.
+  - M10 (2026-11-24): commander orders only target / front posts (read live); far posts fall to squadless vehicle-wanters.
+    Aurek's Empire vehicle-wanter stalls 26 m short of the Alliance's Carrion_Spat by 100007 (seed 3, 170 s) - next: fix that walk
+    (navigation / the vehicle's spot) and check that a soldier standing at an enemy post captures it.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
