@@ -289,3 +289,4 @@ Reports fall after M5, M10 and M15.
   (38-61 vs 56-92), captures still 9-13 vs 2-3. Next: capture speed at contested posts.
 - 2026-11-23 M10: the original's capture progress field not found by peeking (post +0xB4.. are orientation); next via gdb on 089EC900.
 - 2026-11-23 M9/M10: capture rules confirmed identical to the original's (code and live values); the capture gap is in the AI.
+- 2026-11-23 M10: drivers no longer stand all match (they had been held by the commander's hold); cross-side Carrion_Spat reservations as the original; re-formed squads' orders lapse - captures 5 / 3 / 10 over ~6 min (before 9-13, the original 2-3).

@@ -2026,6 +2026,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - Capture rules (2026-11-23): 089EC900 read - contest 30 s -> nobody, rate sum (bots 1.0, player 0.5) held to 5, amounts 30 / 10
     (live); Aurek identical. The capture-rate gap is in the AI (who reaches the post, how long they live). Next: count the Empire's
     soldiers within 5 m of 100006 in the original and in Aurek over time (RS_AI_BOTS / AK_DEBUG_BOTS), and the Alliance defenders'.
+  - M10 (2026-11-23): drivers were held by the commander's "hold" (Aurek's bot-driven vehicles never moved) - fixed; soldiers
+    may reserve the other side's unboarded vehicle of their side's kind (the original's Carrion_Spat, measured). Open: the seat
+    test 089269AC, the driver's goal, why the original's first capture comes at 146-300 s (Aurek 87-101 s), the Empire's ticket
+    loss spread (Aurek 3-65, the original 56-92).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

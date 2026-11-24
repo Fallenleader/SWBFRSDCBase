@@ -192,8 +192,8 @@ void rs_ai_bots(unsigned fr){
         u32 sq = GU32(o + 0xE4); if (!gok(sq)) sq = 0;
         nb++; if (idle[k] >= 3) nidle++;
         if (idle[k] >= 3 || getenv("RS_AI_BOTS_ALL"))
-            fprintf(stderr, "[BOT] f%u goal %d id %x team %u pos %.0f %.0f %.0f moved %.1f idle %ds alive %d obj %08x squad %08x order %x post %u slot %u insq %u veh %x ctl %u fl %08x veh0 %x busy %u\n", fr, ai_goal(o), id,
-                GU32(o + 12), p[0], p[1], p[2], d, idle[k] * 2, alive, o, sq, sq ? GU32(sq + 0x4C) : 0, sq ? GU32(sq + 0x3C) : 0, GU32(o + 0xF0), GU8(o + 0xE8), GU32(o + 0xF8), GU32(o + 0x54), GU32(o + 0xC8), GU32(o + 0xE0), GU8(o + 0x149));
+            fprintf(stderr, "[BOT] f%u goal %d id %x team %u pos %.0f %.0f %.0f moved %.1f idle %ds alive %d obj %08x squad %08x order %x post %u slot %u insq %u veh %x ctl %u fl %08x veh0 %x busy %u sq2a %u sq2c %u\n", fr, ai_goal(o), id,
+                GU32(o + 12), p[0], p[1], p[2], d, idle[k] * 2, alive, o, sq, sq ? GU32(sq + 0x4C) : 0, sq ? GU32(sq + 0x3C) : 0, GU32(o + 0xF0), GU8(o + 0xE8), GU32(o + 0xF8), GU32(o + 0x54), GU32(o + 0xC8), GU32(o + 0xE0), GU8(o + 0x149), sq ? GU8(sq + 0x2A) : 0, sq ? GU8(sq + 0x2C) : 0);
         if ((idle[k] >= 3 || getenv("RS_AI_BOTS_ALL")) && !sq) fprintf(stderr, "[BOT]    no squad: ctl %u flags %08x b0 %08x goal %d 149 %u\n", GU32(o + 0x54), GU32(o + 0xC8), GU32(o + 0xB0), ai_goal(o), GU8(o + 0x149)); }
     fprintf(stderr, "[BOT] f%u: %d soldiers, %d idle 6 s or more\n", fr, nb, nidle); }
 /* RS_DRIVE (hle.c) state report.  Every object the game made registers in its object hash (buckets at 0x08C2C200, mask 0x08C2C204 - 1;

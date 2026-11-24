@@ -288,6 +288,7 @@ static void heroes_drain(ak_play *p, f32 dt);
 static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak_blueprints *bp, ak_arena *a);
 static bool vehicle_make(ak_play *p, u32 v);
 static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v);
+static bool veh_seat_for(const ak_play *p, u32 v, int team);
 static f32 rnd(u32 *s) { *s = *s * 1664525u + 1013904223u; return (f32)(*s >> 8) / 16777216.0f; }
 static f32 wrap(f32 a) { while (a > 3.14159265f) a -= 6.2831853f; while (a < -3.14159265f) a += 6.2831853f; return a; }
 static bool ctf_carrying(const ak_play *p, s32 unit) { for (u32 f = 0; f < p->ctf_map.nflags; f++) if (p->ctf.flag[f].present && p->ctf.flag[f].carrier == unit) return true; return false; }
@@ -1614,6 +1615,11 @@ static void squads_rebuild(ak_play *p)
             if (b->team != t || b->hero || b->pilot || b->wants_veh || b->want_veh >= 0 || b->veh >= 0) continue; set |= 1ull << i; n++; }
         if (set == last[t]) continue;
         last[t] = set;
+        /* the squads re-formed: their orders lapse until the commander's next plan - measured on the original (Boz Pity, 2 min,
+           RS_AI_BOTS with the squads' +0x2A / +0x2C): Alliance squads under 0x3F2 with no post (999) stood near their front post for
+           73 of 2-second samples against 82 bound for the target [assumed: a re-formed squad's order resets - the reset itself not
+           read in 08926220] */
+        memset(p->cmdr[t].sq_post, -1, sizeof p->cmdr[t].sq_post);
         const u8 *row = sizes[n > 16 ? 16 : n]; u32 sq = 0, left = row[0], made = 0;
         for (u32 i = 0; i < p->nbots && i < 64; i++) { ak_play_bot *b = &p->bot[i]; if (b->team != t) continue;
             s8 was = b->squad;
@@ -1641,7 +1647,10 @@ static void bot_choose_goal(ak_play *p, ak_play_bot *b)
     if (p->have_ctf && b->veh < 0 && bot_ctf_goal(p, b, (u32)(b - p->bot))) return;
     if (b->veh < 0 && b->want_veh < 0 && bot_take_vehicle(p, b)) return;
     s32 best = -1; f32 bs = 1e30f;
-    if (p->have_cq && p->cmd_on && !p->have_ctf) {
+    if (p->have_cq && p->cmd_on && !p->have_ctf && b->veh < 0) {
+        /* (a driver is in no squad and is not held: it goes to a post as before - measured on the original, Boz Pity 2 min: bot-
+           driven Carrion_Spat moved for 12-79 s at a time; Aurek's drivers had stood where they boarded for the whole match, 9 of
+           its bots out of play [assumed: the driver's post choice - the vehicle AI's goal not read]) */
         /* the commander's post for the squad; a squad it has not planned for yet (formed since its last plan) and a soldier in no
            squad stand where they are until the next plan - measured on the original (Boz Pity, 3 min, RS_AI_BOTS): within 40 m of
            the Alliance's front post 100006, squads under 0x3F2 with no post (999) stood (median 0 m per 2 s, 126 samples), as did
@@ -2046,7 +2055,7 @@ static void bot_update(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 id
         /* the order's node (0x8037, vtable 0x08AF8860; update 0893EA50): it goes on while the vehicle lives and has a free seat
            for the soldier's side, and boards within 0.8 m of the vehicle's hull (a sweep test, 0884AC90) - no time limit (Aurek had
            given up after 25 s) [assumed: Aurek keeps its own reach, the vehicle's radius + 2.5 m] */
-        if (!vh->alive || vh->driver >= 0 || (vh->team != b->team && !vh->open)) { b->want_veh = -1; b->goal = -1; b->goal_t = 0; }
+        if (!vh->alive || vh->driver >= 0 || !veh_seat_for(p, (u32)b->want_veh, b->team)) { b->want_veh = -1; b->goal = -1; b->goal_t = 0; }
         else if (dx * dx + dz * dz < r * r && fabsf(vh->pos[1] - b->ch.pos[1]) < 4.0f) { bot_board(p, b, idx, (u32)b->want_veh); return; }
     }
     /* sight and the target, every frame as the game does (AK_BOT_SENSE_EVERY > 1 spreads it over frames for large bot counts) */
@@ -2774,7 +2783,7 @@ static bool bot_take_vehicle(ak_play *p, ak_play_bot *b)
     s32 best = -1; f32 bd = 1e30f;
     for (u32 v = 0; v < p->nveh; v++) {
         const ak_vehicle *vh = &p->veh[v];
-        if (!vh->def || !vh->alive || vh->driver >= 0 || !vh->def->drivable || p->vspawn[v].fixed || (vh->team != b->team && !vh->open)) continue;
+        if (!vh->def || !vh->alive || vh->driver >= 0 || !vh->def->drivable || p->vspawn[v].fixed || !veh_seat_for(p, v, b->team)) continue;
         f32 dx = vh->pos[0] - b->ch.pos[0], dy = vh->pos[1] - b->ch.pos[1], dz = vh->pos[2] - b->ch.pos[2], d2 = dx * dx + dy * dy + dz * dz;
         if (d2 >= bd) continue;
         bool taken = false;
@@ -2787,6 +2796,19 @@ static bool bot_take_vehicle(ak_play *p, ak_play_bot *b)
     bot_route(p, b, b->hold);
     if (ak_setting_int("AK_DEBUG_BOTVEH", 0)) AK_INFO("botveh", "%.1f s: bot %d (team %d) heads for vehicle %d, %.0f m", p->clock, (int)(b - p->bot), b->team, best, sqrtf(bd));
     return true;
+}
+
+/* whether a vehicle has a free seat for `team`'s soldiers: its own side's, one left empty (open), or an unboarded one the other side's
+   spawn made that is the same kind this side's would be (Boz Pity's Carrion_Spat, both sides' creature).  Measured on the original
+   (Boz Pity, 2 min, RS_AI_BOTS): Alliance soldiers reserved 30d49 and 30dd9, Carrion_Spat made at the Empire's 100005 (135 of
+   2-second samples), the Empire 30d52 / 30d4d / 30d9e made at Alliance posts (212) [assumed: the seat test is by the side's
+   vehicle kind - the seat table 089269AC reads was not followed] */
+static bool veh_seat_for(const ak_play *p, u32 v, int team)
+{
+    const ak_vehicle *vh = &p->veh[v];
+    if (vh->team == team || vh->open) return true;
+    const ak_play_vspawn *sp = &p->vspawn[v];
+    return team >= 0 && team < 2 && sp->def[team] >= 0 && vh->def == &p->vdef[sp->def[team]];
 }
 
 static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v)
