@@ -111,7 +111,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
             p->nev = ak_script_events(l, out->post_id[out->nposts - 1], 4, p->ev, 4);
             p->name = -1;                                                  /* the name (func 08A050C0: text index, table hash) */
             for (u32 q = 8; q + 4 <= c.size; q += 4) if (ak_rd32(c.body + q) == 0x3A6386FBu) { p->name = (s32)ak_rd32(c.body + q - 4); break; }
-            if (ak_setting_int("AK_DEBUG_POSTS", 0)) AK_INFO("conquest", "post %u at game %.1f %.1f %.1f", out->nposts - 1, gp[0], gp[1], gp[2]);
+
             /* the record's tail: owner, capture amount, flags, then the links (count, count x { id, kind }) */
             u32 n = c.size / 4; p->start_owner = AK_CQ_NEUTRAL; p->amount = 10.0f;
             for (u32 k = 0; k < 40; k++) {
@@ -128,6 +128,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
                 }
                 break;
             }
+            if (ak_setting_int("AK_DEBUG_POSTS", 0)) AK_INFO("conquest", "post %u (%u) at game %.1f %.1f %.1f: owner %d, amount %.1f", out->nposts - 1, out->post_id[out->nposts - 1], gp[0], gp[1], gp[2], p->start_owner, p->amount);
         } else if (type == 39 && c.size >= 24 && nl < MAXLOC) {
             u32 ver = ak_rd32(c.body + 8); f32 g[3] = { wf(c.body + 12), wf(c.body + 16), wf(c.body + 20) };
             lid[nl] = ak_rd32(c.body); ak_from_game(g, lpos[nl]); lpos[nl][3] = 0;

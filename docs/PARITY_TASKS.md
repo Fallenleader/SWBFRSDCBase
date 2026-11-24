@@ -2023,6 +2023,9 @@ textures and how they are used. Section R lists only what must be in place so th
     the progress); the post update 089EC900 keeps its timer / progress on another object (its s1, +180; the participants' capture
     rates at soldier +312). A pure-AI run of 180 s again had no owner change (tickets 80 / 85 at 180 s). Next: gdb on 089EC900
     logging s1, s1+180 and the participants per post each second around the first capture (146-300 s).
+  - Capture rules (2026-11-23): 089EC900 read - contest 30 s -> nobody, rate sum (bots 1.0, player 0.5) held to 5, amounts 30 / 10
+    (live); Aurek identical. The capture-rate gap is in the AI (who reaches the post, how long they live). Next: count the Empire's
+    soldiers within 5 m of 100006 in the original and in Aurek over time (RS_AI_BOTS / AK_DEBUG_BOTS), and the Alliance defenders'.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
