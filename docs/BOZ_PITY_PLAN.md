@@ -298,3 +298,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-24 M10: the AT-AT's hits on 100006's defenders at 30-60 s are 2-3x the original's (total a minute equal); the turrets' burst rule on its head was tried and reverted (a third of the hits).
 - 2026-11-24 M10: the turrets' target score on the AT-AT head tried - hits earlier like the original, but captures/tickets no better - reverted; the head's AI to be read.
 - 2026-11-24 M10: the AT-AT head fires bursts of 2-6 shots every 4.6-7.6 s in the original (measured); the player's heat on it was tried and reverted.
+- 2026-11-24 M10: the AT-AT head's real trigger (60 m, 12.5 degrees, 2.34 s on, 4.69 s off) read live and ported - owner changes 2 / 3 / 7 over 6.5 min (original 2-3).

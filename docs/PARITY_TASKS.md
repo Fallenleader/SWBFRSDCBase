@@ -2057,6 +2057,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 (2026-11-24): the AT-AT head's cadence measured (bursts of 2-6 shots, 4.6-7.6 s apart, ~48 shots a minute; shots via
     089BD8A8 -> 089C71EC). Heat tried and reverted. To port the cadence the head's fire input must be read: who sets the head's
     trigger flag read by 089C71EC (the driver controller found by 089D194C - an AI pilot's 08965A70?).
+  - M10 (2026-11-24): the AT-AT head's trigger read live (60 m, 12.5 degrees, 2.34375 s burst, 4.6875 s pause) and ported.
+    Hits now fewer than the original's (about 14 vs 25 a minute; the original's land early) - the head's pick and aim remain
+    Aurek's own. The Empire still bleeds little (2-6 tickets in 6.5 min vs 56-92): the Alliance does not hold 4 posts long enough.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

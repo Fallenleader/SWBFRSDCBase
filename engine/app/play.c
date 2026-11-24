@@ -4673,8 +4673,20 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
                     const ak_target *en = &p->target[e];
                     f32 ex = en->feet[0] - vh->pos[0], ez = en->feet[2] - vh->pos[2], want = wrap(atan2f(-ex, -ez) - vh->yaw);
                     vh->aim_yaw += clampf(clampf(want, -1.2f, 1.2f) - vh->aim_yaw, -1.0f * dt, 1.0f * dt);
-                    if (fabsf(want - vh->aim_yaw) < 0.25f) { f32 tg[3] = { en->feet[0], en->feet[1] + en->height * 0.5f, en->feet[2] }; vehicle_fire(p, m, v, tg, dt, false); }
-                    else vh->volley_t = 0;
+                    /* the head's trigger (read live, gdb on the AI trigger 08965A70, class 0x08AF97A8, Boz Pity): the trigger objects whose
+                       held state (+8 = 2) lines up with the head's shots (089BD8A8 -> 089C71EC) carry range^2 3600 (+16: 60 m), the cone's
+                       cosine 0.9763 (+20: 12.5 degrees), a burst of 2.34375 s (+28) and a pause of 4.6875 s (+32) times 0.9-1.1 (seen 4.32 -
+                       5.10); the bursts ended early - after 28-76 frames - when the target left the cone or range, so 2-6 shots.  A new
+                       trigger object starts with no pause [assumed: the cone is taken around the head's aim, as the turrets'] */
+                    {   ak_ai_fire *c = &vh->fire_ai; f32 hy = vh->yaw + vh->aim_yaw;
+                        f32 fx = -sinf(hy), fz = -cosf(hy), dl = sqrtf(ex * ex + ez * ez), dy = en->feet[1] - vh->pos[1];
+                        bool ok = ex * ex + dy * dy + ez * ez < 3600.0f && dl > 0 && (fx * ex + fz * ez) / dl > 0.97630f;
+                        c->t -= dt; bool fire = false;
+                        if (c->state != 2) { if (c->t <= 0 && ok) { c->state = 2; c->t = 2.34375f; fire = true; } }
+                        else if (c->t <= 0 || !ok) { c->state = 1; c->t = 4.6875f * (0.9f + 0.2f * rnd(&p->seed)); }
+                        else fire = true;
+                        if (fire) { f32 tg[3] = { en->feet[0], en->feet[1] + en->height * 0.5f, en->feet[2] }; vehicle_fire(p, m, v, tg, dt, false); }
+                        else vh->volley_t = 0; }
                 } else vh->volley_t = 0;
             }
             if (ak_setting_int("AK_DEBUG_VEH", 0) > 1 && (int)(p->clock / 2.0f) != (int)((p->clock - dt) / 2.0f))
