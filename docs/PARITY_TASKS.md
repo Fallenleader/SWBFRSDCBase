@@ -2086,6 +2086,10 @@ textures and how they are used. Section R lists only what must be in place so th
     the move had ended). Aurek now captures nothing in 6.5 min (seeds 1-3) and the Empire bleeds ~103 tickets (original 56-78):
     next find what pauses the original's bleed (b0: 50 s / 43 s / 56 s pauses with no 100005/100006 owner change) - gdb on the post
     update 089EC900 to list the post objects, then peek every post's owner (+12), capturer (+176), contest (+180) and progress (+184).
+  - M10 (2026-11-24): bleed rule read (= Aurek's). Live post states (post_states.py) replace the placed-record peeks, which do
+    not follow the owner: the original's spawn-0 run lost and retook 100007 (Empire 92.9-116.9 s). Next: who took 100007 (an Empire
+    squad under 0x3F2 for 100007 was seen in c1 at 60-90 s; Carrion riders?) and how the Empire's commander targets a post not
+    linked to 100005 (the AT-AT's carried post 200007 / its links?). Redo the original baseline with post_states.py (spawn 1 / 2).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
