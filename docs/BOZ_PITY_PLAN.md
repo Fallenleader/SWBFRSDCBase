@@ -313,3 +313,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-24 M10: raiders read live and ported - a dismounted soldier's squad goes for the nearest post its side does not hold; next the AI driver's own goal.
 - 2026-11-24 M10: ground vehicles are steered by their own AI pilot (not the rider's AI); their goal is the next thing to read.
 - 2026-11-24 M10: AI drivers' destinations read live and ported (random posts); raids on far posts now happen in Aurek; 100006 now falls neutral too readily.
+- 2026-11-24 M10: 200035 is the player; the Alliance's 0x3F0 squad hunts him (ported); 100006 holds longer; next: Aurek's Alliance rides vehicles far more than the original's.

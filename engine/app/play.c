@@ -1595,6 +1595,17 @@ static void commander_plan(ak_play *p, int team)
         }
     }
     s8 *sp = p->cmdr[team].sq_post; s8 old[64]; memcpy(old, sp, 64); memset(sp, -1, 64);
+    /* the hunt (read: 0892774C counts the units 089E3BD4 calls human, +172 the enemy's count with +164 the last one's id; 08927F14 is
+       true when that count is 1 and the byte 0x08B1B779 is set; then 089279D4 keeps the side's last squad (index count - 1) out of the
+       post draw (08927DF4) and gives it 0x3F0 on +164 (089263D8: +76 = 1008, +60 the id, +42 = 1, +80 = 999).  Measured on the original
+       (Boz Pity, the harness's idle Imperial player 200035 at its base): every run's Alliance had one squad under 0x3F0 on 200035,
+       walking from 100006 at the player and dying 29-69 m short of it)  [assumed: the byte 0x08B1B779 is set in single player (not
+       read - every single-player run hunted); Aurek's last squad is the highest-numbered one with a living leader] */
+    s8 ohunt = p->cmdr[team].hunt_sq; p->cmdr[team].hunt_sq = -1;
+    if (ak_setting_int("AK_HUNT_SQUAD", 1) && p->team == 1 - team)
+        for (u32 i = 0; i < p->nbots; i++) { const ak_play_bot *o = &p->bot[i];
+            if (o->team == team && o->alive && o->squad >= 0 && o->squad < 64 && o->squad > p->cmdr[team].hunt_sq && squad_leader(p, o) == (s32)i) p->cmdr[team].hunt_sq = o->squad; }
+    s8 hunt = p->cmdr[team].hunt_sq;
     s32 sent[32] = { 0 }; bool first = true;
     for (;;) {
         s32 best = -1; f32 bw = -10.0f;                                     /* D_08AED460 */
@@ -1603,7 +1614,7 @@ static void commander_plan(ak_play *p, int team)
         if (best < 0) break;
         s32 bs = -1; f32 bd = 1e30f; s32 size = 0;                          /* the free squad nearest the post (its leader) */
         for (u32 i = 0; i < p->nbots; i++) { const ak_play_bot *o = &p->bot[i];
-            if (o->team != team || o->squad < 0 || o->squad >= 64 || sp[(int)o->squad] >= 0 || squad_leader(p, o) != (s32)i) continue;
+            if (o->team != team || o->squad < 0 || o->squad >= 64 || sp[(int)o->squad] >= 0 || o->squad == hunt || squad_leader(p, o) != (s32)i) continue;
             f32 dx = o->ch.pos[0] - m->post[best].pos[0], dz = o->ch.pos[2] - m->post[best].pos[2], d = dx * dx + dz * dz;
             if (d < bd) { bd = d; bs = o->squad; } }
         if (bs < 0) break;
@@ -1611,12 +1622,12 @@ static void commander_plan(ak_play *p, int team)
         sp[bs] = (s8)best; sent[best] += size; first = false;
     }
     for (u32 i = 0; i < p->nbots; i++) { ak_play_bot *o = &p->bot[i];   /* leaders sent elsewhere re-choose */
-        if (o->team == team && o->squad >= 0 && o->squad < 64 && sp[(int)o->squad] != old[(int)o->squad] && squad_leader(p, o) == (s32)i) o->goal = -1; }
+        if (o->team == team && o->squad >= 0 && o->squad < 64 && (sp[(int)o->squad] != old[(int)o->squad] || (o->squad == hunt) != (o->squad == ohunt)) && squad_leader(p, o) == (s32)i) o->goal = -1; }
     p->cmdr[team].own = own; p->cmdr[team].foe = foe; p->cmdr[team].t = 0; p->cmdr[team].planned = true;
     {   static int dbg = -1; if (dbg < 0) dbg = ak_setting_int("AK_DEBUG_COMMANDER", 0);
         if (dbg) { char b[160] = ""; int l = 0; for (u32 k = 0; k < n && l < 140; k++) l += snprintf(b + l, sizeof b - l, " %u:%.2f%s", k, prio[k], targets >> k & 1 ? "t" : front >> k & 1 ? "f" : "");
                    char q[160] = ""; int ql = 0; for (int s2 = 0; s2 < 64 && ql < 140; s2++) if (sp[s2] >= 0) ql += snprintf(q + ql, sizeof q - ql, " sq%d->%d", s2, sp[s2]);
-                   AK_INFO("ai", "commander %d plan at %.1f s (tickets %d / %d):%s |%s", team, p->match.time, p->match.tickets[0], p->match.tickets[1], b, q); } }
+                   AK_INFO("ai", "commander %d plan at %.1f s (tickets %d / %d):%s |%s hunt sq%d", team, p->match.time, p->match.tickets[0], p->match.tickets[1], b, q, hunt); } }
 }
 /* squad membership (traced: the commander's update 0892774C calls 08926220 every frame - the side's units are counted, skipping those
    whose flags +0xC8 bit 5 is set (wanting a vehicle: the spawner's chance, cleared when 089269AC finds none), and the size row for the
@@ -1691,6 +1702,12 @@ static void bot_choose_goal(ak_play *p, ak_play_bot *b)
                 f32 dx = p->cq.post[i].pos[0] - o->ch.pos[0], dz = p->cq.post[i].pos[2] - o->ch.pos[2]; if (dx * dx + dz * dz < nd) { nd = dx * dx + dz * dz; nb = (s32)i; } }
             if (nb >= 0) { k = nb; raid = true; }   /* (no link walk: this order carries no link) */
             break;
+        }
+        if (!raid && b->squad >= 0 && b->squad == p->cmdr[b->team & 1].hunt_sq && p->cmdr[b->team & 1].planned) {
+            /* the hunting squad goes at the player (0x3F0 on its id); its goal moves with the player, so it is looked at again every
+               2.5 s [assumed: as the 0x3F2 order re-sends its move when the goal moves - 2.5 s / 3 m] */
+            memcpy(b->hold, p->ch.pos, 12); b->goal = -2; b->holding = false; b->goal_t = 2.5f; b->link_goal = -1;
+            bot_route(p, b, b->hold); return;
         }
         if (k >= 0) best = k;
         else { b->goal = -2; b->holding = true; b->goal_t = 1.0f; memcpy(b->hold, b->ch.pos, 12); b->npath = b->path_i = 0; return; }
@@ -2599,7 +2616,7 @@ static void vehicles_init(ak_play *p, const ak_level *l, const ak_model_set *m, 
 {
     p->in_veh = -1; p->in_turret = -1; p->fly_target = -1; p->fly_auto = false; p->cam_lock = false; p->veh_respawn = ak_setting_float("AK_VEHICLE_RESPAWN", 10.0f);   /* (the spawn records say 10 s) */   /* PARITY(3.5) */
     p->bot_drive = ak_setting_float("AK_BOT_VEHICLES", 1.0f);
-    p->cmd_on = ak_setting_int("AK_BOT_COMMANDER", 1) != 0; memset(p->cmdr, 0, sizeof p->cmdr);   /* the chance a spawned bot wants a vehicle (the spawner default 100 %, 0897E594) */
+    p->cmd_on = ak_setting_int("AK_BOT_COMMANDER", 1) != 0; memset(p->cmdr, 0, sizeof p->cmdr); p->cmdr[0].hunt_sq = p->cmdr[1].hunt_sq = -1;   /* the chance a spawned bot wants a vehicle (the spawner default 100 %, 0897E594) */
     if (!ak_setting_int("AK_VEHICLES", 1)) return;
     ak_entity_set es; size_t mark = a->used;
     if (!ak_entities_load(l, m, a, &es)) { a->used = mark; return; }

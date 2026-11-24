@@ -71,7 +71,8 @@ bool ak_entities_load(const ak_level *l, const ak_model_set *ms, ak_arena *a, ak
         #define F(i) wf(W(i))
         ak_entity *e = &out->e[out->n++]; memset(e, 0, sizeof *e);
         {   static int dt = -2; if (dt == -2) { const char *v = getenv("AK_DUMP_ENTI_TYPE"); dt = v ? atoi(v) : -1; }
-            if (dt >= 0 && (int)(W(1) & 0x7FFF) == dt) { char ln[2048]; int o = snprintf(ln, sizeof ln, "enti %x type %u words %u:", W(0), W(1) & 0x7FFF, nw);
+            static long di = -2; if (di == -2) { const char *v = getenv("AK_DUMP_ENTI_ID"); di = v ? strtol(v, NULL, 0) : -1; }
+            if ((dt >= 0 && (int)(W(1) & 0x7FFF) == dt) || (di >= 0 && W(0) == (u32)di)) { char ln[2048]; int o = snprintf(ln, sizeof ln, "enti %x type %u words %u:", W(0), W(1) & 0x7FFF, nw);
                 for (u32 k = 0; k < nw && k < 160 && o < (int)sizeof ln - 12; k++) o += snprintf(ln + o, sizeof ln - (size_t)o, " %08x", W(k));
                 AK_INFO("ent", "%s", ln); } }
         e->id = W(0); e->type = W(1) & 0x7FFF; e->flagged = (W(1) >> 15) & 1; e->modes = ak_enti_modes(b, c.size);

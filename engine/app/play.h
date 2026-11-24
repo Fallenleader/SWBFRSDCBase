@@ -226,7 +226,7 @@ typedef struct {
     ak_cq_rules rules; ak_conquest match; int team_faction[2];
     /* the AI commanders (traced 089279D4 / 08928020 / 08928170 / 089284B4 / 08928980): per side, the time since its plan, the masks it
        planned with, and the post each squad was given (-1 none) */
-    struct { f32 t; u32 own, foe; s8 sq_post[64]; bool planned; } cmdr[2]; bool cmd_on;
+    struct { f32 t; u32 own, foe; s8 sq_post[64]; s8 hunt_sq; bool planned; } cmdr[2]; bool cmd_on;
     struct { bool done; int winner_faction; int left[2]; } gc_result;   /* a Galactic Conquest battle's end (5.4): the winning faction
                                                                        (-1 a draw) and the tickets each faction class has left (08972658) */
     ak_script script; bool have_script;   /* the level script (game/ak_script.h) */

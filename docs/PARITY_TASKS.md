@@ -2110,6 +2110,9 @@ textures and how they are used. Section R lists only what must be in place so th
     posts) and ported as a random post; raids on 100007 / 100009 now happen in Aurek. Off now: 100006 goes neutral at 92-122 s
     and stays so (Empire bleed stops: 24-34 lost vs 56-117) - next: who neutralizes it (raiders sent there? the random drivers
     picking 100006) and the 0x420 draw itself (read 0x420's builder / update for the post choice).
+  - The hunt (M10, 2026-11-24): 0x3F0 = the commander's last squad sent at the lone enemy human (0892774C +164 / +172, 08927F14,
+    089263D8); ported (AK_HUNT_SQUAD). Open: the byte 0x08B1B779 (assumed set in single player), which squad is "last" in Aurek's
+    numbering, the 0x3F0 move's re-send rule (assumed 2.5 s), and the Alliance's vehicle overuse that leaves it no squads.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
