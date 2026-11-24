@@ -1682,8 +1682,9 @@ static void bot_choose_goal(ak_play *p, ak_play_bot *b)
            nearest post not its side's, no distance limit; seen live: the Imperial 30d9c, squadless by the Alliance's 100007, put in a
            squad under 0x3F2 for 100007 at 92 s, which fell at 113 s with no commander order for it) [assumed: Aurek's raider flag is
            set where its bots get out; the unit's vfunc +168 test not read] */
-        if (b->squad >= 0) for (u32 j = 0; j < p->nbots; j++) {
+        for (u32 j = 0; j < p->nbots; j++) {
             const ak_play_bot *o = &p->bot[j];
+            if (b->squad < 0 && o != b) continue;   /* (a raider in no squad yet: itself - the original's vehicle search finds none and puts it in a squad at once; Aurek's 20 s wait [assumed] would hold it) */
             if (!o->alive || !o->raider || o->veh >= 0 || o->team != b->team || o->squad != b->squad) continue;
             s32 nb = -1; f32 nd = 1e30f;
             for (u32 i = 0; i < p->cq.nposts; i++) { if (p->match.post[i].owner == o->team || p->cq.post[i].disabled || p->cq.post[i].absent) continue;
@@ -1693,6 +1694,18 @@ static void bot_choose_goal(ak_play *p, ak_play_bot *b)
         }
         if (k >= 0) best = k;
         else { b->goal = -2; b->holding = true; b->goal_t = 1.0f; memcpy(b->hold, b->ch.pos, 12); b->npath = b->path_i = 0; return; }
+    }
+    if (b->veh >= 0 && p->have_cq && ak_setting_int("AK_DRIVER_RANDOM_POST", 1)) {
+        /* a ground vehicle's AI pilot (read live, gdb sampling the pilot made by 08957080: node 0x420 -> 0x456 -> the move 0x480
+           to a post's approach point) drives to a post that looks drawn at random: the Empire's Carrion_Spat from its base went for
+           100007, 100007, 100009 and 100008 in three runs, the Alliance's for 100005 five times and for 100006 / 100007 / 100009
+           from their own posts - never the post it stood at [assumed: uniform over the other posts; the draw itself not read] */
+        s32 at = -1; f32 ad = 1e30f;
+        for (u32 i = 0; i < p->cq.nposts; i++) { if (p->cq.post[i].disabled || p->cq.post[i].absent || p->cq.post[i].mobile) continue;
+            f32 dx = p->cq.post[i].pos[0] - b->ch.pos[0], dz = p->cq.post[i].pos[2] - b->ch.pos[2]; if (dx * dx + dz * dz < ad) { ad = dx * dx + dz * dz; at = (s32)i; } }
+        u32 n = 0, c[AK_MAX_POSTS];
+        for (u32 i = 0; i < p->cq.nposts; i++) if (!p->cq.post[i].disabled && !p->cq.post[i].absent && !p->cq.post[i].mobile && (s32)i != at) c[n++] = i;
+        if (n) best = (s32)c[(u32)(rnd(&b->seed) * n) % n];
     }
     for (u32 i = 0; best < 0 && p->have_cq && i < p->cq.nposts; i++) {
         if (p->cq.post[i].disabled) continue;
@@ -3377,7 +3390,7 @@ static void bot_drive(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
                                                   d->target_range > 0 ? d->target_range : 100.0f, true);
         if (e != b->enemy) { if (e >= 0 && b->enemy < 0) b->react_t = 0.4f + rnd(&b->seed) * 0.4f; b->enemy = e; }
         bool held = b->goal >= 0 && p->match.post[b->goal].owner == b->team && p->match.post[b->goal].progress >= p->cq.post[b->goal].amount;
-        if (b->goal < 0 || (held && b->goal_t <= 0)) bot_choose_goal(p, b);
+        if (b->goal < 0 || (held && b->goal_t <= 0 && !ak_setting_int("AK_DRIVER_RANDOM_POST", 1))) bot_choose_goal(p, b);   /* (a random post may be its own: kept until reached) */
     }
     /* the way: route nodes (passed within the vehicle's size), then the post */
     f32 want[3]; bool last = b->path_i >= b->npath;

@@ -312,3 +312,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-24 M10: 0x3F5 comes from the commander too; Aurek's vehicle-wanter waits beside its creature as the original's can (no time limit) but stops 5 m short.
 - 2026-11-24 M10: raiders read live and ported - a dismounted soldier's squad goes for the nearest post its side does not hold; next the AI driver's own goal.
 - 2026-11-24 M10: ground vehicles are steered by their own AI pilot (not the rider's AI); their goal is the next thing to read.
+- 2026-11-24 M10: AI drivers' destinations read live and ported (random posts); raids on far posts now happen in Aurek; 100006 now falls neutral too readily.

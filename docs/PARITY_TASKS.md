@@ -2106,6 +2106,10 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 (2026-11-24): ground drivers are steered by the vehicle's AI pilot (riders have no goal node; exits via 089D11E4 in the
     vehicle update 089B5624). Next: sample the AI pilot's node chain for a ridden 0x801D (pilot from the vehicle: 08957080 builds
     it; its current node / goal point) the way node3.py sampled soldiers, to read where it drives and when it lets the rider out.
+  - M10 (2026-11-24): AI drivers' destinations read live (pilot node 0x420 -> 0x480 to a post's approach point; spread over the
+    posts) and ported as a random post; raids on 100007 / 100009 now happen in Aurek. Off now: 100006 goes neutral at 92-122 s
+    and stays so (Empire bleed stops: 24-34 lost vs 56-117) - next: who neutralizes it (raiders sent there? the random drivers
+    picking 100006) and the 0x420 draw itself (read 0x420's builder / update for the post choice).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
