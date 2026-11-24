@@ -2036,6 +2036,9 @@ textures and how they are used. Section R lists only what must be in place so th
     soldier deaths in 130 s, Aurek 9-11; Imperial hit rates half (Boba's rifle 13 % vs 28 %) or nil (pistol 0 vs 46 %). Next: the
     original's shot distances (ai_shots_by_bot.py's owner hook 089A8A98 logged nothing on 2026-11-24 - fix the owner mapping),
     the aim point's height and the cap, the 40 m soldier trigger record's use.
+  - M10 (2026-11-24): the AT-AT's head guns fire with nobody aboard (measured: 23 of 65 soldier hits in 54 s) - ported with
+    Aurek's own aim. Open: the head's AI (rate, reach, target choice), Hoth's walkers, the Empire's low ticket loss in 2 of 3 runs,
+    the first capture still early in 2 of 3 runs (58 / 66 s).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

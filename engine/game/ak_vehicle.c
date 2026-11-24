@@ -196,7 +196,11 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     d->turret_model = *tur ? ak_models_find(m, tur) : -1; d->turret_marker = ak_bp_string(o, "TurretMarker0", "tur");
     /* HardpointW1 names a Weapon (its "Projectile" is the LaserBolt; flyers: SpaceLasers_X_Wing -> SpaceLasers_Fighters) or, for some
      * ground vehicles, the LaserBolt itself (the Weapon of the same name, where there is one, carries the timing) */
-    const char *hp = ak_bp_string(o, "HardpointW1", "");
+    /* a walker whose guns are on its head (the AT-AT: no HardpointW1 of its own; Turret0 "AT_AT_turret_01", a Turret blueprint with
+     * HardpointW1 TankLasers_ATAT on muz / muz01 and HardpointW2 Particle_Beam_ATAT on muz02): the head's hardpoints are the vehicle's */
+    const ak_bp_object *go = o;
+    if (!*ak_bp_string(o, "HardpointW1", "") && *tur) { const ak_bp_object *tb = ak_bp_find(bp, "Turret", tur); if (tb && *ak_bp_string(tb, "HardpointW1", "")) go = tb; }
+    const char *hp = ak_bp_string(go, "HardpointW1", "");
     const ak_bp_object *hw = *hp ? ak_bp_find(bp, "Weapon", hp) : NULL;
     d->armed = ak_weapon_def_bolt(bp, hw ? ak_bp_string(hw, "Projectile", hp) : hp, &d->gun) || ak_weapon_def_bolt(bp, hp, &d->gun);
     if (d->armed && hw) { d->gun.fire_snd = ak_bp_string(hw, "Fire Sound", NULL); d->gun.hud_icon = ak_bp_string(hw, "HUDIcon", NULL); ak_weapon_def_heat(hw, &d->gun); }   /* the hardpoint Weapon's "Fire Sound", "HUDIcon" */
@@ -204,9 +208,9 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
     static const char *tm[4] = { "HardpointW1Time1", "HardpointW1Time2", "HardpointW1Time3", "HardpointW1Time4" };
     f32 last = 0;
     for (int i = 0; i < 4; i++) {
-        const char *s = ak_bp_string(o, mk[i], "");
-        if (!*s || ak_model_marker(md, s) == NULL) continue;
-        d->muzzle[d->nmuzzles] = s; d->muzzle_time[d->nmuzzles] = ak_bp_float(o, tm[i], 0); if (d->muzzle_time[d->nmuzzles] > last) last = d->muzzle_time[d->nmuzzles];
+        const char *s = ak_bp_string(go, mk[i], "");
+        if (!*s || (ak_model_marker(md, s) == NULL && !(go != o && d->turret_model >= 0 && ak_model_marker(&m->models[d->turret_model], s)))) continue;
+        d->muzzle[d->nmuzzles] = s; d->muzzle_time[d->nmuzzles] = ak_bp_float(go, tm[i], 0); if (d->muzzle_time[d->nmuzzles] > last) last = d->muzzle_time[d->nmuzzles];
         d->nmuzzles++;
     }
     /* a volley every RateOfFire seconds (the Weapon's: tank lasers 0.25, fighters 0.3, TIE fighter 0.2, X-wing 2); each barrel is its own
@@ -214,10 +218,10 @@ bool ak_vehicle_def_load(const ak_blueprints *bp, const ak_model_set *m, const c
      * the cycle - the X-wing's 0 / .25 / .5 / .75 of 2 s fire a gun every 0.5 s.  [assumed: the phases hold while the trigger is held -
      * each weapon's wait runs down every frame (08A186EC) and is set back to RateOfFire as it fires (08A17C64)] */
     /* the secondary (HardpointW2) and the lock-on */
-    if (ak_secondary_load(bp, ak_bp_string(o, "HardpointW2", ""), &d->sec)) {
+    if (ak_secondary_load(bp, ak_bp_string(go, "HardpointW2", ""), &d->sec)) {
         static const char *mk2[4] = { "HardpointW2Marker1", "HardpointW2Marker2", "HardpointW2Marker3", "HardpointW2Marker4" };
         for (int i = 0; i < 4; i++) {
-            const char *s2 = ak_bp_string(o, mk2[i], "");
+            const char *s2 = ak_bp_string(go, mk2[i], "");
             if (*s2 && (ak_model_marker(md, s2) || (d->turret_model >= 0 && ak_model_marker(&m->models[d->turret_model], s2)))) d->sec_muzzle[d->nsec_muzzles++] = s2;
         }
     }
@@ -713,6 +717,18 @@ sample:;
 bool ak_vehicle_marker(const ak_vehicle *v, const ak_model_set *m, const char *name, f32 out[12])
 {
     const ak_marker *mk = ak_model_marker(&m->models[v->def->model], name);
+    if (!mk && v->def->turret_model >= 0 && strcmp(name, v->def->turret_marker)) {   /* a marker on the head (the AT-AT's muzzles): the head's
+                                                                                    marker on the body, then the head model's own [assumed: the head unturned] */
+        const ak_marker *hm = ak_model_marker(&m->models[v->def->turret_model], name); f32 T[12], L[12];
+        static const f32 I0[12] = { 1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0 };
+        if (!hm || !ak_vehicle_marker(v, m, v->def->turret_marker, T)) return false;
+        ak_marker_matrix(I0, hm, L);
+        for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 4; c++) out[r * 4 + c] = T[r * 4] * L[c] + T[r * 4 + 1] * L[4 + c] + T[r * 4 + 2] * L[8 + c];
+            out[r * 4 + 3] += T[r * 4 + 3];
+        }
+        return true;
+    }
     if (!mk) return false;
     static const f32 I[12] = { 1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0 };
     f32 L[12], M[12]; ak_marker_matrix(v->posed && mk->bone < 64 ? v->bones[mk->bone] : I, mk, L);

@@ -292,3 +292,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-23 M10: drivers no longer stand all match (they had been held by the commander's hold); cross-side Carrion_Spat reservations as the original; re-formed squads' orders lapse - captures 5 / 3 / 10 over ~6 min (before 9-13, the original 2-3).
 - 2026-11-24 M10: measured - creature drivers head for the enemy's held post (matches Aurek); the original's attackers rarely enter the 5 m capture radius (3 % vs Aurek 15-25 %) - the next thing to explain.
 - 2026-11-24 M10: squads go to the post's middle along weighted links (read); the real gap is lethality - the original kills about 3-4x as many soldiers (37 vs 9-11 in 130 s), the Empire's bots hit half as often.
+- 2026-11-24 M10: the AT-AT now has its head's guns and fires them with nobody aboard, as the original (23 of 65 soldier hits in 54 s); soldier hits a minute 46 (original 43, before 16).

@@ -1405,8 +1405,8 @@ bool ak_play_init(ak_play *p, const ak_level *l, const ak_model_set *m, const ak
     }
     for (u32 v = 0; v < p->nveh; v++) if (p->vspawn[v].first != (s32)v || p->vspawn[v].waiting || !vehicle_make(p, v)) {   /* (a spawn's further slots wait) */ p->veh[v].alive = false; p->veh[v].def = &p->vdef[p->vspawn[v].def[0] >= 0 ? p->vspawn[v].def[0] : p->vspawn[v].def[1]]; p->veh[v].dead_t = p->vspawn[v].respawn - 5.0f; p->target[VT(p, v)].alive = false; }
     if (ak_setting_int("AK_DEBUG_VEH", 0))
-        for (u32 v = 0; v < p->nveh; v++) AK_INFO("veh", "vehicle %u (%x): %s / %s, post %d, respawn %.1f s, %s%s", v + 1, p->vspawn[v].eid, p->vspawn[v].def[0] >= 0 ? p->vdef[p->vspawn[v].def[0]].name : "-",
-                                                p->vspawn[v].def[1] >= 0 ? p->vdef[p->vspawn[v].def[1]].name : "-", p->vspawn[v].post, p->vspawn[v].respawn, p->veh[v].alive ? "up" : "waiting", p->vspawn[v].fixed ? ", placed" : "");
+        for (u32 v = 0; v < p->nveh; v++) AK_INFO("veh", "vehicle %u (%x): %s / %s, post %d, respawn %.1f s, %s%s%s", v + 1, p->vspawn[v].eid, p->vspawn[v].def[0] >= 0 ? p->vdef[p->vspawn[v].def[0]].name : "-",
+                                                p->vspawn[v].def[1] >= 0 ? p->vdef[p->vspawn[v].def[1]].name : "-", p->vspawn[v].post, p->vspawn[v].respawn, p->veh[v].alive ? "up" : "waiting", p->vspawn[v].fixed ? ", placed" : "", p->veh[v].def && !p->veh[v].def->boardable ? ", not boardable" : "");
         if (ak_setting_int("AK_DEBUG_VEH", 0)) for (u32 v = 0; v < p->nveh; v++) {   /* (tests: where each stands, in game axes) */
             f32 g[3]; ak_from_game(p->vspawn[v].pos, g);   /* (the same flip both ways) */ AK_INFO("veh", "vehicle %u at %.2f %.2f %.2f, yaw %.3f", v + 1, g[0], g[1], g[2], p->vspawn[v].yaw); }
     /* placed craft in flight (space levels' type 13 flyers): in the original they fly from the first frame (harness state.log,
@@ -4658,11 +4658,17 @@ void ak_play_update(ak_play *p, const ak_model_set *m, const ak_input *in, f32 d
             }
         } else if (p->vspawn[v].route && vh->def->kind == AK_VEH_WALKER) {      /* a placed walker: along its path at its walking pace, then it stands */
             walker_route_step(p, v, dt);
-            if (p->auto_gunners) {   /* its guns with no gunner aboard: AK_AUTO_GUNNERS only (4.3b, not the original's - off by default): the nearest
-                                       enemy in its range within the head's reach */
+            static int wg = -1; if (wg < 0) wg = ak_setting_int("AK_WALKER_AI_GUNS", 1);
+            if ((p->auto_gunners || wg) && vh->driver < 0) {   /* its guns with no gunner aboard - measured on the original (Boz Pity, pure AI, gdb on
+                                       the hit 089A7310 with the attacker id in the hit record's word 1): the AT-AT's gun object 30d46 (class 0x801E)
+                                       hit soldiers 23 times in 54 s at 50-100 m with no soldier aboard (none of the [BOT] list rode it), so a
+                                       placed walker fires by itself (AK_WALKER_AI_GUNS=0: only with AK_AUTO_GUNNERS, as before) [assumed: Aurek's
+                                       own aim - the nearest enemy in range within the head's reach, 1 rad/s - the gun object's AI not read;
+                                       Hoth's walkers not measured] */
                 static s32 cached[PLAY_MAX_VEH]; static f32 next[PLAY_MAX_VEH];   /* (looked for every half second) */
                 if ((next[v] -= dt) <= 0) { next[v] = 0.5f; cached[v] = find_enemy(p, vh->team, vh->pos, vh->yaw, vh->def->hover + vh->def->height * 0.8f, vh->def->target_range > 0 ? vh->def->target_range : 100.0f, true); }
                 s32 e = cached[v]; if (e >= 0 && !p->target[e].alive) e = cached[v] = -1;
+                if (ak_setting_int("AK_DEBUG_WALKER_GUNS", 0) && (int)(p->clock * 2) != (int)((p->clock - dt) * 2)) AK_INFO("veh", "%.1f s: walker %u team %d driver %d armed %d range %.0f enemy %d", p->clock, v, vh->team, vh->driver, vh->def->armed, vh->def->target_range, e);
                 if (e >= 0 && vh->def->armed) {
                     const ak_target *en = &p->target[e];
                     f32 ex = en->feet[0] - vh->pos[0], ez = en->feet[2] - vh->pos[2], want = wrap(atan2f(-ex, -ez) - vh->yaw);
