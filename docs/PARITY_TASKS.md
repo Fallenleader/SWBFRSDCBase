@@ -2070,6 +2070,10 @@ textures and how they are used. Section R lists only what must be in place so th
     capture: does a rider count from the creature's position? not read]. Main gap: Aurek's Empire infantry reaches 100006 in
     numbers from ~70 s (1-2 within 5 m), the original's hardly ever - next: where the original's Empire squads are at 60-90 s
     (their orders: [BOT] order/post fields in /tmp/ad/c1, c2) against Aurek's commander plans at the same times.
+  - M10 (2026-11-24) KEY: the original's Empire squads under 0x3F2 for 100006 walk the 100005-100006 link's waypoints
+    ((113.5, 118.7) <-> (48.9, 152.8)) and stand at the far one; they seldom go to the post. Read the 0x3F2 update (08932300,
+    08931BAC's node argument t0 = the link? 0898D904) for the waypoint walk, the turn-back and the go-in rule, then port in
+    place of Aurek's straight-to-post goal.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
