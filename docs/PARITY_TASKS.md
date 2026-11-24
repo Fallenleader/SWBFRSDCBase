@@ -2030,6 +2030,8 @@ textures and how they are used. Section R lists only what must be in place so th
     may reserve the other side's unboarded vehicle of their side's kind (the original's Carrion_Spat, measured). Open: the seat
     test 089269AC, the driver's goal, why the original's first capture comes at 146-300 s (Aurek 87-101 s), the Empire's ticket
     loss spread (Aurek 3-65, the original 56-92).
+  - M10 (2026-11-24): the original's attackers stand within 5 m of 100006 for 3 % of their near samples (Aurek 15-25 %); find
+    why they stop short - the squad goal node for 0x3F2 (0898D4F0 with node +80) or stopping to fire - before touching the hold spot.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
