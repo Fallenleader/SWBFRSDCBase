@@ -2116,6 +2116,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - Vehicle use (M10, 2026-11-24): raiders join squads (AK_RAIDER_SQUADS). Open: why Aurek's Alliance is aboard 55-67 % (the
     original 11-42 %) - Aurek's bound bots die en route and the reservation frees at once; the original's runners survive. Next:
     the bound unit's node (does it fight while running?), 089269AC's +228 bit 5 and seat vfuncs +232 / +236.
+  - Correction (M10, 2026-11-24): the original's bound runners die en route as Aurek's do (dead units vanish from [BOT]); the gap
+    is time aboard. Next: per-vehicle timelines (reserve / board / exit / destroyed / respawn) for the Alliance's Carrions, original
+    vs Aurek; whether the original lets the Alliance take an empty AT-ST; the -229 -44 vehicle's kind.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
