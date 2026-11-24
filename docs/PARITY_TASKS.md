@@ -2103,6 +2103,9 @@ textures and how they are used. Section R lists only what must be in place so th
     to the nearest post its side does not hold). Next: the AI driver's goal (where the original's creature riders go and where they
     get out: 30d48 drove past 100006 toward 100007) - the vehicle AI's node for a driver (goal kinds 08942448: 2 -> 0x486, 4 -> 0x455,
     5 -> 0x450 ... ; the landing 0894B2C4) - then port in place of Aurek's 'nearest post not held'.
+  - M10 (2026-11-24): ground drivers are steered by the vehicle's AI pilot (riders have no goal node; exits via 089D11E4 in the
+    vehicle update 089B5624). Next: sample the AI pilot's node chain for a ridden 0x801D (pilot from the vehicle: 08957080 builds
+    it; its current node / goal point) the way node3.py sampled soldiers, to read where it drives and when it lets the rider out.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
