@@ -2078,6 +2078,10 @@ textures and how they are used. Section R lists only what must be in place so th
     attackers stall under the parked AT-AT at the far waypoint - next: the AT-AT's collision for soldiers (open item 'AT-AT leg
     collision': the shape list 0x08B3071C / 08A05F60; the original's player walks past the legs slowed) - port the walker's real
     shape so soldiers are blocked / slowed there as in the original.
+  - M10 (2026-11-24): AT-AT body measured - a box left at the spawn spot, not blocking soldiers; the walker no longer pushes the
+    player. The attackers' stall at the link's far waypoint is not collision: next read what a 0x3F2 leader does at a waypoint
+    (wait for members? the formation's 1 s re-slot, the 2.5 s restart) - gdb on 08931BAC with its caller to see when the leader
+    is re-sent, or on the leader's path node 0893D4E8.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

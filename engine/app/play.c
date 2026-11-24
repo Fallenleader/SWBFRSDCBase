@@ -169,7 +169,14 @@ static void bodies_push(ak_play *p, const ak_model_set *m)
         soldier_box(m, &p->look, ch, &me);
         for (u32 j = 0; j < p->nbots + p->nveh + p->nturret + p->nmover; j++) {
             if (j < p->nbots) { if (!p->target[1 + j].alive || p->bot[j].veh >= 0) continue; soldier_box(m, &p->bot[j].look, &p->bot[j].ch, &o); }
-            else if (j < p->nbots + p->nveh) { u32 v = j - p->nbots; if (!p->veh[v].alive) continue; vehicle_box(m, &p->veh[v], &o); }
+            else if (j < p->nbots + p->nveh) { u32 v = j - p->nbots; if (!p->veh[v].alive) continue;
+                /* a placed walker does not push soldiers - measured on the original (Boz Pity, RS_DRIVE_BODYID=30d44): the AT-AT's physics
+                   body (a 30.7 x 27.5 x 11.7 m box) stays where the walker was made (game 132.2, 1.0, 114.1) while the walker walks off,
+                   and soldiers walked through that box's footprint (33 of 4208 samples, RS_AI_BOTS) and stood under the parked walker;
+                   AK_WALKER_PUSH=1: the whole-box push as before [the slowdown the original's player feels by its legs: not traced] */
+                static int wp = -1; if (wp < 0) wp = ak_setting_int("AK_WALKER_PUSH", 0);
+                if (!wp && p->vspawn[v].fixed && p->veh[v].def && p->veh[v].def->kind == AK_VEH_WALKER) continue;
+                vehicle_box(m, &p->veh[v], &o); }
             else if (j >= p->nbots + p->nveh + p->nturret) mover_box(p, j - p->nbots - p->nveh - p->nturret, &o);
             else { const ak_turret *t = &p->turret[j - p->nbots - p->nveh]; if (!t->alive) continue; const f32 *mn, *mx; model_box(m, t->def->base, &mn, &mx); ak_box_place(&o, mn, mx, t->base); }
             if (!ak_box_push(&me, &o, push)) continue;

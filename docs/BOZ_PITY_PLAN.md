@@ -304,3 +304,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-24 M10: capture radius 5 m confirmed in the binary; the original's early fall of 100006 came from one mounted soldier, while Aurek's Empire infantry arrives on foot in numbers from ~70 s.
 - 2026-11-24 M10: KEY finding - the original's attacking squads walk the post link's waypoints and wait at the far end instead of entering the post; Aurek goes straight in. Next: read and port the 0x3F2 waypoint walk.
 - 2026-11-24 M10: squads route along the post link's waypoints (read live); the original's attackers stall under the parked AT-AT at the far waypoint - the AT-AT's soldier collision is next.
+- 2026-11-24 M10: the original's AT-AT body stays at its spawn spot and blocks no soldier; Aurek's walker no longer pushes the player. The attackers' stall is not collision.
