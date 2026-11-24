@@ -47,6 +47,8 @@ bool ak_weapon_def_load(const ak_blueprints *bp, const ak_model_set *models, con
     d->impact_pfx_dist = ak_bp_float(w, "impact pfx max dist", 100);
     d->passby = ak_bp_string(lb ? lb : w, "passby sound", "Projectile_Passby"); d->passby_range = ak_bp_float(lb ? lb : w, "passby range", 5.0f);
     ak_weapon_def_heat(w, d);
+    if (ak_setting_int("AK_DEBUG_WEAPON_DEF", 0)) AK_INFO("weapon", "%s: acc %.1f / %.1f, rof %.2f, per shot %u spread %.0f, burst %.2f, dmg %.0f, speed %.0f, range %.0f, dist %.0f, hitscan %d",
+                                                         d->name, d->ai_acc[0], d->ai_acc[1], d->rate_of_fire, d->per_shot, d->spread_deg, d->burst_time, d->dmg_infantry, d->speed, d->range, d->distance, d->hitscan);
     return true;
 }
 

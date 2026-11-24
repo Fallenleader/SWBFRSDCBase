@@ -2032,6 +2032,10 @@ textures and how they are used. Section R lists only what must be in place so th
     loss spread (Aurek 3-65, the original 56-92).
   - M10 (2026-11-24): the original's attackers stand within 5 m of 100006 for 3 % of their near samples (Aurek 15-25 %); find
     why they stop short - the squad goal node for 0x3F2 (0898D4F0 with node +80) or stopping to fire - before touching the hold spot.
+  - M10 (2026-11-24): the squad goal is the post's middle (08926478 / 0898D4F0 read); the gap is lethality - the original 37
+    soldier deaths in 130 s, Aurek 9-11; Imperial hit rates half (Boba's rifle 13 % vs 28 %) or nil (pistol 0 vs 46 %). Next: the
+    original's shot distances (ai_shots_by_bot.py's owner hook 089A8A98 logged nothing on 2026-11-24 - fix the owner mapping),
+    the aim point's height and the cap, the 40 m soldier trigger record's use.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

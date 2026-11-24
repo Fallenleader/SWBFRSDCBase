@@ -138,6 +138,7 @@ bool ak_conquest_load(const ak_level *l, ak_conquest_map *out)
         } else if (type == 22 && c.size >= 22 * 4 && nlinks < 128) {         /* post-to-post links (words 20, 21: the two posts) */
             link_a[nlinks] = ak_rd32(c.body + 80); link_b[nlinks] = ak_rd32(c.body + 84);
             lnk_w[nlinks] = ak_rdf32(c.body + 88);        /* word 22: the weight (a float: 9.0 in record 100167, read live as the link object's +164) */
+            if (ak_setting_int("AK_DEBUG_POSTS", 0) > 1) { char b[1024]; int o = 0; for (u32 w = 0; w * 4 < c.size && w < 40 && o < 1000; w++) o += snprintf(b + o, sizeof b - o, " %u:%08x(%g)", w, ak_rd32(c.body + 4 * w), ak_rdf32(c.body + 4 * w)); AK_INFO("conquest", "link record%s", b); }
             nlinks++;
         } else if ((type == 15 || type == 16) && find_pos_quat(&c, gp, gq)) {
             int t = type == 16; if (nsp[t] < 64) { ak_from_game(gp, sp[t][nsp[t]]); sp[t][nsp[t]][3] = yaw_of(gq); nsp[t]++; }
