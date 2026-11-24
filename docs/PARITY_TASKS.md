@@ -2054,6 +2054,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 (2026-11-24): the turrets' score on the AT-AT head tried and reverted (hit timing closer, outcomes not). The head's
     controller must be read rather than guessed: the 0x801E head object's update and its AI pilot (08957080 builds the vehicle
     sensor 0895FD14 for every vehicle's pilot) - find whether the Boz AT-AT head has a pilot and which node fires it.
+  - M10 (2026-11-24): the AT-AT head's cadence measured (bursts of 2-6 shots, 4.6-7.6 s apart, ~48 shots a minute; shots via
+    089BD8A8 -> 089C71EC). Heat tried and reverted. To port the cadence the head's fire input must be read: who sets the head's
+    trigger flag read by 089C71EC (the driver controller found by 089D194C - an AI pilot's 08965A70?).
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
