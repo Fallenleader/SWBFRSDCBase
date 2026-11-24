@@ -606,7 +606,7 @@ placed:
     AK_VERBOSE("bot", "bot %u (team %d) spawns at %.1f %.1f %.1f", idx, b->team, pos[0], pos[1], pos[2]);
     b->alive = true; b->dead_t = 0; b->state = PLAY_IDLE; b->clip_t = rnd(&b->seed); b->land_t = 0; b->was_ground = true; b->idle_var = -1; b->idle_t = (rnd(&b->seed) + 0.5f) * 2.5f;
     b->rt_i = 0; b->rt_q = 0; b->rt_wait = -1; b->rt_on = b->uspawn >= 0 && (u32)b->uspawn < p->nuspawn && p->uspawn[b->uspawn].route;
-    b->goal = -1; b->link_goal = -1; b->raider = false; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->fenemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
+    b->goal = -1; b->link_goal = -1; b->raider = false; b->park_t = 0; b->ctf_role = -1; b->npath = b->path_i = 0; b->holding = false; b->enemy = -1; b->fenemy = -1; b->nmem = 0; b->sense_dt = 0; b->think_t = rnd(&b->seed) * 0.3f; b->goal_t = 0;
     b->stuck_t = 0; memcpy(b->stuck_pos, pos, 12); b->veh = b->want_veh = -1; b->rev_t = 0; b->vstucks = 0; b->veh_cool = 0;
     b->wants_veh = p->bot_drive > 0 && rnd(&b->seed) < p->bot_drive;   /* the spawner's chance (089800C8: random % 100 < +0xEC, 100 by default - 0897E594) */
     ak_target *t = &p->target[1 + idx];
@@ -2915,7 +2915,7 @@ static void bot_board(ak_play *p, ak_play_bot *b, u32 idx, u32 v)
     ak_vehicle *vh = &p->veh[v];
     vh->driver = (s32)(1 + idx); vh->aim_yaw = vh->aim_pitch = 0; vh->volley_t = 0;
     vh->team = b->team; vh->open = false; p->target[VT(p, v)].team = b->team;   /* (the vehicle takes its occupant's side, 089D29D8) */
-    b->veh = (s32)v; b->want_veh = -1; b->raider = false; b->enemy = -1; b->rev_t = 0; b->vstuck_t = 0; b->vstucks = 0; b->run_t = 0;
+    b->veh = (s32)v; b->want_veh = -1; b->raider = false; b->park_t = 0; b->enemy = -1; b->rev_t = 0; b->vstuck_t = 0; b->vstucks = 0; b->run_t = 0;
     memcpy(b->ch.pos, vh->pos, 12); memcpy(b->vstuck_pos, vh->pos, 12);
     b->fly_alt = vh->pos[1]; b->role = 0; b->role_obj = -1; b->role_leg = 0; b->fly_phase = 0; b->fly_t = rnd(&b->seed) * 2.0f;
     p->target[1 + idx].alive = false;                                         /* the soldier is inside: the vehicle is the target now */
@@ -3427,8 +3427,20 @@ static void bot_drive(ak_play *p, const ak_model_set *m, ak_play_bot *b, u32 idx
         if (gx * gx + gz * gz < 12.0f * 12.0f) {
             const ak_post_state *ps = &p->match.post[b->goal];
             if (ps->owner != b->team || ps->progress < p->cq.post[b->goal].amount) { bot_exit(p, b, idx); return; }
-            if (b->goal_t <= 0) bot_choose_goal(p, b);
+            if (!ak_setting_int("AK_DRIVER_PARK_EXIT", 0) && b->goal_t <= 0) bot_choose_goal(p, b);
         }
+        /* at a post its side holds, the driver parks and gets out (measured on the original, Boz Pity c2 / r1 / h1 / g0 / o2,
+           RS_AI_BOTS with the vehicles' positions: the Alliance's drivers got out after 12-82 s aboard, 22 exits - 13 by a post their
+           side held (100006 / 100007, 5-86 m off, most at 26-31 m) after standing 6-12 s, the rest at the Empire's 100005 within 9 m)
+           [assumed: parked within 30 m of the goal post, out after 9 s standing - the pilot's own rule not read] */
+        static int pe = -1; if (pe < 0) pe = ak_setting_int("AK_DRIVER_PARK_EXIT", 0);
+        if (pe && gx * gx + gz * gz < 30.0f * 30.0f && p->match.post[b->goal].owner == b->team) {
+            if (b->park_t <= 0) b->park_t = 9.0f;
+            vh->steer = 0; vh->throttle = 0; vh->strafe = 0; vh->brake = true;
+            b->park_t -= dt; if (b->park_t <= 0.001f) { b->park_t = 0; bot_exit(p, b, idx); }
+            return;
+        }
+        b->park_t = 0;
     }
     f32 dyaw = dl > 0.5f ? wrap(atan2f(-dx, -dz) - vh->yaw) : 0;
     f32 thr = fabsf(dyaw) > 1.3f ? 0.25f : fabsf(dyaw) > 0.6f ? 0.6f : 1.0f;

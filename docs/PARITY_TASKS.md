@@ -2119,6 +2119,8 @@ textures and how they are used. Section R lists only what must be in place so th
   - Correction (M10, 2026-11-24): the original's bound runners die en route as Aurek's do (dead units vanish from [BOT]); the gap
     is time aboard. Next: per-vehicle timelines (reserve / board / exit / destroyed / respawn) for the Alliance's Carrions, original
     vs Aurek; whether the original lets the Alliance take an empty AT-ST; the -229 -44 vehicle's kind.
+  - Driver exits (M10, 2026-11-24): the original's drivers get out at held posts after parking 6-12 s (13 of 22); AK_DRIVER_PARK_EXIT
+    (off) tried it without a clear gain. Next: read the vehicle AI pilot's exit (node 0x420 / 0x456 children) instead of guessing.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes
