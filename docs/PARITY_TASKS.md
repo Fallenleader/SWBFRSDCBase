@@ -2039,6 +2039,9 @@ textures and how they are used. Section R lists only what must be in place so th
   - M10 (2026-11-24): the AT-AT's head guns fire with nobody aboard (measured: 23 of 65 soldier hits in 54 s) - ported with
     Aurek's own aim. Open: the head's AI (rate, reach, target choice), Hoth's walkers, the Empire's low ticket loss in 2 of 3 runs,
     the first capture still early in 2 of 3 runs (58 / 66 s).
+  - M10 (2026-11-24): the Empire's ticket loss is the bleed (only 10 hits on Empire soldiers in 54 s); fix the early capture and
+    it follows. Next trace: the move order 0x8035's arrival radius (08931BAC sends it; the original's Empire leaders stopped 8-11 m
+    from 100006) and the AT-AT's ~6 s later start in Aurek.
   - CTF traced (the rules above): flags are class 0x8019 spawners (ENTI type 25: team word after the mask block, 2 = the
     neutral flag of CTF1) that make a carried flag object (class 0x8018, 089F8238); bases are class 0x8017 (type 23: team, capture
     radius, 4-5 m).  Flag update 089F6658: picked up within 4 m (space 400) by a live soldier of another team (HCTF: any; heroes

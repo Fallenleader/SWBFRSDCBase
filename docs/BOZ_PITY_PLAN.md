@@ -293,3 +293,4 @@ Reports fall after M5, M10 and M15.
 - 2026-11-24 M10: measured - creature drivers head for the enemy's held post (matches Aurek); the original's attackers rarely enter the 5 m capture radius (3 % vs Aurek 15-25 %) - the next thing to explain.
 - 2026-11-24 M10: squads go to the post's middle along weighted links (read); the real gap is lethality - the original kills about 3-4x as many soldiers (37 vs 9-11 in 130 s), the Empire's bots hit half as often.
 - 2026-11-24 M10: the AT-AT now has its head's guns and fires them with nobody aboard, as the original (23 of 65 soldier hits in 54 s); soldier hits a minute 46 (original 43, before 16).
+- 2026-11-24 M10: measured - Empire losses are the bleed, not kills; all early spawns at the front posts in both games; the AT-AT walks the same line, Aurek's ~6 s late; the gap left is the Empire reaching 100006's middle.
